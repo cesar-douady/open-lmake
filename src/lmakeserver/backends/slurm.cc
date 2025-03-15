@@ -127,7 +127,7 @@ namespace Backends::Slurm {
 	,	::vector<ReqIdx> const&
 	,	int32_t                 nice
 	,	::vector_s       const& cmd_line
-	,	::vector<char*>  const& env
+	,	const char**            env
 	,	RsrcsData        const&
 	,	bool                    verbose
 	) ;
@@ -135,8 +135,8 @@ namespace Backends::Slurm {
 	constexpr Tag MyTag = Tag::Slurm ;
 
 	struct SlurmBackend
-	:	             GenericBackend<MyTag,SlurmId,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,SlurmId,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,'U'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/>
+	{	using Base = GenericBackend<MyTag,'U'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
@@ -192,15 +192,15 @@ namespace Backends::Slurm {
 				_s_slurm_cancel_thread.open('K',slurm_cancel) ;
 			}
 			//
-			for( char* kv : env ) delete[] kv ;
-			env.resize(env_.size()+1/*terminating empty*/) ;
-			for( size_t i : iota(env_.size()) ) {
-				::string kv = env_[i].first+"="+env_[i].second ;
-				env[i] = new char[kv.size()+1/*terminating null*/] ;
-				::memcpy( env[i] , kv.c_str() , kv.size()+1 ) ;
+			_slurm_env.reset(new const char*[env_.size()+1]) ;
+			{	size_t i = 0 ;
+				_slurm_env_vec.clear() ;
+				for( auto const& [k,v] : env_ ) {
+					_slurm_env_vec.push_back(k+'='+v) ;
+					_slurm_env[i++] = _slurm_env_vec.back().c_str() ;
+				}
+				_slurm_env[i] = "" ;                             // slurm env is terminated with an empty string, not a nullptr
 			}
-			env.back() = new char[1] ;
-			::memcpy( env.back() , "" , 1 ) ;
 			trace("done") ;
 		}
 
@@ -289,7 +289,7 @@ namespace Backends::Slurm {
 			}
 			info.first = "job is still alive" ;
 		JobDead :
-			if ( se.verbose && +info.first ) {                       // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
+			if ( se.verbose && +info.first ) {     // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
 				if (+stderr) info.first <<set_nl<< stderr ;
 			}
@@ -299,7 +299,7 @@ namespace Backends::Slurm {
 			::pair_s<Bool3/*job_ok*/> info = slurm_job_state(se.id) ;
 			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
-			if ( se.verbose && +info.first ) {                       // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
+			if ( se.verbose && +info.first ) {     // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
 				if (+stderr) info.first <<set_nl<< stderr ;
 			}
@@ -307,12 +307,12 @@ namespace Backends::Slurm {
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (se.live) _s_slurm_cancel_thread.push(se.id) ;        // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;                                        // asynchronous (as faster and no return value) cancel
 		}
-		virtual SlurmId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
+		virtual SpawnId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
-			nice &= 0x7fffffff ;                                                                               // slurm will not accept negative values, default values overflow in ... 2091
-			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , env , *se.rsrcs , se.verbose ) ;
+			nice &= 0x7fffffff ;                                                                        // slurm will not accept negative values, default values overflow in ... 2091
+			SlurmId id = slurm_spawn_job( st , repo_key , j , reqs , nice , cmd_line , _slurm_env.get() , *se.rsrcs , se.verbose ) ;
 			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,se.rsrcs,STR(se.verbose)) ;
 			return id ;
 		}
@@ -324,7 +324,9 @@ namespace Backends::Slurm {
 		bool                use_nice          = false ;
 		::string            repo_key          ;         // a short identifier of the repository
 		Daemon              daemon            ;         // info sensed from slurm daemon
-		::vector<char*>     env               ;
+	private :
+		::unique_ptr<const char*[]> _slurm_env     ;
+		::vector_s                  _slurm_env_vec ;
 	} ;
 
 	DequeThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
@@ -668,7 +670,7 @@ namespace Backends::Slurm {
 	,	::vector<ReqIdx> const& reqs
 	,	int32_t                 nice
 	,	::vector_s       const& cmd_line
-	,	::vector<char*>  const& env
+	,	const char**            env
 	,	RsrcsData        const& rsrcs
 	,	bool                    verbose
 	) {
@@ -698,7 +700,7 @@ namespace Backends::Slurm {
 			//
 			SlurmApi::init_job_desc_msg(&j) ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
-			/**/                     j.environment     = const_cast<char**>(env.data())                                ;
+			/**/                     j.environment     = const_cast<char**>(env)                                       ;
 			/**/                     j.env_size        = 1                                                             ;
 			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
 			/**/                     j.pn_min_memory   = r.mem                                                         ; //in MB

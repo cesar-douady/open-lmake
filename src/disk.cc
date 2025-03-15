@@ -504,13 +504,13 @@ namespace Disk {
 		//
 		::string_view tmp_dir_s = +_env->tmp_dir_s ? ::string_view(_env->tmp_dir_s) : ::string_view(P_tmpdir "/") ;
 		//
-		::vector_s    lnks          ;
-		::string      local_file[2] ;                                     // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
-		bool          ping          = false/*garbage*/ ;                  // ping-pong state
-		bool          exists        = true             ;                  // if false, we have seen a non-existent component and there cannot be symlinks within it
-		::string_view cur           = file             ;                  // points to the current file : input file or local copy local_file
-		size_t        pos           = file[0]=='/'     ;
-		::string      real          ;                    real.reserve(file.size()) ;        // canonical (link free, absolute, no ., .. nor empty component). Empty instead of '/'. Anticipate no link
+		SolveReport res           ;
+		::vector_s& lnks          = res.lnks         ;
+		::string  & real          = res.real         ;                    // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
+		::string    local_file[2] ;                                       // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
+		bool        ping          = false/*garbage*/ ;                    // ping-pong state
+		bool        exists        = true             ;                    // if false, we have seen a non-existent component and there cannot be symlinks within it
+		size_t      pos           = file[0]=='/'     ;
 		if (!pos) {                                                                         // file is relative, meaning relative to at
 			if      (at==Fd::Cwd) real = cwd()                                            ;
 			else if (pid        ) real = read_lnk(::string(ProcS      )+pid+"/fd/"+at.fd) ;
@@ -519,36 +519,37 @@ namespace Disk {
 			if (!real         ) return {} ;                                                 // user code might use the strangest at, it will be an error but we must support it
 			if (real.size()==1) real.clear() ;                                              // if '/', we must substitute the empty string to enforce invariant
 		}
+		real.reserve(real.size()+1+file.size()) ;                                           // anticipate no link
 		_Dvg in_repo  { _env->repo_root_s , real } ;                                        // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
 		_Dvg in_tmp   { tmp_dir_s         , real } ;                                        // keep track of where we are w.r.t. tmp        , always track symlinks
 		_Dvg in_admin { _admin_dir_s      , real } ;                                        // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
 		_Dvg in_proc  { ProcS             , real } ;                                        // keep track of where we are w.r.t. /proc      , always track symlinks
-		// loop INVARIANT : accessed file is real+'/'+cur.substr(pos)
-		// when pos>cur.size(), we are done and result is real
-		size_t   end       ;
-		int      n_lnks    = 0 ;
-		::string last_lnk  ;
+		// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
+		// when pos>file.size(), we are done and result is real
+		size_t   end      ;
+		int      n_lnks   = 0 ;
+		::string last_lnk ;
 		for (
-		;	pos <= cur.size()
-		;		pos = end+1
-			,	in_repo.update(_env->repo_root_s,real)                                      // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
-			,	in_tmp .update(tmp_dir_s        ,real)                                      // .
-			,	in_proc.update(ProcS            ,real)                                      // .
+		;	pos <= file.size()
+		;		pos = end + 1
+			,	in_repo.update( _env->repo_root_s , real )                                  // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
+			,	in_tmp .update( tmp_dir_s         , real )                                  // .
+			,	in_proc.update( ProcS             , real )                                  // .
 		) {
-			end = cur.find( '/', pos ) ;
+			end = file.find( '/' , pos ) ;
 			bool last = end==Npos ;
-			if (last    ) end = cur.size() ;
+			if (last    ) end = file.size() ;
 			if (end==pos) continue ;                                                        // empty component, ignore
-			if (cur[pos]=='.') {
-				if ( end==pos+1                    ) continue ;                             // component is .
-				if ( end==pos+2 && cur[pos+1]=='.' ) {                                      // component is ..
+			if (file[pos]=='.') {
+				if ( end==pos+1                     ) continue ;                            // component is .
+				if ( end==pos+2 && file[pos+1]=='.' ) {                                     // component is ..
 					if (+real) real.resize(real.rfind('/')) ;
 					continue ;
 				}
 			}
 			size_t prev_real_size = real.size() ;
-			real.push_back('/') ;
-			real.append(cur,pos,end-pos) ;
+			real.push_back('/')                ;
+			real.append(file,pos,end-pos)      ;
 			in_admin.update(_admin_dir_s,real) ;                                            // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
 			if ( !exists           ) continue       ;                                       // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
 			if ( no_follow && last ) continue       ;                                       // dont care about last component if no_follow
@@ -572,7 +573,7 @@ namespace Disk {
 				case LnkSupport::Full :           goto HandleLnk ;
 			DF}
 		HandleLnk :
-			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when cur is neither local_file's, any buffer is ok
+			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when file is neither local_file's, any buffer is ok
 			nxt = read_lnk(real) ;
 			if (!nxt) {
 				if (errno==ENOENT) exists = false ;
@@ -587,45 +588,39 @@ namespace Disk {
 				else          lnks.push_back( _env->src_dirs_s[src_idx] + (real.c_str()+_abs_src_dirs_s[src_idx].size()) ) ; // real lie in a source dir
 			}
 			if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;          // link loop detected, same check as system
-			if (!last             )   nxt << '/'<<(cur.data()+end+1) ;  // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
+			if (!last             )   nxt << '/'<<(file.data()+end+1) ; // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
 			if (nxt[0]=='/'       ) { end =  0 ; prev_real_size = 0 ; } // absolute link target : flush real
 			else                      end = -1 ;                        // end must point to the /, invent a virtual one before the string
 			real.resize(prev_real_size) ;                               // links are relative to containing dir, suppress last component
 			ping = !ping ;
-			cur  = nxt   ;
+			file = nxt   ;
 		}
 		// admin is in repo, tmp might be, repo root is in_repo
-		if (+in_tmp) //!                                                                                                                       file_accessed
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Tmp    } ;
-		if (+in_proc)
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Proc   } ;
-		if (+in_repo) {
-			if (real.size()<_repo_root_sz                                                               ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Ext    } ;
+		SWEAR( +in_admin <= +in_repo ) ;
+		if      (+in_tmp ) res.file_loc = FileLoc::Tmp  ;
+		else if (+in_proc) res.file_loc = FileLoc::Proc ;
+		else if ( +in_repo && real.size()>=_repo_root_sz ) {
 			real.erase(0,_repo_root_sz) ;
-			if ( +in_admin                                                                              ) return { ::move(real) , ::move(lnks) , No        , FileLoc::Admin  } ;
-			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::Repo   } ;
-			if ( _env->lnk_support>=LnkSupport::Full && real.find('/')!=Npos                            ) return { ::move(real) , ::move(lnks) , Maybe     , FileLoc::Repo   } ;
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Repo   } ;
+			/**/                                                                    res.file_loc      = FileLoc::Repo  ;
+			if      ( +in_admin                                                   ) res.file_loc      = FileLoc::Admin ;
+			else if ( _env->lnk_support>=LnkSupport::File && !no_follow           ) res.file_accessed = Yes            ;
+			else if ( _env->lnk_support>=LnkSupport::Full && real.find('/')!=Npos ) res.file_accessed = Maybe          ;
+		} else if ( size_t i=_find_src_idx(real) ; i!=Npos ) {
+			real = _env->src_dirs_s[i] + ::string_view(real).substr(_abs_src_dirs_s[i].size()) ;
+			/**/                                                                                               res.file_loc      = FileLoc::SrcDir ;
+			if      ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) res.file_accessed = Yes             ;
+			else if ( _env->lnk_support>=LnkSupport::Full && real.find('/',_env->src_dirs_s[i].size())!=Npos ) res.file_accessed = Maybe           ;
 		}
-		SWEAR(!in_admin) ;
-		if ( size_t i=_find_src_idx(real) ; i!=Npos ) {
-			real = _env->src_dirs_s[i] + (real.c_str()+_abs_src_dirs_s[i].size()) ;
-			if ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) return { ::move(real) , ::move(lnks) , Yes       , FileLoc::SrcDir } ;
-			if ( _env->lnk_support>=LnkSupport::Full && real.find('/',_env->src_dirs_s[i].size())!=Npos ) return { ::move(real) , ::move(lnks) , Maybe     , FileLoc::SrcDir } ;
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::SrcDir } ;
-		}
-		{
-			/**/                                                                                          return { ::move(real) , ::move(lnks) , No        , FileLoc::Ext    } ;
-		}
+		return res ;
 	}
 
 	::vmap_s<Accesses> RealPath::exec(SolveReport& sr) {
 		::vmap_s<Accesses> res ;
 		// from tmp, we can go back to repo
-		for( int i=0 ; i<=4 ; i++ ) {                                                        // interpret #!<interpreter> recursively (4 levels as per man execve)
+		for( int i=0 ; i<=4 ; i++ ) {                                                                          // interpret #!<interpreter> recursively (4 levels as per man execve)
 			for( ::string& l : sr.lnks ) res.emplace_back(::move(l),Accesses(Access::Lnk)) ;
 			//
-			if (sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp) break ;               // if we escaped from the repo, there is no more deps to gather
+			if ( sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp ) break ;                               // if we escaped from the repo, there is no more deps to gather
 			//
 			Accesses a = Access::Reg ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
@@ -636,10 +631,11 @@ namespace Disk {
 				size_t   eol    = hdr.find('\n')                      ; if    ( eol!=Npos                                             ) hdr.resize(eol) ;
 				size_t   pos1   = 2                                   ; while ( pos1<hdr.size() &&  (hdr[pos1]==' '||hdr[pos1]=='\t') ) pos1++ ;
 				size_t   pos2   = pos1                                ; while ( pos2<hdr.size() && !(hdr[pos2]==' '||hdr[pos2]=='\t') ) pos2++ ;
-				if (pos1!=pos2) sr = solve( hdr.substr(pos1,pos2-pos1) , false/*no_follow*/ ) ;                                                  // interpreter is first word
+				//
+				if (pos1!=pos2) sr = solve( ::string_view(hdr).substr(pos1,pos2-pos1) , false/*no_follow*/ ) ; // interpreter is first word
 				// recurse by looping
 			} catch (::string const&) {
-				break ;                 // if hdr_fd is not readable (e.g. it is a dir), do as if it did not exist at all
+				break ;                                                                                        // if hdr_fd is not readable (e.g. it is a dir), do as if it did not exist at all
 			}
 		}
 		return res ;

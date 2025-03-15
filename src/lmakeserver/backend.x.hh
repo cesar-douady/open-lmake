@@ -3,9 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "rpc_job.hh"
-
 #ifdef STRUCT_DECL
+
+#include "rpc_job.hh"
 
 // ENUM macro does not work inside namespace's
 
@@ -151,43 +151,48 @@ namespace Backends {
 		//
 		static Pdate s_submitted_eta(Req r) { return _s_workload.submitted_eta(r) ; }
 		// called by job_exec thread
-		static ::string/*msg*/          s_start    ( Tag , Job          ) ;                                             // called by job_exec  thread, sub-backend lock must have been takend by caller
-		static ::pair_s<bool/*retry*/>  s_end      ( Tag , Job , Status ) ;                                             // .
-		static void                     s_heartbeat( Tag                ) ;                                             // called by heartbeat thread, sub-backend lock must have been takend by caller
-		static ::pair_s<HeartbeatState> s_heartbeat( Tag , Job          ) ;                                             // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::string/*msg*/          s_start    ( Tag , Job          ) ;                                              // called by job_exec  thread, sub-backend lock must have been takend by caller
+		static ::pair_s<bool/*retry*/>  s_end      ( Tag , Job , Status ) ;                                              // .
+		static void                     s_heartbeat( Tag                ) ;                                              // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::pair_s<HeartbeatState> s_heartbeat( Tag , Job          ) ;                                              // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
-			s_tab[+t] = &be ;
+			s_tab[+t].reset(&be) ;
 		}
 	private :
-		static void            _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
-		static void            _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
-		static void            _s_heartbeat_thread_func ( ::stop_token                                              ) ;
-		static bool/*keep_fd*/ _s_handle_job_start      ( JobStartRpcReq&& , SlaveSockFd const& ={}                 ) ;
-		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq && , SlaveSockFd const& ={}                 ) ;
-		static bool/*keep_fd*/ _s_handle_job_end        ( JobEndRpcReq  && , SlaveSockFd const& ={}                 ) ;
-		static void            _s_handle_deferred_report( DeferredEntry&&                                           ) ;
-		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
+		static void            _s_kill_req               ( Req={}                                                    ) ; // kill all if req==0
+		static void            _s_wakeup_remote          ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
+		static void            _s_heartbeat_thread_func  ( ::stop_token                                              ) ;
+		static bool/*keep_fd*/ _s_handle_job_start       ( JobStartRpcReq&& , SlaveSockFd const& ={}                 ) ;
+		static bool/*keep_fd*/ _s_handle_job_mngt        ( JobMngtRpcReq && , SlaveSockFd const& ={}                 ) ;
+		static bool/*keep_fd*/ _s_handle_job_end         ( JobEndRpcReq  && , SlaveSockFd const& ={}                 ) ;
+		static void            _s_handle_deferred_report ( ::stop_token                                              ) ;
+		static void            _s_handle_deferred_wakeup ( DeferredEntry&&                                           ) ;
+		static void            _s_start_tab_erase        ( ::map<Job,StartEntry>::iterator                           ) ;
 		// static data
 	public :
-		static Backend* s_tab[N<Tag>] ;
+		static ::unique_ptr<Backend> s_tab[N<Tag>] ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
-		static ::string                             _s_job_exec               ;
-		static DeferredThread                       _s_deferred_report_thread ;
-		static DeferredThread                       _s_deferred_wakeup_thread ;
-		static JobStartThread                       _s_job_start_thread       ;
-		static JobMngtThread                        _s_job_mngt_thread        ;
-		static JobEndThread                         _s_job_end_thread         ;
-		static SmallIds<SmallId,true/*ThreadSafe*/> _s_small_ids              ;
-		static ::atomic<JobIdx>                     _s_starting_job           ;                        // this job is starting when _starting_job_mutex is locked
-		static Mutex<MutexLvl::StartJob>            _s_starting_job_mutex     ;
-		static ::map<Job,StartEntry>                _s_start_tab              ;                        // use map instead of umap because heartbeat iterates over while tab is moving
-		static Workload                             _s_workload               ;                        // book keeping of workload
-		// services
+		static ::string                             _s_job_exec                      ;
+		static WakeupThread<false/*Flush*/>         _s_deferred_report_thread        ;
+		static DeferredThread                       _s_deferred_wakeup_thread        ;
+		static JobStartThread                       _s_job_start_thread              ;
+		static JobMngtThread                        _s_job_mngt_thread               ;
+		static JobEndThread                         _s_job_end_thread                ;
+		static SmallIds<SmallId,true/*ThreadSafe*/> _s_small_ids                     ;
+		static ::atomic<JobIdx>                     _s_starting_job                  ;                 // this job is starting when _starting_job_mutex is locked
+		static Mutex<MutexLvl::StartJob>            _s_starting_job_mutex            ;
+		static ::map<Job,StartEntry>                _s_start_tab                     ;                 // use map instead of umap because heartbeat iterates over while tab is moving
+		static Workload                             _s_workload                      ;                 // book keeping of workload
+		static ::map <Pdate,JobExec>                _s_deferred_report_queue_by_date ;
+		static ::umap<Job  ,Pdate  >                _s_deferred_report_queue_by_job  ;
+		// cxtors & casts
 	public :
+		virtual ~Backend() = default ;                                                                 // ensure all fields of sub-backends are correctly destroyed
+		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
 		virtual bool      is_local(                                                                        ) const { return true ; }
 		virtual ::vmap_ss descr   (                                                                        ) const { return {}   ; }
@@ -213,12 +218,12 @@ namespace Backends {
 		//
 		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }
 	protected :
-		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx> const& , ::vmap_ss&& rsrcs , SubmitAttrs&& ) ; // must be called once before job is launched, SubmitAttrs must be the ...
-		/**/                                                                                                     // ... operator| of the submit/add_pressure corresponding values for the job
+		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx>&& , ::vmap_ss&& rsrcs , SubmitAttrs&& ) ; // must be called once before job is launched, SubmitAttrs must be the operator| of ...
+		/**/                                                                                                // ... the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		in_addr_t   addr        = 0 ;
-		::string    config_err  ;
+		in_addr_t addr       = 0 ;
+		::string  config_err ;
 	} ;
 
 }

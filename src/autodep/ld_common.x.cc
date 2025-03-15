@@ -443,24 +443,22 @@ struct Mkstemp : WSolve {
 	int execvpe (      CC* p,char* const argv[],char* const envp[]         ) NE { HDR_EXEC(Execp,execvpe ,false      ,               p ,envp   ) ; return orig(  p,argv,envp     ) ; }
 	int execveat(int d,CC* p,char* const argv[],char *const envp[],int flgs) NE { HDR_EXEC(Exec ,execveat,ASLNF(flgs),Record::Path(d,p),envp   ) ; return orig(d,p,argv,envp,flgs) ; }
 	// execl
-	#define MK_ARGS(end_action,value) \
+	#define MK_ARGS(end_action) \
 		char*   cur         = const_cast<char*>(arg)            ;            \
 		va_list arg_cnt_lst ; va_start(arg_cnt_lst,arg        ) ;            \
 		va_list args_lst    ; va_copy (args_lst   ,arg_cnt_lst) ;            \
 		int     arg_cnt     ;                                                \
 		for( arg_cnt=0 ; cur ; arg_cnt++ ) cur = va_arg(arg_cnt_lst,char*) ; \
-		char** args = new char*[arg_cnt+1] ;                                 \
+		::unique_ptr<char*[]> args_uptr { new char*[arg_cnt+1] } ;           \
+		char**                args      = args_uptr.get()        ;           \
 		args[0] = const_cast<char*>(arg) ;                                   \
 		for( int i=1 ; i<=arg_cnt ; i++ ) args[i] = va_arg(args_lst,char*) ; \
 		end_action          ;                                                \
 		va_end(arg_cnt_lst) ;                                                \
-		va_end(args_lst   ) ;                                                \
-		int rc = value      ;                                                \
-		delete[] args ;                                                      \
-		return rc
-	int execl (CC* p,CC* arg,...) NE { MK_ARGS(                                             , execv (p,args     ) ) ; }
-	int execle(CC* p,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) , execve(p,args,envp) ) ; }
-	int execlp(CC* p,CC* arg,...) NE { MK_ARGS(                                             , execvp(p,args     ) ) ; }
+		va_end(args_lst   ) ;
+	int execl (CC* p,CC* arg,...) NE { MK_ARGS(                                             ) ; return execv (p,args     ) ; }
+	int execle(CC* p,CC* arg,...) NE { MK_ARGS( char* const* envp = va_arg(args_lst,char**) ) ; return execve(p,args,envp) ; }
+	int execlp(CC* p,CC* arg,...) NE { MK_ARGS(                                             ) ; return execvp(p,args     ) ; }
 	#undef MK_ARGS
 
 	// fopen

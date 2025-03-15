@@ -77,7 +77,9 @@ namespace Py {
 		return *from_py<T>(v) ;
 	}
 
-	void init(::string const& lmake_root_s) ;
+	void init         (::string const& lmake_root_s) ;
+	void py_reset_path(                            ) ;
+
 
 	::string py_err_str_clear() ;        // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
 	//
@@ -407,29 +409,19 @@ namespace Py {
 	// List
 	//
 
-	struct List : Object {
-		// cxtors & casts
-		using Base = Sequence ;
+	struct List : Sequence {
 		// accesses
 		bool   qualify() const { return PyList_Check   (to_py()) ; }
 		size_t size   () const { return PyList_GET_SIZE(to_py()) ; }
 		//
 		void set_item( ssize_t idx , Object& val ) {
-			int rc = PyList_SetItem( to_py() , idx , val.to_py_boost() ) ;
-			if (rc!=0) throw py_err_str_clear() ;
+			int rc = PyList_SetItem( to_py() , idx , val.to_py_boost() ) ; if (rc!=0) throw py_err_str_clear() ;
 		}
 		Object      & operator[](size_t idx)       { return *from_py(PyList_GET_ITEM(to_py(),ssize_t(idx))) ; }
 		Object const& operator[](size_t idx) const { return *from_py(PyList_GET_ITEM(to_py(),ssize_t(idx))) ; }
 		// services
-		void insert( size_t i , Object& v ) {
-			int rc = PyList_Insert(to_py(),ssize_t(i),v.to_py()) ;
-			if (rc!=0) throw py_err_str_clear() ;
-		}
-		void prepend(Object& v) { insert(0,v) ; }
-		void append (Object& v) {
-			int rc = PyList_Append(to_py(),v.to_py()) ;
-			if (rc!=0) throw py_err_str_clear() ;
-		}
+		void append(Object& v) { int rc = PyList_Append  ( to_py() , v.to_py()            ) ; if (rc!=0) throw py_err_str_clear() ; }
+		void clear (         ) { int rc = PyList_SetSlice( to_py() , 0 , size() , nullptr ) ; if (rc!=0) throw py_err_str_clear() ; }
 	} ;
 	template<> struct Ptr<List> : PtrBase<List> {
 		using Base = PtrBase<List> ;

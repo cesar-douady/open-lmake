@@ -319,33 +319,40 @@ namespace Engine {
 			default         : _watchers_a[_n_watchers] = watcher  ; _n_watchers++ ; break ; // array stays array   , simple
 			//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			case NWatchers :                                                                // array becomes vector, complex
-				::array<Watcher,NWatchers> tmp = _watchers_a ;
+				::vector<Watcher>& ws = *new ::vector<Watcher> ; ws.reserve(NWatchers+1) ;
+				for( Watcher const& w : _watchers_a ) ws.push_back(w) ;
+				//vvvvvvvvvvvvvvvvvvv
+				ws.push_back(watcher) ;
+				//^^^^^^^^^^^^^^^^^^^
 				_watchers_a.~array() ;
-				::vector<Watcher>& ws = *new ::vector<Watcher>(NWatchers+1) ;               // cannot put {} here or it is taken as an initializer list
-				for( uint8_t i : iota(NWatchers) ) ws[i] = tmp[i] ;
-				//vvvvvvvvvvvvvvvvvvvvv
-				ws[NWatchers] = watcher ;
-				//^^^^^^^^^^^^^^^^^^^^^
-				_watchers_v = &ws        ;
+				new (&_watchers_v) ::unique_ptr<::vector<Watcher>>{&ws} ;
 				_n_watchers = VectorMrkr ;
 		}
 	}
 
 	void ReqInfo::wakeup_watchers() {
-		SWEAR(!waiting()) ;                                                         // dont wake up watchers if we are not ready
-		::vector<Watcher> watchers ;                                                // copy watchers aside before calling them as during a call, we could become not done and be waited for again
+		SWEAR(!waiting()) ;                                                          // dont wake up watchers if we are not ready
+		::vector<Watcher> watchers ;                                                 // copy watchers aside before calling them as during a call, we could become not done and be waited for again
+		auto go = [&]( Watcher* start , WatcherIdx n ) {
+			// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
+			for( Watcher* p=start ; p<start+n ; p++ )
+				if      (waiting()     ) _add_watcher(*p) ;                          // if waiting again, add back watchers we have got and that we no more want to call
+				else if (p->is_a<Job>()) Job (*p)->wakeup(Job (*p)->req_info(req)) ; // ok, we are still done, we can call watcher
+				else                     Node(*p)->wakeup(Node(*p)->req_info(req)) ; // .
+		} ;
+		// move watchers aside before calling them as during a call, we could become not done and be waited for again
 		if (_n_watchers==VectorMrkr) {
-			watchers = ::move(*_watchers_v) ;
-			delete _watchers_v ;                                                    // transform vector into array as there is no watchers any more
+			::unique_ptr<::vector<Watcher>> watchers = ::move(_watchers_v) ;
+			_watchers_v.~unique_ptr() ;                                              // transform vector into array as there is no watchers any more
+			new(&_watchers_a) ::array <Watcher,NWatchers> ;
+			_n_watchers = 0 ;
+			go( watchers->data() , watchers->size() ) ;
 		} else {
-			watchers = mk_vector(::span(_watchers_a.data(),_n_watchers)) ;
+			::array watchers = _watchers_a ;
+			uint8_t n        = _n_watchers ;
+			_n_watchers = 0 ;
+			go( watchers.data() , n ) ;
 		}
-		_n_watchers = 0 ;
-		// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
-		for( auto it=watchers.begin() ; it!=watchers.end() ; it++ )
-			if      (waiting()      ) _add_watcher(*it) ;                           // if waiting again, add back watchers we have got and that we no more want to call
-			else if (it->is_a<Job>()) Job (*it)->wakeup(Job (*it)->req_info(req)) ; // ok, we are still done, we can call watcher
-			else                      Node(*it)->wakeup(Node(*it)->req_info(req)) ; // .
 	}
 
 	Job ReqInfo::asking() const {

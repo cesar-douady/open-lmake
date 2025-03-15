@@ -91,14 +91,12 @@ namespace Backends::Sge {
 	void     sge_cancel      (::pair<SgeBackend const*,SgeId> const&) ;
 	Daemon   sge_sense_daemon(SgeBackend const&                     ) ;
 	::string sge_mk_name     (::string&&                            ) ;
-	//
-	SgeId sge_spawn_job( ::stop_token , ::string const& key , Job , ::vector<ReqIdx> const& , ::vector_s const& cmd_line , RsrcsData const& rsrcs , bool verbose ) ;
 
 	constexpr Tag MyTag = Tag::Sge ;
 
 	struct SgeBackend
-	:	             GenericBackend<MyTag,SgeId,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,SgeId,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,'G'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/>
+	{	using Base = GenericBackend<MyTag,'G'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet
@@ -156,18 +154,14 @@ namespace Backends::Sge {
 			throw_unless( +sge_bin_s  , "must specify bin to configure SGE" ) ;
 			throw_unless( +sge_root_s , "must specify root to configure SGE") ;
 			env = env_ ;
-			if (sge_env) {
-				_sge_env_vec.clear() ;
-				delete[] sge_env ;
-			}
-			SWEAR(!_sge_env_vec) ;
+			_sge_env_vec.clear() ;
 			/**/              _sge_env_vec.push_back("SGE_ROOT="   +no_slash(sge_root_s )) ;
 			if (+sge_cell   ) _sge_env_vec.push_back("SGE_CELL="   +         sge_cell    ) ;
 			if (+sge_cluster) _sge_env_vec.push_back("SGE_CLUSTER="+         sge_cluster ) ;
-			sge_env = new const char*[_sge_env_vec.size()+1] ;
+			_sge_env.reset(new const char*[_sge_env_vec.size()+1]) ;
 			{	size_t i = 0 ;
-				for( ::string const& kv : _sge_env_vec ) sge_env[i++] = kv.c_str() ;
-				/**/                                     sge_env[i  ] = nullptr    ;
+				for( ::string const& kv : _sge_env_vec ) _sge_env[i++] = kv.c_str() ;
+				/**/                                     _sge_env[i  ] = nullptr    ;
 			}
 			if (!dynamic) {
 				daemon = sge_sense_daemon(self) ;
@@ -210,9 +204,9 @@ namespace Backends::Sge {
 			else                                                    return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX! : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (se.live) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                         // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                      // asynchronous (as faster and no return value) cancel
 		}
-		virtual SgeId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
+		virtual SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-terse"
@@ -263,7 +257,7 @@ namespace Backends::Sge {
 			if (!pid) {                                                  // in child
 				::close(Fd::Stdin ) ;                                    // ensure no stdin (defensive programming)
 				::close(Fd::Stdout) ;
-				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(sge_env) ) ;
+				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(_sge_env.get()) ) ;
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
 				::_exit(+Rc::System) ;                                   // in case exec fails
 			}
@@ -292,12 +286,12 @@ namespace Backends::Sge {
 				SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;        // ensure we can safely close what needs to be closed
 				SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;        // .
 				::dup2(c2p.write,Fd::Stdout) ;
-				::close(Fd::Stdin) ;                                                                     // ensure no stdin (defensive programming)
-				::close(c2p.read ) ;                                                                     // dont touch c2p object as it is shared with parent
-				::close(c2p.write) ;                                                                     // .
-				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(sge_env) ) ;
+				::close(Fd::Stdin) ;                                                                            // ensure no stdin (defensive programming)
+				::close(c2p.read ) ;                                                                            // dont touch c2p object as it is shared with parent
+				::close(c2p.write) ;                                                                            // .
+				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(_sge_env.get()) ) ;
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
-				::_exit(+Rc::System) ;                                                                   // in case exec fails
+				::_exit(+Rc::System) ;                                                                          // in case exec fails
 			}
 			// Normal code to get the content of stdout is to read the c2p pipe, and when we see eof, waitpid until sub-process has terminated.
 			// But it seems that if we do things this way, there are cases where c2p.read eof never occurs (or after a very long time, >300s).
@@ -306,14 +300,14 @@ namespace Backends::Sge {
 			// Pipe capacity is 16 pages, i.e. usually 64k (man 7 pipe), more than enough for a job id.
 			int wstatus ;
 			int rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
-			delete[] cmd_line_ ;                                                                         // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
+			delete[] cmd_line_ ;                                                                      // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
 			if (!wstatus_ok(wstatus)){
 				trace("fail_pid") ;
 				::string msg = "cannot submit SGE job :" ;
 				for( ::string const& c : cmd_line ) msg <<' '<< c ;
 				throw msg ;
 			}
-			::string cmd_out(100,0) ;                                                                    // 100 is plenty for a job id
+			::string cmd_out(100,0) ;                                                                 // 100 is plenty for a job id
 			c2p.write.close() ;
 			trace("wait_cmd_out",c2p.read) ;
 			ssize_t cnt = ::read( c2p.read , cmd_out.data() , cmd_out.size() ) ;
@@ -327,24 +321,24 @@ namespace Backends::Sge {
 		}
 
 		// data
-		SpawnedMap mutable spawned_rsrcs     ;           // number of spawned jobs queued in sge queue
-		::vector<int16_t>  req_prios         ;           // indexed by req
-		uint32_t           n_max_queued_jobs = 10      ; // by default, limit to 10 the number of jobs waiting for a given set of resources
-		::string           repo_key          ;           // a short identifier of the repository
-		int16_t            dflt_prio         = 0       ; // used when not specified with lmake -b
-		::string           cpu_rsrc          ;           // key to use to ask for cpu
-		::string           mem_rsrc          ;           // key to use to ask for memory (in MB)
-		::string           tmp_rsrc          ;           // key to use to ask for tmp    (in MB)
+		SpawnedMap mutable spawned_rsrcs     ;      // number of spawned jobs queued in sge queue
+		::vector<int16_t>  req_prios         ;      // indexed by req
+		uint32_t           n_max_queued_jobs = 10 ; // by default, limit to 10 the number of jobs waiting for a given set of resources
+		::string           repo_key          ;      // a short identifier of the repository
+		int16_t            dflt_prio         = 0  ; // used when not specified with lmake -b
+		::string           cpu_rsrc          ;      // key to use to ask for cpu
+		::string           mem_rsrc          ;      // key to use to ask for memory (in MB)
+		::string           tmp_rsrc          ;      // key to use to ask for tmp    (in MB)
 		::string           sge_bin_s         ;
 		::string           sge_cell          ;
 		::string           sge_cluster       ;
 		::string           sge_root_s        ;
-		Daemon             daemon            ;           // info sensed from sge daemon
+		Daemon             daemon            ;      // info sensed from sge daemon
 		::vmap_ss          env               ;
-		const char**       sge_env           = nullptr ;
 	private :
-		::vector_s                   _sge_env_vec ;      // hold sge_env strings of the form key=value
-		Mutex<MutexLvl::Sge> mutable _sge_mutex   ;      // ensure no more than a single outstanding request to daemon
+		::unique_ptr<const char*[]>  _sge_env     ;
+		::vector_s                   _sge_env_vec ; // hold _sge_env strings of the form key=value
+		Mutex<MutexLvl::Sge> mutable _sge_mutex   ; // ensure no more than a single outstanding request to daemon
 
 	} ;
 

@@ -372,7 +372,7 @@ namespace Engine {
 				return {proc,{}/*seq_id*/,{}/*fd*/,res} ;
 			}
 			case JobMngtProc::ChkDeps :
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;                         // if job is not running, it is too late, seq_id will be filled in later
+				if (!reqs) return { .proc=proc , .ok=Maybe } ;                                 // if job is not running, it is too late, seq_id will be filled in later
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{}) ;                      // dep is const
 					Bool3 dep_ok = Yes ;
@@ -383,11 +383,11 @@ namespace Engine {
 						if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
 						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
 					}
-					if (dep_ok!=Yes) return {proc,{}/*seq_id*/,{}/*fd*/,dep_ok} ;              // seq_id will be filled in later
+					if (dep_ok!=Yes) return { .proc=proc , .ok=dep_ok } ;                      // seq_id will be filled in later
 					trace("ok",dep) ;
 				}
 				trace("done") ;
-				return {proc,{}/*seq_id*/,{}/*fd*/,Yes} ;                                      // seq_id will be filled in later
+				return { .proc=proc , .ok=Yes } ;                                              // seq_id will be filled in later
 		DF}
 	}
 
@@ -449,20 +449,20 @@ namespace Engine {
 	}
 
 	void JobExec::end(JobDigest<Node>&& digest) {
-		JobData&        jd            = *self                                                ;
-		Status          status        = digest.status                                        ; // status will be modified, need to make a copy
-		Bool3           ok            = is_ok  (status)                                      ;
-		bool            lost          = is_lost(status)                                      ;
-		JobReason       target_reason = JobReasonTag::None                                   ;
-		bool            unstable_dep  = false                                                ;
-		bool            modified      = false                                                ;
-		bool            fresh_deps    = status==Status::EarlyChkDeps || status>Status::Async ; // if job did not go through, old deps are better than new ones
-		Rule            rule          = jd.rule()                                            ;
-		::vector<Req>   running_reqs_ = jd.running_reqs(true/*with_zombies*/)                ;
-		::string        severe_msg    ;                                                        // to be reported always
+		JobData&        jd            = *self                                                             ;
+		Status          status        = digest.status                                                     ; // status will be modified, need to make a copy
+		Bool3           ok            = is_ok  (status)                                                   ;
+		bool            lost          = is_lost(status)                                                   ;
+		JobReason       target_reason = JobReasonTag::None                                                ;
+		bool            unstable_dep  = false                                                             ;
+		bool            modified      = false                                                             ;
+		bool            fresh_deps    = (status<=Status::Early&&!is_lost(status)) || status>Status::Async ; // if job did not go through, old deps are better than new ones
+		Rule            rule          = jd.rule()                                                         ;
+		::vector<Req>   running_reqs_ = jd.running_reqs(true/*with_zombies*/)                             ;
+		::string        severe_msg    ;                                                                    // to be reported always
 		Rule::RuleMatch match         ;
 		//
-		Trace trace("end",self,status) ;
+		Trace trace("end",self,digest) ;
 		//
 		SWEAR(status!=Status::New) ;                 // we just executed the job, it can be neither new, frozen or special
 		SWEAR(!frozen()          ) ;                 // .
@@ -638,7 +638,7 @@ namespace Engine {
 			}
 			if (+severe_msg) {
 				ji.end.msg <<set_nl<< severe_msg               ;
-				s_record_thread.emplace(self,::move(ji.start)) ;
+				s_record_thread.emplace(self,::move(ji.start)) ;            // necessary to restart recording, else ji.end would be appended
 				s_record_thread.emplace(self,::move(ji.end  )) ;
 			}
 		}
@@ -680,7 +680,7 @@ namespace Engine {
 			,	true/*with_stats*/
 			,	pfx
 			,	job_msg
-			,	!job_err ? stderr : ""s
+			,	stderr
 			,	digest.max_stderr_len
 			,	digest.exec_time
 			,	job_reason.tag==JobReasonTag::Retry
@@ -1270,7 +1270,7 @@ namespace Engine {
 			if (it!=g_config->cache_idxs.end()) {
 				::vmap_s<DepDigest> dns ;
 				for( Dep const& d : deps ) {
-					DepDigest dd = d ; dd.crc(d->crc) ;                                                      // provide node actual crc as this is the hit criteria
+					DepDigest dd = d ; dd.crc(d->crc) ;                                                                       // provide node actual crc as this is the hit criteria
 					dns.emplace_back(d->name(),dd) ;
 				}
 				cache_idx = it->second ;
@@ -1294,13 +1294,13 @@ namespace Engine {
 								if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
 							}
 							//
-							JobExec je       { idx() , New }                              ;                  // job starts and ends, no host
+							JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host
 							JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
-							job_info.start.pre_start.job       = +idx()    ;                                 // repo dependent
-							job_info.start.submit_attrs.reason = ri.reason ;                                 // context dependent
-							job_info.end  .end_date            = New       ;                                 // execution dependnt
+							job_info.start.pre_start.job       = +idx()    ;                                                  // repo dependent
+							job_info.start.submit_attrs.reason = ri.reason ;                                                  // context dependent
+							job_info.end  .end_date            = New       ;                                                  // execution dependnt
 							//
-							JobDigest<Node> digest = job_info.end.digest ;                                 // gather info before being moved
+							JobDigest<Node> digest = job_info.end.digest ;                                                    // gather info before being moved
 							Job::s_record_thread.emplace(idx(),::move(job_info.start)) ;
 							Job::s_record_thread.emplace(idx(),::move(job_info.end  )) ;
 							//

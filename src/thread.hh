@@ -163,6 +163,13 @@ private :
 	::jthread _thread ;                                                                                // ensure _thread is last so other fields are constructed when it starts
 } ;
 
+ENUM( WakeupState
+,	Wait
+,	Proceed
+,	Last
+,	Stop
+)
+
 template<bool Flush=true> struct WakeupThread {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 	// statics
@@ -171,15 +178,14 @@ private :
 		t_thread_key = key ;
 		Trace trace("WakeupThread::_s_thread_func") ;
 		for(;;) {
-			if ( Flush && self_->_active ) {
-				self_->_active = false ;
-			} else {
-				Lock<ThreadMutex> lock { self_->_mutex } ;
-				if ( !self_->_cond.wait( lock , stop , [&]()->bool { return self_->_active ; } ) ) break ;
-				self_->_active = false ;
-			}
-			func(stop) ;
+			self_->_state.wait(WakeupState::Wait) ;
+			switch (self_->_state) {
+				case WakeupState::Proceed : self_->_state = WakeupState::Wait ; func(stop) ; break     ;
+				case WakeupState::Last    : { if (Flush) func(stop) ; }                      goto Done ;
+				case WakeupState::Stop    :                                                  goto Done ;
+			DF}
 		}
+	Done :
 		trace("done") ;
 	}
 	// cxtors & casts
@@ -187,22 +193,27 @@ public :
 	WakeupThread() = default ;
 	WakeupThread( char key , ::function<void(            )> f ) { open(key,f) ; }
 	WakeupThread( char key , ::function<void(::stop_token)> f ) { open(key,f) ; }
-	void open   ( char key , ::function<void(            )> f ) { _thread = ::jthread( _s_thread_func , key , this , [=](::stop_token)->void {f();}) ; }
-	void open   ( char key , ::function<void(::stop_token)> f ) { _thread = ::jthread( _s_thread_func , key , this , f                             ) ; }
+	~WakeupThread() {
+		switch (_state) {
+			case WakeupState::Proceed : _state = WakeupState::Last ; _state.notify_one() ; break ;
+			case WakeupState::Wait    : _state = WakeupState::Stop ; _state.notify_one() ; break ;
+		DF}
+	}
+	void open( char key , ::function<void(            )> f ) { _thread = ::jthread( _s_thread_func , key , this , [=](::stop_token)->void {f();}) ; }
+	void open( char key , ::function<void(::stop_token)> f ) { _thread = ::jthread( _s_thread_func , key , this , f                             ) ; }
 	// services
 	void wakeup() {
-		if (_active) return ;
-		Lock<ThreadMutex> lock{_mutex} ;
-		if (_active) return ;                  // repeat test so as to be atomic with decision
-		_active = true ;
-		_cond.notify_one() ;
+		switch (_state) {
+			case WakeupState::Proceed : return ;
+			case WakeupState::Wait    : break  ;
+		DF}
+		_state = WakeupState::Proceed ;
+		_state.notify_one() ;
 	}
 private :
 	// data
-	ThreadMutex mutable      _mutex  ;
-	::condition_variable_any _cond   ;
-	::atomic<bool>           _active = false ;
-	::jthread                _thread ;         // ensure _thread is last so other fields are constructed when it starts
+	::atomic<WakeupState> _state = WakeupState::Wait ;
+	::jthread             _thread ;                    // ensure _thread is last so other fields are constructed when it starts
 } ;
 
 ENUM(ServerThreadEventKind

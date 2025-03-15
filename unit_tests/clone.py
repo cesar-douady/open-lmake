@@ -22,8 +22,8 @@ if __name__!='__main__' :
 	class Compile(Rule) :
 		targets = { 'EXE' : r'{File:.*}.exe' }
 		deps    = { 'SRC' :  '{File}.cc'     }
-		autodep = 'ld_preload'                                                                                           # clang seems to be hostile to ld_audit
-		cmd     = 'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {EXE} {SRC}'
+		autodep = 'ld_preload'                                                                                                # clang seems to be hostile to ld_audit
+		cmd     = f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -O0 -fdiagnostics-color=always -std=c++20 -pthread -o {{EXE}} {{SRC}}'
 
 	class Dut(Rule) :
 		target  = r'{File:.*}.out'

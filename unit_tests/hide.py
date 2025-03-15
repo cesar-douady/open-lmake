@@ -41,5 +41,5 @@ else :
 
 	print('hello',file=open('hello','w'))
 
-	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 )              # check target is out of date
-	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 )              # check target is up to date
+	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 ) # check target is out of date
+	ut.lmake( 'hello+auto1.hide' , done=0 ,               new=0 ) # check target is up to date

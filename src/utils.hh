@@ -23,6 +23,7 @@
 #include <ios>
 #include <limits>
 #include <map>
+#include <memory>
 #include <set>
 #include <span>
 #include <string>
@@ -504,10 +505,10 @@ template<char Delimiter=0> inline ::string mk_printable(::string     && txt) {
 	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
 	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
 }
-template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos ) ;
+template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos=::ref(size_t()) ) ;
 
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&               , bool empty_ok=true ) ;
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&                               , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos=::ref(size_t()) , bool empty_ok=true ) ;
 
 inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
 inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
@@ -581,12 +582,12 @@ inline ::string_view first_lines( ::string_view txt , size_t n_sep , char sep='\
 
 template<::integral I> inline I decode_int(const char* p) {
 	I r = 0 ;
-	for( uint8_t i : iota<uint8_t>(sizeof(I)) ) r |= I(uint8_t(p[i]))<<(i*8) ; // little endian, /!\ : beware of signs, casts & integer promotion
+	::memcpy( &r , p , sizeof(I) ) ;
 	return r ;
 }
 
 template<::integral I> inline void encode_int( char* p , I x ) {
-	for( uint8_t i : iota<uint8_t>(sizeof(I)) ) p[i] = char(x>>(i*8)) ; // little endian
+	::memcpy( p , &x , sizeof(I) ) ;
 }
 
 ::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;

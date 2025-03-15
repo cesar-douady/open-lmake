@@ -350,7 +350,7 @@ namespace Engine {
 
 	template<class T> struct DynamicDsk : DynamicDskBase {
 		// statics
-		static ::string s_exc_msg (bool using_static) { return "cannot compute dynamic "s + T::Msg + (using_static?", using static info":"") ; }
+		static ::string s_exc_msg(bool using_static) { return "cannot compute dynamic "s + T::Msg + (using_static?", using static info":"") ; }
 		// cxtors & casts
 		DynamicDsk() = default ;
 		template<class... A> DynamicDsk( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
@@ -832,13 +832,12 @@ namespace Engine {
 				glbs->set_item(key,*py_dct) ;
 			}
 		) ;
-		try                       { Py::py_run(to_eval,*glbs) ;              }
-		catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*stderr*/) ; }
+		Py::py_run(to_eval,*glbs) ;
 		g_kpi.py_exec_time += Pdate(New) - start ;
 		Py::Ptr<Py::Object> res      ;
 		::string            err      ;
 		bool                seen_err = false  ;
-		AutodepLock         lock     { deps } ;                                       // ensure wating for lock is not accounted as python exec time
+		AutodepLock         lock     { deps } ;                                       // ensure waiting for lock is not accounted as python exec time
 		start = Pdate(New) ;
 		//                                vvvvvvvvvvvvvvvvv
 		try                       { res = code->eval(*glbs) ;   }
@@ -857,8 +856,7 @@ namespace Engine {
 			Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
 			if (*py_obj!=Py::None) {
 				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
-				try                       { res.update(py_obj->template as_a<Py::Dict>()) ; }
-				catch (::string const& e) { throw ::pair_ss({}/*msg*/,e/*stderr*/) ;        }
+				res.update(py_obj->template as_a<Py::Dict>()) ;
 			}
 		}
 		return res ;

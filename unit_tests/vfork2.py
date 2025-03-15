@@ -19,7 +19,7 @@ if __name__!='__main__' :
 	class Exe(Rule) :
 		targets = { 'EXE' : 'exe'    }
 		deps    = { 'SRC' : 'exe.cc' }
-		cmd    = 'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -pthread -o {EXE} -std=c++20 {SRC}'
+		cmd    = f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -pthread -o {{EXE}} -std=c++20 {{SRC}}'
 
 	class Dut(PyRule) :
 		target = 'dut'

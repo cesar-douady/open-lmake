@@ -52,8 +52,7 @@ namespace Backends::Local {
 
 	constexpr Tag MyTag = Tag::Local ;
 
-	struct LocalBackend : GenericBackend<MyTag,pid_t,RsrcsData,true/*IsLocal*/> {
-
+	struct LocalBackend : GenericBackend<MyTag,'L'/*LaunchThreadKey*/,RsrcsData,true/*IsLocal*/> {
 		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
@@ -114,18 +113,14 @@ namespace Backends::Local {
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
 			}
-			if (env) {
-				_env_vec.clear() ;
-				delete[] env ;
-			}
-			SWEAR(!_env_vec) ;
-			env = new const char*[env_.size()+1] ;
+			_env.reset(new const char*[env_.size()+1]) ;
 			{	size_t i = 0 ;
+				_env_vec.clear() ;
 				for( auto const& [k,v] : env_ ) {
 					_env_vec.push_back(k+'='+v) ;
-					env[i++] = _env_vec.back().c_str() ;
+					_env[i++] = _env_vec.back().c_str() ;
 				}
-				env[i] = nullptr   ;
+				_env[i] = nullptr ;
 			}
 			trace("done") ;
 		}
@@ -171,20 +166,20 @@ namespace Backends::Local {
 			else                                           return {{}/*msg*/,HeartbeatState::Lost } ; // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.live) return ;
+			if (se.zombie) return ;
 			kill_process(se.id,SIGHUP) ; // jobs killed here have not started yet, so we just want to kill job_exec
 			_wait_queue.push(se.id) ;    // defer wait in case job_exec process does some time consuming book-keeping
 		}
-		virtual pid_t launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& ) const {
+		virtual SpawnId launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& ) const {
 			::vector<const char*> cmd_line_ ; cmd_line_.reserve(cmd_line.size()+1) ;
 			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
 			/**/                                cmd_line_.push_back(nullptr  ) ;
 			pid_t pid = ::vfork() ;      // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			SWEAR(pid>=0) ;                                       // ensure vfork works
-			if (!pid) {                                                                                     // in child
-				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_.data()) , const_cast<char**>(env) ) ;
+			SWEAR(pid>=0) ;              // ensure vfork works
+			if (!pid) {                                                                                           // in child
+				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_.data()) , const_cast<char**>(_env.get()) ) ;
 				Fd::Stderr.write("cannot exec job_exec\n") ;
-				::_exit(+Rc::System) ;                                                                      // in case exec fails
+				::_exit(+Rc::System) ;                                                                            // in case exec fails
 			}
 			return pid ;
 		}
@@ -195,10 +190,10 @@ namespace Backends::Local {
 		RsrcsData         capacity_       ;
 		RsrcsData mutable occupied        ;
 		::vmap_s<size_t>  public_capacity ;
-		const char**      env             = nullptr ; // directly call ::execve without going through Child to improve perf
 	private :
-		DequeThread<pid_t> mutable _wait_queue ;
-		::vector_s                 _env_vec    ;      // hold env strings of the form key=value
+		DequeThread<pid_t> mutable  _wait_queue ;
+		::unique_ptr<const char*[]> _env        ; // directly call ::execve without going through Child to improve perf
+		::vector_s                  _env_vec    ;      // hold _env strings of the form key=value
 
 	} ;
 

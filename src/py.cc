@@ -20,6 +20,8 @@ namespace Py {
 	// functions
 	//
 
+	static ::vector_s* _g_std_path = nullptr ;
+
 	struct SaveExc {
 		// cxtors & casts
 		SaveExc (       ) = default ;
@@ -52,11 +54,21 @@ namespace Py {
 		py_get_sys("implementation").set_attr("cache_tag",None) ;                                      // avoid pyc management
 		//
 		List& py_path = py_get_sys<List>("path") ;
-		py_path.prepend( *Ptr<Str>(lmake_root_s+"lib") ) ;
-		py_path.append ( *Ptr<Str>("."               ) ) ;
+		py_path.append( *Ptr<Str>(lmake_root_s+"lib") ) ;
+		//
+		SWEAR(!_g_std_path,_g_std_path) ;
+		_g_std_path = new ::vector_s ;
+		for( Object& p : py_path ) _g_std_path->push_back(p.as_a<Str>()) ;
+		//
 		#if PY_VERSION_HEX >= 0x03080000
 			PyEval_SaveThread() ;
 		#endif
+	}
+
+	void py_reset_path() {
+		List& py_path = py_get_sys<List>("path") ;
+		py_path.clear() ;
+		for( ::string const& p : *_g_std_path ) py_path.append(*Ptr<Str>(p)) ;
 	}
 
 	// divert stderr to a memfd (if available, else to an internal pipe), call PyErr_Print and restore stderr

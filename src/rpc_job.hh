@@ -697,7 +697,7 @@ struct JobStartRpcReq : JobRpcReq {
 	}
 	// data
 	// START_OF_VERSIONING
-	in_port_t port = 0 ;
+	in_port_t port = 0 ; // port at which job_exec can be contacted
 	::string  msg  ;
 	// END_OF_VERSIONING)
 } ;
@@ -793,19 +793,16 @@ private :
 
 struct ExecTraceEntry {
 	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
-	// accesses
-	bool              operator== (ExecTraceEntry const&) const = default ;
-	::strong_ordering operator<=>(ExecTraceEntry const&) const = default ;
 	// services
 	::string step() const {
 		if (+comment_exts) return cat     (snake(comment).substr(1),comment_exts) ;
 		else               return ::string(snake(comment).substr(1)             ) ;
 	}
 	// data
-	Time::Pdate date ;
+	Time::Pdate date         ;
 	Comment     comment      = Comment::None ;
-	CommentExts comment_exts ;
-	::string    file         ;
+	CommentExts comment_exts = {}            ;
+	::string    file         = {}            ;
 } ;
 struct JobEndRpcReq : JobRpcReq {
 	using P   = JobRpcProc          ;
@@ -856,20 +853,6 @@ struct JobMngtRpcReq {
 	using JI   = JobIdx              ;
 	using MDD  = ::vmap_s<DepDigest> ;
 	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
-	// statics
-	// cxtors & casts
-	#define S ::string
-	#define M ::move
-	JobMngtRpcReq(                                ) = default ;
-	JobMngtRpcReq( P p , SI si , JI j , Fd fd_={} ) : proc{p} , seq_id{si} , job{j} , fd{fd_} {}
-	//
-	JobMngtRpcReq( P p , SI si , JI j ,          S&& t    ) : proc{p} , seq_id{si} , job{j} ,           txt{M(t)}   { SWEAR(p==P::LiveOut                  ,p) ; }
-	JobMngtRpcReq( P p , SI si , JI j , Fd fd_ , MDD&& ds ) : proc{p} , seq_id{si} , job{j} , fd{fd_} , deps{M(ds)} { SWEAR(p==P::ChkDeps||p==P::DepVerbose,p) ; }
-	//
-	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& code,S&& f,S&& c           ) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(code)}             { SWEAR(p==P::Decode,p) ; }
-	JobMngtRpcReq(P p,SI si,JI j,Fd fd_,S&& val ,S&& f,S&& c,uint8_t ml) : proc{p},seq_id{si},job{j},fd{fd_},ctx{M(c)},file{M(f)},txt{M(val )},min_len{ml} { SWEAR(p==P::Encode,p) ; }
-	#undef M
-	#undef S
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,proc  ) ;
@@ -899,11 +882,11 @@ struct JobMngtRpcReq {
 	P                   proc    = P::None ;
 	SI                  seq_id  = 0       ;
 	JI                  job     = 0       ;
-	Fd                  fd      ;           // fd to which reply must be forwarded
-	::vmap_s<DepDigest> deps    ;           // proc==ChkDeps|DepVerbose
-	::string            ctx     ;           // proc==                           Decode|Encode
-	::string            file    ;           // proc==                           Decode|Encode
-	::string            txt     ;           // proc==                   LiveOut|Decode|Encode
+	Fd                  fd      = {}      ; // fd to which reply must be forwarded
+	::vmap_s<DepDigest> deps    = {}      ; // proc==ChkDeps|DepVerbose
+	::string            ctx     = {}      ; // proc==                           Decode|Encode
+	::string            file    = {}      ; // proc==                           Decode|Encode
+	::string            txt     = {}      ; // proc==                   LiveOut|Decode|Encode
 	uint8_t             min_len = 0       ; // proc==                                  Encode
 } ;
 
@@ -911,14 +894,6 @@ struct JobMngtRpcReply {
 	friend ::string& operator+=( ::string& , JobMngtRpcReply const& ) ;
 	using Crc  = Hash::Crc   ;
 	using Proc = JobMngtProc ;
-	// cxtors & casts
-	JobMngtRpcReply() = default ;
-	//
-	JobMngtRpcReply( Proc p , SeqId si ) : proc{p} , seq_id{si} { SWEAR(p==Proc::Kill||p==Proc::Heartbeat,p) ; }
-	//
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , Bool3                                  o  ) : proc{p},seq_id{si},fd{fd_},ok{o}               { SWEAR(p==Proc::ChkDeps                   ,p) ; }
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p},seq_id{si},fd{fd_},      dep_infos{is} { SWEAR(p==Proc::DepVerbose                ,p) ; }
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(p==Proc::Decode||proc==Proc::Encode,p) ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc  ) ;
@@ -947,11 +922,11 @@ struct JobMngtRpcReply {
 	// data
 	Proc                            proc      = {}    ;
 	SeqId                           seq_id    = 0     ;
-	Fd                              fd        ;         // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;         // proc ==         DepVerbose
+	Fd                              fd        = {}    ; // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}    ; // proc ==         DepVerbose
+	::string                        txt       = {}    ; // proc ==                    Decode|Encode , value for Decode, code for Encode
+	Crc                             crc       = {}    ; // proc ==                    Decode|Encode , crc of txt
 	Bool3                           ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
-	::string                        txt       ;         // proc ==                    Decode|Encode , value for Decode, code for Encode
-	Crc                             crc       ;         // proc ==                    Decode|Encode , crc of txt
 } ;
 
 struct SubmitAttrs {
@@ -1000,7 +975,6 @@ struct JobInfoStart {
 	::vmap_ss        rsrcs        = {} ;
 	JobStartRpcReq   pre_start    = {} ;
 	JobStartRpcReply start        = {} ;
-	::string         stderr       = {} ;
 	// END_OF_VERSIONING
 } ;
 

@@ -130,41 +130,43 @@ private :
 	Fd   _spawn_child (                               ) ;
 	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
 	//
-	void _exec_trace( PD pd , Comment c , CommentExts ces={} , string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ; }
+	void _exec_trace( PD pd , Comment c , CommentExts ces={} , string const& file={} ) const {
+		if (exec_trace) exec_trace->push_back({pd,c,ces,file}) ;
+	}
 	// data
 public :
-	::vector_s                        cmd_line         ;
-	Fd                                child_stdin      = Fd::Stdin                                  ;
-	Fd                                child_stdout     = Fd::Stdout                                 ;
-	Fd                                child_stderr     = Fd::Stderr                                 ;
-	umap_s<NodeIdx   >                access_map       ;
-	vmap_s<AccessInfo>                accesses         ;
-	in_addr_t                         addr             = 0                                          ; // local addr to which we can be contacted by running job
-	::atomic<bool>                    as_session       = false                                      ; // if true <=> process is launched in its own group
-	AutodepEnv                        autodep_env      ;
-	::function<::vmap_s<DepDigest>()> cur_deps_cb      = [&]()->::vmap_s<DepDigest> { return {} ; } ;
-	PD                                end_date         ;
-	::map_ss const*                   env              = nullptr                                    ;
-	::vector<ExecTraceEntry>*         exec_trace       = nullptr                                    ;
-	pid_t                             first_pid        = 0                                          ;
-	uset_s                            guards           ;                                              // dir creation/deletion that must be guarded against NFS
-	JobIdx                            job              = 0                                          ;
-	::vector<uint8_t>                 kill_sigs        ;                                              // signals used to kill job
-	bool                              live_out         = false                                      ;
-	AutodepMethod                     method           = AutodepMethod::Dflt                        ;
-	::string                          msg              ;                                              // contains error messages not from job
-	Time::Delay                       network_delay    = Time::Delay(1)                             ; // 1s is reasonable when nothing is said
-	bool                              no_tmp           = false                                      ; // if true <=> no tmp access is allowed
-	pid_t                             pid              = -1                                         ; // pid to kill
-	bool                              seen_tmp         = false                                      ;
-	SeqId                             seq_id           = 0                                          ;
-	ServerSockFd                      server_master_fd ;
-	::string                          service_mngt     ;
-	PD                                start_date       ;
-	::string                          stdout           ;                                              // contains child stdout if child_stdout==Pipe
-	::string                          stderr           ;                                              // contains child stderr if child_stderr==Pipe
-	Time::Delay                       timeout          ;
-	::atomic<int>                     wstatus          = 0                                          ;
+	::vector_s                        cmd_line           ;
+	Fd                                child_stdin        = Fd::Stdin                                  ;
+	Fd                                child_stdout       = Fd::Stdout                                 ;
+	Fd                                child_stderr       = Fd::Stderr                                 ;
+	umap_s<NodeIdx   >                access_map         ;
+	vmap_s<AccessInfo>                accesses           ;
+	in_addr_t                         addr               = 0                                          ; // local addr to which we can be contacted by running job
+	::atomic<bool>                    as_session         = false                                      ; // if true <=> process is launched in its own group
+	AutodepEnv                        autodep_env        ;
+	::function<::vmap_s<DepDigest>()> cur_deps_cb        = [&]()->::vmap_s<DepDigest> { return {} ; } ;
+	PD                                end_date           ;
+	::map_ss const*                   env                = nullptr                                    ;
+	::vector<ExecTraceEntry>*         exec_trace         = nullptr                                    ;
+	pid_t                             first_pid          = 0                                          ;
+	uset_s                            guards             ;                                              // dir creation/deletion that must be guarded against NFS
+	JobIdx                            job                = 0                                          ;
+	::vector<uint8_t>                 kill_sigs          ;                                              // signals used to kill job
+	bool                              live_out           = false                                      ;
+	AutodepMethod                     method             = AutodepMethod::Dflt                        ;
+	::string                          msg                ;                                              // contains error messages not from job
+	Time::Delay                       network_delay      = Time::Delay(1)                             ; // 1s is reasonable when nothing is said
+	bool                              no_tmp             = false                                      ; // if true <=> no tmp access is allowed
+	pid_t                             pid                = -1                                         ; // pid to kill
+	bool                              seen_tmp           = false                                      ;
+	SeqId                             seq_id             = 0                                          ;
+	ServerSockFd                      server_master_fd   ;
+	::string                          service_mngt       ;
+	PD                                start_date         ;
+	::string                          stdout             ;                                              // contains child stdout if child_stdout==Pipe
+	::string                          stderr             ;                                              // contains child stderr if child_stderr==Pipe
+	Time::Delay                       timeout            ;
+	::atomic<int>                     wstatus            = 0                                          ;
 private :
 	::map_ss                            _add_env              ;
 	Child                               _child                ;

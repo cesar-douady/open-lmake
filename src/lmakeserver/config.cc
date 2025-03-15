@@ -136,7 +136,7 @@ namespace Engine {
 			fields.emplace_back() ;
 			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is always present
 				fields[1] = snake(t) ;
-				Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
+				Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
 				if (!bbe                            ) continue ;                                                                       // not implemented
 				if (!py_backends.contains(fields[1])) continue ;                                                                       // not configured
 				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
@@ -270,8 +270,8 @@ namespace Engine {
 		//
 		res << "\tbackends :\n" ;
 		for( BackendTag t : iota(1,All<BackendTag>) ) {                                      // local backend is always present
-			Backend           const& be  = backends[+t]                 ;
-			Backends::Backend const* bbe = Backends::Backend::s_tab[+t] ;
+			Backend           const& be  = backends[+t]                       ;
+			Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
 			if (!bbe                          ) continue ;                                   // not implemented
 			if (!be.configured                ) continue ;                                   // not configured
 			if (!Backends::Backend::s_ready(t)) {

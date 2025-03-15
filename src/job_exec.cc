@@ -83,7 +83,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
 		else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
 	}
-	g_exec_trace->emplace_back( New , Comment::CstartInfo , CommentExt::Reply ) ;
+	g_exec_trace->push_back({ New , Comment::CstartInfo , CommentExt::Reply }) ;
 	trace(res) ;
 	return res ;
 }
@@ -139,8 +139,8 @@ Digest analyze(Status status=Status::New) {                                     
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (status!=Status::New) {                 // only trace for user at end of job as intermediate analyses are of marginal interest for user
-				if      (unstable) g_exec_trace->emplace_back( New , Comment::Cunstable , CommentExts() , file ) ;
-				else if (dd.hot  ) g_exec_trace->emplace_back( New , Comment::Chot      , CommentExts() , file ) ;
+				if      (unstable) g_exec_trace->push_back({ New , Comment::Cunstable , CommentExts() , file }) ;
+				else if (dd.hot  ) g_exec_trace->push_back({ New , Comment::Chot      , CommentExts() , file }) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
@@ -183,7 +183,7 @@ Digest analyze(Status status=Status::New) {                                     
 				break ;
 			}
 			if ( is_dep && !unlnk ) {
-				g_exec_trace->emplace_back( New , Comment::CdepAndTarget , CommentExts() , file ) ;
+				g_exec_trace->push_back({ New , Comment::CdepAndTarget , CommentExts() , file }) ;
 				if (!reported) {                                                                    // if dep and unexpected target, prefer unexpected message rather than this one
 					const char* read = nullptr ;
 					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
@@ -224,7 +224,7 @@ Digest analyze(Status status=Status::New) {                                     
 		else if (flags.extra_tflags()[ETF::Ignore]) {}
 		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
 	}
-	g_exec_trace->emplace_back( New , Comment::Canalyzed ) ;
+	g_exec_trace->push_back({ New , Comment::Canalyzed }) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -453,7 +453,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
-	g_exec_trace->emplace_back( New , Comment::CcomputedCrcs ) ;
+	g_exec_trace->push_back({ New , Comment::CcomputedCrcs }) ;
 	return msg ;
 }
 
@@ -479,7 +479,7 @@ int main( int argc , char* argv[] ) {
 	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead             ;
 	g_exec_trace        = &end_report.exec_trace     ;
-	g_exec_trace->emplace_back( start_overhead , Comment::CstartOverhead ) ;
+	g_exec_trace->push_back({ start_overhead , Comment::CstartOverhead }) ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
 		get_start_info(server_fd) ;                                                                                          // getting start_info is useless, but necessary to be allowed to report end
@@ -515,7 +515,7 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		Pdate washed { New } ;
-		g_exec_trace->emplace_back( washed , Comment::Cwashed ) ;
+		g_exec_trace->push_back({ washed , Comment::Cwashed }) ;
 		//
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
 		{	auto it = g_start_info.env.begin() ;
@@ -566,7 +566,7 @@ int main( int argc , char* argv[] ) {
 						if      (a==MountAction::Write) g_gather.new_target( washed , ::move(sr.real) ,                 Comment::Cmount , CommentExt::Write ) ;
 					}
 				}
-				g_exec_trace->emplace_back( New , Comment::CenteredNamespace ) ;
+				g_exec_trace->push_back({ New , Comment::CenteredNamespace }) ;
 			}
 		} catch (::string const& e) {
 			end_report.msg += e ;
@@ -634,7 +634,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
-			g_exec_trace->emplace_back( New , Comment::CuploadedToCache , CommentExts() , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
+			g_exec_trace->push_back({ New , Comment::CuploadedToCache , CommentExts() , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
 			trace("cache",to_hex(upload_key)) ;
 		}
 		//
@@ -673,7 +673,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->emplace_back( end_overhead , Comment::CendOverhead ) ;
+			g_exec_trace->push_back({ end_overhead , Comment::CendOverhead }) ;
 			end_report.digest.exec_time = end_overhead - start_overhead ;                   // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;

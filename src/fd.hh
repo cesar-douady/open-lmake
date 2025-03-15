@@ -91,16 +91,16 @@ public :
 		struct sockaddr_in peer_addr ;
 		socklen_t          len       = sizeof(peer_addr)                                                           ;
 		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
-		SWEAR( rc ==0                 , rc  ) ;
-		SWEAR( len==sizeof(peer_addr) , len ) ;
+		SWEAR( rc ==0                 , rc ,self ) ;
+		SWEAR( len==sizeof(peer_addr) , len,self ) ;
 		return ntohl(peer_addr.sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
 	}
 	in_port_t port() const {
 		struct sockaddr_in my_addr ;
 		socklen_t          len     = sizeof(my_addr)                                                           ;
 		int                rc      = ::getsockname( fd , reinterpret_cast<struct sockaddr*>(&my_addr) , &len ) ;
-		SWEAR( rc ==0               , rc  ) ;
-		SWEAR( len==sizeof(my_addr) , len ) ;
+		SWEAR( rc ==0               , rc ,self ) ;
+		SWEAR( len==sizeof(my_addr) , len,self ) ;
 		return ntohs(my_addr.sin_port) ;          // dont prefix with :: as ntohs may be a macro
 	}
 } ;

@@ -559,7 +559,7 @@ namespace Engine {
 						break ;
 						case ReqKey::Trace : {
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return a.date<b.date ; } ) ;
+							sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return ::pair(a.date,a.file)<::pair(b.date,b.file) ; } ) ;
 							::string et ;
 							size_t   w  = 0 ; for( ExecTraceEntry const& e : end.exec_trace ) w = ::max(w,e.step().size()) ;
 							for( ExecTraceEntry const& e : end.exec_trace ) {
@@ -643,12 +643,12 @@ namespace Engine {
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(::pair_ss const&) {}
 							//
-							if (+end) {
+							if (+end) push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
+							if ( +end && end.digest.status>Status::Early ) {
 								// no need to localize phy_tmp_dir as this is an absolute dir
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
-								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
 								if (porcelaine) { //!                                                                    protect
 									push_entry( "rc"             , wstatus_str(end.wstatus)               , Color::None , false ) ;
 									push_entry( "cpu time"       , ::to_string(double(end.stats.cpu    )) , Color::None , false ) ;
@@ -676,9 +676,8 @@ namespace Engine {
 								if (end.compressed_sz) push_entry( "compressed size" , to_short_string_with_unit(end.compressed_sz)+'B' ) ;
 							}
 							//
-							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su)                  ) ;
-							if (+job_info.start.stderr) push_entry( "start stderr"  , job_info.start.stderr      , Color::Warning ) ;
-							if (+end.msg              ) push_entry( "message"       , localize(end.msg,su)                        ) ;
+							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su) ) ;
+							if (+end.msg              ) push_entry( "message"       , localize(end.msg,su)       ) ;
 							// generate output
 							if (porcelaine) {
 								auto audit_map = [&]( ::string const& k , ::map_ss const& m , bool protect , bool allocated )->void {

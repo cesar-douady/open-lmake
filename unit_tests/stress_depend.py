@@ -47,9 +47,14 @@ if __name__!='__main__' :
 				lmake.depend(f'touch_{backend}_{N}',verbose=Verbose)
 
 	class All(PyRule):
-		target = r'all_{Backend:slurm|local}{Verbose:(_verbose)?}_{N:\d+}'
+		target = r'all_{Backend:slurm|local}{Verbose:(_verbose)?}_{N:\d+}{SFX:.*}'
 		def cmd():
-			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))))
+			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))),verbose=True)
+
+	class Multi(PyRule):
+		target = r'multi_{N:\d+}_{P:\d+}'
+		def cmd():
+			lmake.depend(*(f'all_local_verbose_{N}_{i}' for i in range(int(P))))
 
 else :
 
@@ -57,11 +62,15 @@ else :
 
 	import ut
 
-	n = 100 # use a higher value, e.g. 10000, for a really stressing test
+	n = 100  # use a higher value, e.g. 10000, for a really stressing test
+	p = 1000 # send numerous simultaneous targets doing depend verbose
 
 	backends = ['local']
 	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
 		backends.append('slurm')
 
-	for backend in backends     : ut.lmake( f'all_{backend}_{n}'     , was_done=n+1 , done=n , may_rerun=n+1 )
-	if not lmake.Autodep.IsFake : ut.lmake( f'all_local_verbose_{n}' , was_done=  1 , done=n , may_rerun=  1 )
+	for backend in backends :
+		ut.lmake( f'all_{backend}_{n}'     , done=n+1 , may_rerun=n+1 , was_done=n )
+	if not lmake.Autodep.IsFake :
+		ut.lmake( f'all_local_verbose_{n}' , done=n+1 , may_rerun=1                )
+		ut.lmake( f'multi_{n}_{p}'         , done=p   , may_rerun=1   , was_done=1 )

@@ -55,6 +55,8 @@ struct JobExecRpcReq {
 	using FI    = Disk::FileInfo ;
 	using AD    = AccessDigest   ;
 	using Proc  = JobExecProc    ;
+	//
+	static const size_t MaxSz ;
 	// accesses
 	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t const*>(&file_info) ; }
 	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t      *>(&file_info) ; }
@@ -105,6 +107,7 @@ struct JobExecRpcReq {
 	::string    file         = {}            ;                                   // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
 	FI          file_info    = {}            ;
 } ;
+constexpr size_t JobExecRpcReq::MaxSz = PATH_MAX+sizeof(JobExecRpcReq) ;         // maximum size of a message : a file + overhead
 
 struct JobExecRpcReply {
 	friend ::string& operator+=( ::string& , JobExecRpcReply const& ) ;

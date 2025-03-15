@@ -160,10 +160,10 @@ namespace Engine {
 		} ;
 
 		// cxtors & casts
-		 ReqInfo(Req r={}) : req{r} , _n_watchers{0} , _watchers_a{} {}
-		 ~ReqInfo() {
-		 	if (_n_watchers==VectorMrkr) delete _watchers_v ;
-			else                         _watchers_a.~array () ;
+		ReqInfo(Req r={}) : req{r} , _n_watchers{0} , _watchers_a{} {}
+		~ReqInfo() {
+			if (_n_watchers==VectorMrkr) _watchers_v.~unique_ptr() ;
+			else                         _watchers_a.~array     () ;
 		 }
 		ReqInfo(ReqInfo&& ri) { self = ::move(ri) ; }
 		ReqInfo& operator=(ReqInfo&& ri) {
@@ -171,11 +171,11 @@ namespace Engine {
 			live_out = ri.live_out ;
 			pressure = ri.pressure ;
 			req      = ri.req      ;
-			if (_n_watchers==VectorMrkr) delete _watchers_v   ;
-			else                         _watchers_a.~array() ;
+			if (_n_watchers==VectorMrkr) _watchers_v.~unique_ptr() ;
+			else                         _watchers_a.~array     () ;
 			_n_watchers = ri._n_watchers ;
-			if (_n_watchers==VectorMrkr) _watchers_v = new ::vector<Watcher          >{::move(*ri._watchers_v)} ;
-			else                         new(&_watchers_a) ::array <Watcher,NWatchers>{::move( ri._watchers_a)} ;
+			if (_n_watchers==VectorMrkr) new(&_watchers_v) ::unique_ptr{::move(ri._watchers_v)} ;
+			else                         new(&_watchers_a) ::array     {::move(ri._watchers_a)} ;
 			return self ;
 		}
 		// acesses
@@ -213,8 +213,8 @@ namespace Engine {
 	private :
 		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
 		union {
-			::vector<Watcher          >* _watchers_v ;            //      64 bits, if _n_watchers==VectorMrkr
-			::array <Watcher,NWatchers>  _watchers_a ;            //      64 bits, if _n_watchers< VectorMrkr
+			::unique_ptr<::vector<Watcher>> _watchers_v ;         //      64 bits, if _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>     _watchers_a ;         //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
 
