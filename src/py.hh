@@ -19,7 +19,8 @@ ENUM( Exception
 namespace Py {
 
 	struct Gil {
-		friend struct NoGil ;
+		friend struct NoGil   ;
+		friend struct AntiGil ;
 		// statics
 		static void s_swear_locked() { _s_mutex.swear_locked() ; }
 		// static data
@@ -37,11 +38,36 @@ namespace Py {
 
 	struct NoGil {
 		// cxtors & casts
-		NoGil (Gil& g) : _gil{g} { Trace trace("NoGil::acquire") ;                                   PyGILState_Release(_gil._state) ; _gil._lock.unlock() ; }
-		~NoGil(      )           { Trace trace("NoGil::release") ; _gil._lock.lock() ; _gil._state = PyGILState_Ensure (           ) ;                       }
+		NoGil () : _lock{Gil::_s_mutex} { Trace trace("NoGil::acquire") ; }
+		~NoGil()                        { Trace trace("NoGil::release") ; }
+		// data
+	private :
+		Lock<Mutex<MutexLvl::Gil>> _lock  ;
+	} ;
+
+	struct AntiGil {
+		// cxtors & casts
+		AntiGil (Gil& g) : _gil{g} { Trace trace("AntiGil::acquire") ;                                   PyGILState_Release(_gil._state) ; _gil._lock.unlock() ; }
+		~AntiGil(      )           { Trace trace("AntiGil::release") ; _gil._lock.lock() ; _gil._state = PyGILState_Ensure (           ) ;                       }
 	private :
 		// data
 		Gil& _gil ;
+	} ;
+
+	struct SavPyLdLibraryPath {
+		static constexpr bool HasPyLdLibraryPath = PY_LD_LIBRARY_PATH[0]!=0 ;
+		SavPyLdLibraryPath() {
+			if (HasPyLdLibraryPath) {
+				sav = get_env("LD_LIBRARY_PATH") ;
+				if (+sav) set_env( "LD_LIBRARY_PATH" , sav+':'+PY_LD_LIBRARY_PATH ) ;
+				else      set_env( "LD_LIBRARY_PATH" ,         PY_LD_LIBRARY_PATH ) ;
+			}
+		}
+		~SavPyLdLibraryPath() {
+			if (HasPyLdLibraryPath) set_env( "LD_LIBRARY_PATH" , sav ) ;
+		}
+		//
+		::string sav ;
 	} ;
 
 	struct Object       ;
@@ -72,6 +98,7 @@ namespace Py {
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
 	template<class T=Object> T& py_get_sys(::string const& name) {
+		Gil::s_swear_locked() ;
 		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
 		throw_unless( v , "cannot find sys.",name ) ;
 		return *from_py<T>(v) ;
@@ -90,6 +117,7 @@ namespace Py {
 		,	PyExc_ValueError             // ValueErr
 		} ;
 		static_assert(sizeof(s_exc_tab)/sizeof(PyObject*)==N<Exception>) ;
+		Gil::s_swear_locked() ;
 		PyErr_SetString(s_exc_tab[+e],txt.c_str()) ;
 		return nullptr ;
 	}
@@ -98,15 +126,22 @@ namespace Py {
 	void        py_run ( ::string const& text , Dict& env ) ;
 	Ptr<Dict>   py_run ( ::string const& text             ) ;
 
+	template<class T> struct GilPtr : Ptr<T> {
+		~GilPtr() {
+			if (!self) return ; // dont take the gil if nothing to do
+			Gil gil ;
+			Ptr<T>::unboost() ;
+			Ptr<T>::detach () ;
+		}
+		GilPtr& operator=(Ptr<T> const& p) { if (+self) { Gil gil ; return Ptr<T>::operator=(p) ; } else { return Ptr<T>::operator=(p) ; } }
+		GilPtr& operator=(Ptr<T>     && p) { if (+self) { Gil gil ; return Ptr<T>::operator=(p) ; } else { return Ptr<T>::operator=(p) ; } }
+	} ;
+
 	//
 	// Object
 	//
 
 	struct Object : PyObject {
-		template<class T> friend struct Ptr ;
-		friend Code ;
-		friend Ptr<Object> py_eval(::string const&) ;
-		friend Ptr<Dict  > py_run (::string const&) ;
 		// cxtors & casts
 		template<class... As> Object(As&&...) = delete ;
 		// accesses
@@ -118,6 +153,7 @@ namespace Py {
 		template<class T> bool     is_a() const { return       static_cast<T const*>(this)->qualify() ; }
 		//
 		bool operator+() const {
+			Gil::s_swear_locked() ;
 			int rc = PyObject_IsTrue(to_py()) ;
 			if (rc<0) throw py_err_str_clear() ;
 			return bool(rc) ;
@@ -126,8 +162,8 @@ namespace Py {
 		constexpr PyObject* to_py      () const {           return const_cast<Object*>(this) ; }
 		PyObject*           to_py_boost()       { boost() ; return                     this  ; }
 		PyObject*           to_py_boost() const { boost() ; return const_cast<Object*>(this) ; }
-		void                boost      () const { Py_INCREF(this) ;                            }
-		void                unboost    () const { Py_DECREF(this) ;                            }
+		void                boost      () const { Gil::s_swear_locked() ; Py_INCREF(this) ;    }
+		void                unboost    () const { Gil::s_swear_locked() ; Py_DECREF(this) ;    }
 		// services
 		Ptr<Str> str      () const ;
 		::string type_name() const { return ob_type->tp_name ; }
@@ -236,7 +272,7 @@ namespace Py {
 	template<> struct Ptr<Bool> : PtrBase<Bool> {
 		using Base = PtrBase<Bool> ;
 		using Base::Base ;
-		Ptr(bool v) : Base{PyBool_FromLong(v)} {}
+		Ptr(bool v) : Base{ ( Gil::s_swear_locked() , PyBool_FromLong(v) ) } {}
 	} ;
 	static Bool& True  = *from_py<Bool>(Py_True ) ;
 	static Bool& False = *from_py<Bool>(Py_False) ;
@@ -268,7 +304,7 @@ namespace Py {
 	template<> struct Ptr<Int> : PtrBase<Int> {
 		using Base = PtrBase<Int> ;
 		using Base::Base ;
-		template<::integral I> Ptr(I v) : Base{ ::is_signed_v<I> ? PyLong_FromLong(long(v)) : PyLong_FromUnsignedLong(ulong(v)) } {}
+		template<::integral I> Ptr(I v) : Base{ ( Gil::s_swear_locked() , ::is_signed_v<I> ? PyLong_FromLong(long(v)) : PyLong_FromUnsignedLong(ulong(v)) ) } {}
 	} ;
 
 	//
@@ -286,7 +322,7 @@ namespace Py {
 	template<> struct Ptr<Float> : PtrBase<Float> {
 		using Base = PtrBase<Float> ;
 		using Base::Base ;
-		Ptr(double          v) : Base{PyFloat_FromDouble(v)} {}
+		Ptr(double          v) : Base{ ( Gil::s_swear_locked() , PyFloat_FromDouble(v) ) } {}
 		Ptr(Str      const& v) ;
 		Ptr(::string const& v) ;
 	} ;
@@ -322,9 +358,9 @@ namespace Py {
 		using Base::Base ;
 		Ptr(::string const& v) :
 			#if PY_MAJOR_VERSION<3
-				Base{PyString_FromStringAndSize (v.c_str(),v.size())}
+				Base{ ( Gil::s_swear_locked() , PyString_FromStringAndSize (v.c_str(),v.size()) ) }
 			#else
-				Base{PyUnicode_FromStringAndSize(v.c_str(),v.size())}
+				Base{ ( Gil::s_swear_locked() , PyUnicode_FromStringAndSize(v.c_str(),v.size()) ) }
 			#endif
 		{}
 	} ;
@@ -341,7 +377,7 @@ namespace Py {
 		using Item     = ::conditional_t< C ,     Object  const ,     Object  > ;
 		// cxtors & casts
 		SequenceIter(                       ) = default ;
-		SequenceIter(Iterable& i,bool at_end) : _item {reinterpret_cast<Ptr<Object>*>(PySequence_Fast_ITEMS(i.to_py()))} { if (at_end) _item += i.size() ; }
+		SequenceIter(Iterable& i,bool at_end) : _item {reinterpret_cast<PtrItem*>(PySequence_Fast_ITEMS(i.to_py()))} { if (at_end) _item += i.size() ; }
 		// accesses
 		bool operator==(SequenceIter const&) const = default ;
 		// services
@@ -399,10 +435,10 @@ namespace Py {
 	template<> struct Ptr<Tuple> : PtrBase<Tuple> {
 		using Base = PtrBase<Tuple> ;
 		using Base::Base ;
-		Ptr( NewType                 ) : Base{PyTuple_New(0 )} { SWEAR(ptr) ;                                                                                       }
-		Ptr( size_t sz               ) : Base{PyTuple_New(sz)} { SWEAR(ptr) ;                                                                                       }
-		Ptr( Object& i0              ) : Base{PyTuple_New(1 )} { SWEAR(ptr) ; PyTuple_SET_ITEM(ptr,0,i0.to_py_boost()) ;                                            }
-		Ptr( Object& i0 , Object& i1 ) : Base{PyTuple_New(2 )} { SWEAR(ptr) ; PyTuple_SET_ITEM(ptr,0,i0.to_py_boost()) ; PyTuple_SET_ITEM(ptr,1,i1.to_py_boost()) ; }
+		Ptr( NewType                 ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(0 ) ) } { SWEAR(ptr) ;                                               }
+		Ptr( size_t sz               ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(sz) ) } { SWEAR(ptr) ;                                               }
+		Ptr( Object& i0              ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(1 ) ) } { SWEAR(ptr) ; self->set_item(0,i0) ;                        }
+		Ptr( Object& i0 , Object& i1 ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(2 ) ) } { SWEAR(ptr) ; self->set_item(0,i0) ; self->set_item(1,i1) ; }
 	} ;
 
 	//
@@ -420,8 +456,8 @@ namespace Py {
 		Object      & operator[](size_t idx)       { return *from_py(PyList_GET_ITEM(to_py(),ssize_t(idx))) ; }
 		Object const& operator[](size_t idx) const { return *from_py(PyList_GET_ITEM(to_py(),ssize_t(idx))) ; }
 		// services
-		void append(Object& v) { int rc = PyList_Append  ( to_py() , v.to_py()            ) ; if (rc!=0) throw py_err_str_clear() ; }
-		void clear (         ) { int rc = PyList_SetSlice( to_py() , 0 , size() , nullptr ) ; if (rc!=0) throw py_err_str_clear() ; }
+		void append(Object& v) { Gil::s_swear_locked() ; int rc = PyList_Append  ( to_py() , v.to_py()            ) ; if (rc!=0) throw py_err_str_clear() ; }
+		void clear (         ) { Gil::s_swear_locked() ; int rc = PyList_SetSlice( to_py() , 0 , size() , nullptr ) ; if (rc!=0) throw py_err_str_clear() ; }
 	} ;
 	template<> struct Ptr<List> : PtrBase<List> {
 		using Base = PtrBase<List> ;
@@ -475,12 +511,13 @@ namespace Py {
 		bool   qualify() const { return PyDict_Check(to_py()) ; }
 		size_t size   () const { return PyDict_Size (to_py()) ; }
 		//
-		bool          contains  ( ::string const& k             ) const { bool    r =bool(   PyDict_GetItemString(to_py(),k.c_str()          )) ;                                       return r  ; }
-		void          set_item  ( ::string const& k , Object& v )       { int     rc=        PyDict_SetItemString(to_py(),k.c_str(),v.to_py())  ; if (rc) throw "cannot set "+k       ;             }
-		void          del_item  ( ::string const& k             )       { int     rc=        PyDict_DelItemString(to_py(),k.c_str()          )  ; if (rc) throw "key "+k+" not found" ;             }
-		void          erase_item( ::string const& k             )       {                    PyDict_DelItemString(to_py(),k.c_str()          )  ;                                                   }
-		Object const& get_item  ( ::string const& k             ) const { Object* r =from_py(PyDict_GetItemString(to_py(),k.c_str()          )) ; if (!r) throw "key "+k+" not found" ; return *r ; }
-		Object      & get_item  ( ::string const& k             )       { Object* r =from_py(PyDict_GetItemString(to_py(),k.c_str()          )) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		bool          contains  (::string const& k) const { Gil::s_swear_locked() ; bool    r = bool   (PyDict_GetItemString(to_py(),k.c_str())) ;                                       return r  ; }
+		Object const& get_item  (::string const& k) const { Gil::s_swear_locked() ; Object* r = from_py(PyDict_GetItemString(to_py(),k.c_str())) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		Object      & get_item  (::string const& k)       { Gil::s_swear_locked() ; Object* r = from_py(PyDict_GetItemString(to_py(),k.c_str())) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		//
+		void set_item  ( ::string const& k , Object& v ) { Gil::s_swear_locked() ; int rc = PyDict_SetItemString( to_py() , k.c_str() , v.to_py() ) ; if (rc) throw "cannot set "+k       ; }
+		void del_item  ( ::string const& k             ) { Gil::s_swear_locked() ; int rc = PyDict_DelItemString( to_py() , k.c_str()             ) ; if (rc) throw "key "+k+" not found" ; }
+		void erase_item( ::string const& k             ) { Gil::s_swear_locked() ;          PyDict_DelItemString( to_py() , k.c_str()             ) ;                                       }
 		//
 		Object      & operator[](::string const& key)       { return get_item(key) ; }
 		Object const& operator[](::string const& key) const { return get_item(key) ; }
@@ -496,7 +533,7 @@ namespace Py {
 	template<> struct Ptr<Dict> : PtrBase<Dict> {
 		using Base = PtrBase<Dict> ;
 		using Base::Base ;
-		Ptr(NewType) : Base{PyDict_New()} {}
+		Ptr(NewType) : Base{ ( Gil::s_swear_locked() , PyDict_New() ) } {}
 	} ;
 
 	//
@@ -512,7 +549,7 @@ namespace Py {
 	template<> struct Ptr<Code> : PtrBase<Code> {
 		using Base = PtrBase<Code> ;
 		using Base::Base ;
-		Ptr(::string const& v) : Base{Py_CompileString(v.c_str(),"<code>",Py_eval_input)} {
+		Ptr(::string const& v) : Base{ ( Gil::s_swear_locked() , Py_CompileString(v.c_str(),"<code>",Py_eval_input) ) } {
 			if (!self) throw py_err_str_clear() ;
 		}
 	} ;
@@ -544,7 +581,7 @@ namespace Py {
 		// services
 		bool        qualify() const { return PyCallable_Check(to_py()) ; }
 		Ptr<Object> call   () const {
-			Ptr<Object> res = {PyObject_CallFunction(to_py(),nullptr)} ;
+			Ptr<Object> res { ( Gil::s_swear_locked() , PyObject_CallFunction(to_py(),nullptr) ) } ;
 			if (!res) throw py_err_str_clear() ;
 			return res ;
 		}
@@ -563,15 +600,17 @@ namespace Py {
 	//
 
 	template<class T> Ptr<T> Object::get_attr(::string const& attr) const {
-		PyObject* val = PyObject_GetAttrString(to_py(),attr.c_str()) ;
+		PyObject* val = PyObject_GetAttrString( to_py() , attr.c_str() ) ;
 		if (!val) throw py_err_str_clear() ;
 		return val ;
 	}
 	inline void Object::set_attr( ::string const& attr , Object const& val ) {
+		Gil::s_swear_locked() ;
 		int rc = PyObject_SetAttrString( to_py() , attr.c_str() , val.to_py() ) ;
 		if (rc!=0) throw py_err_str_clear() ;
 	}
 	inline void Object::del_attr(::string const& attr) {
+		Gil::s_swear_locked() ;
 		int rc = PyObject_DelAttrString( to_py() , attr.c_str() ) ;
 		if (rc!=0) throw py_err_str_clear() ;
 		}
@@ -582,9 +621,9 @@ namespace Py {
 
 	inline Ptr<Float>::Ptr(Str const& v) :
 		#if PY_MAJOR_VERSION<3
-			Base{PyFloat_FromString(v.to_py(),nullptr/*unused*/)}
+			Base{ ( Gil::s_swear_locked() , PyFloat_FromString(v.to_py(),nullptr/*unused*/) ) }
 		#else
-			Base{PyFloat_FromString(v.to_py()                  )}
+			Base{ ( Gil::s_swear_locked() , PyFloat_FromString(v.to_py()                  ) ) }
 		#endif
 	{ throw_unless( +self , "cannot convert to float" ) ; }
 	inline Ptr<Float>::Ptr(::string const& v) : Ptr{*Ptr<Str>(v)} {}
@@ -594,6 +633,7 @@ namespace Py {
 	//
 
 	inline Ptr<Object> Code::eval(Dict& glbs) const {
+		Gil::s_swear_locked() ;
 		#if PY_MAJOR_VERSION<3
 			PyCodeObject* c = (PyCodeObject*)(to_py()) ;
 		#else

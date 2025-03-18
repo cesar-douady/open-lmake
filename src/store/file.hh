@@ -46,11 +46,11 @@ namespace Store {
 		bool operator+() const { return size ; }
 		// services
 		void expand(size_t sz) {
-			if (sz<=size) return ;                              // fast path
+			if (sz<=size) return ;                         // fast path
 			ULock lock{_mutex} ;
-			if ( AutoLock && sz<=size ) return ;                // redo size check, now that we have the lock
+			if ( AutoLock && sz<=size ) return ;           // redo size check, now that we have the lock
 			size_t old_size = size ;
-			_resize_file(::max( sz , size + (size>>2) )) ;      // ensure remaps are in log(n)
+			_resize_file(::max( sz , size + (size>>2) )) ; // ensure remaps are in log(n)
 			_map(old_size) ;
 		}
 		void clear(size_t sz=0) {
@@ -83,11 +83,11 @@ namespace Store {
 		void _resize_file(size_t sz      ) ;
 		// data
 	public :
-		::string         name      ;
-		char*            base      = nullptr ;                   // address of mapped file
-		::atomic<size_t> size      = 0       ;                   // underlying file size (fake if no file)
-		bool             writable  = false   ;
-		bool             keep_open = false   ;
+		::string       name      ;
+		char*          base      = nullptr ;               // address of mapped file
+		Atomic<size_t> size      = 0       ;               // underlying file size (fake if no file)
+		bool           writable  = false   ;
+		bool           keep_open = false   ;
 	protected :
 		Mutex<MutexLvl::File,true/*Shared*/> mutable _mutex ;
 	private :
@@ -151,7 +151,7 @@ namespace Store {
 			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/types.hh\n" ;
 			exit(Rc::Param,err_msg) ;
 		}
-		sz += s_page-1 ; sz = sz-sz%s_page ; // round up
+		sz += s_page-1 ; sz = sz-sz%s_page ;   // round up
 		if (+_fd) {
 			//         vvvvvvvvvvvvvvvvvvvvv
 			int rc = ::ftruncate( _fd , sz ) ; // may increase file size

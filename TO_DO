@@ -14,17 +14,13 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* exceptionally, unit_tests/clone.dir/tok crashes
+* exceptionnally, server blocks
+	- seems to be while taking GIL
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* handle imports in dynamic attributes
-	- as it is now, they may be cached in sys.module and reused for each call with no dep
-	- consider all top level imports must be read when reading makefiles
-	- forbid imports (by providing an adequate sys.meta_path) during dynamic attrs eval
-	- or at least set sys.path outside repo
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quatantined files in summary
@@ -68,8 +64,6 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* use ::variant instead of union
-> suppress support for ignore_stat inode
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -164,6 +158,13 @@ M port to Darwin
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
 ! no req_info for non-buildable nodes
+! avoid ack at job start
+	- pass all infos in command line
+		- pass JobRpcReply as argument through mk_shell_str
+		- fall back to current implementation if command line would be too large
+	- find a way to be certain that seq_id is not necessary to qualify job start
+	- difficult to work out : acquire_cmd_line would call _handle_job_start which needs to record pid which we do not have yet
+	- saves about 1% on benchmark (10000)
 ? evaluate dynamic deps only if static deps match
 	- at least for those deps placed before
 	- is it worth ?
@@ -179,11 +180,6 @@ M port to Darwin
 	- DepsAttrs
 	- SubmitRsrcsAttrs + SubmitNoneAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
-? avoid ack at job start
-	- pass all infos in command line
-		- pass JobRpcReply as argument through mk_shell_str
-		- fall back to current implementation if command line would be too large
-	- find a way to be certain that seq_id is not necessary to qualify job start
 ? launch deps as soon as they are discovered
 	- w/o waiting for dependent job to complete
 	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going

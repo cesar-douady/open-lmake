@@ -56,15 +56,15 @@ namespace Backends {
 			// all delays and dates are rounded to ms to avoid rounding errors
 			friend ::string& operator+=( ::string& , Workload const& ) ;
 			using Val    = uint64_t                  ;
-			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                           // +1 to allow adding 1 without overflow
+			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                         // +1 to allow adding 1 without overflow
 		private :
 			//services
 		public :
-			void submit( Req r                   , Job ) ;                       // anticipate job execution
-			void add   ( Req r                   , Job ) ;                       // queue job if not already started
-			void kill  ( Req r                   , Job ) ;                       // finally decide not to execute it
-			Val  start ( ::vector<ReqIdx> const& , Job ) ;                       // start an anticipated job
-			Val  end   ( ::vector<ReqIdx> const& , Job ) ;                       // end a started job
+			void submit( Req r                   , Job ) ;                     // anticipate job execution
+			void add   ( Req r                   , Job ) ;                     // queue job if not already started
+			void kill  ( Req r                   , Job ) ;                     // finally decide not to execute it
+			Val  start ( ::vector<ReqIdx> const& , Job ) ;                     // start an anticipated job
+			Val  end   ( ::vector<ReqIdx> const& , Job ) ;                     // end a started job
 			//
 			void  open_req     ( Req r                                       )       { _queued_cost[+r] = 0 ; }
 			void  close_req    ( Req                                         )       {                        }
@@ -74,15 +74,15 @@ namespace Backends {
 			void _refresh() ;
 			// data
 			Mutex<MutexLvl::Workload> mutable _mutex               ;
-			Val                               _ref_workload        = 0 ;         // total workload at ref_date
-			Pdate                             _ref_date            ;             // later than any job start date and end date, always rounded to ms
-			::umap<Job,Pdate>                 _eta_tab             ;             // jobs whose eta is post ref_date
-			::set<::pair<Pdate,Job>>          _eta_set             ;             // same info, but ordered by dates
-			Val                               _reasonable_workload = 0 ;         // sum of (eta-_ref_date) in _eta_tab
-			JobIdx                            _running_tokens      = 0 ;         // sum of tokens for all running jobs
-			JobIdx                            _reasonable_tokens   = 0 ;         // sum ok tokens in _eta_tab
+			Val                               _ref_workload        = 0 ;       // total workload at ref_date
+			Pdate                             _ref_date            ;           // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>                 _eta_tab             ;           // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>>          _eta_set             ;           // same info, but ordered by dates
+			Val                               _reasonable_workload = 0 ;       // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                            _running_tokens      = 0 ;       // sum of tokens for all running jobs
+			JobIdx                            _reasonable_tokens   = 0 ;       // sum ok tokens in _eta_tab
 			//
-			::array<::atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _queued_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
+			::array<Atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _queued_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
 		} ;
 
 		struct StartEntry {
@@ -183,7 +183,7 @@ namespace Backends {
 		static JobMngtThread                        _s_job_mngt_thread               ;
 		static JobEndThread                         _s_job_end_thread                ;
 		static SmallIds<SmallId,true/*ThreadSafe*/> _s_small_ids                     ;
-		static ::atomic<JobIdx>                     _s_starting_job                  ;                 // this job is starting when _starting_job_mutex is locked
+		static Atomic<JobIdx>                       _s_starting_job                  ;                 // this job is starting when _starting_job_mutex is locked
 		static Mutex<MutexLvl::StartJob>            _s_starting_job_mutex            ;
 		static ::map<Job,StartEntry>                _s_start_tab                     ;                 // use map instead of umap because heartbeat iterates over while tab is moving
 		static Workload                             _s_workload                      ;                 // book keeping of workload

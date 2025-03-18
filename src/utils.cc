@@ -28,6 +28,9 @@ using namespace Time ;
 // Fd
 //
 
+::string& operator+=( ::string& os , Fd   const& fd ) { return os <<"Fd("  << fd.fd <<')' ; }
+::string& operator+=( ::string& os , AcFd const& fd ) { return os <<"AcFd("<< fd.fd <<')' ; }
+
 void Fd::write(::string_view data) const {
 	for( size_t cnt=0 ; cnt<data.size() ;) {
 		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ;
@@ -467,8 +470,7 @@ bool              _crash_busy  = false ;
 #endif
 
 //
-// Fd
+// mutexes
 //
 
-::string& operator+=( ::string& os , Fd   const& fd ) { return os <<"Fd("  << fd.fd <<')' ; }
-::string& operator+=( ::string& os , AcFd const& fd ) { return os <<"AcFd("<< fd.fd <<')' ; }
+thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;

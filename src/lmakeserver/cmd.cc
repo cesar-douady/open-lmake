@@ -350,8 +350,8 @@ namespace Engine {
 		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		mk_dir_s(dbg_dir_s) ;
 		//
-		::string script_file     = dbg_dir_s+"script"       ;
-		::string gen_script_file = dbg_dir_s+"gen_script"   ;
+		::string script_file     = dbg_dir_s+"script"     ;
+		::string gen_script_file = dbg_dir_s+"gen_script" ;
 		{	::string gen_script ;
 			gen_script << "#!" PYTHON "\n"                                                                                       ;
 			gen_script << "import sys\n"                                                                                         ;
@@ -364,11 +364,13 @@ namespace Engine {
 			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
 		}                                                                                                                          // ensure gen_script is closed before launching it
 		::chmod(gen_script_file.c_str(),0755) ;
-		Child child ;
-		child.stdin    = {}                ;                                                                                       // no input
-		child.cmd_line = {gen_script_file} ;
-		child.spawn() ;
-		if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
+		{	SavPyLdLibraryPath spllp ;
+			Child              child ;
+			child.stdin    = {}                ;                                                                                       // no input
+			child.cmd_line = {gen_script_file} ;
+			child.spawn() ;
+			if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
+		}
 		//
 		audit_file( fd , ::move(script_file) ) ;
 		return true ;

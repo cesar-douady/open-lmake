@@ -241,11 +241,13 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 		- `L` : Local launch jobs
 		- `M` : job management
 		- `Q` : manage queries from clients
+		- 'P' : intermediate thread that launches ptrace'd children
 		- `R` : deferred reports
 		- `S` : job start
 		- `T` : wait terminated processes in local backend
 		- `U` : Slurm launch jobs
 		- `W` : deferred processing of wakeup connection errors
+		- 'Y' : thread used to gather stderr from Python when printing stack trace in case of uncaught exception and !HAS\_MEMFD
 	- in job exec:
 		- `<number>` : compute crc
 	- in lmake:

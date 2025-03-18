@@ -27,13 +27,13 @@ ENUM( EventKind
 
 static constexpr Delay StatsRefresh { 1 } ;
 
-static ServerSockFd   _g_server_fd      ;
-static bool           _g_is_daemon      = true   ;
-static ::atomic<bool> _g_done           = false  ;
-static bool           _g_server_running = false  ;
-static ::string       _g_host           = host() ;
-static bool           _g_seen_make      = false  ;
-static Fd             _g_watch_fd       ;          // watch LMAKE/server
+static ServerSockFd _g_server_fd      ;
+static bool         _g_is_daemon      = true   ;
+static Atomic<bool> _g_done           = false  ;
+static bool         _g_server_running = false  ;
+static ::string     _g_host           = host() ;
+static bool         _g_seen_make      = false  ;
+static Fd           _g_watch_fd       ;          // watch LMAKE/server
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	try {
@@ -159,8 +159,8 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	}
 	//
 	for(;;) {
-		::vector<Event> events  = epoll.wait() ;
-		bool            new_fd  = false        ;
+		::vector<Event> events = epoll.wait() ;
+		bool            new_fd = false        ;
 		for( Event event : events ) {
 			EventKind kind = event.data() ;
 			Fd        fd   = event.fd  () ;

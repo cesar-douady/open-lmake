@@ -28,9 +28,9 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static void s_new_trace_file(::string const& ={}) {}
 		template<class T> static bool s_str( T const& , const char* ) { return false ; } // return anything (least expensive)
 		// static data
-		static ::atomic<bool    > s_backup_trace ;
-		static ::atomic<size_t  > s_sz           ;
-		static ::atomic<Channels> s_channels     ;
+		static Atomic<bool    > s_backup_trace ;
+		static Atomic<size_t  > s_sz           ;
+		static Atomic<Channels> s_channels     ;
 		// cxtors & casts
 		/**/                  Trace( Channel                              ) {}
 		template<class... Ts> Trace( Channel , const char* , Ts const&... ) {}
@@ -58,14 +58,14 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		/**/              static ::string s_str( uint8_t  v , const char* s ) { return s_str(int(v),s)         ; } // avoid confusion with char
 		/**/              static ::string s_str( int8_t   v , const char* s ) { return s_str(int(v),s)         ; } // avoid confusion with char
 		// static data
-		static ::atomic<bool    > s_backup_trace ;
-		static ::atomic<size_t  > s_sz           ;                                                                 // max overall size of trace, beyond, trace wraps
-		static ::atomic<Channels> s_channels     ;
+		static Atomic<bool    > s_backup_trace ;
+		static Atomic<size_t  > s_sz           ;                                                                   // max overall size of trace, beyond, trace wraps
+		static Atomic<Channels> s_channels     ;
 	private :
 		static size_t                 _s_pos       ;                                                               // current line number
 		static bool                   _s_ping      ;                                                               // ping-pong to distinguish where trace stops in the middle of a trace
 		static Fd                     _s_fd        ;
-		static ::atomic<bool>         _s_has_trace ;
+		static Atomic<bool>           _s_has_trace ;
 		static uint8_t*               _s_data      ;                                                               // pointer to mmap'ped trace file
 		static size_t                 _s_cur_sz    ;                                                               // current size of trace file
 		static Mutex<MutexLvl::Trace> _s_mutex     ;

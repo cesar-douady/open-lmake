@@ -169,7 +169,7 @@ namespace Backends {
 	Backend::JobEndThread                Backend::_s_job_end_thread                ;
 	SmallIds<SmallId,true/*ThreadSafe*/> Backend::_s_small_ids                     ;
 	Mutex<MutexLvl::StartJob>            Backend::_s_starting_job_mutex            ;
-	::atomic<JobIdx>                     Backend::_s_starting_job                  ;
+	Atomic<JobIdx>                       Backend::_s_starting_job                  ;
 	::map<Job,Backend::StartEntry>       Backend::_s_start_tab                     ;
 	Backend::Workload                    Backend::_s_workload                      ;
 	::map <Pdate,JobExec>                Backend::_s_deferred_report_queue_by_date ;
@@ -364,7 +364,7 @@ namespace Backends {
 					jsrr.msg <<set_nl<< rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
 				}
 				reply.keep_tmp |= start_none_attrs.keep_tmp ;
-				#if HAS_ZLIB
+				#if HAS_ZSTD
 					reply.z_lvl = start_none_attrs.z_lvl ;                                                                                                   // if zlib is not available, dont compress
 				#endif
 				//

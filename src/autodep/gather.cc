@@ -167,7 +167,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 }
 
 void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
-	t_thread_key = 'T' ;
+	t_thread_key = 'P' ;
 	AutodepPtrace::s_init(autodep_env) ;
 	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
 	//vvvvvvvvvvvv
@@ -268,7 +268,6 @@ Status Gather::exec_child() {
 	ServerSockFd             job_master_fd      { New }       ;
 	AcFd                     fast_report_fd     ;                                                     // always open, never waited for
 	AcFd                     child_fd           ;
-	::jthread                wait_jt            ;                                                     // thread dedicated to wating child
 	Epoll<Kind>              epoll              { New }       ;
 	Status                   status             = Status::New ;
 	::umap<Fd,Jerr>          delayed_check_deps ;                                                     // check_deps events are delayed to ensure all previous deps are received
@@ -440,7 +439,7 @@ Status Gather::exec_child() {
 					int ws ;
 					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0) ;                             wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
-					trace(kind,fd,_child.pid,to_hex(uint(ws))) ;
+					trace(kind,fd,_child.pid,ws) ;
 					SWEAR(!WIFSTOPPED(ws),_child.pid) ;          // child must have ended if we are here
 					end_date  = New                      ;
 					end_child = end_date + network_delay ;       // wait at most network_delay for reporting & stdout & stderr to settle down

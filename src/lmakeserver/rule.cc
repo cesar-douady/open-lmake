@@ -589,7 +589,10 @@ namespace Engine {
 	}
 
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) : special{s} , name{snake(s)} {
-		SWEAR(+s) ;
+		if (!s) {
+			name.clear() ;
+			return ;
+		}
 		if (s<Special::NShared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && is_dirname(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		switch (s) {

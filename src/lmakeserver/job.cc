@@ -350,7 +350,7 @@ namespace Engine {
 	// answer to job execution requests
 	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = self->running_reqs(false/*with_zombies*/) ;
-		Trace trace("job_analysis",proc,deps.size()) ;
+		Trace trace("job_analysis",proc,deps.size(),reqs.size()) ;
 		//
 		switch (proc) {
 			case JobMngtProc::DepVerbose : {
@@ -1312,7 +1312,9 @@ namespace Engine {
 							req->stats.add(JobReport::Hit) ;
 							req->missing_audits[idx()] = { .report=JobReport::Hit , .has_stderr=+job_info.end.stderr } ;
 							goto ResetReqInfo ;
-						} catch (::string const&) {}                                                                          // if we cant download result, it is like a miss
+						} catch (::string const&e) {
+							trace("hit_throw",e) ;
+						}                                                                          // if we cant download result, it is like a miss
 					break ;
 					case Maybe : {
 						::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back(dn,dd) ;

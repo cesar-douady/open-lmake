@@ -417,7 +417,7 @@ EOF
 HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc) # check if std::unreachable is available in lib
 
 #
-# ZLIB (HAS_ZLIB)
+# ZSTD/ZLIB (HAS_ZSTD+HAS_ZLIB)
 #
 cat <<"EOF" >zlib.cc
 	#include <zlib.h>
@@ -427,6 +427,13 @@ cat <<"EOF" >zlib.cc
 	}
 EOF
 HAS_ZLIB=$(ok cc -std=$CXX_STD -o /dev/null zlib.cc -lz ) # check both include and lib
+cat <<"EOF" >zstd.cc
+	#include <zstd.h>
+	int main() {
+		ZSTD_compress(nullptr/*dst*/,0/*dst_capacity*/,nullptr/*src*/,0/*src_len*/,0/*lvl*/) ;
+	}
+EOF
+HAS_ZSTD=$(ok cc -std=$CXX_STD -o /dev/null zstd.cc -lzstd ) # check both include and lib
 
 cat >$MK_FILE <<-EOF
 	SYS_CONFIG_OK := 1
@@ -447,6 +454,7 @@ cat >$MK_FILE <<-EOF
 	HAS_SGE                   := ${HAS_SGE#0}
 	HAS_SLURM                 := ${HAS_SLURM#0}
 	HAS_ZLIB                  := ${HAS_ZLIB#0}
+	HAS_ZSTD                  := ${HAS_ZSTD#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32
 	LIB_STACKTRACE            := $LIB_STACKTRACE
@@ -501,6 +509,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
 	#define HAS_ZLIB                    $HAS_ZLIB
+	#define HAS_ZSTD                    $HAS_ZSTD
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
 	#define MAX_PID                     $MAX_PID

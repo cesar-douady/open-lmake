@@ -138,7 +138,7 @@ namespace Time {
 		Mutex<MutexLvl::PdateNew> Pdate::_s_mutex_new ;
 		Pdate::Tick               Pdate::_s_min_next  ;
 	#else
-		::atomic<Pdate::Tick> Pdate::_s_min_next ;
+		Atomic<Pdate::Tick> Pdate::_s_min_next ;
 	#endif
 
 	Pdate::Pdate(NewType) {
@@ -154,10 +154,3 @@ namespace Time {
 	}
 
 }
-
-//
-// mutexes
-//
-
-thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
-

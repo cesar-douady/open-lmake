@@ -109,7 +109,7 @@ ENUM_3( JobReasonTag                           // see explanations in table belo
 ,	New
 ,	WasLost
 //	with node
-,	BusyDep                                    // job is waiting for a known dep
+,	BusyDep                                    // job is waiting for an unknown dep
 ,	BusyTarget
 ,	NoTarget
 ,	OldTarget

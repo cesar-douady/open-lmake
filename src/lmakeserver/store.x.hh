@@ -181,24 +181,20 @@ namespace Engine::Persistent {
 	public :
 		static constexpr size_t NameSz = sizeof(_Name)-1 ;                // -1 to account for teminating null, minimum size of the rule field : account for internally generated messages
 		// statics
-		static void s_from_disk           (                    ) ;
-		static void s_from_vec_dynamic    (::vector<RuleData>&&) ;
-		static void s_from_vec_not_dynamic(::vector<RuleData>&&) ;
+		static void           s_from_disk           (                                       ) ;
+		static void           s_from_vec_dynamic    (::vector<RuleData>&&                   ) ;
+		static void           s_from_vec_not_dynamic(::vector<RuleData>&&                   ) ;
 	private :
-		static void _s_init_vec      (bool ping) ;
-		static void _s_set_rule_datas(bool ping) ;
-		static void _s_save          (         ) ;
-		static void _s_update_crcs   (         ) ;
+		static void _s_init_special(RuleData* =_s_rule_datas) ;
+		static void _s_save        (                        ) ;
+		static void _s_update_crcs (                        ) ;
 		// static data
 	public :
-		static MatchGen       s_match_gen    ;
-		static ::umap_s<Rule> s_by_name      ;
-		static size_t         s_name_sz      ;
-		static bool           s_ping         ;                            // use ping-pong to update _s_rule_datas atomically
-		static RuleIdx        s_n_rule_datas ;
+		static MatchGen s_match_gen    ;
+		static size_t   s_name_sz      ;
+		static RuleIdx  s_n_rule_datas ;
 	private :
-		static ::vector<RuleData>  _s_rule_data_vecs[2] ;
-		static ::atomic<RuleData*> _s_rule_datas        ;
+		static Atomic<RuleData*> _s_rule_datas ;                          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -506,10 +502,6 @@ namespace Engine::Persistent {
 	//
 	// RuleBase
 	//
-	inline void RuleBase::_s_set_rule_datas(bool ping) {
-		_s_rule_datas  = _s_rule_data_vecs[ping].data()-1 ;                                                                          // entry 0 is not stored in _s_rule_data_vecs
-		s_n_rule_datas = _s_rule_data_vecs[ping].size()+1 ;
-	}
 	inline RuleLst rule_lst(bool with_shared=false) { return RuleLst(with_shared) ; }
 	// accesses
 	inline RuleData      & RuleBase::data     ()       { SWEAR(+self       ) ; return _s_rule_datas[+self]                       ; }

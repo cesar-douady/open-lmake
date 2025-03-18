@@ -181,8 +181,8 @@ struct _Exec : Record::Exec {
 			//
 			const char* const* llp ;
 			for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
-			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                // pass value after the LD_LIBRARY_PATH= prefix
-			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                // /!\ dont add LlpeSz to nullptr
+			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                    // pass value after the LD_LIBRARY_PATH= prefix
+			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                    // /!\ dont add LlpeSz to nullptr
 		#else
 			(void)envp ;
 		#endif
@@ -197,13 +197,13 @@ struct _Execp : _Exec {
 	_Execp( Record& r , const char* file , bool /*no_follow*/ , const char* const envp[] , Comment c ) {
 		if (!file) return ;
 		//
-		if (::strchr(file,'/')) {                                                             // if file contains a /, no search is performed
+		if (::strchr(file,'/')) {                                               // if file contains a /, no search is performed
 			static_cast<Base&>(self) = Base(r,file,false/*no_follow*/,envp,c) ;
 			return ;
 		}
 		//
 		::string p = get_env("PATH") ;
-		if (!p) {                                                                             // gather standard path if path not provided
+		if (!p) {                                                               // gather standard path if path not provided
 			size_t n = ::confstr(_CS_PATH,nullptr,0) ;
 			p.resize(n) ;
 			::confstr(_CS_PATH,p.data(),n) ;
@@ -311,7 +311,11 @@ struct Mkstemp : WSolve {
 	// use short macros as lines are very long in defining audited calls to libc
 	// protect against recusive calls
 	// args must be in () e.g. HDR1(unlink,path,(path))
-	#define ORIG(libcall) static decltype(::libcall)* orig = reinterpret_cast<decltype(::libcall)*>(get_orig(#libcall)) ;
+	// /!\ static guard may call sycall to get its mutex, which may loop as t_loop is not set yet (because we need orig to call original function)
+	// /!\ hence, use nullptr as a marker (we are not protected against multiple threads, but this is harmless)
+	#define ORIG(libcall) \
+		static decltype(::libcall)* orig = nullptr ; \
+		if (!orig) orig = reinterpret_cast<decltype(::libcall)*>(get_orig(#libcall))
 	#define HDR(libcall,cond,args) \
 		ORIG(libcall) ;                                                                      \
 		if ( UNLIKELY(_t_loop) || !LIKELY(started()) || LIKELY(cond) ) return (*orig) args ; \
@@ -348,10 +352,11 @@ struct Mkstemp : WSolve {
 
 	// clone
 	// cf fork about why this wrapper is necessary
-	static int (*_clone_fn)(void*) ;       // variable to hold actual function to call
+	static int (*_clone_fn)(void*) ;                                                                                            // variable to hold actual function to call
 	static int _call_clone_fn(void* arg) {
 		SWEAR(!_t_loop) ;
-		_g_mutex.unlock(MutexLvl::None) ;  // contrarily to fork, clone does not proceed but calls a function and the lock must be released in both parent and child (we are the only thread here)
+		// contrarily to fork, clone does not proceed but calls a function and the lock must be released in both parent and child (we are the only thread here)
+		_g_mutex.unlock(::ref(MutexLvl::None)) ;
 		return _clone_fn(arg) ;
 	}
 	int clone( int (*fn)(void*) , void *stack , int flags , void *arg , ... ) NE {
@@ -363,10 +368,10 @@ struct Mkstemp : WSolve {
 		va_end(args) ;
 		//
 		ORIG(clone) ;
-		if ( _t_loop || !started() || flags&CLONE_VM ) return (*orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ; // if flags contains CLONE_VM, lock is not duplicated : nothing to do
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ;            // if flags contains CLONE_VM, lock is not duplicated : nothing to do
 		NO_SERVER(clone) ;
-		Lock lock{_g_mutex} ;                                                                                               // no need to set _t_loop as clone calls no other piggy-backed function
-		_clone_fn = fn ;                                                                                                    // _g_mutex is held, so there is no risk of clash
+		Lock lock{_g_mutex} ;                                                                                                   // no need to set _t_loop as clone calls no other piggy-backed function
+		_clone_fn = fn ;                                                                                                        // _g_mutex is held, so there is no risk of clash
 		return (*orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
 	}
 	int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
@@ -379,10 +384,10 @@ struct Mkstemp : WSolve {
 		//
 		ORIG(__clone2) ;
 		if ( _t_loop || !started() || flags&CLONE_VM ) return (*orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
-		Lock lock{_g_mutex} ;                                                                                                          // cf clone
+		Lock lock{_g_mutex} ;                                                                                                   // cf clone
 		//
 		NO_SERVER(__clone2) ;
-		_clone_fn = fn ;                                                                                                               // cf clone
+		_clone_fn = fn ;                                                                                                        // cf clone
 		return (*orig)(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
 		}
 
@@ -672,7 +677,7 @@ struct Mkstemp : WSolve {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void*     descr_ctx = nullptr ;
-		SaveErrno audit_ctx ;                                                                              // save user errno when required
+		SaveErrno audit_ctx ;                                                                        // save user errno when required
 		//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (descr.entry) descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;
 		//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

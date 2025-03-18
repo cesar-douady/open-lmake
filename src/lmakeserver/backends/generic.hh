@@ -127,13 +127,13 @@ namespace Backends {
 		_SpawnedEntry() = default ;
 		_SpawnedEntry( Rsrcs const& rsrcs_ , Rsrcs const& rounded_rsrcs_ ) : rsrcs{rsrcs_} , rounded_rsrcs{rounded_rsrcs_} {}
 		// data
-		Rsrcs             rsrcs         ;
-		Rsrcs             rounded_rsrcs ;
-		::atomic<SpawnId> id            = NoId  ;
-		::atomic<bool   > started       = false ; // if true <=> start() has been called for this job, for assert only
-		::atomic<bool   > verbose       = false ;
-		::atomic<bool   > zombie        = false ; // if true <=> entry waiting for suppression
-		::atomic<bool   > hold          = false ; // when held, entry cannot be destroyed
+		Rsrcs                               rsrcs         ;
+		Rsrcs                               rounded_rsrcs ;
+		Atomic<SpawnId,MutexLvl::BackendId> id            = NoId  ;
+		Atomic<bool                       > started       = false ; // if true <=> start() has been called for this job, for assert only
+		Atomic<bool                       > verbose       = false ;
+		Atomic<bool                       > zombie        = false ; // if true <=> entry waiting for suppression
+		Atomic<bool                       > hold          = false ; // when held, entry cannot be destroyed
 	} ;
 	template< class Rsrcs > ::string& operator+=( ::string& os , _SpawnedEntry<Rsrcs> const& se ) {
 		os << "SpawnedEntry(" ;
@@ -522,7 +522,7 @@ namespace Backends {
 		::umap<Job,::string>  msgs         ;                         // used to hold messages until they are reported
 	private :
 		WakeupThread<false/*Flush*/> mutable _launch_queue         ;
-		::atomic<Pdate>                      _oldest_submitted_job ; // if no date, no new job
+		Atomic<Pdate>                        _oldest_submitted_job ; // if no date, no new job
 
 	} ;
 

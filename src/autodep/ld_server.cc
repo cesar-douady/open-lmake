@@ -24,9 +24,9 @@ inline bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
 static void* get_orig(const char* libcall) {
-	static constexpr size_t NChar = 20 ;                   // 12 is enough to distinguish /!\ this function must be signal-safe, hence must not call malloc : use char[] as key instead of ::string
+	static constexpr size_t NChar = 20 ;                  // 12 is enough to distinguish /!\ this function must be signal-safe, hence must not call malloc : use char[] as key instead of ::string
 	using LibCallTab = ::map<::array<char,NChar>,void*> ;
-	static ::atomic<LibCallTab*> s_libcall_tab = nullptr ; // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
+	static Atomic<LibCallTab*> s_libcall_tab = nullptr ;  // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
 	if (!s_libcall_tab) {
 		#define LIBCALL_ENTRY(libcall) #libcall

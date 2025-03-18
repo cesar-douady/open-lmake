@@ -14,7 +14,9 @@
 
 #include "rpc_job.hh"
 
-#if HAS_ZLIB
+#if HAS_ZSTD
+	#include <zstd.h>
+#elif HAS_ZLIB
 	#define ZLIB_CONST
 	#include <zlib.h>
 #endif
@@ -115,220 +117,289 @@ using namespace Hash ;
 // Cache
 //
 
-struct DeflateFd : AcFd {
-	// cxtors & casts
-	DeflateFd() = default ;
-	#if HAS_ZLIB
-		DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{lvl_} {
-			SWEAR(lvl<=Z_BEST_COMPRESSION) ;
-			if (lvl) {
-				int rc = deflateInit(&_zs,lvl) ; SWEAR(rc==Z_OK) ;
-				_reset_buf() ;
-			}
+namespace Caches {
+
+	struct DeflateFd : AcFd {
+		static Cache::Sz s_max_sz( Cache::Sz sz , uint8_t lvl=0 ) {
+			#if HAS_ZSTD
+				static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ; // ZSTD_compressBound manages size_t and we need a Sz
+				if (lvl) return ::ZSTD_compressBound(sz) ;
+			#elif HAS_ZLIB
+				static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;  // compressBound manages ulong and we need a Sz
+				if (lvl) return ::compressBound(sz) ;
+			#else
+				SWEAR(!lvl,lvl) ;
+			#endif
+			return sz ;
 		}
-		~DeflateFd() { flush() ; }
-	#else
-		DeflateFd( AcFd&& fd , uint8_t lvl=0 ) : AcFd{::move(fd)} { SWEAR(!lvl,lvl) ; }
-		~DeflateFd() { _flush() ; }
-	#endif
-	// services
-	void write(::string const& s) {
-		#if HAS_ZLIB
+		// cxtors & casts
+		DeflateFd() = default ;
+		#if HAS_ZSTD
+			DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{::min(lvl_,uint8_t(::ZSTD_maxCLevel()))} {
+				if (lvl) {
+					_zs = ::ZSTD_createCCtx() ; SWEAR(_zs) ;
+					::ZSTD_CCtx_setParameter( _zs , ZSTD_c_compressionLevel , lvl );
+				}
+			}
+			~DeflateFd() {
+				flush() ;
+				if (lvl) ::ZSTD_freeCCtx(_zs) ;
+			}
+		#elif HAS_ZLIB
+			DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{::min(lvl_,uint8_t(Z_BEST_COMPRESSION))} {
+				if (lvl) {
+					int rc = deflateInit(&_zs,lvl) ; SWEAR(rc==Z_OK) ;
+					_zs.next_in  = reinterpret_cast<uint8_t const*>(_buf) ;
+					_zs.avail_in = 0                                      ;
+				}
+			}
+			~DeflateFd() {
+				flush() ;
+				deflateEnd(&_zs) ;
+			}
+		#else
+			DeflateFd( AcFd&& fd , uint8_t lvl=0 ) : AcFd{::move(fd)} { SWEAR(!lvl,lvl) ; }
+			~DeflateFd() { flush() ; }
+		#endif
+		// services
+		void write(::string const& s) {
+			if (!s) return ;
 			SWEAR(!_flushed) ;
-			if (lvl) {
-				_zs.next_in  = reinterpret_cast<uint8_t const*>(s.data()) ;
-				_zs.avail_in = s.size()                                   ;
-				while (_zs.avail_in) {
-					if (!_zs.avail_out) {
-						AcFd::write({_buf,DiskBufSz}) ;
-						total_sz += DiskBufSz ;
-						_reset_buf() ;
+			#if HAS_ZSTD
+				if (lvl) {
+					::ZSTD_inBuffer  in_buf  { .src=s.data() , .size=s.size()  , .pos=0 } ;
+					::ZSTD_outBuffer out_buf { .dst=_buf     , .size=DiskBufSz , .pos=0 } ;
+					while (in_buf.pos<in_buf.size) {
+						out_buf.pos = _pos ;
+						::ZSTD_compressStream2( _zs , &out_buf , &in_buf , ZSTD_e_continue ) ;
+						_pos = out_buf.pos ;
+						_flush(1/*room*/) ;
 					}
-					deflate(&_zs,Z_NO_FLUSH) ;
+					return ;
 				}
-				return ;
-			}
-		#endif
-		_flush(s.size()) ;
-		if      (s.size()>=DiskBufSz) { AcFd::write(s)                              ; total_sz += s.size() ; }                                                           // large data : send directly
-		else if (s.size()           ) { ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                                           // small data : put in _buf
-	}
-	void send_from( Fd fd_ , size_t sz ) {
-		#if HAS_ZLIB
-			SWEAR(!_flushed) ;
-			if (lvl) {
-				while (sz) {
-					size_t cnt = ::min(sz,DiskBufSz) ;
-					::string s = fd_.read(cnt) ; throw_unless(s.size()==cnt,"missing ",cnt-s.size()," bytes from ",fd) ;
-					write(s) ;
-					sz -= cnt ;
+			#elif HAS_ZLIB
+				if (lvl) {
+					_zs.next_in  = reinterpret_cast<uint8_t const*>(s.data()) ;
+					_zs.avail_in = s.size()                                   ;
+					while (_zs.avail_in) {
+						_zs.next_out  = reinterpret_cast<uint8_t*>( _buf + _pos ) ;
+						_zs.avail_out = DiskBufSz - _pos                          ;
+						deflate(&_zs,Z_NO_FLUSH) ;
+						_pos = DiskBufSz - _zs.avail_out ;
+						_flush(1/*room*/) ;
+					}
+					return ;
 				}
-				return ;
-			}
-		#endif
-		_flush(sz) ;
-		if      (sz>=DiskBufSz) { SWEAR(!_pos) ; size_t c = ::sendfile(self,fd_,nullptr,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz += sz ; } // large data : send directly
-		else if (sz           ) {                size_t c = fd_.read_to({_buf+_pos,sz})     ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos     += c  ; } // small data : put in _buf
-	}
-	void flush() {
-		#if HAS_ZLIB
+			#endif
+			// no compression
+			if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                            // small data : put in _buf
+			else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; total_sz += s.size() ; }                                            // large data : send directly
+		}
+		void send_from( Fd fd_ , size_t sz ) {
+			if (!sz) return ;
+			#if HAS_ZSTD || HAS_ZLIB
+				SWEAR(!_flushed) ;
+				if (lvl) {
+					while (sz) {
+						size_t cnt = ::min(sz,DiskBufSz) ;
+						::string s = fd_.read(cnt) ; throw_unless(s.size()==cnt,"missing ",cnt-s.size()," bytes from ",fd) ;
+						write(s) ;
+						sz -= cnt ;
+					}
+					return ;
+				}
+			#endif
+			_flush(sz) ;
+			if (_flush(sz)) {                size_t c = fd_.read_to({_buf+_pos,sz})     ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos     += c  ; } // small data : put in _buf
+			else            { SWEAR(!_pos) ; size_t c = ::sendfile(self,fd_,nullptr,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz += sz ; } // large data : send directly
+		}
+		void flush() {
 			if (_flushed) return ;
 			_flushed = true ;
-			if (lvl) {
-				_zs.next_in  = nullptr ;
-				_zs.avail_in = 0       ;
-				for (;;) {
-					int    rc = deflate(&_zs,Z_FINISH)                                ;
-					size_t sz = size_t(_zs.next_out-reinterpret_cast<uint8_t*>(_buf)) ;
-					AcFd::write({_buf,sz}) ;
-					total_sz += sz ;
-					switch (rc) {
-						case Z_OK         :
-						case Z_BUF_ERROR  :                    break  ;
-						case Z_STREAM_END : deflateEnd(&_zs) ; return ;
-					DF}
-					_reset_buf() ;
-				}
-				return ;
-			}
-		#endif
-		_flush() ;
-	}
-private :
-	#if HAS_ZLIB
-		void _reset_buf() {
-			_zs.next_out  = reinterpret_cast<uint8_t*>(_buf) ;
-			_zs.avail_out = DiskBufSz                        ;
-		}
-	#endif
-	void _flush(size_t room=DiskBufSz) {                                                                                                                                 // flush if not enough room
-		#if HAS_ZLIB
-			SWEAR(!lvl) ;
-		#endif
-		if (_pos+room<=DiskBufSz) return ;                                                                                                                               // enough room
-		if (!_pos               ) return ;                                                                                                                               // _buf is already empty
-		AcFd::write({_buf,_pos}) ;
-		total_sz += _pos ;
-		_pos      = 0    ;
-	}
-	// data
-public :
-	Disk::DiskSz total_sz = 0 ;
-	#if HAS_ZLIB
-		uint8_t lvl = 0 ;
-	#endif
-private :
-	char   _buf[DiskBufSz] ;
-	size_t _pos            = 0 ;
-	#if HAS_ZLIB
-		z_stream _zs      = {}    ;
-		bool     _flushed = false ;
-	#endif
-} ;
-
-struct InflateFd : AcFd {
-	// cxtors & casts
-	InflateFd() = default ;
-	#if HAS_ZLIB
-		InflateFd( AcFd&& fd , bool lvl_=false ) : AcFd{::move(fd)} , lvl{lvl_} {
-			if (lvl) {
-				int rc = inflateInit(&_zs) ; SWEAR(rc==Z_OK) ;
-				_reset_buf() ;
-			}
-		}
-	#else
-		InflateFd( AcFd&& fd , bool lvl=false ) : AcFd{::move(fd)} { SWEAR(!lvl,lvl) ; }
-	#endif
-	// services
-	::string read(size_t sz) {
-		::string res ( sz , 0 ) ;
-		#if HAS_ZLIB
-			if (lvl) {
-				_zs.next_out  = reinterpret_cast<uint8_t*>(res.data()) ;
-				_zs.avail_out = res.size()                             ;
-				while (_zs.avail_out) {
-					if (!_zs.avail_in) {
-						size_t cnt = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(cnt,"missing ",_zs.avail_out," bytes from ",self) ;
-						_reset_buf(cnt) ;
+			#if HAS_ZSTD
+				if (lvl) {
+					::ZSTD_inBuffer  in_buf  { .src=nullptr , .size=0         , .pos=0 } ;
+					::ZSTD_outBuffer out_buf { .dst=_buf    , .size=DiskBufSz , .pos=0 } ;
+					for (;;) {
+						out_buf.pos = _pos ;
+						size_t rc = ::ZSTD_compressStream2( _zs , &out_buf , &in_buf , ZSTD_e_end ) ;
+						_pos = out_buf.pos ;
+						if (::ZSTD_isError(rc)) throw cat("cannot flush ",self) ;
+						_flush() ;
+						if (!rc) return ;
 					}
-					inflate(&_zs,Z_NO_FLUSH) ;
 				}
-				return res ;
-			}
-		#endif
-		size_t   cnt = ::min( sz , _len ) ;
-		if (cnt) {                                                                                                           // gather available data from _buf
-			::memcpy( res.data() , _buf+_pos , cnt ) ;
-			_pos += cnt ;
-			_len -= cnt ;
-			sz   -= cnt ;
+			#elif HAS_ZLIB
+				if (lvl) {
+					_zs.next_in  = nullptr ;
+					_zs.avail_in = 0       ;
+					for (;;) {
+						_zs.next_out  = reinterpret_cast<uint8_t*>( _buf + _pos ) ;
+						_zs.avail_out = DiskBufSz - _pos                          ;
+						int rc = deflate(&_zs,Z_FINISH) ;
+						_pos = DiskBufSz - _zs.avail_out ;
+						if (rc==Z_BUF_ERROR) throw cat("cannot flush ",self) ;
+						_flush() ;
+						if (rc==Z_STREAM_END) return ;
+					}
+				}
+			#endif
+			_flush() ;
 		}
-		if (sz) {
-			SWEAR(!_len,_len) ;
-			if (sz>=DiskBufSz) {                                                                                             // large data : read directly
-				size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-			} else {                                                                                                         // small data : bufferize
-				_len = AcFd::read_to({_buf,DiskBufSz}) ;   throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-				::memcpy( &res[cnt] , _buf , sz ) ;
-				_pos  = sz ;
-				_len -= sz ;
+	private :
+		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {                                                                                                              // flush if not enough room
+			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ;                                                                                                       // enough room
+			if (_pos) {
+				AcFd::write({_buf,_pos}) ;
+				total_sz += _pos ;
+				_pos      = 0    ;
 			}
+			return room<=DiskBufSz ;
 		}
-		return res ;
-	}
-	void send_to( Fd fd_ , size_t sz ) {
+		// data
+	public :
+		Disk::DiskSz total_sz = 0 ;
 		#if HAS_ZLIB
-			if (lvl) {
-				while (sz) {
-					size_t   cnt = ::min(sz,DiskBufSz)                           ;
-					::string s   = read(cnt) ; SWEAR(s.size()==cnt,s.size(),cnt) ;
-					fd_.write(s) ;
-					sz -= cnt ;
-				}
-				return ;
-			}
+			uint8_t lvl = 0 ;
 		#endif
-		size_t cnt = ::min(sz,_len) ;
-		if (cnt) {                                                                                                           // gather available data from _buf
-			fd_.write({_buf+_pos,cnt}) ;
-			_pos += cnt ;
-			_len -= cnt ;
-			sz   -= cnt ;
+	private :
+		char   _buf[DiskBufSz] ;
+		size_t _pos            = 0     ;
+		bool   _flushed        = false ;
+		#if HAS_ZSTD
+			::ZSTD_CCtx* _zs = nullptr ;
+		#elif HAS_ZLIB
+			z_stream     _zs = {}      ;
+		#endif
+	} ;
+
+	struct InflateFd : AcFd {
+		// cxtors & casts
+		InflateFd() = default ;
+		#if HAS_ZSTD
+			InflateFd( AcFd&& fd , bool lvl_=false ) : AcFd{::move(fd)} , lvl{lvl_} {
+				if (lvl) { _zs = ::ZSTD_createDCtx() ; SWEAR(_zs,self) ; }
+			}
+			~InflateFd() {
+				if (lvl) { size_t rc = ::ZSTD_freeDCtx(_zs) ; SWEAR(!::ZSTD_isError(rc),rc,self) ; }
+			}
+		#elif HAS_ZLIB
+			InflateFd( AcFd&& fd , bool lvl_=false ) : AcFd{::move(fd)} , lvl{lvl_} {
+				if (lvl) { int rc = inflateInit(&_zs) ; SWEAR(rc==Z_OK,self) ; }
+			}
+			~InflateFd() {
+				if (lvl) { int rc = inflateEnd(&_zs) ; SWEAR(rc==Z_OK,rc,self) ; }
+			}
+		#else
+			InflateFd( AcFd&& fd , bool lvl=false ) : AcFd{::move(fd)} {
+				SWEAR(!lvl,lvl) ;
+			}
+			~InflateFd() {}
+		#endif
+		// services
+		::string read(size_t sz) {
+			if (!sz) return {} ;
+			::string res ( sz , 0 ) ;
+			#if HAS_ZSTD
+				if (lvl) {
+					::ZSTD_inBuffer  in_buf  { .src=_buf       , .size=0  , .pos=0 } ;
+					::ZSTD_outBuffer out_buf { .dst=res.data() , .size=sz , .pos=0 } ;
+					while (out_buf.pos<sz) {
+						if (!_len) {
+							_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",sz-out_buf.pos," bytes from ",self) ;
+							_pos = 0                               ;
+						}
+						in_buf.pos  = _pos      ;
+						in_buf.size = _pos+_len ;
+						size_t rc = ::ZSTD_decompressStream( _zs , &out_buf , &in_buf ) ; SWEAR(!::ZSTD_isError(rc)) ;
+						_pos = in_buf.pos               ;
+						_len = in_buf.size - in_buf.pos ;
+					}
+					return res ;
+				}
+			#elif HAS_ZLIB
+				if (lvl) {
+					_zs.next_out  = reinterpret_cast<uint8_t*>(res.data()) ;
+					_zs.avail_out = res.size()                             ;
+					while (_zs.avail_out) {
+						if (!_len) {
+							_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",_zs.avail_out," bytes from ",self) ;
+							_pos = 0                               ;
+						}
+						_zs.next_in  = reinterpret_cast<uint8_t const*>( _buf + _pos ) ;
+						_zs.avail_in = _len                                            ;
+						inflate(&_zs,Z_NO_FLUSH) ;
+						_pos = reinterpret_cast<char const*>(_zs.next_in) - _buf ;
+						_len = _zs.avail_in                                      ;
+					}
+					return res ;
+				}
+			#endif
+			size_t cnt = ::min( sz , _len ) ;
+			if (cnt) {                                                                                                           // gather available data from _buf
+				::memcpy( res.data() , _buf+_pos , cnt ) ;
+				_pos += cnt ;
+				_len -= cnt ;
+				sz   -= cnt ;
+			}
+			if (sz) {
+				SWEAR(!_len,_len) ;
+				if (sz>=DiskBufSz) {                                                                                             // large data : read directly
+					size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
+				} else {                                                                                                         // small data : bufferize
+					_len = AcFd::read_to({_buf,DiskBufSz}) ;   throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
+					::memcpy( &res[cnt] , _buf , sz ) ;
+					_pos  = sz ;
+					_len -= sz ;
+				}
+			}
+			return res ;
 		}
-		if (sz) {
-			SWEAR(!_len,_len) ;
-			if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
-				size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-			} else {                                                                                                         // small data : bufferize
-				_len = AcFd::read_to({_buf,DiskBufSz}) ;     throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-				fd_.write({_buf,sz}) ;
-				_pos  = sz ;
-				_len -= sz ;
+		void receive_to( Fd fd_ , size_t sz ) {
+			#if HAS_ZSSTD || HAS_ZLIB
+				if (lvl) {
+					while (sz) {
+						size_t   cnt = ::min(sz,DiskBufSz)                           ;
+						::string s   = read(cnt) ; SWEAR(s.size()==cnt,s.size(),cnt) ;
+						fd_.write(s) ;
+						sz -= cnt ;
+					}
+					return ;
+				}
+			#endif
+			size_t cnt = ::min(sz,_len) ;
+			if (cnt) {                                                                                                           // gather available data from _buf
+				fd_.write({_buf+_pos,cnt}) ;
+				_pos += cnt ;
+				_len -= cnt ;
+				sz   -= cnt ;
+			}
+			if (sz) {
+				SWEAR(!_len,_len) ;
+				if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
+					size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
+				} else {                                                                                                         // small data : bufferize
+					_len = AcFd::read_to({_buf,DiskBufSz}) ;     throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
+					fd_.write({_buf,sz}) ;
+					_pos  = sz ;
+					_len -= sz ;
+				}
 			}
 		}
-	}
-private :
-	#if HAS_ZLIB
-		void _reset_buf(size_t cnt=0) {
-			_zs.next_in  = reinterpret_cast<uint8_t const*>(_buf) ;
-			_zs.avail_in = cnt                                    ;
-		}
-	#endif
-	// data
-public :
-	#if HAS_ZLIB
-		bool lvl = false ;
-	#endif
-private :
-	char   _buf[DiskBufSz] ;
-	size_t _pos        = 0 ;
-	size_t _len        = 0 ;
-	#if HAS_ZLIB
-		z_stream _zs = {} ;
-	#endif
-} ;
-
-namespace Caches {
+		// data
+		#if HAS_STD || HAS_ZLIB
+			bool lvl = false ;
+		#endif
+	private :
+		char   _buf[DiskBufSz] ;
+		size_t _pos            = 0 ;
+		size_t _len            = 0 ;
+		#if HAS_ZSTD
+			::ZSTD_DCtx* _zs = nullptr ;
+		#elif HAS_ZLIB
+			z_stream     _zs = {}      ;
+		#endif
+	} ;
 
 	::vector<Cache*> Cache::s_tab ;
 
@@ -378,8 +449,8 @@ namespace Caches {
 					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , mode(tag) )) ; break ;
 					case FileTag::Exe   :
 					case FileTag::Reg   :
-						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.send_to( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag) )) , sz ) ; }
-						else    { trace("no_data_to",tn   ) ;                  AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag) ))        ; } // may be an empty exe
+						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag) )) , sz ) ; }
+						else    { trace("no_data_to",tn   ) ;                     AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag) ))        ; } // may be an empty exe
 					break ;
 				DN}
 				entry.second.sig = FileSig(tn) ;                          // target digest is not stored in cache
@@ -389,8 +460,8 @@ namespace Caches {
 			trace("done") ;
 			return job_info ;
 		} catch(::string const& e) {
+			trace("failed",e,n_copied,targets) ;
 			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ; // clean up partial job
-			trace("failed") ;
 			throw e ;
 		}
 	}
@@ -398,14 +469,9 @@ namespace Caches {
 	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , uint8_t z_lvl ) {
 		Trace trace("DirCache::upload",targets.size(),z_lvl) ;
 		//
-		Sz max_sz = 0 ; for( FileInfo fi : target_fis ) max_sz += fi.sz ;
-		#if HAS_ZLIB
-			static_assert(sizeof(ulong)==sizeof(Sz)) ;                               // compressBound manages ulong and we need a Sz
-			if (z_lvl) max_sz = ::compressBound(max_sz) ;
-		#else
-			SWEAR(!z_lvl,z_lvl) ;
-		#endif
-		::pair<uint64_t/*upload_key*/,AcFd> key_fd = sub_upload(max_sz) ;
+		Sz                                  tgts_sz  = 0                                  ; { for( FileInfo fi : target_fis ) tgts_sz += fi.sz ;}
+		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,z_lvl) ;
+		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)               ;
 		//
 		try {
 			NodeIdx n_targets = targets.size()                  ;
@@ -445,12 +511,12 @@ namespace Caches {
 			trace("failed") ;
 			return {} ;
 		}
-		trace("done") ;
+		trace("done",tgts_sz,z_max_sz) ;
 		return key_fd.first ;
 	}
 
 	bool/*ok*/ Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		Trace trace("Cache::commit",to_hex(upload_key),job) ;
+		Trace trace("Cache::commit",upload_key,job) ;
 		//
 		if (!( +job_info.start && +job_info.end )) { // we need a full report to cache job
 			trace("no_ancillary_file") ;

@@ -27,9 +27,9 @@ template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process 
 		return !Q::empty() ;
 	}
 	//
-	void lock        (MutexLvl lvl) const { _mutex.lock        (lvl) ; }
-	void unlock      (MutexLvl lvl) const { _mutex.unlock      (lvl) ; }
-	void swear_locked(            ) const { _mutex.swear_locked(   ) ; }
+	void lock        (MutexLvl& lvl) const { _mutex.lock        (lvl) ; }
+	void unlock      (MutexLvl& lvl) const { _mutex.unlock      (lvl) ; }
+	void swear_locked(             ) const { _mutex.swear_locked(   ) ; }
 	// accesses
 	#define LCK Lock lock{_mutex}
 	size_t  size() const { LCK ; return Q::size() ; }
@@ -212,8 +212,8 @@ public :
 	}
 private :
 	// data
-	::atomic<WakeupState> _state = WakeupState::Wait ;
-	::jthread             _thread ;                    // ensure _thread is last so other fields are constructed when it starts
+	Atomic<WakeupState,MutexLvl::Thread> _state  = WakeupState::Wait ;
+	::jthread                            _thread ;                     // ensure _thread is last so other fields are constructed when it starts
 } ;
 
 ENUM(ServerThreadEventKind

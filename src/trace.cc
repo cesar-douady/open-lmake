@@ -15,16 +15,16 @@ using namespace Time ;
 
 ::string* g_trace_file = nullptr ; // pointer to avoid init/fini order hazards, relative to admin dir
 
-::atomic<bool    > Trace::s_backup_trace = false        ;
-::atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
-::atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channel
+Atomic<bool    > Trace::s_backup_trace = false        ;
+Atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
+Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channel
 
 #ifndef NO_TRACE
 
 	size_t                 Trace::_s_pos       =  0      ;
 	bool                   Trace::_s_ping      = false   ;
 	Fd                     Trace::_s_fd        ;
-	::atomic<bool>         Trace::_s_has_trace = false   ;
+	Atomic<bool>           Trace::_s_has_trace = false   ;
 	uint8_t*               Trace::_s_data      = nullptr ;
 	size_t                 Trace::_s_cur_sz    = 0       ;
 	Mutex<MutexLvl::Trace> Trace::_s_mutex     ;

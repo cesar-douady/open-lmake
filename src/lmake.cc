@@ -14,7 +14,7 @@
 using namespace Disk ;
 using namespace Time ;
 
-::atomic<bool> g_seen_int = false ;
+Atomic<bool> g_seen_int = false ;
 
 static void _int_thread_func(::stop_token stop) {
 	t_thread_key = 'I' ;

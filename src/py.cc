@@ -7,10 +7,12 @@
 
 #if HAS_MEMFD
 	#include <sys/mman.h>
+#else
+	#include <thread>
 #endif
 
 #include "process.hh"
-#include "thread.hh"
+//#include "thread.hh"
 
 namespace Py {
 
@@ -25,8 +27,8 @@ namespace Py {
 	struct SaveExc {
 		// cxtors & casts
 		SaveExc (       ) = default ;
-		SaveExc (NewType) { PyErr_Fetch  ( &exc , &val , &tb ) ; }
-		~SaveExc(       ) { PyErr_Restore(  exc ,  val ,  tb ) ; }
+		SaveExc (NewType) { Gil::s_swear_locked() ; PyErr_Fetch  ( &exc , &val , &tb ) ; }
+		~SaveExc(       ) { Gil::s_swear_locked() ; PyErr_Restore(  exc ,  val ,  tb ) ; }
 		// data
 		PyObject* exc = nullptr ;
 		PyObject* val = nullptr ;
@@ -35,6 +37,7 @@ namespace Py {
 
 	void init(::string const& lmake_root_s) {
 		static bool once=false ; if (once) return ; else once = true ;
+		//
 		#if PY_VERSION_HEX >= 0x03080000
 			PyPreConfig pre_config ; PyPreConfig_InitIsolatedConfig(&pre_config) ;
 			Py_PreInitialize(&pre_config) ;
@@ -50,6 +53,8 @@ namespace Py {
 			Py_DontWriteBytecodeFlag = true ;                                                          // be as non-intrusive as possible
 			Py_InitializeEx(0) ;                                                                       // skip initialization of signal handlers
 		#endif
+		//
+		NoGil no_gil ; // tell our mutex we already have the GIL
 		//
 		py_get_sys("implementation").set_attr("cache_tag",None) ;                                      // avoid pyc management
 		//
@@ -89,6 +94,9 @@ namespace Py {
 			try { py_flush->call() ; } catch (::string const&) {}               // flush stderr buffer before manipulation (does not justify the burden of error in error if we cant)
 		}
 		auto read_all = [&](Fd fd)->void {
+			#if !HAS_MEMFD
+				t_thread_key = 'Y' ;
+			#endif
 			char    buf[256] ;
 			ssize_t c        ;
 			while ( (c=::read(fd,buf,sizeof(buf)))>0 ) res += ::string_view(buf,c) ;
@@ -126,13 +134,13 @@ namespace Py {
 
 	Ptr<Object> py_eval(::string const& expr) {
 		Ptr<Dict> env = _mk_env() ;
-		Ptr<Object> res { PyRun_String( expr.c_str() , Py_eval_input , env->to_py() , env->to_py() ) } ;
+		Ptr<Object> res { ( Gil::s_swear_locked() , PyRun_String( expr.c_str() , Py_eval_input , env->to_py() , env->to_py() ) ) } ;
 		if (!res) throw py_err_str_clear() ;
 		return res ;
 	}
 
 	void py_run( ::string const& text , Dict& env ) {
-		Ptr<Object> rc { PyRun_String( text.c_str() , Py_file_input , env.to_py() , env.to_py() ) } ;
+		Ptr<Object> rc { ( Gil::s_swear_locked() , PyRun_String( text.c_str() , Py_file_input , env.to_py() , env.to_py() ) ) } ;
 		if (!rc) throw py_err_str_clear() ;
 	}
 
@@ -157,10 +165,10 @@ namespace Py {
 	//
 
 	Ptr<Str> Object::str() const {
-		PyObject* s = PyObject_Str(to_py()) ;
-		if (s) try { return s ; } catch (...) {}
-		else   py_err_clear() ;
-		return cat('<',type_name()," object at 0x",static_cast<void const*>(this),'>') ; // catch any error so calling str is reliable
+		Ptr<Object> s = PyObject_Str(to_py()) ;
+		if (+s) return s ;
+		else    py_err_clear() ;
+		return cat('<',type_name()," object at 0x",this,'>') ; // catch any error so calling str is reliable
 	}
 
 	//
@@ -168,6 +176,7 @@ namespace Py {
 	//
 
 	PyObject* Ptr<Module>::_s_mk_mod( ::string const& name , PyMethodDef* funcs ) {
+		Gil::s_swear_locked() ;
 		::string*    nm  = new ::string(name)   ;                                                                    // keep name alive
 		size_t       nf1 = 1                    ; for( PyMethodDef* f=funcs ; f->ml_name ; f++ ) nf1++             ; // start at 1 to account for terminating sentinel
 		PyMethodDef* fns = new PyMethodDef[nf1] ; for( size_t i : iota(nf1)                    ) fns[i] = funcs[i] ; // keep funcs alive

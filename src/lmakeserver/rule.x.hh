@@ -382,20 +382,15 @@ namespace Engine {
 		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic           (Dynamic const& src) : Base{       src } , glbs{       src.glbs } , code{       src.code } {}                                // mutex is not copiable
-		Dynamic           (Dynamic     && src) : Base{::move(src)} , glbs{::move(src.glbs)} , code{::move(src.code)} {}                                // .
-		Dynamic& operator=(Dynamic const& src) {                                                                                                       // .
-			Base::operator=(src) ;
-			glbs = src.glbs ;
-			code = src.code ;
-			return self ;
+		Dynamic(              ) = default ;
+		Dynamic(Dynamic const&) = default ;
+		Dynamic(Dynamic     &&) = default ;
+		~Dynamic() {
+			if (+glbs) glbs = {} ;
+			if (+code) code = {} ;
 		}
-		Dynamic& operator=(Dynamic&& src) {                                                                                                            // .
-			Base::operator=(::move(src)) ;
-			glbs = ::move(src.glbs) ;
-			code = ::move(src.code) ;
-			return self ;
-		}
+		Dynamic& operator=(Dynamic const&) = default ;
+		Dynamic& operator=(Dynamic     &&) = default ;
 		// services
 		void compile() ;
 		//
@@ -419,9 +414,6 @@ namespace Engine {
 			return _eval_code( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 		// data
-	private :
-		mutable Mutex<MutexLvl::Rule> _glbs_mutex ; // ensure glbs is not used for several jobs simultaneously
-	public :
 		Py::Ptr<Py::Dict> mutable glbs ;            // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
 		Py::Ptr<Py::Code>         code ;            // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;

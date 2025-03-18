@@ -17,18 +17,27 @@ if __name__!='__main__' :
 
 	from step import step
 
+	class DeepDep(Rule):
+		target = r'deep_dep_{S:\d+}'
+		cmd    = 'sleep {S}'
+
 	class Dep(Rule):
-		target = 'dep'
-		dep    = f'dep{step}'
-		cmd    = 'cat'
+		target = r'dep_{S:\d+}'
+		deps = {
+			'SRC'      : f'dep{step}'
+		,	'DEEP_DEP' : 'deep_dep_{S}'
+		}
+		cmd = 'echo hello'
 
 	class Dut(PyRule) :
-		target  = r'dut{R:[01]}'
+		target  = r'dut{R:[01]}_{S:\d+}'
 		def cmd():
+			import time
 			from lmake import depend
-			status = depend('dep',verbose=True,required=int(R))
-			if status['dep'][0] and status['dep'][1]!='none' :
-				open('dep')
+			time.sleep(1)                                            # ensure dep is being built if launched in //
+			status = depend(f'dep_{S}',verbose=True,required=int(R))
+			if status[f'dep_{S}'][0] and status[f'dep_{S}'][1]!='none' :
+				open(f'dep_{S}')
 			print(status)
 
 else :
@@ -40,11 +49,10 @@ else :
 	import ut
 	open('dep0','w').close()
 	print('step=0',file=open('step.py','w'))
-	cnts = ut.lmake( 'dut0' , 'dut1' , new=1 , done=... , was_done=... , steady=... , rerun=... , may_rerun=... )
-	assert cnts.rerun+cnts.may_rerun<=2                                                                           # second dut may be launched when dep is already built
-	assert cnts.done+cnts.was_done+cnts.steady==3                                                                 # .
+	ut.lmake( 'dut0_1' , 'dut1_1' , new=1 , done=4 , may_rerun=2 )
+	ut.lmake( 'dut1_2' , 'dep_2'  ,         done=3 , may_rerun=1 ) # dep is being built while depend verbose fires
 
 	import os
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'dut0' , unlinked=1 , done=1 )
-	ut.lmake( 'dut1' , rc=1                ) # dut1 cannot be built with a non-buildable required dep
+	ut.lmake( 'dut0_0' , done=1           )
+	ut.lmake( 'dut1_0' , dep_err=1 , rc=1 ) # dut1 cannot be built with a non-buildable required dep

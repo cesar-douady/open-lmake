@@ -19,12 +19,15 @@
 #include <bit>
 #include <charconv> // from_chars_result
 #include <concepts>
+#include <condition_variable>
 #include <functional>
 #include <ios>
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <span>
 #include <string>
 #include <string_view>
@@ -925,6 +928,160 @@ inline Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1     
 inline Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
+// Save
+//
+
+inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
+
+template<class T,bool Fence=false> struct Save {
+	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
+	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                  } // in some cases, we do not care about the value, just saving and restoring
+	~Save(                       )                        {              if (Fence) fence() ; _ref = saved ; } // restore      , ensure sequentiality if asked to do so
+	T saved ;
+private :
+	T& _ref ;
+} ;
+template<class T> using FenceSave = Save<T,true> ;
+
+//
+// mutexes
+//
+
+// prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
+// use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
+ENUM( MutexLvl  // identify who is owning the current level to ease debugging
+,	Unlocked // used in Lock to identify when not locked
+,	None
+// level 1
+,	Audit
+,	JobExec
+,	Rule
+,	StartJob
+// level 2
+,	Backend     // must follow StartJob
+// level 3
+,	BackendId   // must follow Backend
+,	Gil         // must follow Backend
+,	NodeCrcDate // must follow Backend
+,	Req         // must follow Backend
+,	TargetDir   // must follow Backend
+// level 4
+,	Autodep1    // must follow Gil
+,	Gather      // must follow Gil
+,	Node        // must follow NodeCrcDate
+,	Time        // must follow BackendId
+// level 5
+,	Autodep2    // must follow Autodep1
+// inner (locks that take no other locks)
+,	File
+,	Hash
+,	Sge
+,	Slurm
+,	SmallId
+,	Thread
+,	Workload
+// very inner
+,	Trace       // allow tracing anywhere (but tracing may call some syscall)
+,	SyscallTab  // any syscall may need this mutex, which may occur during tracing
+,	PdateNew    // may need time anywhere, even during syscall processing
+)
+
+extern thread_local MutexLvl t_mutex_lvl ;
+template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_mutex,::mutex> {
+	using Base =                                              ::conditional_t<S,::shared_mutex,::mutex> ;
+	static constexpr MutexLvl Lvl = Lvl_ ;
+	// services
+	void lock         (MutexLvl& lvl)             { SWEAR( t_mutex_lvl< Lvl         , t_mutex_lvl,Lvl ) ; lvl         = t_mutex_lvl ; t_mutex_lvl = Lvl                ; Base::lock         () ; }
+	void lock_shared  (MutexLvl& lvl) requires(S) { SWEAR( t_mutex_lvl< Lvl         , t_mutex_lvl,Lvl ) ; lvl         = t_mutex_lvl ; t_mutex_lvl = Lvl                ; Base::lock_shared  () ; }
+	void unlock       (MutexLvl& lvl)             { SWEAR( t_mutex_lvl==Lvl && +lvl , t_mutex_lvl,Lvl ) ; t_mutex_lvl = lvl         ; lvl         = MutexLvl::Unlocked ; Base::unlock       () ; }
+	void unlock_shared(MutexLvl& lvl) requires(S) { SWEAR( t_mutex_lvl==Lvl && +lvl , t_mutex_lvl,Lvl ) ; t_mutex_lvl = lvl         ; lvl         = MutexLvl::Unlocked ; Base::unlock_shared() ; }
+	#ifndef NDEBUG
+		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
+		void swear_locked_shared() requires(S) {                                       SWEAR(!Base::try_lock_shared()) ; }
+	#else
+		void swear_locked       ()             {}
+		void swear_locked_shared() requires(S) {}
+	#endif
+} ;
+
+template<class M,bool S=false> struct Lock {
+	// cxtors & casts
+	Lock (    ) = default ;
+	Lock (M& m) : _mutex{&m} { lock  () ; }
+	~Lock(    )              { unlock() ; }
+	// services
+	void lock  () requires(!S) { SWEAR(!_lvl) ; _mutex->lock         (_lvl) ; }
+	void unlock() requires(!S) { SWEAR(+_lvl) ; _mutex->unlock       (_lvl) ; }
+	void lock  () requires( S) { SWEAR(!_lvl) ; _mutex->lock_shared  (_lvl) ; }
+	void unlock() requires( S) { SWEAR(+_lvl) ; _mutex->unlock_shared(_lvl) ; }
+	// data
+	M*       _mutex = nullptr            ; // must be !=nullptr to lock
+	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
+} ;
+
+template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
+	using Base = ::atomic<T> ;
+	// cxtors & casts
+	using Base::Base      ;
+	using Base::operator= ;
+	// services
+	void wait(T const& old) requires(bool(+Lvl)) {
+		SWEAR( t_mutex_lvl<Lvl , t_mutex_lvl,Lvl ) ;
+		Save sav { t_mutex_lvl , Lvl } ;
+		Base::wait(old) ;
+	}
+} ;
+
+//
+// SmallIds
+//
+
+template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
+	struct NoMutex {
+		void lock  () {}
+		void unlock() {}
+	} ;
+	struct NoLock {
+		NoLock(NoMutex) {}
+	} ;
+private :
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T       > ;
+	// services
+public :
+	T acquire() {
+		 T    res  ;
+		_Lock lock { _mutex } ;
+		if (!free_ids) {
+			res = n_allocated ;
+			throw_unless( n_allocated< Max<T> , "cannot allocate id" ) ;
+			n_allocated++ ;
+		} else {
+			auto it = free_ids.begin() ;
+			res = *it ;
+			free_ids.erase(it) ;
+		}
+		SWEAR(n_acquired<Max<T>) ;                                                  // ensure no overflow
+		n_acquired++ ;                                                              // protected by _mutex
+		return res ;
+	}
+	void release(T id) {
+		if (!id) return ;                                                           // id 0 has not been acquired
+		_Lock lock     { _mutex }                   ;
+		bool  inserted = free_ids.insert(id).second ; SWEAR(inserted,id,free_ids) ; // else, double release
+		SWEAR(n_acquired>Min<T>) ;                                                  // ensure no underflow
+		n_acquired-- ;                                                              // protected by _mutex
+	}
+	// data
+	::set<T> free_ids    ;
+	T        n_allocated = 1 ;                                                      // dont use id 0 so that it is free to mean "no id"
+	_AtomicT n_acquired  = 0 ;                                                      // can be freely read by any thread if ThreadSafe
+private :
+	_Mutex _mutex ;
+} ;
+
+//
 // Fd
 // necessary here in utils.hh, so cannot be put in higher level include such as fd.hh
 //
@@ -1054,18 +1211,6 @@ inline void del_env(::string const& name) {
 	int rc = ::unsetenv(name.c_str()) ;
 	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
-
-inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
-
-template<class T,bool Fence=false> struct Save {
-	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
-	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                  } // in some cases, we do not care about the value, just saving and restoring
-	~Save(                       )                        {              if (Fence) fence() ; _ref = saved ; } // restore      , ensure sequentiality if asked to do so
-	T saved ;
-private :
-	T& _ref ;
-} ;
-template<class T> using FenceSave = Save<T,true> ;
 
 template<class T> struct SaveInc {
 	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<Max<T>) ; _ref++ ; } // increment

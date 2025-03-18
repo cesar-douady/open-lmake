@@ -270,7 +270,7 @@ namespace Caches {
 		NfsGuard nfs_guard { reliable_dirs }    ;
 		::string jn_s      = job+'/'            ;
 		::string jnid_s    = jn_s+repo_s        ;
-		Trace trace("DirCache::sub_commit",to_hex(upload_key),job) ;
+		Trace trace("DirCache::sub_commit",upload_key,job) ;
 		//
 		// START_OF_VERSIONING
 		::string job_info_str = serialize(job_info                ) ;

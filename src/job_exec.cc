@@ -412,7 +412,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 }
 
 void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
-	static ::atomic<NodeIdx> crc_idx = 0 ;
+	static Atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",targets->size(),crcs->size()) ;
 	NodeIdx cnt = 0 ;                                             // cnt is for trace only
@@ -635,7 +635,7 @@ int main( int argc , char* argv[] ) {
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
 			g_exec_trace->push_back({ New , Comment::CuploadedToCache , CommentExts() , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
-			trace("cache",to_hex(upload_key)) ;
+			trace("cache",upload_key) ;
 		}
 		//
 		if (!g_start_info.autodep_env.reliable_dirs) {                                      // fast path : avoid listing targets & guards if reliable_dirs

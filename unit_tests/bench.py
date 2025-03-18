@@ -8,7 +8,7 @@ n = 10000 # number of executables in sources
 l = 10    # number of objects per executable
 p = 5     # number of deps per object
 
-use_cat = True # if True, fake gcc using cat
+use_cat = False # if True, fake gcc using cat
 
 # to bench lmake versus bash, ninja, make and bazel :
 # - from top level, run : make unit_tests/bench.dir/tok ==> dir preparation

@@ -71,7 +71,7 @@ namespace Engine {
 		using Base::Base ;
 		Req(NewType) {
 			throw_unless( s_small_ids.n_acquired<(size_t(1)<<NReqIdxBits)-1 , "cannot run an additional command, already ",s_small_ids.n_acquired," are running" ) ;
-			*this = {s_small_ids.acquire()} ;
+			self = {s_small_ids.acquire()} ;
 		}
 		// accesses
 		ReqData const& operator* () const ;

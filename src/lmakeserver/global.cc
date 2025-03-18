@@ -164,19 +164,17 @@ namespace Engine {
 
 	Job EngineClosureReq::job(::string const& startup_dir_s) const {
 		SWEAR(as_job()) ;
-		if (options.flags[ReqFlag::Rule]) {
-			::string const& rule_name = options.flag_args[+ReqFlag::Rule] ;
-			auto            it        = Rule::s_by_name.find(rule_name)   ; throw_unless( it!=Rule::s_by_name.end() , "cannot find rule ",rule_name                                              ) ;
-			Job             j         { it->second , files[0] }           ; throw_unless( +j                        , "cannot find job ",mk_rel(files[0],startup_dir_s)," using rule ",rule_name ) ;
-			return j ;
-		}
 		::vector<Job> candidates ;
 		for( Rule r : Persistent::rule_lst() ) {
-			if ( Job j{r,files[0]} ; +j ) candidates.push_back(j) ;
+			Job j { r , files[0] } ;
+			if ( !j                                                                                ) continue ;
+			if ( options.flags[ReqFlag::Rule] && r->full_name()!=options.flag_args[+ReqFlag::Rule] ) continue ;
+			candidates.push_back(j) ;
 		}
 		if      (candidates.size()==1) return candidates[0]                                    ;
 		else if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
 		else {
+			SWEAR(!options.flags[ReqFlag::Rule]) ;                   // impossible to have several candidates if the rule is specified
 			::string err_str = "several rules match, consider :\n" ;
 			for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->full_name())+" -J "+files[0] ,1) << '\n' ;
 			throw err_str ;

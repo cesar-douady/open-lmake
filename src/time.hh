@@ -7,13 +7,8 @@
 
 #include <sys/stat.h> // struct stat
 
-#include <cmath>
-#include <ctime>
-
 #include <chrono>
-#include <condition_variable>
-#include <mutex>
-#include <shared_mutex>
+#include <ctime>
 
 #include "utils.hh"
 
@@ -30,44 +25,6 @@ ENUM_1( FileTag
 ,	Exe          // a regular file with exec permission
 )
 // END_OF_VERSIONING
-
-// prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
-// use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
-ENUM( MutexLvl  // identify who is owning the current level to ease debugging
-,	None
-// level 1
-,	Audit
-,	JobExec
-,	Rule
-,	StartJob
-// level 2
-,	Backend     // must follow StartJob
-// level 3
-,	BackendId   // must follow Backend
-,	Gil         // must follow Backend
-,	NodeCrcDate // must follow Backend
-,	Req         // must follow Backend
-,	TargetDir   // must follow Backend
-// level 4
-,	Autodep1    // must follow Gil
-,	Gather      // must follow Gil
-,	Node        // must follow NodeCrcDate
-,	Time        // must follow BackendId
-// level 5
-,	Autodep2    // must follow Autodep1
-// inner (locks that take no other locks)
-,	File
-,	Hash
-,	Sge
-,	Slurm
-,	SmallId
-,	Thread
-,	Workload
-// very inner
-,	Trace       // allow tracing anywhere (but tracing may call some syscall)
-,	SyscallTab  // any syscall may need this mutex, which may occur during tracing
-,	PdateNew    // may need time anywhere, even during syscall processing
-)
 
 namespace Time {
 
@@ -233,107 +190,6 @@ namespace Time {
 
 }
 
-//
-// mutexes
-//
-
-extern thread_local MutexLvl t_mutex_lvl ;
-template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_mutex,::mutex> {
-	using Base =                                              ::conditional_t<S,::shared_mutex,::mutex> ;
-	static constexpr MutexLvl Lvl = Lvl_ ;
-	// services
-	void lock(MutexLvl& lvl) {
-		SWEAR( t_mutex_lvl<Lvl , t_mutex_lvl,Lvl ) ;
-		Base::lock() ;
-		lvl         = t_mutex_lvl ;
-		t_mutex_lvl = Lvl         ;
-	}
-	void unlock(MutexLvl lvl) {
-		SWEAR( t_mutex_lvl==Lvl , t_mutex_lvl,Lvl ) ;
-		t_mutex_lvl = lvl ;
-		Base::unlock() ;
-	}
-	void lock_shared(MutexLvl& lvl) requires(S) {
-		SWEAR( t_mutex_lvl<Lvl , t_mutex_lvl,Lvl ) ;
-		Base::lock_shared() ;
-		lvl         = t_mutex_lvl ;
-		t_mutex_lvl = Lvl         ;
-	}
-	void unlock_shared(MutexLvl lvl) requires(S) {
-		SWEAR( t_mutex_lvl==Lvl , t_mutex_lvl,Lvl ) ;
-		t_mutex_lvl = lvl ;
-		Base::unlock_shared() ;
-	}
-	#ifndef NDEBUG
-		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
-		void swear_locked_shared() requires(S) { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock_shared()) ; }
-	#else
-		void swear_locked       ()             {}
-		void swear_locked_shared() requires(S) {}
-	#endif
-} ;
-
-template<class M,bool S=false> struct Lock {
-	// cxtors & casts
-	Lock (    ) = default ;
-	Lock (M& m) : _mutex{&m} {              lock  () ; }
-	~Lock(    )              { if (_locked) unlock() ; }
-	// services
-	void lock  () requires(!S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock         (_lvl) ; }
-	void lock  () requires( S) { SWEAR(!_locked) ; _locked = true  ; _mutex->lock_shared  (_lvl) ; }
-	void unlock() requires(!S) { SWEAR( _locked) ; _locked = false ; _mutex->unlock       (_lvl) ; }
-	void unlock() requires( S) { SWEAR( _locked) ; _locked = false ; _mutex->unlock_shared(_lvl) ; }
-	// data
-	M*       _mutex = nullptr                   ; // must be !=nullptr when _locked
-	MutexLvl _lvl   = MutexLvl::None/*garbage*/ ; // valid when _locked
-	bool    _locked = false                     ;
-} ;
-
-template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
-	struct NoMutex {
-		void lock  () {}
-		void unlock() {}
-	} ;
-	struct NoLock {
-		NoLock(NoMutex) {}
-	} ;
-private :
-	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
-	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
-	using _AtomicT = ::conditional_t< ThreadSafe , ::atomic<T>              , T       > ;
-	// services
-public :
-	T acquire() {
-		 T    res  ;
-		_Lock lock { _mutex } ;
-		if (!free_ids) {
-			res = n_allocated ;
-			throw_unless( n_allocated< Max<T> , "cannot allocate id" ) ;
-			n_allocated++ ;
-		} else {
-			auto it = free_ids.begin() ;
-			res = *it ;
-			free_ids.erase(it) ;
-		}
-		SWEAR(n_acquired<Max<T>) ;                                                  // ensure no overflow
-		n_acquired++ ;                                                              // protected by _mutex
-		return res ;
-	}
-	void release(T id) {
-		if (!id) return ;                                                           // id 0 has not been acquired
-		_Lock lock     { _mutex }                   ;
-		bool  inserted = free_ids.insert(id).second ; SWEAR(inserted,id,free_ids) ; // else, double release
-		SWEAR(n_acquired>Min<T>) ;                                                  // ensure no underflow
-		n_acquired-- ;                                                              // protected by _mutex
-	}
-	// data
-	::set<T> free_ids    ;
-	T        n_allocated = 1 ;                                                      // dont use id 0 so that it is free to mean "no id"
-	_AtomicT n_acquired  = 0 ;                                                      // can be freely read by any thread if ThreadSafe
-private :
-	_Mutex _mutex ;
-} ;
-
 namespace Time {
 
 	struct Date : TimeBase<uint64_t> {
@@ -378,7 +234,7 @@ namespace Time {
 			static Mutex<MutexLvl::PdateNew> _s_mutex_new ; // ensure serialization to _s_last before c++26
 			static Tick                      _s_min_next  ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
 		#else
-			static ::atomic<Tick> _s_min_next ;
+			static Atomic<Tick> _s_min_next ;
 		#endif
 		// cxtors & casts
 	public :

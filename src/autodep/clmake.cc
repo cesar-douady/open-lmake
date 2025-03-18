@@ -48,6 +48,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 }
 
 static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	NoGil        no_gil    ;                                                      // tell our mutex we already have the GIL
 	Tuple const& py_args   = *from_py<Tuple const>(args) ;
 	Dict  const* py_kwds   =  from_py<Dict  const>(kwds) ;
 	bool         no_follow = true                        ;
@@ -94,6 +95,7 @@ static PyObject* depend( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 }
 
 static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	NoGil        no_gil  ;                                                        // tell our mutex we already have the GIL
 	Tuple const& py_args = *from_py<Tuple const>(args)       ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds)       ;
 	AccessDigest ad      { .extra_tflags=ExtraTflag::Allow } ;
@@ -117,6 +119,7 @@ static PyObject* target( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) 
 }
 
 static PyObject* check_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	NoGil        no_gil  ;                                                                  // tell our mutex we already have the GIL
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
 	bool         verbose = +py_args && +py_args[0]     ;
@@ -142,6 +145,7 @@ static PyObject* check_deps( PyObject* /*null*/ , PyObject* args , PyObject* kwd
 // cv means code for decode and val for encode
 template<bool Encode> static PyObject* codec( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 	static constexpr const char* Cv = Encode ? "val" : "code" ;
+	NoGil        no_gil  ;                                      // tell our mutex we already have the GIL
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	Dict  const* py_kwds =  from_py<Dict  const>(kwds) ;
 	size_t       n_args  = py_args.size()              ;
@@ -187,6 +191,7 @@ template<bool Encode> static PyObject* codec( PyObject* /*null*/ , PyObject* arg
 }
 
 static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	NoGil        no_gil  ;                                                             // tell our mutex we already have the GIL
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	size_t       n_args  = py_args.size()              ;
 	if (kwds    ) return py_err_set(Exception::TypeErr,"expected no keyword args") ;
@@ -197,6 +202,7 @@ static PyObject* get_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kw
 }
 
 static PyObject* set_autodep( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	NoGil        no_gil  ;                                                             // tell our mutex we already have the GIL
 	Tuple const& py_args = *from_py<Tuple const>(args) ;
 	size_t       n_args  = py_args.size()              ;
 	if (kwds    ) return py_err_set(Exception::TypeErr,"no keyword args") ;
@@ -216,6 +222,8 @@ PyMODINIT_FUNC
 	PyInit_clmake()
 #endif
 {
+
+	NoGil no_gil ; // tell our mutex we already have the GIL
 
 	#define F(name,func,descr) { name , reinterpret_cast<PyCFunction>(func) , METH_VARARGS|METH_KEYWORDS , descr }
 	PyMethodDef _g_funcs[] = {

@@ -3,14 +3,17 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "core.hh"    // must be first to include Python.h first
+
 #include <tuple>
 
-#include "core.hh"    // must be first to include Python.h first
+#include "py.hh"
 #include "rpc_job.hh"
 
 using Backends::Backend ;
 
 using namespace Disk ;
+using namespace Py   ;
 
 namespace Engine {
 
@@ -26,32 +29,27 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 
-	MatchGen            RuleBase::s_match_gen    = 1            ; // 0 is forbidden as it is reserved to mean !match
-	::umap_s<Rule>      RuleBase::s_by_name      ;
-	size_t              RuleBase::s_name_sz      = Rule::NameSz ;
-	bool                RuleBase::s_ping         = false        ; // use ping-pong to update _s_rule_datas atomically
-	RuleIdx             RuleBase::s_n_rule_datas = 0            ;
-	//
-	::vector<RuleData>  RuleBase::_s_rule_data_vecs[2] ;
-	::atomic<RuleData*> RuleBase::_s_rule_datas        = nullptr ;
+	MatchGen          RuleBase::s_match_gen    = 1            ; // 0 is forbidden as it is reserved to mean !match
+	size_t            RuleBase::s_name_sz      = Rule::NameSz ;
+	RuleIdx           RuleBase::s_n_rule_datas = 0            ;
+	Atomic<RuleData*> RuleBase::_s_rule_datas  = nullptr      ;
 
-	void RuleBase::_s_init_vec(bool ping) {
-		::vector<RuleData>& vec = _s_rule_data_vecs[ping] ;
-		SWEAR(!vec) ;
-		for( Special s : iota(1,Special::NShared) ) { // Special::0 is not a special rule
-			RuleData     rd  { s }           ;
-			RuleCrcData& rcd = rd.crc.data() ;
+	void RuleBase::_s_init_special(RuleData* rule_datas) {
+		for( Special s : iota(Special::NShared) ) {
+			rule_datas[+s] = {s} ;
+			if (!s) continue ;                             // rule 0 is unused
+			RuleCrcData& rcd = rule_datas[+s].crc.data() ;
 			if (!rcd.rule) {
-				rcd.rule  = +s               ;        // special is the id of shared rules
+				rcd.rule  = +s               ;             // special is the id of shared rules
 				rcd.state = RuleCrcState::Ok ;
 			}
-			vec.emplace_back(::move(rd)) ;
 		}
 	}
 
 	void RuleBase::_s_save() {
 		_rule_str_file.clear() ;
 		_rule_file    .clear() ;
+		_rule_str_file.hdr() = s_name_sz ;
 		for( Rule r : rule_lst() ) _rule_file.emplace_back(_rule_str_file.emplace(serialize(*r))) ;
 	}
 
@@ -79,64 +77,63 @@ namespace Engine::Persistent {
 	void RuleBase::s_from_disk() {
 		Trace trace("s_from_disk") ;
 		// handle Rule's
-		s_n_rule_datas = +Special::NShared+_rule_file.size()-1 ;
-		s_name_sz      = _rule_str_file.hdr()                  ; // hdr is only composed of name_sz
-		s_by_name.clear() ;
-		_s_rule_data_vecs[s_ping].reserve(s_n_rule_datas) ;
-		//
-		_s_init_vec(s_ping) ;
-		for( Rule r=Special::NShared ; r<s_n_rule_datas ; r=+r+1 ) {
-			RuleData rd = r.str() ;
-			s_by_name[rd.full_name()] = r ;
-			_s_rule_data_vecs[s_ping].emplace_back(::move(rd)) ;
+		if (_s_rule_datas) {
+			Gil gil ;
+			delete[] _s_rule_datas ;
 		}
+		s_n_rule_datas = +Special::NShared + _rule_file.size() - 1 ; // idx 0 is not used in StructFile's
+		s_name_sz      = _rule_str_file.hdr()                      ; // hdr is only composed of name_sz
+		_s_rule_datas  = new RuleData[s_n_rule_datas]              ;
 		//
-		_s_set_rule_datas(s_ping) ;
+		_s_init_special() ;
+		for( Rule r : iota(Special::NShared,s_n_rule_datas) ) _s_rule_datas[+r] = r.str() ;
+		//
 		trace("done") ;
 	}
 
 	void RuleBase::s_from_vec_dynamic(::vector<RuleData>&& new_rules) {
-		SWEAR(s_n_rule_datas==+Special::NShared+new_rules.size()) ;
-		::umap<Crc,RuleData*> rule_map ;           for( RuleData& rd : new_rules ) rule_map.try_emplace(rd.crc->match,&rd) ;
-		bool                  pong     = !s_ping ;
+		// number of rules may not change dynamically, if it could, s_n_rule_datas would have to be made atomically modified with _s_rule_datas
+		SWEAR( s_n_rule_datas == +Special::NShared+new_rules.size() ) ; // idx 0 is not used in StructFile's
 		//
-		s_by_name.clear() ;
+		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace(rd.crc->match,&rd) ;
+		//
 		s_name_sz = Rule::NameSz ;
 		//
-		_s_init_vec(pong) ;
+		RuleData* rule_datas = new RuleData[s_n_rule_datas] ;
+		_s_init_special(rule_datas) ;
 		for( Rule r : rule_lst() ) {
-			RuleData& rd = *rule_map.at(r->crc->match) ;
-			SWEAR(rd.crc==r->crc) ;                                       // check match, cmd and rsrcs are all ok as we should not be here if it is not the case
-			s_by_name[rd.full_name()] = r                               ;
-			s_name_sz                 = ::max(s_name_sz,rd.name.size()) ;
-			_s_rule_data_vecs[pong].emplace_back(::move(rd)) ;
+			RuleData& rd = *rule_map.at(r->crc->match) ;                // crc->match's must be identical between old and new or we should be here
+			s_name_sz      = ::max( s_name_sz , rd.name.size() ) ;
+			rule_datas[+r] = ::move(rd)                          ;
 		}
-		_rule_str_file.hdr() = s_name_sz ;
-		fence() ;
-		_s_set_rule_datas(pong) ;                                         // because update is dynamic, take care of atomicity
-		fence() ;
-		_s_rule_data_vecs[s_ping].clear() ;
-		s_ping = pong ;
+		//
+		RuleData* old_rule_datas = _s_rule_datas.exchange(rule_datas) ; // because update is dynamic, take care of atomicity
+		if (old_rule_datas) {
+			Gil gil ;
+			delete[] old_rule_datas ;
+		}
 		//
 		_s_save() ;
 	}
 
 	void RuleBase::s_from_vec_not_dynamic(::vector<RuleData>&& new_rules) {
-		s_by_name.clear() ;
-		s_name_sz = Rule::NameSz ;
-		//
-		_s_rule_data_vecs[s_ping].clear() ;
-		_s_init_vec(s_ping) ;
-		for( RuleData& rd : new_rules ) {
-			s_by_name[rd.full_name()] = _s_rule_data_vecs[s_ping].size() ;
-			s_name_sz                 = ::max(s_name_sz,rd.name.size())  ;
-			_s_rule_data_vecs[s_ping].emplace_back(::move(rd)) ;
+		// handle Rule's
+		if (_s_rule_datas) {
+			Gil gil ;
+			delete[] _s_rule_datas ;
 		}
-		_rule_str_file.hdr() = s_name_sz ;
+		s_n_rule_datas = +Special::NShared + new_rules.size() ; // idx 0 is not used in StructFile's
+		s_name_sz      = Rule::NameSz                         ;
+		_s_rule_datas  = new RuleData[s_n_rule_datas]         ;
 		//
-		_s_set_rule_datas(s_ping) ;
-		_s_save          (      ) ;
-		_s_update_crcs   (      ) ;
+		_s_init_special() ;
+		for( Rule r : iota(Special::NShared,s_n_rule_datas) ) {
+			RuleData& rd = new_rules[ +r - +Special::NShared ] ;
+			s_name_sz         = ::max( s_name_sz , rd.name.size() ) ;
+			_s_rule_datas[+r] = ::move(rd)                          ;
+		}
+		_s_save       () ;
+		_s_update_crcs() ;
 	}
 
 	//

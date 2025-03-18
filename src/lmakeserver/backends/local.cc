@@ -155,15 +155,15 @@ namespace Backends::Local {
 			return "pid:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job , SpawnedEntry const& se , Status ) const {
-			_wait_queue.push(se.id) ;                                                                 // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},true/*retry*/} ;                                                               // retry if garbage
+			_wait_queue.push(se.id) ;                                                                     // defer wait in case job_exec process does some time consuming book-keeping
+			return {{},true/*retry*/} ;                                                                   // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const { // called after job_exec has had time to start
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {     // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
-			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return {{}/*msg*/,HeartbeatState::Alive} ; // process is still alive
-			else if (!wstatus_ok(wstatus)                ) return {{}/*msg*/,HeartbeatState::Err  } ; // process just died with an error
-			else                                           return {{}/*msg*/,HeartbeatState::Lost } ; // process died long before (already waited) or just died with no error
+			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return { {}/*msg*/ , HeartbeatState::Alive } ; // process is still alive
+			else if (!wstatus_ok(wstatus)                ) return { {}/*msg*/ , HeartbeatState::Err   } ; // process just died with an error
+			else                                           return { {}/*msg*/ , HeartbeatState::Lost  } ; // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.zombie) return ;
@@ -176,10 +176,10 @@ namespace Backends::Local {
 			/**/                                cmd_line_.push_back(nullptr  ) ;
 			pid_t pid = ::vfork() ;      // calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
 			SWEAR(pid>=0) ;              // ensure vfork works
-			if (!pid) {                                                                                           // in child
+			if (!pid) {                                                                                            // in child
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_.data()) , const_cast<char**>(_env.get()) ) ;
 				Fd::Stderr.write("cannot exec job_exec\n") ;
-				::_exit(+Rc::System) ;                                                                            // in case exec fails
+				::_exit(+Rc::System) ;                                                                             // in case exec fails
 			}
 			return pid ;
 		}
@@ -193,7 +193,7 @@ namespace Backends::Local {
 	private :
 		DequeThread<pid_t> mutable  _wait_queue ;
 		::unique_ptr<const char*[]> _env        ; // directly call ::execve without going through Child to improve perf
-		::vector_s                  _env_vec    ;      // hold _env strings of the form key=value
+		::vector_s                  _env_vec    ; // hold _env strings of the form key=value
 
 	} ;
 
