@@ -1096,7 +1096,6 @@ namespace Engine {
 		report_reason = reason(ri.state) ;
 		goto Return ;
 	Wait :
-		SWEAR(!query) ;                                                                            // ensure we never wait when query
 		trace("wait",ri) ;
 	Return :
 		return report_reason ;
