@@ -160,8 +160,7 @@ namespace Engine::Persistent {
 		// cxtors & casts
 	public :
 		using Base::Base ;
-		explicit NodeBase( Name                 , Node dir          ) ;                 // if locked, lock is already taken
-		/**/     NodeBase( ::string const& name , bool no_dir=false ) ;                 // .
+		NodeBase( ::string const& name , bool no_dir=false ) ;                          // .
 		// accesses
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
@@ -404,10 +403,10 @@ namespace Engine::Persistent {
 	// JobNode
 	//
 	// cxtors & casts
-	inline JobNode::JobNode(JobBase  j) : Base(+j) {}
-	inline JobNode::JobNode(NodeBase n) : Base(+n) {}
-	inline Job  JobNode::job () const { return +self ; }
-	inline Node JobNode::node() const { return +self ; }
+	inline      JobNode::JobNode(JobBase  j) : Base(+j) {}
+	inline      JobNode::JobNode(NodeBase n) : Base(+n) {}
+	inline Job  JobNode::job    (          ) const { return +self ; }
+	inline Node JobNode::node   (          ) const { return +self ; }
 
 	//
 	// Name

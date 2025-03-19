@@ -179,11 +179,11 @@ namespace Engine {
 
 	struct EngineClosureJobMngt {
 		friend ::string& operator+=( ::string& , EngineClosureJobMngt const& ) ;
-		JobMngtProc         proc     = {} ;
-		JobExec             job_exec = {} ;
-		Fd                  fd       = {} ;
-		::vmap_s<DepDigest> deps     = {} ; // proc==ChkDeps|DepsInfo
-		::string            txt      = {} ; // proc==LiveOut
+		JobMngtProc   proc     = {} ;
+		Fd            fd       = {} ;
+		JobExec       job_exec = {} ;
+		::vector<Dep> deps     = {} ; // proc==ChkDeps|DepsInfo
+		::string      txt      = {} ; // proc==LiveOut
 	} ;
 
 	struct EngineClosure
@@ -227,8 +227,8 @@ namespace Engine {
 		EngineClosure( JRP p , JE&& je                   ) : Base{ECJ{::move(je),EngineClosureJobReportStart{                   }}} { SWEAR(p==JRP::ReportStart) ; }
 		EngineClosure( JRP p , JE&& je , JD&& jd         ) : Base{ECJ{::move(je),::move(jd)                                      }} { SWEAR(p==JRP::End        ) ; }
 		// JobMngt
-		EngineClosure( JMP p , JE&& je , ::string&& t                       ) : Base{ECJM{.proc=p,.job_exec=::move(je),.txt=::move(t)             }} { SWEAR(p==JMP::LiveOut) ; }
-		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vmap_s<DepDigest>&& dds ) : Base{ECJM{.proc=p,.job_exec=::move(je),.fd{fd_},.deps{::move(dds)}}} {
+		EngineClosure( JMP p , JE&& je , ::string&& t                 ) : Base{ECJM{.proc=p,         .job_exec=::move(je),.txt=::move(t)    }} { SWEAR(p==JMP::LiveOut) ; }
+		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vector<Dep>&& dds ) : Base{ECJM{.proc=p,.fd{fd_},.job_exec=::move(je),.deps{::move(dds)}}} {
 			SWEAR( p==JMP::DepVerbose || p==JMP::ChkDeps ) ;
 		}
 		// accesses

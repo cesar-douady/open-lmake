@@ -237,9 +237,7 @@ namespace Vector {
 	// Generic
 	//
 
-	template<class V> ::string& operator+=( ::string& , Generic<V> const& ) ;
 	template<class V> struct Generic : V {
-		friend ::string& operator+= <>( ::string& , Generic const& ) ;
 		using Base           = V                   ;
 		using Idx            = typename Base::Idx  ;
 		using Item           = typename Base::Item ;

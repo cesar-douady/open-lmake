@@ -107,10 +107,12 @@ HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=
 # - SA      : -fsanitize address
 # - ST      : -fsanitize threads
 # - P       : -pg
+# - Q       : -fno-omit-frame-pointer (for use with perf)
 # - C       : coverage (not operational yet)
 LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR)),-flto=2,-flto)
 COVERAGE         := $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
 PROFILE          := $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
+PROFILE          += $(if $(findstring Q, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
 EXTRA_FLAGS      := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,$(LTO_FLAGS))
 EXTRA_LINK_FLAGS := $(if $(findstring P, $(LMAKE_FLAGS)),,$(LTO_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O4,$(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_FLAGS))

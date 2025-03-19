@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"    // must be first to include Python.h first
+#include "core.hh" // must be first to include Python.h first
 
 #include <tuple>
 
@@ -148,28 +148,33 @@ namespace Engine::Persistent {
 
 	Mutex<MutexLvl::Node> NodeBase::_s_mutex ;
 
-	NodeBase::NodeBase( Name name_ , Node dir ) {
-		if (!name_) return ;
-		self = _name_file.c_at(name_).node() ;
-		if (!self) {                                                                   // else fast path
-			Lock lock { _s_mutex } ;
-			/**/                                self = _name_file.c_at(name_).node() ; // repeat test with lock if not already locked
-			if (!self  ) _name_file.at(name_) = self = _node_file.emplace(name_,dir) ; // if dir must be created, we already hold the lock
-		}
-		SWEAR( name_==self->_full_name , name_ , self->_full_name ) ;
-	}
-
 	NodeBase::NodeBase( ::string const& name_ , bool no_dir ) {
-		SWEAR(Disk::is_canon(name_),name_) ;
-		::pair<Name/*top*/,::vector<Name>/*created*/> top_created = no_dir ?
-			::pair<Name/*top*/,::vector<Name>/*created*/>( {} , {_name_file.insert(name_)} )
-		:	_name_file.insert_chain(name_,'/')
-		;
-		if (+top_created.second) SWEAR(is_canon(name_),name_) ;                          // XXX> : suppress when bug is found, we are supposed to insert only canonic names
-		Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
-		for( Name nn : top_created.second ) n = Node( nn , n ) ;
-		SWEAR(+n,name_) ;
-		self = n ;
+		SWEAR( +name_ && is_canon(name_) , name_ ) ;
+		if (no_dir) {
+			Name nn = _name_file.insert(name_) ;
+			self = _name_file.c_at(nn).node() ;
+			if (!self) {
+				Lock lock { _s_mutex } ;
+				JobNode& jn = _name_file.at     (nn) ;
+				if (!jn) jn = _node_file.emplace(nn) ;                                       // test jn in case it has been created by another thread
+				self = jn.node() ;
+			}
+			SWEAR( +self , name_ ) ;
+		} else {
+			::pair<Name/*top*/,::vector<Name>/*created*/> top_created = _name_file.insert_chain(name_,'/') ;
+			SWEAR(+top_created) ;
+			Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
+			if (+top_created.second) {                                                       // else fast path : avoid taking the lock
+				Lock lock { _s_mutex } ;
+				for( Name nn : top_created.second ) {                                        // create dir chain from top to bottom
+					JobNode& jn = _name_file.at     (nn  ) ;
+					if (!jn) jn = _node_file.emplace(nn,n) ;                                 // test jn in case it has been created by another thread since insert_chain
+					n = jn.node() ;
+				}
+			}
+			self = n ;
+			SWEAR( +self , name_,top_created ) ;
+		}
 	}
 
 	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {

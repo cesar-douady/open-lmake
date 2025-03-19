@@ -406,9 +406,7 @@ struct DepInfo
 // for Dep recording in book-keeping, we want to derive from Node
 // but if we derive from Node and have a field DepDigest, it is impossible to have a compact layout because of alignment constraints
 // hence this solution : derive from a template argument
-template<class B> ::string& operator+=( ::string& , DepDigestBase<B> const& ) ;
 template<class B> struct DepDigestBase : NoVoid<B> {
-	friend ::string& operator+= <>( ::string& , DepDigestBase const& ) ;
 	using Base = NoVoid<B> ;
 	static constexpr bool    HasBase = !::is_same_v<B,void> ;
 	//
@@ -529,10 +527,7 @@ struct TargetDigest {
 	// END_OF_VERSIONING
 } ;
 
-template<class Key=::string> struct JobDigest ;
-template<class Key         > ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) ;
-template<class Key         > struct JobDigest {                                                // Key may be ::string or Node
-	friend ::string& operator+=<>( ::string& , JobDigest<Key> const& ) ;
+template<class Key=::string> struct JobDigest {             // Key may be ::string or Node
 	// cxtors & casts
 	template<class KeyTo> operator JobDigest<KeyTo>() const {
 		JobDigest<KeyTo> res {
@@ -551,12 +546,12 @@ template<class Key         > struct JobDigest {                                 
 	// START_OF_VERSIONING
 	uint64_t                 upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
-	::vmap<Key,DepDigest   > deps           = {}          ;                                    // INVARIANT : sorted in first access order
+	::vmap<Key,DepDigest   > deps           = {}          ; // INVARIANT : sorted in first access order
 	Time::CoarseDelay        exec_time      = {}          ;
 	uint16_t                 max_stderr_len = {}          ;
 	CacheIdx                 cache_idx      = {}          ;
 	Status                   status         = Status::New ;
-	bool                     has_msg_stderr = false       ;                                    // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     has_msg_stderr = false       ; // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
 	// END_OF_VERSIONING
 } ;
 template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {

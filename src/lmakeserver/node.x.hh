@@ -302,6 +302,7 @@ namespace Engine {
 		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
 		NodeData() = delete ;                                                                                         // if necessary, we must take care of the union
+		NodeData( Name n             ) : JobNodeData{n} {                }
 		NodeData( Name n , Node dir_ ) : JobNodeData{n} { dir() = dir_ ; }
 		~NodeData() {
 			job_tgts().pop() ;

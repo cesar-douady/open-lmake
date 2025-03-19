@@ -418,9 +418,7 @@ static bool/*interrupted*/ _engine_loop() {
 					//                          ^^^^^^^^^^^^^^^^^^^^^
 					case JobMngtProc::ChkDeps    :
 					case JobMngtProc::DepVerbose : {
-						::vector<Dep> deps ; deps.reserve(ecjm.deps.size()) ;
-						for( auto const& [dn,dd] : ecjm.deps ) deps.emplace_back(Node(dn),dd) ;
-						JobMngtRpcReply jmrr = je.job_analysis(ecjm.proc,deps) ;
+						JobMngtRpcReply jmrr = je.job_analysis(ecjm.proc,ecjm.deps) ;
 						jmrr.fd = ecjm.fd ;                                                                   // seq_id will be filled in by send_reply
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						Backends::send_reply( +je , ::move(jmrr) ) ;

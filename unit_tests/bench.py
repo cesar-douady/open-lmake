@@ -3,10 +3,10 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-r = 10    # number of executables in regression
-n = 10000 # number of executables in sources
-l = 10    # number of objects per executable
-p = 5     # number of deps per object
+r = 10   # number of executables in regression
+n = 5000 # number of executables in sources
+l = 20   # number of objects per executable
+p = 12   # number of deps per object
 
 use_cat = False # if True, fake gcc using cat
 
