@@ -420,8 +420,7 @@ namespace std {
 	template<_CanDoToChars N> inline ::string  operator+ ( N               n , ::string const& s ) { return _to_string_append(n) +                    s  ; }
 	template<_CanDoToChars N> inline ::string& operator+=( ::string      & s , N               n ) { return                   s  += _to_string_append(n) ; }
 	//
-	template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*                 f ) { f(s)          ; return s ; }
-	template<_CanAdd    T> inline ::string& operator+=( ::string& s , ::atomic<T> const& x ) { s += x.load() ; return s ; }
+	template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
 	//
 	template<_CanAdd T> inline ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; } // work around += right associativity
 
@@ -928,22 +927,6 @@ inline Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1     
 inline Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
-// Save
-//
-
-inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
-
-template<class T,bool Fence=false> struct Save {
-	 Save( T& ref , T const& val ) : saved{ref},_ref{ref} { _ref = val ; if (Fence) fence() ;                } // save and init, ensure sequentiality if asked to do so
-	 Save( T& ref                ) : saved{ref},_ref{ref} {                                                  } // in some cases, we do not care about the value, just saving and restoring
-	~Save(                       )                        {              if (Fence) fence() ; _ref = saved ; } // restore      , ensure sequentiality if asked to do so
-	T saved ;
-private :
-	T& _ref ;
-} ;
-template<class T> using FenceSave = Save<T,true> ;
-
-//
 // mutexes
 //
 
@@ -1021,16 +1004,45 @@ template<class M,bool S=false> struct Lock {
 
 template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	using Base = ::atomic<T> ;
+	using Base::load ;
 	// cxtors & casts
 	using Base::Base      ;
 	using Base::operator= ;
+	// accesses
+	auto operator+() const { return +load() ; }
 	// services
-	void wait(T const& old) requires(bool(+Lvl)) {
-		SWEAR( t_mutex_lvl<Lvl , t_mutex_lvl,Lvl ) ;
-		Save sav { t_mutex_lvl , Lvl } ;
-		Base::wait(old) ;
-	}
+	void wait(T const& old) requires(bool(+Lvl)) ;
 } ;
+template<class T,MutexLvl Lvl> ::string& operator+=( ::string& os , Atomic<T,Lvl> const& a ) {
+	return os <<"Atomic("<< a.load() <<')' ;
+}
+
+//
+// Save
+//
+
+inline void fence() { ::atomic_signal_fence(::memory_order_acq_rel) ; } // ensure execution order in case of crash to guaranty disk integrity
+
+template<class T,bool Fence=false> struct Save {
+	Save ( T& ref , T const& val ) : saved{ref} , _ref{ref} { _ref =        val  ; if (Fence) fence() ;                        } // save and init, ensure sequentiality if asked to do so
+	Save ( T& ref , T     && val ) : saved{ref} , _ref{ref} { _ref = ::move(val) ; if (Fence) fence() ;                        } // save and init, ensure sequentiality if asked to do so
+	Save ( T& ref                ) : saved{ref} , _ref{ref} {                                                                  } // in some cases, we just want to save and restore
+	~Save(                       )                          {                      if (Fence) fence() ; _ref = ::move(saved) ; } // restore      , ensure sequentiality if asked to do so
+	T saved ;
+private :
+	T& _ref ;
+} ;
+template<class T> struct Save<Atomic<T>> {
+	using AT = Atomic<T> ;
+	Save ( AT& ref , T const& val ) : saved{ref} , _ref{ref} { _ref =        val    ; }
+	Save ( AT& ref , T     && val ) : saved{ref} , _ref{ref} { _ref = ::move(val  ) ; }
+	Save ( AT& ref                ) : saved{ref} , _ref{ref} {                        }
+	~Save(                        )                          { _ref = ::move(saved) ; }
+	T saved ;
+private :
+	AT& _ref ;
+} ;
+template<class T> using FenceSave = Save<T,true> ;
 
 //
 // SmallIds
@@ -1441,4 +1453,14 @@ template<char U,::integral I> ::string to_short_string_with_unit(I x) {
 	if (e)   *tcr.ptr++ = "afpnum?kMGTPE"[e+6]                                               ;
 	res.resize(size_t(tcr.ptr-res.data())) ;
 	return res ;
+}
+
+//
+// Atomic
+//
+
+template<class T,MutexLvl Lvl> void Atomic<T,Lvl>::wait(T const& old) requires(bool(+Lvl)) {
+	SWEAR( t_mutex_lvl<Lvl , t_mutex_lvl,Lvl ) ;
+	Save sav { t_mutex_lvl , Lvl } ;
+	Base::wait(old) ;
 }

@@ -15,6 +15,7 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
+	,	'local_module.py'
 	,	'hello'
 	,	'world'
 	,	'deps.hello+world.ref'
@@ -27,7 +28,8 @@ if __name__!='__main__' :
 	,	'auto_mkdir.yes.ref'
 	)
 
-	from step import step
+	from step         import step
+	from local_module import local_func
 
 	class Cmp(Rule) :
 		target = r'{File:.*}.ok'
@@ -103,9 +105,11 @@ if __name__!='__main__' :
 		cmd = 'cat hello'
 
 	class Resources(Rule) :
-		target    = r'resources.{File:\w*}'
-		resources = { 'cpu' : file_func }
-		cmd       = 'echo {cpu}'
+		target = r'resources.{File:\w*}'
+		def resources() :
+			if step==1 : raise RuntimeError
+			return {'cpu':local_func(File)}
+		cmd = "echo {resources['cpu']}"
 
 	class StderrLen(Rule) :
 		target = r'max_stderr_len.{File:\w*}'
@@ -138,6 +142,8 @@ if __name__!='__main__' :
 
 else :
 
+	from lmake.utils import multi_strip
+
 	import ut
 
 	print('hello'              ,file=open('hello'                      ,'w'))
@@ -151,6 +157,10 @@ else :
 	#
 	for ad in lmake.autodeps : print('hello',file=open(f'autodep.{ad}.ref','w'))
 	open('auto_mkdir.no.ref','w')
+	#
+	print(multi_strip('''
+		def local_func(f) : return f
+	'''),file=open('local_module.py','w'))
 
 	print(f'step=0',file=open('step.py','w'))
 	ut.lmake( 'cmd' , done=1 , new=1 )        # create file cmd to ensure transition bad->good does not leave a manual file

@@ -126,15 +126,18 @@ namespace Py {
 	void        py_run ( ::string const& text , Dict& env ) ;
 	Ptr<Dict>   py_run ( ::string const& text             ) ;
 
-	template<class T> struct GilPtr : Ptr<T> {
-		~GilPtr() {
-			if (!self) return ; // dont take the gil if nothing to do
-			Gil gil ;
-			Ptr<T>::unboost() ;
-			Ptr<T>::detach () ;
+	template<class T> struct WithGil : T {
+		using T::T ;
+		WithGil(T const& t) : T{       t } {}
+		WithGil(T     && t) : T{::move(t)} {}
+		~WithGil() {
+			if (!self) return ; // fast path : dont pay init of all fields if not necessary
+			self = T() ;
 		}
-		GilPtr& operator=(Ptr<T> const& p) { if (+self) { Gil gil ; return Ptr<T>::operator=(p) ; } else { return Ptr<T>::operator=(p) ; } }
-		GilPtr& operator=(Ptr<T>     && p) { if (+self) { Gil gil ; return Ptr<T>::operator=(p) ; } else { return Ptr<T>::operator=(p) ; } }
+		WithGil& operator=(WithGil const& p) { if (+self) { Gil gil ; T::operator=(       p ) ; } else { T::operator=(       p ) ; } return self ; }
+		WithGil& operator=(WithGil     && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
+		WithGil& operator=(T       const& p) { if (+self) { Gil gil ; T::operator=(       p ) ; } else { T::operator=(       p ) ; } return self ; }
+		WithGil& operator=(T           && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
 	} ;
 
 	//

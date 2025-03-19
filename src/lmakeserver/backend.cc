@@ -708,10 +708,15 @@ namespace Backends {
 				TraceLock lock { _s_mutex , BeChnl , "_heartbeat_thread_func2" } ;
 				s_heartbeat(t) ;
 			}
+			//
 			job = {} ;
 			Delay d = g_config->heartbeat ;
+			//
+			Pdate last_dyn_date = Rule::s_last_dyn_date ;
+			if ( +last_dyn_date && last_dyn_date+d<now ) Fd::Stderr.write(cat("dead-lock while computing ",Rule::s_last_dyn_msg," for ",Rule::s_last_dyn_job->name(),'\n')) ;
+			//
 			if ((last_wrap_around+d).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; } // limit job checks
-			else                                                       {                                 break    ; }
+			else                                                                                         break    ;
 		}
 		trace("done") ;
 	}

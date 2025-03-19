@@ -278,6 +278,10 @@ namespace Engine {
 	// Rule
 	//
 
+	Atomic<Pdate> Rule::s_last_dyn_date ;
+	Job           Rule::s_last_dyn_job  ;
+	const char*   Rule::s_last_dyn_msg  = nullptr ;
+
 	::string& operator+=( ::string& os , Rule const r ) {
 		/**/    os << "R(" ;
 		if (+r) os << +r   ;

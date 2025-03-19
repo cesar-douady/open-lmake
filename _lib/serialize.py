@@ -134,16 +134,15 @@ class Serialize :
 		if   not root           : self.root_s = root
 		elif root.endswith('/') : self.root_s = root
 		else                    : self.root_s = root+'/'
-		if not no_imports :
-			self.no_imports_proc = lambda m : False
+		if   not        no_imports      : self.no_imports_proc = lambda m : False
+		elif isinstance(no_imports,set) : self.no_imports_proc = no_imports.__contains__
+		elif callable  (no_imports    ) : self.no_imports_proc = no_imports
 		elif isinstance(no_imports,str) :
 			no_imports_re = re.compile(no_imports)
 			def no_imports_proc(mod_name) :
 				try    : return no_imports_re.fullmatch(sys.modules[mod_name].__file__)
 				except : return False
 			self.no_imports_proc = no_imports_proc
-		elif isinstance(no_imports,set) :
-			self.no_imports_proc = no_imports.__contains__
 		else :
 			raise TypeError(f'cannot understand {no_imports}')
 
@@ -228,15 +227,19 @@ class Serialize :
 		#
 		sfx = ''
 		if call_callables and callable(val) :
-			inspect.signature(val).bind()                                                                                          # check val can be called with no argument
-			sfx = '()'                                                                                                             # call val if possible and required
-		if hasattr(val,'__module__') and hasattr(val,'__qualname__') and not self.no_imports_proc(val.__module__ ) and not force :
-			self.modules[val.__module__] = (None,val.__module__)
-			return f'{val.__module__}.{val.__qualname__}{sfx}'
+			inspect.signature(val).bind()                                                  # check val can be called with no argument
+			sfx = '()'                                                                     # call val if possible and required
+		has_name = hasattr(val,'__module__') and hasattr(val,'__qualname__') and not force
+		if has_name :
+			can_import = not self.no_imports_proc(val.__module__)
+			if can_import :
+				self.modules[val.__module__] = (None,val.__module__)
+				return f'{val.__module__}.{val.__qualname__}{sfx}'
 		if isinstance(val,types.FunctionType) :
 			self.func_src(val.__name__,val)
 			return f'{val.__name__}{sfx}'
-		if self.has_repr(val) : return repr(val)
+		if self.has_repr(val) :
+			return repr(val)
 		#
 		kwds = { 'force':force , 'call_callables':call_callables }
 		#
@@ -245,7 +248,7 @@ class Serialize :
 			if cls in (tuple,list,set,dict) :
 				pfx = ''
 				sfx = ''
-			else :                                                                                                                 # val is an instance of a derived class
+			else :                                                                         # val is an instance of a derived class
 				self.modules[cls.__module__] = (None,cls.__module__)
 				pfx = f'{cls.__module__}.{cls.__qualname__}('
 				sfx = ')'
@@ -264,7 +267,8 @@ class Serialize :
 		if isinstance(val,based_dict) :
 			return f"{{ **{self.expr_src(val.base,**kwds)}{''.join(f' , {self.expr_src(k,**kwds)}:{self.expr_src(v,**kwds)}' for k,v in val.inc.items())} }}"
 		#
-		if  not self.no_imports_proc(val.__class__.__module__) :
+		# if we have a name, pickle will generate an import statement
+		if not (has_name and not can_import) and not self.no_imports_proc(val.__class__.__module__) :
 			# by default, use the broadest serializer available : pickle
 			# inconvenient is that the resulting source is everything but readable
 			# protocol 0 is the least unreadable, though, so use it
@@ -272,7 +276,7 @@ class Serialize :
 			self.modules['pickle'] = (None,'pickle')
 			return f'pickle.loads({val_str!r}.encode()){sfx}'
 		#
-		raise ValueError(f'dont know how to serialize {val}')
+		raise ValueError(f'as of this version, dont know how to serialize {val} (consider defining this value within a function)')
 
 	def gather_ctx(self,name) :
 		for d in self.ctx :
@@ -303,8 +307,8 @@ class Serialize :
 		_analyze(filename)
 		file_src       = srcs      [filename]
 		file_end_lines = end_liness[filename]
-		first_line_no1 = code.co_firstlineno                                                   # first line is 1
-		first_line_no0 = first_line_no1-1                                                      # first line is 0
+		first_line_no1 = code.co_firstlineno                                             # first line is 1
+		first_line_no0 = first_line_no1-1                                                # first line is 0
 		end_line_no    = file_end_lines.get(first_line_no0)
 		if first_line_no0>0 and file_src[first_line_no0-1].strip().startswith('@') : raise ValueError(f'cannot handle decorated {name}')
 		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'
@@ -313,8 +317,8 @@ class Serialize :
 		for glb_var in self.get_glbs(code) :
 			self.gather_ctx(glb_var)
 		#
-		self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) )       # first line
-		self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    )       # other lines
+		self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
+		self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
 		#
 		if self.root_s and filename.startswith(self.root_s) : filename = filename[len(self.root_s):]
 		self.debug_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)

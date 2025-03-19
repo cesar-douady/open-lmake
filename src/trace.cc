@@ -58,9 +58,9 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	}
 
 	void Trace::_s_open() {
-		if (s_sz<4096         ) return ; // not enough room to trace
-		if (!s_channels.load()) return ; // nothing to trace
-		if (!*g_trace_file    ) return ; // nowhere to trace to
+		if (s_sz<4096     ) return ; // not enough room to trace
+		if (!s_channels   ) return ; // nothing to trace
+		if (!*g_trace_file) return ; // nowhere to trace to
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
@@ -82,7 +82,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;
 		SWEAR(_s_data!=MAP_FAILED,*g_trace_file) ;
 		fence() ;
-		_s_has_trace = +_s_fd ;          // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
+		_s_has_trace = +_s_fd ;      // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
 	}
 
 	void Trace::_t_commit() {

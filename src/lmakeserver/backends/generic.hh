@@ -300,8 +300,8 @@ namespace Backends {
 			re.waiting_jobs[job] = pressure ;
 			waiting_jobs.emplace( job , WaitEntry(rs,submit_attrs,re.verbose) ) ;
 			re.waiting_queues[{New,rd.round(self)}].insert({pressure,job}) ;
-			if (!_oldest_submitted_job.load()) _oldest_submitted_job = New ;
-			if (re.waiting_jobs.size()>1000  ) launch() ;                                                      // if too many jobs are waiting, ensure launch process is running
+			if (!_oldest_submitted_job     ) _oldest_submitted_job = New ;
+			if (re.waiting_jobs.size()>1000) launch() ;                                                        // if too many jobs are waiting, ensure launch process is running
 		}
 		virtual void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
 			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
@@ -360,12 +360,12 @@ namespace Backends {
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
 			se.id.wait(StartingId) ;                                                                           // in case of immediate execution, can be starting at the time end is received
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
-			spawned_jobs.end(self,it) ;                                                                      // erase before calling launch so job is freed w.r.t. n_jobs
+			spawned_jobs.end(self,it) ;                                                                        // erase before calling launch so job is freed w.r.t. n_jobs
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
 		virtual void heartbeat() {
-			if (_oldest_submitted_job.load()+g_config->heartbeat<Pdate(New)) launch() ;                        // prevent jobs from being accumulated for too long
+			if ( _oldest_submitted_job.load()+g_config->heartbeat < Pdate(New) ) launch() ;                    // prevent jobs from being accumulated for too long
 		}
 		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                    // called on jobs that did not start after at least newwork_delay time
 			auto          it = spawned_jobs.find(j) ; SWEAR(it!=spawned_jobs.end()  ) ;
@@ -426,7 +426,7 @@ namespace Backends {
 			spawned_jobs.end(self,it) ;
 		}
 		virtual void launch() {
-			if (!_oldest_submitted_job.load()) return ;
+			if (!_oldest_submitted_job) return ;
 			_oldest_submitted_job = Pdate() ;
 			_launch_queue.wakeup() ;
 		}

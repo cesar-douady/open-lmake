@@ -220,11 +220,11 @@ namespace Engine::Makefiles {
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return ;
 		}
-		::vector_s   config_deps ;
-		::vector_s   rules_deps  ;
-		::vector_s   srcs_deps   ;
-		Config       config      ;
-		GilPtr<Dict> py_info     ;
+		::vector_s         config_deps ;
+		::vector_s         rules_deps  ;
+		::vector_s         srcs_deps   ;
+		Config             config      ;
+		WithGil<Ptr<Dict>> py_info     ;
 		//
 		if (!dynamic) {
 			{	::string content ;
@@ -274,16 +274,16 @@ namespace Engine::Makefiles {
 		// /!\ sources must be processed first as source dirs influence rules
 		//
 		::vector_s    srcs        ;
-		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;         // Maybe means not split
+		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;                  // Maybe means not split
 		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                  ;
 		if (new_srcs) //!                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dynamic ) ;       }
 			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string const& e) { throw "cannot "s+(dynamic?"dynamically ":"")+"update sources : "+e ; }
 		//
-		::vector<RuleData> rules        ;
-		Bool3/*done*/      rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
-		bool               new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
+		WithGil<::vector<RuleData>> rules        ;
+		Bool3/*done*/               rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
+		bool                        new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
 		if (new_rules) //!                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dynamic ) ;   }
 			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

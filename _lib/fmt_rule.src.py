@@ -300,6 +300,12 @@ def avoid_ctx(name,ctxs) :
 		if not any(n in ks for ks in ctxs) : return n
 	assert False,f'cannot find suffix to make {name} an available name'
 
+def is_lcl(mod) :
+	from importlib import import_module
+	m = import_module(mod)
+	try    : return lmake._maybe_local(m.__file__)
+	except : return False                          # if __file__ attribute cannot be found, this is a system module
+
 class Handle :
 	ThisPython = osp.realpath(sys.executable)
 	def __init__(self,rule) :
@@ -370,19 +376,19 @@ class Handle :
 			if is_dyn : self.dynamic_val[key] = v
 			else      : self.static_val [key] = v
 
-	def _finalize(self) :
+	def _finalize(self,for_cmd=False) :
 		static_val  = self.static_val
 		dynamic_val = self.dynamic_val
 		del self.static_val
 		del self.dynamic_val
 		if not dynamic_val :
-			if not static_val : return None          # entry is suppressed later in this case
+			if not static_val : return None                    # entry is suppressed later in this case
 			else              : return (static_val,)
 		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
 		code,ctx,names,dbg = serialize.get_expr(
 			dynamic_val
 		,	ctx            = serialize_ctx
-		,	no_imports     = no_imports
+		,	no_imports     = no_imports if for_cmd else is_lcl # dynamic attributes cannot afford local imports, so serialize in place all of them
 		,	call_callables = True
 		)
 		return ( static_val , tuple(names) , ctx , code , mk_dbg_info(dbg,serialize_ctx,True) )
@@ -564,7 +570,7 @@ class Handle :
 			self._init()
 			self._handle_val('cmd',for_deps=True)
 			if 'cmd' in self.dynamic_val : self.dynamic_val = self.dynamic_val['cmd']
-			self.rule_rep.cmd = self._finalize()
+			self.rule_rep.cmd = self._finalize(True)
 
 def do_fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                                                                   # with an explicit marker, this is definitely a base class

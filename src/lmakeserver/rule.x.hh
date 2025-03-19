@@ -84,11 +84,15 @@ namespace Engine {
 
 	struct Rule : RuleBase {
 		friend ::string& operator+=( ::string& , Rule const ) ;
-		static constexpr char   StarMrkr =  0 ;                 // signal a star stem in job_name
-		static constexpr char   StemMrkr =  0 ;                 // signal a stem in job_name & targets & deps & cmd
-		static constexpr VarIdx NoVar    = -1 ;
-		//
 		struct RuleMatch ;
+		//
+		static constexpr char   StarMrkr =  0 ; // signal a star stem in job_name
+		static constexpr char   StemMrkr =  0 ; // signal a stem in job_name & targets & deps & cmd
+		static constexpr VarIdx NoVar    = -1 ;
+		// static data
+		static Atomic<Pdate> s_last_dyn_date ;  // used to check dynamic attribute computation does not take too long
+		static Job           s_last_dyn_job  ;
+		static const char*   s_last_dyn_msg  ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb) : RuleBase{rb} {}
@@ -385,10 +389,6 @@ namespace Engine {
 		Dynamic(              ) = default ;
 		Dynamic(Dynamic const&) = default ;
 		Dynamic(Dynamic     &&) = default ;
-		~Dynamic() {
-			if (+glbs) glbs = {} ;
-			if (+code) code = {} ;
-		}
 		Dynamic& operator=(Dynamic const&) = default ;
 		Dynamic& operator=(Dynamic     &&) = default ;
 		// services
@@ -414,8 +414,8 @@ namespace Engine {
 			return _eval_code( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 		// data
-		Py::Ptr<Py::Dict> mutable glbs ;            // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
-		Py::Ptr<Py::Code>         code ;            // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
+		Py::Ptr<Py::Dict> mutable glbs ; // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
+		Py::Ptr<Py::Code>         code ; // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
 	struct DynamicDepsAttrs : Dynamic<DepsAttrs> {
@@ -772,7 +772,7 @@ namespace Engine {
 
 	template<class T> void Dynamic<T>::compile() {
 		if (!is_dynamic) return ;
-		Py::Gil::s_swear_locked() ;
+		// boost to avoid problems at end of execution
 		try { code = code_str                              ; code->boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
 		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
 	}
@@ -810,7 +810,12 @@ namespace Engine {
 		Rule       r       = +match ? match.rule : job->rule() ;
 		::vector_s to_del  ;
 		::string   to_eval ;
-		Pdate      start   { New } ;
+		//
+		SWEAR(!Rule::s_last_dyn_date,Rule::s_last_dyn_date) ;
+		Rule::s_last_dyn_job  = job    ;
+		Rule::s_last_dyn_msg  = T::Msg ;
+		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , New } ;
+		//
 		eval_ctx( job , match , rsrcs
 		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 				to_del.push_back(key) ;
@@ -825,19 +830,19 @@ namespace Engine {
 			}
 		) ;
 		Py::py_run(to_eval,*glbs) ;
-		g_kpi.py_exec_time += Pdate(New) - start ;
+		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
 		Py::Ptr<Py::Object> res      ;
 		::string            err      ;
 		bool                seen_err = false  ;
 		AutodepLock         lock     { deps } ;                                       // ensure waiting for lock is not accounted as python exec time
-		start = Pdate(New) ;
+		Rule::s_last_dyn_date = Pdate(New) ;
 		//                                vvvvvvvvvvvvvvvvv
 		try                       { res = code->eval(*glbs) ;   }
 		//                                ^^^^^^^^^^^^^^^^^
 		catch (::string const& e) { err = e ; seen_err = true ; }
 		for( ::string const& key : to_del ) glbs->del_item(key) ;                     // delete job-related info, just to avoid percolation to other jobs, even in case of error
 		if ( +lock.err || seen_err ) throw ::pair_ss(lock.err/*msg*/,err/*stderr*/) ;
-		g_kpi.py_exec_time += Pdate(New) - start ;
+		g_kpi.py_exec_time    += Pdate(New) - Rule::s_last_dyn_date ;
 		return res ;
 	}
 
