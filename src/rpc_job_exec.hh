@@ -55,29 +55,30 @@ struct JobExecRpcReq {
 	using FI    = Disk::FileInfo ;
 	using AD    = AccessDigest   ;
 	using Proc  = JobExecProc    ;
+	using Id    = uint64_t       ;
 	//
 	static const size_t MaxSz ;
 	// accesses
-	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t const*>(&file_info) ; }
-	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *reinterpret_cast<uint8_t      *>(&file_info) ; }
+	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *::launder(reinterpret_cast<uint8_t const*>(&file_info)) ; }
+	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *::launder(reinterpret_cast<uint8_t      *>(&file_info)) ; }
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
 		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ; // Encode uses file_info to store min_len
 		switch (proc) {
 			case Proc::ChkDeps        :
-			case Proc::Tmp            : SWEAR( +date                &&  !digest , proc,date,     digest ) ; break ;
-			case Proc::DepVerbose     : SWEAR( +date && sync==Yes               , proc,date,sync        ) ; break ;
+			case Proc::Tmp            : SWEAR(                 !digest && !id                       && +date , proc,        date,digest ) ; break ;
+			case Proc::DepVerbose     : SWEAR( sync==Yes   &&             !id                       && +date , proc,sync,   date        ) ; break ;
 			case Proc::Trace          :
-			case Proc::Panic          : SWEAR( !date && sync==No    &&  !digest , proc,date,sync,digest ) ; break ;
+			case Proc::Panic          : SWEAR( sync==No    &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
 			case Proc::CodecFile      :
 			case Proc::CodecCtx       :
-			case Proc::DepVerbosePush : SWEAR( !date && sync==Maybe &&  !digest , proc,date,sync,digest ) ; break ;
-			case Proc::Confirm        : SWEAR( !date                            , proc,date             ) ; break ;
-			case Proc::Guard          : SWEAR( !date                &&  !digest , proc,date,     digest ) ; break ;
+			case Proc::DepVerbosePush : SWEAR( sync==Maybe &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
+			case Proc::Confirm        : SWEAR(                             id                       && !date , proc,     id,date        ) ; break ;
+			case Proc::Guard          : SWEAR(                 !digest && !id                       && !date , proc,        date,digest ) ; break ;
 			case Proc::Decode         :
-			case Proc::Encode         : SWEAR( !date && sync==Yes   &&  !digest , proc,date,sync,digest ) ; break ;
-			case Proc::Access         : SWEAR( +date                            , proc,date             ) ; break ;
+			case Proc::Encode         : SWEAR( sync==Yes   &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
+			case Proc::Access         : SWEAR(                            (id||digest.write!=Maybe) && +date , proc,     id,date        ) ; break ;
 		DF}
 	}
 	template<IsStream T> void serdes(T& s) {
@@ -102,7 +103,7 @@ struct JobExecRpcReq {
 	Comment     comment      = Comment::None ;
 	CommentExts comment_exts = {}            ;
 	AD          digest       = {}            ;
-	pid_t       id           = 0             ;                                   // used to distinguish flows from different processes when muxed on fast report fd
+	Id          id           = 0             ;                                   // used to distinguish flows from different processes when muxed on fast report fd
 	Pdate       date         = {}            ;                                   // access date to reorder accesses during analysis
 	::string    file         = {}            ;                                   // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
 	FI          file_info    = {}            ;

@@ -60,8 +60,7 @@ namespace Store {
 		template<class Char> requires( !Case1<Char> && Case2<Char> ) struct CharRep<Char> {
 			using CharUint = Uint<NBits<Char>> ;
 			static CharUint s_rep(Char c) {
-				CharUint r = 0 ;
-				::memcpy(&r,&c,sizeof(c)) ;
+				CharUint r ; ::memcpy( &r , &c , sizeof(c) ) ;
 				return r ;
 			}
 		} ;
@@ -270,8 +269,8 @@ namespace Store {
 				else                                         return min_sz    ;
 			}
 		private :
-			template<class T> T      & _at(size_t ofs)       { return *reinterpret_cast<      T*>(reinterpret_cast<char      *>(this)+ofs) ; }
-			template<class T> T const& _at(size_t ofs) const { return *reinterpret_cast<const T*>(reinterpret_cast<char const*>(this)+ofs) ; }
+			template<class T> T      & _at(size_t ofs)       { return *::launder(reinterpret_cast<      T*>(reinterpret_cast<char      *>(this)+ofs)) ; }
+			template<class T> T const& _at(size_t ofs) const { return *::launder(reinterpret_cast<const T*>(reinterpret_cast<char const*>(this)+ofs)) ; }
 			//
 			static constexpr ItemOfs _s_end_ofs(Sz sz) { return ItemSizeOf*sz ; }
 			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) {                                                                    // data is after  nxt

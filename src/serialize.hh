@@ -107,10 +107,12 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 } ;
 
 template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
-	static void s_serdes( ::string     & os , T const& x ) { os += ::string_view( reinterpret_cast<char const*>(&x) , sizeof(x) ) ; }
-	static void s_serdes( ::string_view& is , T      & x ) {
+	static void s_serdes( ::string& os , T const& x ) {
+		os += ::string_view( ::launder(reinterpret_cast<char const*>(&x)) , sizeof(x) ) ;
+	}
+	static void s_serdes( ::string_view& is , T& x ) {
 		if (is.size()<sizeof(x)) throw 0 ;
-		::memcpy( reinterpret_cast<char*>(&x) , is.data() , sizeof(x) ) ;
+		::memcpy( &x , is.data() , sizeof(x) ) ;
 		is = is.substr(sizeof(x)) ;
 	}
 } ;

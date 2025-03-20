@@ -17,8 +17,8 @@ namespace Store {
 			// cxtors & casts
 			ChunkBase(Sz sz_) : sz{sz_} {}
 			// accesses
-			Item const* items() const { return reinterpret_cast<Item const*>(_items) ; }
-			Item      * items()       { return reinterpret_cast<Item      *>(_items) ; }
+			Item const* items() const { return ::launder(reinterpret_cast<Item const*>(_items)) ; }
+			Item      * items()       { return ::launder(reinterpret_cast<Item      *>(_items)) ; }
 			// data
 			Sz                    sz               ;
 			alignas(Item) ItemMem _items[1][MinSz] ; // [1] is just there to suppress gcc warning about size : gcc handles specially arrays[1] as arrays of indeterminate size
@@ -50,8 +50,8 @@ namespace Store {
 				for( Sz i : iota(1,sz) ) new(items()+i) Item{v[i-1]} ;
 			}
 			//
-			Chunk (                  VecView const& v ) requires(IsTrivial) : Base{Sz(  v.size())} {                   ::memcpy( items()   , v.data() , v.size()*sizeof(Item) ) ; }
-			Chunk ( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base{Sz(1+v.size())} { items()[0] = x0 ; ::memcpy( items()+1 , v.data() , v.size()*sizeof(Item) ) ; }
+			Chunk(                  VecView const& v ) requires(IsTrivial) : Base{Sz(  v.size())} {                   ::memcpy( items()   , v.data() , v.size()*sizeof(Item) ) ; }
+			Chunk( Item const& x0 , VecView const& v ) requires(IsTrivial) : Base{Sz(1+v.size())} { items()[0] = x0 ; ::memcpy( items()+1 , v.data() , v.size()*sizeof(Item) ) ; }
 			//
 			~Chunk() requires(!IsTrivial) { for( Sz i : iota(sz) ) items()[i].~Item() ; }
 			~Chunk() requires( IsTrivial) {                                             }

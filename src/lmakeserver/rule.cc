@@ -613,7 +613,7 @@ namespace Engine {
 				stems         .emplace_back("",".*"                ) ;
 				stem_mark_cnts.push_back   (0                      ) ;
 				matches       .emplace_back("",MatchEntry{job_name}) ;
-				_compile () ;
+				_compile() ;
 			break ;
 		DF}
 		_set_crcs() ;
@@ -980,12 +980,12 @@ namespace Engine {
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
 			deps_attrs        .compile() ;
-			submit_rsrcs_attrs.compile() ;
-			submit_none_attrs .compile() ;
 			start_cmd_attrs   .compile() ;
-			start_rsrcs_attrs .compile() ;
-			start_none_attrs  .compile() ;
 			cmd               .compile() ;
+			submit_rsrcs_attrs.compile() ;
+			start_rsrcs_attrs .compile() ;
+			submit_none_attrs .compile() ;
+			start_none_attrs  .compile() ;
 		} catch (::string const& e) {
 			throw "while processing "+full_name()+" :\n"+indent(e) ;
 		}

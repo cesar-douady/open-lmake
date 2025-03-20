@@ -112,7 +112,7 @@ namespace Re {
 					SWEAR( size_t(n_codes)==keys.size() , n_codes , keys.size() ) ;
 					for( ::pcre2_code* c : created ) ::pcre2_code_free(c) ;          // free what has been created
 					//
-					bytes.resize(size_t(cnt)) ; ::memcpy(bytes.data(),buf,cnt) ;
+					bytes.resize(size_t(cnt)) ; ::memcpy( bytes.data() , buf , cnt ) ;
 					// START_OF_VERSIONING
 					::serdes(os,keys ) ;
 					::serdes(os,bytes) ;
@@ -159,8 +159,8 @@ namespace Re {
 				::pcre2_get_error_message(err_code,_s_cast_in(err_buf),sizeof(err_buf)) ;
 				return ::string(err_buf) ;
 			}
-			static uint8_t const* _s_cast_in(char const* p) { return reinterpret_cast<uint8_t const*>(p) ; }
-			static uint8_t      * _s_cast_in(char      * p) { return reinterpret_cast<uint8_t      *>(p) ; }
+			static uint8_t const* _s_cast_in(char const* p) { return ::launder(reinterpret_cast<uint8_t const*>(p)) ; }
+			static uint8_t      * _s_cast_in(char      * p) { return ::launder(reinterpret_cast<uint8_t      *>(p)) ; }
 
 			// static data
 		public :

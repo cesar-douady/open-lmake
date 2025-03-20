@@ -56,7 +56,6 @@ items (also used in XXX comments) :
 * TECHNICAL DEBTH (coded poorly and needing to be reworked)
 ****************************************************************************************************
 
-! fix store to be compliant with strict aliasing rules
 ? rework dep analysis in JobData::make
 	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
 

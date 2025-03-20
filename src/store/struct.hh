@@ -87,20 +87,20 @@ namespace Store {
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
 		// accesses
-		bool          operator+(                 ) const                   {           return size()>1                                              ; }
-		Sz            size     (                 ) const requires(HasFile) {           return _struct_hdr().sz                                      ; }
-		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }
-		HdrNv       & hdr      (                 )       requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }
-		HdrNv  const& c_hdr    (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                     ; }
-		DataNv const& at       (Idx           idx) const requires(HasData) {           return *reinterpret_cast<Data const*>(base+_s_offset(+idx))  ; }
-		DataNv      & at       (Idx           idx)       requires(HasData) {           return *reinterpret_cast<Data      *>(base+_s_offset(+idx))  ; }
-		DataNv const& c_at     (Idx           idx) const requires(HasData) {           return *reinterpret_cast<Data const*>(base+_s_offset(+idx))  ; }
-		Idx           idx      (DataNv const& at ) const requires(HasData) {           return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0)) ; }
-		void          clear    (Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                        ; }
+		bool          operator+(                 ) const                   {           return size()>1                                                        ; }
+		Sz            size     (                 ) const requires(HasFile) {           return _struct_hdr().sz                                                ; }
+		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                               ; }
+		HdrNv       & hdr      (                 )       requires(HasHdr ) {           return _struct_hdr().hdr                                               ; }
+		HdrNv  const& c_hdr    (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                               ; }
+		DataNv const& at       (Idx           idx) const requires(HasData) {           return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		DataNv      & at       (Idx           idx)       requires(HasData) {           return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
+		DataNv const& c_at     (Idx           idx) const requires(HasData) {           return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Idx           idx      (DataNv const& at ) const requires(HasData) {           return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0))           ; }
+		void          clear    (Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                                  ; }
 	private :
-		StructHdr const& _struct_hdr() const requires(HasFile) { return *reinterpret_cast<StructHdr const*>(base) ; }
-		StructHdr      & _struct_hdr()       requires(HasFile) { return *reinterpret_cast<StructHdr      *>(base) ; }
-		Sz             & _size      ()       requires(HasFile) { return _struct_hdr().sz                          ; }
+		StructHdr const& _struct_hdr() const requires(HasFile) { return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
+		StructHdr      & _struct_hdr()       requires(HasFile) { return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
+		Sz             & _size      ()       requires(HasFile) { return _struct_hdr().sz                                     ; }
 		// services
 	public :
 		/**/                 void pop         ( Idx idx               ) requires(           HasData ) { _chk_writable("pop item"   ) ; if (+idx) at(idx).~Data() ;                 }

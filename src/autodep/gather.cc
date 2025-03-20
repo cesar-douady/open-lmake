@@ -241,12 +241,13 @@ Fd Gather::_spawn_child() {
 }
 
 struct JobSlaveEntry {
+	using Jerr = JobExecRpcReq ;
 	static constexpr size_t BufSz = 1<<16 ;
-	static_assert(BufSz>2*JobExecRpcReq::MaxSz) ;          // buf must be able to hold at least 2 messages
+	static_assert(BufSz>2*Jerr::MaxSz) ;             // buf must be able to hold at least 2 messages
 	// data
-	::umap<pid_t,::vector<JobExecRpcReq>> jerrs      ;     // jerrs are waiting for confirmation
-	size_t                                buf_sz     = 0 ; // part of buf actually filled
-	char                                  buf[BufSz] ;
+	::umap<Jerr::Id,::vector<Jerr>> jerrs      ;     // jerrs are waiting for confirmation
+	size_t                          buf_sz     = 0 ; // part of buf actually filled
+	char                            buf[BufSz] ;
 } ;
 ::string& operator+=( ::string& os , JobSlaveEntry const& jse ) {
 	First first ;
@@ -440,9 +441,9 @@ Status Gather::exec_child() {
 					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0) ;                             wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
 					trace(kind,fd,_child.pid,ws) ;
-					SWEAR(!WIFSTOPPED(ws),_child.pid) ;          // child must have ended if we are here
+					SWEAR(!WIFSTOPPED(ws),_child.pid) ;      // child must have ended if we are here
 					end_date  = New                      ;
-					end_child = end_date + network_delay ;       // wait at most network_delay for reporting & stdout & stderr to settle down
+					end_child = end_date + network_delay ;   // wait at most network_delay for reporting & stdout & stderr to settle down
 					_exec_trace(end_date,Comment::CendJob) ;
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
@@ -566,12 +567,13 @@ Status Gather::exec_child() {
 								case Proc::ChkDeps        : delayed_check_deps[fd] = ::move(jerr) ; sync_ = false ; break ;                                // if sync, reply is delayed as well
 								case Proc::Confirm : {
 									trace("confirm",kind,fd,jerr.digest.write) ;
+									Trace trace2 ;
 									auto it = slave_entry.jerrs.find(jerr.id) ; SWEAR(it!=slave_entry.jerrs.end(),jerr.id,slave_entry.jerrs) ;
 									SWEAR(jerr.digest.write!=Maybe) ;                                                                                      // ensure we confirm/infirm
 									for ( JobExecRpcReq& j : it->second ) {
 										SWEAR(j.digest.write==Maybe) ;
 										/**/                    j.digest.write  = jerr.digest.write ;
-										if (+jerr.digest.write) j.comment_exts |= CommentExt::Err   ;
+										if (!jerr.digest.write) j.comment_exts |= CommentExt::Err   ;
 										_new_access(fd,::move(j)) ;
 									}
 									slave_entry.jerrs.erase(it) ;

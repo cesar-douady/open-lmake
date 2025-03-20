@@ -149,8 +149,8 @@ namespace Caches {
 			DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{::min(lvl_,uint8_t(Z_BEST_COMPRESSION))} {
 				if (lvl) {
 					int rc = deflateInit(&_zs,lvl) ; SWEAR(rc==Z_OK) ;
-					_zs.next_in  = reinterpret_cast<uint8_t const*>(_buf) ;
-					_zs.avail_in = 0                                      ;
+					_zs.next_in  = ::launder(reinterpret_cast<uint8_t const*>(_buf)) ;
+					_zs.avail_in = 0                                                 ;
 				}
 			}
 			~DeflateFd() {
@@ -179,11 +179,11 @@ namespace Caches {
 				}
 			#elif HAS_ZLIB
 				if (lvl) {
-					_zs.next_in  = reinterpret_cast<uint8_t const*>(s.data()) ;
-					_zs.avail_in = s.size()                                   ;
+					_zs.next_in  = ::launder(reinterpret_cast<uint8_t const*>(s.data())) ;
+					_zs.avail_in = s.size()                                              ;
 					while (_zs.avail_in) {
-						_zs.next_out  = reinterpret_cast<uint8_t*>( _buf + _pos ) ;
-						_zs.avail_out = DiskBufSz - _pos                          ;
+						_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>( _buf + _pos )) ;
+						_zs.avail_out = DiskBufSz - _pos                                     ;
 						deflate(&_zs,Z_NO_FLUSH) ;
 						_pos = DiskBufSz - _zs.avail_out ;
 						_flush(1/*room*/) ;
@@ -234,8 +234,8 @@ namespace Caches {
 					_zs.next_in  = nullptr ;
 					_zs.avail_in = 0       ;
 					for (;;) {
-						_zs.next_out  = reinterpret_cast<uint8_t*>( _buf + _pos ) ;
-						_zs.avail_out = DiskBufSz - _pos                          ;
+						_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>( _buf + _pos )) ;
+						_zs.avail_out = DiskBufSz - _pos                                     ;
 						int rc = deflate(&_zs,Z_FINISH) ;
 						_pos = DiskBufSz - _zs.avail_out ;
 						if (rc==Z_BUF_ERROR) throw cat("cannot flush ",self) ;
@@ -319,18 +319,18 @@ namespace Caches {
 				}
 			#elif HAS_ZLIB
 				if (lvl) {
-					_zs.next_out  = reinterpret_cast<uint8_t*>(res.data()) ;
-					_zs.avail_out = res.size()                             ;
+					_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>(res.data())) ;
+					_zs.avail_out = res.size()                                        ;
 					while (_zs.avail_out) {
 						if (!_len) {
 							_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",_zs.avail_out," bytes from ",self) ;
 							_pos = 0                               ;
 						}
-						_zs.next_in  = reinterpret_cast<uint8_t const*>( _buf + _pos ) ;
-						_zs.avail_in = _len                                            ;
+						_zs.next_in  = ::launder(reinterpret_cast<uint8_t const*>( _buf + _pos )) ;
+						_zs.avail_in = _len                                                       ;
 						inflate(&_zs,Z_NO_FLUSH) ;
-						_pos = reinterpret_cast<char const*>(_zs.next_in) - _buf ;
-						_len = _zs.avail_in                                      ;
+						_pos = ::launder(reinterpret_cast<char const*>(_zs.next_in)) - _buf ;
+						_len = _zs.avail_in                                                 ;
 					}
 					return res ;
 				}

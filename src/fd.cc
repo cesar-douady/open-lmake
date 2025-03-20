@@ -97,15 +97,15 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , Delay timeout ) 
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;                                                                    // address being decoded
-		int       byte   = 0     ;                                                                    // ensure component is less than 256
-		int       n      = 0     ;                                                                    // ensure there are 4 components
-		bool      first  = true  ;                                                                    // prevent empty components
-		bool      first0 = false ;                                                                    // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;                                                                               // address being decoded
+		int       byte   = 0     ;                                                                               // ensure component is less than 256
+		int       n      = 0     ;                                                                               // ensure there are 4 components
+		bool      first  = true  ;                                                                               // prevent empty components
+		bool      first0 = false ;                                                                               // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
 				if (first) goto ByName ;
-				addr  = (addr<<8) | byte ;                                                            // dot notation is big endian
+				addr  = (addr<<8) | byte ;                                                                       // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
 				n++ ;
@@ -142,13 +142,13 @@ ByName :
 	for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next ) {
 		if (!( p->ifa_addr && p->ifa_addr->sa_family==AF_INET )) continue ;
 		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
-		if (+ifce) { if (p->ifa_name      !=ifce) continue ; }                                        // searching provided interface
-		else       { if (((addr>>24)&0xff)==127 ) continue ; }                                        // searching for any non-loopback interface
+		if (+ifce) { if (p->ifa_name      !=ifce) continue ; }                                                   // searching provided interface
+		else       { if (((addr>>24)&0xff)==127 ) continue ; }                                                   // searching for any non-loopback interface
 		res.emplace_back(p->ifa_name,addr) ;
 	}
 	freeifaddrs(ifa) ;
 	if (+res ) return res                 ;
-	if (+ifce) return {{{},s_addr(ifce)}} ;                                                           // ifce may actually be a name
+	if (+ifce) return {{{},s_addr(ifce)}} ;                                                                      // ifce may actually be a name
 	/**/       return {{{},LoopBackAddr}} ;
 }
 

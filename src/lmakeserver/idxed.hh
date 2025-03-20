@@ -85,8 +85,8 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 		if (IsA<T>) return T(  _val  & lsb_msk(NValBits)) ;
 		else        return T((-_val) & lsb_msk(NValBits)) ;
 	}
-	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T const&() const { SWEAR(is_a<T>()) ; return reinterpret_cast<T const&>(self) ; }
-	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return reinterpret_cast<T      &>(self) ; }
+	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T const&() const { SWEAR(is_a<T>()) ; return *::launder(reinterpret_cast<T const*>(this)) ; }
+	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return *::launder(reinterpret_cast<T      *>(this)) ; }
 	//
 	void clear() { self = Idxed2() ; }
 	// accesses

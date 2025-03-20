@@ -583,8 +583,7 @@ inline ::string_view first_lines( ::string_view txt , size_t n_sep , char sep='\
 }
 
 template<::integral I> inline I decode_int(const char* p) {
-	I r = 0 ;
-	::memcpy( &r , p , sizeof(I) ) ;
+	I r ; ::memcpy( &r , p , sizeof(I) ) ;
 	return r ;
 }
 
@@ -979,11 +978,9 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 	void unlock       (MutexLvl& lvl)             { SWEAR( t_mutex_lvl==Lvl && +lvl , t_mutex_lvl,Lvl ) ; t_mutex_lvl = lvl         ; lvl         = MutexLvl::Unlocked ; Base::unlock       () ; }
 	void unlock_shared(MutexLvl& lvl) requires(S) { SWEAR( t_mutex_lvl==Lvl && +lvl , t_mutex_lvl,Lvl ) ; t_mutex_lvl = lvl         ; lvl         = MutexLvl::Unlocked ; Base::unlock_shared() ; }
 	#ifndef NDEBUG
-		void swear_locked       ()             { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock       ()) ; }
-		void swear_locked_shared() requires(S) {                                       SWEAR(!Base::try_lock_shared()) ; }
+		void swear_locked() { SWEAR(t_mutex_lvl>=Lvl,t_mutex_lvl) ; SWEAR(!Base::try_lock()) ; }
 	#else
-		void swear_locked       ()             {}
-		void swear_locked_shared() requires(S) {}
+		void swear_locked() {}
 	#endif
 } ;
 

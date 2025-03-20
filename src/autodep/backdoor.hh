@@ -39,7 +39,7 @@ namespace Backdoor {
 		::string reply_str ;
 		try         { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; throw_unless(pos==args_str.size()) ; }
 		catch (...) { errno = EIO ; return -1 ;                                                                                              }
-		sz = ::min(reply_str.size(),sz) ;
+		sz = ::min( reply_str.size() , sz ) ;
 		::memcpy( buf , reply_str.data() , sz ) ;
 		return sz ;
 	}

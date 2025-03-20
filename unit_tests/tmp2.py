@@ -40,11 +40,11 @@ if __name__!='__main__' :
 
 	class Lnk(TmpRule) :
 		target       = 'lnk_dut'
-		side_targets = { 'SIDE' : 'lnk_dut.tmp' }
-		environ      = { 'REPO_ROOT' : '$REPO_ROOT' }
+		side_targets = { 'SIDE'      : 'lnk_dut.tmp' }
+		environ      = { 'REPO_ROOT' : '$REPO_ROOT'  }
 		# make a chain of links with all potential cases
 		cmd = multi_strip('''
-			ln -s /tmp/a lnk_dut.tmp              # link from repo to tmp
+			ln -s /tmp/a         lnk_dut.tmp      # link from repo to tmp
 			cd /tmp
 			ln -s b              a                # relative link within tmp
 			ln -s /tmp/c         b                # absolute link within tmp
@@ -57,14 +57,14 @@ if __name__!='__main__' :
 
 	class Cp(TmpRule) :
 		target       = 'cp_dut'
-		side_targets = { 'SIDE' : 'cp_dut.tmp' }
+		side_targets = { 'SIDE'      : 'cp_dut.tmp' }
 		environ      = { 'REPO_ROOT' : '$REPO_ROOT' }
 		# make a chain of copies with all potential cases
 		cmd = multi_strip('''
-			cp src /tmp/c
+			cp src    /tmp/c
 			cd /tmp
-			cp /tmp/c        b
-			cp b             a
+			cp /tmp/c b
+			cp b      a
 			cd $REPO_ROOT
 			cp /tmp/a cp_dut.tmp
 			cat cp_dut.tmp
@@ -72,8 +72,8 @@ if __name__!='__main__' :
 
 	class Touch(TmpRule) :
 		target       = 'touch_dut'
-		side_targets = { 'SIDE' : 'touch_dut.tmp' }
-		environ      = { 'REPO_ROOT' : '$REPO_ROOT' }
+		side_targets = { 'SIDE'      : 'touch_dut.tmp' }
+		environ      = { 'REPO_ROOT' : '$REPO_ROOT'    }
 		cmd = multi_strip('''
 			cd /tmp
 			mkdir d

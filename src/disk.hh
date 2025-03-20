@@ -322,10 +322,8 @@ namespace Disk {
 		FileMap(      ::string const& f ) : FileMap{Fd::Cwd,f} {}
 		bool operator+() const { return _ok ; }
 		// accesses
-		#define C const
-		template<class T> T C& get(size_t ofs=0) C { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T C*>(data+ofs) ; }
-		template<class T> T  & get(size_t ofs=0)   { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *reinterpret_cast<T  *>(data+ofs) ; }
-		#undef C
+		template<class T> T const& get(size_t ofs=0) const { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *::launder(reinterpret_cast<T const*>(data+ofs)) ; }
+		template<class T> T      & get(size_t ofs=0)       { throw_unless( ofs+sizeof(T)<=sz , "object @",ofs,"out of file of size ",sz ) ; return *::launder(reinterpret_cast<T      *>(data+ofs)) ; }
 		// data
 		const uint8_t* data = nullptr ;
 		size_t         sz   = 0       ;

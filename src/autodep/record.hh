@@ -99,8 +99,8 @@ private :
 	static pid_t       _s_report_pid[2/*Fast*/] ;                                    // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
-	Record(                                            ) = default ;
-	Record( NewType ,                      pid_t pid   ) : Record( New , Maybe , pid ) {}
+	Record(                                        ) = default ;
+	Record( NewType ,                  pid_t pid   ) : Record( New , Maybe , pid ) {}
 	Record( NewType , Bool3 en=Maybe , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
 		if (en==Maybe) enable = s_autodep_env().enable ;
 		else           enable = en==Yes                ;
@@ -113,9 +113,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
 	}
 public :
-	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                    // if force, emmit record even if recording is diabled
-	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                    // .
-	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                    // .
+	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                                  // if force, emmit record even if recording is diabled
+	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                                  // .
+	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                                  // .
 	// for modifying accesses :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
 	// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
@@ -124,19 +124,29 @@ public :
 	// - it is then confirmed (with an ok arg to manage errors) after the access
 	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 	//
-	Sent/*to_confirm*/ report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force=false ) const {
-		if (fl>FileLoc::Dep) return {}/*to_confirm*/ ;
+	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force=false ) const {
+		using Jerr = JobExecRpcReq ;
+		if (fl>FileLoc::Dep) return { {}/*confirm*/ , 0 } ;
+		// auto-generated id must be different for all accesses (could be random)
+		// if _real_path.pid is 0, ::gettid() gives a good id, else we are ptracing, tid is mostly constant but at least per thread, dates are different
+		static_assert(sizeof(::thread::id)==sizeof(Jerr::Id)) ;                                                                                  // else the conversion below has to be reworked
+		bool         need_id = !jerr.id && jerr.digest.write==Maybe ;
+		Time::Pdate  now     ;                                                 if ( !jerr.date || (need_id&&_real_path.pid) ) now  = New       ; // used for date and id
+		::thread::id tid     = ::this_thread::get_id()                       ;
+		Jerr::Id     id      = *::launder(reinterpret_cast<Jerr::Id*>(&tid)) ; if (                need_id&&_real_path.pid  ) id  += now.val() ;
 		//
 		/**/                                            jerr.proc         = JobExecProc::Access          ;
-		if ( !jerr.date                               ) jerr.date         = New                          ;
+		if ( !jerr.date                               ) jerr.date         = now                          ;
+		if ( need_id                                  ) jerr.id           = id                           ;
 		if ( !jerr.file_info && +jerr.digest.accesses ) jerr.file_info    = {s_repo_root_fd(),jerr.file} ;
 		if (                    fl>FileLoc::Repo      ) jerr.digest.write = No                           ;
 		//
 		Sent sent = report_cached( ::move(jerr) , force ) ;
-		if (jerr.digest.write!=Maybe) return {}   ;
-		else                          return sent ;
+		if (jerr.digest.write!=Maybe) return { {}  /*confirm*/ , 0/*id*/ } ;
+		else                          return { sent/*confirm*/ , id      } ;
 	}
-	Sent/*to_confirm*/ report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force=false ) const { // if f0 is not empty, write is done to f0 rather than to jerr.file
+	// if f0 is not empty, write is done to f0 rather than to jerr.file
+	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force=false ) const {
 		if (+f0) {
 			// read part
 			JobExecRpcReq read_jerr = jerr ; read_jerr.digest.write = No ;
@@ -149,17 +159,16 @@ public :
 	}
 	//
 	#define FL FileLoc
-	/**/         void report_guard  (FL fl,::string&& f                  ) const { if (fl<=FL::Repo)   report_direct({.proc=Proc::Guard  ,.file=::move(f)            }) ;                       }
-	[[noreturn]] void report_panic  (::string&& m                        ) const {                     report_direct({.proc=Proc::Panic  ,.file=::move(m)            }) ; exit(Rc::Usage) ;     }
-	/**/         void report_trace  (::string&& m                        ) const {                     report_direct({.proc=Proc::Trace  ,.file=::move(m)            }) ;                       }
-	/**/         void report_tmp    (                                    ) const { if (!_tmp_cache ) { report_direct({.proc=Proc::Tmp    ,.date=New                  }) ; _tmp_cache = true ; } }
+	/**/         void report_guard(FL fl,::string&& f) const { if (fl<=FL::Repo)   report_direct({ .proc=Proc::Guard , .file=::move(f) }) ;                      }
+	[[noreturn]] void report_panic(::string&& m      ) const {                     report_direct({ .proc=Proc::Panic , .file=::move(m) }) ; exit(Rc::Usage) ;    }
+	/**/         void report_trace(::string&& m      ) const {                     report_direct({ .proc=Proc::Trace , .file=::move(m) }) ;                      }
+	/**/         void report_tmp  (                  ) const { if (!_seen_tmp  ) { report_direct({ .proc=Proc::Tmp   , .date=New       }) ; _seen_tmp = true ; } }
 	//
-	int report_confirm( int rc , Sent to_confirm={} ) const {
-		if (+to_confirm ) {
-			JobExecRpcReq jerr { .proc=Proc::Confirm , .digest={.write=No|(rc>=0)} } ; if (to_confirm==Sent::Slow) jerr.sync = Maybe ;
+	void report_confirm( int rc , ::pair<Sent/*confirm*/,JobExecRpcReq::Id> const& confirm ) const {
+		if (+confirm.first) {
+			JobExecRpcReq jerr { .proc=Proc::Confirm , .digest={.write=No|(rc>=0)} , .id=confirm.second } ; if (confirm.first==Sent::Slow) jerr.sync = Maybe ;
 			report_direct(::move(jerr)) ;
 		}
-		return rc ;
 	}
 	#undef FL
 	//
@@ -194,7 +203,7 @@ public :
 		//
 		void _allocate(size_t sz) {
 			char* buf = new char[sz+1] ;                                                                            // +1 to account for terminating null
-			::memcpy(buf,file,sz+1) ;
+			::memcpy( buf , file , sz+1 ) ;
 			file      = buf  ;
 			allocated = true ;
 		}
@@ -265,25 +274,20 @@ public :
 			::serdes(s,accesses  ) ;
 			::serdes(s,file_loc  ) ;
 			::serdes(s,file_loc0 ) ;
-			::serdes(s,to_confirm) ;
 		}
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
-		void report_dep( Record& r , Accesses a , Comment c , CommentExts ces={} ) {
-			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|a} , .file=::move(real) } ) ;
-		}
-		void report_update( Record& r , Accesses a , Comment c , CommentExts ces={} ) {
-			to_confirm = r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.write=Maybe,.accesses=accesses|a} , .file=::move(real) } , file_loc0 , ::move(real0) ) ;
+		void report_dep( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
+			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|a} , .date{date} , .file=::move(real) } ) ;
 		}
 		//
 		::string const& real_write() const { return real0 | real ; }
 		::string      & real_write()       { return real0 | real ; }
 		// data
-		::string real       ;
-		::string real0      ;                     // real in case reading and writing is to different files because of overlays
-		Accesses accesses   ;                     // Access::Lnk if real was accessed as a sym link
-		FileLoc  file_loc   = FileLoc::Unknown ;
-		FileLoc  file_loc0  = FileLoc::Unknown ;
-		Sent     to_confirm = {}               ;
+		::string real      ;
+		::string real0     ;                      // real in case reading and writing is to different files because of overlays
+		Accesses accesses  ;                      // Access::Lnk if real was accessed as a sym link
+		FileLoc  file_loc  = FileLoc::Unknown ;
+		FileLoc  file_loc0 = FileLoc::Unknown ;
 	} ; //!                Writable ChkSimple
 	using Solve    = _Solve<false  ,false   > ;
 	using WSolve   = _Solve<true   ,false   > ;
@@ -293,7 +297,24 @@ public :
 		// cxtors & casts
 		using Solve::Solve ;
 		// services
-		int operator()( Record& r , int rc ) { return r.report_confirm(rc,to_confirm) ; }
+		template<IsStream S> void serdes(S& s) {
+			/**/              Solve::serdes(s            ) ;
+			/**/                   ::serdes(s,confirm_fds) ;
+			if (+confirm_fds)      ::serdes(s,confirm_id ) ;
+		}
+		void report_update( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
+			JobExecRpcReq                                jerr    { .comment=c , .comment_exts=ces , .digest={.write=Maybe,.accesses=accesses|a} , .id=confirm_id , .date{date} , .file=::move(real) } ;
+			::pair<Sent/*confirm_fd*/,JobExecRpcReq::Id> confirm = r.report_access( file_loc , ::move(jerr) , file_loc0 , ::move(real0) )                                                             ;
+			confirm_fds |= confirm.first  ;
+			confirm_id   = confirm.second ;
+		}
+		int operator()( Record& r , int rc ) {
+			for( Sent s : iota(Sent(1),All<Sent>) ) if (confirm_fds[s]) r.report_confirm( rc , {s,confirm_id} ) ;
+			return rc ;
+		}
+		// data
+		BitMap<Sent>      confirm_fds ;           // with rename, which confirms several accesses, maybe they are not all on the same fd, hence we need a BitMap
+		JobExecRpcReq::Id confirm_id  = 0 ;
 	} ;
 	struct Chdir : Solve {
 		// cxtors & casts
@@ -384,7 +405,7 @@ public :
 		Rename() = default ;
 		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , Comment ) ;
 		// services
-		int operator()( Record& r , int rc ) { return r.report_confirm(rc,dst.to_confirm) ; }
+		int operator()( Record& r , int rc ) { return dst(r,rc) ; }
 		// data
 		SolveModify src ;                         // src may be modified in case of exchange
 		SolveModify dst ;
@@ -417,7 +438,7 @@ public :
 	bool enable     = false ;
 private :
 	Disk::RealPath _real_path ;
-	mutable bool   _tmp_cache = false ;           // record that tmp usage has been reported, no need to report any further
+	mutable bool   _seen_tmp  = false ;           // record that tmp usage has been reported, no need to report any further
 } ;
 
 template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) {
@@ -429,8 +450,8 @@ template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path
 }
 
 template<bool Writable=false,bool ChkSimple=false> ::string& operator+=( ::string& os , Record::_Solve<Writable,ChkSimple> const& s ) {
-	/**/              os << "Solve("<< s.real <<','<< s.file_loc <<','<< s.accesses ;
-	if (+s.real0    ) os <<','<< s.real0 <<','<< s.file_loc0                        ;
-	if (s.to_confirm) os <<",confirm"                                               ;
-	return            os <<')'                                                      ;
+	/**/            os << "Solve("<< s.real <<','<< s.file_loc <<','<< s.accesses ;
+	if (+s.real0  ) os <<','<< s.real0 <<','<< s.file_loc0                        ;
+	if (+s.confirm) os <<','<< s.confirm                                          ;
+	return          os <<')'                                                      ;
 }

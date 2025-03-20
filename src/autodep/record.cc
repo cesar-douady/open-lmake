@@ -26,15 +26,15 @@ using namespace Time ;
 // Record
 //
 
-bool                                                   Record::s_static_report    = false     ;
-::vmap_s<DepDigest>                                  * Record::s_deps             = nullptr   ;
-::string                                             * Record::s_deps_err         = nullptr   ;
-::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache     = nullptr   ; // map file to read accesses
-AutodepEnv*                                            Record::_s_autodep_env     = nullptr   ; // declare as pointer to avoid late initialization
-Fd                                                     Record::_s_repo_root_fd    ;
-pid_t                                                  Record::_s_repo_root_pid   = 0         ;
-Fd                                                     Record::_s_report_fd[2]    ;
-pid_t                                                  Record::_s_report_pid[2]   = { 0 , 0 } ;
+bool                                                   Record::s_static_report  = false     ;
+::vmap_s<DepDigest>                                  * Record::s_deps           = nullptr   ;
+::string                                             * Record::s_deps_err       = nullptr   ;
+::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache   = nullptr   ; // map file to read accesses
+AutodepEnv*                                            Record::_s_autodep_env   = nullptr   ; // declare as pointer to avoid late initialization
+Fd                                                     Record::_s_repo_root_fd  ;
+pid_t                                                  Record::_s_repo_root_pid = 0         ;
+Fd                                                     Record::_s_report_fd[2]  ;
+pid_t                                                  Record::_s_report_pid[2] = { 0 , 0 } ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                    // no file is simple (not documented, but used in practice)
@@ -72,20 +72,23 @@ Restart :
 	DN}
 	if ( !pfx_sz                               ) return false ;   // no prefix
 	if ( file[pfx_sz-1] && file[pfx_sz-1]!='/' ) return false ;   // false prefix
+	//
 	int depth = 0 ;
-	for ( const char* p=file+pfx_sz ; *p ; p++ ) {                                             // ensure we do not escape from top level dir
-		if (p[ 0]!='/')                                                           continue ;   // not a dir boundary, go on
-		if (p[-1]=='/')                                                           continue ;   // consecutive /'s, ignore
-		if (p[-1]!='.') {                                               depth++ ; continue ; } // plain dir  , e.g. foo  , go down
-		if (p[-2]=='/')                                                           continue ;   // dot dir    ,             stay still
-		if (p[-2]!='.') {                                               depth++ ; continue ; } // plain dir  , e.g. foo. , go down
-		if (p[-3]=='/') { { if (!depth) { file = p ; goto Restart ; } } depth-- ; continue ; } // dot-dot dir,             go up and restart if we get back to top-level
-		/**/            {                                               depth++ ; continue ; } // plain dir  , e.g. foo.., go down
+	for ( const char* p=file+pfx_sz ; *p ; p++ ) {                // ensure we do not escape from top level dir
+		if (p[ 0]!='/')              continue     ;               // not a dir boundary, go on
+		if (p[-1]=='/')              continue     ;               // consecutive /'s, ignore
+		if (p[-1]!='.') { depth++  ; continue     ; }             // plain dir  , e.g. foo  , go down
+		if (p[-2]=='/')              continue     ;               // dot dir    ,             stay still
+		if (p[-2]!='.') { depth++  ; continue     ; }             // plain dir  , e.g. foo. , go down
+		if (p[-3]!='/') { depth++  ; continue     ; }             // plain dir  , e.g. foo.., go down
+		if (!depth    ) { file = p ; goto Restart ; }             // dot-dot dir, restart if we get back to top-level
+		/**/              depth--  ;                              // dot-dot dir
 	}
 	return true ;
 }
 
 void Record::_static_report(JobExecRpcReq&& jerr) const {
+	jerr.chk() ;
 	switch (jerr.proc) {
 		case Proc::Tmp     :
 		case Proc::Trace   :
@@ -104,21 +107,20 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 }
 
 Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
-	jerr.id = ::getpid() ;
 	jerr.chk() ;
 	//
 	if ( !force && !enable )                                  return Sent::NotSent ;
 	if ( s_static_report   ) { _static_report(::move(jerr)) ; return Sent::Static  ; }
 	//
-	//
 	OMsgBuf msg  { jerr }                                ;
-	bool    fast = jerr.sync==No && msg.size()<=PIPE_BUF ;                                     // several processes share fast report, so only small messages can be sent
-	Fd fd = fast ?  s_report_fd<true/*Fast*/>(jerr.id) : s_report_fd<false/*Fast*/>(jerr.id) ;
+	bool    fast = jerr.sync==No && msg.size()<=PIPE_BUF ;                                           // several processes share fast report, so only small messages can be sent
+	Fd fd = fast ?  s_report_fd<true/*Fast*/>(::getpid()) : s_report_fd<false/*Fast*/>(::getpid()) ;
 	if (+fd) {
-		try                       { msg.send(fd) ;                              }
-		catch (::string const& e) { FAIL("cannot report",getpid(),jerr,':',e) ; }              // this justifies panic, but we cannot report panic !
+		try                       { msg.send(fd) ;                                }
+		catch (::string const& e) { FAIL("cannot report",::getpid(),jerr,':',e) ; }                  // this justifies panic, but we cannot report panic !
 	}
-	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
+	Sent sent = !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
+	return sent ;
 }
 
 Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
@@ -206,11 +208,12 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comme
 	src { r , ::move(src_) , no_follow , true  , false , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true      , false , true  , c , CommentExt::Write }
 {
-	if (src.real==dst.real) return ;                                // posix says it is nop in that case
+	if (src.real==dst.real) return ;                                      // posix says it is nop in that case
 	//
-	Accesses sa = Access::Reg ; if (no_follow) sa |= Access::Lnk ;  // if no_follow, a sym link may be hard linked
-	src.report_dep   ( r , sa           , c , CommentExt::Read  ) ;
-	dst.report_update( r , Access::Stat , c , CommentExt::Write ) ; // writing to dst is sensitive to existence
+	Pdate    now { New }      ;
+	Accesses sa = Access::Reg ; if (no_follow) sa |= Access::Lnk ;        // if no_follow, a sym link may be hard linked
+	src.report_dep   ( r , sa           , c , CommentExt::Read  , now ) ;
+	dst.report_update( r , Access::Stat , c , CommentExt::Write , now ) ; // writing to dst is sensitive to existence
 }
 
 Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
@@ -279,24 +282,24 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	//                     no_follow read       create
 	src { r , ::move(src_) , true  , true     , exchange , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true  , exchange , true     , c , CommentExt::Write }
-{	if (src.real==dst.real) return ;                                                              // posix says in this case, it is nop
+{	if (src.real==dst.real) return ;                                                                   // posix says in this case, it is nop
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written
-	::vector_s reads  ;
-	::vector_s stats  ;
-	::uset_s   unlnks ;                                                                           // files listed here are read and unlinked
-	::vector_s writes ;
+	::vector_s             reads  ;
+	::vector_s             stats  ;
+	::umap_s<bool/*read*/> unlnks ;                                                                    // files listed here are read and unlinked
+	::vector_s             writes ;
 	auto do1 = [&]( Solve const& src , Solve const& dst )->void {
 		for( ::string const& f : walk(s_repo_root_fd(),src.real) ) {
 			if (+src.real0) {
-				if      (src.file_loc0<=FileLoc::Repo) unlnks.insert   (src.real0+f) ;
-				if      (src.file_loc <=FileLoc::Dep ) reads .push_back(src.real +f) ;
+				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ; // real is read, real0 is unlinked
+				if      (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f              ) ;
 			} else {
-				if      (src.file_loc <=FileLoc::Repo) unlnks.insert   (src.real +f) ;
-				else if (src.file_loc <=FileLoc::Dep ) reads .push_back(src.real +f) ;
+				if      (src.file_loc <=FileLoc::Repo) unlnks.try_emplace(src.real +f,true/*read*/) ;  // real is both read and unlinked
+				else if (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f             ) ;
 			}
-			if (no_replace) stats.push_back(dst.real+f) ;                                         // probe existence of destination
+			if (no_replace) stats.push_back(dst.real+f) ;                                              // probe existence of destination
 			if (+dst.real0) { if (dst.file_loc0<=FileLoc::Repo) writes.push_back(dst.real0+f) ; }
 			else            { if (dst.file_loc <=FileLoc::Repo) writes.push_back(dst.real +f) ; }
 		}
@@ -307,23 +310,24 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	for( ::string const& w : writes ) {
 		auto it = unlnks.find(w) ;
 		if (it==unlnks.end()) continue ;
-		reads.push_back(w) ;                                                                      // if a file is read, unlinked and written, it is actually not unlinked
-		unlnks.erase(it) ;                                                                        // .
+		reads.push_back(w) ;                                                                           // if a file is read, unlinked and written, it is actually not unlinked
+		unlnks.erase(it) ;                                                                             // .
 	}
 	//
 	::uset_s guards ;
-	for( ::string const& w : writes ) guards.insert(dir_name_s(w)) ;
-	for( ::string const& u : unlnks ) guards.insert(dir_name_s(u)) ;
+	for( ::string const& w     : writes ) guards.insert(dir_name_s(w)) ;
+	for( auto     const& [u,_] : unlnks ) guards.insert(dir_name_s(u)) ;
 	guards.erase(""s) ;
 	for( ::string const& g : guards ) r.report_guard( FileLoc::Repo , no_slash(g) ) ;
 	//
-	using FL = FileLoc    ;
-	using CE = CommentExt ;
-	Pdate pd { New } ;
-	for( ::string      & f : reads  )                   r.report_access( FL::Dep  , {.comment=c,.comment_exts=CE::Read ,.digest={             .accesses=DataAccesses},.date=pd,.file=::move(f)} ) ;
-	for( ::string      & f : stats  )                   r.report_access( FL::Dep  , {.comment=c,.comment_exts=CE::Stat ,.digest={             .accesses=Access::Stat},.date=pd,.file=::move(f)} ) ;
-	for( ::string const& f : unlnks ) dst.to_confirm |= r.report_access( FL::Repo , {.comment=c,.comment_exts=CE::Unlnk,.digest={.write=Maybe,.accesses=DataAccesses},.date=pd,.file=::copy(f)} ) ;
-	for( ::string      & f : writes ) dst.to_confirm |= r.report_access( FL::Repo , {.comment=c,.comment_exts=CE::Write,.digest={.write=Maybe                       },.date=pd,.file=::move(f)} ) ;
+	Pdate now { New } ;
+	src.file_loc = FileLoc::Dep  ; src.accesses = {} ;                                                 // use src/dst as holders for reporting
+	dst.file_loc = FileLoc::Repo ; dst.accesses = {} ; dst.real0.clear() ;                             // .
+	//
+	for( ::string&    f    : reads  ) { src.real =        f  ; src.report_dep   ( r , DataAccesses              , c , CommentExt::Read  , now ) ; }
+	for( ::string&    f    : stats  ) { src.real =        f  ; src.report_dep   ( r , Access::Stat              , c , CommentExt::Stat  , now ) ; }
+	for( auto const& [f,a] : unlnks ) { dst.real =        f  ; dst.report_update( r , a?DataAccesses:Accesses() , c , CommentExt::Unlnk , now ) ; }
+	for( ::string&    f    : writes ) { dst.real = ::move(f) ; dst.report_update( r , {}                        , c , CommentExt::Write , now ) ; }
 }
 
 Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , Comment c ) :

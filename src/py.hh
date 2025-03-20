@@ -19,8 +19,7 @@ ENUM( Exception
 namespace Py {
 
 	struct Gil {
-		friend struct NoGil   ;
-		friend struct AntiGil ;
+		friend struct NoGil ;
 		// statics
 		static void s_swear_locked() { _s_mutex.swear_locked() ; }
 		// static data
@@ -43,15 +42,6 @@ namespace Py {
 		// data
 	private :
 		Lock<Mutex<MutexLvl::Gil>> _lock  ;
-	} ;
-
-	struct AntiGil {
-		// cxtors & casts
-		AntiGil (Gil& g) : _gil{g} { Trace trace("AntiGil::acquire") ;                                   PyGILState_Release(_gil._state) ; _gil._lock.unlock() ; }
-		~AntiGil(      )           { Trace trace("AntiGil::release") ; _gil._lock.lock() ; _gil._state = PyGILState_Ensure (           ) ;                       }
-	private :
-		// data
-		Gil& _gil ;
 	} ;
 
 	struct SavPyLdLibraryPath {
@@ -97,12 +87,8 @@ namespace Py {
 	inline void py_err_clear   () {        PyErr_Clear   () ; }
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
-	template<class T=Object> T& py_get_sys(::string const& name) {
-		Gil::s_swear_locked() ;
-		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
-		throw_unless( v , "cannot find sys.",name ) ;
-		return *from_py<T>(v) ;
-	}
+	template<class T=Object> T&   py_get_sys( ::string const& name                   ) ;
+	inline                   void py_set_sys( ::string const& name , Object const& o ) ;
 
 	void init         (::string const& lmake_root_s) ;
 	void py_reset_path(                            ) ;
@@ -380,7 +366,7 @@ namespace Py {
 		using Item     = ::conditional_t< C ,     Object  const ,     Object  > ;
 		// cxtors & casts
 		SequenceIter(                       ) = default ;
-		SequenceIter(Iterable& i,bool at_end) : _item {reinterpret_cast<PtrItem*>(PySequence_Fast_ITEMS(i.to_py()))} { if (at_end) _item += i.size() ; }
+		SequenceIter(Iterable& i,bool at_end) : _item {::launder(reinterpret_cast<PtrItem*>(PySequence_Fast_ITEMS(i.to_py())))} { if (at_end) _item += i.size() ; }
 		// accesses
 		bool operator==(SequenceIter const&) const = default ;
 		// services
@@ -597,6 +583,23 @@ namespace Py {
 	//
 	// implementation
 	//
+
+	//
+	// functions
+	//
+
+	template<class T> T& py_get_sys(::string const& name) {
+		Gil::s_swear_locked() ;
+		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
+		throw_unless( v , "cannot find sys.",name ) ;
+		return *from_py<T>(v) ;
+	}
+
+	inline void py_set_sys( ::string const& name , Object const& val ) {
+		Gil::s_swear_locked() ;
+		int rc = PySys_SetObject( const_cast<char*>(name.c_str()) , val.to_py() ) ;
+		throw_unless( rc==0 , "cannot set sys.",name ) ;
+	}
 
 	//
 	// Object
