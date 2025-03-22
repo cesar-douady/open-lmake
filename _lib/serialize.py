@@ -12,6 +12,8 @@ import re
 import sys
 import types
 
+from lmake.utils import pdict
+
 class f_str(str) :                                                                    # used as a marker to generate an f-string as source
 	def __repr__(self) :
 		if   not self                               : res = "f''"
@@ -32,7 +34,7 @@ class based_dict :                # used to add entries to a dict provided as a 
 	def __call__(self,*args,**kwds) :
 		return { **base(*args,**kwds) , **inc }
 
-__all__ = ('get_src','get_code_ctx','f_str','based_dict') # everything else is private
+__all__ = ('get_src','f_str','based_dict') # everything else is private
 
 comment_re = re.compile(r'^\s*(#.*)?$')
 
@@ -46,10 +48,12 @@ def get_src(*args,no_imports=None,ctx=(),force=False,root=None) :
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
 		- if root is provided, source filename debug info are reported relative to this directory
-		The return value is (source,names) where :
-			- source is the source text that reproduces args
-			- names is the set of names found in sets in ctx
-			- debug_info contains a dict mapping generated function names to (module,qualname,file,firstlineno)
+		The return value is a pdict where :
+			- src        : the source text that reproduces args
+			- names      : the set of names found in sets in ctx
+			- modules    : the modules mentioned in import statements
+			- dbg_info   : a dict mapping generated function names to (module,qualname,file,firstlineno)
+			- may_import : True if code is sensitive to sys.path
 	'''
 	s = Serialize(no_imports,ctx,root)
 	for a in args :
@@ -66,30 +70,20 @@ def get_expr(expr,*,no_imports=None,ctx=(),force=False,call_callables=False) :
 		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
-		The return value is (source,ctx,names) where :
-			- source is the source text that reproduces expr as an expression
-			- ctx is as ource text that reproduces the environment in which to evaluate source
-			- names is the list of names found in sets in ctx
+		The return value is a pdict where :
+			- expr       : the source text that reproduces expr as an expression when executed in the provided context
+			- ctx        : a source text that reproduces the the necessary context to evaluate args
+			- names      : the set of names found in sets in ctx
+			- modules    : the modules mentioned in import statements of ctx
+			- dbg_info   : a dict mapping generated function names to (module,qualname,file,firstlineno)
+			- may_import : True if code is sensitive to sys.path
 	'''
-	s = Serialize(no_imports,ctx)
-	src = s.expr_src(expr,force=force,call_callables=call_callables)
-	return (src,*s.get_src())
-
-def get_code_ctx(*args,no_imports=None,ctx=()) :
-	'''
-		get a source text that provides the necessary context to evaluate args :
-		- args must be composed of code objects
-		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
-		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
-		the return value is (source,names) where :
-			- source is the source text that provides the necessary context to evaluate args
-			- names is the list of names found in sets in ctx
-	'''
-	s = Serialize(no_imports,ctx)
-	for a in args :
-		if not isinstance(a,types.CodeType) : raise TypeError(f'args must be code, not {a.__class__.__name__}')
-		for glb_var in s.get_glbs(a) : s.gather_ctx(glb_var)
-	return s.get_src()
+	s        = Serialize(no_imports,ctx)
+	expr     = s.expr_src(expr,force=force,call_callables=call_callables)
+	res      = s.get_src()
+	res.ctx  = res.pop('src')
+	res.expr = expr
+	return res
 
 end_liness = {}
 srcs       = {}
@@ -123,14 +117,16 @@ def _analyze(filename) :
 		file_end_lines[start_lineno] = end_lineno
 
 class Serialize :
-	InSet = object()                              # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
+	InSet      = object() # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
+	may_import = False    # default value
+
 	def __init__(self,no_imports,ctx,root=None) :
-		self.seen       = {}
-		self.modules    = {}
-		self.src        = []
-		self.in_sets    = set()
-		self.ctx        = list(ctx)
-		self.debug_info = {}
+		self.seen     = {}
+		self.modules  = {}
+		self.src      = []
+		self.in_sets  = set()
+		self.ctx      = list(ctx)
+		self.dbg_info = {}
 		if   not root           : self.root_s = root
 		elif root.endswith('/') : self.root_s = root
 		else                    : self.root_s = root+'/'
@@ -166,27 +162,29 @@ class Serialize :
 			avoid.discard(val_id)
 
 	def get_src(self) :
-		if len(self.src) and len(self.src[-1]) : self.src.append('')                                               # ensure there is \n at the end
+		if len(self.src) and self.src[-1] : self.src.append('')                                                                         # ensure there is \n at the end
 		modules = ''
-		for n,(f,s) in self.modules.items() :
-			if f is not None : pfx = f'from {f} '
-			else             : pfx = ''
-			if   n==s     : modules += f'{pfx}import {s}\n'
-			elif '.' in s : modules += f"{pfx}import {s.split('.',1)[0]} as {n} ; {n} = {n}.{s.split('.',1)[1]}\n" # use {n} as temporary as it is guaranteed to be an available name
-			else          : modules += f'{pfx}import {s} as {n}\n'
-		return (
-				modules
-			+	'\n'.join(self.src)
-		,	{k for k,v in self.seen.items() if v is self.InSet}
-		,	self.debug_info
+		for name,(mod,var) in self.modules.items() :
+			self.may_import = True
+			if var :
+				if '.' in var : modules += f"from {mod} import {var.split('.',1)[0]} as {name} ; {name} = {name}.{var.split('.',1)[1]}" # use name as intermediate var as it is avail for sure
+				else          : modules += f'from {mod} import {var} as {name}'
+			else :
+				if name==mod  : modules += f'import {mod}'
+				else          : modules += f'import {mod} as {name}'
+			modules += '\n'
+		res = pdict(
+			src      = modules + '\n'.join(self.src)
+		,	names    = tuple( k   for k,v     in self.seen.items()     if v is self.InSet )
+		,	modules  = tuple( mod for mod,var in self.modules.values()                    )
+		,	dbg_info = self.dbg_info
 		)
+		if self.may_import : res.may_import = True
+		return res
 
-	have_name = {
-		'LOAD_GLOBAL','STORE_GLOBAL','DELETE_GLOBAL'
-	,	'LOAD_NAME'  ,'STORE_NAME'  ,'DELETE_NAME'
-	}
-	@staticmethod
-	def get_glbs(code) :
+	HaveGlbLoads = { 'LOAD_GLOBAL' , 'LOAD_NAME'   }
+	Imports      = { 'IMPORT_FROM' , 'IMPORT_NAME' }
+	def get_glbs(self,code) :
 		'recursively find func globals'
 		# for global references, we need to inspect code as code.co_names contains much more
 		def gather_codes(code) :                                  # gather all code objects as there may be function defs within a function
@@ -194,13 +192,14 @@ class Serialize :
 			codes[code] = None
 			for c in code.co_consts :
 				if isinstance(c,types.CodeType) : gather_codes(c)
-		codes = {}                                                # use dict to retain order so order is stable
+		codes     = {}                                            # use dict rather than set to retain order so order is stable
+		glb_loads = {}                                            # .
 		gather_codes(code)
-		glb_names = {}                                            # use dict to retain order so order is stable
 		for c in codes :
 			for i in dis.Bytecode(c) :
-				if i.opname in Serialize.have_name : glb_names[i.argval] = None
-		return glb_names
+				if i.opname in self.HaveGlbLoads : glb_loads[i.argval] = None
+				if i.opname in self.Imports      : self.may_import     = True
+		return glb_loads
 
 	def val_src(self,name,val,*,force=False) :
 		if not name :
@@ -212,7 +211,7 @@ class Serialize :
 				else                    : raise f'name conflict : {name} is both {val} and {self.seen[name]}'
 			self.seen[name] = val
 		if isinstance(val,types.ModuleType) :
-			self.modules[name] = (None,val.__name__)
+			self.modules[name] = (val.__name__,None)
 		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and not self.no_imports_proc(val.__module__) and not force :
 			self.modules[name] = (val.__module__,val.__qualname__)
 		elif isinstance(val,types.FunctionType) :
@@ -222,7 +221,7 @@ class Serialize :
 
 	def expr_src(self,val,*,force=False,call_callables=False) :
 		if isinstance(val,types.ModuleType) :
-			self.modules[val.__name__] = (None,val.__name__)
+			self.modules[val.__name__] = (val.__name__,None)
 			return val.__name__
 		#
 		sfx = ''
@@ -233,7 +232,7 @@ class Serialize :
 		if has_name :
 			can_import = not self.no_imports_proc(val.__module__)
 			if can_import :
-				self.modules[val.__module__] = (None,val.__module__)
+				self.modules[val.__module__] = (val.__module__,None)
 				return f'{val.__module__}.{val.__qualname__}{sfx}'
 		if isinstance(val,types.FunctionType) :
 			self.func_src(val.__name__,val)
@@ -249,7 +248,7 @@ class Serialize :
 				pfx = ''
 				sfx = ''
 			else :                                                                         # val is an instance of a derived class
-				self.modules[cls.__module__] = (None,cls.__module__)
+				self.modules[cls.__module__] = (cls.__module__,None)
 				pfx = f'{cls.__module__}.{cls.__qualname__}('
 				sfx = ')'
 			if isinstance(val,tuple) : return f"{pfx}( { ' , '.join(   self.expr_src(x,**kwds)                             for x   in val        )} {',' if len(val)==1 else ''}){sfx}"
@@ -273,11 +272,12 @@ class Serialize :
 			# inconvenient is that the resulting source is everything but readable
 			# protocol 0 is the least unreadable, though, so use it
 			val_str = pickle.dumps(val,protocol=0).decode()
-			self.modules['pickle'] = (None,'pickle')
+			self.modules['pickle'] = ('pickle',None)
 			return f'pickle.loads({val_str!r}.encode()){sfx}'
 		#
 		raise ValueError(f'as of this version, dont know how to serialize {val} (consider defining this value within a function)')
 
+	BuiltinExecs = { 'eval' , 'exec' }
 	def gather_ctx(self,name) :
 		for d in self.ctx :
 			if name not in d : continue
@@ -285,6 +285,8 @@ class Serialize :
 			except : self.seen[name] = self.InSet
 			else   : self.val_src(name,val)
 			return
+		if name in self.BuiltinExecs : self.may_import = True # we may execute arbitrary code which may import
+
 		# name may be a builtins or it does not exist, in both case, do nothing and we'll have a NameError exception at runtime if name is accessed and it is not a builtin
 
 	def get_first_line(self,name,func,first_line) :
@@ -321,4 +323,4 @@ class Serialize :
 		self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
 		#
 		if self.root_s and filename.startswith(self.root_s) : filename = filename[len(self.root_s):]
-		self.debug_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)
+		self.dbg_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)

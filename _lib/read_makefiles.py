@@ -10,12 +10,13 @@ sys.dont_write_bytecode      = True # and dont generate them
 import os
 import os.path as osp
 
-lmake_lib  = osp.dirname(__file__ )
-lmake_root = osp.dirname(lmake_lib)
+lmake_private_lib = osp.dirname(__file__ )
+lmake_root        = osp.dirname(lmake_private_lib)
+lmake_lib         = lmake_root+'/lib'
 
-assert sys.path[0]==lmake_lib # normal python behavior : put script dir as first entry
+assert sys.path[0]==lmake_private_lib # normal python behavior : put script dir as first entry
 
-sys.path[0:0] = [lmake_root+'/lib']
+sys.path[0:0] = [lmake_lib]
 
 if len(sys.argv)!=5 :
 	print('usage : python read_makefiles.py <out_file> <environ_file> /[config/][rules/][sources/][top/] sub_repos_s',file=sys.stderr)
@@ -33,41 +34,19 @@ if is_top : os.environ['TOP_REPO_ROOT'] = cwd
 if True   : os.environ['REPO_ROOT'    ] = cwd
 
 import lmake
+from   lmake import _maybe_lcl
 import fmt_rule
 
 lmake.user_environ = eval(open(environ_file).read()) # make original user env available while reading config
 pdict              = lmake.pdict
 
-assert sys.path[1]== lmake_lib
-sys.path[1] = '.'              # suppress access to _lib (not for user usage) and add access to repo (only for user usage)
-
-def max_link_support(*link_supports) :
-	for ls in ('full','Full','file','File','none','None',None) :
-		if ls in link_supports : return ls
-	raise ValueError(f'unexpected link_support values : {link_support}')
-
-def merge_config( config , sub_config , sub_dir_s ) :
-	config.link_support = max_link_support( config.link_support , sub_config.link_support )
-	if sub_config.sub_repos :
-		config.sub_repos += tuple(sub_dir_s+sr for sr in sub_config.sub_repos )
-
-def merge_manifest( manifest , sub_manifest , sub_dir_s ) :
-	manifest[:] = [ s for s in manifest if not s.startswith(sub_dir_s) ] # in sub-repo, sources are provided by sub-repo, not by top-level
-	for s in sub_manifest :
-		if   not s.endswith  ('/'  ) : manifest.append(sub_dir_s+s)      # source file
-		elif     s.startswith('/'  ) : manifest.append(          s)      # absolute source dir
-		elif not s.startswith('../') : manifest.append(sub_dir_s+s)      # local source dir
-		else :                                                           # relative external source dir : walks up sub_dir_s
-			sd_s = sub_dir_s
-			while sd_s and s.startswith('../') : sd_s , s = sd_s[0:sd_s.rfind('/',0,-1)+1] , s[3:]
-			# if local to the top level dir, relative external sources of the sub-repo are deemed produced by the top-level (or other sub-repo's) rules, thus they are no more external sources
-			if s.startswith('../') : manifest.append(sd_s+s)
-
-def merge_rules( rules , sub_rules , sub_dir_s ) :
-	for r in sub_rules : r.sub_repo_s = sub_dir_s+getattr(r,'sub_repo_s','')
-	rules += sub_rules
-
+# suppress access to _lib (not  for user usage)
+# add access to repo      (only for user usage)
+sys.path = [ lmake_lib , *sys.path[2:] , '.' ]
 import Lmakefile
+# if sys.path has been manipulated, record it for dynamic attribute execution
+# but only extern imports are allowed, so filter out local dirs
+sys_path = tuple(d for d in sys.path if not _maybe_lcl(d))
 
 config = pdict()
 if '/config/' in actions :
@@ -92,14 +71,14 @@ if '/config/' in actions :
 		for be in config.get('backends',{}).values() :
 			if 'interface' not in be : continue
 			import serialize
-			code,ctx,names,dbg = serialize.get_expr(
+			expr = serialize.get_expr(
 				be['interface']
 			,	ctx            = (config.__dict__,)
 			,	call_callables = True
 			)
-			be['interface'] = ctx+'interface = '+code
+			be['interface'] = expr.ctx+'interface = '+expr.expr
 
-manifest = []
+sources = []
 if '/sources/' in actions :
 	if callable(getattr(Lmakefile,'sources',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.sources() are correctly caught
 		Lmakefile.sources()
@@ -111,7 +90,7 @@ if '/sources/' in actions :
 	if not lmake.manifest :
 		from lmake import sources
 		lmake.manifest = sources.auto_sources()
-	manifest = list(lmake.manifest)
+	sources = list(lmake.manifest)
 
 rules = []
 if '/rules/' in actions :
@@ -131,6 +110,33 @@ if '/rules/' in actions :
 # manage sub-repos
 #
 
+def max_link_support(*link_supports) :
+	for ls in ('full','Full','file','File','none','None',None) :
+		if ls in link_supports : return ls
+	raise ValueError(f'unexpected link_support values : {link_support}')
+
+def merge_config( config , sub_config , sub_dir_s ) :
+	config.link_support = max_link_support( config.link_support , sub_config.link_support )
+	if sub_config.sub_repos :
+		config.sub_repos += tuple(sub_dir_s+sr for sr in sub_config.sub_repos )
+
+def merge_sources( sources , sub_sources , sub_dir_s ) :
+	sources[:] = [ s for s in sources if not s.startswith(sub_dir_s) ] # in sub-repo, sources are provided by sub-repo, not by top-level
+	for s in sub_sources :
+		if   not s.endswith  ('/'  ) : sources.append(sub_dir_s+s)     # source file
+		elif     s.startswith('/'  ) : sources.append(          s)     # absolute source dir
+		elif not s.startswith('../') : sources.append(sub_dir_s+s)     # local source dir
+		else :                                                         # relative external source dir : walks up sub_dir_s
+			sd_s = sub_dir_s
+			while sd_s and s.startswith('../') : sd_s , s = sd_s[0:sd_s.rfind('/',0,-1)+1] , s[3:]
+			# if local to the top level dir, relative external sources of the sub-repo are deemed produced by the top-level (or other sub-repo's) rules, thus they are no more external sources
+			if s.startswith('../') : sources.append(sd_s+s)
+
+def merge_rules( sub_rules , sub_dir_s ) :
+	global rules
+	for r in sub_rules.rules : r.sub_repo_s = sub_dir_s+getattr(r,'sub_repo_s','')
+	rules += sub_rules['rules']
+
 if sub_repos_s==... : sub_sub_repos_s,sub_repos_s = ...,(d+'/' for d in config.sub_repos) # recurse if not provided explicitly
 else                : sub_sub_repos_s             = ()
 
@@ -143,11 +149,11 @@ for sub_repo_s in sub_repos_s :
 	if rc : sys.exit(rc)
 	os.chdir(cwd)
 	sub_infos = pdict.mk_deep(eval(open(out_file).read()))
-	if '/config/'  in actions : merge_config  ( config   , sub_infos.config   , sub_repo_s )
-	if '/sources/' in actions : merge_manifest( manifest , sub_infos.manifest , sub_repo_s )
-	if '/rules/'   in actions : merge_rules   ( rules    , sub_infos.rules    , sub_repo_s )
+	if '/config/'  in actions : merge_config ( config  , sub_infos.config  , sub_repo_s )
+	if '/sources/' in actions : merge_sources( sources , sub_infos.sources , sub_repo_s )
+	if '/rules/'   in actions : merge_rules  (           sub_infos.rules   , sub_repo_s )
 
-manifest = sorted(set(manifest)) # suppress duplicates if any
+sources = sorted(set(sources)) # suppress duplicates if any
 
 # generate output
 # could be a mere print, but it is easier to debug with a prettier output
@@ -161,8 +167,8 @@ def sep(l) :
 	lvl_stack[l+1:]  = []
 	lvl_stack[l]    += 1
 	return '\t'*l + (',','')[indent] + '\t'
-def tuple_end(l) :                                                   # /!\ must add a comma at end of singletons
-	return '\t'*l + ('',',')[ len(lvl_stack)>l and lvl_stack[l]==1 ]
+def tuple_end(l) : return '\t'*(l+1) + ('',',')[ len(lvl_stack)>l+1 and lvl_stack[l+1]==1 ] # /!\ must add a comma at end of singletons
+def dict_end (l) : return '\t'*(l+1)
 
 with open(out_file,'w') as out :
 	print('{',file=out)
@@ -171,20 +177,23 @@ with open(out_file,'w') as out :
 		kl = max((len(repr(k)) for k in config.keys()),default=0)
 		if True                   : print(f"{sep(0)}'config' : {{"     ,file=out)
 		for k,v in config.items() : print(f'{sep(1)}{k!r:{kl}} : {v!r}',file=out)
-		if True                   : print('\t}'                        ,file=out)
+		if True                   : print(f'{dict_end(0)}}}'           ,file=out)
 	#
 	if rules or '/rules/' in actions :
-		print(f"{sep(0)}'rules' : (",file=out)
+		print(f"{sep(0)}'rules' : {{"             ,file=out)
+		print(f"{sep(1)}'sys_path' : {sys_path!r}",file=out) # for dynamic attributes execution
+		print(f"{sep(1)}'rules' : ("              ,file=out)
 		for r in rules :
 			kl = max((len(repr(k)) for k in r.keys()),default=0)
-			if True              : print(f'{sep(1)}{{'                ,file=out)
-			for k,v in r.items() : print(f'{sep(2)}{k!r:{kl}} : {v!r}',file=out)
-			if True              : print('\t\t}'                      ,file=out)
+			if True              : print(f'{sep(2)}{{'                ,file=out)
+			for k,v in r.items() : print(f'{sep(3)}{k!r:{kl}} : {v!r}',file=out)
+			if True              : print(f'{dict_end(2)}}}'           ,file=out)
 		print(f'{tuple_end(1)})',file=out)
+		print(f'{dict_end(0)}}}',file=out)
 	#
-	if manifest or '/sources/' in actions :
-		if True             : print(f"{sep(0)}'manifest' : (",file=out)
-		for src in manifest : print(f'{sep(1)}{src!r}'       ,file=out)
-		if True             : print(f'{tuple_end(1)})'       ,file=out)
+	if sources or '/sources/' in actions :
+		if True            : print(f"{sep(0)}'sources' : (",file=out)
+		for src in sources : print(f'{sep(1)}{src!r}'      ,file=out)
+		if True            : print(f'{tuple_end(0)})'      ,file=out)
 	#
 	print('}',file=out)

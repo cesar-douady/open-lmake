@@ -6,6 +6,7 @@
 import sys
 
 import functools
+import importlib
 import os
 import os.path as osp
 import re
@@ -13,7 +14,7 @@ import re
 import serialize
 
 import lmake
-pdict = lmake.pdict
+from lmake import pdict , multi_strip , indent
 
 no_imports = {__name__} # may be overridden by external code
 
@@ -130,7 +131,7 @@ def handle_inheritance(rule) :
 	# acquire rule properties by fusion of all info from base classes
 	combine = set()
 	paths   = {}
-	dct     = pdict(cmd=[])                                                 # cmd is handled specially
+	dct     = {'cmd':[]}                                                    # cmd is handled specially
 	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
 	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
 	is_python = callable(getattr(rule,'cmd',None))                          # first determine if final objective is python or shell by searching the closest cmd definition
@@ -301,10 +302,9 @@ def avoid_ctx(name,ctxs) :
 	assert False,f'cannot find suffix to make {name} an available name'
 
 def is_lcl(mod) :
-	from importlib import import_module
-	m = import_module(mod)
-	try    : return lmake._maybe_local(m.__file__)
-	except : return False                          # if __file__ attribute cannot be found, this is a system module
+	m = importlib.import_module(mod)
+	try    : return lmake._maybe_lcl(m.__file__)
+	except : return False                        # if __file__ attribute cannot be found, this is a system module
 
 class Handle :
 	ThisPython = osp.realpath(sys.executable)
@@ -319,8 +319,8 @@ class Handle :
 		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
 	def _init(self) :
-		self.static_val  = pdict()
-		self.dynamic_val = pdict()
+		self.static_val = {}
+		self.dyn_val    = {}
 
 	def _is_simple_fstr(self,fstr) :
 		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
@@ -360,7 +360,7 @@ class Handle :
 		val = self.attrs[rep_key]
 		if rep_key in DictAttrs :
 			if callable(val) :
-				self.dynamic_val[key] = val
+				self.dyn_val[key] = val
 				return
 			sv = {}
 			dv = {}
@@ -368,30 +368,60 @@ class Handle :
 				is_dyn_k,k = self._fstring(k,False                  )
 				is_dyn_v,v = self._fstring(v      ,for_deps=for_deps)
 				if   is_dyn_k or is_dyn_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
-				else                      : sv[k]       = v
-			if sv : self.static_val [key] = sv
-			if dv : self.dynamic_val[key] = dv
+				else                      : sv[k]       =               v
+			if sv : self.static_val[key] = sv
+			if dv : self.dyn_val   [key] = dv
 		else :
 			is_dyn,v = self._fstring(val,for_deps=for_deps)
-			if is_dyn : self.dynamic_val[key] = v
-			else      : self.static_val [key] = v
+			if is_dyn : self.dyn_val   [key] = v
+			else      : self.static_val[key] = v
+
+	def _prepare_dyn( self , static_val , dyn_expr , serialize_ctx , for_this_python ) :
+		if static_val         : dyn_expr.static   = static_val
+		if dyn_expr.dbg_info  : dyn_expr.dbg_info = mk_dbg_info( dyn_expr.dbg_info , serialize_ctx , for_this_python )
+		else                  : del dyn_expr.dbg_info
+		if not dyn_expr.names : del dyn_expr.names
+		for mod_name in dyn_expr.modules :
+			m = ''
+			for c in mod_name.split('.') :
+				if m : m += '.'
+				m   += c
+				mod  = importlib.import_module(m)
+				try      : f = mod.__file__
+				except   : continue         # a system module
+				if not f : continue         # no info
+				if lmake._maybe_lcl(f) :
+					e = ImportError(f'cannot import module {m} from local file {f}')
+					e.consider = multi_strip('''
+						rewrite code such as :
+							import my_module
+							def my_func() :
+								my_module.my_sub_func()
+						into :
+							from my_module import my_sub_func
+							def my_func() :
+								my_sub_func()
+					''')
+					raise e
+		del dyn_expr.modules
 
 	def _finalize(self,for_cmd=False) :
-		static_val  = self.static_val
-		dynamic_val = self.dynamic_val
+		static_val = self.static_val
+		dyn_val    = self.dyn_val
 		del self.static_val
-		del self.dynamic_val
-		if not dynamic_val :
-			if not static_val : return None                    # entry is suppressed later in this case
-			else              : return (static_val,)
+		del self.dyn_val
+		if not dyn_val :
+			if not static_val : return None                                               # entry is suppressed later in this case
+			else              : return {'static':static_val}
 		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
-		code,ctx,names,dbg = serialize.get_expr(
-			dynamic_val
+		dyn_expr = serialize.get_expr(
+			dyn_val
 		,	ctx            = serialize_ctx
-		,	no_imports     = no_imports if for_cmd else is_lcl # dynamic attributes cannot afford local imports, so serialize in place all of them
+		,	no_imports     = no_imports if for_cmd else is_lcl                            # dynamic attributes cannot afford local imports, so serialize in place all of them
 		,	call_callables = True
 		)
-		return ( static_val , tuple(names) , ctx , code , mk_dbg_info(dbg,serialize_ctx,True) )
+		self._prepare_dyn( static_val , dyn_expr , serialize_ctx , for_this_python=True ) # dynamic attributes are always interpreted by this python
+		return dyn_expr
 
 	def handle_matches(self) :
 		if 'target' in self.attrs : self.attrs.targets['<stdout>'] = self.attrs.pop('target')
@@ -458,15 +488,15 @@ class Handle :
 			else                    : attrs.deps.update(special_deps)
 		self._init()
 		self._handle_val('deps',for_deps=True)
-		if 'deps' in self.dynamic_val : self.dynamic_val = self.dynamic_val['deps']
-		if 'deps' in self.static_val  : self.static_val  = self.static_val ['deps']
-		if callable(self.dynamic_val) :
+		if 'deps' in self.dyn_val    : self.dyn_val    = self.dyn_val   ['deps']
+		if 'deps' in self.static_val : self.static_val = self.static_val['deps']
+		if callable(self.dyn_val) :
 			assert not self.static_val                                            # there must be no static val when deps are full dynamic
 			self.static_val  = None                                               # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
-		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs[0] :
+		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs.get('static') :
 			self.per_job.update(k for k in attrs.deps.keys() if k.isidentifier()) # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
@@ -475,13 +505,13 @@ class Handle :
 		self._handle_val('rsrcs'  ,'resources')
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.aggregate_per_job.add('resources')
-		rsrcs = self.rule_rep.submit_rsrcs_attrs[0].get('rsrcs')
+		rsrcs = self.rule_rep.submit_rsrcs_attrs.get('static',{}).get('rsrcs')
 		if rsrcs and not callable(rsrcs) : self.per_job.update(rsrcs.keys())
 
-	def handle_submit_none(self) :
+	def handle_submit_ancillary(self) :
 		self._init()
 		self._handle_val('cache')
-		self.rule_rep.submit_none_attrs = self._finalize()
+		self.rule_rep.submit_ancillary_attrs = self._finalize()
 
 	def handle_start_cmd(self) :
 		if self.attrs.is_python : interpreter = 'python'
@@ -507,7 +537,7 @@ class Handle :
 		self._handle_val('use_script'                            )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 
-	def handle_start_none(self) :
+	def handle_start_ancillary(self) :
 		if not callable(self.attrs.kill_sigs) : self.attrs.kill_sigs = [int(x) for x in self.attrs.kill_sigs]
 		self._init()
 		self._handle_val('compression'                               )
@@ -516,7 +546,7 @@ class Handle :
 		self._handle_val('kill_sigs'                                 )
 		self._handle_val('max_stderr_len'                            )
 		self._handle_val('start_delay'                               )
-		self.rule_rep.start_none_attrs = self._finalize()
+		self.rule_rep.start_ancillary_attrs = self._finalize()
 
 	def handle_cmd(self) :
 		self.rule_rep.is_python = self.attrs.is_python
@@ -534,19 +564,20 @@ class Handle :
 					cc.__qualname__    = c.__qualname__
 					cmd_lst[ci] = cc
 			sourcify = avoid_ctx('lmake_sourcify',serialize_ctx)
-			cmd , names , dbg = serialize.get_src(
+			dyn_src = serialize.get_src(
 				*cmd_lst
 			,	ctx        = serialize_ctx
 			,	no_imports = no_imports
 			,	force      = True
 			,	root       = lmake.repo_root
 			)
+			cmd = dyn_src.pop('src')
 			if multi :
 				cmd += 'def cmd() :\n'
-				x = avoid_ctx('x',serialize_ctx)                                                                                   # find a non-conflicting name
+				x = avoid_ctx('x',serialize_ctx)                                                                                  # find a non-conflicting name
 				for i,c in enumerate(cmd_lst) :
 					if c.__defaults__ : n_dflts = len(c.__defaults__)
-					else              : n_dflts = 0                                                                                # stupid c.__defaults__ is None when no defaults, not ()
+					else              : n_dflts = 0                                                                               # stupid c.__defaults__ is None when no defaults, not ()
 					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
 					if   c.__code__.co_argcount<=n_dflts   : a = ''
 					elif i==0                              : a = 'None'
@@ -558,18 +589,19 @@ class Handle :
 						a1 = '' if not b1 else x
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			for_this_python = False                                                                                                # be conservative
+			for_this_python = False                                                                                               # by default, be conservative
 			try :
-				interpreter = self.rule_rep.start_cmd_attrs[0].interpreter[0]
-				if not lmake._maybe_local(interpreter) : for_this_python = osp.realpath(interpreter)==self.ThisPython              # code can be made simpler if we know we run the same python ...
-			except : pass                                                                                                          # ... but we do not want to create a dep inside the repo if ...
-			if dbg : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names) , '' , '' , mk_dbg_info(dbg,serialize_ctx,for_this_python) ) # ... no interpreter (e.g. it may be dynamic), be conservative
-			else   : self.rule_rep.cmd = ( {'cmd':cmd} , tuple(names)                                                            )
+				interpreter = self.rule_rep.start_cmd_attrs.static.interpreter[0] # code can be made simpler if we know we run the same python
+				if not lmake._maybe_lcl(interpreter) :                            # avoid creating a dep inside the repo if no interpreter (e.g. it may be dynamic)
+					for_this_python = osp.realpath(interpreter)==self.ThisPython
+			except : pass
+			self._prepare_dyn( {'cmd':cmd} , dyn_src , serialize_ctx , for_this_python )
+			self.rule_rep.cmd = dyn_src
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
-			self._handle_val('cmd',for_deps=True)
-			if 'cmd' in self.dynamic_val : self.dynamic_val = self.dynamic_val['cmd']
+			self._handle_val( 'cmd' , for_deps=True )
+			if 'cmd' in self.dyn_val : self.dyn_val = self.dyn_val['cmd']
 			self.rule_rep.cmd = self._finalize(True)
 
 def do_fmt_rule(rule) :
@@ -594,14 +626,16 @@ def do_fmt_rule(rule) :
 	#
 	h.prepare()
 	#
-	h.handle_deps        ()
-	h.handle_submit_rsrcs()
-	h.handle_submit_none ()
-	h.handle_start_cmd   ()
-	h.handle_start_rsrcs ()
-	h.handle_start_none  ()
-	h.handle_cmd         ()
+	h.handle_deps            ()
+	h.handle_submit_rsrcs    ()
+	h.handle_submit_ancillary()
+	h.handle_start_cmd       ()
+	h.handle_start_rsrcs     ()
+	h.handle_start_ancillary ()
+	h.handle_cmd             ()
+	#
 	for k in [k for k,v in h.rule_rep.items() if v==None] : del h.rule_rep[k]                                        # functions above may generate holes
+	#
 	return h.rule_rep
 
 def fmt_rule(rule) :
@@ -616,7 +650,8 @@ def fmt_rule(rule) :
 			print(f'in sub-repo {lmake.repo_root[len(lmake.top_repo_root)+1:]} :',file=sys.stderr)
 			tab = '\t'
 		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
-		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'      ,file=sys.stderr)
-		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}',file=sys.stderr)
-		print(f'{tab}\t{e.__class__.__name__} : {e}',file=sys.stderr)
+		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                         ,file=sys.stderr       )
+		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                   ,file=sys.stderr       )
+		if True                                : print(f'{tab}\t{e.__class__.__name__} : {e.msg}'            ,file=sys.stderr       )
+		if hasattr(e,'consider')               : print(f'{tab}\tconsider :\n'+indent(e.consider,f'{tab}\t\t'),file=sys.stderr,end='') # ending new line is already in e.consider
 		sys.exit(2)

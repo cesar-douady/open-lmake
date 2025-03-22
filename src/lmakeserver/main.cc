@@ -343,7 +343,7 @@ static bool/*interrupted*/ _engine_loop() {
 						}
 						::string msg ;
 						try {
-							Makefiles::dynamic_refresh( msg , startup_dir_s ) ;
+							Makefiles::dyn_refresh( msg , startup_dir_s ) ;
 							if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
 							trace("new_req",req) ;
 							req.alloc() ; allocated = true ;
@@ -467,8 +467,8 @@ int main( int argc , char** argv ) {
 	Bad :
 		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
-	if (g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
-	else                 g_startup_dir_s = new ::string ;
+	if (+g_startup_dir_s) SWEAR( is_dirname(*g_startup_dir_s) , *g_startup_dir_s ) ;
+	else                  g_startup_dir_s = new ::string ;
 	//
 	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                                            //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
 	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                            // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...

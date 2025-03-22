@@ -875,7 +875,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 }
 
 ::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {
-	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dynamic_env <<')' ;
+	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dyn_env <<')' ;
 }
 
 void JobEndRpcReq::cache_cleanup() {
@@ -945,7 +945,7 @@ template<class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t
 bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>&/*out*/ actions
 	,	::map_ss             &/*out*/ cmd_env
-	,	::vmap_ss            &/*out*/ dynamic_env
+	,	::vmap_ss            &/*out*/ dyn_env
 	,	pid_t                &/*out*/ first_pid
 	,	::string             &/*out*/ top_repo_root_s
 	,	::string        const&        phy_lmake_root_s
@@ -957,8 +957,8 @@ bool/*entered*/ JobStartRpcReply::enter(
 	bool has_tmp_dir = +phy_tmp_dir_s ;
 	//
 	for( auto& [k,v] : env )
-		if      (v!=EnvPassMrkr)                                                             cmd_env[k] = ::move(v ) ;
-		else if (has_env(k)    ) { ::string ev=get_env(k) ; dynamic_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
+		if      (v!=EnvPassMrkr)                                                         cmd_env[k] = ::move(v ) ;
+		else if (has_env(k)    ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
 	::string const& lmake_root_s = job_space.lmake_view_s | phy_lmake_root_s ;
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s  ;
@@ -1026,7 +1026,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;   // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
-	trace("done",actions,cmd_env,dynamic_env,first_pid,top_repo_root_s) ;
+	trace("done",actions,cmd_env,dyn_env,first_pid,top_repo_root_s) ;
 	return entered ;
 }
 

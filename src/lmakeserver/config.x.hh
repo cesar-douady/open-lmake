@@ -22,7 +22,7 @@ ENUM( Color
 
 ENUM( ConfigDiff
 ,	None         // configs are identical
-,	Dynamic      // config can be updated while engine runs
+,	Dyn          // config can be updated while engine runs
 ,	Static       // config can be updated when engine is steady
 ,	Clean        // config cannot be updated (requires clean repo)
 )
@@ -109,7 +109,7 @@ namespace Engine {
 	} ;
 
 	// changing these can be made dynamically (i.e. while lmake is running)
-	struct ConfigDynamic {
+	struct ConfigDyn {
 		//
 		struct Backend {
 			friend ::string& operator+=( ::string& , Backend const& ) ;
@@ -148,7 +148,7 @@ namespace Engine {
 		} ;
 		//
 		// services
-		bool operator==(ConfigDynamic const&) const = default ;
+		bool operator==(ConfigDyn const&) const = default ;
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
@@ -162,7 +162,7 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	struct Config : ConfigClean , ConfigStatic , ConfigDynamic {
+	struct Config : ConfigClean , ConfigStatic , ConfigDyn {
 		friend ::string& operator+=( ::string& , Config const& ) ;
 		// cxtors & casts
 		Config(                      ) : booted{false} {} // if config comes from nowhere, it is not booted
@@ -170,19 +170,19 @@ namespace Engine {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			// START_OF_VERSIONING
-			::serdes(s,static_cast<ConfigClean  &>(self)) ;
-			::serdes(s,static_cast<ConfigStatic &>(self)) ;
-			::serdes(s,static_cast<ConfigDynamic&>(self)) ;
+			::serdes(s,static_cast<ConfigClean &>(self)) ;
+			::serdes(s,static_cast<ConfigStatic&>(self)) ;
+			::serdes(s,static_cast<ConfigDyn   &>(self)) ;
 			// END_OF_VERSIONING
 			if (IsIStream<S>) booted = true ;             // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
-		void open(bool dynamic) ;
+		void open(bool dyn) ;
 		ConfigDiff diff(Config const& other) {
-			if (!(ConfigClean  ::operator==(other))) return ConfigDiff::Clean   ;
-			if (!(ConfigStatic ::operator==(other))) return ConfigDiff::Static  ;
-			if (!(ConfigDynamic::operator==(other))) return ConfigDiff::Dynamic ;
-			else                                     return ConfigDiff::None    ;
+			if (!(ConfigClean ::operator==(other))) return ConfigDiff::Clean  ;
+			if (!(ConfigStatic::operator==(other))) return ConfigDiff::Static ;
+			if (!(ConfigDyn   ::operator==(other))) return ConfigDiff::Dyn    ;
+			else                                    return ConfigDiff::None   ;
 		}
 		// data (derived info not saved on disk)
 		bool     booted            = false ;              // a marker to distinguish clean repository

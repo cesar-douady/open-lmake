@@ -206,44 +206,30 @@ namespace Engine {
 	}
 
 	//
-	// Dynamic
+	// Dyn
 	//
 
 	::string& operator+=( ::string& os , DepSpec const& ds ) {
 		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
 	}
 
-	bool DynamicDskBase::s_is_dynamic(Tuple const& py_src) {
-		ssize_t sz = py_src.size() ;
-		if (sz>1) SWEAR(py_src[1].is_a<Sequence>()) ; // names
-		switch (sz) {
-			case 1 :
-			case 2 : return false ;
-			case 5 :
-				SWEAR(py_src[2].is_a<Str>()) ;        // glbs
-				SWEAR(py_src[3].is_a<Str>()) ;        // code
-				SWEAR(py_src[4].is_a<Str>()) ;        // dbg_info
-				return +py_src[3] ;
-		DF}
-	}
-
-	DynamicDskBase::DynamicDskBase( Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
-		is_dynamic { s_is_dynamic(py_src)                                        }
-	,	glbs_str   { is_dynamic      ? ::string(py_src[2].as_a<Str>()) : ""s }
-	,	code_str   { is_dynamic      ? ::string(py_src[3].as_a<Str>()) : ""s }
-	,	dbg_info   { py_src.size()>4 ? ::string(py_src[4].as_a<Str>()) : ""s }
+	DynDskBase::DynDskBase( Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
+		glbs_str   { py_src.contains("ctx"       ) ?  ::string(py_src["ctx"       ].as_a<Str >()) : ""s }
+	,	code_str   { py_src.contains("expr"      ) ?  ::string(py_src["expr"      ].as_a<Str >()) : ""s }
+	,	dbg_info   { py_src.contains("dbg_info"  ) ?  ::string(py_src["dbg_info"  ].as_a<Str >()) : ""s }
+	,	may_import { py_src.contains("may_import") && bool    (py_src["may_import"].as_a<Bool>())       }
 	{
 		Gil::s_swear_locked() ;
-		if (py_src.size()<=1) return ;
-		ctx.reserve(py_src[1].as_a<Sequence>().size()) ;
-		for( Object const& py_item : py_src[1].as_a<Sequence>() ) {
+		if (!py_src.contains("names")) return ;
+		ctx.reserve(py_src["names"].as_a<Sequence>().size()) ;
+		for( Object const& py_item : py_src["names"].as_a<Sequence>() ) {
 			CmdIdx ci = var_idxs.at(py_item.as_a<Str>()) ;
 			ctx.push_back(ci) ;
 		}
 		::sort(ctx) ; // stabilize crc's
 	}
 
-	void DynamicDskBase::_s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
+	void DynDskBase::_s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
 		::string         res        ;
 		Rule             r          = +j ? j->rule() : m.rule          ;
 		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
@@ -398,6 +384,7 @@ namespace Engine {
 	// DepsAttrs
 	//
 
+	// XXX : check all parts between stems for non-canon, not just the first
 	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
 		::string dir_s = dep.substr(0,dep.find(Rule::StemMrkr)) ; if ( size_t p=dir_s.rfind('/') ; p!=Npos ) dir_s.resize(p+1) ; else dir_s.clear() ;
 		//
@@ -408,7 +395,7 @@ namespace Engine {
 			/**/                      throw "shell ("      +dep_for_msg+") "+msg ;
 		} ;
 		//
-		if (!is_canon(dir_s)) bad("canonical form is : "+mk_canon(full_dep),false/*interpreter_ok*/) ;
+		if (!is_canon(dir_s,true/*empty_ok*/)) bad("canonical form is : "+mk_canon(full_dep),false/*interpreter_ok*/) ;
 		if (is_lcl(dep)     ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s) ;
@@ -426,11 +413,11 @@ namespace Engine {
 		return false/*keep*/ ;
 	}
 	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep ) {
-		if ( is_canon(dep) && is_lcl(dep) ) return true/*keep*/                       ;                                                                      // fast path when evaluating job deps
+		if ( is_canon(dep) && is_lcl(dep) ) return true/*keep*/                            ;                                                                 // fast path when evaluating job deps
 		else                                return _qualify_dep(key,is_python,dep,dep,dep) ;
 	}
-	void DepsAttrs::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dynamic = false ;                                                                                                                               // if full dynamic, we are not initialized
+	void DepsAttrs::init( Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+		full_dyn = false ;                                                                                                                                   // if full dynamic, we are not initialized
 		//
 		for( auto const& [py_key,py_val] : py_src->as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
@@ -456,11 +443,11 @@ namespace Engine {
 		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ; // -1 to leave some room to the interpreter, if any
 	}
 
-	::vmap_s<DepSpec> DynamicDepsAttrs::eval(Rule::RuleMatch const& match) const {
+	::vmap_s<DepSpec> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
 		::vmap_s<DepSpec> res ;
 		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 		//
-		if (is_dynamic) {
+		if (is_dyn()) {
 			Gil         gil    ;
 			Ptr<Object> py_obj = _eval_code(match) ;
 			//
@@ -476,11 +463,11 @@ namespace Engine {
 					::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
 					if ( !_qualify_dep( key , match.rule->is_python , dep ) ) continue ;
 					DepSpec ds { dep , df , edf } ;
-					if (spec.full_dynamic) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
-					else                                                          res[dep_idxs.at(key)].second = ds ;   // if not full_dynamic, all deps must be listed in spec
+					if (spec.full_dyn) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          }                                // dep cannot be both static and dynamic
+					else                                                      res[dep_idxs.at(key)].second = ds ;                                  // if not full_dyn, all deps must be listed in spec
 				}
 			}
-			if (!spec.full_dynamic) {                                                                                   // suppress dep placeholders that are not set by dynamic code
+			if (!spec.full_dyn) { // suppress dep placeholders that are not set by dynamic code
 				NodeIdx i = 0 ;
 				for( NodeIdx j : iota(res.size()) ) {
 					if (!res[j].second.txt) continue ;
@@ -523,7 +510,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void Cmd::init( bool /*is_dynamic*/ , Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+	void Cmd::init( Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		::string raw_cmd ;
 		Attrs::acquire_from_dct( raw_cmd , *py_src , "cmd" ) ;
 		if (rd.is_python) {
@@ -535,11 +522,11 @@ namespace Engine {
 		}
 	}
 
-	pair_ss/*script,call*/ DynamicCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	pair_ss/*script,call*/ DynCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
 			::string cmd ;
-			if (!is_dynamic) {
+			if (!is_dyn()) {
 				cmd = parse_fstr(spec.cmd,match,rsrcs) ;
 			} else {
 				Gil         gil    ;
@@ -593,10 +580,8 @@ namespace Engine {
 	}
 
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) : special{s} , name{snake(s)} {
-		if (!s) {
-			name.clear() ;
-			return ;
-		}
+		SWEAR(+s) ;
+		//
 		if (s<Special::NShared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && is_dirname(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		switch (s) {
@@ -616,7 +601,7 @@ namespace Engine {
 				_compile() ;
 			break ;
 		DF}
-		_set_crcs() ;
+		_set_crcs({}) ;
 	}
 
 	::string& operator+=( ::string& os , RuleData const& rd ) {
@@ -810,7 +795,8 @@ namespace Engine {
 					// check
 					if ( target.starts_with(*g_repo_root_s)                            ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
 					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target  ;
-					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target  ;
+					// XXX : check all parts between stems regexprs may not be canonical
+//					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target  ;
 					if ( +missing_stems                                                ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
 					if (  is_star                              && is_special()         ) throw "star "s+kind+"s are meaningless for source and anti-rules"          ;
 					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                        ;
@@ -884,31 +870,32 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exec_time , &dct[field] ) ;
-			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
-			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
-			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
-			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exec_time    , &dct[field] ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force        , &dct[field] ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python    , &dct[field] ) ; else throw "not found"s ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts      , &dct[field] ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits    , &dct[field] ) ;
 			//
 			/**/                                            var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
 			//
 			field = "deps" ;
-			if (dct.contains("deps_attrs")) deps_attrs = { dct["deps_attrs"].as_a<Tuple>() , var_idxs , self } ;
+			if (dct.contains("deps_attrs")) deps_attrs = { dct["deps_attrs"].as_a<Dict>() , var_idxs , self } ;
 			//
 			/**/                                                        var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "submit_rsrcs_attrs" ; if (dct.contains(field)) submit_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs } ;
-			field = "submit_none_attrs"  ; if (dct.contains(field)) submit_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs } ;
+			field = "submit_rsrcs_attrs"     ; if (dct.contains(field)) submit_rsrcs_attrs     = { dct[field].as_a<Dict>() , var_idxs } ;
+			field = "submit_ancillary_attrs" ; if (dct.contains(field)) submit_ancillary_attrs = { dct[field].as_a<Dict>() , var_idxs } ;
 			//
 			/**/                                                                 var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
 			for( VarIdx r : iota<VarIdx>(submit_rsrcs_attrs.spec.rsrcs.size()) ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
-			field = "start_cmd_attrs"   ; if (dct.contains(field)) start_cmd_attrs   = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "start_rsrcs_attrs" ; if (dct.contains(field)) start_rsrcs_attrs = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "start_none_attrs"  ; if (dct.contains(field)) start_none_attrs  = { dct[field].as_a<Tuple>() , var_idxs        } ;
-			field = "cmd"               ; if (dct.contains(field)) cmd               = { dct[field].as_a<Tuple>() , var_idxs , self } ; else throw "not found"s ;
+			field = "start_cmd_attrs"       ; if (dct.contains(field)) start_cmd_attrs       = { dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "start_rsrcs_attrs"     ; if (dct.contains(field)) start_rsrcs_attrs     = { dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
+			//
 			//
 			for( VarIdx mi : iota(n_static_targets) ) {
 				if (matches[mi].first!="<stdout>") continue ;
@@ -979,13 +966,13 @@ namespace Engine {
 			job_name_pattern = _mk_pattern(job_name_match_entry,true /*for_name*/)  ;
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
-			deps_attrs        .compile() ;
-			start_cmd_attrs   .compile() ;
-			cmd               .compile() ;
-			submit_rsrcs_attrs.compile() ;
-			start_rsrcs_attrs .compile() ;
-			submit_none_attrs .compile() ;
-			start_none_attrs  .compile() ;
+			deps_attrs            .compile() ;
+			start_cmd_attrs       .compile() ;
+			cmd                   .compile() ;
+			submit_rsrcs_attrs    .compile() ;
+			start_rsrcs_attrs     .compile() ;
+			submit_ancillary_attrs.compile() ;
+			start_ancillary_attrs .compile() ;
 		} catch (::string const& e) {
 			throw "while processing "+full_name()+" :\n"+indent(e) ;
 		}
@@ -1011,7 +998,11 @@ namespace Engine {
 
 	::string RuleData::_pretty_env() const {
 		::string res ;
-		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({ {"environ",start_cmd_attrs.spec.env} , {"environ_resources",start_rsrcs_attrs.spec.env} , {"environ_ancillary",start_none_attrs.spec.env} }) ) {
+		for( auto const& [h,m] : ::vmap_s<::vmap_ss>({
+			{ "environ"           , start_cmd_attrs      .spec.env }
+		,	{ "environ_resources" , start_rsrcs_attrs    .spec.env }
+		,	{ "environ_ancillary" , start_ancillary_attrs.spec.env }
+		}) ) {
 			if (!m) continue ;
 			size_t wk = 0 ; for( auto const& [k,_] : m ) wk = ::max(wk,k.size()) ;
 			res << h <<" :\n" ;
@@ -1211,15 +1202,14 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> ::string RuleData::_pretty_dyn(Dynamic<T> const& d) const {
+	template<class T> ::string RuleData::_pretty_dyn(Dyn<T> const& d) const {
 		if (!d.code_str) return {} ;
 		::string res ;
-		/**/                                        res << T::Msg <<" :\n"                                                                 ;
-		if (+d.glbs_str)                            res << "\t<dynamic globals> :\n" << ensure_nl(indent(d.append_dbg_info(d.glbs_str),2)) ;
-		if (+d.ctx     )                            res << "\t<context> :"                                                                 ;
-		for( ::string const& k : _list_ctx(d.ctx) ) res << ' '<<k                                                                          ;
-		if (+d.ctx     )                            res << '\n'                                                                            ;
-		if (+d.code_str)                            res << "\t<dynamic code> :\n" << ensure_nl(indent(d.code_str,2))                       ;
+		/**/                res <<"dynamic "<< T::Msg <<" :\n" ;
+		if (+d.ctx      ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.ctx)  ) res << ' '<<k ; res <<'\n' ; }
+		if (d.may_import) { res << "\t<sys.path> :" ; for( ::string const& d : *Rule::s_sys_path ) res <<' '<< d ; res <<'\n' ; }
+		if (+d.glbs_str )   res << "\t<globals> :\n" << ensure_nl(indent(d.append_dbg_info(d.glbs_str),2)) ;
+		if (+d.code_str )   res << "\t<code> :\n" << ensure_nl(indent(d.code_str,2))                       ;
 		return res ;
 	}
 
@@ -1240,7 +1230,7 @@ namespace Engine {
 			}
 			{	First           first ;
 				::uset<uint8_t> seen  ;
-				for( uint8_t sig : start_none_attrs.spec.kill_sigs ) {
+				for( uint8_t sig : start_ancillary_attrs.spec.kill_sigs ) {
 					kill_sigs << first(""," , ") ;
 					if (!sig) continue ;
 					kill_sigs << int(sig) ;
@@ -1251,31 +1241,31 @@ namespace Engine {
 		}
 		//
 		// first simple static attrs
-		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"                , cat        (user_prio                                      ) ) ;
-			/**/                                                     entries.emplace_back( "job_name"            ,             job_name_                                        ) ;
-			if (+sub_repo_s                                        ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                     ) ) ;
+		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"                , cat        (user_prio                                         ) ) ;
+			/**/                                                     entries.emplace_back( "job_name"            ,             job_name_                                           ) ;
+			if (+sub_repo_s                                        ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                        ) ) ;
 		}
 		if (!is_special()) {
-			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                          ) ) ;
-			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                        ) ) ;
-			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                      ) ) ;
-			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs.spec.backend                ) ) ;
-			if (+submit_none_attrs .spec.cache                     ) entries.emplace_back( "cache"               ,             submit_none_attrs .spec.cache                  ) ;
-			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                      ) ;
-			if ( start_cmd_attrs   .spec.allow_stderr              ) entries.emplace_back( "allow_stderr"        , cat        (start_cmd_attrs   .spec.allow_stderr           ) ) ;
-			if ( start_cmd_attrs   .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs   .spec.auto_mkdir             ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.chroot_dir_s    ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs   .spec.job_space.chroot_dir_s ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.lmake_view_s    ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs   .spec.job_space.lmake_view_s ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs   .spec.job_space.repo_view_s  ) ) ;
-			if (+start_cmd_attrs   .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs   .spec.job_space.tmp_view_s   ) ) ;
-			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs .spec.method                 ) ) ;
-			if (+start_rsrcs_attrs .spec.timeout                   ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs .spec.timeout.short_str()      ) ;
-			if ( start_rsrcs_attrs .spec.use_script                ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs .spec.use_script             ) ) ;
-			if ( start_none_attrs  .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"            , cat        (start_none_attrs  .spec.keep_tmp               ) ) ;
-			if (+start_none_attrs  .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_none_attrs  .spec.start_delay.short_str()  ) ;
-			if (+start_none_attrs  .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                        ) ;
-			if ( start_none_attrs  .spec.max_stderr_len            ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_none_attrs  .spec.max_stderr_len         ) ) ;
-			if ( start_none_attrs  .spec.z_lvl                     ) entries.emplace_back( "compression"         , ::to_string(start_none_attrs  .spec.z_lvl                  ) ) ;
+			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                             ) ) ;
+			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                           ) ) ;
+			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                         ) ) ;
+			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs.spec.backend                   ) ) ;
+			if (+submit_ancillary_attrs .spec.cache                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs .spec.cache                  ) ;
+			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                         ) ;
+			if ( start_cmd_attrs      .spec.allow_stderr           ) entries.emplace_back( "allow_stderr"        , cat        (start_cmd_attrs      .spec.allow_stderr           ) ) ;
+			if ( start_cmd_attrs      .spec.auto_mkdir             ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs      .spec.auto_mkdir             ) ) ;
+			if (+start_cmd_attrs      .spec.job_space.chroot_dir_s ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs      .spec.job_space.chroot_dir_s ) ) ;
+			if (+start_cmd_attrs      .spec.job_space.lmake_view_s ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs      .spec.job_space.lmake_view_s ) ) ;
+			if (+start_cmd_attrs      .spec.job_space.repo_view_s  ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs      .spec.job_space.repo_view_s  ) ) ;
+			if (+start_cmd_attrs      .spec.job_space.tmp_view_s   ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs      .spec.job_space.tmp_view_s   ) ) ;
+			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs    .spec.method                 ) ) ;
+			if (+start_rsrcs_attrs    .spec.timeout                ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs    .spec.timeout.short_str()      ) ;
+			if ( start_rsrcs_attrs    .spec.use_script             ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs    .spec.use_script             ) ) ;
+			if ( start_ancillary_attrs.spec.keep_tmp               ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs.spec.keep_tmp               ) ) ;
+			if (+start_ancillary_attrs.spec.start_delay            ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs.spec.start_delay.short_str()  ) ;
+			if (+start_ancillary_attrs.spec.kill_sigs              ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                           ) ;
+			if ( start_ancillary_attrs.spec.max_stderr_len         ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs.spec.max_stderr_len         ) ) ;
+			if ( start_ancillary_attrs.spec.z_lvl                  ) entries.emplace_back( "compression"         , ::to_string(start_ancillary_attrs.spec.z_lvl                  ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		//
@@ -1291,13 +1281,13 @@ namespace Engine {
 		}
 		// then dynamic part
 		if (!is_special()) {
-			res << indent( _pretty_dyn(deps_attrs        ) , 1 ) ;
-			res << indent( _pretty_dyn(submit_rsrcs_attrs) , 1 ) ;
-			res << indent( _pretty_dyn(submit_none_attrs ) , 1 ) ;
-			res << indent( _pretty_dyn(start_cmd_attrs   ) , 1 ) ;
-			res << indent( _pretty_dyn(start_rsrcs_attrs ) , 1 ) ;
-			res << indent( _pretty_dyn(start_none_attrs  ) , 1 ) ;
-			res << indent( _pretty_dyn(cmd               ) , 1 ) ;
+			res << indent( _pretty_dyn(deps_attrs            ) , 1 ) ;
+			res << indent( _pretty_dyn(submit_rsrcs_attrs    ) , 1 ) ;
+			res << indent( _pretty_dyn(submit_ancillary_attrs) , 1 ) ;
+			res << indent( _pretty_dyn(start_cmd_attrs       ) , 1 ) ;
+			res << indent( _pretty_dyn(start_rsrcs_attrs     ) , 1 ) ;
+			res << indent( _pretty_dyn(start_ancillary_attrs ) , 1 ) ;
+			res << indent( _pretty_dyn(cmd                   ) , 1 ) ;
 		}
 		// and finally the cmd
 		if (!is_special()) {
@@ -1328,21 +1318,21 @@ namespace Engine {
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a*
 	// although awkward & useless (as both rules could be merged), this can be meaningful
 	// if the need arises, we will add an "id" artificial field entering in crc->match to distinguish them
-	void RuleData::_set_crcs() {
+	void RuleData::_set_crcs(::vector_s const& sys_path) {
 		Hash::Xxh h ;                                                                            // each crc continues after the previous one, so they are standalone
 		//
 		::vmap_s<bool> targets ;
 		for( auto const& [k,me] : matches )
 			if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
 				targets.emplace_back(me.pattern,me.flags.extra_tflags()[ExtraTflag::Optional]) ; // keys and flags have no influence on matching, except Optional
-		h.update(special) ;
-		h.update(stems  ) ;
+		h.update(special) ;                                                                      // in addition to distinguishing special from other, ...
+		h.update(stems  ) ;                                                                      // ... this guarantees that shared rules have different crc's
 		h.update(targets) ;
 		if (is_special()) {
 			h.update(allow_ext) ;                                                                // only exists for special rules
 		} else {
-			h.update(job_name)        ;                                                          // job_name has no effect for source & anti as it is only used to store jobs and there are none
-			deps_attrs.update_hash(h) ;                                                          // no deps for source & anti
+			h.update(job_name) ;
+			deps_attrs.update_hash( h , sys_path ) ;                                                          // no deps for source & anti
 		}
 		Crc match = h.digest() ;
 		//
@@ -1354,12 +1344,12 @@ namespace Engine {
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;
 			h.update(is_python             ) ;
-			start_cmd_attrs.update_hash(h)   ;
-			cmd            .update_hash(h)   ;
+			start_cmd_attrs.update_hash( h , sys_path )   ;
+			cmd            .update_hash( h , sys_path )   ;
 			Crc cmd = h.digest() ;
 			//
-			submit_rsrcs_attrs.update_hash(h) ;
-			start_rsrcs_attrs .update_hash(h) ;
+			submit_rsrcs_attrs.update_hash( h , sys_path ) ;
+			start_rsrcs_attrs .update_hash( h , sys_path ) ;
 			Crc rsrcs = h.digest() ;
 			//
 			crc = { match , cmd , rsrcs } ;

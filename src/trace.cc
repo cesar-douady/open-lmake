@@ -13,7 +13,7 @@
 using namespace Disk ;
 using namespace Time ;
 
-::string* g_trace_file = nullptr ; // pointer to avoid init/fini order hazards, relative to admin dir
+StaticUniqPtr<::string> g_trace_file ;
 
 Atomic<bool    > Trace::s_backup_trace = false        ;
 Atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden

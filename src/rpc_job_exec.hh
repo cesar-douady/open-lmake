@@ -114,15 +114,18 @@ struct JobExecRpcReply {
 	friend ::string& operator+=( ::string& , JobExecRpcReply const& ) ;
 	using Proc = JobExecProc ;
 	using Crc  = Hash::Crc   ;
-	// cxtors & casts
-	JobExecRpcReply(                                               ) = default ;
-	JobExecRpcReply( Proc p                                        ) : proc{p}                                 { SWEAR( proc!=Proc::ChkDeps && proc!=Proc::DepVerbose ) ; }
-	JobExecRpcReply( Proc p , Bool3 o                              ) : proc{p} , ok{o}                         { SWEAR( proc==Proc::ChkDeps                           ) ; }
-	JobExecRpcReply( Proc p , ::vector<pair<Bool3/*ok*/,Crc>>&& is ) : proc{p} ,         dep_infos{::move(is)} { SWEAR( proc==Proc::DepVerbose                        ) ; }
-	JobExecRpcReply( Proc p , Bool3 o , ::string const& t          ) : proc{p} , ok{o} , txt{t}                { SWEAR( proc==Proc::Decode || proc==Proc::Encode      ) ; }
 	// accesses
 	bool operator+() const { return proc!=Proc::None ; }
 	// services
+	void chk() const {
+		switch (proc) {
+			case Proc::None       : SWEAR( ok==Maybe && !dep_infos && !txt ) ; break ;
+			case Proc::ChkDeps    : SWEAR(              !dep_infos && !txt ) ; break ;
+			case Proc::DepVerbose : SWEAR( ok==Maybe               && !txt ) ; break ;
+			case Proc::Decode     :
+			case Proc::Encode     : SWEAR(              !dep_infos         ) ; break ;
+		DF}
+	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
 		switch (proc) {
@@ -135,6 +138,6 @@ struct JobExecRpcReply {
 	// data
 	Proc                            proc      = Proc::None ;
 	Bool3                           ok        = Maybe      ; // if proc==ChkDeps|Decode|Encode
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;              // if proc==DepVerbose            , same order as deps
-	::string                        txt       ;              // if proc==        Decode|Encode, value for Decode, code for Encode
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}         ; // if proc==DepVerbose            , same order as deps
+	::string                        txt       = {}         ; // if proc==        Decode|Encode , value for Decode, code for Encode
 } ;

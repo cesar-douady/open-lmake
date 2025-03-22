@@ -208,7 +208,8 @@ namespace Engine {
 		Rule rule = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
 		auto audit_err = [&]( ::string const& kind , ::string const& key , ::string const& file ) -> void {
 			req->audit_job( Color::Warning , "bad_"+kind , rule->name , match.name() ) ;
-			req->audit_stderr( self , "non-canonic "+kind+' '+key+" : "+file , {} , 0/*max_stderr_len*/ , 1 ) ;
+			if (+file) req->audit_stderr( self , "non-canonic "+kind+' '+key+" : "+file , {} , 0/*max_stderr_len*/ , 1 ) ;
+			else       req->audit_stderr( self , "empty "      +kind+' '+key            , {} , 0/*max_stderr_len*/ , 1 ) ;
 		} ;
 		//
 		VarIdx ti = 0 ;
@@ -231,7 +232,6 @@ namespace Engine {
 		size_t              non_canon = Npos ;
 		for( auto const& kds : dep_specs ) {
 			DepSpec const& ds = kds.second ;
-			SWEAR(+ds.txt,kds.first) ;
 			if (!is_canon(ds.txt)) {
 				if (non_canon==Npos) non_canon = &kds-dep_specs.data() ;
 				continue ;
@@ -1254,18 +1254,18 @@ namespace Engine {
 		}
 		//
 		for( Node t : targets ) t->set_buildable() ;                  // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
-		// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
-		SubmitNoneAttrs submit_none_attrs ;
+		// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
+		SubmitAncillaryAttrs submit_ancillary_attrs ;
 		try {
-			submit_none_attrs = r->submit_none_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ; // dont care about dependencies as these attributes have no impact on result
+			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ; // dont care about dependencies as these attributes have no impact on result
 		} catch (::pair_ss const& msg_err) {
-			submit_none_attrs = r->submit_none_attrs.spec ;
+			submit_ancillary_attrs = r->submit_ancillary_attrs.spec ;
 			req->audit_job(Color::Note,"no_dynamic",idx()) ;
-			req->audit_stderr( idx() , ensure_nl(r->submit_none_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , 0/*max_stderr_len*/ , 1 ) ;
+			req->audit_stderr( idx() , ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.first , msg_err.second , 0/*max_stderr_len*/ , 1 ) ;
 		}
 		CacheIdx cache_idx = 0 ;
-		if (+submit_none_attrs.cache) {
-			auto it = g_config->cache_idxs.find(submit_none_attrs.cache) ;
+		if (+submit_ancillary_attrs.cache) {
+			auto it = g_config->cache_idxs.find(submit_ancillary_attrs.cache) ;
 			if (it!=g_config->cache_idxs.end()) {
 				::vmap_s<DepDigest> dns ;
 				for( Dep const& d : deps ) {

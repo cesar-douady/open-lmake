@@ -17,9 +17,9 @@ using namespace Py   ;
 
 namespace Engine {
 
-	SeqId     * g_seq_id     = nullptr ;
-	Config    * g_config     = nullptr ;
-	::vector_s* g_src_dirs_s = nullptr ;
+	SeqId*                    g_seq_id     = nullptr ;
+	StaticUniqPtr<Config    > g_config     ;
+	StaticUniqPtr<::vector_s> g_src_dirs_s ;
 
 }
 
@@ -29,35 +29,22 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 
-	MatchGen          RuleBase::s_match_gen    = 1            ; // 0 is forbidden as it is reserved to mean !match
-	size_t            RuleBase::s_name_sz      = Rule::NameSz ;
-	RuleIdx           RuleBase::s_n_rule_datas = 0            ;
-	Atomic<RuleData*> RuleBase::_s_rule_datas  = nullptr      ;
-
-	void RuleBase::_s_init_special(RuleData* rule_datas) {
-		for( Special s : iota(Special::NShared) ) {
-			rule_datas[+s] = {s} ;
-			if (!s) continue ;                             // rule 0 is unused
-			RuleCrcData& rcd = rule_datas[+s].crc.data() ;
-			if (!rcd.rule) {
-				rcd.rule  = +s               ;             // special is the id of shared rules
-				rcd.state = RuleCrcState::Ok ;
-			}
-		}
-	}
+	MatchGen          RuleBase::s_match_gen = 1            ; // 0 is forbidden as it is reserved to mean !match
+	size_t            RuleBase::s_name_sz   = Rule::NameSz ;
+	::vector_s*       RuleBase::s_sys_path  = nullptr      ;
+	RuleIdx           RuleBase::_s_n_rules  = 0            ;
+	Atomic<RuleData*> RuleBase::_s_rules    = nullptr      ;
 
 	void RuleBase::_s_save() {
-		_rule_str_file.clear() ;
-		_rule_file    .clear() ;
-		_rule_str_file.hdr() = s_name_sz ;
-		for( Rule r : rule_lst() ) _rule_file.emplace_back(_rule_str_file.emplace(serialize(*r))) ;
+		SWEAR(+_g_rules) ;
+		AcFd(_g_rules_filename,Fd::Write).write(serialize(*_g_rules)) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
 		Trace trace("_s_update_crcs") ;
-		::umap<Crc,Rule> rule_map ; for( Rule r : rule_lst() ) rule_map[r->crc->match] = r ;
+		::umap<Crc,Rule> rule_map ; for( Rule r : rule_lst(true/*with_special*/) ) rule_map[r->crc->match] = r ;
 		for( RuleCrc rc : rule_crc_lst() ) {
-			RuleCrcData& rcd = rc.data()                ; if ( +rcd.rule && rcd.rule.is_shared() ) continue ; // shared rules are static and mapped in rule_map
+			RuleCrcData& rcd = rc.data()                ;
 			auto         it  = rule_map.find(rc->match) ;
 			if (it==rule_map.end()) {
 				rcd.rule  = {}                   ;
@@ -69,69 +56,61 @@ namespace Engine::Persistent {
 				if      (rc->rsrcs==rd.crc->rsrcs               ) rcd.state = RuleCrcState::Ok       ;
 				else if (rc->cmd  !=rd.crc->cmd                 ) rcd.state = RuleCrcState::CmdOld   ;
 				else if (rc->state!=RuleCrcState::RsrcsForgotten) rcd.state = RuleCrcState::RsrcsOld ;
+				//
+				if (+r<+Special::NShared) SWEAR( rcd.state==RuleCrcState::Ok , r,rcd.state ) ;
 			}
 			trace(rc,*rc) ;
 		}
+		#ifndef NDEBUG
+			for( Rule r : rule_lst(true/*with_special*/) ) SWEAR( r->crc->state==RuleCrcState::Ok && r->crc->rule==r , r,r->crc->rule ) ;
+		#endif
+	}
+
+	void RuleBase::_s_set_rules() {
+		Gil gil ;
+		if (+_g_rules) {
+			s_sys_path = &_g_rules->sys_path ;
+			_s_rules   =  _g_rules->data()-1 ; // index 0 does not represent a rule
+			_s_n_rules =  _g_rules->size()   ;
+			py_reset_path(_g_rules->sys_path) ;
+		} else {
+			s_sys_path = nullptr ;
+			_s_rules   = nullptr ;
+			_s_n_rules = 0       ;
+			py_reset_path() ;                  // use default sys.path
+		}
+		s_name_sz = NameSz ;
+		for( Rule r : rule_lst(true/*with_shared*/) ) s_name_sz = ::max( s_name_sz , r->name.size() ) ;
 	}
 
 	void RuleBase::s_from_disk() {
 		Trace trace("s_from_disk") ;
-		// handle Rule's
-		if (_s_rule_datas) {
-			Gil gil ;
-			delete[] _s_rule_datas ;
-		}
-		s_n_rule_datas = +Special::NShared + _rule_file.size() - 1 ; // idx 0 is not used in StructFile's
-		s_name_sz      = _rule_str_file.hdr()                      ; // hdr is only composed of name_sz
-		_s_rule_datas  = new RuleData[s_n_rule_datas]              ;
 		//
-		_s_init_special() ;
-		for( Rule r : iota(Special::NShared,s_n_rule_datas) ) _s_rule_datas[+r] = r.str() ;
+		try        { _g_rules = new WithGil<Rules>{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
+		catch(...) { _g_rules = nullptr ;                                                                }
+		_s_set_rules() ;
 		//
 		trace("done") ;
 	}
 
-	void RuleBase::s_from_vec_dynamic(::vector<RuleData>&& new_rules) {
-		// number of rules may not change dynamically, if it could, s_n_rule_datas would have to be made atomically modified with _s_rule_datas
-		SWEAR( s_n_rule_datas == +Special::NShared+new_rules.size() ) ; // idx 0 is not used in StructFile's
+	void RuleBase::s_from_vec_dyn(Rules&& new_rules) {
+		SWEAR(*s_sys_path==new_rules.sys_path) ;                                           // may not change dynamically, potentially change rule cmd's
+		SWEAR(_s_n_rules ==new_rules.size()  ) ;                                           // may not change dynamically, if it could, it should be made atomically modified with _s_rules
 		//
-		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace(rd.crc->match,&rd) ;
+		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
-		s_name_sz = Rule::NameSz ;
-		//
-		RuleData* rule_datas = new RuleData[s_n_rule_datas] ;
-		_s_init_special(rule_datas) ;
-		for( Rule r : rule_lst() ) {
-			RuleData& rd = *rule_map.at(r->crc->match) ;                // crc->match's must be identical between old and new or we should be here
-			s_name_sz      = ::max( s_name_sz , rd.name.size() ) ;
-			rule_datas[+r] = ::move(rd)                          ;
-		}
-		//
-		RuleData* old_rule_datas = _s_rule_datas.exchange(rule_datas) ; // because update is dynamic, take care of atomicity
-		if (old_rule_datas) {
-			Gil gil ;
-			delete[] old_rule_datas ;
-		}
+		WithGil<Rules>* rules = new WithGil<Rules>{New} ; rules->reserve(_s_n_rules) ;
+		for( Rule r : rule_lst() ) rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
+		// XXX : what about other threads accessing RuleData in other threads ? we should take a lock to prevent that here, maybe Backend::_s_mutex is enough
+		_g_rules = rules              ;
+		_s_rules = _g_rules->data()-1 ;                                                    // ok if test and update are not atomic as there is single thread updating _s_rules
 		//
 		_s_save() ;
 	}
 
-	void RuleBase::s_from_vec_not_dynamic(::vector<RuleData>&& new_rules) {
-		// handle Rule's
-		if (_s_rule_datas) {
-			Gil gil ;
-			delete[] _s_rule_datas ;
-		}
-		s_n_rule_datas = +Special::NShared + new_rules.size() ; // idx 0 is not used in StructFile's
-		s_name_sz      = Rule::NameSz                         ;
-		_s_rule_datas  = new RuleData[s_n_rule_datas]         ;
-		//
-		_s_init_special() ;
-		for( Rule r : iota(Special::NShared,s_n_rule_datas) ) {
-			RuleData& rd = new_rules[ +r - +Special::NShared ] ;
-			s_name_sz         = ::max( s_name_sz , rd.name.size() ) ;
-			_s_rule_datas[+r] = ::move(rd)                          ;
-		}
+	void RuleBase::s_from_vec_not_dyn(Rules&& new_rules) {
+		_g_rules = new WithGil<Rules>{::move(new_rules)} ;
+		_s_set_rules  () ;
 		_s_save       () ;
 		_s_update_crcs() ;
 	}
@@ -151,24 +130,24 @@ namespace Engine::Persistent {
 	NodeBase::NodeBase( ::string const& name_ , bool no_dir ) {
 		SWEAR( +name_ && is_canon(name_) , name_ ) ;
 		if (no_dir) {
-			Name nn = _name_file.insert(name_) ;
-			self = _name_file.c_at(nn).node() ;
+			Name nn = _g_name_file.insert(name_) ;
+			self = _g_name_file.c_at(nn).node() ;
 			if (!self) {
 				Lock lock { _s_mutex } ;
-				JobNode& jn = _name_file.at     (nn) ;
-				if (!jn) jn = _node_file.emplace(nn) ;                                       // test jn in case it has been created by another thread
+				JobNode& jn = _g_name_file.at     (nn) ;
+				if (!jn) jn = _g_node_file.emplace(nn) ;                                       // test jn in case it has been created by another thread
 				self = jn.node() ;
 			}
 			SWEAR( +self , name_ ) ;
 		} else {
-			::pair<Name/*top*/,::vector<Name>/*created*/> top_created = _name_file.insert_chain(name_,'/') ;
+			::pair<Name/*top*/,::vector<Name>/*created*/> top_created = _g_name_file.insert_chain(name_,'/') ;
 			SWEAR(+top_created) ;
-			Node n ; if (+top_created.first) n = _name_file.c_at(top_created.first).node() ;
-			if (+top_created.second) {                                                       // else fast path : avoid taking the lock
+			Node n ; if (+top_created.first) n = _g_name_file.c_at(top_created.first).node() ;
+			if (+top_created.second) {                                                         // else fast path : avoid taking the lock
 				Lock lock { _s_mutex } ;
-				for( Name nn : top_created.second ) {                                        // create dir chain from top to bottom
-					JobNode& jn = _name_file.at     (nn  ) ;
-					if (!jn) jn = _node_file.emplace(nn,n) ;                                 // test jn in case it has been created by another thread since insert_chain
+				for( Name nn : top_created.second ) {                                          // create dir chain from top to bottom
+					JobNode& jn = _g_name_file.at     (nn  ) ;
+					if (!jn) jn = _g_node_file.emplace(nn,n) ;                                 // test jn in case it has been created by another thread since insert_chain
 					n = jn.node() ;
 				}
 			}
@@ -179,13 +158,13 @@ namespace Engine::Persistent {
 
 	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
 		// first match on suffix
-		PsfxIdx sfx_idx = _sfxs_file.longest(target_name,::string{Persistent::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
+		PsfxIdx sfx_idx = _g_sfxs_file.longest(target_name,::string{Persistent::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
 		if (!sfx_idx) return RuleTgts{} ;
-		PsfxIdx pfx_root = _sfxs_file.c_at(sfx_idx) ;
+		PsfxIdx pfx_root = _g_sfxs_file.c_at(sfx_idx) ;
 		// then match on prefix
-		PsfxIdx pfx_idx = _pfxs_file.longest(pfx_root,target_name).first ;
+		PsfxIdx pfx_idx = _g_pfxs_file.longest(pfx_root,target_name).first ;
 		if (!pfx_idx) return RuleTgts{} ;
-		return _pfxs_file.c_at(pfx_idx) ;
+		return _g_pfxs_file.c_at(pfx_idx) ;
 	}
 
 	//
@@ -193,18 +172,19 @@ namespace Engine::Persistent {
 	//
 
 	// on disk
-	JobFile      _job_file       ; // jobs
-	DepsFile     _deps_file      ; // .
-	TargetsFile  _targets_file   ; // .
-	NodeFile     _node_file      ; // nodes
-	JobTgtsFile  _job_tgts_file  ; // .
-	RuleFile     _rule_file      ; // rules
-	RuleCrcFile  _rule_crc_file  ; // .
-	RuleStrFile  _rule_str_file  ; // .
-	RuleTgtsFile _rule_tgts_file ; // .
-	SfxFile      _sfxs_file      ; // .
-	PfxFile      _pfxs_file      ; // .
-	NameFile     _name_file      ; // commons
+	::string                      _g_rules_filename ;
+	StaticUniqPtr<WithGil<Rules>> _g_rules          ;
+	//
+	JobFile                       _g_job_file       ; // jobs
+	DepsFile                      _g_deps_file      ; // .
+	TargetsFile                   _g_targets_file   ; // .
+	NodeFile                      _g_node_file      ; // nodes
+	JobTgtsFile                   _g_job_tgts_file  ; // .
+	RuleCrcFile                   _g_rule_crc_file  ; // rules
+	RuleTgtsFile                  _g_rule_tgts_file ; // .
+	SfxFile                       _g_sfxs_file      ; // .
+	PfxFile                       _g_pfxs_file      ; // .
+	NameFile                      _g_name_file      ; // commons
 	// in memory
 	::uset<Job >       _frozen_jobs  ;
 	::uset<Node>       _frozen_nodes ;
@@ -212,8 +192,7 @@ namespace Engine::Persistent {
 
 	static void _compile_srcs() {
 		Trace trace("_compile_srcs") ;
-		if (g_src_dirs_s) g_src_dirs_s->clear() ;
-		else              g_src_dirs_s = new ::vector_s ;
+		g_src_dirs_s = New ;
 		for( Node const n : Node::s_srcs(true/*dirs*/) ) g_src_dirs_s->push_back(n->name()+'/') ;
 		trace("done") ;
 	}
@@ -229,50 +208,48 @@ namespace Engine::Persistent {
 		// START_OF_VERSIONING
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
+		_g_rules_filename = dir_s+"rule" ;
+		//
 		mk_dir_s(dir_s) ;
 		// jobs
-		_job_file      .init( dir_s+"job"       , g_writable ) ;
-		_deps_file     .init( dir_s+"deps"      , g_writable ) ;
-		_targets_file  .init( dir_s+"targets"   , g_writable ) ;
+		_g_job_file      .init( dir_s+"job"       , g_writable ) ;
+		_g_deps_file     .init( dir_s+"deps"      , g_writable ) ;
+		_g_targets_file  .init( dir_s+"targets"   , g_writable ) ;
 		// nodes
-		_node_file     .init( dir_s+"node"      , g_writable ) ;
-		_job_tgts_file .init( dir_s+"job_tgts"  , g_writable ) ;
+		_g_node_file     .init( dir_s+"node"      , g_writable ) ;
+		_g_job_tgts_file .init( dir_s+"job_tgts"  , g_writable ) ;
 		// rules
-		_rule_file     .init( dir_s+"rule"      , g_writable ) ; if ( g_writable && !_rule_file.c_hdr() ) _rule_file.hdr() = 1 ; // 0 is reserved to mean no match
-		_rule_crc_file .init( dir_s+"rule_crc"  , g_writable ) ;
-		_rule_str_file .init( dir_s+"rule_str"  , g_writable ) ;
-		_rule_tgts_file.init( dir_s+"rule_tgts" , g_writable ) ;
-		_sfxs_file     .init( dir_s+"sfxs"      , g_writable ) ;
-		_pfxs_file     .init( dir_s+"pfxs"      , g_writable ) ;
+		_g_rule_crc_file .init( dir_s+"rule_crc"  , g_writable ) ; if ( g_writable && !_g_rule_crc_file.c_hdr() ) _g_rule_crc_file.hdr() = 1 ; // hdr is match_gen, 0 is reserved to mean no match
+		_g_rule_tgts_file.init( dir_s+"rule_tgts" , g_writable ) ;
+		_g_sfxs_file     .init( dir_s+"sfxs"      , g_writable ) ;
+		_g_pfxs_file     .init( dir_s+"pfxs"      , g_writable ) ;
 		// commons
-		_name_file     .init( dir_s+"name"      , g_writable ) ;
+		_g_name_file     .init( dir_s+"name"      , g_writable ) ;
 		// misc
 		if (g_writable) {
-			g_seq_id = &_job_file.hdr().seq_id ;
+			g_seq_id = &_g_job_file.hdr().seq_id ;
 			if (!*g_seq_id) *g_seq_id = 1 ;                // avoid 0 (when store is brand new) to decrease possible confusion
 		}
 		// Rule
-		RuleBase::s_match_gen = _rule_file.c_hdr() ;
+		RuleBase::s_match_gen = _g_rule_crc_file.c_hdr() ;
 		// END_OF_VERSIONING
 		//
 		SWEAR(RuleBase::s_match_gen>0) ;
-		_job_file      .keep_open = true ;                 // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
-		_deps_file     .keep_open = true ;                 // .
-		_targets_file  .keep_open = true ;                 // .
-		_node_file     .keep_open = true ;                 // .
-		_job_tgts_file .keep_open = true ;                 // .
-		_rule_file     .keep_open = true ;                 // .
-		_rule_crc_file .keep_open = true ;                 // .
-		_rule_str_file .keep_open = true ;                 // .
-		_rule_tgts_file.keep_open = true ;                 // .
-		_sfxs_file     .keep_open = true ;                 // .
-		_pfxs_file     .keep_open = true ;                 // .
-		_name_file     .keep_open = true ;                 // .
+		_g_job_file      .keep_open = true ;               // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
+		_g_deps_file     .keep_open = true ;               // .
+		_g_targets_file  .keep_open = true ;               // .
+		_g_node_file     .keep_open = true ;               // .
+		_g_job_tgts_file .keep_open = true ;               // .
+		_g_rule_crc_file .keep_open = true ;               // .
+		_g_rule_tgts_file.keep_open = true ;               // .
+		_g_sfxs_file     .keep_open = true ;               // .
+		_g_pfxs_file     .keep_open = true ;               // .
+		_g_name_file     .keep_open = true ;               // .
 		_compile_srcs() ;
 		Rule::s_from_disk() ;
-		for( Job  j : _job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
-		for( Node n : _node_file.c_hdr().frozens    ) _frozen_nodes.insert(n) ;
-		for( Node n : _node_file.c_hdr().no_triggers) _no_triggers .insert(n) ;
+		for( Job  j : _g_job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
+		for( Node n : _g_node_file.c_hdr().frozens    ) _frozen_nodes.insert(n) ;
+		for( Node n : _g_node_file.c_hdr().no_triggers) _no_triggers .insert(n) ;
 		//
 		if (rescue) {
 			trace("rescue") ;
@@ -291,18 +268,16 @@ namespace Engine::Persistent {
 
 	void chk() {
 		// files
-		/**/                                  _job_file      .chk(                    ) ; // jobs
-		/**/                                  _deps_file     .chk(                    ) ; // .
-		/**/                                  _targets_file  .chk(                    ) ; // .
-		/**/                                  _node_file     .chk(                    ) ; // nodes
-		/**/                                  _job_tgts_file .chk(                    ) ; // .
-		/**/                                  _rule_file     .chk(                    ) ; // rules
-		/**/                                  _rule_crc_file .chk(                    ) ; // .
-		/**/                                  _rule_str_file .chk(                    ) ; // .
-		/**/                                  _rule_tgts_file.chk(                    ) ; // .
-		/**/                                  _sfxs_file     .chk(                    ) ; // .
-		for( PsfxIdx idx : _sfxs_file.lst() ) _pfxs_file     .chk(_sfxs_file.c_at(idx)) ; // .
-		/**/                                  _name_file     .chk(                    ) ; // commons
+		/**/                                    _g_job_file      .chk(                      ) ; // jobs
+		/**/                                    _g_deps_file     .chk(                      ) ; // .
+		/**/                                    _g_targets_file  .chk(                      ) ; // .
+		/**/                                    _g_node_file     .chk(                      ) ; // nodes
+		/**/                                    _g_job_tgts_file .chk(                      ) ; // .
+		/**/                                    _g_rule_crc_file .chk(                      ) ; // .
+		/**/                                    _g_rule_tgts_file.chk(                      ) ; // .
+		/**/                                    _g_sfxs_file     .chk(                      ) ; // .
+		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
+		/**/                                    _g_name_file     .chk(                      ) ; // commons
 	}
 
 	static void _save_config() {
@@ -310,39 +285,39 @@ namespace Engine::Persistent {
 		AcFd( AdminDirS+"config"s              , Fd::Write ).write(g_config->pretty_str()) ;
 	}
 
-	static void _diff_config( Config const& old_config , bool dynamic ) {
+	static void _diff_config( Config const& old_config , bool dyn ) {
 		Trace trace("_diff_config",old_config) ;
 		for( BackendTag t : iota(All<BackendTag>) ) {
 			if (g_config->backends[+t].ifce==old_config.backends[+t].ifce) continue ;
-			throw_if( dynamic , "cannot change server address while running" ) ;
+			throw_if( dyn , "cannot change server address while running" ) ;
 			break ;
 		}
 		//
 		if (g_config->path_max!=old_config.path_max) invalidate_match() ; // we may discover new buildable nodes or vice versa
 	}
 
-	void new_config( Config&& config , bool dynamic , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
-		Trace trace("new_config",Pdate(New),STR(dynamic),STR(rescue) ) ;
-		if ( !dynamic                                                ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
-		if ( !dynamic                                                ) _init_config() ;
-		else                                                           SWEAR(g_config->booted,*g_config) ; // we must update something
-		if (                                        g_config->booted ) config.key = g_config->key ;
+	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
+		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
+		if ( !dyn                                                ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
+		if ( !dyn                                                ) _init_config() ;
+		else                                                       SWEAR(g_config->booted,*g_config) ; // we must update something
+		if (                                    g_config->booted ) config.key = g_config->key ;
 		//
-		/**/                                                           diff(*g_config,config) ;
+		/**/                                                       diff(*g_config,config) ;
 		//
-		/**/                                                           ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
-		if (              d>ConfigDiff::Static  &&  g_config->booted ) throw "repo must be clean"s  ;
-		if (  dynamic &&  d>ConfigDiff::Dynamic                      ) throw "repo must be steady"s ;
+		/**/                                                       ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
+		if (          d>ConfigDiff::Static  &&  g_config->booted ) throw "repo must be clean"s  ;
+		if (  dyn &&  d>ConfigDiff::Dyn                          ) throw "repo must be steady"s ;
 		//
-		if (  dynamic && !d                                          ) return ;                            // fast path, nothing to update
+		if (  dyn && !d                                          ) return ;                            // fast path, nothing to update
 		//
-		/**/                                                           Config old_config = *g_config ;
-		if (             +d                                          ) *g_config = ::move(config) ;
-		if (                                       !g_config->booted ) throw "no config available"s ;
-		/**/                                                           g_config->open(dynamic)          ;
-		if (             +d                                          ) _save_config()                   ;
-		if ( !dynamic                                                ) _init_srcs_rules(rescue)         ;
-		if (             +d                                          ) _diff_config(old_config,dynamic) ;
+		/**/                                                       Config old_config = *g_config ;
+		if (         +d                                          ) *g_config = ::move(config) ;
+		if (                                   !g_config->booted ) throw "no config available"s ;
+		/**/                                                       g_config->open(dyn)          ;
+		if (         +d                                          ) _save_config()               ;
+		if ( !dyn                                                ) _init_srcs_rules(rescue)     ;
+		if (         +d                                          ) _diff_config(old_config,dyn) ;
 		trace("done",Pdate(New)) ;
 	}
 
@@ -399,8 +374,8 @@ namespace Engine::Persistent {
 
 	// make a prefix/suffix map that records which rule has which prefix/suffix
 	static void _compile_psfxs() {
-		_sfxs_file.clear() ;
-		_pfxs_file.clear() ;
+		_g_sfxs_file.clear() ;
+		_g_pfxs_file.clear() ;
 		//
 		// first compute a suffix map
 		::map_s<uset<Rt>> sfx_map ;
@@ -428,8 +403,8 @@ namespace Engine::Persistent {
 			}
 			//
 			// store proper rule_tgts (ordered by decreasing prio, giving priority to AntiRule within each prio) for each prefix/suffix
-			PsfxIdx pfx_root = _pfxs_file.emplace_root() ;
-			_sfxs_file.insert_at(sfx) = pfx_root ;
+			PsfxIdx pfx_root = _g_pfxs_file.emplace_root() ;
+			_g_sfxs_file.insert_at(sfx) = pfx_root ;
 			for( auto const& [pfx,pfx_rule_tgts] : pfx_map ) {
 				if (!pfx_rule_tgts) continue ;                                   // this is a sub-repo marker, not a real entry
 				vector<Rt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
@@ -445,7 +420,7 @@ namespace Engine::Persistent {
 						;
 					}
 				) ;
-				_pfxs_file.insert_at(pfx_root,pfx) = RuleTgts(mk_vector<RuleTgt>(pfx_rule_tgt_vec)) ;
+				_g_pfxs_file.insert_at(pfx_root,pfx) = RuleTgts(mk_vector<RuleTgt>(pfx_rule_tgt_vec)) ;
 			}
 		}
 	}
@@ -453,7 +428,7 @@ namespace Engine::Persistent {
 	//                                      vv must fit in rule file vv   vvvvvvvv idx must fit within type vvvvvvvv
 	static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NShared ) ; // reserv 0 and full 1 to manage prio
 
-	static void _compute_prios( ::vector<RuleData>& rules ) {
+	static void _compute_prios(Rules& rules) {
 		::map<RuleData::Prio,RuleIdx> prio_map ;                                             // mapping from user_prio to prio
 		for( RuleData const& rd    : rules    ) prio_map[rd.user_prio] ;                     // create entries
 		RuleIdx p = 1 ;                                                                      // reserv 0 for "after all user rules"
@@ -461,7 +436,7 @@ namespace Engine::Persistent {
 		for( RuleData&       rd    : rules    ) rd.prio = prio_map.at(rd.user_prio) ;
 	}
 
-	bool/*invalidate*/ new_rules( ::vector<RuleData>&& new_rules_ , bool dynamic ) {
+	bool/*invalidate*/ new_rules( Rules&& new_rules_ , bool dyn ) {
 		Trace trace("new_rules",new_rules_.size()) ;
 		//
 		throw_unless( new_rules_.size()<NRules , "too many rules (",new_rules_.size(),"), max is ",NRules-1 ) ; // ensure we can use RuleIdx as index
@@ -473,6 +448,7 @@ namespace Engine::Persistent {
 		::uset_s                    new_names ;
 		for( Rule r : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
 		for( RuleData& rd : new_rules_ ) {
+			if (rd.special<Special::NShared) continue ;
 			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)  ;
 			bool     new_name  = new_names.insert(rd.full_name()).second ;
 			if ( !new_crc && !new_name ) throw "rule "+rd.full_name()+" appears twice"                                                        ;
@@ -505,31 +481,32 @@ namespace Engine::Persistent {
 			}
 		}
 		bool res = n_new_rules || n_old_rules || modified_rule_order ;
-		if (dynamic) {                                                                                          // check if compatible with dynamic update
+		if (dyn) {                                                                                              // check if compatible with dynamic update
 			throw_if( n_new_rules         , "new rules appeared"           ) ;
 			throw_if( n_old_rules         , "old rules disappeared"        ) ;
 			throw_if( n_modified_cmd      , "rule cmd's were modified"     ) ;
 			throw_if( n_modified_rsrcs    , "rule resources were modified" ) ;
 			throw_if( modified_rule_order , "rule prio's were modified"    ) ;
-			RuleBase::s_from_vec_dynamic(::move(new_rules_)) ;
+			RuleBase::s_from_vec_dyn(::move(new_rules_)) ;
 		} else {
-			RuleBase::s_from_vec_not_dynamic(::move(new_rules_)) ;
+			RuleBase::s_from_vec_not_dyn(::move(new_rules_)) ;
 			if (res) _compile_psfxs() ;                                                                         // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs),STR(modified_rule_order)) ;
 		// trace
 		Trace trace2 ;
-		for( PsfxIdx sfx_idx : _sfxs_file.lst() ) {
-			::string sfx      = _sfxs_file.str_key(sfx_idx) ;
-			PsfxIdx  pfx_root = _sfxs_file.at     (sfx_idx) ;
+		for( PsfxIdx sfx_idx : _g_sfxs_file.lst() ) {
+			::string sfx      = _g_sfxs_file.str_key(sfx_idx) ;
+			PsfxIdx  pfx_root = _g_sfxs_file.at     (sfx_idx) ;
 			bool     single   = +sfx && sfx[0]==StartMrkr  ;
-			for( PsfxIdx pfx_idx : _pfxs_file.lst(pfx_root) ) {
-				RuleTgts rts = _pfxs_file.at(pfx_idx) ;
-				::string pfx = _pfxs_file.str_key(pfx_idx) ;
+			for( PsfxIdx pfx_idx : _g_pfxs_file.lst(pfx_root) ) {
+				RuleTgts rts = _g_pfxs_file.at     (pfx_idx) ;
+				::string pfx = _g_pfxs_file.str_key(pfx_idx) ;
 				if (single) { SWEAR(!pfx,pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
 				else        {                   trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
-				for( RuleTgt rt : rts.view() ) trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->full_name() , rt.key() ) ;
+				for( RuleTgt rt : rts.view() )
+					trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->full_name() , rt.key() ) ;
 			}
 		}
 		// user report
@@ -548,7 +525,7 @@ namespace Engine::Persistent {
 		return res ;
 	}
 
-	bool/*invalidate*/ new_srcs( ::vector_s&& src_names , bool dynamic ) {
+	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn ) {
 		NfsGuard             nfs_guard    { g_config->reliable_dirs } ;
 		::vmap<Node,FileTag> srcs         ;
 		::umap<Node,FileTag> old_srcs     ;
@@ -571,7 +548,7 @@ namespace Engine::Persistent {
 				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_repo_root_s) ;
 				src.pop_back() ;
 			}
-			if (dynamic) nfs_guard.access(src) ;
+			if (dyn) nfs_guard.access(src) ;
 			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
 			FileInfo              fi { src }                                  ;
 			if (+sr.lnks) {
@@ -614,7 +591,7 @@ namespace Engine::Persistent {
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }
 		//
 		if ( !old_srcs && !new_srcs_ ) return false ;
-		if (dynamic) {
+		if (dyn) {
 			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;
 			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;
 			FAIL() ;
@@ -649,7 +626,7 @@ namespace Engine::Persistent {
 	}
 
 	void invalidate_match(bool force_physical) {
-		MatchGen& match_gen = _rule_file.hdr() ;
+		MatchGen& match_gen = _g_rule_crc_file.hdr() ;
 		Trace trace("invalidate_match","old gen",match_gen) ;
 		match_gen++ ;                                                                                                         // increase generation, which automatically makes all nodes !match_ok()
 		if ( force_physical || match_gen==0 ) {                                                                               // unless we wrapped around

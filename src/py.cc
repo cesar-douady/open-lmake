@@ -12,7 +12,6 @@
 #endif
 
 #include "process.hh"
-//#include "thread.hh"
 
 namespace Py {
 
@@ -21,8 +20,6 @@ namespace Py {
 	//
 	// functions
 	//
-
-	static ::vector_s* _g_std_path = nullptr ;
 
 	struct SaveExc {
 		// cxtors & casts
@@ -34,6 +31,8 @@ namespace Py {
 		PyObject* val = nullptr ;
 		PyObject* tb  = nullptr ;
 	} ;
+
+	static StaticUniqPtr<::vector_s> _g_std_path ;
 
 	void init(::string const& lmake_root_s) {
 		static bool once=false ; if (once) return ; else once = true ;
@@ -54,7 +53,7 @@ namespace Py {
 			Py_InitializeEx(0) ;                                                                       // skip initialization of signal handlers
 		#endif
 		//
-		NoGil no_gil ; // tell our mutex we already have the GIL
+		NoGil no_gil ;                                                                                 // tell our mutex we already have the GIL
 		//
 		py_get_sys("implementation").set_attr("cache_tag",None) ;                                      // avoid pyc management
 		//
@@ -62,7 +61,7 @@ namespace Py {
 		py_path.append( *Ptr<Str>(lmake_root_s+"lib") ) ;
 		//
 		SWEAR(!_g_std_path,_g_std_path) ;
-		_g_std_path = new ::vector_s ;
+		_g_std_path = New ;
 		for( Object& p : py_path ) _g_std_path->push_back(p.as_a<Str>()) ;
 		//
 		#if PY_VERSION_HEX >= 0x03080000
@@ -70,10 +69,10 @@ namespace Py {
 		#endif
 	}
 
-	void py_reset_path() {
-		List& py_path = py_get_sys<List>("path") ;
-		py_path.clear() ;
-		for( ::string const& p : *_g_std_path ) py_path.append(*Ptr<Str>(p)) ;
+	void py_reset_path(                      ) { SWEAR(+_g_std_path) ; py_reset_path(*_g_std_path) ; }
+	void py_reset_path(::vector_s const& path) {
+		Ptr<Tuple> py_sys_path { path.size() } ; for( size_t i : iota(path.size()) ) py_sys_path->set_item( i , *Ptr<Str>(path[i]) ) ;
+		py_set_sys("path",*py_sys_path) ;
 	}
 
 	// divert stderr to a memfd (if available, else to an internal pipe), call PyErr_Print and restore stderr
@@ -175,7 +174,7 @@ namespace Py {
 	// Module
 	//
 
-	PyObject* Ptr<Module>::_s_mk_mod( ::string const& name , PyMethodDef* funcs ) {
+	Ptr<Module> Ptr<Module>::_s_mk_mod( ::string const& name , PyMethodDef* funcs ) {
 		Gil::s_swear_locked() ;
 		::string*    nm  = new ::string(name)   ;                                                                    // keep name alive
 		size_t       nf1 = 1                    ; for( PyMethodDef* f=funcs ; f->ml_name ; f++ ) nf1++             ; // start at 1 to account for terminating sentinel
@@ -196,6 +195,14 @@ namespace Py {
 			} ;
 			return PyModule_Create(def) ;
 		#endif
+	}
+
+	Ptr<Module> Ptr<Module>::_s_import(::string const& name) {
+		Gil::s_swear_locked() ;
+		// XXX> : use PyImport_ImportModuleEx with a non-empy from_list when Python2 support is no longer required
+		Ptr<Module> py_top = PyImport_ImportModule(name.c_str()) ;            // in case of module in a package, PyImport_ImportModule returns the top level package
+		if (name.find('.')==Npos) return py_top                             ;
+		else                      return &py_get_sys<Dict>("modules")[name] ; // it is a much more natural API to return the asked module, get it from sys.modules
 	}
 
 }

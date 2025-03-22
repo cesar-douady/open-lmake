@@ -26,15 +26,15 @@ using namespace Time ;
 // Record
 //
 
-bool                                                   Record::s_static_report  = false     ;
-::vmap_s<DepDigest>                                  * Record::s_deps           = nullptr   ;
-::string                                             * Record::s_deps_err       = nullptr   ;
-::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* Record::s_access_cache   = nullptr   ; // map file to read accesses
-AutodepEnv*                                            Record::_s_autodep_env   = nullptr   ; // declare as pointer to avoid late initialization
-Fd                                                     Record::_s_repo_root_fd  ;
-pid_t                                                  Record::_s_repo_root_pid = 0         ;
-Fd                                                     Record::_s_report_fd[2]  ;
-pid_t                                                  Record::_s_report_pid[2] = { 0 , 0 } ;
+bool                                                                 Record::s_static_report  = false     ;
+::vmap_s<DepDigest>*                                                 Record::s_deps           = nullptr   ;
+::string           *                                                 Record::s_deps_err       = nullptr   ;
+StaticUniqPtr<::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>> Record::s_access_cache   ;             // map file to read accesses
+StaticUniqPtr<AutodepEnv                                           > Record::_s_autodep_env   ;             // declare as pointer to avoid late initialization
+Fd                                                                   Record::_s_repo_root_fd  ;
+pid_t                                                                Record::_s_repo_root_pid = 0         ;
+Fd                                                                   Record::_s_report_fd[2]  ;
+pid_t                                                                Record::_s_report_pid[2] = { 0 , 0 } ;
 
 bool Record::s_is_simple(const char* file) {
 	if (!file        ) return true  ;                                    // no file is simple (not documented, but used in practice)
@@ -162,7 +162,7 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 			::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
 			for( ::string& f : dep_verboses ) dep_infos.emplace_back( Yes/*ok*/ , Crc(f) ) ;
 			dep_verboses.clear() ;
-			return { jerr.proc , ::move(dep_infos) } ;
+			return { .proc=jerr.proc , .dep_infos=::move(dep_infos) } ;
 		}
 		case Proc::Decode :
 		case Proc::Encode :
@@ -174,10 +174,10 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 				::string code = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' '                   ) continue ; // .
 				::string val  = parse_printable     (line,pos) ; if ( line[pos  ]!=0                     ) continue ; // .
 				//
-				if (jerr.proc==Proc::Decode) { if (code==jerr.file) return {jerr.proc,Yes/*ok*/,val } ; }
-				else                         { if (val ==jerr.file) return {jerr.proc,Yes/*ok*/,code} ; }
+				if (jerr.proc==Proc::Decode) { if (code==jerr.file) return { .proc=jerr.proc , .ok=Yes , .txt=val } ; }
+				else                         { if (val ==jerr.file) return { .proc=jerr.proc , .ok=Yes , .txt=code} ; }
 			}
-			return { jerr.proc , No/*ok*/ , "0"s } ;
+			return { .proc=jerr.proc , .ok=No , .txt="0" } ;
 	DN}
 	return {} ;
 }
@@ -239,7 +239,7 @@ static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREA
 static bool _do_stat  (int flags) { return (flags&O_PATH)     || ( (flags&O_CREAT) && (flags&O_EXCL) ) || ( !(flags&O_CREAT) && (flags&O_ACCMODE)!=O_RDONLY ) ; }
 static bool _do_read  (int flags) { return !(flags&O_PATH) && !(flags&O_TRUNC)                                                                                ; }
 static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) || (flags&O_TRUNC)                                              ; }
-static bool _do_create(int flags) { return   flags&O_CREAT                                                                                                    ; }
+static bool _do_create(int flags) { return flags&O_CREAT                                                                                                      ; }
 //
 Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c } {
 	if ( !file || !file[0]             ) return ;

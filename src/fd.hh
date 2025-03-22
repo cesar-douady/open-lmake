@@ -39,8 +39,8 @@ struct SockFd : AcFd {
 	static constexpr in_addr_t LoopBackAddr = 0x7f000001 ;
 	// statics
 	static ::string s_addr_str(in_addr_t addr) {
-		::string res ; res.reserve(15) ;          // 3 digits per level + 5 digits for the port
-		res <<      ((addr>>24)&0xff) ;           // dot notation is big endian
+		::string res ; res.reserve(15) ;             // 3 digits per level + 5 digits for the port
+		res <<      ((addr>>24)&0xff) ;              // dot notation is big endian
 		res <<'.'<< ((addr>>16)&0xff) ;
 		res <<'.'<< ((addr>> 8)&0xff) ;
 		res <<'.'<< ((addr>> 0)&0xff) ;
@@ -49,8 +49,8 @@ struct SockFd : AcFd {
 	static struct sockaddr_in  s_sockaddr( in_addr_t a , in_port_t p ) {
 		struct sockaddr_in res {
 			.sin_family = AF_INET
-		,	.sin_port   =           htons(p)      // dont prefix with :: as htons may be a macro
-		,	.sin_addr   = { .s_addr=htonl(a) }    // dont prefix with :: as htonl may be a macro
+		,	.sin_port   =           htons(p)         // dont prefix with :: as htons may be a macro
+		,	.sin_addr   = { .s_addr=htonl(a) }       // dont prefix with :: as htonl may be a macro
 		,	.sin_zero   = {}
 		} ;
 		return res ;
@@ -93,7 +93,7 @@ public :
 		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
 		SWEAR( rc ==0                 , rc ,self ) ;
 		SWEAR( len==sizeof(peer_addr) , len,self ) ;
-		return ntohl(peer_addr.sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
+		return ntohl(peer_addr.sin_addr.s_addr) ;    // dont prefix with :: as ntohl may be a macro
 	}
 	in_port_t port() const {
 		struct sockaddr_in my_addr ;
@@ -101,7 +101,7 @@ public :
 		int                rc      = ::getsockname( fd , reinterpret_cast<struct sockaddr*>(&my_addr) , &len ) ;
 		SWEAR( rc ==0               , rc ,self ) ;
 		SWEAR( len==sizeof(my_addr) , len,self ) ;
-		return ntohs(my_addr.sin_port) ;          // dont prefix with :: as ntohs may be a macro
+		return ntohs(my_addr.sin_port) ;             // dont prefix with :: as ntohs may be a macro
 	}
 } ;
 
@@ -280,7 +280,7 @@ public :
 // Epoll
 //
 
-extern ::uset<int>* _s_epoll_sigs ;                       // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+extern StaticUniqPtr<::uset<int>> _s_epoll_sigs ;         // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
 template<StdEnum E=NewType/*when_unused*/> struct Epoll {
 	struct Event : ::epoll_event {
 		// cxtors & casts

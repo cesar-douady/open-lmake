@@ -57,7 +57,7 @@ struct Record {
 		_s_report_fd[1].close() ;
 	}
 	static AutodepEnv const& s_autodep_env() {
-		SWEAR( _s_autodep_env && s_access_cache ) ;
+		SWEAR( +_s_autodep_env && +s_access_cache ) ;
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
@@ -66,7 +66,7 @@ struct Record {
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(NewType) {
-		SWEAR( bool(s_access_cache) == bool(_s_autodep_env) ) ;
+		SWEAR( +s_access_cache == +_s_autodep_env ) ;
 		if (!_s_autodep_env) _s_mk_autodep_env(new AutodepEnv{New}) ;
 		return *_s_autodep_env ;
 	}
@@ -87,16 +87,16 @@ struct Record {
 	}
 	// static data
 public :
-	static bool                                                   s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() sockets
-	static ::vmap_s<DepDigest>                                  * s_deps           ;
-	static ::string                                             * s_deps_err       ;
-	static ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>* s_access_cache   ; // map file to read accesses
+	static bool                                                                 s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() sockets
+	static ::vmap_s<DepDigest>*                                                 s_deps           ;
+	static ::string           *                                                 s_deps_err       ;
+	static StaticUniqPtr<::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>> s_access_cache   ; // map file to read accesses
 private :
-	static AutodepEnv* _s_autodep_env           ;
-	static Fd          _s_repo_root_fd          ;                                    // a file descriptor to repo root dir
-	static pid_t       _s_repo_root_pid         ;                                    // pid in which _s_repo_root_fd is valid
-	static Fd          _s_report_fd [2/*Fast*/] ;                                    // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
-	static pid_t       _s_report_pid[2/*Fast*/] ;                                    // pid in which corresponding _s_report_fd is valid
+	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
+	static Fd                        _s_repo_root_fd          ; // a file descriptor to repo root dir
+	static pid_t                     _s_repo_root_pid         ; // pid in which _s_repo_root_fd is valid
+	static Fd                        _s_report_fd [2/*Fast*/] ; // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t                     _s_report_pid[2/*Fast*/] ; // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
 	Record(                                        ) = default ;
@@ -113,9 +113,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
 	}
 public :
-	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                                  // if force, emmit record even if recording is diabled
-	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                                  // .
-	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                                  // .
+	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                  // if force, emmit record even if recording is diabled
+	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                  // .
+	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                  // .
 	// for modifying accesses :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
 	// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
@@ -128,12 +128,16 @@ public :
 		using Jerr = JobExecRpcReq ;
 		if (fl>FileLoc::Dep) return { {}/*confirm*/ , 0 } ;
 		// auto-generated id must be different for all accesses (could be random)
-		// if _real_path.pid is 0, ::gettid() gives a good id, else we are ptracing, tid is mostly constant but at least per thread, dates are different
-		static_assert(sizeof(::thread::id)==sizeof(Jerr::Id)) ;                                                                                  // else the conversion below has to be reworked
+		// if _real_path.pid is 0, ::this_thread::get_id() gives a good id, else we are ptracing, tid is mostly constant but, at least per thread, dates are different
+		static_assert(sizeof(::thread::id)<=sizeof(Jerr::Id)) ;                                                                  // else we have to think about it
 		bool         need_id = !jerr.id && jerr.digest.write==Maybe ;
-		Time::Pdate  now     ;                                                 if ( !jerr.date || (need_id&&_real_path.pid) ) now  = New       ; // used for date and id
-		::thread::id tid     = ::this_thread::get_id()                       ;
-		Jerr::Id     id      = *::launder(reinterpret_cast<Jerr::Id*>(&tid)) ; if (                need_id&&_real_path.pid  ) id  += now.val() ;
+		Time::Pdate  now     ;
+		::thread::id tid     = ::this_thread::get_id()              ;
+		Jerr::Id     id      = 0                                    ;
+		if (::endian::native==::endian::little) ::memcpy(reinterpret_cast<char*>(&id)+sizeof(id)-sizeof(tid),&tid,sizeof(tid)) ; // copy tid in msb of id for better merging with date in ns
+		else                                    ::memcpy(                        &id                        ,&tid,sizeof(tid)) ; // .
+		if ( !jerr.date || (need_id&&_real_path.pid) ) now  = New       ;                                                        // used for date and id
+		if (                need_id&&_real_path.pid  ) id  += now.val() ;
 		//
 		/**/                                            jerr.proc         = JobExecProc::Access          ;
 		if ( !jerr.date                               ) jerr.date         = now                          ;

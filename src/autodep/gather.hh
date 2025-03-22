@@ -110,15 +110,16 @@ private :
 	void         _send_to_server( Fd fd , Jerr&&       ) ;                                                      // files are required for DepVerbose and forbidden for other
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
 public : //!                                                                                                                                    crc_file_info
-	void new_target( PD pd , ::string const& t , Comment c=Comment::CstaticTarget , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }
-	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::CstaticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; } // used for internal wash
+	void new_target( PD pd , ::string const& t , Comment c=Comment::staticTarget , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }
+	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::staticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; } // used for internal wash
 	void new_guard (         ::string const& f                                                         ) { guards.insert(f) ;                                         }
 	//
-	void new_exec( PD    , ::string const& exe ,              Comment  =Comment::CstaticExec                      ) ;
-	void new_dep ( PD pd , ::string&&      dep , Accesses a , Comment c=Comment::CstaticDep  , CommentExts ces={} ) { _new_access(pd,::move(dep),{.accesses=a},Disk::FileInfo(dep),c,ces) ; }
-	void new_dep ( PD    , ::string&&      dep , DepDigest&& dd , ::string const& stdin={}                        ) ;
+	void new_exec( PD    , ::string const& exe ,              Comment  =Comment::staticExec                      ) ;
+	void new_dep ( PD pd , ::string&&      dep , Accesses a , Comment c=Comment::staticDep  , CommentExts ces={} ) { _new_access(pd,::move(dep),{.accesses=a},Disk::FileInfo(dep),c,ces) ; }
+	void new_dep ( PD    , ::string&&      dep , DepDigest&& dd , ::string const& stdin={}                       ) ;
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
+		jerr.chk() ;
 		try                     { OMsgBuf().send(fd,jerr) ; }
 		catch (::string const&) {                           }                                         // dont care if we cannot report the reply to job
 	}

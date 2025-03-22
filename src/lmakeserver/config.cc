@@ -49,7 +49,7 @@ namespace Engine {
 		throw_unless( found_tag , "tag not found" ) ;
 	}
 
-	ConfigDynamic::Backend::Backend(Dict const& py_map) : configured{true} {
+	ConfigDyn::Backend::Backend(Dict const& py_map) : configured{true} {
 		::string field ;
 		try {
 			for( auto const& [py_k,py_v] : py_map ) {
@@ -311,7 +311,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void Config::open(bool dynamic) {
+	void Config::open(bool dyn) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
@@ -329,9 +329,9 @@ namespace Engine {
 		}
 		mk_dir_s(local_admin_dir_s,true/*unlnk_ok*/) ;
 		//
-		Backends::Backend::s_config(backends,dynamic) ;
+		Backends::Backend::s_config(backends,dyn) ;
 		//
-		if (dynamic) return ;
+		if (dyn) return ;
 		//
 		for( auto const& [_,idx] : cache_idxs ) {
 			Cache const& cache = caches[idx] ;

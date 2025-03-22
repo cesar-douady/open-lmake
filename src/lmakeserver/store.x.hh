@@ -175,40 +175,37 @@ namespace Engine::Persistent {
 	struct RuleBase
 	:	             Idxed<RuleIdx>
 	{	using Base = Idxed<RuleIdx> ;
+		friend Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared) ;
 	private :
 		static constexpr char _Name[] = "no_rule" ;                       // cannot use ::strlen which not constexpr with clang
 	public :
 		static constexpr size_t NameSz = sizeof(_Name)-1 ;                // -1 to account for teminating null, minimum size of the rule field : account for internally generated messages
 		// statics
-		static void           s_from_disk           (                                       ) ;
-		static void           s_from_vec_dynamic    (::vector<RuleData>&&                   ) ;
-		static void           s_from_vec_not_dynamic(::vector<RuleData>&&                   ) ;
+		static void s_from_disk       (       ) ;
+		static void s_from_vec_dyn    (Rules&&) ;
+		static void s_from_vec_not_dyn(Rules&&) ;
 	private :
-		static void _s_init_special(RuleData* =_s_rule_datas) ;
-		static void _s_save        (                        ) ;
-		static void _s_update_crcs (                        ) ;
+		static void _s_init_special(RuleData* =_s_rules) ;
+		static void _s_save        (                   ) ;
+		static void _s_update_crcs (                   ) ;
+		static void _s_set_rules   (                   ) ;
 		// static data
 	public :
-		static MatchGen s_match_gen    ;
-		static size_t   s_name_sz      ;
-		static RuleIdx  s_n_rule_datas ;
+		static MatchGen    s_match_gen ;
+		static size_t      s_name_sz   ;
+		static ::vector_s* s_sys_path  ;                                  // used for rule crc computation
 	private :
-		static Atomic<RuleData*> _s_rule_datas ;                          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
+		static RuleIdx           _s_n_rules ;
+		static Atomic<RuleData*> _s_rules   ;                             // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 		// cxtors & casts
 	public :
 		using Base::Base ;
 		constexpr RuleBase(Special s) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not special
 		// accesses
-		RuleData      & data      ()       ;
-		RuleData const& operator* () const ;
-		RuleData const* operator->() const { return &*self ; }
-		//
-		constexpr bool is_shared() const { return +self<+Special::NShared ; }
-		::string_view  str      () const ;
-		// services
-		void save() const ;
-	private :
-		RuleStr _str() const ;
+		/**/      RuleData      & data      ()       ;
+		/**/      RuleData const& operator* () const ;
+		/**/      RuleData const* operator->() const { return &*self                  ; }
+		constexpr bool            is_shared () const { return +self<+Special::NShared ; }
 	} ;
 
 	struct RuleCrcBase
@@ -277,37 +274,9 @@ namespace Engine {
 
 namespace Engine {
 
-	extern Config    * g_config     ; // ensure g_config is not destroyed upon exit, while we may still need it
-	extern ::vector_s* g_src_dirs_s ;
+	extern StaticUniqPtr<Config    > g_config     ;
+	extern StaticUniqPtr<::vector_s> g_src_dirs_s ;
 
-	struct RuleLst {
-		struct Iterator {
-			using iterator_categorie = ::input_iterator_tag ;
-			using value_type         = Rule                 ;
-			using difference_type    = ptrdiff_t            ;
-			using pointer            = value_type*          ;
-			using reference          = value_type&          ;
-			// cxtors & casts
-			Iterator(Rule r) : _cur(r) {}
-			// services
-			bool     operator==(Iterator const&) const = default ;
-			Rule     operator* (               ) const {                                return _cur ; }
-			Iterator operator++(               )       { _cur = +_cur+1 ;               return self ; }
-			Iterator operator++(int            )       { Iterator res = self ; ++self ; return res  ; }
-		private :
-			// data
-			Rule _cur ;
-		} ;
-		// cxtors & casts
-		RuleLst(bool ws=false) : with_shared{ws} {}
-		// accesses
-		RuleIdx size() const { return Rule::s_n_rule_datas - (with_shared?1:+Special::NShared) ; }
-		// services
-		Iterator begin() const { return Iterator(with_shared?1:+Special::NShared) ; }
-		Iterator end  () const { return Iterator(Rule::s_n_rule_datas           ) ; }
-		// data
-		bool with_shared = false ;
-	} ;
 }
 
 #endif
@@ -338,9 +307,7 @@ namespace Engine::Persistent {
 	using NodeFile     = Store::AllocFile       < false , NodeHdr           , Node            , NNodeIdxBits     ,           NodeData                       > ;
 	using JobTgtsFile  = Store::VectorFile      < false , void              , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
 	// rules
-	using RuleFile     = Store::StructFile      < false , MatchGen          , RuleIdx         , NRuleIdxBits     ,           RuleStr                        > ;
-	using RuleCrcFile  = Store::AllocFile       < false , void              , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
-	using RuleStrFile  = Store::VectorFile      < false , size_t/*name_sz*/ , RuleStr         , NRuleStrIdxBits  ,           char        , uint32_t         > ;
+	using RuleCrcFile  = Store::AllocFile       < false , MatchGen          , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
 	using RuleTgtsFile = Store::SinglePrefixFile< false , void              , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
 	using SfxFile      = Store::SinglePrefixFile< false , void              , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
 	using PfxFile      = Store::MultiPrefixFile < false , void              , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
@@ -352,39 +319,39 @@ namespace Engine::Persistent {
 	// END_OF_VERSIONING
 
 	// on disk
-	extern JobFile      _job_file       ; // jobs
-	extern DepsFile     _deps_file      ; // .
-	extern TargetsFile  _targets_file   ; // .
-	extern NodeFile     _node_file      ; // nodes
-	extern JobTgtsFile  _job_tgts_file  ; // .
-	extern RuleFile     _rule_file      ; // rules
-	extern RuleCrcFile  _rule_crc_file  ; // .
-	extern RuleStrFile  _rule_str_file  ; // .
-	extern RuleTgtsFile _rule_tgts_file ; // .
-	extern SfxFile      _sfxs_file      ; // .
-	extern PfxFile      _pfxs_file      ; // .
-	extern NameFile     _name_file      ; // commons
+	extern ::string                          _g_rules_filename ;
+	extern StaticUniqPtr<Py::WithGil<Rules>> _g_rules          ; // looks like a unique_ptr execpt rules are not destroyed at end of execution
+	//
+	extern JobFile      _g_job_file       ;                      // jobs
+	extern DepsFile     _g_deps_file      ;                      // .
+	extern TargetsFile  _g_targets_file   ;                      // .
+	extern NodeFile     _g_node_file      ;                      // nodes
+	extern JobTgtsFile  _g_job_tgts_file  ;                      // .
+	extern RuleCrcFile  _g_rule_crc_file  ;                      // .
+	extern RuleTgtsFile _g_rule_tgts_file ;                      // .
+	extern SfxFile      _g_sfxs_file      ;                      // .
+	extern PfxFile      _g_pfxs_file      ;                      // .
+	extern NameFile     _g_name_file      ;                      // commons
 	// in memory
-	extern ::uset<Job >       _frozen_jobs  ;
-	extern ::uset<Node>       _frozen_nodes ;
-	extern ::uset<Node>       _no_triggers  ;
+	extern ::uset<Job > _frozen_jobs  ;
+	extern ::uset<Node> _frozen_nodes ;
+	extern ::uset<Node> _no_triggers  ;
 
 }
 
 namespace Vector {
-	template<> struct File<Engine            ::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_deps_file     ; } ;
-	template<> struct File<Engine            ::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_targets_file  ; } ;
-	template<> struct File<Engine            ::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_job_tgts_file ; } ;
-	template<> struct File<Engine::Persistent::RuleStr    > { static constexpr Engine::Persistent::RuleStrFile& file = Engine::Persistent::_rule_str_file ; } ;
+	template<> struct File<Engine::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_g_deps_file     ; } ;
+	template<> struct File<Engine::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_g_targets_file  ; } ;
+	template<> struct File<Engine::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_g_job_tgts_file ; } ;
 }
 
 namespace Engine::Persistent {
 
-	void new_config( Config&& , bool dynamic , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
+	void new_config( Config&& , bool dyn , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( ::vector_s        && , bool dynamic ) ;
-	bool/*invalidate*/ new_rules       ( ::vector<RuleData>&& , bool dynamic ) ;
-	void               invalidate_match( bool force_physical=false           ) ;
+	bool/*invalidate*/ new_srcs        ( Sources&& , bool dyn      ) ;
+	bool/*invalidate*/ new_rules       ( Rules  && , bool dyn      ) ;
+	void               invalidate_match( bool force_physical=false ) ;
 	//
 	void chk() ;
 
@@ -412,106 +379,107 @@ namespace Engine::Persistent {
 	// Name
 	//
 	// cxtors & casts
-	inline void Name::pop() { Persistent::_name_file.pop(+self) ; }
+	inline void Name::pop() { Persistent::_g_name_file.pop(+self) ; }
 	// accesses
-	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_name_file.str_key(+self,sfx_sz) ; }
-	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_name_file.key_sz (+self,sfx_sz) ; }
+	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_g_name_file.str_key(+self,sfx_sz) ; }
+	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_g_name_file.key_sz (+self,sfx_sz) ; }
 
 	//
 	// JobBase
 	//
-	inline JobFile::Lst job_lst() { return _job_file .lst() ; }
+	inline JobFile::Lst job_lst() { return _g_job_file .lst() ; }
 	// statics
-	inline Job JobBase::s_idx(JobData const& jd) { return _job_file.idx(jd) ; }
+	inline Job JobBase::s_idx(JobData const& jd) { return _g_job_file.idx(jd) ; }
 	//
-	inline bool          JobBase::s_has_frozens  (                                       ) { return               +_job_file.c_hdr().frozens     ;                                  }
-	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(_job_file.c_hdr().frozens   ) ;                                  }
-	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update(            _job_file.hdr  ().frozens   ,_frozen_jobs   ,add,items) ;        }
-	inline void          JobBase::s_clear_frozens(                                       ) {                       _job_file.hdr  ().frozens   .clear() ; _frozen_jobs   .clear() ; }
+	inline bool          JobBase::s_has_frozens  (                                       ) { return               +_g_job_file.c_hdr().frozens     ;                                  }
+	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(_g_job_file.c_hdr().frozens   ) ;                                  }
+	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update(            _g_job_file.hdr  ().frozens   ,_frozen_jobs   ,add,items) ;        }
+	inline void          JobBase::s_clear_frozens(                                       ) {                       _g_job_file.hdr  ().frozens   .clear() ; _frozen_jobs   .clear() ; }
 	// cxtors & casts
 	template<class... A> JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
-		self = _job_file.emplace( Name() , ::forward<A>(args)... ) ;
+		self = _g_job_file.emplace( Name() , ::forward<A>(args)... ) ;
 	}
 	template<class... A> JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
-		Name name_ = _name_file.insert(name_sfx.first,name_sfx.second) ;
-		self = _name_file.c_at(+name_).job() ;
+		Name name_ = _g_name_file.insert(name_sfx.first,name_sfx.second) ;
+		self = _g_name_file.c_at(+name_).job() ;
 		if (+self) {
 			SWEAR( name_==self->_full_name , name_ , self->_full_name ) ;
 			if (!new_) return ;
 			*self = JobData( name_ , ::forward<A>(args)...) ;
 		} else {
-			_name_file.at(+name_) = self = _job_file.emplace( name_ , ::forward<A>(args)... ) ;
+			_g_name_file.at(+name_) = self = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
 		}
 		self->_full_name = name_ ;
 	}
 	inline void JobBase::pop() {
 		if (!self) return ;
 		if (+self->_full_name) self->_full_name.pop() ;
-		_job_file.pop(+self) ;
+		_g_job_file.pop(+self) ;
 		clear() ;
 	}
 	// accesses
 	inline bool JobBase::frozen() const { return _frozen_jobs.contains(Job(+self)) ; }
 	//
-	inline JobData const& JobBase::operator*() const { return _job_file.c_at(+self) ; }
-	inline JobData      & JobBase::operator*()       { return _job_file.at  (+self) ; }
+	inline JobData const& JobBase::operator*() const { return _g_job_file.c_at(+self) ; }
+	inline JobData      & JobBase::operator*()       { return _g_job_file.at  (+self) ; }
 	// services
 	inline void JobBase::chk() const {
 		Name fn = self->_full_name ;
 		if (!fn) return ;
-		Job  j  = _name_file.c_at(fn).job() ;
+		Job  j  = _g_name_file.c_at(fn).job() ;
 		SWEAR( self==j , self , fn , j ) ;
 	}
 
 	//
 	// NodeBase
 	//
-	inline NodeFile::Lst node_lst() { return _node_file.lst() ; }
+	inline NodeFile::Lst node_lst() { return _g_node_file.lst() ; }
 	// statics
-	inline Node NodeBase::s_idx     (NodeData  const& nd  ) { return  _node_file.idx   (nd  ) ; }
-	inline bool NodeBase::s_is_known( ::string const& name) { return +_name_file.search(name) ; }
+	inline Node NodeBase::s_idx     (NodeData  const& nd  ) { return  _g_node_file.idx   (nd  ) ; }
+	inline bool NodeBase::s_is_known( ::string const& name) { return +_g_name_file.search(name) ; }
 	//
-	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +_node_file.c_hdr().frozens       ;                                  }
-	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +_node_file.c_hdr().no_triggers   ;                                  }
-	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +_node_file.c_hdr().srcs          ;                                  }
-	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(_node_file.c_hdr().frozens     ) ;                                  }
-	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(_node_file.c_hdr().no_triggers ) ;                                  }
-	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(             _node_file.hdr  ().frozens    ,_frozen_nodes   ,add,items) ;        }
-	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(             _node_file.hdr  ().no_triggers,_no_triggers    ,add,items) ;        }
-	inline void           NodeBase::s_clear_frozens    (                                        ) {                        _node_file.hdr  ().frozens    .clear() ; _frozen_nodes   .clear() ; }
-	inline void           NodeBase::s_clear_no_triggers(                                        ) {                        _node_file.hdr  ().no_triggers.clear() ; _no_triggers    .clear() ; }
-	inline void           NodeBase::s_clear_srcs       (                                        ) {                        _node_file.hdr  ().srcs       .clear() ;                          ; }
+	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +_g_node_file.c_hdr().frozens       ;                                  }
+	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +_g_node_file.c_hdr().no_triggers   ;                                  }
+	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +_g_node_file.c_hdr().srcs          ;                                  }
+	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(_g_node_file.c_hdr().frozens     ) ;                                  }
+	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(_g_node_file.c_hdr().no_triggers ) ;                                  }
+	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(             _g_node_file.hdr  ().frozens    ,_frozen_nodes   ,add,items) ;        }
+	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(             _g_node_file.hdr  ().no_triggers,_no_triggers    ,add,items) ;        }
+	inline void           NodeBase::s_clear_frozens    (                                        ) {                        _g_node_file.hdr  ().frozens    .clear() ; _frozen_nodes   .clear() ; }
+	inline void           NodeBase::s_clear_no_triggers(                                        ) {                        _g_node_file.hdr  ().no_triggers.clear() ; _no_triggers    .clear() ; }
+	inline void           NodeBase::s_clear_srcs       (                                        ) {                        _g_node_file.hdr  ().srcs       .clear() ;                          ; }
 	//
-	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _node_file.c_hdr() ; return     dirs?nh.src_dirs:nh.srcs ;                 }
-	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _node_file.hdr  () ; _s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ; }
+	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _g_node_file.c_hdr() ; return     dirs?nh.src_dirs:nh.srcs ;                 }
+	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _g_node_file.hdr  () ; _s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ; }
 
 	// accesses
 	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+self)) ; }
 	inline bool NodeBase::no_trigger() const { return _no_triggers .contains(Node(+self)) ; }
 	//
-	inline NodeData const& NodeBase::operator*() const { return _node_file.c_at(+self) ; }
-	inline NodeData      & NodeBase::operator*()       { return _node_file.at  (+self) ; }
+	inline NodeData const& NodeBase::operator*() const { return _g_node_file.c_at(+self) ; }
+	inline NodeData      & NodeBase::operator*()       { return _g_node_file.at  (+self) ; }
 	// services
 	inline void NodeBase::chk() const {
-		Name fn = self->_full_name ;
-		Node n  = _name_file.c_at(fn).node() ;
+		Name fn = self->_full_name             ;
+		Node n  = _g_name_file.c_at(fn).node() ;
 		SWEAR( self==n , self , fn , n ) ;
 	}
 
 	//
 	// RuleBase
 	//
-	inline RuleLst rule_lst(bool with_shared=false) { return RuleLst(with_shared) ; }
+	inline Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared=false) {
+		if (Rule::_s_n_rules) return { with_shared?1:+Special::NShared , Rule(Rule::_s_n_rules+1) } ; // rules are numbered from 1 to _s_n_rules
+		else                  return { 0                               , 0                        } ;
+	}
 	// accesses
-	inline RuleData      & RuleBase::data     ()       { SWEAR(+self       ) ; return _s_rule_datas[+self]                       ; }
-	inline RuleData const& RuleBase::operator*() const { SWEAR(+self       ) ; return _s_rule_datas[+self]                       ; }
-	inline ::string_view   RuleBase::str      () const {                       return _rule_str_file.str_view(+_str())           ; }
-	inline RuleStr         RuleBase::_str     () const { SWEAR(!is_shared()) ; return _rule_file.c_at(+self-+Special::NShared+1) ; } // first rule (NShared) is mapped to 1
+	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return _s_rules[+self] ; }
+	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return _s_rules[+self] ; }
 
 	//
 	// RuleCrcBase
 	//
-	inline RuleCrcFile::Lst rule_crc_lst() { return _rule_crc_file.lst() ; }
+	inline RuleCrcFile::Lst rule_crc_lst() { return _g_rule_crc_file.lst() ; }
 	// cxtors & casts
 	inline RuleCrcBase::RuleCrcBase( Crc match , Crc cmd , Crc rsrcs ) {
 		if (!cmd       ) cmd   = match ;                                              // cmd must include match, so if not given, use match
@@ -520,7 +488,7 @@ namespace Engine::Persistent {
 			for( RuleCrc rc : rule_crc_lst() ) s_by_rsrcs.try_emplace(rc->rsrcs,rc) ;
 		auto it_inserted = s_by_rsrcs.try_emplace(rsrcs) ;
 		if (it_inserted.second) {
-			self = it_inserted.first->second = _rule_crc_file.emplace( match , cmd , rsrcs ) ;
+			self = it_inserted.first->second = _g_rule_crc_file.emplace( match , cmd , rsrcs ) ;
 		} else {
 			self = it_inserted.first->second ;
 			RuleCrcData const& d = data() ;
@@ -530,25 +498,25 @@ namespace Engine::Persistent {
 		}
 	}
 	// accesses
-	inline RuleCrcData      & RuleCrcBase::data     ()       { return _rule_crc_file.at(+self) ; }
-	inline RuleCrcData const& RuleCrcBase::operator*() const { return _rule_crc_file.at(+self) ; }
+	inline RuleCrcData      & RuleCrcBase::data     ()       { return _g_rule_crc_file.at(+self) ; }
+	inline RuleCrcData const& RuleCrcBase::operator*() const { return _g_rule_crc_file.at(+self) ; }
 
 	//
 	// RuleTgts
 	//
-	inline RuleTgtsFile::Lst rule_tgts_lst() { return _rule_tgts_file.lst() ; }
+	inline RuleTgtsFile::Lst rule_tgts_lst() { return _g_rule_tgts_file.lst() ; }
 	// cxtors & casts
-	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_rule_tgts_file.insert(gs):RuleTgts()} {}
-	inline void RuleTgts::pop() { _rule_tgts_file.pop(+self) ; self = RuleTgts() ; }
+	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_g_rule_tgts_file.insert(gs):RuleTgts()} {}
+	inline void RuleTgts::pop() { _g_rule_tgts_file.pop(+self) ; self = RuleTgts() ; }
 	//
 	inline RuleTgts& RuleTgts::operator=(::span<RuleTgt const> const& v) { self = RuleTgts(v) ; return self ; }
 	// accesses
-	inline ::vector<RuleTgt> RuleTgts::view() const { return _rule_tgts_file.key(self) ; }
+	inline ::vector<RuleTgt> RuleTgts::view() const { return _g_rule_tgts_file.key(self) ; }
 	// services
 	inline void RuleTgts::shorten_by(RuleIdx by) {
 		if (by==RuleIdx(-1)) { clear() ; return ; }
-		self = _rule_tgts_file.insert_shorten_by( self , by ) ;
-		if (_rule_tgts_file.empty(self)) self = RuleTgts() ;
+		self = _g_rule_tgts_file.insert_shorten_by( self , by ) ;
+		if (_g_rule_tgts_file.empty(self)) self = RuleTgts() ;
 	}
 
 }

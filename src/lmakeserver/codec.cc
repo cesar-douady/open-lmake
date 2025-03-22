@@ -23,7 +23,7 @@ namespace Codec::Persistent {
 
 namespace Codec {
 
-	DequeThread<Codec::Closure>* g_codec_queue = nullptr ;
+	StaticUniqPtr<DequeThread<Codec::Closure>> g_codec_queue ;
 
 	::umap_s<Closure::Entry> Closure::s_tab      ;
 
@@ -36,8 +36,7 @@ namespace Codec {
 	}
 
 	void Closure::s_init() {
-		static DequeThread<Closure> s_queue{'D',Codec::codec_thread_func} ;
-		g_codec_queue = &s_queue ;
+		g_codec_queue = new DequeThread<Closure>{'D',Codec::codec_thread_func} ;
 		//
 		Persistent::val_file .init(CodecPfx+"/vals"s ,g_writable) ; // writing CodecPfx+"/vals"s triggers a warning with -O3, probably a gcc bug
 		Persistent::code_file.init(CodecPfx+"/codes"s,g_writable) ; // .

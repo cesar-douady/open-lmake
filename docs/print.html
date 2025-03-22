@@ -924,14 +924,14 @@ Values contain the module name optionnaly followed by a human description (that 
 <ul>
 <li>How inheritance is handled:
 <ul>
-<li>None (ignore values from base classes)</li>
-<li>Python (normal Python processing)</li>
-<li>Combine (Combine inherited values and currently defined one).</li>
+<li>None: (ignore values from base classes)</li>
+<li>Python: (normal Python processing)</li>
+<li>Combine: (Combine inherited values and currently defined one).</li>
 </ul>
 </li>
 <li>The type.</li>
 <li>The default value.</li>
-<li>If it can be defined dynamically from job to job:
+<li>Whether it can be defined dynamically from job to job:
 <ul>
 <li>No</li>
 <li>Simple: globals include module globals, user attributes, stems and targets, no file access allowed.</li>
@@ -939,6 +939,36 @@ Values contain the module name optionnaly followed by a human description (that 
 </ul>
 </li>
 </ul>
+<p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as Python f-strings, as for dynamic values.
+This is actually a form of dynamic value.</p>
+<h1 id="dynamic-attribute-execution"><a class="header" href="#dynamic-attribute-execution">Dynamic attribute execution</a></h1>
+<p>If the value of an attribute (other than <code>cmd</code>) is dynamic, it is interpreted within open-lmake, not as a separate process as for the execution of cmd.
+This means:</p>
+<ul>
+<li>Such executions are not parallelized, this has performance impact.</li>
+<li>They are executed within a single Python interpreter, this implies restrictions.</li>
+</ul>
+<p>Overall, these functions must be kept as simple and fast as possible, in favor of <code>cmd</code> which is meant to carry out heavy computations.</p>
+<p>The restrictions are the following:</p>
+<ul>
+<li>The following system (or libc) calls are forbidden (trying to execute any of these results in an error):
+<ul>
+<li>changing directory (<code>chdir</code> and the like)</li>
+<li>spawning processes (fork and the like)</li>
+<li>exec (execve and the like)</li>
+<li>modifying the disk (open for writing and the like)</li>
+</ul>
+</li>
+<li>Modifying the environment variables (via setenv and the like) is forbidden (trying to execute any of these results in an error).</li>
+<li>Altering imported modules is forbidden (e.g. it is forbidden to write to <code>sys.path</code>).
+<ul>
+<li>Unfortunately, this is not checked.</li>
+<li><code>sys.path</code> is made  <code>tuple</code> though, so that common calls such as <code>sys.path.append</code> will generate an error.</li>
+</ul>
+</li>
+<li>There is no containers, as for <code>cmd</code> execution (e.g. no <code>repo_view</code>).</li>
+</ul>
+<h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
 <h3 id="name"><a class="header" href="#name"><code>name</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>None</td><td><code>str</code></td><td><code>cls.__name__</code></td><td>No</td><td></td></tr>
@@ -1094,7 +1124,7 @@ Syntactically, it follows the <code>side_targets</code> attribute except that:</
 </ul>
 <h3 id="chroot_dir"><a class="header" href="#chroot_dir"><code>chroot_dir</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td><code>None</code></td><td>Full</td><td><code>'/ubuntu22.04'</code></td></tr>
+<tr><td>Python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/ubuntu22.04'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines a directory in which jobs will <code>chroot</code> into before execution begins.
@@ -1104,7 +1134,7 @@ It must be an absoluted path.</p>
 However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used nonetheless.</p>
 <h3 id="repo_view"><a class="header" href="#repo_view"><code>repo_view</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td><code>None</code></td><td>Full</td><td><code>'/repo'</code></td></tr>
+<tr><td>Python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/repo'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
@@ -1114,7 +1144,7 @@ This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">na
 <p>As of now, this attribute must be a top level directory, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
 <h3 id="tmp_view"><a class="header" href="#tmp_view"><code>tmp_view</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
+<tr><td>Python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines the name which the temporary directory available for job execution is mounted on (cf <a href="namespaces.html">namespaces</a>).</p>
@@ -1132,7 +1162,7 @@ Files must be mapped to files and directories to directories.</p>
 <p>Both logical views and physical locations may be inside or outside the repository, but it is not possible to map an external view to a local location (cf <a href="namespaces.html">namespaces</a>).</p>
 <p>Physical description may be :</p>
 <ul>
-<li>a <code>str</code> in which case a bind mount is performed.</li>
+<li>a <code>f-str</code> in which case a bind mount is performed.</li>
 <li>a <code>dict</code> with keys <code>upper</code> (a <code>str</code>) and <code>lower</code> (a single <code>str</code> or a list of <code>str</code>) in which case an overlay mount is performed.
 Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of directories to create in upper or files to copy from lower to upper.
 Directories are recognized when they end with <code>/</code>.
@@ -1148,6 +1178,7 @@ Such <code>copy_up</code> items are provided relative to the root of the view.</
 This is the normal behavior, other means to define environment are there to manage special situations.</p>
 <p>The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from <code>lmake.user_environ</code>.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.</p>
+<p>Except the exception below, the value must be a <code>f-str</code>.</p>
 <p>If resulting value is <code>...</code> (the Python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <p>If a value contains one of the following strings, they are replaced by their corresponding definitions:</p>
@@ -1181,6 +1212,7 @@ This is typically used to access some environment variables set by <code>slurm</
 <p>The values undertake the same substitutions as for the <code>environ</code> attribute described above.</p>
 <p>The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from <code>lmake.user_environ</code>.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.</p>
+<p>Except the exception below, the value must be a <code>f-str</code>.</p>
 <p>If resulting value is <code>...</code> (the Python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <h3 id="environ_ancillary"><a class="header" href="#environ_ancillary"><code>environ_ancillary</code></a></h3>
@@ -1193,6 +1225,7 @@ This is typically used to access some environment variables set by <code>slurm</
 <p>The values undertake the same substitutions as for the <code>environ</code> attribute described above.</p>
 <p>The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from <code>lmake.user_environ</code>.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.</p>
+<p>Except the exception below, the value must be a <code>f-str</code>.</p>
 <p>If resulting value is <code>...</code> (the Python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <p>By default the following environment variables are defined :</p>
@@ -1206,8 +1239,9 @@ This is typically used to access some environment variables set by <code>slurm</
 <tr><td>Python</td><td><code>list</code> or <code>tuple</code></td><td>system python</td><td>Full</td><td><code>venv/bin/python3</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines the interpreter used to run the <code>cmd</code> if it is a function.
-At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
+<p>This attribute defines the interpreter used to run the <code>cmd</code> if it is a function.</p>
+<p>Items must be <code>f-str</code>.</p>
+<p>At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding <code>-c</code>.</p>
 <p>Open-lmake uses Python 3.6+ to read <code>Lmakefile.py</code>, but that being done, any interpreter can be used to execute <code>cmd</code>.
 In particular, Python2.7 and all revisions of Python3 are fully supported.</p>
@@ -1217,13 +1251,14 @@ In particular, Python2.7 and all revisions of Python3 are fully supported.</p>
 <tr><td>Python</td><td><code>list</code> or <code>tuple</code></td><td><code>/bin/bash</code></td><td>Full</td><td><code>('/bin/bash','-e')</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines the interpreter used to run the <code>cmd</code> if it is a <code>str</code>.
-At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
+<p>This attribute defines the interpreter used to run the <code>cmd</code> if it is a <code>str</code>.</p>
+<p>Items must be <code>f-str</code>.</p>
+<p>At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding <code>-c</code>.</p>
 <p>If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.</p>
 <h3 id="cmd"><a class="header" href="#cmd"><code>cmd</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Combined</td><td><code>str</code></td><td>-</td><td>Full</td><td><code>'gcc -c -o {OBJ} {SRC}'</code></td></tr>
+<tr><td>Combined</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'gcc -c -o {OBJ} {SRC}'</code></td></tr>
 <tr><td>Combined</td><td>function</td><td>-</td><td>Full</td><td><code>def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))</code></td></tr>
 </tbody></table>
 </div>
@@ -1275,7 +1310,7 @@ There are mostly 2 practical possibilities:</p>
 <li>Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.</li>
 </ul>
 <p>The job is deemed to be successful if no exception is raised.</p>
-<h4 id="if-it-is-a-str"><a class="header" href="#if-it-is-a-str">if it is a <code>str</code></a></h4>
+<h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str">if it is a <code>f-str</code></a></h4>
 <p>In that case, this attribute is executed as a shell command to run the job.
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
@@ -1288,7 +1323,7 @@ So, it is possible for a first definition to define an environment variable that
 <p>The job is deemed to be successful if the return code of the overall process is <code>0</code>.</p>
 <h3 id="cache"><a class="header" href="#cache"><code>cache</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td>-</td><td>Simple</td><td></td></tr>
+<tr><td>Python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the cache to use for jobs executed by this rule.</p>
@@ -1308,13 +1343,13 @@ It is passed to the zlib library used to compress job targets.</p>
 </ul>
 <h3 id="backend"><a class="header" href="#backend"><code>backend</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
+<tr><td>Python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the <a href="backends.html">backend</a> to use to launch jobs.</p>
 <h3 id="autodep"><a class="header" href="#autodep"><code>autodep</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
+<tr><td>Python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden dependencies.</p>
@@ -1325,6 +1360,7 @@ It is passed to the zlib library used to compress job targets.</p>
 </div>
 <p>This attribute specifies the resources required by a job to run successfully.
 These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...</p>
+<p>Values must <code>f-str</code>.</p>
 <p>The syntax is the same as for <code>deps</code>.</p>
 <p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf @pxref{local-backend} for the local backend).</p>
 <h3 id="max_stderr_len"><a class="header" href="#max_stderr_len"><code>max_stderr_len</code></a></h3>
@@ -1424,10 +1460,10 @@ For example, a job may be lost because of a remote host being misconfigured, or 
 <tr><td>Python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute commands an implementation detail.
-If false, jobs are run by launching the interpreter followed by <code>-c</code> and the command text.
-If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.
-If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.</p>
+<p>This attribute commands an implementation detail.</p>
+<p>If false, jobs are run by launching the interpreter followed by <code>-c</code> and the command text.</p>
+<p>If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.</p>
+<p>If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -1745,9 +1781,6 @@ and if not possible (e.g. because a resource is not available locally or because
 By default, this is automatically determined by the SGE daemon.</li>
 <li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.</li>
-<li><code>cmd_timeout</code> : the maximum time commands such as <code>qsub</code>, <code>qdel</code> or <code>qstat</code> may take.
-Default is 100 seconds.
-If not long enough, <code>open-lmake</code> may crash with a <code>dead-lock detected</code> message.</li>
 <li><code>default_prio</code> : the priority used to submit jobs to the SGE daemon if none is specified on the <code>lmake</code> command line.</li>
 <li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to SGE for each set of asked resources.
 This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend to require only a small set of different resources

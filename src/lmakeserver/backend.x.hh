@@ -134,7 +134,7 @@ namespace Backends {
 		static bool             s_ready     (Tag) ;
 		static ::string const&  s_config_err(Tag) ;
 		//
-		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) ;
+		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
@@ -194,9 +194,9 @@ namespace Backends {
 		virtual ~Backend() = default ;                                                                 // ensure all fields of sub-backends are correctly destroyed
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual bool      is_local(                                                                        ) const { return true ; }
-		virtual ::vmap_ss descr   (                                                                        ) const { return {}   ; }
-		virtual void      config  ( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dynamic*/ )       {               }
+		virtual bool      is_local(                                                                    ) const { return true ; }
+		virtual ::vmap_ss descr   (                                                                    ) const { return {}   ; }
+		virtual void      config  ( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dyn*/ )       {               }
 		//
 		virtual void          open_req         ( Req    , JobIdx /*n_jobs*/ ) {}                       // called before any operation on req , n_jobs is the max number of jobs that can be launched
 		virtual void          new_req_etas     (                            ) {}                       // inform backend that req has a new eta, which may change job priorities

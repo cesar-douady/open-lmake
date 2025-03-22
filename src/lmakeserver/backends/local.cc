@@ -74,10 +74,10 @@ namespace Backends::Local {
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
+		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
 			// add an implicit resource <single> to manage jobs localized from remote backends
-			Trace trace(BeChnl,"Local::config",STR(dynamic),dct) ;
-			if (dynamic) {
+			Trace trace(BeChnl,"Local::config",STR(dyn),dct) ;
+			if (dyn) {
 				for( size_t i : iota(rsrc_keys.size()) ) {
 					if ( i==rsrc_keys.size()-1 && rsrc_keys[i]=="<single>" && i>=dct.size() ) continue ;                                 // skip implicit <single> key
 					throw_unless( i<dct.size() && rsrc_keys[i]==dct[i].first , "cannot change resource names while lmake is running" ) ;
@@ -103,7 +103,7 @@ namespace Backends::Local {
 			trace("capacity",capacity()) ;
 			_wait_queue.open( 'T' , _s_wait_job ) ;
 			//
-			if ( !dynamic && rsrc_idxs.contains("cpu") ) {                                                                               // ensure each job can compute CRC on all cpu's in parallel
+			if ( !dyn && rsrc_idxs.contains("cpu") ) {                                                                                   // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {

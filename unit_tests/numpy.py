@@ -11,7 +11,7 @@ if __name__!='__main__' :
 
 	from step import numpy_home
 
-	sys.path.append(numpy_home)
+	sys.path.append(numpy_home) # keep local repo as last entry to avoid spurious deps
 
 	import numpy # check we can import numpy
 
@@ -28,8 +28,10 @@ else :
 
 	import ut
 
-	if 'VIRTUAL_ENV' in os.environ :                                                                                              # manage case where numpy is installed in an activated virtual env
-		sys.path.append(f'{os.environ["VIRTUAL_ENV"]}/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')
+	if 'VIRTUAL_ENV' in os.environ :                                             # manage case where numpy is installed in an activated virtual env
+		venv = os.environ["VIRTUAL_ENV"]
+		vi   = sys.version_info
+		sys.path.append(f'{venv}/lib/python{vi.major}.{vi.minor}/site-packages') # mimic open-lmake config
 
 	try :
 		import numpy

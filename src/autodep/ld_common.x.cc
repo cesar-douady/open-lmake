@@ -113,7 +113,7 @@ static thread_local bool                      _t_loop  = false ; // prevent recu
 	static                                // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
 #endif
 Record& auditor() {
-	static Record* s_res = nullptr ;
+	static StaticUniqPtr<Record> s_res ;
 	if (!s_res) s_res = new Record{New} ; // dont initialize directly as C++ guard for static variables may do some syscalls
 	return *s_res ;
 }
@@ -231,28 +231,29 @@ using Execp = AuditAction<_Execp,0/*NP*/> ;
 // Fopen
 //
 
+static int fopen_mk_flags(const char* mode) {
+	bool r = false ;
+	bool w = false ;
+	bool a = false ;
+	bool p = false ;
+	for( const char* m=mode ; *m && *m!=',' ; m++ )    // after a ',', there is a css=xxx which we do not care about
+		switch (*m) {
+			case 'r' : r = true ; break ;
+			case 'w' : w = true ; break ;
+			case 'a' : a = true ; break ;
+			case '+' : p = true ; break ;
+		DN}
+	if (a+r+w!=1) return O_DIRECTORY ;                 // error case, no access
+	int flags = p ? O_RDWR : r ? O_RDONLY : O_WRONLY ;
+	if (!r) flags |= O_CREAT  ;
+	if (w ) flags |= O_TRUNC  ;
+	if (a ) flags |= O_APPEND ;
+	return flags ;
+}
+
 struct Fopen : AuditAction<Record::Open> {
 	using Base = AuditAction<Record::Open> ;
-	static int mk_flags(const char* mode) {
-		bool r = false ;
-		bool w = false ;
-		bool a = false ;
-		bool p = false ;
-		for( const char* m=mode ; *m && *m!=',' ; m++ )    // after a ',', there is a css=xxx which we do not care about
-			switch (*m) {
-				case 'r' : r = true ; break ;
-				case 'w' : w = true ; break ;
-				case 'a' : a = true ; break ;
-				case '+' : p = true ; break ;
-			DN}
-		if (a+r+w!=1) return O_DIRECTORY ;                 // error case, no access
-		int flags = p ? O_RDWR : r ? O_RDONLY : O_WRONLY ;
-		if (!r) flags |= O_CREAT  ;
-		if (w ) flags |= O_TRUNC  ;
-		if (a ) flags |= O_APPEND ;
-		return flags ;
-	}
-	Fopen( Record::Path&& pth , const char* mode , Comment c ) : Base{ ::move(pth) , mk_flags(mode) , c } {}
+	using Base::Base ;
 	FILE* operator()(FILE* fp) {
 		Base::operator()(fp?::fileno(fp):-1) ;
 		return fp ;
@@ -325,14 +326,21 @@ struct Mkstemp : WSolve {
 	#define HDR0(libcall,            args) HDR( libcall , false                                                    , args )
 	#define HDR1(libcall,path,       args) HDR( libcall , Record::s_is_simple(path )                               , args )
 	#define HDR2(libcall,path1,path2,args) HDR( libcall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
+	//
 	// macro for libcall that are forbidden in server when recording deps
 	#if IN_SERVER
-		#define NO_SERVER(libcall) \
-			*Record::s_deps_err += #libcall " is forbidden in server\n" ; \
-			errno = ENOSYS ;                                              \
-			return -1
+		#define NO_SERVER_(libcall,err_val) if (started()) { \
+			*Record::s_deps_err += #libcall " is forbidden during dynamic attribute computation\n" ; \
+			errno = ENOSYS ;                                                                         \
+			return err_val ;                                                                         \
+		}
+		#define NO_SERVER(libcall) NO_SERVER_(libcall,-1)
+		#define HDR_OPEN(libcall,path,flags,args,err_val) \
+			HDR1(libcall,path,args) ;                                                                                          \
+			if ( ( ( !((flags)&O_PATH) && ((flags)&O_ACCMODE)!=O_RDONLY ) || ((flags)&O_TRUNC) ) ) NO_SERVER_(libcall,err_val)
 	#else
-		#define NO_SERVER(libcall)
+		#define NO_SERVER(libcall) {}
+		#define HDR_OPEN(libcall,path,flags,args,err_val) HDR1(libcall,path,args)
 	#endif
 
 	#define CC const char
@@ -340,15 +348,15 @@ struct Mkstemp : WSolve {
 	// chdir
 	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p     ,Comment::Cchdir } ; return r(orig(p )) ; }
-	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd),Comment::Cfchdir} ; return r(orig(fd)) ; }
+	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p     ,Comment::chdir } ; return r(orig(p )) ; }
+	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd),Comment::fchdir} ; return r(orig(fd)) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
 
-	//                                                                                          exe   no_follow
-	int chmod   (      CC* p,mode_t m      ) NE { HDR1(chmod   ,p,(  p,m  )) ; Chmod r{   p ,EXE(m),false   ,Comment::Cchmod   } ; return r(orig(  p,m  )) ; }
-	int fchmodat(int d,CC* p,mode_t m,int f) NE { HDR1(fchmodat,p,(d,p,m,f)) ; Chmod r{{d,p},EXE(m),ASLNF(f),Comment::Cfchmodat} ; return r(orig(d,p,m,f)) ; }
+	//                                                                                                           exe   no_follow
+	int chmod   (      CC* p,mode_t m      ) NE { HDR1(chmod   ,p,(  p,m  )) ; NO_SERVER(chmod   ) Chmod r{   p ,EXE(m),false   ,Comment::chmod   } ; return r(orig(  p,m  )) ; }
+	int fchmodat(int d,CC* p,mode_t m,int f) NE { HDR1(fchmodat,p,(d,p,m,f)) ; NO_SERVER(fchmodat) Chmod r{{d,p},EXE(m),ASLNF(f),Comment::fchmodat} ; return r(orig(d,p,m,f)) ; }
 
 	// clone
 	// cf fork about why this wrapper is necessary
@@ -405,8 +413,8 @@ struct Mkstemp : WSolve {
 
 	#if NEED_ELF
 		// dlopen
-		void* dlopen (          CC* p,int f) NE { HDR(dlopen ,!p||!*p,(   p,f)) ; Dlopen r{p,Comment::Cdlopen } ; return r(orig(   p,f)) ; } // we do not support tmp mapping for indirect ...
-		void* dlmopen(Lmid_t lm,CC* p,int f) NE { HDR(dlmopen,!p||!*p,(lm,p,f)) ; Dlopen r{p,Comment::Cdlmopen} ; return r(orig(lm,p,f)) ; } // ... deps, so we can pass pth to orig
+		void* dlopen (          CC* p,int f) NE { HDR(dlopen ,!p||!*p,(   p,f)) ; Dlopen r{p,Comment::dlopen } ; return r(orig(   p,f)) ; } // we do not support tmp mapping for indirect ...
+		void* dlmopen(Lmid_t lm,CC* p,int f) NE { HDR(dlmopen,!p||!*p,(lm,p,f)) ; Dlopen r{p,Comment::dlmopen} ; return r(orig(lm,p,f)) ; } // ... deps, so we can pass pth to orig
 	#endif
 
 	#if !IN_SERVER
@@ -421,9 +429,9 @@ struct Mkstemp : WSolve {
 		// env
 		// only there to capture LD_LIBRARY_PATH before it is modified as man dlopen says it must be captured at program start, but we have no entry at program start
 		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
-		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; get_ld_library_path() ; return (*orig)(name,value,overwrite) ; }
-		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; get_ld_library_path() ; return (*orig)(name                ) ; }
-		int putenv  (char *string                                        ) { ORIG(putenv  ) ; get_ld_library_path() ; return (*orig)(string              ) ; }
+		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; NO_SERVER(setenv  ) ; get_ld_library_path() ; return (*orig)(name,value,overwrite) ; }
+		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; NO_SERVER(unsetenv) ; get_ld_library_path() ; return (*orig)(name                ) ; }
+		int putenv  (char *string                                        ) { ORIG(putenv  ) ; NO_SERVER(putenv  ) ; get_ld_library_path() ; return (*orig)(string              ) ; }
 	#endif
 
 	// execv
@@ -433,13 +441,13 @@ struct Mkstemp : WSolve {
 	// In counterpart, exec* calls do not themselves call other libc functions, so we need no protection while they run.
 	// execv*p cannot be simple as we do not know which file will be accessed
 	#define HDR_EXEC(Exec,libcall,no_follow,path,envp) \
-		ORIG(libcall) ;                                             \
-		SWEAR(!_t_loop) ;                                           \
-		if (started()) {                                            \
-			NO_SERVER(libcall) ;                                    \
-			SaveTloop sav_t_loop ;                                  \
-			Lock      lock       { _g_mutex } ;                     \
-			Exec( path , no_follow , envp , Comment::C##libcall ) ; \
+		ORIG(libcall) ;                                          \
+		SWEAR(!_t_loop) ;                                        \
+		if (started()) {                                         \
+			NO_SERVER(libcall) ;                                 \
+			SaveTloop sav_t_loop ;                               \
+			Lock      lock       { _g_mutex } ;                  \
+			Exec( path , no_follow , envp , Comment::libcall ) ; \
 		}
 	//                                                                                                    no_follow
 	int execv   (      CC* p,char* const argv[]                            ) NE { HDR_EXEC(Exec ,execv   ,false      ,               p ,environ) ; return orig(  p,argv          ) ; }
@@ -467,10 +475,10 @@ struct Mkstemp : WSolve {
 	#undef MK_ARGS
 
 	// fopen
-	FILE* fopen    (CC* p,CC* m         ) { HDR1(fopen    ,p,(p,m   )) ; Fopen r{p,m,Comment::Cfopen    } ; return r(orig(p,m   )) ; }
-	FILE* freopen  (CC* p,CC* m,FILE* fp) { HDR1(freopen  ,p,(p,m,fp)) ; Fopen r{p,m,Comment::Cfreopen  } ; return r(orig(p,m,fp)) ; }
-	FILE* fopen64  (CC* p,CC* m         ) { HDR1(fopen64  ,p,(p,m   )) ; Fopen r{p,m,Comment::Cfopen64  } ; return r(orig(p,m   )) ; }
-	FILE* freopen64(CC* p,CC* m,FILE* fp) { HDR1(freopen64,p,(p,m,fp)) ; Fopen r{p,m,Comment::Cfreopen64} ; return r(orig(p,m,fp)) ; }
+	FILE* fopen    (CC* p,CC* m         ) { int f=fopen_mk_flags(m) ; HDR_OPEN(fopen    ,p,f,(p,m   ),nullptr) ; Fopen r{p,f,Comment::fopen    } ; return r(orig(p,m   )) ; }
+	FILE* freopen  (CC* p,CC* m,FILE* fp) { int f=fopen_mk_flags(m) ; HDR_OPEN(freopen  ,p,f,(p,m,fp),nullptr) ; Fopen r{p,f,Comment::freopen  } ; return r(orig(p,m,fp)) ; }
+	FILE* fopen64  (CC* p,CC* m         ) { int f=fopen_mk_flags(m) ; HDR_OPEN(fopen64  ,p,f,(p,m   ),nullptr) ; Fopen r{p,f,Comment::fopen64  } ; return r(orig(p,m   )) ; }
+	FILE* freopen64(CC* p,CC* m,FILE* fp) { int f=fopen_mk_flags(m) ; HDR_OPEN(freopen64,p,f,(p,m,fp),nullptr) ; Fopen r{p,f,Comment::freopen64} ; return r(orig(p,m,fp)) ; }
 
 	// fork
 	// not recursively called by auditing code
@@ -483,58 +491,61 @@ struct Mkstemp : WSolve {
 	pid_t __libc_fork(       ) NE { HDR0(__libc_fork,(   )) ; NO_SERVER(__libc_fork) ; return orig  (   ) ; }
 	int   system     (CC* cmd)    { HDR0(system     ,(cmd)) ; NO_SERVER(system     ) ; return orig  (cmd) ; } // actually does a fork
 
-	// link                                                                                                         no_follow
-	int link  (       CC* op,       CC* np      ) NE { HDR2(link  ,op,np,(   op,   np  )) ; Lnk r{    op ,    np ,false   ,Comment::Clink  } ; return r(orig(   op,   np  )) ; }
-	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HDR2(linkat,op,np,(od,op,nd,np,f)) ; Lnk r{{od,op},{nd,np},ASLNF(f),Comment::Clinkat} ; return r(orig(od,op,nd,np,f)) ; }
+	// link                                                                                                                          no_follow
+	int link  (       CC* op,       CC* np      ) NE { HDR2(link  ,op,np,(   op,   np  )) ; NO_SERVER(link  ) ; Lnk r{    op ,    np ,false   ,Comment::link  } ; return r(orig(   op,   np  )) ; }
+	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HDR2(linkat,op,np,(od,op,nd,np,f)) ; NO_SERVER(linkat) ; Lnk r{{od,op},{nd,np},ASLNF(f),Comment::linkat} ; return r(orig(od,op,nd,np,f)) ; }
 
 	// mkdir
-	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; Mkdir r{   p ,Comment::Cmkdirat} ; return r(orig(  p,m)) ; }
-	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; Mkdir r{{d,p},Comment::Cmkdir  } ; return r(orig(d,p,m)) ; }
+	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; NO_SERVER(mkdir  ) ; Mkdir r{   p ,Comment::mkdirat} ; return r(orig(  p,m)) ; }
+	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; NO_SERVER(mkdirat) ; Mkdir r{{d,p},Comment::mkdir  } ; return r(orig(d,p,m)) ; }
 
 	// mkstemp
-	int mkstemp    (char* t             ) { HDR0(mkstemp    ,(t     )) ; Mkstemp r{t,   Comment::Cmkstemp    } ; return r(orig(t     )) ; }
-	int mkostemp   (char* t,int f       ) { HDR0(mkostemp   ,(t,f   )) ; Mkstemp r{t,   Comment::Cmkostemp   } ; return r(orig(t,f   )) ; }
-	int mkstemps   (char* t,      int sl) { HDR0(mkstemps   ,(t,  sl)) ; Mkstemp r{t,sl,Comment::Cmkstemps   } ; return r(orig(t,  sl)) ; }
-	int mkostemps  (char* t,int f,int sl) { HDR0(mkostemps  ,(t,f,sl)) ; Mkstemp r{t,sl,Comment::Cmkostemps  } ; return r(orig(t,f,sl)) ; }
-	int mkstemp64  (char* t             ) { HDR0(mkstemp64  ,(t     )) ; Mkstemp r{t,   Comment::Cmkstemp64  } ; return r(orig(t     )) ; }
-	int mkostemp64 (char* t,int f       ) { HDR0(mkostemp64 ,(t,f   )) ; Mkstemp r{t,   Comment::Cmkostemp64 } ; return r(orig(t,f   )) ; }
-	int mkstemps64 (char* t,      int sl) { HDR0(mkstemps64 ,(t,  sl)) ; Mkstemp r{t,sl,Comment::Cmkstemps64 } ; return r(orig(t,  sl)) ; }
-	int mkostemps64(char* t,int f,int sl) { HDR0(mkostemps64,(t,f,sl)) ; Mkstemp r{t,sl,Comment::Cmkostemps64} ; return r(orig(t,f,sl)) ; }
+	int mkstemp    (char* t             ) { HDR0(mkstemp    ,(t     )) ; Mkstemp r{t,   Comment::mkstemp    } ; return r(orig(t     )) ; }
+	int mkostemp   (char* t,int f       ) { HDR0(mkostemp   ,(t,f   )) ; Mkstemp r{t,   Comment::mkostemp   } ; return r(orig(t,f   )) ; }
+	int mkstemps   (char* t,      int sl) { HDR0(mkstemps   ,(t,  sl)) ; Mkstemp r{t,sl,Comment::mkstemps   } ; return r(orig(t,  sl)) ; }
+	int mkostemps  (char* t,int f,int sl) { HDR0(mkostemps  ,(t,f,sl)) ; Mkstemp r{t,sl,Comment::mkostemps  } ; return r(orig(t,f,sl)) ; }
+	int mkstemp64  (char* t             ) { HDR0(mkstemp64  ,(t     )) ; Mkstemp r{t,   Comment::mkstemp64  } ; return r(orig(t     )) ; }
+	int mkostemp64 (char* t,int f       ) { HDR0(mkostemp64 ,(t,f   )) ; Mkstemp r{t,   Comment::mkostemp64 } ; return r(orig(t,f   )) ; }
+	int mkstemps64 (char* t,      int sl) { HDR0(mkstemps64 ,(t,  sl)) ; Mkstemp r{t,sl,Comment::mkstemps64 } ; return r(orig(t,  sl)) ; }
+	int mkostemps64(char* t,int f,int sl) { HDR0(mkostemps64,(t,f,sl)) ; Mkstemp r{t,sl,Comment::mkostemps64} ; return r(orig(t,f,sl)) ; }
 
 	// mount
 	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) {
 		HDR( mount , !(f&MS_BIND) || (Record::s_is_simple(sp)&&Record::s_is_simple(tp)) , (sp,tp,fst,f,d) ) ;
-		Mount r{sp,tp,Comment::Cmount} ;
+		NO_SERVER(mount) ;
+		Mount r{sp,tp,Comment::mount} ;
 		return r(orig(sp,tp,fst,f,d)) ;
 		}
 
 	// name_to_handle_at
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
 		HDR1( name_to_handle_at , p , (d,p,h,mount_id,f) ) ;
-		Open r{{d,p},f,Comment::Cname_to_handle_at} ;
+		Open r{{d,p},f,Comment::name_to_handle_at} ;
 		return r(orig(d,p,h,mount_id,f)) ;
 	}
 
 	// open
 	static_assert( ::is_unsigned_v<mode_t> && sizeof(mode_t)<=sizeof(uint) ) ;
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = mode_t(va_arg(lst,uint)) ; va_end(lst) ; }
+	#define CWT (O_CREAT|O_WRONLY|O_TRUNC)
 	//
-	int open             (      CC* p,int f,...) { MOD ; HDR1(open             ,p,(  p,f,m)) ; Open r{   p ,f                         ,Comment::Copen             } ; return r(orig(  p,f,m)) ; }
-	int __open           (      CC* p,int f,...) { MOD ; HDR1(__open           ,p,(  p,f,m)) ; Open r{   p ,f                         ,Comment::C__open           } ; return r(orig(  p,f,m)) ; }
-	int __open_nocancel  (      CC* p,int f,...) { MOD ; HDR1(__open_nocancel  ,p,(  p,f,m)) ; Open r{   p ,f                         ,Comment::C__open_nocancel  } ; return r(orig(  p,f,m)) ; }
-	int __open_2         (      CC* p,int f    ) {       HDR1(__open_2         ,p,(  p,f  )) ; Open r{   p ,f                         ,Comment::C__open_2         } ; return r(orig(  p,f  )) ; }
-	int openat           (int d,CC* p,int f,...) { MOD ; HDR1(openat           ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,Comment::Copenat           } ; return r(orig(d,p,f,m)) ; }
-	int __openat_2       (int d,CC* p,int f    ) {       HDR1(__openat_2       ,p,(d,p,f  )) ; Open r{{d,p},f                         ,Comment::C__openat_2       } ; return r(orig(d,p,f  )) ; }
-	int creat            (      CC* p,mode_t m ) {       HDR1(creat            ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),Comment::Ccreat            } ; return r(orig(  p,  m)) ; }
-	int open64           (      CC* p,int f,...) { MOD ; HDR1(open64           ,p,(  p,f,m)) ; Open r{   p ,f                         ,Comment::Copen64           } ; return r(orig(  p,f,m)) ; }
-	int __open64         (      CC* p,int f,...) { MOD ; HDR1(__open64         ,p,(  p,f,m)) ; Open r{   p ,f                         ,Comment::C__open64         } ; return r(orig(  p,f,m)) ; }
-	int __open64_nocancel(      CC* p,int f,...) { MOD ; HDR1(__open64_nocancel,p,(  p,f,m)) ; Open r{   p ,f                         ,Comment::C__open64_nocancel} ; return r(orig(  p,f,m)) ; }
-	int __open64_2       (      CC* p,int f    ) {       HDR1(__open64_2       ,p,(  p,f  )) ; Open r{   p ,f                         ,Comment::C__open64_2       } ; return r(orig(  p,f  )) ; }
-	int openat64         (int d,CC* p,int f,...) { MOD ; HDR1(openat64         ,p,(d,p,f,m)) ; Open r{{d,p},f                         ,Comment::Copenat64         } ; return r(orig(d,p,f,m)) ; }
-	int __openat64_2     (int d,CC* p,int f    ) {       HDR1(__openat64_2     ,p,(d,p,f  )) ; Open r{{d,p},f                         ,Comment::C__openat64_2     } ; return r(orig(d,p,f  )) ; }
-	int creat64          (      CC* p,mode_t m ) {       HDR1(creat64          ,p,(  p,  m)) ; Open r{   p ,(O_CREAT|O_WRONLY|O_TRUNC),Comment::Ccreat64          } ; return r(orig(  p,  m)) ; }
+	int open             (      CC* p,int f,...) { MOD ; HDR_OPEN(open             ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::open             } ; return r(orig(  p,f,m)) ; }
+	int __open           (      CC* p,int f,...) { MOD ; HDR_OPEN(__open           ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open           } ; return r(orig(  p,f,m)) ; }
+	int __open_nocancel  (      CC* p,int f,...) { MOD ; HDR_OPEN(__open_nocancel  ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open_nocancel  } ; return r(orig(  p,f,m)) ; }
+	int __open_2         (      CC* p,int f    ) {       HDR_OPEN(__open_2         ,p,f  ,(  p,f  ),-1) ; Open r{   p ,f  ,Comment::__open_2         } ; return r(orig(  p,f  )) ; }
+	int openat           (int d,CC* p,int f,...) { MOD ; HDR_OPEN(openat           ,p,f  ,(d,p,f,m),-1) ; Open r{{d,p},f  ,Comment::openat           } ; return r(orig(d,p,f,m)) ; }
+	int __openat_2       (int d,CC* p,int f    ) {       HDR_OPEN(__openat_2       ,p,f  ,(d,p,f  ),-1) ; Open r{{d,p},f  ,Comment::__openat_2       } ; return r(orig(d,p,f  )) ; }
+	int creat            (      CC* p,mode_t m ) {       HDR_OPEN(creat            ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat            } ; return r(orig(  p,  m)) ; }
+	int open64           (      CC* p,int f,...) { MOD ; HDR_OPEN(open64           ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::open64           } ; return r(orig(  p,f,m)) ; }
+	int __open64         (      CC* p,int f,...) { MOD ; HDR_OPEN(__open64         ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open64         } ; return r(orig(  p,f,m)) ; }
+	int __open64_nocancel(      CC* p,int f,...) { MOD ; HDR_OPEN(__open64_nocancel,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open64_nocancel} ; return r(orig(  p,f,m)) ; }
+	int __open64_2       (      CC* p,int f    ) {       HDR_OPEN(__open64_2       ,p,f  ,(  p,f  ),-1) ; Open r{   p ,f  ,Comment::__open64_2       } ; return r(orig(  p,f  )) ; }
+	int openat64         (int d,CC* p,int f,...) { MOD ; HDR_OPEN(openat64         ,p,f  ,(d,p,f,m),-1) ; Open r{{d,p},f  ,Comment::openat64         } ; return r(orig(d,p,f,m)) ; }
+	int __openat64_2     (int d,CC* p,int f    ) {       HDR_OPEN(__openat64_2     ,p,f  ,(d,p,f  ),-1) ; Open r{{d,p},f  ,Comment::__openat64_2     } ; return r(orig(d,p,f  )) ; }
+	int creat64          (      CC* p,mode_t m ) {       HDR_OPEN(creat64          ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat64          } ; return r(orig(  p,  m)) ; }
+	#undef CWT
 	#undef MOD
-	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,false/*create*/,Comment::Copendir  } ; return r(orig(p)) ; }
+	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,false/*create*/,Comment::opendir  } ; return r(orig(p)) ; }
 
 	// readlink
 	#define RL Readlink
@@ -546,75 +557,88 @@ struct Mkstemp : WSolve {
 		// once init phase is passed, we proceed normally
 		ssize_t readlink(CC* p,char* b,size_t sz) NE {
 			if (!started()) return __readlink_chk(p,b,sz,sz) ;
-			HDR1(readlink,p,(p,b,sz)) ; RL r{p ,b,sz,Comment::Creadlink} ; return r(orig(p,b,sz)) ;
+			HDR1(readlink,p,(p,b,sz)) ; RL r{p ,b,sz,Comment::readlink} ; return r(orig(p,b,sz)) ;
 		}
 	#else
-		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HDR1(readlink      ,p,(p,b,sz    )) ; RL r{p ,b,sz,Comment::Creadlink       } ; return r(orig(p,b,sz    )) ; }
-		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HDR1(__readlink_chk,p,(p,b,sz,bsz)) ; RL r{p ,b,sz,Comment::C__readlink__chk} ; return r(orig(p,b,sz,bsz)) ; }
+		ssize_t readlink      (CC* p,char* b,size_t sz           ) NE { HDR1(readlink      ,p,(p,b,sz    )) ; RL r{p ,b,sz,Comment::readlink       } ; return r(orig(p,b,sz    )) ; }
+		ssize_t __readlink_chk(CC* p,char* b,size_t sz,size_t bsz) NE { HDR1(__readlink_chk,p,(p,b,sz,bsz)) ; RL r{p ,b,sz,Comment::__readlink__chk} ; return r(orig(p,b,sz,bsz)) ; }
 	#endif
-	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HDR1(readlinkat      ,p,(d,p,b,sz    )) ; RL r{{d,p},b,sz,Comment::Creadlinkat      } ; return r(orig(d,p,b,sz    )) ; }
-	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HDR1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; RL r{{d,p},b,sz,Comment::C__readlinkat_chk} ; return r(orig(d,p,b,sz,bsz)) ; }
+	ssize_t readlinkat      (int d,CC* p,char* b,size_t sz           ) NE { HDR1(readlinkat      ,p,(d,p,b,sz    )) ; RL r{{d,p},b,sz,Comment::readlinkat      } ; return r(orig(d,p,b,sz    )) ; }
+	ssize_t __readlinkat_chk(int d,CC* p,char* b,size_t sz,size_t bsz) NE { HDR1(__readlinkat_chk,p,(d,p,b,sz,bsz)) ; RL r{{d,p},b,sz,Comment::__readlinkat_chk} ; return r(orig(d,p,b,sz,bsz)) ; }
 	#undef RL
 
 	// rename
-	#ifdef RENAME_EXCHANGE
-		#define REXC(flags) bool((flags)&RENAME_EXCHANGE)
-	#else
-		#define REXC(flags) false
-	#endif
-	#ifdef RENAME_NOREPLACE
-		#define RNR(flags) bool((flags)&RENAME_NOREPLACE)
-	#else
-		#define RNR(flags) false
-	#endif //!                                                                                                             exchange no_replace
-	int rename   (       CC* op,       CC* np       ) NE { HDR2(rename   ,op,np,(   op,   np  )) ; Rename r{    op ,    np ,false  ,false    ,Comment::Crename   } ; return r(orig(   op,   np  )) ; }
-	int renameat (int od,CC* op,int nd,CC* np       ) NE { HDR2(renameat ,op,np,(od,op,nd,np  )) ; Rename r{{od,op},{nd,np},false  ,false    ,Comment::Crenameat } ; return r(orig(od,op,nd,np  )) ; }
-	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE { HDR2(renameat2,op,np,(od,op,nd,np,f)) ; Rename r{{od,op},{nd,np},REXC(f),RNR(f)   ,Comment::Crenameat2} ; return r(orig(od,op,nd,np,f)) ; }
-	#undef RNR
-	#undef REXC
+	int rename( CC* op , CC* np ) NE {
+		HDR2(rename,op,np,(op,np)) ;
+		NO_SERVER(rename) ;
+		Rename r { op , np  , false/*exchange*/ , false/*no_replace*/ , Comment::rename } ;
+		return r(orig(op,np)) ;
+	}
+	int renameat( int od , CC* op , int nd , CC* np ) NE {
+		HDR2(renameat,op,np,(od,op,nd,np)) ;
+		NO_SERVER(renameat) ;
+		Rename r{ {od,op} , {nd,np} , false/*exchange*/ , false/*no_replace*/ , Comment::renameat } ;
+		return r(orig(od,op,nd,np)) ;
+	}
+	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE {
+		HDR2(renameat2,op,np,(od,op,nd,np,f)) ;
+		NO_SERVER(renameat2) ;
+		#ifdef RENAME_EXCHANGE
+			bool exch = f & RENAME_EXCHANGE ;
+		#else
+			bool exch = false ;
+		#endif
+		#ifdef RENAME_NOREPLACE
+			bool no_repl = f & RENAME_NOREPLACE ;
+		#else
+			bool no_repl = false ;
+		#endif
+		Rename r{ {od,op} , {nd,np} , exch , no_repl , Comment::renameat2 } ;
+		return r(orig(od,op,nd,np,f)) ;
+	}
 
 	// rmdir
-	int rmdir(CC* p) NE { HDR1(rmdir,p,(p)) ; Unlnk r{p,true/*rmdir*/,Comment::Crmdir} ; return r(orig(p)) ; }
+	int rmdir(CC* p) NE { HDR1(rmdir,p,(p)) ; NO_SERVER(rmdir) ; Unlnk r{p,true/*rmdir*/,Comment::rmdir} ; return r(orig(p)) ; }
 
 	// symlink
-	int symlink  (CC* t,      CC* p) NE { HDR1(symlink  ,p,(t,  p)) ; Symlink r{   p ,Comment::Csymlink  } ; return r(orig(t,  p)) ; }
-	int symlinkat(CC* t,int d,CC* p) NE { HDR1(symlinkat,p,(t,d,p)) ; Symlink r{{d,p},Comment::Csymlinkat} ; return r(orig(t,d,p)) ; }
+	int symlink  (CC* t,      CC* p) NE { HDR1(symlink  ,p,(t,  p)) ; NO_SERVER(symlink  ) ; Symlink r{   p ,Comment::symlink  } ; return r(orig(t,  p)) ; }
+	int symlinkat(CC* t,int d,CC* p) NE { HDR1(symlinkat,p,(t,d,p)) ; NO_SERVER(symlinkat) ; Symlink r{{d,p},Comment::symlinkat} ; return r(orig(t,d,p)) ; }
 
 	// truncate
-	int truncate  (CC* p,off_t   l) NE { HDR1(truncate  ,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::Ctruncate  } ; return r(orig(p,l)) ; }
-	int truncate64(CC* p,off64_t l) NE { HDR1(truncate64,p,(p,l)) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::Ctruncate64} ; return r(orig(p,l)) ; }
+	int truncate  (CC* p,off_t   l) NE { HDR1(truncate  ,p,(p,l)) ; NO_SERVER(truncate  ) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::truncate  } ; return r(orig(p,l)) ; }
+	int truncate64(CC* p,off64_t l) NE { HDR1(truncate64,p,(p,l)) ; NO_SERVER(truncate64) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::truncate64} ; return r(orig(p,l)) ; }
 
 	// unlink
-	int unlink  (      CC* p      ) NE { HDR1(unlink  ,p,(  p  )) ; Unlnk r{   p ,false/*rmdir*/      ,Comment::Cunlink  } ; return r(orig(  p  )) ; }
-	int unlinkat(int d,CC* p,int f) NE { HDR1(unlinkat,p,(d,p,f)) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),Comment::Cunlinkat} ; return r(orig(d,p,f)) ; }
+	int unlink  (      CC* p      ) NE { HDR1(unlink  ,p,(  p  )) ; NO_SERVER(unlink  ) ; Unlnk r{   p ,false/*rmdir*/      ,Comment::unlink  } ; return r(orig(  p  )) ; }
+	int unlinkat(int d,CC* p,int f) NE { HDR1(unlinkat,p,(d,p,f)) ; NO_SERVER(unlinkat) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),Comment::unlinkat} ; return r(orig(d,p,f)) ; }
 
 	// utime                                                                                                 no_follow read  create
-	int utime    (      CC* p,const struct utimbuf* t         ) { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,Comment::Cutime    } ; return r(orig(  p,t  )) ; }
-	int utimes   (      CC* p,const struct timeval  t[2]      ) { HDR1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,Comment::Cutimes   } ; return r(orig(  p,t  )) ; }
-	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HDR1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,false,Comment::Cfutimesat} ; return r(orig(d,p,t  )) ; }
-	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,false,Comment::Clutimes  } ; return r(orig(  p,t  )) ; }
-	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,Comment::Cutimensat} ; return r(orig(d,p,t,f)) ; }
+	int utime    (      CC* p,const struct utimbuf* t         ) { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,Comment::utime    } ; return r(orig(  p,t  )) ; }
+	int utimes   (      CC* p,const struct timeval  t[2]      ) { HDR1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,Comment::utimes   } ; return r(orig(  p,t  )) ; }
+	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HDR1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,false,Comment::futimesat} ; return r(orig(d,p,t  )) ; }
+	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,false,Comment::lutimes  } ; return r(orig(  p,t  )) ; }
+	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,Comment::utimensat} ; return r(orig(d,p,t,f)) ; }
 
 	// mere path accesses (neeed to solve path, but no actual access to file data)
 	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
 	//                                                                                    no_follow accesses
-	int access   (      CC* p,int m      ) NE { HDR1(access   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::Caccess   } ; return r(orig(  p,m  )) ; }
-	int faccessat(int d,CC* p,int m,int f) NE { HDR1(faccessat,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::Cfaccessat} ; return r(orig(d,p,m,f)) ; }
+	int access   (      CC* p,int m      ) NE { HDR1(access   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::access   } ; return r(orig(  p,m  )) ; }
+	int faccessat(int d,CC* p,int m,int f) NE { HDR1(faccessat,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::faccessat} ; return r(orig(d,p,m,f)) ; }
 	#undef ACCESSES
 	// stat* accesses provide the size field, which make the user sensitive to file content
 	//                                                                                                             no_follow accesses
-	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HDR1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::C__xstat     } ; return r(orig(v,  p,b  )) ; }
-	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HDR1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::C__lxstat    } ; return r(orig(v,  p,b  )) ; }
-	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HDR1(__fxstatat  ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::C__fxstatat  } ; return r(orig(v,d,p,b,f)) ; }
-	int stat        (            CC* p,struct stat  * b      ) NE { HDR1(stat        ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::Cstat        } ; return r(orig(    p,b  )) ; }
-	int lstat       (            CC* p,struct stat  * b      ) NE { HDR1(lstat       ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::Clstat       } ; return r(orig(    p,b  )) ; }
-	int fstatat     (      int d,CC* p,struct stat  * b,int f) NE { HDR1(fstatat     ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::Cfstatat     } ; return r(orig(  d,p,b,f)) ; }
-	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HDR1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::C__xstat64   } ; return r(orig(v,  p,b  )) ; }
-	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HDR1(__lxstat64  ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::C__lxstat64  } ; return r(orig(v,  p,b  )) ; }
-	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HDR1(__fxstatat64,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::C__fxstatat64} ; return r(orig(v,d,p,b,f)) ; }
-	int stat64      (            CC* p,struct stat64* b      ) NE { HDR1(stat64      ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::Cstat64      } ; return r(orig(    p,b  )) ; }
-	int lstat64     (            CC* p,struct stat64* b      ) NE { HDR1(lstat64     ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::Clstat64     } ; return r(orig(    p,b  )) ; }
-	int fstatat64   (      int d,CC* p,struct stat64* b,int f) NE { HDR1(fstatat64   ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::Cfstatat64   } ; return r(orig(  d,p,b,f)) ; }
+	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HDR1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::__xstat     } ; return r(orig(v,  p,b  )) ; }
+	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HDR1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::__lxstat    } ; return r(orig(v,  p,b  )) ; }
+	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HDR1(__fxstatat  ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::__fxstatat  } ; return r(orig(v,d,p,b,f)) ; }
+	int stat        (            CC* p,struct stat  * b      ) NE { HDR1(stat        ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::stat        } ; return r(orig(    p,b  )) ; }
+	int lstat       (            CC* p,struct stat  * b      ) NE { HDR1(lstat       ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::lstat       } ; return r(orig(    p,b  )) ; }
+	int fstatat     (      int d,CC* p,struct stat  * b,int f) NE { HDR1(fstatat     ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::fstatat     } ; return r(orig(  d,p,b,f)) ; }
+	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HDR1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::__xstat64   } ; return r(orig(v,  p,b  )) ; }
+	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HDR1(__lxstat64  ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::__lxstat64  } ; return r(orig(v,  p,b  )) ; }
+	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HDR1(__fxstatat64,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::__fxstatat64} ; return r(orig(v,d,p,b,f)) ; }
+	int stat64      (            CC* p,struct stat64* b      ) NE { HDR1(stat64      ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::stat64      } ; return r(orig(    p,b  )) ; }
+	int lstat64     (            CC* p,struct stat64* b      ) NE { HDR1(lstat64     ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::lstat64     } ; return r(orig(    p,b  )) ; }
+	int fstatat64   (      int d,CC* p,struct stat64* b,int f) NE { HDR1(fstatat64   ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::fstatat64   } ; return r(orig(  d,p,b,f)) ; }
 	//
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                   // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HDR1(statx,p,(d,p,f,msk,b)) ;
@@ -625,29 +649,29 @@ struct Mkstemp : WSolve {
 		#else
 			Accesses a = ~Accesses() ;                                           // if access macros are not defined, be pessimistic
 		#endif
-		Stat r{{d,p},true/*no_follow*/,a,Comment::Cstatx} ;
+		Stat r{{d,p},true/*no_follow*/,a,Comment::statx} ;
 		return r(orig(d,p,f,msk,b)) ;
 	}
 
 	// realpath                                                                                                    no_follow accesses
-	char* realpath              (CC* p,char* rp          ) NE { HDR1(realpath              ,p,(p,rp   )) ; Stat r{p,false   ,Accesses(),Comment::Crealpath              } ; return r(orig(p,rp   )) ; }
-	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HDR1(__realpath_chk        ,p,(p,rp,rl)) ; Stat r{p,false   ,Accesses(),Comment::C__realpath_chk        } ; return r(orig(p,rp,rl)) ; }
-	char* canonicalize_file_name(CC* p                   ) NE { HDR1(canonicalize_file_name,p,(p      )) ; Stat r{p,false   ,Accesses(),Comment::Ccanonicalize_file_name} ; return r(orig(p      )) ; }
+	char* realpath              (CC* p,char* rp          ) NE { HDR1(realpath              ,p,(p,rp   )) ; Stat r{p,false   ,Accesses(),Comment::realpath              } ; return r(orig(p,rp   )) ; }
+	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HDR1(__realpath_chk        ,p,(p,rp,rl)) ; Stat r{p,false   ,Accesses(),Comment::__realpath_chk        } ; return r(orig(p,rp,rl)) ; }
+	char* canonicalize_file_name(CC* p                   ) NE { HDR1(canonicalize_file_name,p,(p      )) ; Stat r{p,false   ,Accesses(),Comment::canonicalize_file_name} ; return r(orig(p      )) ; }
 
 	// scandir
 	using NmLst = struct dirent***                                     ;
 	using Fltr  = int (*)(const struct dirent*                       ) ;
 	using Cmp   = int (*)(const struct dirent**,const struct dirent**) ;
 	//                                                                                               no_follow read  create
-	int scandir  (      CC* p,NmLst nl,Fltr f,Cmp c) { HDR1(scandir  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,Comment::Cscandir  } ; return r(orig(  p,nl,f,c)) ; }
-	int scandirat(int d,CC* p,NmLst nl,Fltr f,Cmp c) { HDR1(scandirat,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,Comment::Cscandirat} ; return r(orig(d,p,nl,f,c)) ; }
+	int scandir  (      CC* p,NmLst nl,Fltr f,Cmp c) { HDR1(scandir  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,Comment::scandir  } ; return r(orig(  p,nl,f,c)) ; }
+	int scandirat(int d,CC* p,NmLst nl,Fltr f,Cmp c) { HDR1(scandirat,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,Comment::scandirat} ; return r(orig(d,p,nl,f,c)) ; }
 	//
 	using NmLst64 = struct dirent64***                                       ;
 	using Fltr64  = int (*)(const struct dirent64*                         ) ;
 	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
 	//                                                                                                         no_follow read  create
-	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,Comment::Cscandir64  } ; return r(orig(  p,nl,f,c)) ; }
-	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,Comment::Cscandirat64} ; return r(orig(d,p,nl,f,c)) ; }
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,Comment::scandir64  } ; return r(orig(  p,nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,Comment::scandirat64} ; return r(orig(d,p,nl,f,c)) ; }
 
 	#undef CC
 

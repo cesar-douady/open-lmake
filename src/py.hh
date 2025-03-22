@@ -80,9 +80,9 @@ namespace Py {
 	// functions
 	//
 
-	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw "not a "+o->type_name() ; return o   ; }
-	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw "not a "+o->type_name() ; return o   ; }
-	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;                 return res ; }
+	template<class T       > T const* _chk   (T const * o) { if ( o && !o->qualify() ) throw cat("not a ",T::Name) ; return o   ; }
+	template<class T       > T      * _chk   (T       * o) { if ( o && !o->qualify() ) throw cat("not a ",T::Name) ; return o   ; }
+	template<class T=Object> T      * from_py(PyObject* o) { T* res = static_cast<T*>(o) ; _chk(res) ;               return res ; }
 
 	inline void py_err_clear   () {        PyErr_Clear   () ; }
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
@@ -91,6 +91,7 @@ namespace Py {
 	inline                   void py_set_sys( ::string const& name , Object const& o ) ;
 
 	void init         (::string const& lmake_root_s) ;
+	void py_reset_path(::vector_s const&           ) ;
 	void py_reset_path(                            ) ;
 
 
@@ -131,6 +132,7 @@ namespace Py {
 	//
 
 	struct Object : PyObject {
+		static constexpr const char* Name = "object" ;
 		// cxtors & casts
 		template<class... As> Object(As&&...) = delete ;
 		// accesses
@@ -225,6 +227,7 @@ namespace Py {
 	//
 
 	struct NoneType : Object {
+		static constexpr const char* Name = "NoneType" ;
 		using Base = Object ;
 		bool qualify() const { return to_py()==Py_None ; }
 	} ;
@@ -239,6 +242,7 @@ namespace Py {
 	//
 
 	struct EllipsisType : Object {
+		static constexpr const char* Name = "ellipsis" ;
 		using Base = Object ;
 		bool qualify() const { return to_py()==Py_Ellipsis ; }
 	} ;
@@ -253,6 +257,7 @@ namespace Py {
 	//
 
 	struct Bool : Object {
+		static constexpr const char* Name = "bool" ;
 		using Base = Object ;
 		bool qualify () const { return PyBool_Check(to_py()) ; }
 		operator bool() const { return +self                 ; }
@@ -271,6 +276,7 @@ namespace Py {
 	//
 
 	struct Int : Object {
+		static constexpr const char* Name = "int" ;
 		using Base = Object ;
 		bool qualify() const { return PyLong_Check(to_py()) ; }
 		template<::integral T> operator T() const {
@@ -301,6 +307,7 @@ namespace Py {
 	//
 
 	struct Float : Object {
+		static constexpr const char* Name = "float" ;
 		using Base = Object ;
 		bool qualify() const { return PyFloat_Check(to_py()) || PyLong_Check(to_py()) ; }
 		operator double() const {
@@ -321,6 +328,7 @@ namespace Py {
 	//
 
 	struct Str : Object {
+		static constexpr const char* Name = "str" ;
 		using Base = Object ;
 		bool qualify() const {
 			#if PY_MAJOR_VERSION<3
@@ -379,6 +387,7 @@ namespace Py {
 	} ;
 
 	struct Sequence : Object {
+		static constexpr const char* Name = "list/tuple" ;
 		using Base = Object ;
 		template<bool C> friend struct SequenceIter ;
 		// accesses
@@ -412,6 +421,7 @@ namespace Py {
 	//
 
 	struct Tuple : Sequence {
+		static constexpr const char* Name = "tuple" ;
 		using Base = Sequence ;
 		bool   qualify() const { return PyTuple_Check   (to_py()) ; }
 		size_t size   () const { return PyTuple_GET_SIZE(to_py()) ; }
@@ -435,6 +445,7 @@ namespace Py {
 	//
 
 	struct List : Sequence {
+		static constexpr const char* Name = "list" ;
 		// accesses
 		bool   qualify() const { return PyList_Check   (to_py()) ; }
 		size_t size   () const { return PyList_GET_SIZE(to_py()) ; }
@@ -492,6 +503,7 @@ namespace Py {
 	} ;
 
 	struct Dict : Object {
+		static constexpr const char* Name = "dict" ;
 		using Base = Object ;
 		template<bool C> friend struct DictIter ;
 		// statics
@@ -500,9 +512,9 @@ namespace Py {
 		bool   qualify() const { return PyDict_Check(to_py()) ; }
 		size_t size   () const { return PyDict_Size (to_py()) ; }
 		//
-		bool          contains  (::string const& k) const { Gil::s_swear_locked() ; bool    r = bool   (PyDict_GetItemString(to_py(),k.c_str())) ;                                       return r  ; }
-		Object const& get_item  (::string const& k) const { Gil::s_swear_locked() ; Object* r = from_py(PyDict_GetItemString(to_py(),k.c_str())) ; if (!r) throw "key "+k+" not found" ; return *r ; }
-		Object      & get_item  (::string const& k)       { Gil::s_swear_locked() ; Object* r = from_py(PyDict_GetItemString(to_py(),k.c_str())) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		bool          contains(::string const& k) const { Gil::s_swear_locked() ; bool    r = bool   (PyDict_GetItemString(to_py(),k.c_str())) ;                                       return r  ; }
+		Object      & get_item(::string const& k)       { Gil::s_swear_locked() ; Object* r = from_py(PyDict_GetItemString(to_py(),k.c_str())) ; if (!r) throw "key "+k+" not found" ; return *r ; }
+		Object const& get_item(::string const& k) const { Gil::s_swear_locked() ; Object* r = from_py(PyDict_GetItemString(to_py(),k.c_str())) ; if (!r) throw "key "+k+" not found" ; return *r ; }
 		//
 		void set_item  ( ::string const& k , Object& v ) { Gil::s_swear_locked() ; int rc = PyDict_SetItemString( to_py() , k.c_str() , v.to_py() ) ; if (rc) throw "cannot set "+k       ; }
 		void del_item  ( ::string const& k             ) { Gil::s_swear_locked() ; int rc = PyDict_DelItemString( to_py() , k.c_str()             ) ; if (rc) throw "key "+k+" not found" ; }
@@ -530,6 +542,7 @@ namespace Py {
 	//
 
 	struct Code : Object {
+		static constexpr const char* Name = "code" ;
 		using Base = Object ;
 		// services
 		bool        qualify(          ) const { return PyCode_Check(to_py()) ; }
@@ -548,6 +561,7 @@ namespace Py {
 	//
 
 	struct Module : Object {
+		static constexpr const char* Name = "module" ;
 		using Base = Object ;
 		// services
 		bool qualify() const { return PyModule_Check(to_py()) ; }
@@ -556,9 +570,11 @@ namespace Py {
 		using Base = PtrBase<Module> ;
 		using Base::Base ;
 	private :
-		static PyObject* _s_mk_mod( ::string const& name , PyMethodDef* funcs=nullptr ) ;
+		static Ptr<Module> _s_mk_mod( ::string const& name , PyMethodDef* funcs=nullptr ) ;
+		static Ptr<Module> _s_import( ::string const& name                              ) ;
 	public :
-		Ptr( ::string const& name , PyMethodDef* funcs=nullptr ) : Base{_s_mk_mod(name,funcs)} { if (!self) throw py_err_str_clear() ; }
+		Ptr( NewType , ::string const& name , PyMethodDef* funcs=nullptr ) : Ptr{_s_mk_mod(name,funcs)} { if (!self) throw py_err_str_clear() ; }
+		Ptr(           ::string const& name                              ) : Ptr{_s_import(name      )} { if (!self) throw py_err_str_clear() ; }
 	} ;
 
 	//
@@ -566,6 +582,7 @@ namespace Py {
 	//
 
 	struct Callable : Object {
+		static constexpr const char* Name = "callable" ;
 		using Base = Object ;
 		// services
 		bool        qualify() const { return PyCallable_Check(to_py()) ; }

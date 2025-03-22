@@ -303,31 +303,30 @@ inline void kill_self(int sig) {      // raise kills the thread, not the process
 // iota
 //
 
-template<class T> concept Iotable = ::is_integral_v<T>||::is_enum_v<T> ;
-template<bool WithStart,Iotable I> struct Iota {
+template<bool WithStart,class T> struct Iota {
 	struct Iterator {
-		constexpr Iterator(I c) : cur{c} {}
+		constexpr Iterator(T c) : cur{c} {}
 		// services
 		constexpr bool      operator==(Iterator const&) const = default ;
-		constexpr I         operator* (               ) const {                                return cur   ; }
-		constexpr Iterator& operator++(               )       { cur++ ;                        return self  ; }
+		constexpr T         operator* (               ) const {                                return cur   ; }
+		constexpr Iterator& operator++(               )       { cur = T(+cur+1) ;              return self  ; }
 		constexpr Iterator  operator++(int            )       { Iterator self_=self ; ++self ; return self_ ; }
 		// data
-		I cur = {} ;
+		T cur = {} ;
 	} ;
 	// cxtors & casts
-	/**/               constexpr Iota(        I e ) requires(!WithStart) : bounds{  e} {}
-	template<class I1> constexpr Iota( I1 b , I e ) requires( WithStart) : bounds{b,e} {}
+	/**/               constexpr Iota(        T e ) requires(!WithStart) : bounds{  e} {}
+	template<class I1> constexpr Iota( I1 b , T e ) requires( WithStart) : bounds{b,e} {}
 	// services
-	constexpr Iterator begin() const { return Iterator(WithStart ? bounds[0] : I(0))          ; }
-	constexpr Iterator end  () const { return Iterator(bounds[WithStart]           )          ; }
-	constexpr size_t   size () const { return +bounds[WithStart] - +(WithStart?bounds[0]:I()) ; }
+	constexpr Iterator begin() const { return Iterator( WithStart ? bounds[0] : T(0) )        ; }
+	constexpr Iterator end  () const { return Iterator( bounds[WithStart]            )        ; }
+	constexpr size_t   size () const { return +bounds[WithStart] - +(WithStart?bounds[0]:T()) ; }
 	// data
-	I bounds[1+WithStart] = {} ;
+	T bounds[1+WithStart] = {} ;
 } ;
 
-template<           Iotable I > inline constexpr Iota<false/*with_start*/,I > iota(            I  end ) {                                    return {   end} ; }
-template<Iotable I1,Iotable I2> inline constexpr Iota<true /*with_start*/,I2> iota( I1 begin , I2 end ) { I2 b2=I2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
+template<         class T > inline constexpr Iota<false/*with_start*/,T > iota(            T  end ) {                                    return {   end} ; }
+template<class T1,class T2> inline constexpr Iota<true /*with_start*/,T2> iota( T1 begin , T2 end ) { T2 b2=T2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
 
 //
 // string
@@ -1228,6 +1227,34 @@ private :
 	T& _ref ;
 } ;
 
+// like a ::uniq_ptr except object is not destroyed upon destruction
+// meant to be used as static variables for which destuction at end of execution is a mess because of order
+template<class T> struct StaticUniqPtr ;
+template<class T> ::string& operator+=( ::string& os , StaticUniqPtr<T> const& sup ) ;
+template<class T> struct StaticUniqPtr {
+	friend ::string& operator+=<>( ::string& , StaticUniqPtr<T> const& ) ;
+	// cxtors & casts
+	StaticUniqPtr() = default ;
+	StaticUniqPtr           (T*       p          ) :                             _ptr { p     } {}
+	StaticUniqPtr           (NewType             ) :                             _ptr { new T } {}
+	StaticUniqPtr           (StaticUniqPtr const&) = delete ;
+	StaticUniqPtr& operator=(T*       p          ) { { if (_ptr) delete _ptr ; } _ptr = p     ; return self ; }
+	StaticUniqPtr& operator=(NewType             ) { { if (_ptr) delete _ptr ; } _ptr = new T ; return self ; }
+	StaticUniqPtr& operator=(StaticUniqPtr const&) = delete ;
+	// accesses
+	bool     operator+ () const { return _ptr   ; }
+	T      & operator* ()       { return *_ptr  ; }
+	T const& operator* () const { return *_ptr  ; }
+	T      * operator->()       { return &*self ; }
+	T const* operator->() const { return &*self ; }
+	// data
+private :
+	T* _ptr = nullptr ;
+} ;
+template<class T> ::string& operator+=( ::string& os , StaticUniqPtr<T> const& sup ) {
+	return os << sup._ptr ;
+}
+
 ENUM( Rc
 ,	Ok
 ,	Fail
@@ -1352,17 +1379,17 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 	return res ;
 }
 // stop at Delimiter or any non printable char
-template<char Delimiter> ::string parse_printable( ::string const& s , size_t& pos ) {
+template<char Delimiter> ::string parse_printable( ::string const& x , size_t& pos ) {
 	static_assert(_can_be_delimiter(Delimiter)) ;
-	SWEAR(pos<=s.size(),s,pos) ;
+	SWEAR(pos<=x.size(),x,pos) ;
 	::string res ;
-	const char* s_c = s.c_str() ;
-	for( char c ; (c=s_c[pos]) ; pos++ )
+	const char* x_c = x.c_str() ;
+	for( char c ; (c=x_c[pos]) ; pos++ )
 		if      (c==Delimiter    ) break/*for*/ ;
 		else if (!is_printable(c)) break/*for*/ ;
 		else if (c!='\\'         ) res += c ;
 		else
-			switch (s_c[++pos]) {
+			switch (x_c[++pos]) {
 				case 'a'  : res += '\a'       ; break/*switch*/ ;
 				case 'b'  : res += '\b'       ; break/*switch*/ ;
 				case 'e'  : res += char(0x1b) ; break/*switch*/ ;
@@ -1374,12 +1401,12 @@ template<char Delimiter> ::string parse_printable( ::string const& s , size_t& p
 				case '\\' : res += '\\'       ; break/*switch*/ ;
 				//
 				case 'x' : {
-					char x = 0 ; if ( char d=s_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
-					x <<= 4    ; if ( char d=s_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					char x = 0 ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					x <<= 4    ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
 					res += x ;
 				} break/*switch*/ ;
 				//
-				default : throw "illegal code \\"s+s_c[pos] ;
+				default : throw "illegal code \\"s+x_c[pos] ;
 			}
 	return res ;
 }
@@ -1402,14 +1429,14 @@ constexpr inline int8_t _unit_val(char u) {
 		default  : throw "unrecognized suffix "s+u ;
 	}
 }
-template<char U,::integral I,bool RndUp> I from_string_with_unit(::string const& s) {
+template<char U,::integral I,bool RndUp> I from_string_with_unit(::string const& x) {
 	double              val     ;
-	const char*         s_start = s.c_str()                                             ;
-	const char*         s_end   = s_start+s.size()                                      ;
-	::from_chars_result fcr     = ::from_chars(s_start,s_end,val,::chars_format::fixed) ;
+	const char*         x_start = x.c_str()                                             ;
+	const char*         x_end   = x_start+x.size()                                      ;
+	::from_chars_result fcr     = ::from_chars(x_start,x_end,val,::chars_format::fixed) ;
 	//
-	throw_unless( fcr.ec==::errc() , "unrecognized value "        ,s ) ;
-	throw_unless( fcr.ptr>=s_end-1 , "partially recognized value ",s ) ;
+	throw_unless( fcr.ec==::errc() , "unrecognized value "        ,x ) ;
+	throw_unless( fcr.ptr>=x_end-1 , "partially recognized value ",x ) ;
 	//
 	val = ::ldexp( val , 10*(_unit_val(*fcr.ptr)-_unit_val(U)) ) ; // scale val to take units into account
 	throw_unless( val<double(Max<I>)+1 , "overflow"  ) ;           // use </> and +/-1 to ensure conservative test for 64 bits int (as double mantissa is only 54 bits)

@@ -8,15 +8,43 @@
 Each attribute is characterized by a few flags:
 
 - How inheritance is handled:
-  - None (ignore values from base classes)
-  - Python (normal Python processing)
-  - Combine (Combine inherited values and currently defined one).
+  - None: (ignore values from base classes)
+  - Python: (normal Python processing)
+  - Combine: (Combine inherited values and currently defined one).
 - The type.
 - The default value.
-- If it can be defined dynamically from job to job:
+- Whether it can be defined dynamically from job to job:
   - No
   - Simple: globals include module globals, user attributes, stems and targets, no file access allowed.
   - Full:   globals include module globals, user attributes, stems, targets, deps and resources, file accesses become deps.
+
+When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as Python f-strings, as for dynamic values.
+This is actually a form of dynamic value.
+
+# Dynamic attribute execution
+
+If the value of an attribute (other than `cmd`) is dynamic, it is interpreted within open-lmake, not as a separate process as for the execution of cmd.
+This means:
+
+- Such executions are not parallelized, this has performance impact.
+- They are executed within a single Python interpreter, this implies restrictions.
+
+Overall, these functions must be kept as simple and fast as possible, in favor of `cmd` which is meant to carry out heavy computations.
+
+The restrictions are the following:
+
+- The following system (or libc) calls are forbidden (trying to execute any of these results in an error):
+  - changing directory (`chdir` and the like)
+  - spawning processes (fork and the like)
+  - exec (execve and the like)
+  - modifying the disk (open for writing and the like)
+- Modifying the environment variables (via setenv and the like) is forbidden (trying to execute any of these results in an error).
+- Altering imported modules is forbidden (e.g. it is forbidden to write to `sys.path`).
+  - Unfortunately, this is not checked.
+  - `sys.path` is made  `tuple` though, so that common calls such as `sys.path.append` will generate an error.
+- There is no containers, as for `cmd` execution (e.g. no `repo_view`).
+
+## Attributes
 
 ### `name`
 
@@ -215,9 +243,9 @@ Syntactically, it follows the `side_targets` attribute except that:
 
 ### `chroot_dir`
 
-| Inheritance | Type  | Default | Dynamic | Example          |
-|-------------|-------|---------|---------|------------------|
-| Python      | `str` | `None`  | Full    | `'/ubuntu22.04'` |
+| Inheritance | Type    | Default | Dynamic | Example          |
+|-------------|---------|---------|---------|------------------|
+| Python      | `f-str` | `None`  | Full    | `'/ubuntu22.04'` |
 
 This attribute defines a directory in which jobs will `chroot` into before execution begins.
 It must be an absoluted path.
@@ -229,9 +257,9 @@ However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
 
 ### `repo_view`
 
-| Inheritance | Type  | Default | Dynamic | Example   |
-|-------------|-------|---------|---------|-----------|
-| Python      | `str` | `None`  | Full    | `'/repo'` |
+| Inheritance | Type    | Default | Dynamic | Example   |
+|-------------|---------|---------|---------|-----------|
+| Python      | `f-str` | `None`  | Full    | `'/repo'` |
 
 This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
 This is done by using `mount -rbind` (cf [namespaces](namespaces.html)).
@@ -244,9 +272,9 @@ As of now, this attribute must be a top level directory, i.e. `'/a'` is ok, but 
 
 ### `tmp_view`
 
-| Inheritance | Type  | Default | Dynamic | Example  |
-|-------------|-------|---------|---------|----------|
-| Python      | `str` | `None`  | Full    | `'/tmp'` |
+| Inheritance | Type    | Default | Dynamic | Example  |
+|-------------|---------|---------|---------|----------|
+| Python      | `f-str` | `None`  | Full    | `'/tmp'` |
 
 This attribute defines the name which the temporary directory available for job execution is mounted on (cf [namespaces](namespaces.html)).
 
@@ -270,7 +298,7 @@ Both logical views and physical locations may be inside or outside the repositor
 
 Physical description may be :
 
-- a `str` in which case a bind mount is performed.
+- a `f-str` in which case a bind mount is performed.
 - a `dict` with keys `upper` (a `str`) and `lower` (a single `str` or a list of `str`) in which case an overlay mount is performed.
   Key `copy_up` (a single `str` or a list of `str`) may also be used to provide a list of directories to create in upper or files to copy from lower to upper.
   Directories are recognized when they end with `/`.
@@ -289,6 +317,8 @@ This is the normal behavior, other means to define environment are there to mana
 
 The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
+
+Except the exception below, the value must be a `f-str`.
 
 If resulting value is `...` (the Python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
@@ -331,6 +361,8 @@ The values undertake the same substitutions as for the `environ` attribute descr
 The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
 
+Except the exception below, the value must be a `f-str`.
+
 If resulting value is `...` (the Python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
 
@@ -349,6 +381,8 @@ The values undertake the same substitutions as for the `environ` attribute descr
 The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
 
+Except the exception below, the value must be a `f-str`.
+
 If resulting value is `...` (the Python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
 
@@ -366,6 +400,9 @@ By default the following environment variables are defined :
 | Python      | `list` or `tuple` | system python | Full    | `venv/bin/python3` |
 
 This attribute defines the interpreter used to run the `cmd` if it is a function.
+
+Items must be `f-str`.
+
 At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
 
@@ -381,6 +418,9 @@ If simple enough (i.e. if it can be recognized as a static dep), it is made a st
 | Python      | `list` or `tuple` | `/bin/bash` | Full    | `('/bin/bash','-e')` |
 
 This attribute defines the interpreter used to run the `cmd` if it is a `str`.
+
+Items must be `f-str`.
+
 At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
 
@@ -390,7 +430,7 @@ If simple enough (i.e. if it can be recognized as a static dep), it is made a st
 
 | Inheritance | Type     | Default     | Dynamic | Example                                                            |
 |-------------|----------|-------------|---------|--------------------------------------------------------------------|
-| Combined    | `str`    | -           | Full    | `'gcc -c -o {OBJ} {SRC}'`                                          |
+| Combined    | `f-str`  | -           | Full    | `'gcc -c -o {OBJ} {SRC}'`                                          |
 | Combined    | function | -           | Full    | `def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))` |
 
 Whether `cmd` is a `str` or a function, the following environment variable are automatically set, in addition to what is mentioned in the `environ` attribute (and the like).
@@ -445,7 +485,7 @@ There are mostly 2 practical possibilities:
 
 The job is deemed to be successful if no exception is raised.
 
-#### if it is a `str`
+#### if it is a `f-str`
 
 In that case, this attribute is executed as a shell command to run the job.
 Combined inheritance is a special case for `cmd`.
@@ -464,9 +504,9 @@ The job is deemed to be successful if the return code of the overall process is 
 
 ### `cache`
 
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| Python      | `str` | -       | Simple  |         |
+| Inheritance | Type    | Default | Dynamic | Example |
+|-------------|---------|---------|---------|---------|
+| Python      | `f-str` | -       | Simple  |         |
 
 This attribute specifies the cache to use for jobs executed by this rule.
 
@@ -488,17 +528,17 @@ It is passed to the zlib library used to compress job targets.
 
 ### `backend`
 
-| Inheritance | Type  | Default | Dynamic | Example   |
-|-------------|-------|---------|---------|-----------|
-| Python      | `str` | -       | Full    | `'slurm'` |
+| Inheritance | Type    | Default | Dynamic | Example   |
+|-------------|---------|---------|---------|-----------|
+| Python      | `f-str` | -       | Full    | `'slurm'` |
 
 This attribute specifies the [backend](backends.html) to use to launch jobs.
 
 ### `autodep`
 
-| Inheritance | Type  | Default                                       | Dynamic | Example    |
-|-------------|-------|-----------------------------------------------|---------|------------|
-| Python      | `str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
+| Inheritance | Type    | Default                                       | Dynamic | Example    |
+|-------------|---------|-----------------------------------------------|---------|------------|
+| Python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
 
 This attribute specifies the method used by [autodep](autodep.html) to discover hidden dependencies.
 
@@ -510,6 +550,8 @@ This attribute specifies the method used by [autodep](autodep.html) to discover 
 
 This attribute specifies the resources required by a job to run successfully.
 These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...
+
+Values must `f-str`.
 
 The syntax is the same as for `deps`.
 

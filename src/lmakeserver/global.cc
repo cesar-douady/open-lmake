@@ -212,4 +212,18 @@ namespace Engine {
 		return res ;
 	}
 
+	//
+	// Rules & Sources
+	//
+
+	Rules::Rules(Object const& py_o) : Rules{New} {
+		Dict const& py_d = py_o.as_a<Dict>() ;
+		for( Object const& py_s    : py_d["sys_path"].as_a<Sequence>() ) sys_path.emplace_back( py_s   .as_a<Str >()            ) ;
+		for( Object const& py_rule : py_d["rules"   ].as_a<Sequence>() )          emplace_back( py_rule.as_a<Dict>() , sys_path ) ;
+	}
+
+	Sources::Sources(Py::Object const& py_o) {
+			for( Object const& py_src  : py_o.as_a<Sequence>() ) emplace_back(py_src.as_a<Str>()) ;
+	}
+
 }

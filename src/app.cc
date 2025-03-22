@@ -17,10 +17,10 @@
 using namespace Disk ;
 using namespace Time ;
 
-::string* g_lmake_root_s  = nullptr ;
-::string* g_repo_root_s   = nullptr ;
-::string* g_startup_dir_s = nullptr ; // relative to g_repo_root_s , dir from which command was launched
-::string* g_exe_name      = nullptr ;
+StaticUniqPtr<::string> g_lmake_root_s  ;
+StaticUniqPtr<::string> g_repo_root_s   ;
+StaticUniqPtr<::string> g_startup_dir_s ; // relative to g_repo_root_s , dir from which command was launched
+StaticUniqPtr<::string> g_exe_name      ;
 
 void crash_handler( int sig , void* addr ) {
 	if (sig==SIGABRT) crash(4,sig,"aborted"                         ) ;
@@ -69,7 +69,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }
-	Trace trace("app_init",chk_version_,cd_root,g_startup_dir_s?*g_startup_dir_s:""s) ;
+	Trace trace("app_init",chk_version_,cd_root,+g_startup_dir_s?*g_startup_dir_s:""s) ;
 	return read_only ;
 }
 

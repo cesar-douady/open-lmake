@@ -26,7 +26,7 @@ namespace Disk {
 	// path name library
 	//
 
-	bool is_canon(::string const& path) {
+	bool is_canon( ::string const& path , bool empty_ok ) {
 		bool       accept_dot_dot = true              ;
 		CanonState state          = CanonState::First ;
 		for( char c : path ) {
@@ -56,7 +56,7 @@ namespace Disk {
 			}
 		}
 		switch (state) {
-			case CanonState::First  :                                                         // an empty path
+			case CanonState::First  : return empty_ok       ;                                 // an empty path
 			case CanonState::Empty  : return true           ;                                 // a directory ending with /
 			case CanonState::Dot    : return false          ;
 			case CanonState::DotDot : return accept_dot_dot ;
@@ -474,14 +474,9 @@ namespace Disk {
 		if (ds<chk.size()) ok = chk[ds]=='/' ;
 	}
 
-	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) {
+	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _admin_dir_s{rpe.repo_root_s+AdminDirS} , _repo_root_sz{_env->repo_root_s.size()} {
 		SWEAR( is_abs(rpe.repo_root_s) , rpe.repo_root_s ) ;
 		SWEAR( is_abs(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
-		//
-		pid           = p                         ;
-		_env          = &rpe                      ;
-		_admin_dir_s  = rpe.repo_root_s+AdminDirS ;
-		_repo_root_sz = _env->repo_root_s.size()  ;
 		//
 		chdir() ; // initialize _cwd
 		//

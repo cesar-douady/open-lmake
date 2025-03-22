@@ -17,7 +17,7 @@
 
 using namespace Time ;
 
-::uset<int>* _s_epoll_sigs = new ::uset<int> ;
+StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
 ::string& operator+=( ::string& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; }

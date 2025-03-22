@@ -9,18 +9,18 @@
 
 #include "record.hh"
 
-bool        g_force_orig = false   ;
-const char* g_libc_name  = nullptr ;
+bool g_force_orig = false ;
+bool g_has_libc   = false ;
 
 struct SymbolEntry {
 	SymbolEntry(void* f) : func{f} {}
 	void*         func = nullptr ;
 	mutable void* orig = nullptr ;
 } ;
-static ::umap_s<SymbolEntry> const* _g_libcall_tab = nullptr ;
+static StaticUniqPtr<::umap_s<SymbolEntry> const> _g_libcall_tab ;
 
 void* get_orig(const char* libcall) {
-	if (!g_libc_name) exit(Rc::Usage,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
+	if (!g_has_libc) exit(Rc::Usage,"cannot use autodep method ld_audit or ld_preload with statically linked libc") ;
 	SymbolEntry const& entry = _g_libcall_tab->at(libcall) ;
 	if (!entry.orig) entry.orig = ::dlsym( RTLD_NEXT , libcall ) ; // may be not initialized if a libcall is routed to another libcall
 	return entry.orig ;
@@ -80,22 +80,22 @@ extern "C" {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;
 		}
-		if (!::string_view(nm).starts_with("linux-vdso.so"))                                          // linux-vdso.so is listed, but is not a real file
-			Record::ReadCS(auditor(),nm,false/*no_follow*/,false/*keep_real*/,Comment::Cla_objopen) ;
+		if (!::string_view(nm).starts_with("linux-vdso.so"))                                         // linux-vdso.so is listed, but is not a real file
+			Record::ReadCS(auditor(),nm,false/*no_follow*/,false/*keep_real*/,Comment::la_objopen) ;
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(nm) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ;           // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
-			g_libc_name = nm ;
+			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ;          // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			g_has_libc = true ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
 	}
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , uint flag ) {
 		switch (flag) {
-			case LA_SER_ORIG    : if (strrchr(name,'/')) Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,Comment::Cla_objsearch) ; break ;
+			case LA_SER_ORIG    : if (strrchr(name,'/')) Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,Comment::la_objsearch) ; break ;
 			case LA_SER_LIBPATH :
-			case LA_SER_RUNPATH :                        Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,Comment::Cla_objsearch) ; break ;
+			case LA_SER_RUNPATH :                        Record::ReadCS(auditor(),name,false/*no_follow*/,false/*keep_real*/,Comment::la_objsearch) ; break ;
 		DN}
 		return const_cast<char*>(name) ;
 	}

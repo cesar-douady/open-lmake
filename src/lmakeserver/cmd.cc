@@ -188,8 +188,8 @@ namespace Engine {
 	}
 
 	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
-		bool                                        has_end = +job_info.end                     ;
-		::umap_ss                                   de      = mk_umap(job_info.end.dynamic_env) ;
+		bool                                        has_end = +job_info.end                 ;
+		::umap_ss                                   de      = mk_umap(job_info.end.dyn_env) ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
 		for( auto const& [k,v] : job_info.start.start.env )
 			if      (v!=EnvPassMrkr) res.first .emplace_back(k,v       ) ;

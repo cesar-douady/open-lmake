@@ -130,8 +130,8 @@ namespace Backends::Sge {
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
-			Trace trace(BeChnl,"Sge::config",STR(dynamic),dct) ;
+		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
+			Trace trace(BeChnl,"Sge::config",STR(dyn),dct) ;
 			//
 			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
@@ -163,7 +163,7 @@ namespace Backends::Sge {
 				for( ::string const& kv : _sge_env_vec ) _sge_env[i++] = kv.c_str() ;
 				/**/                                     _sge_env[i  ] = nullptr    ;
 			}
-			if (!dynamic) {
+			if (!dyn) {
 				daemon = sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}

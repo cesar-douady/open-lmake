@@ -87,7 +87,7 @@ void print_end(JobEndRpcReq const& jerr) {
 	g_out << "digest.status     : " << jerr.digest.status    <<'\n' ;
 	g_out << "digest.exec_time  : " << jerr.digest.exec_time <<'\n' ;
 	//
-	g_out << "dynamic_env :\n" ; _print_map(jerr.dynamic_env) ;
+	g_out << "dynamic_env :\n" ; _print_map(jerr.dyn_env) ;
 	//
 	g_out << "digest.targets :\n" ; _print_map(jerr.digest.targets)                ;
 	g_out << "digest.deps :\n"    ; _print_map(jerr.digest.deps   )                ;

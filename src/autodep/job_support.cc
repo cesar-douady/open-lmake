@@ -24,38 +24,47 @@ namespace JobSupport {
 	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose ) {
 		::vmap_s<FileInfo> deps ;
 		_chk_files(files) ;
-		Pdate pd { New } ;                                                // all dates must be identical to be recognized as parallel deps
+		Pdate             pd        { New } ;                                        // all dates must be identical to be recognized as parallel deps
+		NodeIdx           di        = 0     ;
+		::vector<NodeIdx> dep_idxs1 ;
 		for( ::string const& f : files ) {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
-				.file      = ::copy(f)                                    // keep a copy in case there is no server and we must invent a reply
+				.file      = ::copy(f)                                               // keep a copy in case there is no server and we must invent a reply
 			,	.no_follow = no_follow
 			,	.read      = true
 			,	.write     = false
-			,	.comment  = Comment::Cdepend
+			,	.comment  = Comment::depend
 			}) ;
 			if (!verbose) {
-				r.report_access( sr.file_loc , { .comment=Comment::Cdepend , .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+				r.report_access( sr.file_loc , { .comment=Comment::depend , .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
 			} else if (sr.file_loc<=FileLoc::Dep) {
-				ad |= sr.accesses ;                                       // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
+				ad |= sr.accesses ;                                                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 				// not actually sync, but transport as sync to use the same fd as DepVerbose
-				r.report_sync( { .proc=Proc::DepVerbosePush , .sync=Maybe , .comment=Comment::Cdepend , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+				r.report_sync( { .proc=Proc::DepVerbosePush , .sync=Maybe , .comment=Comment::depend , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+				dep_idxs1.push_back(++di) ;                                          // 0 is reserved to mean no dep info
+			} else {
+				dep_idxs1.push_back(0) ;                                             // .
 			}
 		}
 		if (!verbose) return {} ;
-		if (!files  ) return {} ;                                         // dont send DepVerbose if no preceding DepVerbosePush
-		// if verbose, we de facto fully access files
-		JobExecRpcReply reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .comment=Comment::Cdepend , .digest=ad|~Accesses() , .date=pd } , true/*force*/ ) ;
-		if (!reply) {
-			::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
-			for( ::string const& f : files ) dep_infos.emplace_back(Yes/*ok*/,Crc(f)) ;
+		// if verbose, we de facto fully access files, dont send request if nothing to ask
+		JobExecRpcReply reply { .proc=Proc::DepVerbose } ;
+		if (di) reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .comment=Comment::depend , .digest=ad|~Accesses() , .date=pd } , true/*force*/ ) ;
+		// fill holes for external deps
+		::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+		for( size_t i : iota(files.size()) ) {
+			NodeIdx di1 = dep_idxs1[i] ;
+			if      (!di1  ) dep_infos.emplace_back( Maybe/*ok*/ , Crc(        ) ) ; // 0 is reserved to mean no dep info
+			else if (!reply) dep_infos.emplace_back( Yes/*ok*/   , Crc(files[i]) ) ; // there was no server, mimic it
+			else             dep_infos.push_back   (reply.dep_infos[di1-1]       ) ;
 		}
-		return reply.dep_infos ;
+		return dep_infos ;
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad ) {
 		::vmap_s<FileInfo> targets ;
 		_chk_files(files) ;
-		Pdate pd { New } ;           // for perf and in trace, we will see all targets with same date
+		Pdate pd { New } ;                                                                                                          // for perf and in trace, we will see all targets with same date
 		for( ::string& f : files ) {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
 				.file      = ::move(f)
@@ -63,11 +72,11 @@ namespace JobSupport {
 			,	.read      = false
 			,	.write     = true
 			,	.create    = true
-			,	.comment   = Comment::Ctarget
+			,	.comment   = Comment::target
 			}) ;
 			r.report_access(
 				sr.file_loc
-			,	{ .comment=Comment::Ctarget , .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
+			,	{ .comment=Comment::target , .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
 			,	sr.file_loc0
 			,	::move(sr.real0)
 			,	true/*force*/
@@ -84,7 +93,7 @@ namespace JobSupport {
 			if (min_len<=1            ) return { cat("min_len (",min_len,") must be at least 1"                            ) , false } ;
 			if (min_len> sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most crc length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
 		}
-		Comment comment = Encode ? Comment::Cencode : Comment::Cdecode ;
+		Comment comment = Encode ? Comment::encode : Comment::decode ;
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;
 		//
 		r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;

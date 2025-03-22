@@ -101,99 +101,99 @@ static_assert(chk_enum_tab(ExtraTflagChars)) ;
 ENUM( Comment
 ,	None
 // syscalls
-,	Caccess
-,	Ccanonicalize_file_name
-,	Cchdir
-,	Cchmod
-,	Ccreat                      , Ccreat64
-,	Cclone                      , Cclone3
-,	Cdlmopen
-,	Cdlopen
-,	Cexecv                      , CexecvDep
-,	Cexecve                     , CexecveDep    , Cexecveat          , CexecveatDep
-,	Cexecvp                     , CexecvpDep
-,	Cexecvpe                    , CexecvpeDep
-,	                                              Cfaccessat         , Cfaccessat2
-,	Cfchdir
-,	                                              Cfchmodat
-,	Cfopen                      , Cfopen64
-,	Cfork
-,	Cfreopen                    , Cfreopen64
-,	                                              Cfstatat           , Cfstatat64
-,	                                              Cfutimesat
-,	Cla_objopen
-,	Cla_objsearch
-,	Clink                                       , Clinkat
-,	Clstat                      , Clstat64
-,	Clutimes
-,	Cmkdir                                      , Cmkdirat
-,	Cmkostemp                   , Cmkostemp64
-,	Cmkostemps                  , Cmkostemps64
-,	Cmkstemp                    , Cmkstemp64
-,	Cmkstemps                   , Cmkstemps64
-,	Cmount
-,	                                              Cname_to_handle_at
-,	                                              Cnewfstatat
-,	Coldlstat
-,	Coldstat
-,	Copen                       , Copen64       , Copenat            , Copenat64     , Copenat2
-,	Copen_tree
-,	Copendir
-,	Creadlink                                   , Creadlinkat
-,	Crealpath
-,	Crename                                     , Crenameat          , Crenameat2
-,	Crmdir
-,	Cscandir                    , Cscandir64    , Cscandirat         , Cscandirat64
-,	Cstat                       , Cstat64
-,	Cstatx
-,	Csymlink                                    , Csymlinkat
-,	Ctruncate                   , Ctruncate64
-,	Cunlink                                     , Cunlinkat
-,	Cutime
-,	                                              Cutimensat
-,	Cutimes
-,	                                              C__fxstatat        , C__fxstatat64
-,	                                              C__lxstat          , C__lxstat64
-,	C__open                     , C__open64
-,	C__open_2                   , C__open64_2   , C__openat_2        , C__openat64_2
-,	C__open64_nocancel
-,	C__open_nocancel
-,	C__readlink__chk                            , C__readlinkat_chk
-,	C__realpath_chk
-,	C__xstat                     , C__xstat64
+,	access
+,	canonicalize_file_name
+,	chdir
+,	chmod
+,	creat                      , creat64
+,	clone                      , clone3
+,	dlmopen
+,	dlopen
+,	execv                      , execvDep
+,	execve                     , execveDep   , execveat          , execveatDep
+,	execvp                     , execvpDep
+,	execvpe                    , execvpeDep
+,	                                           faccessat         , faccessat2
+,	fchdir
+,	                                           fchmodat
+,	fopen                      , fopen64
+,	fork
+,	freopen                    , freopen64
+,	                                           fstatat           , fstatat64
+,	                                           futimesat
+,	la_objopen
+,	la_objsearch
+,	link                                     , linkat
+,	lstat                      , lstat64
+,	lutimes
+,	mkdir                                    , mkdirat
+,	mkostemp                   , mkostemp64
+,	mkostemps                  , mkostemps64
+,	mkstemp                    , mkstemp64
+,	mkstemps                   , mkstemps64
+,	mount
+,	                                           name_to_handle_at
+,	                                           newfstatat
+,	oldlstat
+,	oldstat
+,	open                       , open64      , openat            , openat64     , openat2
+,	open_tree
+,	opendir
+,	readlink                                 , readlinkat
+,	realpath
+,	rename                                   , renameat          , renameat2
+,	rmdir
+,	scandir                    , scandir64   , scandirat         , scandirat64
+,	stat                       , stat64
+,	statx
+,	symlink                                  , symlinkat
+,	truncate                   , truncate64
+,	unlink                                   , unlinkat
+,	utime
+,	                                           utimensat
+,	utimes
+,	                                           __fxstatat        , __fxstatat64
+,	                                           __lxstat          , __lxstat64
+,	__open                     , __open64
+,	__open_2                   , __open64_2  , __openat_2        , __openat64_2
+,	__open64_nocancel
+,	__open_nocancel
+,	__readlink__chk                          , __readlinkat_chk
+,	__realpath_chk
+,	__xstat                     , __xstat64
 // lmake functions
-,	Canalyzed
-,	CchkDeps
-,	CcomputedCrcs
-,	Cdecode
-,	CdepAndTarget
-,	Cdepend
-,	Cencode
-,	CendJob
-,	CendOverhead
-,	CenteredNamespace
-,	Chot
-,	Ckill
-,	ClostServer
-,	Cpanic
-,	CstartInfo
-,	CstartJob
-,	CstartOverhead
-,	CstaticDep
-,	CstaticExec
-,	CstaticTarget
-,	CstaticUnlnk
-,	Cstderr
-,	Cstdin
-,	Cstdout
-,	CstillAlive
-,	Ctimeout
-,	Ctarget
-,	Ctmp
-,	Ctrace
-,	Cunstable
-,	CuploadedToCache
-,	Cwashed
+,	analyzed
+,	chkDeps
+,	computedCrcs
+,	decode
+,	depAndTarget
+,	depend
+,	encode
+,	endJob
+,	endOverhead
+,	enteredNamespace
+,	hot
+,	kill
+,	lostServer
+,	panic
+,	startInfo
+,	startJob
+,	startOverhead
+,	staticDep
+,	staticExec
+,	staticTarget
+,	staticUnlnk
+,	stderr
+,	stdin
+,	stdout
+,	stillAlive
+,	timeout
+,	target
+,	tmp
+,	trace
+,	unstable
+,	uploadedToCache
+,	washed
 )
 
 ENUM( CommentExt

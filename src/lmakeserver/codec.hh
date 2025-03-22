@@ -101,7 +101,7 @@ namespace Codec {
 	using Val  = Vector::Simple<CodecIdx,char,ValMrkr > ;
 	using Code = Vector::Simple<CodecIdx,char,CodeMrkr> ;
 
-	extern DequeThread<Codec::Closure>* g_codec_queue ;
+	extern StaticUniqPtr<DequeThread<Codec::Closure>> g_codec_queue ;
 
 }
 

@@ -86,7 +86,7 @@ int main( int argc , char* /*argv*/[] ) {
 	::string admin_dir_s = AdminDirS ;
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
-	g_trace_file = new ::string() ;                                // no trace as we are repairing admin_dir_s in which traces are made
+	g_trace_file = New ;
 	block_sigs({SIGCHLD}) ;
 	app_init(false/*read_only_ok*/) ;
 	Py::init(*g_lmake_root_s      ) ;

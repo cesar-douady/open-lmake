@@ -23,7 +23,7 @@ items (also used in XXX comments) :
 
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
-? add quatantined files in summary
+? add quarantined files in summary
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
 	- emit a "dont cache" message
@@ -152,6 +152,9 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* implement pyc
+	- very simple : use marshal.dumps to store and load dynamic attributes code
+	- needs a Byte type in py.hh (mimic Str)
 ! prepare namespace while waiting for server if possible
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs
@@ -177,8 +180,8 @@ M port to Darwin
 	- must be very careful, e.g. mmap can access file after close, dup'ed file descriptors can be created, etc.
 ? put all python expressions for a single phase in the same expression
 	- DepsAttrs
-	- SubmitRsrcsAttrs + SubmitNoneAttrs
-	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartNoneAttrs
+	- SubmitRsrcsAttrs + SubmitAncillaryAttrs
+	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartAncillaryAttrs
 ? launch deps as soon as they are discovered
 	- w/o waiting for dependent job to complete
 	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going

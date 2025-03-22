@@ -67,8 +67,8 @@ namespace Disk {
 	// dir_s : a name          ending with /
 	// path  : a name possibly ending with /
 
-	bool     is_canon(::string const&) ;
-	::string mk_canon(::string const&) ;
+	bool     is_canon( ::string const& , bool empty_ok=false ) ;
+	::string mk_canon( ::string const&                      ) ;
 	//
 	inline bool has_dir(::string const& path) {
 		if (path.size()<3) return false ;       // we must have at least 2 components and a / to have a dir component

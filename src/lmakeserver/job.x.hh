@@ -312,7 +312,6 @@ namespace Engine {
 			::string res ;
 			if ( Rule r=rule() ; +r )   res = full_name(r->job_sfx_len()) ;
 			else                      { res = full_name(                ) ; res.resize(res.find(RuleData::JobMrkr)) ; } // heavier, but works without rule
-			SWEAR(Disk::is_canon(res),res) ;                                                                            // XXX> : suppress when bug is found, job names are supposed to be canonic
 			return res ;
 		}
 		::string unique_name() const ;

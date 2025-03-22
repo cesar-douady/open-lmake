@@ -202,21 +202,17 @@ namespace Engine::Makefiles {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
-		try {
-			if constexpr (IsRules) for( Object const& py_rule : (*py_info)["rules"   ].as_a<Sequence>() ) res.emplace_back(py_rule.as_a<Dict>()) ;
-			else                   for( Object const& py_src  : (*py_info)["manifest"].as_a<Sequence>() ) res.emplace_back(py_src .as_a<Str >()) ;
-		} catch(::string const& e) {
-			throw "while processing "+kind+" :\n"+indent(e) ;
-		}
+		try                      { res = T((*py_info)[kind]) ;                       }
+		catch(::string const& e) { throw "while processing "+kind+" :\n"+indent(e) ; }
 		return Maybe|+reason/*done*/ ;                                                                          // cannot be split without reason
 	}
 
-	void _refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ , bool dynamic , ::string const& startup_dir_s ) { // msg may be updated even if throwing
-		Trace trace("_refresh",STR(rescue),STR(refresh_),STR(dynamic),startup_dir_s) ;
+	void _refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ , bool dyn , ::string const& startup_dir_s ) { // msg may be updated even if throwing
+		Trace trace("_refresh",STR(rescue),STR(refresh_),STR(dyn),startup_dir_s) ;
 		if (!refresh_) {
-			SWEAR(!dynamic) ;
+			SWEAR(!dyn) ;
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Persistent::new_config( Config() , dynamic , rescue ) ;
+			Persistent::new_config( Config() , dyn , rescue ) ;
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return ;
 		}
@@ -226,7 +222,7 @@ namespace Engine::Makefiles {
 		Config             config      ;
 		WithGil<Ptr<Dict>> py_info     ;
 		//
-		if (!dynamic) {
+		if (!dyn) {
 			{	::string content ;
 				First    first   ;
 				size_t   w       = 0 ;
@@ -249,45 +245,45 @@ namespace Engine::Makefiles {
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                                                                    // invalidate because of config
+		bool  invalidate    = false ;                                                                                // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old.booted) {                                                                                           // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                                                  // Maybe means new
-				changed_rules = Maybe ;                                                                                  // .
+			if (!old.booted) {                                                                                       // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                                                              // Maybe means new
+				changed_rules = Maybe ;                                                                              // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_.booted) return ;                                                                                   // no new config means we keep old config, no modification
+			if (!new_.booted) return ;                                                                               // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.has_split_srcs !=new_.has_split_srcs  ;
 			changed_rules |= old.has_split_rules!=new_.has_split_rules ;
-			invalidate    |= old.sub_repos_s    !=new_.sub_repos_s     ;                                                 // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s    !=new_.sub_repos_s     ;                                             // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Persistent::new_config( ::move(config) , dynamic , rescue , diff_config ) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( ::move(config) , dyn , rescue , diff_config ) ;
+			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			throw "cannot "s+(dynamic?"dynamically ":"")+"update config : "+e ;
+			throw "cannot "s+(dyn?"dynamically ":"")+"update config : "+e ;
 		}
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
-		::vector_s    srcs        ;
-		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;                  // Maybe means not split
+		Sources       srcs        ;
+		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;     // Maybe means not split
 		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                  ;
-		if (new_srcs) //!                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dynamic ) ;       }
-			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			catch (::string const& e) { throw "cannot "s+(dynamic?"dynamically ":"")+"update sources : "+e ; }
+		if (new_srcs) //!                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn ) ;       }
+			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update sources : "+e ; }
 		//
-		WithGil<::vector<RuleData>> rules        ;
-		Bool3/*done*/               rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
-		bool                        new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
-		if (new_rules) //!                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dynamic ) ;   }
-			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			catch (::string const& e) { throw "cannot "s+(dynamic?"dynamically ":"")+"update rules : "+e ; }
+		WithGil<Rules> rules        ;
+		Bool3/*done*/  rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
+		bool           new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
+		if (new_rules) //!                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;   }
+			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update rules : "+e ; }
 		//
 		if (invalidate) Persistent::invalidate_match() ;
 		//
@@ -311,15 +307,15 @@ namespace Engine::Makefiles {
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
 		pyc_re = new RegExpr{R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s} ;                  // dir_s is \1, module is \2, matches both python 2 & 3
 		//
-		_refresh( msg , rescue , refresh_ , false/*dynamic*/ , *g_startup_dir_s ) ;
+		_refresh( msg , rescue , refresh_ , false/*dyn*/ , *g_startup_dir_s ) ;
 		//
 		if (!RegExpr::s_cache.steady()) {
 			try         { AcFd( dir_guard(reg_exprs_file) , Fd::Write ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
 			catch (...) {                                                                                    } // perf only, dont care of errors (e.g. we are read-only)
 		}
 	}
-	void dynamic_refresh( ::string&/*out*/ msg , ::string const& startup_dir_s ) {                             // msg may be updated even if throwing
-		_refresh( msg , false/*rescue*/  , true/*refresh*/ , true/*dynamic*/ , startup_dir_s ) ;
+	void dyn_refresh( ::string&/*out*/ msg , ::string const& startup_dir_s ) {                                 // msg may be updated even if throwing
+		_refresh( msg , false/*rescue*/  , true/*refresh*/ , true/*dyn*/ , startup_dir_s ) ;
 	}
 
 }

@@ -40,7 +40,7 @@ ENUM_2( Special
 ,	NShared = Plain // <NShared means there is a single such rule
 ,	HasJobs = Plain // <=HasJobs means jobs can refer to this rule
 //
-,	None            // value 0 reserved to mean not initialized, so shared rules have an idx equal to special
+,	None            // value 0 reserved to mean not initialized
 ,	Req
 ,	Infinite
 ,	Plain
@@ -119,9 +119,9 @@ namespace Engine {
 		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>         ) ;
 		template<StdEnum    E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
 		//
-		template<        bool Env=false>                                       bool/*updated*/ acquire( ::string   & dst , Py::Object const* py_src ) ;
-		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) ;
-		template<class T,bool Env=false> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) ;
+		template<        bool Env=false>                                         bool/*updated*/ acquire( ::string     & dst , Py::Object const* py_src ) ;
+		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T  >& dst , Py::Object const* py_src ) ;
+		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vmap_s<T  >& dst , Py::Object const* py_src ) ;
 		//
 		template<class T,bool Env=false> requires(!Env||IsOneOf<T,::string,::vector_s,::vmap_ss>) bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key ) {
 			try {
@@ -157,11 +157,11 @@ namespace Engine {
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
 		// services
-		void init( bool is_dynamic , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void init( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		// data
 		// START_OF_VERSIONING
-		bool              full_dynamic = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...
-		::vmap_s<DepSpec> deps         ;        // ... if full_dynamic, we are not initialized, so be ready by default
+		bool              full_dyn = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...
+		::vmap_s<DepSpec> deps     ;        // ... if full_dyn, we are not initialized, so be ready by default
 		// END_OF_VERSIONING
 	} ;
 
@@ -169,8 +169,8 @@ namespace Engine {
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
+		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update( Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
 			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) ::sort(rsrcs) ;                                              // stabilize rsrcs crc
 		}
@@ -188,11 +188,11 @@ namespace Engine {
 	} ;
 
 	// used both at submit time (for cache look up) and at end of execution (for cache upload)
-	struct SubmitNoneAttrs {
+	struct SubmitAncillaryAttrs {
 		static constexpr const char* Msg = "cache key" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
+		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update( Py::Dict const& py_dct                           ) {
 			Attrs::acquire_from_dct( cache , py_dct , "cache" ) ;
 			throw_unless( !cache || g_config->cache_idxs.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
 		}
@@ -206,8 +206,8 @@ namespace Engine {
 	struct StartCmdAttrs {
 		static constexpr const char* Msg = "execution command attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
+		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update( Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( allow_stderr           , py_dct , "allow_stderr"  ) ;
 			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"    ) ;
@@ -247,8 +247,8 @@ namespace Engine {
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
+		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update( Py::Dict const& py_dct                           ) {
 			Attrs::acquire_env     ( env        , py_dct , "env"                               ) ;
 			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
 			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
@@ -265,11 +265,11 @@ namespace Engine {
 	} ;
 
 	// used at start time, participate to nothing
-	struct StartNoneAttrs {
+	struct StartAncillaryAttrs {
 		static constexpr const char* Msg = "execution ancillary attributes" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
-		void update(                       Py::Dict const& py_dct                           ) {
+		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& ) { update(*py_src) ; }
+		void update( Py::Dict const& py_dct                           ) {
 			using namespace Attrs ;
 			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
 			Attrs::acquire_from_dct( z_lvl          , py_dct , "compression"                           ) ;
@@ -293,8 +293,8 @@ namespace Engine {
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
 		// services
-		void init  ( bool /*is_dynamic*/ , Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
-		void update(                       Py::Dict const& py_dct                                      ) {
+		void init  ( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		void update( Py::Dict const& py_dct                                      ) {
 			Attrs::acquire_from_dct( cmd , py_dct , "cmd" ) ;
 		}
 		// data
@@ -309,29 +309,34 @@ namespace Engine {
 	using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , string const& key , string  const& val )> ;
 	using EvalCtxFuncDct = ::function<void( VarCmd , VarIdx idx , string const& key , vmap_ss const& val )> ;
 
-	// the part of the Dynamic struct which is stored on disk
-	struct DynamicDskBase {
-		// statics
-		static bool s_is_dynamic(Py::Tuple const& ) ;
+	// the part of the Dyn struct which is stored on disk
+	struct DynDskBase {
 	protected :
 		static void _s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
 		// cxtors & casts
-		DynamicDskBase() = default ;
-		DynamicDskBase( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs ) ;
+		DynDskBase() = default ;
+		DynDskBase( Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs ) ;
+		// accesses
+		bool is_dyn() const { return +code_str ; }
 		// services
 		// START_OF_VERSIONING
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,is_dynamic) ;
 			::serdes(s,glbs_str  ) ;
 			::serdes(s,code_str  ) ;
 			::serdes(s,ctx       ) ;
 			::serdes(s,dbg_info  ) ;
+			::serdes(s,may_import) ;
 		}
-		void update_hash(Hash::Xxh& h) const { // ignore debug info as these do not participate to the semantic
-			h.update(is_dynamic) ;
-			h.update(glbs_str  ) ;
-			h.update(code_str  ) ;
-			h.update(ctx       ) ;
+		void update_hash( Hash::Xxh& h , ::vector_s const& sys_path ) const {
+			h.update(is_dyn()) ;
+			if (is_dyn()) {
+				/**/            h.update(glbs_str  ) ;
+				/**/            h.update(code_str  ) ;
+				/**/            h.update(ctx       ) ;
+				/**/            h.update(may_import) ;
+				if (may_import) h.update(sys_path  ) ; // if we may import, we are sensitive to the sys.path
+				//              dbg_info               // intentionally not part of crc as it has no influence on result
+			}
 		}
 		// END_OF_VERSIONING
 		::string append_dbg_info(::string const& code) const {
@@ -342,29 +347,27 @@ namespace Engine {
 		// data
 	public :
 		// START_OF_VERSIONING
-		bool             is_dynamic = false ;
-		::string         glbs_str   ;          // if is_dynamic <=> contains string to run to get the glbs below
-		::string         code_str   ;          // if is_dynamic <=> contains string to compile to code object below
-		::vector<CmdIdx> ctx        ;          // a list of stems, targets & deps, accessed by code
-		// END_OF_VERSIONING
-		// START_OF_VERSIONING
-		::string dbg_info = {} ;
+		::string         glbs_str   ;                  // if is_dyn <=> contains string to run to get the glbs below
+		::string         code_str   ;                  // if is_dyn <=> contains string to compile to code object below
+		::vector<CmdIdx> ctx        ;                  // a list of stems, targets & deps, accessed by code
+		::string         dbg_info   ;
+		bool             may_import ;
 		// END_OF_VERSIONING
 	} ;
 
-	template<class T> struct DynamicDsk : DynamicDskBase {
+	template<class T> struct DynDsk : DynDskBase {
 		// statics
 		static ::string s_exc_msg(bool using_static) { return "cannot compute dynamic "s + T::Msg + (using_static?", using static info":"") ; }
 		// cxtors & casts
-		DynamicDsk() = default ;
-		template<class... A> DynamicDsk( Py::Tuple const& , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
+		DynDsk() = default ;
+		template<class... A> DynDsk( Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , A&&... ) ;
 		// services
 		template<IsStream S> void serdes(S& s) {
-			DynamicDskBase::serdes(s) ;
+			DynDskBase::serdes(s) ;
 			::serdes(s,spec) ;
 		}
-		void update_hash(Hash::Xxh& h) const {
-			DynamicDskBase::update_hash(h) ;
+		void update_hash( Hash::Xxh& h , ::vector_s const& sys_path ) const {
+			DynDskBase::update_hash( h , sys_path ) ;
 			h.update(spec) ;
 		}
 		// data
@@ -373,24 +376,25 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	template<class T> struct Dynamic : DynamicDsk<T> {
-		using Base = DynamicDsk<T> ;
-		using Base::is_dynamic      ;
+	template<class T> struct Dyn : DynDsk<T> {
+		using Base = DynDsk<T> ;
+		//
+		using Base::is_dyn          ;
 		using Base::glbs_str        ;
 		using Base::code_str        ;
 		using Base::ctx             ;
 		using Base::spec            ;
 		using Base::_s_eval         ;
 		using Base::append_dbg_info ;
-		// statics
-		static bool s_is_dynamic(Py::Tuple const&) ;
 		// cxtors & casts
 		using Base::Base ;
-		Dynamic(              ) = default ;
-		Dynamic(Dynamic const&) = default ;
-		Dynamic(Dynamic     &&) = default ;
-		Dynamic& operator=(Dynamic const&) = default ;
-		Dynamic& operator=(Dynamic     &&) = default ;
+		//
+		Dyn(          ) = default ;
+		Dyn(Dyn const&) = default ;
+		Dyn(Dyn     &&) = default ;
+		//
+		Dyn& operator=(Dyn const&) = default ;
+		Dyn& operator=(Dyn     &&) = default ;
 		// services
 		void compile() ;
 		//
@@ -414,40 +418,22 @@ namespace Engine {
 			return _eval_code( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 		// data
-		Py::Ptr<Py::Dict> mutable glbs ; // if is_dynamic <=> dict to use as globals when executing code, modified then restored during evaluation
-		Py::Ptr<Py::Code>         code ; // if is_dynamic <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
+		Py::Ptr<Py::Dict> mutable glbs ; // if is_dyn <=> dict to use as globals when executing code, modified then restored during evaluation
+		Py::Ptr<Py::Code>         code ; // if is_dyn <=> python code object to execute with stems as locals and glbs as globals leading to a dict that can be used to build data
 	} ;
 
-	struct DynamicDepsAttrs : Dynamic<DepsAttrs> {
-		using Base = Dynamic<DepsAttrs> ;
+	struct DynDepsAttrs : Dyn<DepsAttrs> {
+		using Base = Dyn<DepsAttrs> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicDepsAttrs           (DynamicDepsAttrs const& src) : Base           {       src } {}                // only copy disk backed-up part, in particular mutex is not copied
-		DynamicDepsAttrs           (DynamicDepsAttrs     && src) : Base           {::move(src)} {}                // .
-		DynamicDepsAttrs& operator=(DynamicDepsAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
-		DynamicDepsAttrs& operator=(DynamicDepsAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
 		::vmap_s<DepSpec> eval(Rule::RuleMatch const&) const ;
 	} ;
 
-	struct DynamicStartCmdAttrs : Dynamic<StartCmdAttrs> {
-		using Base = Dynamic<StartCmdAttrs> ;
+	struct DynCmd : Dyn<Cmd> {
+		using Base = Dyn<Cmd> ;
 		// cxtors & casts
 		using Base::Base ;
-		DynamicStartCmdAttrs           (DynamicStartCmdAttrs const& src) : Base           {       src } {}                // only copy disk backed-up part, in particular mutex is not copied
-		DynamicStartCmdAttrs           (DynamicStartCmdAttrs     && src) : Base           {::move(src)} {}                // .
-		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs const& src) { Base::operator=(       src ) ; return self ; } // .
-		DynamicStartCmdAttrs& operator=(DynamicStartCmdAttrs     && src) { Base::operator=(::move(src)) ; return self ; } // .
-	} ;
-
-	struct DynamicCmd : Dynamic<Cmd> {
-		using Base = Dynamic<Cmd> ;
-		// cxtors & casts
-		using Base::Base ;
-		DynamicCmd           (DynamicCmd const& src) : Base           {       src } {}                // only copy disk backed-up part, in particular mutex is not copied
-		DynamicCmd           (DynamicCmd     && src) : Base           {::move(src)} {}                // .
-		DynamicCmd& operator=(DynamicCmd const& src) { Base::operator=(       src ) ; return self ; } // .
-		DynamicCmd& operator=(DynamicCmd     && src) { Base::operator=(::move(src)) ; return self ; } // .
 		// services
 		::pair_ss/*script,call*/ eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 	} ;
@@ -487,10 +473,10 @@ namespace Engine {
 		RuleData(::string_view str) {
 			serdes(str) ;
 		}
-		RuleData(Py::Dict const& dct) {
-			_acquire_py(dct) ;
-			_set_crcs  (   ) ;
-			_compile   (   ) ;
+		RuleData( Py::Dict const& dct , ::vector_s const& sys_path ) {
+			_acquire_py(dct     ) ;
+			_set_crcs  (sys_path) ;
+			_compile   (        ) ;
 		}
 		template<IsStream S> void serdes(S&) ;
 	private :
@@ -499,15 +485,15 @@ namespace Engine {
 	public :
 		::string pretty_str() const ;
 		// accesses
-		bool   is_special  (         ) const { return special!=Special::Plain                              ; }
-		bool   user_defined(         ) const { return !allow_ext                                           ; }                                  // used to decide to print in LMAKE/rules
+		bool   operator+   (         ) const {                    return !special                          ; }
+		bool   is_special  (         ) const {                    return special!=Special::Plain           ; }
+		bool   user_defined(         ) const {                    return !allow_ext                        ; }                                  // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags() ; }
 		//
 		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
 		//
 		::string full_name() const {
-			::string res = name ;
-			if (+sub_repo_s) { res <<':'<< sub_repo_s ; res.pop_back() ; }
+			::string res = name ; if (+sub_repo_s) res <<':'<< no_slash(sub_repo_s) ;
 			return res ;
 		}
 		Disk::FileNameIdx job_sfx_len(                ) const ;
@@ -527,11 +513,11 @@ namespace Engine {
 		CoarseDelay cost          (                                                      ) const ;
 	private :
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx       ) const ;
-		void          _set_crcs  (                                   ) ;
+		void          _set_crcs  ( ::vector_s       const& sys_path  ) ;
 		TargetPattern _mk_pattern( MatchEntry const& , bool for_name ) const ;
 		//
 		/**/              ::string _pretty_fstr   (::string const& fstr) const ;
-		template<class T> ::string _pretty_dyn    (Dynamic<T> const&   ) const ;
+		template<class T> ::string _pretty_dyn    (Dyn<T>   const&     ) const ;
 		/**/              ::string _pretty_matches(                    ) const ;
 		/**/              ::string _pretty_deps   (                    ) const ;
 		/**/              ::string _pretty_env    (                    ) const ;
@@ -550,17 +536,17 @@ namespace Engine {
 		VarIdx               stdin_idx  = NoVar         ;                          // index of dep used as stdin
 		bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
 		// following is only if plain rules
-		DynamicDepsAttrs          deps_attrs         ;                             // in match crc, evaluated at job creation time
-		Dynamic<SubmitRsrcsAttrs> submit_rsrcs_attrs ;                             // in rsrcs crc, evaluated at submit time
-		Dynamic<SubmitNoneAttrs > submit_none_attrs  ;                             // in no    crc, evaluated at submit time
-		DynamicStartCmdAttrs      start_cmd_attrs    ;                             // in cmd   crc, evaluated before execution
-		Dynamic<StartRsrcsAttrs > start_rsrcs_attrs  ;                             // in rsrcs crc, evaluated before execution
-		Dynamic<StartNoneAttrs  > start_none_attrs   ;                             // in no    crc, evaluated before execution
-		DynamicCmd                cmd                ;                             // in cmd   crc, evaluated before execution
-		bool                      is_python          = false ;
-		bool                      force              = false ;
-		uint8_t                   n_losts            = 0     ;                     // max number of times a job can be lost
-		uint8_t                   n_submits          = 0     ;                     // max number of times a job can be submitted (except losts & retries), 0 = infinity
+		DynDepsAttrs              deps_attrs             ;                         // in match crc, evaluated at job creation time
+		Dyn<SubmitRsrcsAttrs    > submit_rsrcs_attrs     ;                         // in rsrcs crc, evaluated at submit time
+		Dyn<SubmitAncillaryAttrs> submit_ancillary_attrs ;                         // in no    crc, evaluated at submit time
+		Dyn<StartCmdAttrs       > start_cmd_attrs        ;                         // in cmd   crc, evaluated before execution
+		Dyn<StartRsrcsAttrs     > start_rsrcs_attrs      ;                         // in rsrcs crc, evaluated before execution
+		Dyn<StartAncillaryAttrs > start_ancillary_attrs  ;                         // in no    crc, evaluated before execution
+		DynCmd                    cmd                    ;                         // in cmd   crc, evaluated before execution
+		bool                      is_python              = false ;
+		bool                      force                  = false ;
+		uint8_t                   n_losts                = 0     ;                 // max number of times a job can be lost
+		uint8_t                   n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
 		// derived data
 		::vector<uint32_t> stem_mark_cnts   ;                                      // number of capturing groups within each stem
 		RuleCrc            crc              ;
@@ -588,7 +574,7 @@ namespace Engine {
 		Crc   cmd   ;
 		Crc   rsrcs ;
 		Rule  rule  = {}            ; // rule associated with match
-		State state = State::CmdOld ; // if !=No, cmd is ok, if ==Yes, rsrcs are not
+		State state = State::CmdOld ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -712,7 +698,7 @@ namespace Engine {
 			auto handle_entry = [&](Py::Object const& py_item)->void {
 				if (py_item==Py::None) return ;
 				try {
-					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & repo roots by markers ...
 					else               updated |= acquire     (grow(dst,i++),&py_item) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
 					throw "for item "s+i+" : "+e ;
@@ -763,25 +749,25 @@ namespace Engine {
 	}
 
 	//
-	// Dynamic
+	// Dyn
 	//
 
-	template<class T> template<class... A> DynamicDsk<T>::DynamicDsk( Py::Tuple const& py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) : DynamicDskBase(py_src,var_idxs) {
-		if (py_src[0]!=Py::None) spec.init( is_dynamic , &py_src[0].as_a<Py::Dict>() , var_idxs , ::forward<A>(args)... ) ;
+	template<class T> template<class... A> DynDsk<T>::DynDsk( Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , A&&... args ) : DynDskBase(py_src,var_idxs) {
+		if (py_src.contains("static")) spec.init( &py_src["static"].as_a<Py::Dict>() , var_idxs , ::forward<A>(args)... ) ;
 	}
 
-	template<class T> void Dynamic<T>::compile() {
-		if (!is_dynamic) return ;
+	template<class T> void Dyn<T>::compile() {
+		if (!is_dyn()) return ;
 		// boost to avoid problems at end of execution
 		try { code = code_str                              ; code->boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
 		try { glbs = Py::py_run(append_dbg_info(glbs_str)) ; glbs->boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
 	}
 
-	template<class T> void Dynamic<T>::eval_ctx( Job job , Rule::RuleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
+	template<class T> void Dyn<T>::eval_ctx( Job job , Rule::RuleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
 		_s_eval(job,match_,rsrcs_,ctx,cb_str,cb_dct) ;
 	}
 
-	template<class T> ::string Dynamic<T>::parse_fstr( ::string const& fstr , Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs ) const {
+	template<class T> ::string Dyn<T>::parse_fstr( ::string const& fstr , Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs ) const {
 		::vector<CmdIdx> ctx_  ;
 		::vector_s       fixed { 1 } ;
 		size_t           fi    = 0   ;
@@ -804,7 +790,7 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> Py::Ptr<Py::Object> Dynamic<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	template<class T> Py::Ptr<Py::Object> Dyn<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		Rule       r       = +match ? match.rule : job->rule() ;
@@ -846,9 +832,9 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> T Dynamic<T>::eval( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	template<class T> T Dyn<T>::eval( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		T res = spec ;
-		if (is_dynamic) {
+		if (is_dyn()) {
 			Py::Gil             gil    ;
 			Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
 			if (*py_obj!=Py::None) {
@@ -882,20 +868,20 @@ namespace Engine {
 		::serdes(s,n_static_targets) ;
 		::serdes(s,n_statics       ) ;
 		if (special==Special::Plain) {
-			::serdes(s,deps_attrs        ) ;
-			::serdes(s,submit_rsrcs_attrs) ;
-			::serdes(s,submit_none_attrs ) ;
-			::serdes(s,start_cmd_attrs   ) ;
-			::serdes(s,cmd               ) ;
-			::serdes(s,start_rsrcs_attrs ) ;
-			::serdes(s,start_none_attrs  ) ;
-			::serdes(s,is_python         ) ;
-			::serdes(s,force             ) ;
-			::serdes(s,n_losts           ) ;
-			::serdes(s,n_submits         ) ;
-			::serdes(s,cost_per_token    ) ;
-			::serdes(s,exec_time         ) ;
-			::serdes(s,stats_weight      ) ;
+			::serdes(s,deps_attrs            ) ;
+			::serdes(s,submit_rsrcs_attrs    ) ;
+			::serdes(s,submit_ancillary_attrs) ;
+			::serdes(s,start_cmd_attrs       ) ;
+			::serdes(s,start_rsrcs_attrs     ) ;
+			::serdes(s,start_ancillary_attrs ) ;
+			::serdes(s,cmd                   ) ;
+			::serdes(s,is_python             ) ;
+			::serdes(s,force                 ) ;
+			::serdes(s,n_losts               ) ;
+			::serdes(s,n_submits             ) ;
+			::serdes(s,cost_per_token        ) ;
+			::serdes(s,exec_time             ) ;
+			::serdes(s,stats_weight          ) ;
 		}
 		if (IsIStream<S>) {
 			Py::Gil gil ;

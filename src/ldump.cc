@@ -18,8 +18,8 @@ int main( int argc , char* /*argv*/[] ) {
 	app_init(true/*read_only_ok*/) ;
 	Py::init(*g_lmake_root_s) ;
 	//
-	try                       { Persistent::new_config({}/*config*/,false/*dynamic*/) ; }
-	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
+	try                       { Persistent::new_config({}/*config*/,false/*dyn*/) ; }
+	catch (::string const& e) { exit(Rc::Format,e) ;                                }
 	//
 	for( const Rule r : Persistent::rule_lst(true/*with_shared*/) )             _out( cat(r->special) , cat(r        ) , r->full_name() ) ;
 	for( const Job  j : Persistent::job_lst (                   ) ) { j.chk() ; _out( cat(j         ) , cat(j->rule()) , j->name()      ) ; }

@@ -292,23 +292,23 @@ namespace Backends {
 		if (!jsrr) return false ;                                                                   // if connection is lost, ignore it
 		Trace trace(BeChnl,"_s_handle_job_start",jsrr) ;
 		SWEAR(+fd,jsrr) ;                                                                           // fd is needed to reply
-		Job                      job                 { jsrr.job }                     ;
-		JobExec                  job_exec            ;
-		Rule                     rule                = job->rule()                    ;
-		Rule::RuleMatch          match               = job->rule_match()              ;
-		vmap<Node,FileAction>    pre_actions         ;
-		vmap<Node,FileActionTag> pre_action_warnings ;
-		StartCmdAttrs            start_cmd_attrs     ;
-		::pair_ss/*script,call*/ cmd                 ;
-		::vmap_s<DepSpec>        deps_attrs          ;
-		StartRsrcsAttrs          start_rsrcs_attrs   ;
-		StartNoneAttrs           start_none_attrs    ;
-		::pair_ss                start_msg_err       ;
-		::vector<ReqIdx>         reqs                ;
-		JobInfoStart             jis                 { .rule_cmd_crc=rule->crc->cmd } ;
-		JobStartRpcReply&        reply               = jis.start                      ;
-		SubmitAttrs     &        submit_attrs        = jis.submit_attrs               ;
-		::vmap_ss       &        rsrcs               = jis.rsrcs                      ;
+		Job                      job                   { jsrr.job }                     ;
+		JobExec                  job_exec              ;
+		Rule                     rule                  = job->rule()                    ;
+		Rule::RuleMatch          match                 = job->rule_match()              ;
+		vmap<Node,FileAction>    pre_actions           ;
+		vmap<Node,FileActionTag> pre_action_warnings   ;
+		StartCmdAttrs            start_cmd_attrs       ;
+		::pair_ss/*script,call*/ cmd                   ;
+		::vmap_s<DepSpec>        deps_attrs            ;
+		StartRsrcsAttrs          start_rsrcs_attrs     ;
+		StartAncillaryAttrs      start_ancillary_attrs ;
+		::pair_ss                start_msg_err         ;
+		::vector<ReqIdx>         reqs                  ;
+		JobInfoStart             jis                   { .rule_cmd_crc=rule->crc->cmd } ;
+		JobStartRpcReply&        reply                 = jis.start                      ;
+		SubmitAttrs     &        submit_attrs          = jis.submit_attrs               ;
+		::vmap_ss       &        rsrcs                 = jis.rsrcs                      ;
 		//
 		// to lock for minimal time, we lock twice
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
@@ -354,18 +354,18 @@ namespace Backends {
 		// record as much info as possible in reply
 		switch (step) {
 			case 4 :
-				// do not generate error if *_none_attrs is not available, as we will not restart job when fixed : do our best by using static info
+				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
-					try                       { start_none_attrs = rule->start_none_attrs.eval(match,rsrcs,&deps) ; }
-					catch (::string const& e) { throw ::pair_ss(e,{}) ;                                             }
+					try                       { start_ancillary_attrs = rule->start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
+					catch (::string const& e) { throw ::pair_ss(e,{}) ;                                                       }
 				} catch (::pair_ss const& e) {
-					start_msg_err    = e                           ;
-					start_none_attrs = rule->start_none_attrs.spec ;
-					jsrr.msg <<set_nl<< rule->start_none_attrs.s_exc_msg(true/*using_static*/) ;
+					start_msg_err         = e                                ;
+					start_ancillary_attrs = rule->start_ancillary_attrs.spec ;
+					jsrr.msg <<set_nl<< rule->start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
 				}
-				reply.keep_tmp |= start_none_attrs.keep_tmp ;
+				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
-					reply.z_lvl = start_none_attrs.z_lvl ;                                                                                                   // if zlib is not available, dont compress
+					reply.z_lvl = start_ancillary_attrs.z_lvl ;                                                                                              // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
@@ -405,11 +405,11 @@ namespace Backends {
 				if (submit_attrs.cache_idx       ) reply.cache                     = Cache::s_tab[submit_attrs.cache_idx]              ;
 				/**/                               reply.ddate_prec                = g_config->ddate_prec                              ;
 				/**/                               reply.key                       = g_config->key                                     ;
-				/**/                               reply.kill_sigs                 = ::move(start_none_attrs.kill_sigs)                ;
+				/**/                               reply.kill_sigs                 = ::move(start_ancillary_attrs.kill_sigs)           ;
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
 				/**/                               reply.network_delay             = g_config->network_delay                           ;
 				//
-				for( ::pair_ss& kv : start_none_attrs.env ) reply.env.push_back(::move(kv)) ;
+				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
 		DF}
 		//
@@ -425,7 +425,7 @@ namespace Backends {
 		bool deps_done = false ;                                           // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
 			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
-				if (!Node(dn)->done(r,NodeGoal::Status)) { trace("dep_not_done",r,dn) ; goto NextReq ; }
+				if (!Node(dn)->done(r,NodeGoal::Dsk)) { trace("dep_not_done",r,dn) ; goto NextReq ; }
 			deps_done = true ;
 			break ;
 		NextReq : ;
@@ -438,7 +438,7 @@ namespace Backends {
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab2",job                              ) ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
-			entry.max_stderr_len = start_none_attrs.max_stderr_len ;
+			entry.max_stderr_len = start_ancillary_attrs.max_stderr_len ;
 			for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
 			return false/*keep_fd*/ ;
 		Useful :
@@ -452,7 +452,7 @@ namespace Backends {
 					start_msg_err = {}                   ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;                                                                                // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;                                                                                  // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("early",start_msg_err) ;
 				//
@@ -461,12 +461,12 @@ namespace Backends {
 				jerr.end_date = New                                                                                                 ;
 				jerr.msg      = ::move(start_msg_err.first )                                                                        ;
 				jerr.stderr   = ::move(start_msg_err.second)                                                                        ;
-				JobDigest<Node> jd = jerr.digest ;                                                                                  // before jerr is moved
+				JobDigest<Node> jd = jerr.digest ;                                                                                    // before jerr is moved
 				//
 				Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 				Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 				//
-				job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                                // job starts and ends
+				job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                        // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 				g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
@@ -478,20 +478,20 @@ namespace Backends {
 			//
 			reply.small_id = _s_small_ids.acquire() ;
 			//vvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,reply) ;                                                                                              // send reply ASAP to minimize overhead
+			OMsgBuf().send(fd,reply) ;                                                                                                // send reply ASAP to minimize overhead
 			//^^^^^^^^^^^^^^^^^^^^^^
-			job_exec            = { job , jis.start.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ;               // job starts
+			job_exec            = { job , jis.start.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ;                 // job starts
 			entry.start_date    = job_exec.start_date                                 ;
 			entry.workload      = _s_workload.start(entry.reqs,job)                   ;
 			entry.conn.host     = job_exec.host                                       ;
 			entry.conn.port     = jsrr.port                                           ;
 			entry.conn.small_id = jis.start.small_id                                  ;
 		}
-		bool report_now =                                                                                                           // dont defer long jobs or if a message is to be delivered to user
+		bool report_now =                                                                                                             // dont defer long jobs or if a message is to be delivered to user
 				+pre_action_warnings
 			||	+start_msg_err.second
-			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                                        // emit retry start message
-			||	Delay(job->exec_time)>=start_none_attrs.start_delay                                                                 // if job is probably long, emit start message immediately
+			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                                          // emit retry start message
+			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay                                                              // if job is probably long, emit start message immediately
 		;
 		Job::s_record_thread.emplace( job , ::move(jis) ) ;
 		trace("started",job_exec,jis.start) ;
@@ -500,7 +500,7 @@ namespace Backends {
 		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , report_now , ::move(pre_action_warnings) , ::move(txts) ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) {
-			Pdate report_date = Pdate(New) + start_none_attrs.start_delay ;                                                                        // record before moving job_exec
+			Pdate report_date = Pdate(New) + start_ancillary_attrs.start_delay ;                                                                   // record before moving job_exec
 			{	TraceLock lock     { _s_mutex , BeChnl , "s_handle_job_start3" }                                           ;                       // allow queues manipulation
 				bool      inserted = _s_deferred_report_queue_by_date.try_emplace( report_date , ::move(job_exec) ).second ; SWEAR(inserted,job) ;
 				/**/      inserted = _s_deferred_report_queue_by_job .try_emplace( job         , report_date      ).second ; SWEAR(inserted,job) ;
@@ -726,24 +726,24 @@ namespace Backends {
 		trace("done") ;
 	}
 
-	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
+	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		if (!dynamic) {                                                                          // if dynamic, threads are already running
+		if (!dyn) {                                                                              // if dyn, threads are already running
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
 			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
 			_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
 			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
 		}
-		Trace trace(BeChnl,"s_config",STR(dynamic)) ;
-		if (!dynamic) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
+		Trace trace(BeChnl,"s_config",STR(dyn)) ;
+		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
 		for( Tag t : iota(1,All<Tag>) ) {                                                                                                                          // local backend is always available
 			Backend*               be  = s_tab [+t].get() ; if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
 			Config::Backend const& cfg = config[+t]       ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
 			try {
-				be->config(cfg.dct,cfg.env,dynamic) ;
+				be->config(cfg.dct,cfg.env,dyn) ;
 				be->config_err.clear() ; trace("ready",t  ) ;                                                                                                      // .
 			} catch (::string const& e) {
 				SWEAR(+e) ;                                                                                                                                        // .

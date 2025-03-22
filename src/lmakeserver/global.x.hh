@@ -3,11 +3,11 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#ifdef STRUCT_DECL
+
 #include "serialize.hh"
 
 #include "rpc_client.hh"
-
-#ifdef STRUCT_DECL
 
 ENUM( EngineClosureKind
 ,	Global
@@ -47,6 +47,9 @@ ENUM( ReportBool
 )
 
 namespace Engine {
+
+	struct Rules   ;
+	struct Sources ;
 
 	struct EngineClosure    ;
 	struct EngineClosureReq ;
@@ -248,6 +251,30 @@ namespace Engine {
 	extern ThreadDeque<EngineClosure,true/*Flush*/> g_engine_queue ;
 	extern bool                                     g_writable     ;
 
+	//
+	// Rules & Sources
+	//
+
+	struct Rules : ::vector<RuleData> {                                                              // used to read rules and pass them to store
+		using Base = ::vector<RuleData> ;
+		// cxtors & casts
+		Rules(                 ) = default ;
+		Rules(NewType          ) ;
+		Rules(Py::Object const&) ;
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes(s,sys_path                ) ;
+			::serdes(s,static_cast<Base&>(self)) ;
+		}
+		// data
+		::vector_s sys_path ;
+	} ;
+
+	struct Sources : ::vector_s { // used to read manifest and pass it to store
+		// cxtors & casts
+		Sources(                 ) = default ;
+		Sources(Py::Object const&) ;
+	} ;
 
 }
 
@@ -280,6 +307,8 @@ namespace Engine {
 		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
 		return "\x1b[0m" ;
 	}
+
+	inline Rules::Rules(NewType) { for( Special s : iota(1,Special::NShared) ) emplace_back(s) ; } ; // rule 0 is not stored
 
 }
 

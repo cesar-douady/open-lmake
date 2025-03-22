@@ -11,7 +11,7 @@
 // STR must only be called for tracing as return type is undefined
 #define STR(x) Trace::s_str((x),#x)
 
-extern ::string* g_trace_file ; // pointer to avoid init/fini order hazards, relative to admin dir
+extern StaticUniqPtr<::string> g_trace_file ;
 
 ENUM( Channel
 ,	Default

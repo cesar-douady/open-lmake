@@ -170,8 +170,8 @@ namespace Backends::Slurm {
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dynamic ) {
-			Trace trace(BeChnl,"Slurm::config",STR(dynamic),dct) ;
+		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
+			Trace trace(BeChnl,"Slurm::config",STR(dyn),dct) ;
 			//
 			const char* config_file = nullptr ;
 			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
@@ -186,7 +186,7 @@ namespace Backends::Slurm {
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
-			if (!dynamic) {
+			if (!dyn) {
 				slurm_init(config_file) ;
 				daemon = slurm_sense_daemon() ;
 				_s_slurm_cancel_thread.open('K',slurm_cancel) ;

@@ -164,7 +164,7 @@ int main( int argc , char* argv[] ) {
 		(void)start_info.enter(
 			/*out*/::ref(::vmap_s<MountAction>())
 		,	/*out*/cmd_env
-		,	/*out*/::ref(::vmap_ss())/*dynamic_env*/
+		,	/*out*/::ref(::vmap_ss())/*dyn_env*/
 		,	/*out*/gather.first_pid
 		,	/*out*/top_repo_root_s
 		,	       *g_lmake_root_s

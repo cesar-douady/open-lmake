@@ -8,7 +8,7 @@ import sys     as _sys
 
 from . import depend
 
-from . import _maybe_local
+from . import _maybe_lcl
 
 def _depend_module(module_name,path=None) :
 	if path==None : path = _sys.path
@@ -16,7 +16,7 @@ def _depend_module(module_name,path=None) :
 	for dir in path :
 		if dir : dir += '/'
 		base = dir+tail
-		if _maybe_local(base) :
+		if _maybe_lcl(base) :
 			for suffix in module_suffixes :
 				file = base+suffix
 				depend(file,required=False,read=True)
@@ -68,5 +68,18 @@ else :
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found
 		_fix_path()
+
+	def load_module( name , file=None ) :
+		'''
+			load a module from name and file (if provided, else use python machinery)
+			do not update sys.modules
+		'''
+		import importlib.util as import_util
+		if file : spec = import_util.spec_from_file_location( name , file )
+		else    : spec = import_util.find_spec(name)
+		if spec is None : raise ImportError('module '+name+' not found') # cannot use f-string as syntax must be python2 compatible
+		mod = import_util.module_from_spec(spec)
+		spec.loader.exec_module(mod)
+		return mod
 
 module_suffixes = [ i+s for i in ('','/__init__') for s in _std_suffixes ]

@@ -223,7 +223,7 @@ namespace Backends {
 		} ;
 
 		// specialization
-		virtual void sub_config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dynamic*/ ) {}
+		virtual void sub_config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dyn*/ ) {}
 		//
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
@@ -259,9 +259,9 @@ namespace Backends {
 		}
 
 		// services
-		virtual void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dynamic ) {
-			sub_config(dct,env,dynamic) ;
-			if (!dynamic) _launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ;
+		virtual void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) {
+			sub_config(dct,env,dyn) ;
+			if (!dyn) _launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ;
 		}
 		virtual bool is_local() const {
 			return IsLocal ;

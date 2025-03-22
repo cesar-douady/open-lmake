@@ -64,3 +64,10 @@ def multi_strip(txt) :
 		ls = [ l[1:] for l in ls ]
 		l0 = ls[0]
 	return ''.join(l+'\n' for l in ls)
+
+def indent(txt,pfx='\t') :
+	'''indent txt by adding pfx in front of each line not composed entirely of spaces'''
+	lines = txt.split('\n')
+	for i,line in enumerate(lines) :
+		if not line.isspace() : lines[i] = pfx+line
+	return '\n'.join(lines)

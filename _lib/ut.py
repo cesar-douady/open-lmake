@@ -13,7 +13,7 @@ import time
 
 from lmake import pdict
 
-def lmake(*args,rc=0,summary=None,**kwds) :
+def lmake(*args,rc=0,summary=None,no_ldump=False,**kwds) :
 	if not summary : summary = {}
 	else           : summary = dict(summary)
 
@@ -28,7 +28,7 @@ def lmake(*args,rc=0,summary=None,**kwds) :
 		proc = sp.run( cmd , universal_newlines=True , stdin=None , stdout=sp.PIPE )
 		print(proc.stdout,end='',flush=True)
 		if proc.returncode!=rc : raise RuntimeError(f'bad return code {proc.returncode} != {rc}')
-		sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
+		if not no_ldump        : sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
 
 		if osp.exists('LMAKE/server') :
 			time.sleep(1)

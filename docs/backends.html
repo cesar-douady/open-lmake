@@ -261,9 +261,6 @@ and if not possible (e.g. because a resource is not available locally or because
 By default, this is automatically determined by the SGE daemon.</li>
 <li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.</li>
-<li><code>cmd_timeout</code> : the maximum time commands such as <code>qsub</code>, <code>qdel</code> or <code>qstat</code> may take.
-Default is 100 seconds.
-If not long enough, <code>open-lmake</code> may crash with a <code>dead-lock detected</code> message.</li>
 <li><code>default_prio</code> : the priority used to submit jobs to the SGE daemon if none is specified on the <code>lmake</code> command line.</li>
 <li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to SGE for each set of asked resources.
 This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend to require only a small set of different resources

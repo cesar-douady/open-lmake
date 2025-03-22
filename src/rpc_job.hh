@@ -485,7 +485,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	// START_OF_VERSIONING
 	static constexpr uint8_t NSzBits = 5 ;                                         // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
 	Accesses accesses         ;                                                    // 3<8 bits
-	Dflags   dflags           ;                                                    // 6<8 bits
+	Dflags   dflags           ;                                                    // 5<8 bits
 	bool     parallel:1       = false ;                                            //   1 bit
 	bool     is_crc  :1       = true  ;                                            //   1 bit
 	uint8_t  sz      :NSzBits = 0     ;                                            //   6 bits, number of items in chunk following header (semantically before)
@@ -744,7 +744,7 @@ struct JobStartRpcReply {
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&/*out*/
 	,	::map_ss             &/*out*/ cmd_env
-	,	::vmap_ss            &/*out*/ dynamic_env
+	,	::vmap_ss            &/*out*/ dyn_env
 	,	pid_t                &/*out*/ first_pid
 	,	::string             &/*out*/ top_repo_dir_s
 	,	::string        const&        phy_lmake_root_s
@@ -790,8 +790,8 @@ struct ExecTraceEntry {
 	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
 	// services
 	::string step() const {
-		if (+comment_exts) return cat     (snake(comment).substr(1),comment_exts) ;
-		else               return ::string(snake(comment).substr(1)             ) ;
+		if (+comment_exts) return cat     (snake(comment),comment_exts) ;
+		else               return ::string(snake(comment)             ) ;
 	}
 	// data
 	Time::Pdate date         ;
@@ -812,7 +812,7 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes(s,static_cast<JobRpcReq&>(self)) ;
 		::serdes(s,digest                       ) ;
 		::serdes(s,phy_tmp_dir_s                ) ;
-		::serdes(s,dynamic_env                  ) ;
+		::serdes(s,dyn_env                      ) ;
 		::serdes(s,exec_trace                   ) ;
 		::serdes(s,total_sz                     ) ;
 		::serdes(s,compressed_sz                ) ;
@@ -828,7 +828,7 @@ struct JobEndRpcReq : JobRpcReq {
 	// START_OF_VERSIONING
 	JobDigest<>              digest        ;
 	::string                 phy_tmp_dir_s ;
-	::vmap_ss                dynamic_env   ; // env variables computed in job_exec
+	::vmap_ss                dyn_env       ; // env variables computed in job_exec
 	::vector<ExecTraceEntry> exec_trace    ;
 	Disk::DiskSz             total_sz      = 0 ;
 	Disk::DiskSz             compressed_sz = 0 ;

@@ -39,7 +39,7 @@ version = ('$VERSION',$TAG) # substituted at build time
 def check_version(major,minor=0) :
 	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
 
-def _maybe_local(file) :
+def _maybe_lcl(file) :
 	'fast check for local files, avoiding full absolute path generation'
 	return not file or file[0]!='/' or file.startswith(top_repo_root)
 
