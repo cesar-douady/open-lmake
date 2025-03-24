@@ -222,7 +222,7 @@ namespace Engine {
 		for( auto const& kds : dep_specs ) {
 			DepSpec const& ds = kds.second ;
 			SWEAR(+ds.txt,kds.first) ;
-			if (!is_canon(ds.txt)) {
+			if (!( +ds.txt && is_canon(ds.txt) )) {
 				if (non_canon==Npos) non_canon = &kds-dep_specs.data() ;
 				continue ;
 			}

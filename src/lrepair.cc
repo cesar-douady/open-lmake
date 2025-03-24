@@ -33,7 +33,7 @@ RepairDigest repair(::string const& from_dir_s) {
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
-				if ( !is_canon(tn)                                 ) { trace("nul_in_target" ,jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
+				if (!( +tn && is_canon(tn)                        )) { trace("nul_in_target" ,jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
 				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                   continue     ;   // this is not a target
 				if ( !td.crc.valid()                               ) { trace("invalid_target",jd,tn) ; goto NextJob ; } // XXX? : handle this case (maybe not worthwhile)
 				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch" ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
@@ -47,7 +47,7 @@ RepairDigest repair(::string const& from_dir_s) {
 			::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
 			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
-				if ( !is_canon(dn)) goto NextJob ;                                                         // this should never happen, there is a problem with this job
+				if (!( +dn && is_canon(dn) )) goto NextJob ;                                               // this should never happen, there is a problem with this job
 				if (!is_lcl(dn)) {
 					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
 					goto NextJob ;                                                                         // this should never happen as src_dirs are part of cmd definition
