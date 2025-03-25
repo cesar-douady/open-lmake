@@ -693,7 +693,7 @@ trace("entry2",reply.small_id) ;
 		trace("done") ;
 	}
 
-	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) {
+	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic , bool first_time ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
 		if (!dynamic) {                                                                                                                                      // if dynamic, threads are already running
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
@@ -712,12 +712,12 @@ trace("entry2",reply.small_id) ;
 			Config::Backend const& cfg = config[+t] ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
 			try {
 				be->config(cfg.dct,cfg.env,dynamic) ;
-				be->config_err.clear() ; trace("ready",t  ) ;                                                                                                // .
+				be->config_err.clear() ; trace("ready",t) ;                                                     // .
 			} catch (::string const& e) {
-				SWEAR(+e) ;                                                                                                                                  // .
+				SWEAR(+e) ;                                                                                     // .
 				be->config_err = e ;
-				Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ;
-				trace("err"  ,t,e) ;
+				if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings if they are already aware
+				trace("err",t,e) ;
 				continue ;
 			}
 			//

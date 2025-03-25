@@ -875,6 +875,8 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	return                         os <<')'                                 ;
 }
 
+// /!\ this code is duplicated in src/lmakeserver/cmd.cc:_mk_gen_script_line, they must be updated together
+// this was done to minimize evoluation, the main branch correctly share this code
 template<class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
 	size_t len   = ::strlen(key)    ;
 	bool   brace = v[d+1/*$*/]=='{' ;
@@ -915,6 +917,8 @@ bool/*entered*/ JobStartRpcReply::enter(
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
 	}
 	//
+	// /!\ this code is duplicated in src/lmakeserver/cmd.cc:_mk_gen_script_line, they must be updated together
+	// this was done to minimize evoluation, the main branch correctly share this code
 	cmd_env["TMPDIR"] = no_slash(autodep_env.tmp_dir_s) ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;

@@ -133,7 +133,7 @@ namespace Backends {
 		static bool             s_ready     (Tag) ;
 		static ::string const&  s_config_err(Tag) ;
 		//
-		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic ) ;
+		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dynamic , bool first_time ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread

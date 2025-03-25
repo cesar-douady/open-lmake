@@ -176,7 +176,7 @@ namespace Engine {
 			if (IsIStream<S>) booted = true ;             // is config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
-		void open(bool dynamic) ;
+		void open( bool dynamic , bool first_time ) ;     // on first time, report config warnings to user
 		ConfigDiff diff(Config const& other) {
 			if (!(ConfigClean  ::operator==(other))) return ConfigDiff::Clean   ;
 			if (!(ConfigStatic ::operator==(other))) return ConfigDiff::Static  ;

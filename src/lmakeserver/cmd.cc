@@ -198,13 +198,29 @@ namespace Engine {
 		return res ;
 	}
 
+	// /!\ this code is a duplicate of src/rpc_job.cc:JobStartRpcReply::enter, they must be updated together
+	// this was done to minimize evoluation, the main branch correctly share this code
+	template<class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
+		size_t len   = ::strlen(key)    ;
+		bool   brace = v[d+1/*$*/]=='{' ;
+		size_t start = d+1/*$*/+brace   ;
+		if ( ::string_view(&v[start],len)!=key    ) return false/*match*/ ;
+		if (  brace && v[start+len]!='}'          ) return false/*match*/ ;
+		if ( !brace && is_word_char(v[start+len]) ) return false/*match*/ ;
+		::string pfx = v.substr(0,d) + no_slash(cat(args...)) ;
+		d = pfx.size()                                             ;
+		v = ::move(pfx) + ::string_view(v).substr(start+len+brace) ;
+		return true/*match*/ ;
+	}
 	static ::string _mk_gen_script_line( Job j , ReqOptions const& ro , JobInfo const& job_info , ::string const& dbg_dir_s , ::string const& key ) {
-		JobStartRpcReply const& start = job_info.start.start ;
-		AutodepEnv       const& ade   = start.autodep_env    ;
-		Rule::SimpleMatch       match = j->simple_match()    ;
+		JobStartRpcReply const& start     = job_info.start.start ;
+		JobSpace         const& job_space = start.job_space      ;
+		AutodepEnv       const& ade       = start.autodep_env    ;
+		Rule::SimpleMatch       match     = j->simple_match()    ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ;                    // necessary for pre_actions()
-		::string res ;
+		for( Node t  : j->targets ) t->set_buildable() ;                                                                 // necessary for pre_actions()
+		::string tmp_dir = ro.flags[ReqFlag::TmpDir] ? ro.flag_args[+ReqFlag::TmpDir] : *g_repo_root_s+dbg_dir_s+"tmp" ;
+		::string res     ;
 		res << "script = gen_script(\n" ;
 		//
 		/**/                               res <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                        ) << '\n' ;
@@ -214,7 +230,6 @@ namespace Engine {
 		/**/                               res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s)                   ) << '\n' ;
 		/**/                               res << ",\tignore_stat    = " << mk_py_str(ade.ignore_stat                       ) << '\n' ;
 		/**/                               res << ",\tis_python      = " << mk_py_str(j->rule()->is_python                  ) << '\n' ;
-		if (ro.flags[ReqFlag::KeepTmp]   ) res << ",\tkeep_tmp       = " <<           "True"                                  << '\n' ;
 		/**/                               res << ",\tkey            = " << mk_py_str(key                                   ) << '\n' ;
 		/**/                               res << ",\tjob            = " <<           +j                                      << '\n' ;
 		/**/                               res << ",\tlink_support   = " << mk_py_str(snake(ade.lnk_support)                ) << '\n' ;
@@ -223,17 +238,46 @@ namespace Engine {
 		if (+start.job_space.repo_view_s ) res << ",\trepo_view      = " << mk_py_str(no_slash(start.job_space.repo_view_s )) << '\n' ;
 		/**/                               res << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
 		/**/                               res << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
-		if (ro.flags[ReqFlag::TmpDir]    ) res << ",\ttmp_dir        = " << mk_py_str(ro.flag_args[+ReqFlag::TmpDir]        ) << '\n' ;
+		/**/                               res << ",\ttmp_dir        = " << mk_py_str(tmp_dir                               ) << '\n' ;
 		if (+start.job_space.tmp_view_s  ) res << ",\ttmp_view       = " << mk_py_str(no_slash(start.job_space.tmp_view_s  )) << '\n' ;
 		//
 		res << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
 		res << ",\tcmd =\n"      << mk_py_str(start.cmd.second) << '\n' ;
 		//
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
-		if (+env.first) {
+		//
+		// /!\ this code is a duplicate of src/rpc_job.cc:JobStartRpcReply::enter, they must be updated together
+		// this was done to minimize evoluation, the main branch correctly share this code
+		::map_ss env_map = ::mk_map(env.first) ;
+		env_map["TMPDIR"] = tmp_dir ;
+		if (PY_LD_LIBRARY_PATH[0]!=0) {
+			auto [it,inserted] = env_map.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
+			if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
+		}
+		for( auto& [k,v] : env_map ) {
+			for( size_t d=0 ;; d++ ) {
+				d = v.find('$',d) ;
+				if (d==Npos) break ;
+				switch (v[d+1/*$*/]) {
+					//                inout inout
+					case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , +job_space.lmake_view_s?job_space.lmake_view_s:*g_lmake_root_s                  ) ; break ;
+					case 'P' : _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , *g_lmake_root_s                                                                 )
+					||         _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , *g_repo_root_s                                                 , ade.sub_repo_s )
+					||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , with_slash(tmp_dir)                                                             )
+					||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , *g_repo_root_s                                                                  ) ; break ;
+					case 'R' : _handle( v  , d  , "REPO_ROOT"              , +job_space.repo_view_s?job_space.repo_view_s:*g_repo_root_s    , ade.sub_repo_s ) ; break ;
+					case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , "0"                                                                             )
+					||         _handle( v  , d  , "SMALL_ID"               , "0"                                                                             ) ; break ;
+					case 'T' : _handle( v  , d  , "TMPDIR"                 , +job_space.tmp_view_s?job_space.tmp_view_s:with_slash(tmp_dir)                  )
+					||         _handle( v  , d  , "TOP_REPO_ROOT"          , +job_space.repo_view_s?job_space.repo_view_s:*g_repo_root_s                     ) ; break ;
+				DN}
+			}
+		}
+		//
+		if (+env_map) {
 			res << ",\tenv = {" ;
 			First first ;
-			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			for( auto const& [k,v] : env_map ) res << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (+env.second) {
@@ -275,10 +319,10 @@ namespace Engine {
 			for( auto const& [view,descr] : start.job_space.views ) {
 				SWEAR(+descr.phys) ;
 				res << first1("\n\t\t",",\t") << mk_py_str(view) << " : " ;
-				if (+descr.phys.size()==1) {                                // bind case
+				if (+descr.phys.size()==1) {                                                                             // bind case
 					SWEAR(!descr.copy_up) ;
 					res << mk_py_str(descr.phys[0]) ;
-				} else {                                                    // overlay case
+				} else {                                                                                                 // overlay case
 					res << '{' ;
 					{	res <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
 					}

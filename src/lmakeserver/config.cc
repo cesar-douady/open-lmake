@@ -313,7 +313,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void Config::open(bool dynamic) {
+	void Config::open( bool dynamic , bool first_time ) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
@@ -331,11 +331,11 @@ namespace Engine {
 		}
 		mk_dir_s(local_admin_dir_s,true/*unlnk_ok*/) ;
 		//
-		Backends::Backend::s_config(backends,dynamic) ;
+		Backends::Backend::s_config( backends , dynamic , first_time ) ;
 		//
 		if (dynamic) return ;
 		//
-		for( auto const& [key,config] : caches ) Caches::Cache::s_config(key,config.tag,config.dct) ;
+		for( auto const& [key,config] : caches ) Caches::Cache::s_config( key , config.tag , config.dct ) ;
 	}
 
 }

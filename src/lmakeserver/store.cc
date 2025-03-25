@@ -336,10 +336,10 @@ namespace Engine::Persistent {
 		/**/                                                           Config old_config = *g_config ;
 		if (             +d                                          ) *g_config = ::move(config) ;
 		if (                                       !g_config->booted ) throw "no config available"s ;
-		/**/                                                           g_config->open(dynamic)          ;
-		if (             +d                                          ) _save_config()                   ;
-		if ( !dynamic                                                ) _init_srcs_rules(rescue)         ;
-		if (             +d                                          ) _diff_config(old_config,dynamic) ;
+		/**/                                                           g_config->open( dynamic , config.booted ) ;
+		if (             +d                                          ) _save_config()                            ;
+		if ( !dynamic                                                ) _init_srcs_rules(rescue)                  ;
+		if (             +d                                          ) _diff_config(old_config,dynamic)          ;
 		trace("done",Pdate(New)) ;
 	}
 
