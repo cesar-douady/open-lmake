@@ -342,7 +342,7 @@ namespace Backends::Slurm {
 	//
 
 	::string& operator+=( ::string& os , Daemon const& d ) {
-		return os << "Daemon(" << d.time_origin <<','<< d.nice_factor <<','<< d.licenses <<')' ;
+		return os << "Daemon(" << d.time_origin <<','<< d.nice_factor <<','<< d.licenses <<','<< (d.manage_mem?"mem":"no_mem") <<')' ;
 	}
 
 	//
@@ -374,7 +374,7 @@ namespace Backends::Slurm {
 	}
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d , JobIdx ji ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
 		sort(m) ;
-		for( auto& [kn,v] : ::move(m) ) {
+		for( auto& [kn,v] : m ) {
 			size_t           p    = kn.find(':')                                                   ;
 			::string         k    = p==Npos ? ::move(kn) :                       kn.substr(0  ,p)  ;
 			uint32_t         n    = p==Npos ? 0          : from_string<uint32_t>(kn.substr(p+1  )) ;
@@ -385,7 +385,7 @@ namespace Backends::Slurm {
 			} ;
 			switch (k[0]) {
 				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) { if (d.manage_mem)              rsds.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ; // no mem if not managed
+				case 'm' : if (k=="mem"     ) {                                rsds.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ; // no mem if not managed
 				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
 				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                                           (v) ; continue ; } break ;
 				case 'f' : if (k=="features") {                                rsds.features = ::move                                           (v) ; continue ; }
@@ -403,7 +403,10 @@ namespace Backends::Slurm {
 		for( RsrcsDataSingle& rsds : self )    if ( +rsds.gres     && rsds.gres    .back()==',' ) rsds.gres    .pop_back() ;
 		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ; // licenses are only for first job step
 		//
-		if ( d.manage_mem && !self[0].mem ) throw "must reserve memory when managed by slurm daemon, consider "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
+		for( RsrcsDataSingle const& rds : self ) {
+			if (                 !rds.cpu ) throw "must reserve cpu, consider : "s                                +Job(ji)->rule()->full_name()+".resources={'cpu':'1'}"  ;
+			if ( d.manage_mem && !rds.mem ) throw "must reserve memory when managed by slurm daemon, consider : "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
+		}
 	}
 	::vmap_ss RsrcsData::mk_vmap(void) const {
 		::vmap_ss res ;
@@ -824,6 +827,7 @@ namespace Backends::Slurm {
 			}
 		}
 		SlurmApi::free_ctl_conf(conf) ;
+		trace("done",res) ;
 		return res ;
 	}
 

@@ -77,38 +77,36 @@ namespace Backends::Local {
 		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
 			// add an implicit resource <single> to manage jobs localized from remote backends
 			Trace trace(BeChnl,"Local::config",STR(dyn),dct) ;
+			//
+			rsrc_keys.reserve(dct.size()+1/*<single>*/) ;
+			bool seen_single = false ;
 			if (dyn) {
-				for( size_t i : iota(rsrc_keys.size()) ) {
-					if ( i==rsrc_keys.size()-1 && rsrc_keys[i]=="<single>" && i>=dct.size() ) continue ;                                 // skip implicit <single> key
-					throw_unless( i<dct.size() && rsrc_keys[i]==dct[i].first , "cannot change resource names while lmake is running" ) ;
-				}
+				::set_s old_names = ::mk_set    (rsrc_keys) ;                                                       // use ordered set for reporting
+				::set_s new_names = ::mk_key_set(dct      ) ;
+				seen_single = !new_names.insert("<single>").second ;
+				if (new_names!=old_names) throw cat("cannot change resource names from ",old_names," to ",new_names," while lmake is running") ;
 			} else {
-				rsrc_keys.reserve(dct.size()+1/*<single>*/) ;
-				bool seen_single = false ;
-				for( auto const& [k,v] : dct ) {
-					seen_single |= k=="<single>" ;
-					rsrc_idxs[k] = rsrc_keys.size() ;
-					rsrc_keys.push_back(k) ;
-				}
-				if (!seen_single) {
-					rsrc_idxs["<single>"] = rsrc_keys.size() ;
-					rsrc_keys.push_back("<single>") ;
-				}
+				SWEAR(!rsrc_keys,rsrc_keys) ;
+				for( auto const& [k,v] : dct ) { rsrc_idxs[k         ] = rsrc_keys.size() ; rsrc_keys.push_back(k         ) ; seen_single |= k=="<single>" ; }
+				if (!seen_single)              { rsrc_idxs["<single>"] = rsrc_keys.size() ; rsrc_keys.push_back("<single>") ;                                }
+				occupied  = RsrcsData(rsrc_keys.size()) ;                                                           // if dyn <=> keep currently used resources
 			}
-			capacity_ = RsrcsData( dct , rsrc_idxs , false/*rnd_up*/ ) ; if (capacity_.size()>dct.size()) capacity_.back()/*<single>*/ = 1 ;
-			occupied  = RsrcsData( rsrc_keys.size() ) ;
+			trace(BeChnl,"occupied_rsrcs",'=',occupied) ;
+			//
+			capacity_ = RsrcsData( dct , rsrc_idxs , false/*rnd_up*/ ) ;
+			if (!seen_single) capacity_.back()/*<single>*/ = 1 ;                                                    // if not mentioned in dct => force to 1 instead of default 0
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i : iota(capacity_.size()) ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			trace("capacity",capacity()) ;
 			_wait_queue.open( 'T' , _s_wait_job ) ;
 			//
-			if ( !dyn && rsrc_idxs.contains("cpu") ) {                                                                                   // ensure each job can compute CRC on all cpu's in parallel
+			if ( !dyn && rsrc_idxs.contains("cpu") ) {                                                              // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {
 					::rlim_t new_limit = rl.rlim_cur + capacity_[rsrc_idxs["cpu"]]*thread::hardware_concurrency() ;
-					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;                                 // hard limit overflow
+					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;            // hard limit overflow
 					rl.rlim_cur = new_limit ;
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
@@ -139,31 +137,33 @@ namespace Backends::Local {
 		}
 		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
 			RsrcsData const& rds = *rs ;
-			for( size_t i : iota(rds.size()) ) if ( occupied[i]+rds[i] > capacity_[i] ) return false ;
+			for( size_t i : iota(occupied.size()) ) if ( occupied[i]+rds[i] > capacity_[i] ) return false ;
 			return true ;
 		}
 		virtual void acquire_rsrcs(Rsrcs const& rs) const {
 			occupied += *rs ;
 			Trace trace(BeChnl,"occupied_rsrcs",rs,'+',occupied) ;
+			for( size_t i : iota(occupied.size()) ) SWEAR(occupied[i]<=capacity_[i]) ;
 		}
 		virtual void end_rsrcs(Rsrcs const& rs) const {
 			occupied -= *rs ;
 			Trace trace(BeChnl,"occupied_rsrcs",rs,'-',occupied) ;
+			for( size_t i : iota(occupied.size()) ) SWEAR(occupied[i]<=capacity_[i]) ;
 		}
 		//
 		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
 			return "pid:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job , SpawnedEntry const& se , Status ) const {
-			_wait_queue.push(se.id) ;                                                                     // defer wait in case job_exec process does some time consuming book-keeping
-			return {{},true/*retry*/} ;                                                                   // retry if garbage
+			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
+			return {{},true/*retry*/} ;                                                                             // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {     // called after job_exec has had time to start
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {               // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
-			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return { {}/*msg*/ , HeartbeatState::Alive } ; // process is still alive
-			else if (!wstatus_ok(wstatus)                ) return { {}/*msg*/ , HeartbeatState::Err   } ; // process just died with an error
-			else                                           return { {}/*msg*/ , HeartbeatState::Lost  } ; // process died long before (already waited) or just died with no error
+			if      (::waitpid(se.id,&wstatus,WNOHANG)==0) return { {}/*msg*/ , HeartbeatState::Alive } ;           // process is still alive
+			else if (!wstatus_ok(wstatus)                ) return { {}/*msg*/ , HeartbeatState::Err   } ;           // process just died with an error
+			else                                           return { {}/*msg*/ , HeartbeatState::Lost  } ;           // process died long before (already waited) or just died with no error
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
 			if (se.zombie) return ;
@@ -201,19 +201,23 @@ namespace Backends::Local {
 
 	inline RsrcsData::RsrcsData( ::vmap_ss const& m , ::umap_s<size_t> const& idxs , bool rnd_up ) {
 		resize(idxs.size()) ;
+		bool non_null = false ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
 			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        {
-				self[it->second] =
+			try {
+				Rsrc rsrc =
 					rnd_up ? from_string_rsrc<Rsrc,true /*RndUp*/>(k,v)
 					:        from_string_rsrc<Rsrc,false/*RndUp*/>(k,v)
 				;
+				self[it->second]  = rsrc ;
+				non_null         |= rsrc ;
 			} catch(...) {
 				throw "cannot convert resource "+k+" from "+v+" to a int" ;
 			}
 		}
+		throw_unless( non_null ,"cannot launch local job with no resources" ) ;
 	}
 
 	inline ::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
