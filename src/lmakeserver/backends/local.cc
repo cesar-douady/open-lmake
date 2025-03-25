@@ -208,19 +208,23 @@ namespace Backends::Local {
 
 	inline RsrcsData::RsrcsData( ::vmap_ss const& m , ::umap_s<size_t> const& idxs , bool rnd_up ) {
 		resize(idxs.size()) ;
+		bool non_null = false ;
 		for( auto const& [k,v] : m ) {
 			auto it = idxs.find(k) ;
 			throw_unless( it!=idxs.end() , "no resource ",k," for backend ",MyTag ) ;
 			SWEAR( it->second<size() , it->second , size() ) ;
-			try        {
-				self[it->second] =
+			try {
+				Rsrc rsrc =
 					rnd_up ? from_string_rsrc<Rsrc,true /*RndUp*/>(k,v)
 					:        from_string_rsrc<Rsrc,false/*RndUp*/>(k,v)
 				;
+				self[it->second]  = rsrc ;
+				non_null         |= rsrc ;
 			} catch(...) {
 				throw "cannot convert resource "+k+" from "+v+" to a int" ;
 			}
 		}
+		throw_unless( non_null ,"cannot launch local job with no resources" ) ;
 	}
 
 	inline ::vmap_ss RsrcsData::mk_vmap(::vector_s const& keys) const {
