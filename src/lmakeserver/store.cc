@@ -298,26 +298,26 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
-		if ( !dyn                                                ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
-		if ( !dyn                                                ) _init_config() ;
-		else                                                       SWEAR(g_config->booted,*g_config) ; // we must update something
-		if (                                    g_config->booted ) config.key = g_config->key ;
+		if ( !dyn                                         ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
+		if ( !dyn                                         ) _init_config() ;
+		else                                                SWEAR(+*g_config,*g_config) ; // we must update something
+		if (                                   +*g_config ) config.key = g_config->key ;
 		//
-		/**/                                                       diff(*g_config,config) ;
+		/**/                                                diff(*g_config,config) ;
 		//
-		/**/                                                       ConfigDiff d = config.booted ? g_config->diff(config) : ConfigDiff::None ;
-		if (          d>ConfigDiff::Static  &&  g_config->booted ) throw "repo must be clean"s  ;
-		if (  dyn &&  d>ConfigDiff::Dyn                          ) throw "repo must be steady"s ;
+		/**/                                                ConfigDiff d = +config ? g_config->diff(config) : ConfigDiff::None ;
+		if (          d>ConfigDiff::Static  && +*g_config ) throw "repo must be clean"s  ;
+		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw "repo must be steady"s ;
 		//
-		if (  dyn && !d                                          ) return ;                            // fast path, nothing to update
+		if (  dyn && !d                                   ) return ;                      // fast path, nothing to update
 		//
-		/**/                                                       Config old_config = *g_config ;
-		if (         +d                                          ) *g_config = ::move(config) ;
-		if (                                   !g_config->booted ) throw "no config available"s ;
-		/**/                                                       g_config->open(dyn)          ;
-		if (         +d                                          ) _save_config()               ;
-		if ( !dyn                                                ) _init_srcs_rules(rescue)     ;
-		if (         +d                                          ) _diff_config(old_config,dyn) ;
+		/**/                                                Config old_config = *g_config ;
+		if (         +d                                   ) *g_config = ::move(config) ;
+		if (                                   !*g_config ) throw "no config available"s ;
+		/**/                                                g_config->open( dyn , +config ) ;
+		if (         +d                                   ) _save_config()                  ;
+		if ( !dyn                                         ) _init_srcs_rules(rescue)        ;
+		if (         +d                                   ) _diff_config(old_config,dyn)    ;
 		trace("done",Pdate(New)) ;
 	}
 

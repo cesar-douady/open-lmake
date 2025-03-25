@@ -13,4 +13,5 @@
 from .utils import Job
 
 def gen_script(**kwds) :
+	print(kwds)
 	return Job(kwds).gen_script(runner='lmake_debug.runtime.pdb_',trace=True,enter=False)

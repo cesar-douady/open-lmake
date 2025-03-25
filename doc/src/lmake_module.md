@@ -144,3 +144,32 @@ Cf. [encode/decode](experimental_codec.html).
 `file` must be a source file.
 
 Associations are usually created using `encode` but not necessarily (they can be created by hand).
+
+### `xxhsum_file(file)`
+
+Return a checksum of provided file.
+
+The checksum is :
+
+- none                                         if file does not exist, is a directory or a special file
+- empty-R                                      if file is empty
+- xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty
+- xxxxxxxxxxxxxxxx-L                           if file is a symbolic link
+
+Note : this checksum is **not** crypto-robust.
+
+Cf `man xxhsum` for a description of the algorithm.
+
+### `xxhsum(text,is_link=False)`
+
+Return a checksum of provided text.
+
+It is a 16-digit hex value with no suffix.
+
+Note : the empty string lead to 0000000000000000 so as to be easily recognizable.
+
+Note : this checksum is not the same as the checksum of a file with same content.
+
+Note : this checksum is **not** crypto-robust.
+
+Cf `man xxhsum` for a description of the algorithm.

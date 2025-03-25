@@ -641,6 +641,15 @@ struct JobSpace {
 		::serdes(s,tmp_view_s  ) ;
 		::serdes(s,views       ) ;
 	}
+	void update_env(
+		::map_ss        &/*inout*/ env
+	,	::string   const&          phy_lmake_root_s
+	,	::string   const&          phy_repo_root_s
+	,	::string   const&          phy_tmp_dir_s
+	,	::string   const&          sub_repo_s
+	,	SeqId                                       = 0
+	,	SmallId                                     = 0
+	) const ;
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&/*out*/ report
 	,	::string             &/*out*/ top_repo_root_s

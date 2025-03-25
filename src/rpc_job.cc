@@ -622,6 +622,59 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 	return dst_ok ;
 }
 
+template<class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
+	size_t len   = ::strlen(key)    ;
+	bool   brace = v[d+1/*$*/]=='{' ;
+	size_t start = d+1/*$*/+brace   ;
+	if ( ::string_view(&v[start],len)!=key    ) return false/*match*/ ;
+	if (  brace && v[start+len]!='}'          ) return false/*match*/ ;
+	if ( !brace && is_word_char(v[start+len]) ) return false/*match*/ ;
+	::string pfx = v.substr(0,d) + no_slash(cat(args...)) ;
+	d = pfx.size()                                             ;
+	v = ::move(pfx) + ::string_view(v).substr(start+len+brace) ;
+	return true/*match*/ ;
+}
+void JobSpace::update_env(
+	::map_ss        &/*inout*/ env
+,	::string   const&          phy_lmake_root_s
+,	::string   const&          phy_repo_root_s
+,	::string   const&          phy_tmp_dir_s
+,	::string   const&          sub_repo_s
+,	SeqId                      seq_id
+,	SmallId                    small_id
+) const {
+	bool has_tmp_dir = +phy_tmp_dir_s ;
+	::string const& lmake_root_s = lmake_view_s | phy_lmake_root_s ;
+	::string const& repo_root_s  = repo_view_s  | phy_repo_root_s  ;
+	::string const& tmp_dir_s    = tmp_view_s   | phy_tmp_dir_s    ;
+	//
+	if (has_tmp_dir) env["TMPDIR"] = no_slash(tmp_dir_s) ;
+	else             env.erase("TMPDIR") ;
+	if (PY_LD_LIBRARY_PATH[0]!=0) {
+		auto [it,inserted] = env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
+		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
+	}
+	for( auto& [k,v] : env ) {
+		for( size_t d=0 ;; d++ ) {
+			d = v.find('$',d) ;
+			if (d==Npos) break ;
+			switch (v[d+1/*$*/]) {
+				//                                 inout inout
+				case 'L' :                  _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s               )   ; break ;
+				case 'P' :                  _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s           )
+				||                          _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s ,sub_repo_s)
+				||         ( has_tmp_dir && _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s              ) )
+				||                          _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s            )   ; break ;
+				case 'R' :                  _handle( v  , d  , "REPO_ROOT"              , repo_root_s     ,sub_repo_s)   ; break ;
+				case 'S' :                  _handle( v  , d  , "SEQUENCE_ID"            , seq_id                     )
+				||                          _handle( v  , d  , "SMALL_ID"               , small_id                   )   ; break ;
+				case 'T' : ( has_tmp_dir && _handle( v  , d  , "TMPDIR"                 , tmp_dir_s                  ) )
+				||                          _handle( v  , d  , "TOP_REPO_ROOT"          , repo_root_s                )   ; break ;
+			DN}
+		}
+	}
+}
+
 bool JobSpace::enter(
 	::vmap_s<MountAction>&/*out*/ report
 ,	::string             &/*out*/ top_repo_root_s
@@ -930,18 +983,6 @@ void JobEndRpcReq::cache_cleanup() {
 	return                         os <<')'                                 ;
 }
 
-template<class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
-	size_t len   = ::strlen(key)    ;
-	bool   brace = v[d+1/*$*/]=='{' ;
-	size_t start = d+1/*$*/+brace   ;
-	if ( ::string_view(&v[start],len)!=key    ) return false/*match*/ ;
-	if (  brace && v[start+len]!='}'          ) return false/*match*/ ;
-	if ( !brace && is_word_char(v[start+len]) ) return false/*match*/ ;
-	::string pfx = v.substr(0,d) + no_slash(cat(args...)) ;
-	d = pfx.size()                                             ;
-	v = ::move(pfx) + ::string_view(v).substr(start+len+brace) ;
-	return true/*match*/ ;
-}
 bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>&/*out*/ actions
 	,	::map_ss             &/*out*/ cmd_env
@@ -954,17 +995,15 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	SeqId                         seq_id
 ) {
 	Trace trace("JobStartRpcReply::enter",phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
-	bool has_tmp_dir = +phy_tmp_dir_s ;
 	//
 	for( auto& [k,v] : env )
 		if      (v!=EnvPassMrkr)                                                         cmd_env[k] = ::move(v ) ;
 		else if (has_env(k)    ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
-	::string const& lmake_root_s = job_space.lmake_view_s | phy_lmake_root_s ;
-	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s  ;
-	if (has_tmp_dir) {
-		autodep_env.tmp_dir_s = job_space.tmp_view_s | phy_tmp_dir_s ;
-		_tmp_dir_s            = autodep_env.tmp_dir_s                ;             // for use in exit (autodep.tmp_dir_s may be moved)
+	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
+	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
+	if (+phy_tmp_dir_s) {
+		_tmp_dir_s = autodep_env.tmp_dir_s ;                                       // for use in exit (autodep.tmp_dir_s may be moved)
 		try {
 			unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                         // ensure tmp dir is clean
 		} catch (::string const&) {
@@ -973,32 +1012,6 @@ bool/*entered*/ JobStartRpcReply::enter(
 		}
 	} else {
 		if (+job_space.tmp_view_s) throw "cannot map tmp dir "+job_space.tmp_view_s+" to nowhere" ;
-	}
-	//
-	if (has_tmp_dir) cmd_env["TMPDIR"] = no_slash(autodep_env.tmp_dir_s) ;
-	else             cmd_env.erase("TMPDIR") ;
-	if (PY_LD_LIBRARY_PATH[0]!=0) {
-		auto [it,inserted] = cmd_env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
-		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
-	}
-	for( auto& [k,v] : cmd_env ) {
-		for( size_t d=0 ;; d++ ) {
-			d = v.find('$',d) ;
-			if (d==Npos) break ;
-			switch (v[d+1/*$*/]) {
-				//                                 inout inout
-				case 'L' :                  _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s                                     )   ; break ;
-				case 'P' :                  _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                                 )
-				||                          _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s         , autodep_env.sub_repo_s )
-				||         ( has_tmp_dir && _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                                    ) )
-				||                          _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                                  )   ; break ;
-				case 'R' :                  _handle( v  , d  , "REPO_ROOT"              , autodep_env.repo_root_s , autodep_env.sub_repo_s )   ; break ;
-				case 'S' :                  _handle( v  , d  , "SEQUENCE_ID"            , seq_id                                           )
-				||                          _handle( v  , d  , "SMALL_ID"               , small_id                                         )   ; break ;
-				case 'T' : ( has_tmp_dir && _handle( v  , d  , "TMPDIR"                 , autodep_env.tmp_dir_s                            ) )
-				||                          _handle( v  , d  , "TOP_REPO_ROOT"          , autodep_env.repo_root_s                          )   ; break ;
-			DN}
-		}
 	}
 	//
 	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                                                ;

@@ -247,13 +247,13 @@ namespace Engine::Makefiles {
 		Bool3 changed_rules = No    ;
 		bool  invalidate    = false ;                                                                                // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old.booted) {                                                                                       // no old config means first time, all is new
+			if (!old) {                                                                                              // no old config means first time, all is new
 				changed_srcs  = Maybe ;                                                                              // Maybe means new
 				changed_rules = Maybe ;                                                                              // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_.booted) return ;                                                                               // no new config means we keep old config, no modification
+			if (!new_) return ;                                                                                      // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.has_split_srcs !=new_.has_split_srcs  ;
 			changed_rules |= old.has_split_rules!=new_.has_split_rules ;

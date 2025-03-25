@@ -568,6 +568,16 @@ int main( int argc , char* argv[] ) {
 				}
 				g_exec_trace->push_back({ New , Comment::enteredNamespace }) ;
 			}
+			g_start_info.job_space.update_env(
+				/*inout*/cmd_env
+			,	         *g_lmake_root_s
+			,	         g_phy_repo_root_s
+			,	         end_report.phy_tmp_dir_s
+			,	         g_start_info.autodep_env.sub_repo_s
+			,	         g_seq_id
+			,	         g_start_info.small_id
+			) ;
+			//
 		} catch (::string const& e) {
 			end_report.msg += e ;
 			goto End ;

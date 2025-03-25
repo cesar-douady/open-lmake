@@ -101,13 +101,6 @@ int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
 	app_init(true/*read_only_ok*/,Yes/*chk_version*/,Maybe/*cd_root*/) ;
 	Py::init(*g_lmake_root_s) ;
-//	::string dbg_dir_s = *g_repo_root_s+AdminDirS+"debug/" ;
-//	mk_dir_s(dbg_dir_s) ;
-//	AcFd lock_fd { no_slash(dbg_dir_s) } ;
-//	if (::flock(lock_fd,LOCK_EX|LOCK_NB)!=0) {                                                                  // because we have no small_id, we can only run a single instance
-//		if (errno==EWOULDBLOCK) exit(Rc::Fail  ,"cannot run several debug jobs simultaneously"            ) ;
-//		else                    exit(Rc::System,"cannot lock ",no_slash(dbg_dir_s)," : ",::strerror(errno)) ;
-//	}
 	//
 	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
@@ -129,9 +122,9 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
-	JobStartRpcReply start_info  ;
-	JobSpace  &      job_space   = start_info.job_space   ;
-	AutodepEnv&      autodep_env = start_info.autodep_env ;
+	JobStartRpcReply jsrr        ;
+	JobSpace  &      job_space   = jsrr.job_space   ;
+	AutodepEnv&      autodep_env = jsrr.autodep_env ;
 	::map_ss         cmd_env     ;
 	Gather           gather      ;
 	//
@@ -144,9 +137,9 @@ int main( int argc , char* argv[] ) {
 		throw_if( !cmd_line.flags[CmdFlag::TmpDir   ]                                                     , "tmp dir must be specified"                                              ) ;
 		throw_if(                                        !is_abs(cmd_line.flag_args[+CmdFlag::TmpDir   ]) , "tmp dir must be absolute : "   ,cmd_line.flag_args[+CmdFlag::TmpDir   ] ) ;
 		//
-		/**/                                        start_info.keep_tmp     =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
-		/**/                                        start_info.key          =                        "debug"                                      ;
-		if (cmd_line.flags[CmdFlag::AutodepMethod]) start_info.method       = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
+		/**/                                        jsrr.key                =                        "debug"                                      ;
+		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) job_space.chroot_dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
@@ -156,12 +149,12 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
 		/**/                                        autodep_env.views       = job_space.flat_phys()                                               ;
 		//
-		try { start_info.env         = _mk_env       (cmd_line.flag_args[+CmdFlag::KeepEnv],cmd_line.flag_args[+CmdFlag::Env]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
+		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::KeepEnv],cmd_line.flag_args[+CmdFlag::Env]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]                               ) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                               ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		::string top_repo_root_s ;
-		(void)start_info.enter(
+		(void)jsrr.enter(
 			/*out*/::ref(::vmap_s<MountAction>())
 		,	/*out*/cmd_env
 		,	/*out*/::ref(::vmap_ss())/*dyn_env*/
@@ -182,13 +175,13 @@ int main( int argc , char* argv[] ) {
 		gather.autodep_env.views = job_space.flat_phys() ;
 		gather.cmd_line          = cmd_line.args         ;
 		gather.env               = &cmd_env              ;
-		gather.method            = start_info.method     ;
+		gather.method            = jsrr.method           ;
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;
 		//       ^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) { exit(Rc::System,e) ; }
 	//
-	try                       { start_info.exit() ;  }
+	try                       { jsrr.exit() ;        }
 	catch (::string const& e) { exit(Rc::System,e) ; }
 	//
 	::string deps = "targets :\n" ;

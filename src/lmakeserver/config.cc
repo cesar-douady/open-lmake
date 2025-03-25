@@ -311,7 +311,7 @@ namespace Engine {
 		return res ;
 	}
 
-	void Config::open(bool dyn) {
+	void Config::open( bool dyn , bool first_time ) {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
@@ -329,7 +329,7 @@ namespace Engine {
 		}
 		mk_dir_s(local_admin_dir_s,true/*unlnk_ok*/) ;
 		//
-		Backends::Backend::s_config(backends,dyn) ;
+		Backends::Backend::s_config( backends , dyn , first_time ) ;
 		//
 		if (dyn) return ;
 		//

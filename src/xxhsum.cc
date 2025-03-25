@@ -17,7 +17,7 @@ int main( int argc , char* argv[] ) {
 	app_init(true/*read_only_ok*/,No/*chk_version*/,No/*cd_root*/) ;
 	#if PROFILING
 		::string gmon_dir_s ; if (g_repo_root_s) gmon_dir_s = *g_repo_root_s+GMON_DIR_S ;
-		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"xxh_sum") ) ;                  // in case profiling is used, ensure unique gmon.out
+		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"xxhsum") ) ;                   // in case profiling is used, ensure unique gmon.out
 	#endif
 	::string out ;
 	for( int i : iota(1,argc) ) {

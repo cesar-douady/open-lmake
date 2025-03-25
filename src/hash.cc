@@ -50,7 +50,7 @@ namespace Hash {
 				} break ;
 			DN}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
-			Xxh ctx{FileTag::Lnk} ;
+			Xxh ctx { FileTag::Lnk } ;
 			ctx.update( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx.update(lnk_target)
 			self = ctx.digest() ;
 		}
@@ -121,7 +121,13 @@ namespace Hash {
 		DF}
 	}
 
-	Crc  Xxh::digest (                           ) const { return { XXH3_64bits_digest(&_state     ) , is_lnk } ; }
-	void Xxh::_update( const void* p , size_t sz )       {          XXH3_64bits_update(&_state,p,sz) ;            }
+	Crc Xxh::digest() const {
+		if ( is_lnk==Maybe && !seen_data ) return Crc(0)                                   ; // reserve 0 as unknown
+		else                               return { XXH3_64bits_digest(&_state) , is_lnk } ;
+	}
+	void Xxh::_update( const void* p , size_t sz ) {
+		seen_data |= sz ;
+		XXH3_64bits_update(&_state,p,sz) ;
+	}
 
 }

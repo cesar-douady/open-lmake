@@ -55,7 +55,13 @@ namespace Hash {
 		}
 		// cxtors & casts
 		constexpr Crc(                            ) = default ;
-		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{ is_lnk==Maybe ? v : (v&~Val(1))|Val(is_lnk==Yes) } {}
+		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{v} {
+			switch (is_lnk) {
+				case No    : _val &= ~Val(1) ; break ;
+				case Maybe :                 ; break ;
+				case Yes   : _val |=  Val(1) ; break ;
+			}
+		}
 		constexpr Crc(FileTag tag) {
 			switch (tag) {
 				case FileTag::None  :
@@ -156,7 +162,8 @@ namespace Hash {
 		void _update( const void* p , size_t sz ) ;
 		// data
 	public :
-		Bool3 is_lnk = Maybe ;
+		Bool3 is_lnk    = Maybe ;
+		bool  seen_data = false ;
 	private :
 		XXH3_state_t _state ;
 	} ;

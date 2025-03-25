@@ -30,14 +30,16 @@ def no_nl(s) :
 
 class Job :
 
+	auto_mkdir  = False
 	chroot_dir  = None
 	cwd         = None
-	keep_tmp    = False
 	lmake_view  = None
 	repo_view   = None
 	source_dirs = None
+	stdin       = None
+	stdout      = None
+	sub_repo    = None
 	tmp_dir     = '/tmp'
-	tmp_size_mb = None
 	tmp_view    = None
 
 	def __init__(self,attrs) :
@@ -113,24 +115,23 @@ class Job :
 		#
 		res = mk_shell_str(autodep)
 		if self.auto_mkdir        : res +=  ' -a'
-		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir                          )}'
-		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                                 )}'
-		if self.env               : res += f' -e{mk_shell_str(repr(self.env                                ))}'
-		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env                           ))}'
+		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir            )}'
+		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                   )}'
+		if self.env               : res += f' -e{mk_shell_str(repr(self.env                  ))}'
+		if True                   : res += f' -k{mk_shell_str(repr(self.keep_env             ))}'
 		if True                   : res += f' -K'
-		if True                   : res += f' -l{                  self.link_support                         }'
-		if self.lmake_view        : res += f' -L{mk_shell_str(     self.lmake_view                          )}'
-		if True                   : res += f' -m{                  self.autodep_method                       }'
-		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses'               )}"
-		if self.repo_view         : res += f' -r{mk_shell_str(     self.repo_view                           )}'
-		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs                        ))}'
-		if self.tmp_size_mb!=None : res += f' -S{mk_shell_str(repr(self.tmp_size_mb                        ))}'
-		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view                            )}'
-		if self.keep_tmp          : res += f" -T{mk_shell_str(lmake.top_repo_root+'/'+self.debug_dir+'/tmp' )}"
-		else                      : res += f" -T{mk_shell_str(self.tmp_dir                                  )}"
-		if self.views             : res += f' -v{mk_shell_str(repr(self.views                              ))}'
+		if True                   : res += f' -l{                  self.link_support           }'
+		if self.lmake_view        : res += f' -L{mk_shell_str(     self.lmake_view            )}'
+		if True                   : res += f' -m{                  self.autodep_method         }'
+		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
+		if self.repo_view         : res += f' -r{mk_shell_str(     self.repo_view             )}'
+		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs          ))}'
+		if self.tmp_view          : res += f' -t{mk_shell_str(     self.tmp_view              )}'
+		if True                   : res += f" -T{mk_shell_str(self.tmp_dir                    )}"
+		if self.views             : res += f' -v{mk_shell_str(repr(self.views                ))}'
 		#
 		if True                   : res += ''.join(' '+x for x in args)                 # must be before redirections to files if args contains redirections
+		#
 		if self.stdin             : res += f' <{mk_shell_str(self.stdin )}'
 		if self.stdout            : res += f' >{mk_shell_str(self.stdout)}'
 		#
