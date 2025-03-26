@@ -221,7 +221,6 @@ namespace Engine {
 		size_t              non_canon = Npos ;
 		for( auto const& kds : dep_specs ) {
 			DepSpec const& ds = kds.second ;
-			SWEAR(+ds.txt,kds.first) ;
 			if (!( +ds.txt && is_canon(ds.txt) )) {
 				if (non_canon==Npos) non_canon = &kds-dep_specs.data() ;
 				continue ;

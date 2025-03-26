@@ -108,9 +108,9 @@ namespace Engine {
 		Delay old_ete   = old_eta-now                                               ;
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
-		if ( delta_ete.val() > (old_ete.val()>>4) ) { // else eta did not change significatively
+		if ( delta_ete.val() > (old_ete.val()>>4) ) {                                 // else eta did not change significatively
 			_adjust_eta(new_eta) ;
-			Backend::s_new_req_etas() ;                                                   // tell backends that etas changed significatively
+			Backend::s_new_req_etas() ;                                               // tell backends that etas changed significatively
 		}
 		self->ete = new_eta-now ;
 	}
@@ -150,7 +150,7 @@ namespace Engine {
 			if ( dns!=NodeStatus::Unknown && dns>=NodeStatus::Uphill ) {
 				d  = d->dir()   ;
 				dr = "<uphill>" ;
-				goto Next ;                                   // there is no rule for uphill
+				goto Next ;                                                  // there is no rule for uphill
 			}
 			for( Job j : d->conform_job_tgts(d->c_req_info(self)) )          // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(self).done()) to_raise.insert(j->rule()) ;
@@ -593,16 +593,17 @@ namespace Engine {
 			catch (::pair_ss const& msg_err)                       { reason      = "cannot compute its deps :\n"+msg_err.first+msg_err.second ; goto Report ; }
 			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
-					if (!is_canon(ds.txt)) {
-						if (search_non_buildable  ) continue ;                                                           // non-canonic deps are detected after non-buidlable ones
-						if (+options.startup_dir_s) reason = "non-canonic static dep name "+k+" (top-level) : "+ds.txt ; // remind user that name is not localized as this is not reliably ...
-						else                        reason = "non-canonic static dep name "+k+" : "            +ds.txt ; // ... possible (nor desirable) for non-canonic names
+					if (!( +ds.txt && is_canon(ds.txt) )) {
+						if (search_non_buildable ) continue ;                                           // non-canonic deps are detected after non-buidlable ones
+						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
+						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;
+						else         reason = "empty static dep "      +k                 ;
 						goto Report ;
 					}
 					Node d { ds.txt } ;
 					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 					missing_dep = d ;
-					SWEAR(+missing_dep) ;                                                                                // else why wouldn't it apply ?!?
+					SWEAR(+missing_dep) ;                                                               // else why wouldn't it apply ?!?
 					FileTag tag = FileInfo(nfs_guard.access(missing_dep->name())).tag() ;
 					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 					goto Report ;
