@@ -457,12 +457,10 @@ namespace Backends {
 				return false/*keep_fd*/ ;
 			}
 			//
-trace("entry1",entry,step) ;
 			reply.small_id = _s_small_ids.acquire() ;
-trace("entry2",reply.small_id) ;
-			//vvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,reply) ;                                                                            // send reply ASAP to minimize overhead
-			//^^^^^^^^^^^^^^^^^^^^^^
+			//    vvvvvvvvvvvvvvvvvvvvvvvv
+			try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                         // send reply ASAP to minimize overhead, failure will be caught by heartbeat
+			//    ^^^^^^^^^^^^^^^^^^^^^^^^
 			job_exec            = { job , reply.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 			entry.start_date    = job_exec.start_date                             ;
 			entry.workload      = _s_workload.start(entry.reqs,job)               ;
