@@ -38,10 +38,13 @@ The restrictions are the following:
   - spawning processes (fork and the like)
   - exec (execve and the like)
   - modifying the disk (open for writing and the like)
+- The environment variables cannot be tailored as is the case with cmd execution (there is no `environ` attribute as there is for `cmd`).
 - Modifying the environment variables (via setenv and the like) is forbidden (trying to execute any of these results in an error).
 - Altering imported modules is forbidden (e.g. it is forbidden to write to `sys.path`).
   - Unfortunately, this is not checked.
   - `sys.path` is made  `tuple` though, so that common calls such as `sys.path.append` will generate an error.
+- `sys.path` is sampled after having read `Lmakefile.py` (while reading rules) and local directories are filtered out. There are no means to import local modules.
+- However, reading local files is ok, as long as `sys.modules` is not updated.
 - There is no containers, as for `cmd` execution (e.g. no `repo_view`).
 
 ## Attributes

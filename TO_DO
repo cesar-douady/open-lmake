@@ -63,8 +63,16 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* rework py : str_err_clear
 * hash : accept hashing as a OStream and use to hash
+* cleanup :
+	- set up a lmake.job_support module :
+		- fix_import
+		- sourcify
+		- use it as it is imported only once
+		- better than replicating in each rule
+	- seen relative path for external modules
+	- PyRule touches sys.path !
+	- x = cmd0() when cmd1 has args with default values
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -154,9 +162,10 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* implement pyc
-	- very simple : use marshal.dumps to store and load dynamic attributes code
-	- needs a Byte type in py.hh (mimic Str)
+* implement a RsrcsOnly Dflag
+	- or more exactly its opposite as composition is 'or'
+! find a way to serialize global dict
+	- like marshal, with functions
 ! prepare namespace while waiting for server if possible
 	- i.e. when tmp size info is static
 	- move views to submit_cmd_attrs

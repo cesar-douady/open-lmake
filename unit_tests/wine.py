@@ -21,7 +21,10 @@ if __name__!='__main__' :
 
 	class WineRule(Rule) :
 		chroot_dir        = '/'                                             # ensure pid namespace is used to ensure reliale job termination
-		side_targets      = { 'WINE'    : (r'.wine/{*:.*}','incremental') } # wine writes .wine dir, even after init
+		side_targets      = {
+			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                      # wine writes .wine  dir, even after init
+		,	'CACHE' : (r'.cache/{*:.*}','incremental')                      # wine writes .cache dir, even after init
+		}
 		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']   } # wine needs a display in all cases
 
 	class WineInit(WineRule) :

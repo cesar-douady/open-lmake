@@ -64,6 +64,8 @@ namespace Py {
 		_g_std_path = New ;
 		for( Object& p : py_path ) _g_std_path->push_back(p.as_a<Str>()) ;
 		//
+		Dict::s_builtins = from_py<Dict>(PyEval_GetBuiltins()) ;
+		//
 		#if PY_VERSION_HEX >= 0x03080000
 			PyEval_SaveThread() ;
 		#endif
@@ -126,17 +128,15 @@ namespace Py {
 
 	static Ptr<Dict> _mk_glbs() {
 		Ptr<Dict> res{New} ;
-		res->set_item( "__builtins__" , *Dict::s_builtins()   ) ; // Python3.6 and Python3.8 do not provide it for us and is harmless for Python3.10
-		res->set_item( "inf"          , *Ptr<Float>(Infinity) ) ; // this is how non-finite floats are printed with print
-		res->set_item( "nan"          , *Ptr<Float>(Nan     ) ) ; // .
+		res->set_item( "inf" , *Ptr<Float>(Infinity) ) ; // this is how non-finite floats are printed with print
+		res->set_item( "nan" , *Ptr<Float>(Nan     ) ) ; // .
 		return res ;
 	}
 
 	Ptr<Object> py_eval( ::string const& expr , Dict& glbs ) {
 		Gil::s_swear_locked() ;
-		Ptr<Object> res { PyRun_String( expr.c_str() , Py_eval_input , glbs.to_py() , glbs.to_py() ) } ;
-		if (!res) throw py_err_str_clear() ;
-		return res ;
+		WithBuiltins wb { glbs } ;
+		return PyRun_String( expr.c_str() , Py_eval_input , glbs.to_py() , glbs.to_py() ) ;
 	}
 
 	Ptr<Object> py_eval(::string const& expr) {
@@ -145,8 +145,8 @@ namespace Py {
 
 	void py_run( ::string const& text , Dict& glbs ) {
 		Gil::s_swear_locked() ;
-		Ptr<Object> res { PyRun_String( text.c_str() , Py_file_input , glbs.to_py() , glbs.to_py() ) } ;
-		if (!res) throw py_err_str_clear() ;
+		WithBuiltins wb { glbs } ;
+		from_py( PyRun_String( text.c_str() , Py_file_input , glbs.to_py() , glbs.to_py() ) ) ;
 	}
 
 	Ptr<Dict> py_run (::string const& text) {
@@ -173,38 +173,37 @@ namespace Py {
 	//
 
 	Ptr<Str> Object::str() const {
-		Ptr<Object> s = PyObject_Str(to_py()) ;
-		if (+s) return s ;
-		else    py_err_clear() ;
-		return cat('<',type_name()," object at 0x",this,'>') ; // catch any error so calling str is reliable
+		try                     { return PyObject_Str(to_py()) ;                                          }
+		catch (::string const&) { py_err_clear() ; return cat('<',type_name()," object at 0x",this,'>') ; } // catch any error so calling str is reliable
 	}
 
 	::string Object::marshal() const {
-		static Callable* dumps = Ptr<Module>("marshal")->get_attr<Callable>("dumps").boost() ; // ensure no destruction at finalization
-//		Ptr<Callable> dumps = Ptr<Module>("marshal")->get_attr<Callable>("dumps") ;
-		Ptr<Bytes> res = &dumps->call(self)->as_a<Bytes>() ;
-		if (!res) throw py_err_str_clear() ;
-		return *res ;
+		static Callable& dumps = *Ptr<Module>("marshal")->get_attr<Callable>("dumps").boost() ; // ensure no destruction at finalization
+		return *dumps.call<Bytes>(self) ;
 	}
 
 	void Ptr<Object>::unmarshal(::string const& s) {
-		static Callable* loads = Ptr<Module>("marshal")->get_attr<Callable>("loads").boost() ; // ensure no destruction at finalization
-//		Ptr<Callable> loads = Ptr<Module>("marshal")->get_attr<Callable>("loads") ;
-		self = loads->call(*Ptr<Bytes>(s)) ;
-		if (!self) throw py_err_str_clear() ;
+		static Callable& loads = *Ptr<Module>("marshal")->get_attr<Callable>("loads").boost() ; // ensure no destruction at finalization
+		self = loads(*Ptr<Bytes>(s)) ;
 	}
+
+	//
+	// Dict
+	//
+
+	Dict* Dict::s_builtins = nullptr ;
 
 	//
 	// Module
 	//
 
-	Ptr<Module> Ptr<Module>::_s_mk_mod( ::string const& name , PyMethodDef* funcs ) {
+	Ptr<Module>::Ptr( NewType , ::string const& name , PyMethodDef* funcs ) {
 		Gil::s_swear_locked() ;
 		::string*    nm  = new ::string(name)   ;                                                                    // keep name alive
 		size_t       nf1 = 1                    ; for( PyMethodDef* f=funcs ; f->ml_name ; f++ ) nf1++             ; // start at 1 to account for terminating sentinel
 		PyMethodDef* fns = new PyMethodDef[nf1] ; for( size_t i : iota(nf1)                    ) fns[i] = funcs[i] ; // keep funcs alive
 		#if PY_MAJOR_VERSION<3
-			return Py_InitModule( nm->c_str() , fns ) ;
+			self = Py_InitModule( nm->c_str() , fns ) ;
 		#else
 			PyModuleDef* def = new PyModuleDef {                                                                     // must have the lifetime of the module
 				PyModuleDef_HEAD_INIT
@@ -217,16 +216,16 @@ namespace Py {
 			,	nullptr                                                                                              // m_clear
 			,	nullptr                                                                                              // m_free
 			} ;
-			return PyModule_Create(def) ;
+			self = PyModule_Create(def) ;
 		#endif
 	}
 
-	Ptr<Module> Ptr<Module>::_s_import(::string const& name) {
+	Ptr<Module>::Ptr( ::string const& name ) {
 		Gil::s_swear_locked() ;
 		// XXX> : use PyImport_ImportModuleEx with a non-empy from_list when Python2 support is no longer required
 		Ptr<Module> py_top = PyImport_ImportModule(name.c_str()) ;            // in case of module in a package, PyImport_ImportModule returns the top level package
-		if (name.find('.')==Npos) return py_top                             ;
-		else                      return &py_get_sys<Dict>("modules")[name] ; // it is a much more natural API to return the asked module, get it from sys.modules
+		if (name.find('.')==Npos) self = py_top                             ;
+		else                      self = &py_get_sys<Dict>("modules")[name] ; // it is a much more natural API to return the asked module, get it from sys.modules
 	}
 
 	//
@@ -240,9 +239,8 @@ namespace Py {
 		#else
 			PyObject    * c =                 to_py()  ;
 		#endif
-		Ptr<Object> res { PyEval_EvalCode( c , glbs.to_py() , nullptr ) } ;
-		if (!res) throw py_err_str_clear() ;
-		return res ;
+		WithBuiltins wb { glbs } ;
+		return PyEval_EvalCode( c , glbs.to_py() , nullptr ) ;
 	}
 
 	Ptr<Object> Code::eval() const {

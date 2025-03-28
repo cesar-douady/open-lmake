@@ -53,7 +53,7 @@ def get_src(*args,no_imports=None,ctx=(),force=False,root=None) :
 			- names      : the set of names found in sets in ctx
 			- modules    : the modules mentioned in import statements
 			- dbg_info   : a dict mapping generated function names to (module,qualname,file,firstlineno)
-			- may_import : True if code is sensitive to sys.path
+			- may_import : a tuple (if present) of keys among ('static','dyn') showing when imports can be done : when src is executed (static) or defined functions are called (dyn)
 	'''
 	s = Serialize(no_imports,ctx,root)
 	for a in args :
@@ -69,19 +69,19 @@ def get_expr(expr,*,no_imports=None,ctx=(),force=False,call_callables=False) :
 		- expr can be any object
 		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
-		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
+		- if force is true, args are guaranteed to be inlined (i.e. they are not imported). Dependencies can be imported, though
 		The return value is a pdict where :
 			- expr       : the source text that reproduces expr as an expression when executed in the provided context
-			- ctx        : a source text that reproduces the the necessary context to evaluate args
+			- glbs       : a source text that reproduces the the necessary context to evaluate args
 			- names      : the set of names found in sets in ctx
 			- modules    : the modules mentioned in import statements of ctx
 			- dbg_info   : a dict mapping generated function names to (module,qualname,file,firstlineno)
-			- may_import : True if code is sensitive to sys.path
+			- may_import : a tuple (if present) of keys among ('static','dyn') showing when imports can be done : when src is executed (static) or defined functions are called (dyn)
 	'''
 	s        = Serialize(no_imports,ctx)
 	expr     = s.expr_src(expr,force=force,call_callables=call_callables)
 	res      = s.get_src()
-	res.ctx  = res.pop('src')
+	res.glbs = res.pop('src')
 	res.expr = expr
 	return res
 
@@ -118,7 +118,7 @@ def _analyze(filename) :
 
 class Serialize :
 	InSet      = object() # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
-	may_import = False    # default value
+	may_import = set()    # default value
 
 	def __init__(self,no_imports,ctx,root=None) :
 		self.seen     = {}
@@ -165,7 +165,7 @@ class Serialize :
 		if len(self.src) and self.src[-1] : self.src.append('')                                                                         # ensure there is \n at the end
 		modules = ''
 		for name,(mod,var) in self.modules.items() :
-			self.may_import = True
+			self.may_import.add('static')
 			if var :
 				if '.' in var : modules += f"from {mod} import {var.split('.',1)[0]} as {name} ; {name} = {name}.{var.split('.',1)[1]}" # use name as intermediate var as it is avail for sure
 				else          : modules += f'from {mod} import {var} as {name}'
@@ -179,7 +179,7 @@ class Serialize :
 		,	modules  = tuple( mod for mod,var in self.modules.values()                    )
 		,	dbg_info = self.dbg_info
 		)
-		if self.may_import : res.may_import = True
+		if self.may_import : res.may_import = tuple(self.may_import)
 		return res
 
 	HaveGlbLoads = { 'LOAD_GLOBAL' , 'LOAD_NAME'   }
@@ -198,7 +198,7 @@ class Serialize :
 		for c in codes :
 			for i in dis.Bytecode(c) :
 				if i.opname in self.HaveGlbLoads : glb_loads[i.argval] = None
-				if i.opname in self.Imports      : self.may_import     = True
+				if i.opname in self.Imports      : self.may_import.add('dyn')
 		return glb_loads
 
 	def val_src(self,name,val,*,force=False) :
@@ -285,9 +285,8 @@ class Serialize :
 			except : self.seen[name] = self.InSet
 			else   : self.val_src(name,val)
 			return
-		if name in self.BuiltinExecs : self.may_import = True # we may execute arbitrary code which may import
-
 		# name may be a builtins or it does not exist, in both case, do nothing and we'll have a NameError exception at runtime if name is accessed and it is not a builtin
+		if name in self.BuiltinExecs : self.may_import.add('dyn') # we may execute arbitrary code which may import
 
 	def get_first_line(self,name,func,first_line) :
 		#

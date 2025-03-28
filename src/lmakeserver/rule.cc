@@ -199,7 +199,7 @@ namespace Engine {
 	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
 		if (py.is_a<Str>()) return py.as_a<Str>() ;
 		Sequence const& py_seq = py.as_a<Sequence>() ;
-		SWEAR(py_seq.size()>=n_skip          ,key) ;
+		SWEAR(py_seq.size()>=n_skip,key) ;
 		SWEAR(py_seq[0].is_a<Str>(),key) ;
 		_mk_flags( key , py_seq , n_skip , flags , extra_flags ) ;
 		return py_seq[0].as_a<Str>() ;
@@ -213,44 +213,68 @@ namespace Engine {
 		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
 	}
 
-	DynStr::DynStr( Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs ) {
-		if (py_src.contains("ctx"       )) glbs_str   = ::string(py_src["ctx"       ].as_a<Str >()) ;
-		if (py_src.contains("expr"      )) code_str   = ::string(py_src["expr"      ].as_a<Str >()) ;
-		if (py_src.contains("dbg_info"  )) dbg_info   = ::string(py_src["dbg_info"  ].as_a<Str >()) ;
-		if (py_src.contains("may_import")) may_import = bool    (py_src["may_import"].as_a<Bool>()) ;
+	DynEntry::DynEntry( Bool3 is_python , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile_ ) {
+		switch (is_python) {
+			case Yes :
+				kind = Kind::PythonCmd ;
+				if (py_src.contains("expr"    )) code_str = ::string(py_src["expr"    ].as_a<Str >()) ;
+				if (py_src.contains("dbg_info")) dbg_info = ::string(py_src["dbg_info"].as_a<Str >()) ;
+			break ;
+			case No :
+				if (py_src.contains("static")) {
+					kind = Kind::ShellCmd ;
+					VarIdx n_unnamed = 0 ;
+					code_str = Attrs::subst_fstr( ::string(py_src["static"].as_a<Dict>()["cmd"].as_a<Str>()) , var_idxs , n_unnamed ) ;
+					SWEAR( !n_unnamed , n_unnamed ) ;
+					break ;
+				}
+			[[fallthrough]] ; // dynamic shell cmd, process as dynamic attributes
+			case Maybe :
+				if (!py_src.contains("expr")) {
+					kind = Kind::None ;
+					break ;
+				}
+				/**/                               code_str   = ::string(py_src["expr"    ].as_a<Str >()) ;
+				if (py_src.contains("glbs"      )) glbs_str   = ::string(py_src["glbs"    ].as_a<Str >()) ;
+				if (py_src.contains("dbg_info"  )) dbg_info   = ::string(py_src["dbg_info"].as_a<Str >()) ;
+				if (py_src.contains("may_import"))
+					for( Object const& py_k : py_src["may_import"].as_a<Sequence>() )
+						may_import |= mk_enum<DynImport>(py_k.as_a<Str>()) ;
+				kind = Kind::Dyn ;
+				if (compile_) compile() ;
+			break ;
+		DF}
 		if (py_src.contains("names")) {
 			ctx.reserve(py_src["names"].as_a<Sequence>().size()) ;
 			for( Object const& py_item : py_src["names"].as_a<Sequence>() ) {
 				CmdIdx ci = var_idxs.at(py_item.as_a<Str>()) ;
 				ctx.push_back(ci) ;
 			}
-			::sort(ctx) ; // stabilize crc's
+			::sort(ctx) ;     // stabilize crc's
 		}
 	}
 
-	void DynEntry::_compile(bool only_glbs) {
-		if (!is_dyn()) return ;
-		Gil::s_swear_locked() ;
-		SWEAR( _compiled==(Maybe&only_glbs) , _compiled,only_glbs ) ;
-		// boost avoids problems at finalization                   for_eval
-		if (!only_glbs) try { code      = { code_str               , true  } ; code     .boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
-		if (!only_glbs) try { glbs_code = { glbs_str+'\n'+dbg_info , false } ; glbs_code.boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
-		/**/            try { glbs      = glbs_code->run()                   ; glbs     .boost() ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e,1) ; }
-		_compiled = Maybe ;
+	void DynEntry::compile() {
+		if (kind!=Kind::Dyn) return ; //!          for_eval              avoids problems at finalization
+		try { code      = { code_str               , true  } ; code     .boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
+		try { glbs_code = { glbs_str+'\n'+dbg_info , false } ; glbs_code.boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
+		try { glbs      = glbs_code->run()                   ; glbs     .boost() ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e,1) ; }
+		kind = Kind::CompiledGlbs ;
 	}
 
-	DynDskBase::DynDskBase( RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs ) {
-		DynStr ds { py_src , var_idxs } ;
-		if (!ds.is_dyn()) return ;
-		auto it_inserted = rules.dyn_idx_tab.try_emplace(ds,0) ;
+	DynBase::DynBase( RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) {
+		DynEntry de { is_python , py_src , var_idxs , false/*compile*/ } ;
+		if (!de) return ;
+		auto it_inserted = rules.dyn_idx_tab.try_emplace(de,0) ;
 		if (it_inserted.second) {
-			rules.dyn_vec.emplace_back(::move(ds)) ;
+			de.compile() ;
+			rules.dyn_vec.emplace_back(::move(de)) ;
 			it_inserted.first->second = rules.dyn_vec.size() ; // dyn_idx 0 is used to mean non-dynamic
 		}
 		dyn_idx = it_inserted.first->second ;
 	}
 
-	void DynDskBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
+	void DynBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
 		::string         res        ;
 		Rule             r          = +j ? j->rule() : m.rule          ;
 		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
@@ -531,31 +555,19 @@ namespace Engine {
 		return res ;
 	}
 
-	void Cmd::init( Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		::string raw_cmd ;
-		Attrs::acquire_from_dct( raw_cmd , *py_src , "cmd" ) ;
-		if (rd.is_python) {
-			cmd = ::move(raw_cmd) ;
-		} else {
-			VarIdx n_unnamed = 0 ;
-			cmd = Attrs::subst_fstr(raw_cmd,var_idxs,n_unnamed) ;
-			SWEAR( !n_unnamed , n_unnamed ) ;
-		}
-	}
-
 	pair_ss/*script,call*/ DynCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		if (!r->is_python) {
-			::string cmd ;
+			::string cmd_ ;
 			if (!is_dyn()) {
-				cmd = parse_fstr(spec.cmd,match,rsrcs) ;
+				cmd_ = parse_fstr(cmd(),match,rsrcs) ;
 			} else {
 				Gil         gil    ;
 				Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
 				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
-				Attrs::acquire( cmd , &py_obj->as_a<Str>() ) ;
+				Attrs::acquire( cmd_ , &py_obj->as_a<Str>() ) ;
 			}
-			return {{}/*preamble*/,::move(cmd)} ;
+			return {{}/*preamble*/,::move(cmd_)} ;
 		} else {
 			::string res ;
 			eval_ctx( match , rsrcs
@@ -573,8 +585,8 @@ namespace Engine {
 					res += "}\n" ;
 				}
 			) ;
-			res <<set_nl<< spec.cmd ;
-			return {append_dbg_info(*Rule::s_rules,res)/*preamble*/,"cmd()"} ;
+			res <<set_nl<< cmd() <<set_nl<< entry().dbg_info ;
+			return {res/*preamble*/,"cmd()"} ;
 		}
 	}
 
@@ -675,7 +687,6 @@ namespace Engine {
 	}
 	void RuleData::_acquire_py( RulesBase& rules , Dict const& dct ) {
 		::string field ;
-		Gil::s_swear_locked() ;
 		try {
 			//
 			// acquire essential (necessary for Anti & GenericSrc)
@@ -905,15 +916,15 @@ namespace Engine {
 			/**/                                                        var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "submit_rsrcs_attrs"     ; if (dct.contains(field)) submit_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs } ;
-			field = "submit_ancillary_attrs" ; if (dct.contains(field)) submit_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs } ;
+			field = "submit_rsrcs_attrs"     ; if (dct.contains(field)) submit_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
+			field = "submit_ancillary_attrs" ; if (dct.contains(field)) submit_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
 			//
 			/**/                                                                 var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
 			for( VarIdx r : iota<VarIdx>(submit_rsrcs_attrs.spec.rsrcs.size()) ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
-			field = "start_cmd_attrs"       ; if (dct.contains(field)) start_cmd_attrs       = { rules , dct[field].as_a<Dict>() , var_idxs        } ;
-			field = "start_rsrcs_attrs"     ; if (dct.contains(field)) start_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs        } ;
-			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "start_cmd_attrs"       ; if (dct.contains(field)) start_cmd_attrs       = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
+			field = "start_rsrcs_attrs"     ; if (dct.contains(field)) start_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
+			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
 			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { rules , dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
 			//
 			//
@@ -1220,11 +1231,11 @@ namespace Engine {
 	template<class T> ::string RuleData::_pretty_dyn(Dyn<T> const& d) const {
 		if (!d.is_dyn()) return {} ;
 		::string res ;
-		/**/                                res <<"dynamic "<< T::Msg <<" :\n" ;
-		if (+d.ctx      (*Rule::s_rules)) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.ctx(*Rule::s_rules)) ) res << ' '<<k ; res <<'\n' ; }
-		if (d.may_import(*Rule::s_rules)) { res << "\t<sys.path> :" ; for( ::string const& d : Rule::s_rules->sys_path          ) res <<' '<< d ; res <<'\n' ; }
-		if (+d.glbs_str (*Rule::s_rules))   res << "\t<globals> :\n" << ensure_nl(indent(d.append_dbg_info(*Rule::s_rules,d.glbs_str(*Rule::s_rules)),2)) ;
-		if (+d.code_str (*Rule::s_rules))   res << "\t<code> :\n"    << ensure_nl(indent(                                 d.code_str(*Rule::s_rules) ,2)) ;
+		/**/                         res <<"dynamic "<< T::Msg <<" :\n" ;
+		if (+d.entry().ctx       ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.entry().ctx) ) res << ' '<<k ; res <<'\n' ; }
+		if (+d.entry().may_import) { res << "\t<sys.path> :" ; for( ::string const& d : Rule::s_rules->sys_path  ) res <<' '<< d ; res <<'\n' ; }
+		if (+d.entry().glbs_str  )   res << "\t<globals> :\n" << ensure_nl(indent(ensure_nl(d.entry().glbs_str)+d.entry().dbg_info,2)) ;
+		if (+d.entry().code_str  )   res << "\t<code> :\n"    << ensure_nl(indent(          d.entry().code_str                    ,2)) ;
 		return res ;
 	}
 
@@ -1252,7 +1263,7 @@ namespace Engine {
 					if (seen.insert(sig).second) kill_sigs << '('<<::strsignal(sig)<<')' ;
 				}
 			}
-			if (+cmd.spec.cmd) cmd_ = is_python ? cmd.append_dbg_info(*Rule::s_rules,cmd.spec.cmd) : _pretty_fstr(cmd.spec.cmd) ;
+			if (+cmd.cmd()) cmd_ = is_python ? ensure_nl(cmd.cmd())+cmd.entry().dbg_info : _pretty_fstr(cmd.cmd()) ;
 		}
 		//
 		// first simple static attrs
@@ -1306,7 +1317,7 @@ namespace Engine {
 		}
 		// and finally the cmd
 		if (!is_special()) {
-			if (+cmd.spec.cmd) res << indent("cmd :\n",1) << indent(ensure_nl(cmd_),2) ;
+			if (+cmd.cmd()) res << indent("cmd :\n",1) << indent(ensure_nl(cmd_),2) ;
 		}
 		return res ;
 	}
@@ -1360,8 +1371,8 @@ namespace Engine {
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;
 			h.update(is_python             ) ;
-			start_cmd_attrs.update_hash( h , rules )   ;
-			cmd            .update_hash( h , rules )   ;
+			start_cmd_attrs.update_hash( h , rules ) ;
+			cmd            .update_hash( h , rules ) ;
 			Crc cmd = h.digest() ;
 			//
 			submit_rsrcs_attrs.update_hash( h , rules ) ;

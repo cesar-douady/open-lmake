@@ -106,7 +106,7 @@ Also, depending on the attribute, the deps (as well as the `deps` variable) and 
 Whether or not these are available depend on when a given attribute is needed.
 For example, when defining the `deps`, the deps are obviously not available.
 
-For composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
+For composite values (dictionaries or sequences), the entire value may be a function or each value can individually be a function (but not the keys).
 For dictionaries, if the value function returns `None`, there will be no corresponding entry in the resulting dictionary.
 
 Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.

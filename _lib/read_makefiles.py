@@ -76,7 +76,7 @@ if '/config/' in actions :
 			,	ctx            = (config.__dict__,)
 			,	call_callables = True
 			)
-			be['interface'] = expr.ctx+'interface = '+expr.expr
+			be['interface'] = expr.glbs+'interface = '+expr.expr
 
 sources = []
 if '/sources/' in actions :

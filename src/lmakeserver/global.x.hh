@@ -282,9 +282,9 @@ namespace Engine {
 		}
 		void compile() ;
 		// data
-		::vector_s               sys_path    ;
-		::vector<DynEntry      > dyn_vec     ;
-		::umap  <DynStr,RuleIdx> dyn_idx_tab ; // .
+		::vector_s                 sys_path    ;
+		::vector<DynEntry        > dyn_vec     ;
+		::umap  <DynEntry,RuleIdx> dyn_idx_tab ;
 	} ;
 	struct Rules : Py::WithGil<RulesBase> {
 		using Base = Py::WithGil<RulesBase> ;

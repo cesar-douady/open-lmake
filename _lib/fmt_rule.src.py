@@ -233,51 +233,51 @@ try :
 except :
 	has_code_replace = False
 def mk_dbg_info( dbg , serialize_ctx , for_this_python ) :
-	if not dbg : return ''
-	single = len(dbg)==1
-	if single :
-		for k,v in dbg.items() : func,module,qualname,filename,firstlineno = k,*(repr(a) for a in v)
-	else :
-		func,module,qualname,filename,firstlineno = 'func','module','qualname','filename','firstlineno'
-		sourcify                                  = avoid_ctx('sourcify',serialize_ctx)
-	tab1     = '' if for_this_python else '\t'
-	tab2     = '' if single          else '\t'
 	dbg_info = ''
-	if not for_this_python :
-		dbg_info += "try :\n"
-		if not single :
-			dbg_info += "\t(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)\n"
-	if has_code_replace or not for_this_python :
-		if not single :
-			dbg_info += f"{tab1}def {sourcify}(func,module,qualname,filename,firstlineno) :\n"
-		dbg_info += f"{tab1}{tab2}{func}.__code__     = {func}.__code__.replace( co_filename={filename} , co_firstlineno={firstlineno} )\n"
-		dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
-		dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
-	if not for_this_python :
-		dbg_info += "except :\n"
-	if not has_code_replace or not for_this_python :
+	if dbg :
+		single = len(dbg)==1
 		if single :
-			c         = avoid_ctx('c',serialize_ctx)
+			for k,v in dbg.items() : func,module,qualname,filename,firstlineno = k,*(repr(a) for a in v)
 		else :
-			dbg_info += f"{tab1}def {sourcify}({func},{module},{qualname},{filename},{firstlineno}) :\n"
-			c         = 'c'
-		dbg_info += f"{tab1}{tab2}{c:4} = {func}.__code__\n"
-		dbg_info += f"{tab1}{tab2}args = [{c}.co_argcount]\n"
-		dbg_info += f"{tab1}{tab2}if hasattr({c},'co_posonlyargcount') : args.append({c}.co_posonlyargcount)\n"
-		dbg_info += f"{tab1}{tab2}if hasattr({c},'co_kwonlyargcount' ) : args.append({c}.co_kwonlyargcount )\n"
-		dbg_info += f"{tab1}{tab2}args += (\n"
-		dbg_info += f"{tab1}{tab2}\t{c}.co_nlocals,{c}.co_stacksize,{c}.co_flags,{c}.co_code,{c}.co_consts,{c}.co_names,{c}.co_varnames\n"
-		dbg_info += f"{tab1}{tab2},\t{filename}\n"
-		dbg_info += f"{tab1}{tab2},\t{c}.co_name\n"
-		dbg_info += f"{tab1}{tab2},\t{firstlineno}\n"
-		dbg_info += f"{tab1}{tab2},\t{c}.co_lnotab,{c}.co_freevars,{c}.co_cellvars\n"
-		dbg_info += f"{tab1}{tab2})\n"
-		dbg_info += f"{tab1}{tab2}{func}.__code__     = {c}.__class__(*args)\n"
-		dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
-		dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
-	if not single :
-		for func,(module,qualname,filename,firstlineno) in dbg.items() :
-			dbg_info += f'{sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
+			func,module,qualname,filename,firstlineno = 'func','module','qualname','filename','firstlineno'
+			sourcify                                  = avoid_ctx('sourcify',serialize_ctx)
+		tab1     = '' if for_this_python else '\t'
+		tab2     = '' if single          else '\t'
+		if not for_this_python :
+			dbg_info += "try :\n"
+			if not single :
+				dbg_info += "\t(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)\n"
+		if has_code_replace or not for_this_python :
+			if not single :
+				dbg_info += f"{tab1}def {sourcify}(func,module,qualname,filename,firstlineno) :\n"
+			dbg_info += f"{tab1}{tab2}{func}.__code__     = {func}.__code__.replace( co_filename={filename} , co_firstlineno={firstlineno} )\n"
+			dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
+			dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
+		if not for_this_python :
+			dbg_info += "except :\n"
+		if not has_code_replace or not for_this_python :
+			if single :
+				c         = avoid_ctx('c',serialize_ctx)
+			else :
+				dbg_info += f"{tab1}def {sourcify}({func},{module},{qualname},{filename},{firstlineno}) :\n"
+				c         = 'c'
+			dbg_info += f"{tab1}{tab2}{c:4} = {func}.__code__\n"
+			dbg_info += f"{tab1}{tab2}args = [{c}.co_argcount]\n"
+			dbg_info += f"{tab1}{tab2}if hasattr({c},'co_posonlyargcount') : args.append({c}.co_posonlyargcount)\n"
+			dbg_info += f"{tab1}{tab2}if hasattr({c},'co_kwonlyargcount' ) : args.append({c}.co_kwonlyargcount )\n"
+			dbg_info += f"{tab1}{tab2}args += (\n"
+			dbg_info += f"{tab1}{tab2}\t{c}.co_nlocals,{c}.co_stacksize,{c}.co_flags,{c}.co_code,{c}.co_consts,{c}.co_names,{c}.co_varnames\n"
+			dbg_info += f"{tab1}{tab2},\t{filename}\n"
+			dbg_info += f"{tab1}{tab2},\t{c}.co_name\n"
+			dbg_info += f"{tab1}{tab2},\t{firstlineno}\n"
+			dbg_info += f"{tab1}{tab2},\t{c}.co_lnotab,{c}.co_freevars,{c}.co_cellvars\n"
+			dbg_info += f"{tab1}{tab2})\n"
+			dbg_info += f"{tab1}{tab2}{func}.__code__     = {c}.__class__(*args)\n"
+			dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
+			dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
+		if not single :
+			for func,(module,qualname,filename,firstlineno) in dbg.items() :
+				dbg_info += f'{sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
 	return dbg_info
 
 def static_fstring(s) :
@@ -375,15 +375,28 @@ class Handle :
 			if is_dyn : self.dyn_val   [key] = v
 			else      : self.static_val[key] = v
 
-	def _prepare_dyn( self , static_val , dyn_expr , serialize_ctx , for_this_python , lcl_ok=False ) :
+	def _finalize(self) :
+		static_val = self.static_val
+		dyn_val    = self.dyn_val
+		del self.static_val
+		del self.dyn_val
+		if not dyn_val :
+			if not static_val : return None                  # entry is suppressed later in this case
+			else              : return {'static':static_val}
+		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
+		dyn_expr = serialize.get_expr(
+			dyn_val
+		,	ctx            = serialize_ctx
+		,	no_imports     = lcl_mod_file                    # dynamic attributes cannot afford local imports, so serialize in place all of them
+		,	call_callables = True
+		)
 		if static_val         : dyn_expr.static   = static_val
-		if dyn_expr.dbg_info  : dyn_expr.dbg_info = mk_dbg_info( dyn_expr.dbg_info , serialize_ctx , for_this_python )
+		if dyn_expr.dbg_info  : dyn_expr.dbg_info = mk_dbg_info( dyn_expr.dbg_info , serialize_ctx , for_this_python=True )
 		else                  : del dyn_expr.dbg_info
 		if not dyn_expr.names : del dyn_expr.names
-		if lcl_ok             : return
-		for mod_name in dyn_expr.modules : # check for local modules
+		for mod_name in dyn_expr.modules :                   # check for local modules
 			m = ''
-			for c in mod_name.split('.') : # check all packages along the path as they are all imported by Python
+			for c in mod_name.split('.') :                   # check all packages along the path as they are all imported by Python
 				if m : m += '.'
 				m   += c
 				f = lcl_mod_file(m)
@@ -401,23 +414,6 @@ class Handle :
 				''')
 				raise e
 		del dyn_expr.modules
-
-	def _finalize(self) :
-		static_val = self.static_val
-		dyn_val    = self.dyn_val
-		del self.static_val
-		del self.dyn_val
-		if not dyn_val :
-			if not static_val : return None                                               # entry is suppressed later in this case
-			else              : return {'static':static_val}
-		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
-		dyn_expr = serialize.get_expr(
-			dyn_val
-		,	ctx            = serialize_ctx
-		,	no_imports     = lcl_mod_file                                                 # dynamic attributes cannot afford local imports, so serialize in place all of them
-		,	call_callables = True
-		)
-		self._prepare_dyn( static_val , dyn_expr , serialize_ctx , for_this_python=True ) # dynamic attributes are always interpreted by this python
 		return dyn_expr
 
 	def handle_matches(self) :
@@ -587,12 +583,13 @@ class Handle :
 				if not lmake._maybe_lcl(interpreter) :                            # avoid creating a dep inside the repo if no interpreter (e.g. it may be dynamic)
 					for_this_python = osp.realpath(interpreter)==self.ThisPython
 			except : pass
-			self._prepare_dyn( {'cmd':cmd} , dyn_src , serialize_ctx , for_this_python , lcl_ok=True )
+			dyn_src.expr      = cmd
+			dyn_src.dbg_info  = mk_dbg_info( dyn_src.dbg_info , serialize_ctx , for_this_python )
 			self.rule_rep.cmd = dyn_src
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
-			self._handle_val( 'cmd' , for_deps=True )
+			self._handle_val( 'cmd' , for_deps=True )                             # shell commands are f-strings, like deps
 			if 'cmd' in self.dyn_val : self.dyn_val = self.dyn_val['cmd']
 			self.rule_rep.cmd = self._finalize()
 

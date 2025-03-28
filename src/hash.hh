@@ -121,7 +121,7 @@ namespace Hash {
 	template<class K        > struct IsUnstableIterableHelper<::uset<K  >> { static constexpr bool value = true ; } ; // .
 	template<class T> concept IsUnstableIterable = IsUnstableIterableHelper<T>::value ;
 
-	template<class T> concept _SimpleUpdate = sizeof(T)==1 || ::is_integral_v<T> ;
+	template<class T> concept _SimpleUpdate = (sizeof(T)==1&&!::is_empty_v<T>) || ::is_integral_v<T> ;
 	struct Xxh {
 		// statics
 	private :
@@ -155,9 +155,10 @@ namespace Hash {
 			_update( &buf , sizeof(x) ) ;
 			return self ;
 		}
-		/**/                                                                      Xxh& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return self ; }
-		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& update( T       const& x ) { update(serialize(x)) ;                         return self ; }
-		template<class T> requires(                       IsUnstableIterable<T> ) Xxh& update( T       const& x ) = delete ;
+		/**/                                                                                          Xxh& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return self ; }
+		template<class T> requires( !::is_empty_v<T> && !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& update( T       const& x ) { update(serialize(x)) ;                         return self ; }
+		template<class T> requires(  ::is_empty_v<T>                                                ) Xxh& update( T       const&   ) {                                                return self ; }
+		template<class T> requires(                                           IsUnstableIterable<T> ) Xxh& update( T       const& x ) = delete ;
 	private :
 		void _update( const void* p , size_t sz ) ;
 		// data

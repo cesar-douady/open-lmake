@@ -111,7 +111,7 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 	}
 } ;
 
-template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
+template<class T> requires( ::is_trivially_copyable_v<T> && !::is_empty_v<T> ) struct Serdeser<T> {
 	static void s_serdes( ::string& os , T const& x ) {
 		os += ::string_view( ::launder(reinterpret_cast<char const*>(&x)) , sizeof(x) ) ;
 	}
@@ -120,6 +120,11 @@ template<class T> requires(::is_trivially_copyable_v<T>) struct Serdeser<T> {
 		::memcpy( &x , is.data() , sizeof(x) ) ;
 		is = is.substr(sizeof(x)) ;
 	}
+} ;
+
+template<class T> requires(::is_empty_v<T>) struct Serdeser<T> {
+	static void s_serdes( ::string     & , T const& ) {}
+	static void s_serdes( ::string_view& , T      & ) {}
 } ;
 
 // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
