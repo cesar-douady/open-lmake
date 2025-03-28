@@ -68,8 +68,10 @@ namespace Backdoor {
 			// data
 			FileInfo file_info {} ;          // file info must be probed in process as we are protected against recording
 		} ;
-		size_t reply_len(         ) const ;
-		Reply  process  (Record& r) const ;
+		// accesses
+		size_t reply_len() const ;
+		// services
+		Reply  process(Record& r) const ;
 		// data
 		::string file      = {}            ;
 		bool     no_follow = false         ;

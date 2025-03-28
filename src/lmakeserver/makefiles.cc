@@ -202,7 +202,7 @@ namespace Engine::Makefiles {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
-		try                      { res = T((*py_info)[kind]) ;                       }
+		try                      { res = (*py_info)[kind] ;                          }
 		catch(::string const& e) { throw "while processing "+kind+" :\n"+indent(e) ; }
 		return Maybe|+reason/*done*/ ;                                                                          // cannot be split without reason
 	}
@@ -277,9 +277,9 @@ namespace Engine::Makefiles {
 			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update sources : "+e ; }
 		//
-		WithGil<Rules> rules        ;
-		Bool3/*done*/  rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
-		bool           new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
+		Rules         rules        ;
+		Bool3/*done*/ rules_digest = _refresh_rules_srcs<true/*IsRules*/>( msg , rules , rules_deps , changed_rules , py_info , startup_dir_s ) ; // Maybe means not split
+		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
 		if (new_rules) //!                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;   }
 			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

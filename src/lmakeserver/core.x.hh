@@ -5,8 +5,8 @@
 
 // included 5 times : with STRUCT_DECL defined, then with STRUCT_DEF defined, then with INFO_DEF defined, then with DATA_DEF defined, then with IMPL defined
 
-#include "store.x.hh"
 #include "global.x.hh"
+#include "store.x.hh"
 #include "config.x.hh"
 #include "backend.x.hh"
 #include "rule.x.hh"

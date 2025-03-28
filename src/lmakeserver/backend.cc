@@ -477,21 +477,21 @@ namespace Backends {
 			}
 			//
 			reply.small_id = _s_small_ids.acquire() ;
-			//vvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send(fd,reply) ;                                                                                                // send reply ASAP to minimize overhead
-			//^^^^^^^^^^^^^^^^^^^^^^
-			job_exec            = { job , jis.start.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ;                 // job starts
+			//    vvvvvvvvvvvvvvvvvvvvvvvv
+			try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                             // send reply ASAP to minimize overhead, failure will be caught by heartbeat
+			//    ^^^^^^^^^^^^^^^^^^^^^^^^
+			job_exec            = { job , jis.start.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 			entry.start_date    = job_exec.start_date                                 ;
 			entry.workload      = _s_workload.start(entry.reqs,job)                   ;
 			entry.conn.host     = job_exec.host                                       ;
 			entry.conn.port     = jsrr.port                                           ;
 			entry.conn.small_id = jis.start.small_id                                  ;
 		}
-		bool report_now =                                                                                                             // dont defer long jobs or if a message is to be delivered to user
+		bool report_now =                                                                                             // dont defer long jobs or if a message is to be delivered to user
 				+pre_action_warnings
 			||	+start_msg_err.second
-			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                                          // emit retry start message
-			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay                                                              // if job is probably long, emit start message immediately
+			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                          // emit retry start message
+			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay                                              // if job is probably long, emit start message immediately
 		;
 		Job::s_record_thread.emplace( job , ::move(jis) ) ;
 		trace("started",job_exec,jis.start) ;

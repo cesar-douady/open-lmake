@@ -48,8 +48,9 @@ ENUM( ReportBool
 
 namespace Engine {
 
-	struct Rules   ;
-	struct Sources ;
+	struct RulesBase ;
+	struct Rules     ;
+	struct Sources   ;
 
 	struct EngineClosure    ;
 	struct EngineClosureReq ;
@@ -255,19 +256,45 @@ namespace Engine {
 	// Rules & Sources
 	//
 
-	struct Rules : ::vector<RuleData> {                                                              // used to read rules and pass them to store
+}
+
+#endif
+#ifdef IMPL
+
+namespace Engine {
+
+	struct RulesBase : ::vector<RuleData> {                                                              // used to read rules and pass them to store
 		using Base = ::vector<RuleData> ;
 		// cxtors & casts
-		Rules(                 ) = default ;
-		Rules(NewType          ) ;
-		Rules(Py::Object const&) ;
+		RulesBase(                 ) = default ;
+		RulesBase(NewType          ) ;
+		RulesBase(Py::Object const&) ;
+		//
+		bool operator+() const { return +static_cast<Base const&>(self) ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,sys_path                ) ;
+			// START_OF_VERSIONING
+			Py::Gil gil ;
 			::serdes(s,static_cast<Base&>(self)) ;
+			::serdes(s,sys_path                ) ;
+			::serdes(s,dyn_vec                 ) ;
+			// END_OF_VERSIONING
 		}
+		void compile() ;
 		// data
-		::vector_s sys_path ;
+		::vector_s               sys_path    ;
+		::vector<DynEntry      > dyn_vec     ;
+		::umap  <DynStr,RuleIdx> dyn_idx_tab ; // .
+	} ;
+	struct Rules : Py::WithGil<RulesBase> {
+		using Base = Py::WithGil<RulesBase> ;
+		// cxtors & casts
+		using Base::Base ;
+		Rules(Rules&& rs) { self = ::move(rs) ; }
+		Rules& operator=(Rules&&) = default ;
+		// accesses
+		using Base::operator+ ;
+		bool operator+() const { return +static_cast<RulesBase const&>(self) ; }
 	} ;
 
 	struct Sources : ::vector_s { // used to read manifest and pass it to store
@@ -275,13 +302,6 @@ namespace Engine {
 		Sources(                 ) = default ;
 		Sources(Py::Object const&) ;
 	} ;
-
-}
-
-#endif
-#ifdef IMPL
-
-namespace Engine {
 
 	inline ::string reason_str(JobReason const& reason) {
 		::string res = reason.msg() ;
@@ -308,7 +328,7 @@ namespace Engine {
 		return "\x1b[0m" ;
 	}
 
-	inline Rules::Rules(NewType) { for( Special s : iota(1,Special::NShared) ) emplace_back(s) ; } ; // rule 0 is not stored
+	inline RulesBase::RulesBase(NewType) { for( Special s : iota(1,Special::NShared) ) emplace_back(s) ; } ; // rule 0 is not stored
 
 }
 

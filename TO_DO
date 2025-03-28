@@ -63,6 +63,8 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* rework py : str_err_clear
+* hash : accept hashing as a OStream and use to hash
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm

@@ -73,6 +73,11 @@ namespace Py {
 	struct Dict         ;
 	struct Code         ;
 	struct Module       ;
+	#if PY_MAJOR_VERSION<3
+		using Bytes = Str ;
+	#else
+		struct Bytes ;
+	#endif
 	//
 	template<class T=Object> struct Ptr ;
 
@@ -109,14 +114,17 @@ namespace Py {
 		return nullptr ;
 	}
 
-	Ptr<Object> py_eval( ::string const& expr             ) ;
-	void        py_run ( ::string const& text , Dict& env ) ;
-	Ptr<Dict>   py_run ( ::string const& text             ) ;
+	Ptr<Object> py_eval( ::string const& expr , Dict& glbs ) ;
+	Ptr<Object> py_eval( ::string const& expr              ) ;
+	void        py_run ( ::string const& text , Dict& glbs ) ; // meant to update glbs
+	Ptr<Dict>   py_run ( ::string const& text              ) ; // return globals after execution in a clean dict
 
 	template<class T> struct WithGil : T {
+		using T::operator+ ;
+		// cxtors & casts
 		using T::T ;
-		WithGil(T const& t) : T{       t } {}
-		WithGil(T     && t) : T{::move(t)} {}
+		WithGil(T const& t) requires(::copy_constructible<T>) : T{       t } {}
+		WithGil(T     && t) requires(::move_constructible<T>) : T{::move(t)} {}
 		~WithGil() {
 			if (!self) return ; // fast path : dont pay init of all fields if not necessary
 			self = T() ;
@@ -149,12 +157,13 @@ namespace Py {
 			if (rc<0) throw py_err_str_clear() ;
 			return bool(rc) ;
 		}
-		constexpr PyObject* to_py      ()       {           return                     this  ; }
-		constexpr PyObject* to_py      () const {           return const_cast<Object*>(this) ; }
-		PyObject*           to_py_boost()       { boost() ; return                     this  ; }
-		PyObject*           to_py_boost() const { boost() ; return const_cast<Object*>(this) ; }
-		void                boost      () const { Gil::s_swear_locked() ; Py_INCREF(this) ;    }
-		void                unboost    () const { Gil::s_swear_locked() ; Py_DECREF(this) ;    }
+		constexpr PyObject* to_py      ()       {           return                     this  ;                    }
+		constexpr PyObject* to_py      () const {           return const_cast<Object*>(this) ;                    }
+		PyObject*           to_py_boost()       { boost() ; return                     this  ;                    }
+		PyObject*           to_py_boost() const { boost() ; return const_cast<Object*>(this) ;                    }
+		void                boost      () const {                                               Py_INCREF(this) ; }
+		void                unboost    () const { { if (ref_cnt()==1) Gil::s_swear_locked() ; } Py_DECREF(this) ; }
+		::string            marshal    () const ;
 		// services
 		Ptr<Str> str      () const ;
 		::string type_name() const { return ob_type->tp_name ; }
@@ -177,6 +186,8 @@ namespace Py {
 		//
 		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return self ; }
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return self ; }
+		//
+		void unmarshal(::string const&) ;
 		// accesses
 		bool operator+() const { return bool(ptr) ; }
 		template<class T> operator T      *()       { return _chk(static_cast<T      *>(ptr)) ; }
@@ -187,9 +198,10 @@ namespace Py {
 		Object      * operator->()       { return &*self ; }
 		Object const* operator->() const { return &*self ; }
 		// services
-		void detach ()       { ptr = nullptr ; }
-		void boost  () const { if (ptr) ptr->boost  () ; }
-		void unboost() const { if (ptr) ptr->unboost() ; }
+		void               detach ()       { ptr = nullptr ;                         }
+		Ptr<Object>      & boost  ()       { if (ptr) ptr->boost  () ; return self ; }
+		Ptr<Object> const& boost  () const { if (ptr) ptr->boost  () ; return self ; }
+		void               unboost() const { if (ptr) ptr->unboost() ;               }
 		// data
 	protected :
 		Object* ptr = nullptr ;
@@ -220,6 +232,9 @@ namespace Py {
 		operator TBase  const*() const requires(!::is_same_v<Object,TBase>) { return &*self ; }
 		operator T           *()                                            { return &*self ; }
 		operator T      const*() const                                      { return &*self ; }
+		// services
+		Ptr<T>      & boost()       { Ptr<Object>::boost() ; return static_cast<Ptr<T>&>(self) ; }
+		Ptr<T> const& boost() const { Ptr<Object>::boost() ; return static_cast<Ptr<T>&>(self) ; }
 	} ;
 
 	//
@@ -363,6 +378,33 @@ namespace Py {
 	} ;
 
 	//
+	// Bytes
+	//
+
+	#if PY_MAJOR_VERSION>=3 // else Bytes is Str
+		struct Bytes : Object {
+			static constexpr const char* Name = "bytes" ;
+			using Base = Object ;
+			bool qualify() const {
+				return PyBytes_Check(to_py()) ;
+			}
+			operator ::string() const {
+				Py_ssize_t sz = 0 ;
+				char* data = nullptr ;
+				PyBytes_AsStringAndSize(to_py(),&data,&sz) ;
+				if (!data) throw py_err_str_clear() ;
+				return {data,size_t(sz)} ;
+			}
+			::string val() const ; // for debug
+		} ;
+		template<> struct Ptr<Bytes> : PtrBase<Bytes> {
+			using Base = PtrBase<Bytes> ;
+			using Base::Base ;
+			Ptr(::string const& v) : Base{ ( Gil::s_swear_locked() , PyBytes_FromStringAndSize(v.c_str(),v.size()) ) } {}
+		} ;
+	#endif
+
+	//
 	// Sequence
 	//
 
@@ -425,7 +467,7 @@ namespace Py {
 		using Base = Sequence ;
 		bool   qualify() const { return PyTuple_Check   (to_py()) ; }
 		size_t size   () const { return PyTuple_GET_SIZE(to_py()) ; }
-		void set_item( ssize_t idx , Object& val ) {
+		void set_item( ssize_t idx , Object const& val ) {
 			PyTuple_SET_ITEM( to_py() , idx , val.to_py_boost() ) ;
 		}
 		Object      & operator[](size_t idx)       { return *from_py(PyTuple_GET_ITEM(to_py(),ssize_t(idx))) ; }
@@ -450,7 +492,7 @@ namespace Py {
 		bool   qualify() const { return PyList_Check   (to_py()) ; }
 		size_t size   () const { return PyList_GET_SIZE(to_py()) ; }
 		//
-		void set_item( ssize_t idx , Object& val ) {
+		void set_item( ssize_t idx , Object const& val ) {
 			int rc = PyList_SetItem( to_py() , idx , val.to_py_boost() ) ; if (rc!=0) throw py_err_str_clear() ;
 		}
 		Object      & operator[](size_t idx)       { return *from_py(PyList_GET_ITEM(to_py(),ssize_t(idx))) ; }
@@ -547,12 +589,19 @@ namespace Py {
 		// services
 		bool        qualify(          ) const { return PyCode_Check(to_py()) ; }
 		Ptr<Object> eval   (Dict& glbs) const ;
+		Ptr<Object> eval   (          ) const ;
+		void        run    (Dict& glbs) const { eval(glbs) ; } // meant to updates glbs
+		Ptr<Dict  > run    (          ) const ;                // returns globals after execution in a clean global dict
 	} ;
 	template<> struct Ptr<Code> : PtrBase<Code> {
 		using Base = PtrBase<Code> ;
 		using Base::Base ;
-		Ptr(::string const& v) : Base{ ( Gil::s_swear_locked() , Py_CompileString(v.c_str(),"<code>",Py_eval_input) ) } {
-			if (!self) throw py_err_str_clear() ;
+		Ptr( ::string const& v , bool for_eval ) :
+			Base{(
+				Gil::s_swear_locked()
+			,	Py_CompileString( v.c_str() , "<code>" , for_eval?Py_eval_input:Py_file_input )
+			)}
+		{	if (!self) throw py_err_str_clear() ;
 		}
 	} ;
 
@@ -585,11 +634,25 @@ namespace Py {
 		static constexpr const char* Name = "callable" ;
 		using Base = Object ;
 		// services
-		bool        qualify() const { return PyCallable_Check(to_py()) ; }
-		Ptr<Object> call   () const {
-			Ptr<Object> res { ( Gil::s_swear_locked() , PyObject_CallFunction(to_py(),nullptr) ) } ;
+		bool qualify() const { return PyCallable_Check(to_py()) ; }
+		//
+		Ptr<Object> call_generic( Tuple& args , Dict& kwds ) const { return _chk_after({(_chk_before() , PyObject_Call      ( to_py() , args.to_py() , kwds.to_py() ) )}) ; }
+		Ptr<Object> call_generic( Tuple& args              ) const { return _chk_after({(_chk_before() , PyObject_CallObject( to_py() , args.to_py()                ) )}) ; }
+		Ptr<Object> call        (                          ) const { return _chk_after({(_chk_before() , PyObject_CallObject( to_py() , nullptr                     ) )}) ; }
+		template<class... A> Ptr<Object> call(A&&... args) const {
+			_chk_before() ;
+			Ptr<Tuple> t { sizeof...(A) } ;
+			size_t i               = 0 ;
+			bool   _[sizeof...(A)] = { (t->set_item(i++,args),false)... } ; (void)_ ;
+			return _chk_after({ PyObject_CallObject( to_py() , t->to_py() ) }) ;
+		}
+	private :
+		void _chk_before() const {
+			Gil::s_swear_locked() ;
+		}
+		Ptr<Object> _chk_after(Ptr<Object>&& res) const {
 			if (!res) throw py_err_str_clear() ;
-			return res ;
+			return ::move(res) ;
 		}
 	} ;
 	template<> struct Ptr<Callable> : PtrBase<Callable> {
@@ -650,21 +713,5 @@ namespace Py {
 		#endif
 	{ throw_unless( +self , "cannot convert to float" ) ; }
 	inline Ptr<Float>::Ptr(::string const& v) : Ptr{*Ptr<Str>(v)} {}
-
-	//
-	// Code
-	//
-
-	inline Ptr<Object> Code::eval(Dict& glbs) const {
-		Gil::s_swear_locked() ;
-		#if PY_MAJOR_VERSION<3
-			PyCodeObject* c = (PyCodeObject*)(to_py()) ;
-		#else
-			PyObject    * c =                 to_py()  ;
-		#endif
-		Ptr<Object> res { PyEval_EvalCode( c , glbs.to_py() , nullptr ) } ;
-		if (!res) throw py_err_str_clear() ;
-		return res ;
-	}
 
 }

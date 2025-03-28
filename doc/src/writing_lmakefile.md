@@ -153,4 +153,4 @@ For example, to add the directory `/mypath` after the inherited path, one would 
 To add it before, one would use `{'PATH':'/mypath:...'}`.
 
 Entries going through this step are provided by the attribute `paths`, which is a dict with <attribute>.<key> as keys and <separator> as values.
-The default value is `{ 'environ.PATH':':' , 'environ.PYTHONPATH':':' , 'environ.LD_LIBRARY_PATH':':' }`
+The default value is `{ 'environ.PATH':':' , 'environ.LD_LIBRARY_PATH':':' , 'environ.MANPATH':':' , 'environ.PYTHONPATH':':' }`

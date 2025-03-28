@@ -433,6 +433,7 @@ static bool/*interrupted*/ _engine_loop() {
 }
 
 int main( int argc , char** argv ) {
+
 	Trace::s_backup_trace = true ;
 	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                        // server is always launched at root
 	if (Record::s_is_simple(g_repo_root_s->c_str()))

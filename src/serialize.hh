@@ -40,12 +40,17 @@ template< Serializable T               > void deserialize( ::string const& s  , 
 
 // make objects hashable as soon as they define serdes
 // as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>
+// however we must ensure not to redefine hash for already hashable types
 // /!\ : not ideal in terms of performances, but easy to use.
 // suppress calls to FAIL when necessary
-template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL() ; return serialize(a)== serialize(b) ; }        // cannot define for Serializable as it creates conflicts
-template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL() ; return serialize(a)<=>serialize(b) ; }        // .
+template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL() ; return serialize(a)== serialize(b) ; } // cannot define for Serializable as it creates conflicts
+template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL() ; return serialize(a)<=>serialize(b) ; } // .
 namespace std {
-	template<HasSerdes T> struct hash<T> { size_t operator()(T const& x) const { FAIL() ; return hash<::string>()(serialize(x)) ; } } ; // .
+	template<class T> requires( HasSerdes<T> || ::is_aggregate_v<T> ) struct hash<T> {
+		size_t operator()(T const& x) const {
+			return hash<::string>()(serialize(x)) ;
+		}
+	} ;
 }
 
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {

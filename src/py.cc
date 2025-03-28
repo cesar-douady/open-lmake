@@ -71,6 +71,7 @@ namespace Py {
 
 	void py_reset_path(                      ) { SWEAR(+_g_std_path) ; py_reset_path(*_g_std_path) ; }
 	void py_reset_path(::vector_s const& path) {
+		Gil gil ;
 		Ptr<Tuple> py_sys_path { path.size() } ; for( size_t i : iota(path.size()) ) py_sys_path->set_item( i , *Ptr<Str>(path[i]) ) ;
 		py_set_sys("path",*py_sys_path) ;
 	}
@@ -123,7 +124,7 @@ namespace Py {
 		return res ;
 	}
 
-	static Ptr<Dict> _mk_env() {
+	static Ptr<Dict> _mk_glbs() {
 		Ptr<Dict> res{New} ;
 		res->set_item( "__builtins__" , *Dict::s_builtins()   ) ; // Python3.6 and Python3.8 do not provide it for us and is harmless for Python3.10
 		res->set_item( "inf"          , *Ptr<Float>(Infinity) ) ; // this is how non-finite floats are printed with print
@@ -131,22 +132,27 @@ namespace Py {
 		return res ;
 	}
 
-	Ptr<Object> py_eval(::string const& expr) {
-		Ptr<Dict> env = _mk_env() ;
-		Ptr<Object> res { ( Gil::s_swear_locked() , PyRun_String( expr.c_str() , Py_eval_input , env->to_py() , env->to_py() ) ) } ;
+	Ptr<Object> py_eval( ::string const& expr , Dict& glbs ) {
+		Gil::s_swear_locked() ;
+		Ptr<Object> res { PyRun_String( expr.c_str() , Py_eval_input , glbs.to_py() , glbs.to_py() ) } ;
 		if (!res) throw py_err_str_clear() ;
 		return res ;
 	}
 
-	void py_run( ::string const& text , Dict& env ) {
-		Ptr<Object> rc { ( Gil::s_swear_locked() , PyRun_String( text.c_str() , Py_file_input , env.to_py() , env.to_py() ) ) } ;
-		if (!rc) throw py_err_str_clear() ;
+	Ptr<Object> py_eval(::string const& expr) {
+		return py_eval( expr , *_mk_glbs() ) ;
+	}
+
+	void py_run( ::string const& text , Dict& glbs ) {
+		Gil::s_swear_locked() ;
+		Ptr<Object> res { PyRun_String( text.c_str() , Py_file_input , glbs.to_py() , glbs.to_py() ) } ;
+		if (!res) throw py_err_str_clear() ;
 	}
 
 	Ptr<Dict> py_run (::string const& text) {
-		Ptr<Dict> env = _mk_env() ;
-		py_run(text,*env) ;
-		return env ;
+		Ptr<Dict> glbs = _mk_glbs() ;
+		py_run( text , *glbs ) ;
+		return glbs ;
 	}
 
 	//
@@ -158,6 +164,9 @@ namespace Py {
 	ulong    Int  ::uval() const { return ulong   (self) ; }
 	double   Float::val () const { return double  (self) ; }
 	::string Str  ::val () const { return ::string(self) ; }
+	#if PY_MAJOR_VERSION>=3
+		::string Bytes::val() const { return ::string(self) ; }
+	#endif
 
 	//
 	// Object
@@ -168,6 +177,21 @@ namespace Py {
 		if (+s) return s ;
 		else    py_err_clear() ;
 		return cat('<',type_name()," object at 0x",this,'>') ; // catch any error so calling str is reliable
+	}
+
+	::string Object::marshal() const {
+		static Callable* dumps = Ptr<Module>("marshal")->get_attr<Callable>("dumps").boost() ; // ensure no destruction at finalization
+//		Ptr<Callable> dumps = Ptr<Module>("marshal")->get_attr<Callable>("dumps") ;
+		Ptr<Bytes> res = &dumps->call(self)->as_a<Bytes>() ;
+		if (!res) throw py_err_str_clear() ;
+		return *res ;
+	}
+
+	void Ptr<Object>::unmarshal(::string const& s) {
+		static Callable* loads = Ptr<Module>("marshal")->get_attr<Callable>("loads").boost() ; // ensure no destruction at finalization
+//		Ptr<Callable> loads = Ptr<Module>("marshal")->get_attr<Callable>("loads") ;
+		self = loads->call(*Ptr<Bytes>(s)) ;
+		if (!self) throw py_err_str_clear() ;
 	}
 
 	//
@@ -203,6 +227,32 @@ namespace Py {
 		Ptr<Module> py_top = PyImport_ImportModule(name.c_str()) ;            // in case of module in a package, PyImport_ImportModule returns the top level package
 		if (name.find('.')==Npos) return py_top                             ;
 		else                      return &py_get_sys<Dict>("modules")[name] ; // it is a much more natural API to return the asked module, get it from sys.modules
+	}
+
+	//
+	// Code
+	//
+
+	Ptr<Object> Code::eval(Dict& glbs) const {
+		Gil::s_swear_locked() ;
+		#if PY_MAJOR_VERSION<3
+			PyCodeObject* c = (PyCodeObject*)(to_py()) ;
+		#else
+			PyObject    * c =                 to_py()  ;
+		#endif
+		Ptr<Object> res { PyEval_EvalCode( c , glbs.to_py() , nullptr ) } ;
+		if (!res) throw py_err_str_clear() ;
+		return res ;
+	}
+
+	Ptr<Object> Code::eval() const {
+		return eval(*_mk_glbs()) ;
+	}
+
+	Ptr<Dict> Code::run() const {
+		Ptr<Dict> glbs = _mk_glbs() ;
+		run(*glbs) ;
+		return glbs ;
 	}
 
 }

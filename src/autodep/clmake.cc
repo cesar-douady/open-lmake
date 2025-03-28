@@ -351,7 +351,7 @@ PyMODINIT_FUNC
 	mod->set_attr( "backends"      , *py_bes                                                     ) ;
 	mod->set_attr( "autodeps"      , *py_ads                                                     ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	mod->boost() ;                               // avoid problems at finalization
+	mod.boost() ;                               // avoid problems at finalization
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;
 	#endif

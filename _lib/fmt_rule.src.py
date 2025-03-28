@@ -43,7 +43,6 @@ StdAttrs = { #!               type   dynamic
 ,	'max_stderr_len'      : ( int   , True  )
 ,	'max_submits'         : ( int   , False )
 ,	'name'                : ( str   , False )
-,	'order'               : ( list  , False )
 ,	'prio'                : ( float , False )
 ,	'python'              : ( tuple , False )
 ,	'repo_view'           : ( str   , True  )
@@ -301,10 +300,10 @@ def avoid_ctx(name,ctxs) :
 		if not any(n in ks for ks in ctxs) : return n
 	assert False,f'cannot find suffix to make {name} an available name'
 
-def is_lcl(mod) :
+def lcl_mod_file(mod) :
 	m = importlib.import_module(mod)
-	try    : return lmake._maybe_lcl(m.__file__)
-	except : return False                        # if __file__ attribute cannot be found, this is a system module
+	try    : return lmake._maybe_lcl(m.__file__) and m.__file__
+	except : return False                                       # if __file__ attribute cannot be found, this is a system module
 
 class Handle :
 	ThisPython = osp.realpath(sys.executable)
@@ -376,36 +375,34 @@ class Handle :
 			if is_dyn : self.dyn_val   [key] = v
 			else      : self.static_val[key] = v
 
-	def _prepare_dyn( self , static_val , dyn_expr , serialize_ctx , for_this_python ) :
+	def _prepare_dyn( self , static_val , dyn_expr , serialize_ctx , for_this_python , lcl_ok=False ) :
 		if static_val         : dyn_expr.static   = static_val
 		if dyn_expr.dbg_info  : dyn_expr.dbg_info = mk_dbg_info( dyn_expr.dbg_info , serialize_ctx , for_this_python )
 		else                  : del dyn_expr.dbg_info
 		if not dyn_expr.names : del dyn_expr.names
-		for mod_name in dyn_expr.modules :
+		if lcl_ok             : return
+		for mod_name in dyn_expr.modules : # check for local modules
 			m = ''
-			for c in mod_name.split('.') :
+			for c in mod_name.split('.') : # check all packages along the path as they are all imported by Python
 				if m : m += '.'
 				m   += c
-				mod  = importlib.import_module(m)
-				try      : f = mod.__file__
-				except   : continue         # a system module
-				if not f : continue         # no info
-				if lmake._maybe_lcl(f) :
-					e = ImportError(f'cannot import module {m} from local file {f}')
-					e.consider = multi_strip('''
-						rewrite code such as :
-							import my_module
-							def my_func() :
-								my_module.my_sub_func()
-						into :
-							from my_module import my_sub_func
-							def my_func() :
-								my_sub_func()
-					''')
-					raise e
+				f = lcl_mod_file(m)
+				if not f : continue
+				e = ImportError(f'cannot import module {m} from local file {f}')
+				e.consider = multi_strip('''
+					rewrite code such as :
+						import my_module
+						def my_func() :
+							my_module.my_sub_func()
+					into :
+						from my_module import my_sub_func
+						def my_func() :
+							my_sub_func()
+				''')
+				raise e
 		del dyn_expr.modules
 
-	def _finalize(self,for_cmd=False) :
+	def _finalize(self) :
 		static_val = self.static_val
 		dyn_val    = self.dyn_val
 		del self.static_val
@@ -417,7 +414,7 @@ class Handle :
 		dyn_expr = serialize.get_expr(
 			dyn_val
 		,	ctx            = serialize_ctx
-		,	no_imports     = no_imports if for_cmd else is_lcl                            # dynamic attributes cannot afford local imports, so serialize in place all of them
+		,	no_imports     = lcl_mod_file                                                 # dynamic attributes cannot afford local imports, so serialize in place all of them
 		,	call_callables = True
 		)
 		self._prepare_dyn( static_val , dyn_expr , serialize_ctx , for_this_python=True ) # dynamic attributes are always interpreted by this python
@@ -436,11 +433,6 @@ class Handle :
 		,	**{ k:fmt(k,'side_target',t) for k,t in self.attrs.side_targets.items() }
 		,	**{ k:fmt(k,'side_dep'   ,t) for k,t in self.attrs.side_deps   .items() }
 		}
-		if self.attrs.order : # reorder d
-			d2 = {}
-			for k in self.attrs.order : d2[k] = d[k]
-			for k,v in d.items()      : d2[k] = v
-			d = d2
 		self.rule_rep.matches = d
 
 	def handle_job_name(self) :
@@ -595,14 +587,14 @@ class Handle :
 				if not lmake._maybe_lcl(interpreter) :                            # avoid creating a dep inside the repo if no interpreter (e.g. it may be dynamic)
 					for_this_python = osp.realpath(interpreter)==self.ThisPython
 			except : pass
-			self._prepare_dyn( {'cmd':cmd} , dyn_src , serialize_ctx , for_this_python )
+			self._prepare_dyn( {'cmd':cmd} , dyn_src , serialize_ctx , for_this_python , lcl_ok=True )
 			self.rule_rep.cmd = dyn_src
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
 			self._handle_val( 'cmd' , for_deps=True )
 			if 'cmd' in self.dyn_val : self.dyn_val = self.dyn_val['cmd']
-			self.rule_rep.cmd = self._finalize(True)
+			self.rule_rep.cmd = self._finalize()
 
 def do_fmt_rule(rule) :
 	if rule.__dict__.get('virtual',False) : return                                                                   # with an explicit marker, this is definitely a base class

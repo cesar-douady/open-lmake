@@ -91,7 +91,7 @@ struct OMsgBuf : MsgBuf {
 	bool/*complete*/ send_step(Fd fd) {
 		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) { int en=errno ; throw "cannot send over "+cat(fd)+" : "+::strerror(en) ; }
+		if (cnt<=0) { int en=errno ; throw cat("cannot send over ",fd," : ",::strerror(en)) ; }
 		_len += cnt ;
 		return _len==_buf.size()/*complete*/ ;
 	}

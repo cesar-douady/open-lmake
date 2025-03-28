@@ -216,10 +216,15 @@ namespace Engine {
 	// Rules & Sources
 	//
 
-	Rules::Rules(Object const& py_o) : Rules{New} {
+	RulesBase::RulesBase(Object const& py_o) : RulesBase{New} {
 		Dict const& py_d = py_o.as_a<Dict>() ;
-		for( Object const& py_s    : py_d["sys_path"].as_a<Sequence>() ) sys_path.emplace_back( py_s   .as_a<Str >()            ) ;
-		for( Object const& py_rule : py_d["rules"   ].as_a<Sequence>() )          emplace_back( py_rule.as_a<Dict>() , sys_path ) ;
+		for( Object const& py_s    : py_d["sys_path"].as_a<Sequence>() ) sys_path.emplace_back(        py_s   .as_a<Str >() ) ;
+		for( Object const& py_rule : py_d["rules"   ].as_a<Sequence>() )          emplace_back( self , py_rule.as_a<Dict>() ) ;
+	}
+
+	void RulesBase::compile() {
+		Gil gil ;
+		for( RuleData& rd : self ) rd.compile() ; // for cmd and patterns
 	}
 
 	Sources::Sources(Py::Object const& py_o) {

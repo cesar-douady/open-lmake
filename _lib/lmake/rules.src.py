@@ -33,7 +33,6 @@ class _RuleBase :
 		'stems'
 	,	'targets' , 'side_targets'
 	,	'deps'    , 'side_deps'
-	,	'order'
 	,	'environ' , 'environ_resources' , 'environ_ancillary'
 	,	'resources'
 	,	'views'
@@ -43,6 +42,8 @@ class _RuleBase :
 	paths = {
 		'environ.PATH'            : ':'
 	,	'environ.LD_LIBRARY_PATH' : ':'
+	,	'environ.MANPATH'         : ':'
+	,	'environ.PYTHONPATH'      : ':'
 	}
 #	name                         # must be specific for each rule, defaults to class name
 #	job_name                     # defaults to first target
@@ -60,7 +61,6 @@ class _RuleBase :
 #	target                       # syntactic sugar for targets = {'<stdout>':<value>} (except that it is allowed)
 	side_targets = {}            # patterns used to add flags based on pattern matching refering to stems above through {} notation, e.g. {'CACHE':'{File}.cache','incremental'}
 	side_deps    = {}            # .
-	order        = []            # explicit matching order of keys in targets, side_targets and side_deps. If partial, other keys are put after specified ones
 
 class Rule(_RuleBase) :
 #	allow_stderr        = False                        # if set, writing to stderr is not an error but a warning

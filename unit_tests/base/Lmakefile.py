@@ -146,6 +146,12 @@ class Import(BaseRule,PyRule) :
 		import hello
 		print(hello.hello(sys.stdin.read()))
 
+class DynAttr(BaseRule) :
+	target  = '{File}.dyn_attr'
+	dep     = '{File}'
+	environ = { 'DEP' : '{File}' }
+	cmd     = 'echo $DEP'
+
 class DynImport(BaseRule,PyRule) :
 	target = '{File}.dyn_import'
 	dep    = '{File}'

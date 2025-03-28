@@ -185,20 +185,15 @@ namespace Engine::Persistent {
 		static void s_from_vec_dyn    (Rules&&) ;
 		static void s_from_vec_not_dyn(Rules&&) ;
 	private :
-		static void _s_init_special(RuleData* =_s_rules) ;
-		static void _s_save        (                   ) ;
-		static void _s_update_crcs (                   ) ;
-		static void _s_set_rules   (                   ) ;
+		static void _s_save       () ;
+		static void _s_update_crcs() ;
+		static void _s_set_rules  () ;
 		// static data
 	public :
-		static MatchGen    s_match_gen ;
-		static size_t      s_name_sz   ;
-		static ::vector_s* s_sys_path  ;                                  // used for rule crc computation
-	private :
-		static RuleIdx           _s_n_rules ;
-		static Atomic<RuleData*> _s_rules   ;                             // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
+		static MatchGen                            s_match_gen ;
+		static size_t                              s_name_sz   ;
+		static StaticUniqPtr<Rules,MutexLvl::None> s_rules     ;          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 		// cxtors & casts
-	public :
 		using Base::Base ;
 		constexpr RuleBase(Special s) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not special
 		// accesses
@@ -319,19 +314,18 @@ namespace Engine::Persistent {
 	// END_OF_VERSIONING
 
 	// on disk
-	extern ::string                          _g_rules_filename ;
-	extern StaticUniqPtr<Py::WithGil<Rules>> _g_rules          ; // looks like a unique_ptr execpt rules are not destroyed at end of execution
+	extern ::string _g_rules_filename ;
 	//
-	extern JobFile      _g_job_file       ;                      // jobs
-	extern DepsFile     _g_deps_file      ;                      // .
-	extern TargetsFile  _g_targets_file   ;                      // .
-	extern NodeFile     _g_node_file      ;                      // nodes
-	extern JobTgtsFile  _g_job_tgts_file  ;                      // .
-	extern RuleCrcFile  _g_rule_crc_file  ;                      // .
-	extern RuleTgtsFile _g_rule_tgts_file ;                      // .
-	extern SfxFile      _g_sfxs_file      ;                      // .
-	extern PfxFile      _g_pfxs_file      ;                      // .
-	extern NameFile     _g_name_file      ;                      // commons
+	extern JobFile      _g_job_file       ; // jobs
+	extern DepsFile     _g_deps_file      ; // .
+	extern TargetsFile  _g_targets_file   ; // .
+	extern NodeFile     _g_node_file      ; // nodes
+	extern JobTgtsFile  _g_job_tgts_file  ; // .
+	extern RuleCrcFile  _g_rule_crc_file  ; // .
+	extern RuleTgtsFile _g_rule_tgts_file ; // .
+	extern SfxFile      _g_sfxs_file      ; // .
+	extern PfxFile      _g_pfxs_file      ; // .
+	extern NameFile     _g_name_file      ; // commons
 	// in memory
 	extern ::uset<Job > _frozen_jobs  ;
 	extern ::uset<Node> _frozen_nodes ;
@@ -469,12 +463,12 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 	inline Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared=false) {
-		if (Rule::_s_n_rules) return { with_shared?1:+Special::NShared , Rule(Rule::_s_n_rules+1) } ; // rules are numbered from 1 to _s_n_rules
-		else                  return { 0                               , 0                        } ;
+		if (+Rule::s_rules) return { with_shared?1:+Special::NShared , Rule(Rule::s_rules->size()+1) } ; // rules are numbered from 1 to _s_n_rules
+		else                return { 0                               , 0                             } ;
 	}
 	// accesses
-	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return _s_rules[+self] ; }
-	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return _s_rules[+self] ; }
+	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return (*s_rules)[+self-1] ; }    // 0 is reserved to mean no rule
+	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return (*s_rules)[+self-1] ; }    // .
 
 	//
 	// RuleCrcBase

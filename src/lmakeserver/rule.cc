@@ -213,23 +213,44 @@ namespace Engine {
 		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
 	}
 
-	DynDskBase::DynDskBase( Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs ) :
-		glbs_str   { py_src.contains("ctx"       ) ?  ::string(py_src["ctx"       ].as_a<Str >()) : ""s }
-	,	code_str   { py_src.contains("expr"      ) ?  ::string(py_src["expr"      ].as_a<Str >()) : ""s }
-	,	dbg_info   { py_src.contains("dbg_info"  ) ?  ::string(py_src["dbg_info"  ].as_a<Str >()) : ""s }
-	,	may_import { py_src.contains("may_import") && bool    (py_src["may_import"].as_a<Bool>())       }
-	{
-		Gil::s_swear_locked() ;
-		if (!py_src.contains("names")) return ;
-		ctx.reserve(py_src["names"].as_a<Sequence>().size()) ;
-		for( Object const& py_item : py_src["names"].as_a<Sequence>() ) {
-			CmdIdx ci = var_idxs.at(py_item.as_a<Str>()) ;
-			ctx.push_back(ci) ;
+	DynStr::DynStr( Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs ) {
+		if (py_src.contains("ctx"       )) glbs_str   = ::string(py_src["ctx"       ].as_a<Str >()) ;
+		if (py_src.contains("expr"      )) code_str   = ::string(py_src["expr"      ].as_a<Str >()) ;
+		if (py_src.contains("dbg_info"  )) dbg_info   = ::string(py_src["dbg_info"  ].as_a<Str >()) ;
+		if (py_src.contains("may_import")) may_import = bool    (py_src["may_import"].as_a<Bool>()) ;
+		if (py_src.contains("names")) {
+			ctx.reserve(py_src["names"].as_a<Sequence>().size()) ;
+			for( Object const& py_item : py_src["names"].as_a<Sequence>() ) {
+				CmdIdx ci = var_idxs.at(py_item.as_a<Str>()) ;
+				ctx.push_back(ci) ;
+			}
+			::sort(ctx) ; // stabilize crc's
 		}
-		::sort(ctx) ; // stabilize crc's
 	}
 
-	void DynDskBase::_s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
+	void DynEntry::_compile(bool only_glbs) {
+		if (!is_dyn()) return ;
+		Gil::s_swear_locked() ;
+		SWEAR( _compiled==(Maybe&only_glbs) , _compiled,only_glbs ) ;
+		// boost avoids problems at finalization                   for_eval
+		if (!only_glbs) try { code      = { code_str               , true  } ; code     .boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
+		if (!only_glbs) try { glbs_code = { glbs_str+'\n'+dbg_info , false } ; glbs_code.boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
+		/**/            try { glbs      = glbs_code->run()                   ; glbs     .boost() ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e,1) ; }
+		_compiled = Maybe ;
+	}
+
+	DynDskBase::DynDskBase( RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs ) {
+		DynStr ds { py_src , var_idxs } ;
+		if (!ds.is_dyn()) return ;
+		auto it_inserted = rules.dyn_idx_tab.try_emplace(ds,0) ;
+		if (it_inserted.second) {
+			rules.dyn_vec.emplace_back(::move(ds)) ;
+			it_inserted.first->second = rules.dyn_vec.size() ; // dyn_idx 0 is used to mean non-dynamic
+		}
+		dyn_idx = it_inserted.first->second ;
+	}
+
+	void DynDskBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
 		::string         res        ;
 		Rule             r          = +j ? j->rule() : m.rule          ;
 		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
@@ -553,7 +574,7 @@ namespace Engine {
 				}
 			) ;
 			res <<set_nl<< spec.cmd ;
-			return {append_dbg_info(res)/*preamble*/,"cmd()"} ;
+			return {append_dbg_info(*Rule::s_rules,res)/*preamble*/,"cmd()"} ;
 		}
 	}
 
@@ -598,10 +619,9 @@ namespace Engine {
 				stems         .emplace_back("",".*"                ) ;
 				stem_mark_cnts.push_back   (0                      ) ;
 				matches       .emplace_back("",MatchEntry{job_name}) ;
-				_compile() ;
 			break ;
 		DF}
-		_set_crcs({}) ;
+		_set_crcs({}) ;                                                                        // rules is not necessary for special rules
 	}
 
 	::string& operator+=( ::string& os , RuleData const& rd ) {
@@ -653,7 +673,7 @@ namespace Engine {
 		}
 		return true ;
 	}
-	void RuleData::_acquire_py(Dict const& dct) {
+	void RuleData::_acquire_py( RulesBase& rules , Dict const& dct ) {
 		::string field ;
 		Gil::s_swear_locked() ;
 		try {
@@ -880,21 +900,21 @@ namespace Engine {
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
 			//
 			field = "deps" ;
-			if (dct.contains("deps_attrs")) deps_attrs = { dct["deps_attrs"].as_a<Dict>() , var_idxs , self } ;
+			if (dct.contains("deps_attrs")) deps_attrs = { rules , dct["deps_attrs"].as_a<Dict>() , var_idxs , self } ;
 			//
 			/**/                                                        var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
 			for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
-			field = "submit_rsrcs_attrs"     ; if (dct.contains(field)) submit_rsrcs_attrs     = { dct[field].as_a<Dict>() , var_idxs } ;
-			field = "submit_ancillary_attrs" ; if (dct.contains(field)) submit_ancillary_attrs = { dct[field].as_a<Dict>() , var_idxs } ;
+			field = "submit_rsrcs_attrs"     ; if (dct.contains(field)) submit_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs } ;
+			field = "submit_ancillary_attrs" ; if (dct.contains(field)) submit_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs } ;
 			//
 			/**/                                                                 var_idxs["resources"                           ] = { VarCmd::Rsrcs , 0 } ;
 			for( VarIdx r : iota<VarIdx>(submit_rsrcs_attrs.spec.rsrcs.size()) ) var_idxs[submit_rsrcs_attrs.spec.rsrcs[r].first] = { VarCmd::Rsrc  , r } ;
 			//
-			field = "start_cmd_attrs"       ; if (dct.contains(field)) start_cmd_attrs       = { dct[field].as_a<Dict>() , var_idxs        } ;
-			field = "start_rsrcs_attrs"     ; if (dct.contains(field)) start_rsrcs_attrs     = { dct[field].as_a<Dict>() , var_idxs        } ;
-			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { dct[field].as_a<Dict>() , var_idxs        } ;
-			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
+			field = "start_cmd_attrs"       ; if (dct.contains(field)) start_cmd_attrs       = { rules , dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "start_rsrcs_attrs"     ; if (dct.contains(field)) start_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs        } ;
+			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { rules , dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
 			//
 			//
 			for( VarIdx mi : iota(n_static_targets) ) {
@@ -959,23 +979,18 @@ namespace Engine {
 		return Delay(New,t_16*cpt_16) ;
 	}
 
-	void RuleData::_compile() {
+	void RuleData::compile() {
+		Trace trace("compile",name) ;
 		try {
 			// job_name & targets
 			MatchEntry job_name_match_entry ; job_name_match_entry.set_pattern(job_name,stems.size()) ;
 			job_name_pattern = _mk_pattern(job_name_match_entry,true /*for_name*/)  ;
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
-			deps_attrs            .compile() ;
-			start_cmd_attrs       .compile() ;
-			cmd                   .compile() ;
-			submit_rsrcs_attrs    .compile() ;
-			start_rsrcs_attrs     .compile() ;
-			submit_ancillary_attrs.compile() ;
-			start_ancillary_attrs .compile() ;
 		} catch (::string const& e) {
 			throw "while processing "+full_name()+" :\n"+indent(e) ;
 		}
+		trace("done",patterns.size()) ;
 	}
 
 	//
@@ -1203,13 +1218,13 @@ namespace Engine {
 	}
 
 	template<class T> ::string RuleData::_pretty_dyn(Dyn<T> const& d) const {
-		if (!d.code_str) return {} ;
+		if (!d.is_dyn()) return {} ;
 		::string res ;
-		/**/                res <<"dynamic "<< T::Msg <<" :\n" ;
-		if (+d.ctx      ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.ctx)  ) res << ' '<<k ; res <<'\n' ; }
-		if (d.may_import) { res << "\t<sys.path> :" ; for( ::string const& d : *Rule::s_sys_path ) res <<' '<< d ; res <<'\n' ; }
-		if (+d.glbs_str )   res << "\t<globals> :\n" << ensure_nl(indent(d.append_dbg_info(d.glbs_str),2)) ;
-		if (+d.code_str )   res << "\t<code> :\n" << ensure_nl(indent(d.code_str,2))                       ;
+		/**/                                res <<"dynamic "<< T::Msg <<" :\n" ;
+		if (+d.ctx      (*Rule::s_rules)) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.ctx(*Rule::s_rules)) ) res << ' '<<k ; res <<'\n' ; }
+		if (d.may_import(*Rule::s_rules)) { res << "\t<sys.path> :" ; for( ::string const& d : Rule::s_rules->sys_path          ) res <<' '<< d ; res <<'\n' ; }
+		if (+d.glbs_str (*Rule::s_rules))   res << "\t<globals> :\n" << ensure_nl(indent(d.append_dbg_info(*Rule::s_rules,d.glbs_str(*Rule::s_rules)),2)) ;
+		if (+d.code_str (*Rule::s_rules))   res << "\t<code> :\n"    << ensure_nl(indent(                                 d.code_str(*Rule::s_rules) ,2)) ;
 		return res ;
 	}
 
@@ -1237,7 +1252,7 @@ namespace Engine {
 					if (seen.insert(sig).second) kill_sigs << '('<<::strsignal(sig)<<')' ;
 				}
 			}
-			if (+cmd.spec.cmd) cmd_ = is_python ? cmd.append_dbg_info(cmd.spec.cmd) : _pretty_fstr(cmd.spec.cmd) ;
+			if (+cmd.spec.cmd) cmd_ = is_python ? cmd.append_dbg_info(*Rule::s_rules,cmd.spec.cmd) : _pretty_fstr(cmd.spec.cmd) ;
 		}
 		//
 		// first simple static attrs
@@ -1318,7 +1333,8 @@ namespace Engine {
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a*
 	// although awkward & useless (as both rules could be merged), this can be meaningful
 	// if the need arises, we will add an "id" artificial field entering in crc->match to distinguish them
-	void RuleData::_set_crcs(::vector_s const& sys_path) {
+	void RuleData::_set_crcs(RulesBase const& rules) {
+		if (!is_special()) SWEAR(+rules) ;
 		Hash::Xxh h ;                                                                            // each crc continues after the previous one, so they are standalone
 		//
 		::vmap_s<bool> targets ;
@@ -1332,7 +1348,7 @@ namespace Engine {
 			h.update(allow_ext) ;                                                                // only exists for special rules
 		} else {
 			h.update(job_name) ;
-			deps_attrs.update_hash( h , sys_path ) ;                                                          // no deps for source & anti
+			deps_attrs.update_hash( h , rules ) ;                                                // no deps for source & anti
 		}
 		Crc match = h.digest() ;
 		//
@@ -1344,12 +1360,12 @@ namespace Engine {
 			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
 			h.update(force                 ) ;
 			h.update(is_python             ) ;
-			start_cmd_attrs.update_hash( h , sys_path )   ;
-			cmd            .update_hash( h , sys_path )   ;
+			start_cmd_attrs.update_hash( h , rules )   ;
+			cmd            .update_hash( h , rules )   ;
 			Crc cmd = h.digest() ;
 			//
-			submit_rsrcs_attrs.update_hash( h , sys_path ) ;
-			start_rsrcs_attrs .update_hash( h , sys_path ) ;
+			submit_rsrcs_attrs.update_hash( h , rules ) ;
+			start_rsrcs_attrs .update_hash( h , rules ) ;
 			Crc rsrcs = h.digest() ;
 			//
 			crc = { match , cmd , rsrcs } ;

@@ -1005,7 +1005,9 @@ template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	using Base::Base      ;
 	using Base::operator= ;
 	// accesses
-	auto operator+() const { return +load() ; }
+	auto  operator+ () const { return +load() ; }
+	auto& operator* () const { return *load() ; }
+	auto* operator->() const { return &*self  ; }
 	// services
 	void wait(T const& old) requires(bool(+Lvl)) ;
 } ;
@@ -1229,29 +1231,40 @@ private :
 
 // like a ::uniq_ptr except object is not destroyed upon destruction
 // meant to be used as static variables for which destuction at end of execution is a mess because of order
-template<class T> struct StaticUniqPtr ;
-template<class T> ::string& operator+=( ::string& os , StaticUniqPtr<T> const& sup ) ;
-template<class T> struct StaticUniqPtr {
-	friend ::string& operator+=<>( ::string& , StaticUniqPtr<T> const& ) ;
+template<class T,MutexLvl A=MutexLvl::Unlocked> struct StaticUniqPtr ;
+//
+template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) ;
+template<class T,MutexLvl A> struct StaticUniqPtr {
+	friend ::string& operator+=<>( ::string& , StaticUniqPtr<T,A> const& ) ;
+	template<class,MutexLvl> friend struct StaticUniqPtr ;
 	// cxtors & casts
 	StaticUniqPtr() = default ;
-	StaticUniqPtr           (T*       p          ) :                             _ptr { p     } {}
-	StaticUniqPtr           (NewType             ) :                             _ptr { new T } {}
+	StaticUniqPtr(T*                 p  ) : _ptr{ p    } {}
+	StaticUniqPtr(NewType               ) : _ptr{ new T} {}
+	StaticUniqPtr(StaticUniqPtr<T>&& sup) : _ptr{ sup._ptr } { sup._ptr = nullptr ; }
+	//
+	StaticUniqPtr& operator=(NewType) { self = new T ; return self ; }
+	//
+	StaticUniqPtr& operator=(T*              p  ) requires(!A) { { if (_ptr) delete _ptr ; } _ptr = p                    ; return self ; }
+	StaticUniqPtr& operator=(StaticUniqPtr&& sup) requires(!A) { { if (_ptr) delete _ptr ; } _ptr = &*sup ; sup.detach() ; return self ; }
+	//
+	StaticUniqPtr& operator=(T*                 p  ) requires(bool(+A)) { T* q = _ptr.exchange(p    ) ; { if (q) delete q ; }                return self ; }
+	StaticUniqPtr& operator=(StaticUniqPtr<T>&& sup) requires(bool(+A)) { T* q = _ptr.exchange(&*sup) ; { if (q) delete q ; } sup.detach() ; return self ; }
+	//
 	StaticUniqPtr           (StaticUniqPtr const&) = delete ;
-	StaticUniqPtr& operator=(T*       p          ) { { if (_ptr) delete _ptr ; } _ptr = p     ; return self ; }
-	StaticUniqPtr& operator=(NewType             ) { { if (_ptr) delete _ptr ; } _ptr = new T ; return self ; }
 	StaticUniqPtr& operator=(StaticUniqPtr const&) = delete ;
 	// accesses
-	bool     operator+ () const { return _ptr   ; }
-	T      & operator* ()       { return *_ptr  ; }
-	T const& operator* () const { return *_ptr  ; }
-	T      * operator->()       { return &*self ; }
-	T const* operator->() const { return &*self ; }
+	bool     operator+ () const { return _ptr    ; }
+	T      & operator* ()       { return *_ptr   ; }
+	T const& operator* () const { return *_ptr   ; }
+	T      * operator->()       { return &*self  ; }
+	T const* operator->() const { return &*self  ; }
+	void     detach    ()       { _ptr = nullptr ; }
 	// data
 private :
-	T* _ptr = nullptr ;
+	::conditional_t<+A,Atomic<T*,A>,T*> _ptr = nullptr ;
 } ;
-template<class T> ::string& operator+=( ::string& os , StaticUniqPtr<T> const& sup ) {
+template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) {
 	return os << sup._ptr ;
 }
 

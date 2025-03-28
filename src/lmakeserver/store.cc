@@ -29,15 +29,13 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 
-	MatchGen          RuleBase::s_match_gen = 1            ; // 0 is forbidden as it is reserved to mean !match
-	size_t            RuleBase::s_name_sz   = Rule::NameSz ;
-	::vector_s*       RuleBase::s_sys_path  = nullptr      ;
-	RuleIdx           RuleBase::_s_n_rules  = 0            ;
-	Atomic<RuleData*> RuleBase::_s_rules    = nullptr      ;
+	MatchGen                            RuleBase::s_match_gen = 1            ; // 0 is forbidden as it is reserved to mean !match
+	size_t                              RuleBase::s_name_sz   = Rule::NameSz ;
+	StaticUniqPtr<Rules,MutexLvl::None> RuleBase::s_rules     ;          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 
 	void RuleBase::_s_save() {
-		SWEAR(+_g_rules) ;
-		AcFd(_g_rules_filename,Fd::Write).write(serialize(*_g_rules)) ;
+		SWEAR(+Rule::s_rules) ;
+		AcFd(_g_rules_filename,Fd::Write).write(serialize(*Rule::s_rules)) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -67,52 +65,55 @@ namespace Engine::Persistent {
 	}
 
 	void RuleBase::_s_set_rules() {
-		Gil gil ;
-		if (+_g_rules) {
-			s_sys_path = &_g_rules->sys_path ;
-			_s_rules   =  _g_rules->data()-1 ; // index 0 does not represent a rule
-			_s_n_rules =  _g_rules->size()   ;
-			py_reset_path(_g_rules->sys_path) ;
+		if (+Rule::s_rules) {
+			py_reset_path(Rule::s_rules->sys_path) ;
+			s_rules->compile() ;
+			s_name_sz = NameSz ;
+			for( Rule r : rule_lst(true/*with_shared*/) ) s_name_sz = ::max( s_name_sz , r->name.size() ) ;
 		} else {
-			s_sys_path = nullptr ;
-			_s_rules   = nullptr ;
-			_s_n_rules = 0       ;
-			py_reset_path() ;                  // use default sys.path
+			s_rules = nullptr ;
+			py_reset_path() ;   // use default sys.path
 		}
-		s_name_sz = NameSz ;
-		for( Rule r : rule_lst(true/*with_shared*/) ) s_name_sz = ::max( s_name_sz , r->name.size() ) ;
 	}
 
 	void RuleBase::s_from_disk() {
 		Trace trace("s_from_disk") ;
 		//
-		try        { _g_rules = new WithGil<Rules>{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
-		catch(...) { _g_rules = nullptr ;                                                                }
+		try        { Rule::s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
+		catch(...) { Rule::s_rules = nullptr ;                                                       }
 		_s_set_rules() ;
 		//
 		trace("done") ;
 	}
 
 	void RuleBase::s_from_vec_dyn(Rules&& new_rules) {
-		SWEAR(*s_sys_path==new_rules.sys_path) ;                                           // may not change dynamically, potentially change rule cmd's
-		SWEAR(_s_n_rules ==new_rules.size()  ) ;                                           // may not change dynamically, if it could, it should be made atomically modified with _s_rules
+		static StaticUniqPtr<Rules> s_prev_rules ;                                         // keep prev rules in case some on-going activity refers rules while being updated
+		Trace trace("s_from_vec_dyn",new_rules.size()) ;
+		SWEAR(s_rules->sys_path==new_rules.sys_path) ;                                     // may not change dynamically as this would potentially change rule cmd's
+		SWEAR(s_rules->size()  ==new_rules.size()  ) ;                                     // may not change dynamically
 		//
 		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
-		WithGil<Rules>* rules = new WithGil<Rules>{New} ; rules->reserve(_s_n_rules) ;
-		for( Rule r : rule_lst() ) rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
+		s_prev_rules = new Rules{New} ; s_prev_rules->reserve(s_rules->size()) ;
+		for( Rule r : rule_lst() ) s_prev_rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
+		s_prev_rules->dyn_vec = ::move(new_rules.dyn_vec) ;
 		// XXX : what about other threads accessing RuleData in other threads ? we should take a lock to prevent that here, maybe Backend::_s_mutex is enough
-		_g_rules = rules              ;
-		_s_rules = _g_rules->data()-1 ;                                                    // ok if test and update are not atomic as there is single thread updating _s_rules
+		s_prev_rules->compile() ;
+		Rules* sav_rules = &*s_rules ;
+		s_rules      = ::move(s_prev_rules) ;
+		s_prev_rules = sav_rules    ;
 		//
 		_s_save() ;
+		trace("done") ;
 	}
 
 	void RuleBase::s_from_vec_not_dyn(Rules&& new_rules) {
-		_g_rules = new WithGil<Rules>{::move(new_rules)} ;
+		Trace trace("s_from_vec_not_dyn",new_rules.size()) ;
+		s_rules = new Rules{::move(new_rules)} ;
 		_s_set_rules  () ;
 		_s_save       () ;
 		_s_update_crcs() ;
+		trace("done") ;
 	}
 
 	//
@@ -173,7 +174,6 @@ namespace Engine::Persistent {
 
 	// on disk
 	::string                      _g_rules_filename ;
-	StaticUniqPtr<WithGil<Rules>> _g_rules          ;
 	//
 	JobFile                       _g_job_file       ; // jobs
 	DepsFile                      _g_deps_file      ; // .
@@ -516,12 +516,14 @@ namespace Engine::Persistent {
 				if (a->user_prio !=b->user_prio ) return a->user_prio  > b->user_prio  ;
 				else                              return a->name       < b->name       ;
 			} ) ;
+			trace("user_report") ;
 			First    first   ;
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
 			AcFd( AdminDirS+"rules"s , Fd::Write ).write(content) ;
 		}
+		trace("done") ;
 		return res ;
 	}
 
