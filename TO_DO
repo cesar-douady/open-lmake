@@ -63,7 +63,6 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* hash : accept hashing as a OStream and use to hash
 * cleanup :
 	- set up a lmake.job_support module :
 		- fix_import

@@ -68,13 +68,13 @@ namespace std {
 	template<> struct hash<Backends::Sge::RsrcsData> {
 		size_t operator()(Backends::Sge::RsrcsData const& rd) const {
 			Hash::Xxh h ;
-			h.update(rd.prio         ) ;
-			h.update(rd.cpu          ) ;
-			h.update(rd.mem          ) ;
-			h.update(rd.tmp          ) ;
-			h.update(rd.tokens.size()) ; for( auto     const& [k,v] : rd.tokens ) { h.update(k) ; h.update(v) ; }
-			h.update(rd.hard  .size()) ; for( ::string const&    v  : rd.hard   )                 h.update(v) ;
-			h.update(rd.soft  .size()) ; for( ::string const&    v  : rd.soft   )                 h.update(v) ;
+			h += rd.prio   ;
+			h += rd.cpu    ;
+			h += rd.mem    ;
+			h += rd.tmp    ;
+			h += rd.tokens ;
+			h += rd.hard   ;
+			h += rd.soft   ;
 			return +h.digest() ;
 		}
 	} ;

@@ -9,9 +9,9 @@
 
 template<class T> struct Serdeser ;
 
-template<class S> concept IsOStream = ::is_base_of_v<::string     ,S> ;
-template<class S> concept IsIStream = ::is_base_of_v<::string_view,S> ;
-template<class S> concept IsStream  = IsIStream<S> || IsOStream<S>    ;
+template<class S> concept IsOStream = requires( S& os , ::string_view sv       ) { os += sv ;                                            } ;
+template<class S> concept IsIStream = requires( S& is , char* data , size_t sz ) { is.size() ; is.copy(data,sz) ; is.remove_prefix(sz) ; } ;
+template<class S> concept IsStream  = IsIStream<S> || IsOStream<S> ;
 //
 template<class T> concept HasSerdes   =                  requires( T x , ::string& os , ::string_view& is ) { x.serdes             (os  ) ;  x.serdes             (is  ) ; } ;
 template<class T> concept HasSerdeser = !HasSerdes<T> && requires( T x , ::string& os , ::string_view& is ) { Serdeser<T>::s_serdes(os,x) ;  Serdeser<T>::s_serdes(is,x) ; } ;
@@ -27,10 +27,10 @@ template< IsIStream S , HasSerdeser T > void serdes( S& is , T       & x        
 template< IsOStream S , Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( S& os , T1 const& x1 , T2 const& x2 , Ts const&... xs ) { serdes(os,x1) ; serdes(os,x2,xs...) ; }
 template< IsIStream S , Serializable T1 , Serializable T2 , Serializable... Ts > void serdes( S& is , T1      & x1 , T2      & x2 , Ts      &... xs ) { serdes(is,x1) ; serdes(is,x2,xs...) ; }
 //
-template< Serializable T , IsOStream S > void     serialize  ( S& os , T const& x ) {                serdes(os ,x  ) ;              }
-template< Serializable T               > ::string serialize  (         T const& x ) { ::string res ; serdes(res,x  ) ; return res ; }
-template< Serializable T , IsIStream S > void     deserialize( S& is , T      & x ) { x = {}       ; serdes(is ,x  ) ;              }
-template< Serializable T , IsIStream S > T        deserialize( S& is              ) { T        res ; serdes(is ,res) ; return res ; }
+template< Serializable T , IsOStream S          > void serialize  ( S& os , T const& x ) {          serdes(os ,x  ) ;              }
+template< Serializable T , IsOStream S=::string > S    serialize  (         T const& x ) { S res  ; serdes(res,x  ) ; return res ; }
+template< Serializable T , IsIStream S          > void deserialize( S& is , T      & x ) { x = {} ; serdes(is ,x  ) ;              }
+template< Serializable T , IsIStream S          > T    deserialize( S& is              ) { T res  ; serdes(is ,res) ; return res ; }
 //
 template< Serializable T , IsOStream S > void serialize  ( S            && os , T const& x ) {        serialize  <T>(os              ,x) ; }
 template< Serializable T , IsIStream S > void deserialize( S            && is , T      & x ) {        deserialize<T>(is              ,x) ; }
@@ -52,6 +52,24 @@ namespace std {
 		}
 	} ;
 }
+
+template<class T> requires(::is_empty_v<T>) struct Serdeser<T> {
+	template<IsOStream S> static void s_serdes( S& , T const& ) {}
+	template<IsIStream S> static void s_serdes( S& , T      & ) {}
+} ;
+
+template<class T> requires( ::is_trivially_copyable_v<T> && !::is_empty_v<T> ) struct Serdeser<T> {
+	template<IsOStream S> static void s_serdes( S& os , T const& x ) {
+		static_assert(!IsIStream<S>) ;                                                    // there is an ambiguity about the direction
+		os += ::string_view( ::launder(reinterpret_cast<char const*>(&x)) , sizeof(x) ) ;
+	}
+	template<IsIStream S> static void s_serdes( S& is , T& x ) {
+		static_assert(!IsOStream<S>) ;                                                    // there is an ambiguity about the direction
+		if (is.size()<sizeof(x)) throw 0 ;
+		is.copy         ( ::launder(reinterpret_cast<char*>(&x)) , sizeof(x) ) ;
+		is.remove_prefix(                                          sizeof(x) ) ;
+	}
+} ;
 
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
 	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
@@ -111,22 +129,6 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 	}
 } ;
 
-template<class T> requires( ::is_trivially_copyable_v<T> && !::is_empty_v<T> ) struct Serdeser<T> {
-	static void s_serdes( ::string& os , T const& x ) {
-		os += ::string_view( ::launder(reinterpret_cast<char const*>(&x)) , sizeof(x) ) ;
-	}
-	static void s_serdes( ::string_view& is , T& x ) {
-		if (is.size()<sizeof(x)) throw 0 ;
-		::memcpy( &x , is.data() , sizeof(x) ) ;
-		is = is.substr(sizeof(x)) ;
-	}
-} ;
-
-template<class T> requires(::is_empty_v<T>) struct Serdeser<T> {
-	static void s_serdes( ::string     & , T const& ) {}
-	static void s_serdes( ::string_view& , T      & ) {}
-} ;
-
 // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
 template<class T> static uint32_t _sz32(T const& v) {
 	uint32_t res = v.size() ; SWEAR(res==v.size()) ;  // uint32_t is already very comfortable, no need to use 64 bits for lengths
@@ -134,12 +136,13 @@ template<class T> static uint32_t _sz32(T const& v) {
 }
 
 template<> struct Serdeser<::string> {
-	static void s_serdes( ::string     & os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ; os += s ; }
-	static void s_serdes( ::string_view& is , ::string      & s ) {
+	template<IsOStream S> static void s_serdes( S& os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ; os += ::string_view(s) ; }
+	template<IsIStream S> static void s_serdes( S& is , ::string      & s ) {
 		uint32_t sz ; serdes(is,sz) ;
 		if (is.size()<sz) throw 0 ;
-		s  = is.substr(0 ,sz) ;
-		is = is.substr(sz   ) ;
+		s.resize(sz) ;
+		is.copy         ( s.data() , sz ) ;
+		is.remove_prefix(            sz ) ;
 	}
 } ;
 

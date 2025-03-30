@@ -385,8 +385,8 @@ namespace Disk {
 	FileSig::FileSig( FileInfo const& fi ) : FileSig{fi.tag()} {
 		if (!fi.exists()) return ;
 		Hash::Xxh h ;
-		h.update(fi.date) ;
-		h.update(fi.sz  ) ;
+		h += fi.date ;
+		h += fi.sz   ;
 		_val |= (+h.digest()<<NBits<FileTag>) ;
 	}
 

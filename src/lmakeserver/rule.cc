@@ -1352,13 +1352,13 @@ namespace Engine {
 		for( auto const& [k,me] : matches )
 			if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
 				targets.emplace_back(me.pattern,me.flags.extra_tflags()[ExtraTflag::Optional]) ; // keys and flags have no influence on matching, except Optional
-		h.update(special) ;                                                                      // in addition to distinguishing special from other, ...
-		h.update(stems  ) ;                                                                      // ... this guarantees that shared rules have different crc's
-		h.update(targets) ;
+		h += special ;                                                                           // in addition to distinguishing special from other, ...
+		h += stems   ;                                                                           // ... this guarantees that shared rules have different crc's
+		h += targets ;
 		if (is_special()) {
-			h.update(allow_ext) ;                                                                // only exists for special rules
+			h += allow_ext ;                                                                     // only exists for special rules
 		} else {
-			h.update(job_name) ;
+			h += job_name ;
 			deps_attrs.update_hash( h , rules ) ;                                                // no deps for source & anti
 		}
 		Crc match = h.digest() ;
@@ -1366,11 +1366,11 @@ namespace Engine {
 		if (is_special()) {
 			crc = {match} ;
 		} else {
-			h.update(sub_repo_s            ) ;
-			h.update(Node::s_src_dirs_crc()) ;                                                   // src_dirs influences deps recording
-			h.update(matches               ) ;                                                   // these define names and influence cmd execution, all is not necessary but simpler to code
-			h.update(force                 ) ;
-			h.update(is_python             ) ;
+			h += sub_repo_s             ;
+			h += Node::s_src_dirs_crc() ;                                                        // src_dirs influences deps recording
+			h += matches                ;                                                        // these define names and influence cmd execution, all is not necessary but simpler to code
+			h += force                  ;
+			h += is_python              ;
 			start_cmd_attrs.update_hash( h , rules ) ;
 			cmd            .update_hash( h , rules ) ;
 			Crc cmd = h.digest() ;

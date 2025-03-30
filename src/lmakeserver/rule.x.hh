@@ -381,7 +381,7 @@ namespace Engine {
 				case Kind::CompiledGlbs : FAIL() ;     // too heavy to marshal code to compare, we'll see if necessary
 			DF}
 		}
-		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const ; // /!\ update hash if modifying struct
+		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const ; // /!\ update update_hash if modifying struct
 		void update_hash(Hash::Xxh&/*inout*/ h) const ;
 		// data
 		::vector<CmdIdx>  ctx        ;                 // a list of stems, targets & deps, accessed by code
@@ -430,7 +430,7 @@ namespace Engine {
 		}
 		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rules ) const {
 			DynBase::update_hash( /*inout*/h , rules ) ;
-			h.update(spec) ;
+			h += spec ;
 		}
 		// RuleMatch is lazy evaluated from Job (when there is one)
 		T eval( Job   , Rule::RuleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
@@ -796,30 +796,30 @@ namespace Engine {
 	inline bool            DynBase::is_dyn(                   ) const {                      return is_dyn(*Rule::s_rules)                      ; }
 
 	inline void DynEntry::update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const {
-		h.update(kind) ;
+		h += kind ;
 		bool with_sys_path  = false ;
 		bool with_code      = false ;
 		bool with_glbs_code = false ;
 		bool with_glbs      = false ;
 		switch (kind) {
-			case Kind::None         :                                                                                            break ;
-			case Kind::ShellCmd     : h.update(code_str) ;                                                                       break ;
-			case Kind::PythonCmd    : h.update(code_str) ; h.update(glbs_str)    ;                                               break ;
-			case Kind::Dyn          : h.update(code_str) ; h.update(glbs_str)    ; with_sys_path = +may_import                 ; break ;
-			case Kind::Compiled     : with_code = true   ; with_glbs_code = true ; with_sys_path = +may_import                 ; break ;
-			case Kind::CompiledGlbs : with_code = true   ; with_glbs      = true ; with_sys_path =  may_import[DynImport::Dyn] ; break ; // glbs is already computed
+			case Kind::None         :                                                                                                    break ;
+			case Kind::ShellCmd     : h         += code_str ;                                                                            break ;
+			case Kind::PythonCmd    : h         += code_str ; h              += glbs_str ;                                               break ;
+			case Kind::Dyn          : h         += code_str ; h              += glbs_str ; with_sys_path = +may_import                 ; break ;
+			case Kind::Compiled     : with_code  = true     ; with_glbs_code  = true     ; with_sys_path = +may_import                 ; break ;
+			case Kind::CompiledGlbs : with_code  = true     ; with_glbs       = true     ; with_sys_path =  may_import[DynImport::Dyn] ; break ; // glbs is already computed
 		}
 		// revert to glbs_code if cannot compute hash on glbs
-		if (with_glbs     ) try { h.update(glbs     ->marshal()) ; } catch (::string const&) { SWEAR(+glbs_code) ; h.update(glbs_code->marshal()) ; with_sys_path = +may_import ; }
-		if (with_code     )       h.update(code     ->marshal()) ;
-		if (with_glbs_code)       h.update(glbs_code->marshal()) ;
-		if (with_sys_path )       h.update(rs.sys_path         ) ;
+		if (with_glbs     ) try { h += glbs     ->marshal() ; } catch (::string const&) { SWEAR(+glbs_code) ; h += glbs_code->marshal() ; with_sys_path = +may_import ; }
+		if (with_code     )       h += code     ->marshal() ;
+		if (with_glbs_code)       h += glbs_code->marshal() ;
+		if (with_sys_path )       h += rs.sys_path          ;
 	}
 	inline void DynEntry::update_hash(Hash::Xxh&/*inout*/ h) const { update_hash( h , *Rule::s_rules ) ; }
 
 	inline void DynBase::update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rules ) const {
 		// START_OF_VERSIONING
-		h.update(has_entry()) ;
+		h += has_entry() ;
 		if (has_entry()) entry(rules).update_hash(h,rules) ;
 		// END_OF_VERSIONING
 	}

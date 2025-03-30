@@ -67,8 +67,8 @@ namespace Caches {
 		else                                                         throw "dir not found"s ;
 		//
 		Hash::Xxh repo_hash ;
-		if ( auto it=config_map.find("repo") ; it!=config_map.end() ) repo_hash.update(it->second              ) ;
-		else                                                          repo_hash.update(no_slash(*g_repo_root_s)) ;
+		if ( auto it=config_map.find("repo") ; it!=config_map.end() ) repo_hash += it->second               ;
+		else                                                          repo_hash += no_slash(*g_repo_root_s) ;
 		repo_s = "repo-"+repo_hash.digest().hex()+'/' ;
 		//
 		if ( auto it=config_map.find("reliable_dirs") ; it!=config_map.end() ) reliable_dirs = it->second!="False" && it->second!="0" && +it->second ;
@@ -187,7 +187,7 @@ namespace Caches {
 		LockedFd            lock         { dir_s , false/*exclusive*/ }               ;
 		::umap_s<DepDigest> repo_dep_map ;                                              // lazy evaluated
 		// deps_hint may point to the right entry (hint only as link is not updated when its target is modified)
-		Hash::Xxh deps_hint_hash ;                                                            deps_hint_hash.update(serialize(repo_deps)) ;
+		Hash::Xxh deps_hint_hash ;                                                            deps_hint_hash += repo_deps ;
 		::string  deps_hint      = read_lnk(dfd,"deps_hint-"+deps_hint_hash.digest().hex()) ;
 		//
 		::vector_s repos ;
@@ -312,7 +312,7 @@ namespace Caches {
 		}
 		// set a symlink from a name derived from deps to improve match speed in case of hit
 		// this is a hint only as when link target is updated, link is not
-		Hash::Xxh deps_hash ; deps_hash.update(deps_str) ;
+		Hash::Xxh deps_hash ; deps_hash += deps_str ;
 		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+deps_hash.digest().hex() ;
 		unlnk( abs_deps_hint , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 		lnk  ( abs_deps_hint , no_slash(repo_s) ) ;

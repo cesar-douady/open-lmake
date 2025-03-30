@@ -142,25 +142,19 @@ namespace Hash {
 	public :
 		Xxh(         ) ;
 		Xxh(FileTag t) ;
-		template<class... As> Xxh( As&&... args) : Xxh{} { update(::forward<As>(args)...) ; }
+		template<class T> Xxh( T const& x) : Xxh{} { self += x ; }
 		// services
 		Crc digest() const ;
 		//
-		template<_SimpleUpdate T> Xxh& update( T const* p , size_t sz ) {
-			_update( p , sizeof(*p)*sz ) ;
+		Xxh& operator+=(::string_view) ;                                    // low level interface compatible with serialization
+		//
+		template<_SimpleUpdate T> Xxh& operator+=(T const& x) {
+			self += ::string_view( ::launder(reinterpret_cast<const char*>(&x)) , sizeof(x) ) ;
 			return self ;
 		}
-		template<_SimpleUpdate T> Xxh& update(T const& x) {
-			::array<char,sizeof(x)> buf = ::bit_cast<array<char,sizeof(x)>>(x) ;
-			_update( &buf , sizeof(x) ) ;
-			return self ;
-		}
-		/**/                                                                                          Xxh& update(::string const& s ) { update(s.size()) ; update(s.data(),s.size()) ; return self ; }
-		template<class T> requires( !::is_empty_v<T> && !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& update( T       const& x ) { update(serialize(x)) ;                         return self ; }
-		template<class T> requires(  ::is_empty_v<T>                                                ) Xxh& update( T       const&   ) {                                                return self ; }
-		template<class T> requires(                                           IsUnstableIterable<T> ) Xxh& update( T       const& x ) = delete ;
-	private :
-		void _update( const void* p , size_t sz ) ;
+		/**/                                                                      Xxh& operator+=(::string const& s) { self += s.size() ; self +=::string_view(s) ; return self ; }
+		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& operator+=(T        const& x) { serialize(self,x) ;                          return self ; }
+		template<class T> requires(                       IsUnstableIterable<T> ) Xxh& operator+=(T        const& x) = delete ;
 		// data
 	public :
 		Bool3 is_lnk    = Maybe ;

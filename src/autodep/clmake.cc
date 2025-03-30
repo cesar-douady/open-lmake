@@ -204,7 +204,7 @@ template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const&
 		return ::string(Crc(ft)) ;
 	} else {
 		Xxh h ;
-		if (+ft) h.update(ft) ;
+		if (+ft) h += ft ;
 		return h.digest().hex() ;
 	}
 }

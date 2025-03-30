@@ -35,8 +35,8 @@ namespace Hash {
 					Xxh ctx { fi.tag() } ;
 					for( size_t sz=fi.sz ;;) {
 						ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
-						if      (cnt> 0) ctx.update(buf.data(),cnt) ;
-						else if (cnt==0) break ;                      // file could change while crc is being computed
+						if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
+						else if (cnt==0) break ;                                // file could change while crc is being computed
 						else switch (errno) {
 							case EAGAIN :
 							case EINTR  : continue                                       ;
@@ -51,7 +51,7 @@ namespace Hash {
 			DN}
 		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx { FileTag::Lnk } ;
-			ctx.update( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx.update(lnk_target)
+			ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 			self = ctx.digest() ;
 		}
 	}
@@ -125,9 +125,10 @@ namespace Hash {
 		if ( is_lnk==Maybe && !seen_data ) return Crc(0)                                   ; // reserve 0 as unknown
 		else                               return { XXH3_64bits_digest(&_state) , is_lnk } ;
 	}
-	void Xxh::_update( const void* p , size_t sz ) {
-		seen_data |= sz ;
-		XXH3_64bits_update(&_state,p,sz) ;
+	Xxh& Xxh::operator+=(::string_view sv) {
+		seen_data |= sv.size() ;
+		XXH3_64bits_update( &_state , sv.data() , sv.size() ) ;
+		return self ;
 	}
 
 }

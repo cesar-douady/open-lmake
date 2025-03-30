@@ -37,9 +37,7 @@ namespace Backends::Local {
 namespace std {
 	template<> struct hash<Backends::Local::RsrcsData> {
 		size_t operator()(Backends::Local::RsrcsData const& rd) const {
-			Hash::Xxh h { rd.size() } ;
-			for( auto r : rd ) h.update(r) ;
-			return +h.digest() ;
+			return +Hash::Xxh(static_cast<::vector<Backends::Local::Rsrc> const&>(rd)).digest() ;
 		}
 	} ;
 }

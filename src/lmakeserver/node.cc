@@ -38,8 +38,9 @@ namespace Engine {
 
 	Hash::Crc Node::s_src_dirs_crc() {
 		if (!_s_src_dirs_crc) {
-			Hash::Xxh h ;
-			for( const Node s : s_srcs(true/*dirs*/) ) h.update(s->name()) ; // ensure it works with in RO mode
+			Targets   srcs = s_srcs(true/*dirs*/) ;
+			Hash::Xxh h    { srcs.size() }        ;
+			for( const Node s : s_srcs(true/*dirs*/) ) h += s->name() ; // ensure it works in read-only mode
 			_s_src_dirs_crc = h.digest() ;
 		}
 		return _s_src_dirs_crc ;
