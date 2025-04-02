@@ -299,7 +299,7 @@ namespace Backends {
 		vmap<Node,FileAction>    pre_actions           ;
 		vmap<Node,FileActionTag> pre_action_warnings   ;
 		StartCmdAttrs            start_cmd_attrs       ;
-		::pair_ss/*script,call*/ cmd                   ;
+		::string                 cmd                   ;
 		::vmap_s<DepSpec>        deps_attrs            ;
 		StartRsrcsAttrs          start_rsrcs_attrs     ;
 		StartAncillaryAttrs      start_ancillary_attrs ;
@@ -329,9 +329,9 @@ namespace Backends {
 		deps_attrs = rule->deps_attrs.eval(match) ;                                                 // this cannot fail as it was already run to construct job
 		try {
 			try {
-				cmd               = rule->cmd              .eval(match,rsrcs,&deps) ; step = 1 ;
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps) ; step = 2 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps) ; step = 3 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps                ) ; step = 1 ;
+				cmd               = rule->cmd              .eval(match,rsrcs,&deps,start_cmd_attrs) ; step = 2 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps                ) ; step = 3 ;
 				//
 				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
 				for( auto const& [t,a] : pre_actions )
@@ -344,8 +344,8 @@ namespace Backends {
 			start_msg_err.first  <<set_nl<< e.first  ;
 			start_msg_err.second <<set_nl<< e.second ;
 			switch (step) {
-				case 0 : start_msg_err.first <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
-				case 1 : start_msg_err.first <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
+				case 0 : start_msg_err.first <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
+				case 1 : start_msg_err.first <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
 				case 2 : start_msg_err.first <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
 				case 3 : start_msg_err.first <<set_nl<< "cannot wash targets"                                    ; break ;
 			DF}
@@ -378,6 +378,9 @@ namespace Backends {
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
 			case 2 :
+				reply.cmd = ::move(cmd) ;
+			[[fallthrough]] ;
+			case 1 :
 				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;
 				reply.allow_stderr            =        start_cmd_attrs.allow_stderr  ;
 				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir    ;
@@ -385,9 +388,6 @@ namespace Backends {
 				reply.job_space               = ::move(start_cmd_attrs.job_space   ) ;
 				//
 				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
-			[[fallthrough]] ;
-			case 1 :
-				reply.cmd = ::move(cmd) ;
 			[[fallthrough]] ;
 			case 0 : {
 				VarIdx ti = 0 ;

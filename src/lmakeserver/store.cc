@@ -29,9 +29,8 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 
-	MatchGen                            RuleBase::s_match_gen = 1            ; // 0 is forbidden as it is reserved to mean !match
-	size_t                              RuleBase::s_name_sz   = Rule::NameSz ;
-	StaticUniqPtr<Rules,MutexLvl::None> RuleBase::s_rules     ;          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
+	MatchGen                            RuleBase::s_match_gen = 1 ; // 0 is forbidden as it is reserved to mean !match
+	StaticUniqPtr<Rules,MutexLvl::None> RuleBase::s_rules     ;     // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
@@ -65,43 +64,39 @@ namespace Engine::Persistent {
 	}
 
 	void RuleBase::_s_set_rules() {
-		if (+Rule::s_rules) {
-			py_reset_path(Rule::s_rules->sys_path) ;
-			s_rules->compile() ;
-			s_name_sz = NameSz ;
-			for( Rule r : rule_lst(true/*with_shared*/) ) s_name_sz = ::max( s_name_sz , r->name.size() ) ;
-		} else {
-			s_rules = nullptr ;
-			py_reset_path() ;   // use default sys.path
-		}
+		Gil gil ;
+		if (+Rule::s_rules) { py_set_sys("path",*Rule::s_rules->py_sys_path) ; s_rules->compile() ; }
+		else                { py_reset_sys_path()                            ;                      } // use default sys.path
 	}
 
 	void RuleBase::s_from_disk() {
 		Trace trace("s_from_disk") ;
 		//
-		try        { Rule::s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
-		catch(...) { Rule::s_rules = nullptr ;                                                       }
+		try        { s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
+		catch(...) { s_rules = nullptr ;                                                       }
 		_s_set_rules() ;
 		//
 		trace("done") ;
 	}
 
 	void RuleBase::s_from_vec_dyn(Rules&& new_rules) {
-		static StaticUniqPtr<Rules> s_prev_rules ;                                         // keep prev rules in case some on-going activity refers rules while being updated
+		static StaticUniqPtr<Rules> s_prev_rules ;                                                // keep prev rules in case some on-going activity refers rules while being updated
 		Trace trace("s_from_vec_dyn",new_rules.size()) ;
-		SWEAR(s_rules->sys_path==new_rules.sys_path) ;                                     // may not change dynamically as this would potentially change rule cmd's
-		SWEAR(s_rules->size()  ==new_rules.size()  ) ;                                     // may not change dynamically
+		SWEAR(s_rules->sys_path_crc==new_rules.sys_path_crc) ;                                    // may not change dynamically as this would potentially change rule cmd's
+		SWEAR(s_rules->size()      ==new_rules.size()      ) ;                                    // may not change dynamically
 		//
 		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
-		s_prev_rules = new Rules{New} ; s_prev_rules->reserve(s_rules->size()) ;
+		s_prev_rules = new Rules{New} ; s_prev_rules->reserve(s_rules->size()) ;                  // s_prev_rules is temporarily used to store new rules
 		for( Rule r : rule_lst() ) s_prev_rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
-		s_prev_rules->dyn_vec = ::move(new_rules.dyn_vec) ;
+		s_prev_rules->dyn_vec     = ::move(new_rules.dyn_vec    ) ;
+		s_prev_rules->py_sys_path = ::move(new_rules.py_sys_path) ;
 		// XXX : what about other threads accessing RuleData in other threads ? we should take a lock to prevent that here, maybe Backend::_s_mutex is enough
 		s_prev_rules->compile() ;
-		Rules* sav_rules = &*s_rules ;
-		s_rules      = ::move(s_prev_rules) ;
-		s_prev_rules = sav_rules    ;
+		//
+		Rules* sav_rules    = &*s_rules            ;                                              // exchange s_rules and s_prev_rules, making s_prev_rules the previous rules
+		/**/   s_rules      = ::move(s_prev_rules) ;                                              // .
+		/**/   s_prev_rules = sav_rules            ;                                              // .
 		//
 		_s_save() ;
 		trace("done") ;

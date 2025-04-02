@@ -105,6 +105,14 @@ static bool/*crashed*/ _start_server() {
 	return crashed ;
 }
 
+::string _os_compat(::string const& os_id) {
+	::string res = os_id ;
+	size_t   pos ;
+	if ( res.starts_with("centos-")                              ) res = "rhel"+res.substr(6/*centos*/    ) ; // centos and rhel are inter-operable
+	if ( res.starts_with("rocky-" )                              ) res = "rhel"+res.substr(5/*rocky*/     ) ; // rocky  and rhel are inter-operable
+	if ( res.starts_with("rhel-"  ) && (pos=res.find('.'))!=Npos ) res =        res.substr(0          ,pos) ; // ignore minor
+	return res  ;
+}
 static void _chk_os() {
 	static constexpr const char* ReleaseFile = "/etc/os-release" ;
 	::vector_s lines      = AcFd(ReleaseFile).read_lines(true/*no_file_ok*/) ;
@@ -121,7 +129,7 @@ static void _chk_os() {
 	if ( !version_id                                              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
 	//
 	id << '-'<<version_id ;
-	if (id!=OS_ID) exit(Rc::System,"bad OS in",ReleaseFile,':',id,"!=",OS_ID) ;
+	if (_os_compat(id)!=_os_compat(OS_ID)) exit(Rc::System,"bad OS in ",ReleaseFile," : ",id,"!=",OS_ID) ;
 }
 
 static void _record_targets(Job job) {

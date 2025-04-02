@@ -7,7 +7,7 @@
 
 #include <Python.h> // /!\ must be included first because doc says so (else it does not work)
 
-#include "utils.hh"
+#include "serialize.hh"
 #include "trace.hh"
 
 ENUM( Exception
@@ -31,6 +31,7 @@ namespace Py {
 	struct Dict         ;
 	struct Code         ;
 	struct Module       ;
+	struct Callable     ;
 	#if PY_MAJOR_VERSION<3
 		using Bytes = Str ;
 	#else
@@ -81,61 +82,30 @@ namespace Py {
 		::string sav ;
 	} ;
 
-	struct WithBuiltins { // set __builtins__ in dict and remove it at the end
-		// cxtors & casts
-		WithBuiltins (Dict&) ;
-		~WithBuiltins(     ) ;
-		// data
-		Dict& dct ;
-	} ;
-
 	//
-	// functions
+	// helpers
 	//
 
 	inline void py_err_clear   () {        PyErr_Clear   () ; }
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
-	::string py_err_str_clear() ;        // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
+	::string py_err_str_clear() ; // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
 	//
-	inline nullptr_t py_err_set( Exception e , ::string const& txt ) {
-		static PyObject* s_exc_tab[] = {
-			PyExc_RuntimeError           // RuntimeErr
-		,	PyExc_TypeError              // TypeErr
-		,	PyExc_ValueError             // ValueErr
-		} ;
-		static_assert(sizeof(s_exc_tab)/sizeof(PyObject*)==N<Exception>) ;
-		Gil::s_swear_locked() ;
-		PyErr_SetString(s_exc_tab[+e],txt.c_str()) ;
-		return nullptr ;
-	}
+	nullptr_t py_err_set( Exception e , ::string const& txt ) ;
 
-	template<class T       > T    const* _chk   (T const   * o) { SWEAR(o) ; { if (!o->qualify()    ) throw cat("not a ",T::Name) ; }                                           return o   ; }
-	template<class T       > T         * _chk   (T         * o) { SWEAR(o) ; { if (!o->qualify()    ) throw cat("not a ",T::Name) ; }                                           return o   ; }
-	template<class T=Object> T         * from_py(PyObject  * o) {            { if (!o               ) throw py_err_str_clear()    ; } T* res = static_cast<T*>(o) ; _chk(res) ; return res ; }
-	inline                   char const* from_py(char const* s) {            { if (!s               ) throw py_err_str_clear()    ; }                                           return s   ; }
-	inline                   int         from_py(int         i) {            { if (i<0              ) throw py_err_str_clear()    ; }                                           return i   ; }
-	inline                   void        from_py(             ) {              if (py_err_occurred()) throw py_err_str_clear()    ;                                                          }
-
-	template<class T=Object> T&   py_get_sys( ::string const& name                   ) ;
-	inline                   void py_set_sys( ::string const& name , Object const& o ) ;
-
-	void init         (::string const& lmake_root_s) ;
-	void py_reset_path(::vector_s const&           ) ;
-	void py_reset_path(                            ) ;
-
-
-	Ptr<Object> py_eval( ::string const& expr , Dict& glbs ) ;
-	Ptr<Object> py_eval( ::string const& expr              ) ;
-	void        py_run ( ::string const& text , Dict& glbs ) ; // meant to update glbs
-	Ptr<Dict>   py_run ( ::string const& text              ) ; // return globals after execution in a clean dict
+	template<class T       > T    const* _chk   (Object const* o) { SWEAR(o) ; T const* r = static_cast<T const*>(o) ; { if (!r->qualify()    ) throw "not a "s+T::Name  ; }              return r ; }
+	template<class T       > T         * _chk   (Object      * o) { SWEAR(o) ; T      * r = static_cast<T      *>(o) ; { if (!r->qualify()    ) throw "not a "s+T::Name  ; }              return r ; }
+	template<class T=Object> T         * from_py(PyObject    * o) {            T      * r = static_cast<T      *>(o) ; { if (!r               ) throw py_err_str_clear() ; } _chk<T>(r) ; return r ; }
+	inline                   char const* from_py(char const  * s) {                                                    { if (!s               ) throw py_err_str_clear() ; }              return s ; }
+	inline                   int         from_py(int           i) {                                                    { if (i<0              ) throw py_err_str_clear() ; }              return i ; }
+	inline                   void        from_py(               ) {                                                      if (py_err_occurred()) throw py_err_str_clear() ;                           }
 
 	template<class T> struct WithGil : T {
 		using T::operator+ ;
 		// cxtors & casts
 		using T::T ;
-		WithGil(T const& t) requires(::copy_constructible<T>) : T{       t } {}
-		WithGil(T     && t) requires(::move_constructible<T>) : T{::move(t)} {}
+		WithGil(T const& t) : T{       t } {}
+		WithGil(T     && t) : T{::move(t)} {}
 		~WithGil() {
 			if (!self) return ; // fast path : dont pay init of all fields if not necessary
 			self = T() ;
@@ -153,15 +123,15 @@ namespace Py {
 	struct Object : PyObject {
 		static constexpr const char* Name = "object" ;
 		// cxtors & casts
-		Object(Object&&) = delete ;                                     // manipulating objects is Python's responsibility
-		Object& operator=(Object&&) = delete ;                          // .
+		Object(Object&&) = delete ;                                          // manipulating objects is Python's responsibility
+		Object& operator=(Object&&) = delete ;                               // .
 		// accesses
 		bool operator==(Object const& other) const { return this==&other ; }
 		bool qualify() const { return true ; }                               // everything qualifies as object
 		//
-		template<class T> T      & as_a()       { return *_chk(static_cast<T      *>(this))           ; }
-		template<class T> T const& as_a() const { return *_chk(static_cast<T const*>(this))           ; }
-		template<class T> bool     is_a() const { return       static_cast<T const*>(this)->qualify() ; }
+		template<class T> T      & as_a()       { return *_chk<T>(this)                         ; }
+		template<class T> T const& as_a() const { return *_chk<T>(this)                         ; }
+		template<class T> bool     is_a() const { return static_cast<T const*>(this)->qualify() ; }
 		//
 		bool operator+() const {
 			Gil::s_swear_locked() ;
@@ -175,7 +145,6 @@ namespace Py {
 		/**/      Object const& boost      () const {                                               Py_INCREF(to_py()) ; return self ; }
 		/**/      Object      & unboost    ()       { { if (ref_cnt()==1) Gil::s_swear_locked() ; } Py_DECREF(to_py()) ; return self ; }
 		/**/      Object const& unboost    () const { { if (ref_cnt()==1) Gil::s_swear_locked() ; } Py_DECREF(to_py()) ; return self ; }
-		/**/      ::string      marshal    () const ;
 		// services
 		Ptr<Str> str      () const ;
 		::string type_name() const { return ob_type->tp_name ; }
@@ -187,19 +156,24 @@ namespace Py {
 	} ;
 
 	template<> struct Ptr<Object> {
+		// statics
+		static void s_init() ;
+		// static datas
+		static Callable* s_dumps ;
+		static Callable* s_loads ;
 		// cxtors & casts
-		Ptr(            ) = default ;
-		Ptr(PyObject*  p) : ptr{from_py(p)} {              } // steal ownership from argument
-		Ptr(Object*    o) : ptr{o         } { boost()    ; }
-		Ptr(Ptr const& p) : ptr{p.ptr     } { boost()    ; }
-		Ptr(Ptr     && p) : ptr{p.ptr     } { p.detach() ; }
+		Ptr(               ) = default ;
+		Ptr(PyObject*     p) : ptr{from_py(p)            } {              }          // steal ownership from argument
+		Ptr(Object const* o) : ptr{const_cast<Object*>(o)} { boost()    ; }
+		Ptr(Ptr    const& p) : ptr{p.ptr                 } { boost()    ; }
+		Ptr(Ptr        && p) : ptr{p.ptr                 } { p.detach() ; }
 		//
 		~Ptr() { unboost() ; }
 		//
 		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return self ; }
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return self ; }
 		//
-		void unmarshal(::string const&) ;
+		template<IsStream T> void serdes(T& s) ;
 		// accesses
 		bool operator+() const { return bool(ptr) ; }
 		//
@@ -208,10 +182,10 @@ namespace Py {
 		Object      * operator->()       { return &*self ; }
 		Object const* operator->() const { return &*self ; }
 		// services
-		void               detach ()       { ptr = nullptr ;                         }
-		Ptr<Object>      & boost  ()       { if (ptr) ptr->boost  () ; return self ; }
-		Ptr<Object> const& boost  () const { if (ptr) ptr->boost  () ; return self ; }
-		void               unboost() const { if (ptr) ptr->unboost() ;               }
+		void       detach ()       { ptr = nullptr ;                         }
+		Ptr      & boost  ()       { if (ptr) ptr->boost  () ; return self ; }
+		Ptr const& boost  () const { if (ptr) ptr->boost  () ; return self ; }
+		void       unboost() const { if (ptr) ptr->unboost() ;               }
 		// data
 	protected :
 		Object* ptr = nullptr ;
@@ -224,12 +198,16 @@ namespace Py {
 		// cxtors & casts
 		PtrBase() = default ;
 		//
-		PtrBase(PyObject  * p) : Base{       p } { _chk(ptr) ; }
-		PtrBase(Object    * o) : Base{       o } { _chk(ptr) ; }
-		PtrBase(Base const& o) : Base{       o } { _chk(ptr) ; }
-		PtrBase(Base     && o) : Base{::move(o)} { _chk(ptr) ; }
-		PtrBase(T         * o) : Base{       o } {             }
+		PtrBase(PyObject    * p) : Base{       p } { _chk<T>(ptr) ; }
+		PtrBase(Object const* o) : Base{       o } { _chk<T>(ptr) ; }
+		PtrBase(Base   const& o) : Base{       o } { _chk<T>(ptr) ; }
+		PtrBase(Base       && o) : Base{::move(o)} { _chk<T>(ptr) ; }
+		PtrBase(T           * o) : Base{       o } {                }
 		//
+		template<IsStream S> void serdes(S& s) {
+			Base::serdes(s) ;
+			if (IsIStream<S>) _chk<T>(ptr) ;
+		}
 		// accesses
 		T      & operator* ()       { SWEAR(ptr) ; return *static_cast<T      *>(ptr) ; }
 		T const& operator* () const { SWEAR(ptr) ; return *static_cast<T const*>(ptr) ; }
@@ -419,9 +397,9 @@ namespace Py {
 	struct Sequence ;
 
 	template<bool C> struct SequenceIter {
-		using Iterable = ::conditional_t< C , Sequence    const , Sequence    > ;
-		using PtrItem  = ::conditional_t< C , Ptr<Object> const , Ptr<Object> > ;
-		using Item     = ::conditional_t< C ,     Object  const ,     Object  > ;
+		using Iterable = ::conditional_t< C , Sequence const , Sequence > ;
+		using PtrItem  = ::conditional_t< C , Ptr<>    const , Ptr<>    > ;
+		using Item     = ::conditional_t< C , Object   const , Object   > ;
 		// cxtors & casts
 		SequenceIter(                       ) = default ;
 		SequenceIter(Iterable& i,bool at_end) : _item {::launder(reinterpret_cast<PtrItem*>(PySequence_Fast_ITEMS(i.to_py())))} { if (at_end) _item += i.size() ; }
@@ -592,11 +570,9 @@ namespace Py {
 		static constexpr const char* Name = "code" ;
 		using Base = Object ;
 		// services
-		bool        qualify(          ) const { return PyCode_Check(to_py()) ; }
-		Ptr<Object> eval   (Dict& glbs) const ;
-		Ptr<Object> eval   (          ) const ;
-		void        run    (Dict& glbs) const { eval(glbs) ; } // meant to updates glbs
-		Ptr<Dict  > run    (          ) const ;                // returns globals after execution in a clean global dict
+		bool      qualify(                                                       ) const { return PyCode_Check(to_py()) ; }
+		Ptr<    > eval   ( Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) const ;
+		Ptr<Dict> run    ( Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) const ; // update glbs if provided (else use clean dict), return globals after execution
 	} ;
 	template<> struct Ptr<Code> : PtrBase<Code> {
 		using Base = PtrBase<Code> ;
@@ -636,8 +612,8 @@ namespace Py {
 		// services
 		bool qualify() const { return PyCallable_Check(to_py()) ; }
 		//
-		/**/                 Ptr<Object> operator()(           ) const { Gil::s_swear_locked() ; return PyObject_CallObject( to_py() , nullptr ) ; } // fast path : no empty tuple
-		template<class... A> Ptr<Object> operator()(A&&... args) const {
+		/**/                 Ptr<> operator()(           ) const { Gil::s_swear_locked() ; return PyObject_CallObject( to_py() , nullptr ) ; } // fast path : no empty tuple
+		template<class... A> Ptr<> operator()(A&&... args) const {
 			Gil::s_swear_locked() ;
 			Ptr<Tuple> t               { sizeof...(A) }                       ;
 			size_t     i               = 0                                    ;
@@ -652,24 +628,32 @@ namespace Py {
 	} ;
 
 	//
-	// implementation
+	// RAII
 	//
 
-	inline WithBuiltins::WithBuiltins(Dict& dct_) : dct{dct_} {
-		#ifndef NDEBUG // avoid executing glb.contains if not debugging
-			SWEAR(!dct.contains("__builtins__")) ;
-		#endif
-		dct.set_item("__builtins__",*Dict::s_builtins) ;
-	}
-	inline WithBuiltins::~WithBuiltins() {
-		dct.del_item("__builtins__") ;
-	}
+	struct WithBuiltins { // set __builtins__ in dict and remove it at the end
+		// cxtors & casts
+		WithBuiltins (Dict&) ;
+		~WithBuiltins(     ) ;
+		// data
+		Dict& dct ;
+	} ;
+
+	struct WithSysPath { // set __builtins__ in dict and remove it at the end
+		// cxtors & casts
+		WithSysPath (Sequence const*) ;
+		~WithSysPath(               ) ;
+		// data
+		Ptr<Sequence> sav_sys_path ;
+	} ;
 
 	//
 	// functions
 	//
 
-	template<class T> T& py_get_sys(::string const& name) {
+	void init(::string const& lmake_root_s) ;
+
+	template<class T=Object> T& py_get_sys(::string const& name) {
 		Gil::s_swear_locked() ;
 		PyObject* v = PySys_GetObject(const_cast<char*>(name.c_str())) ;
 		throw_unless( v , "cannot find sys.",name ) ;
@@ -682,6 +666,35 @@ namespace Py {
 		throw_unless( rc==0 , "cannot set sys.",name ) ;
 	}
 
+	void py_reset_sys_path() ;
+
+	Ptr<    > py_eval( ::string const& expr , Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) ;
+	Ptr<Dict> py_run ( ::string const& text , Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) ; // update glbs if provided (else use clean dict), return globals after execution
+
+	//
+	// implementation
+	//
+
+	inline WithBuiltins::WithBuiltins(Dict& dct_) : dct{dct_} {
+		#ifndef NDEBUG                                          // avoid executing glb.contains if not debugging
+			SWEAR(!dct.contains("__builtins__")) ;
+		#endif
+		dct.set_item("__builtins__",*Dict::s_builtins) ;
+	}
+	inline WithBuiltins::~WithBuiltins() {
+		dct.del_item("__builtins__") ;
+	}
+
+	inline WithSysPath::WithSysPath(Sequence const* sys_path) {
+		if (!sys_path) return ;
+		sav_sys_path = &py_get_sys<Sequence>("path") ;
+		py_set_sys( "path" , *sys_path ) ;
+	}
+	inline WithSysPath::~WithSysPath() {
+		if (!sav_sys_path) return ;
+		py_set_sys( "path" , *sav_sys_path ) ;
+	}
+
 	//
 	// Object
 	//
@@ -689,6 +702,22 @@ namespace Py {
 	template<class T> Ptr<T> Object::get_attr( ::string const& attr                     ) const { return                          PyObject_GetAttrString( to_py() , attr.c_str()               )  ; }
 	inline void              Object::set_attr( ::string const& attr , Object const& val )       { Gil::s_swear_locked() ; from_py(PyObject_SetAttrString( to_py() , attr.c_str() , val.to_py() )) ; }
 	inline void              Object::del_attr( ::string const& attr                     )       { Gil::s_swear_locked() ; from_py(PyObject_DelAttrString( to_py() , attr.c_str()               )) ; }
+
+	inline void Ptr<Object>::s_init() {
+		SWEAR(bool(s_loads)==bool(s_dumps)) ;
+		if (s_loads) return ;
+		Ptr<Module> marshal { "marshal" } ;
+		s_dumps = marshal->get_attr<Callable>("dumps").boost() ; // ensure no destruction at finalization
+		s_loads = marshal->get_attr<Callable>("loads").boost() ; // .
+	}
+
+	template<IsStream T> void Ptr<Object>::serdes(T& s) {
+		s_init() ;
+		::string buf ;
+		if (!IsIStream<T>) buf  = *s_dumps->call<Bytes>(*self)    ;
+		::serdes(s,buf) ;
+		if ( IsIStream<T>) self = s_loads->call(*Ptr<Bytes>(buf)) ;
+	}
 
 	//
 	// Float

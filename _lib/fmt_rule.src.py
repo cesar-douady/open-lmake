@@ -18,6 +18,11 @@ from lmake import pdict , multi_strip , indent
 
 no_imports = {__name__} # may be overridden by external code
 
+lmake_root   = osp.dirname(osp.dirname(__file__ ))
+repo_root    = lmake.repo_root
+lmake_root_s = lmake_root+'/'
+repo_root_s  = repo_root +'/'
+
 # helper constants
 StdAttrs = { #!               type   dynamic
 	'allow_stderr'        : ( bool  , True  )
@@ -227,58 +232,62 @@ def find_static_stems(job_name) :
 		else                 : raise ValueError(f'spurious {{ in job_name {job_name}')
 	return stems
 
-try :
-	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)
-	has_code_replace = True
-except :
-	has_code_replace = False
-def mk_dbg_info( dbg , serialize_ctx , for_this_python ) :
-	dbg_info = ''
-	if dbg :
-		single = len(dbg)==1
-		if single :
-			for k,v in dbg.items() : func,module,qualname,filename,firstlineno = k,*(repr(a) for a in v)
-		else :
-			func,module,qualname,filename,firstlineno = 'func','module','qualname','filename','firstlineno'
-			sourcify                                  = avoid_ctx('sourcify',serialize_ctx)
-		tab1     = '' if for_this_python else '\t'
-		tab2     = '' if single          else '\t'
-		if not for_this_python :
-			dbg_info += "try :\n"
-			if not single :
-				dbg_info += "\t(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)\n"
-		if has_code_replace or not for_this_python :
-			if not single :
-				dbg_info += f"{tab1}def {sourcify}(func,module,qualname,filename,firstlineno) :\n"
-			dbg_info += f"{tab1}{tab2}{func}.__code__     = {func}.__code__.replace( co_filename={filename} , co_firstlineno={firstlineno} )\n"
-			dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
-			dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
-		if not for_this_python :
-			dbg_info += "except :\n"
-		if not has_code_replace or not for_this_python :
-			if single :
-				c         = avoid_ctx('c',serialize_ctx)
-			else :
-				dbg_info += f"{tab1}def {sourcify}({func},{module},{qualname},{filename},{firstlineno}) :\n"
-				c         = 'c'
-			dbg_info += f"{tab1}{tab2}{c:4} = {func}.__code__\n"
-			dbg_info += f"{tab1}{tab2}args = [{c}.co_argcount]\n"
-			dbg_info += f"{tab1}{tab2}if hasattr({c},'co_posonlyargcount') : args.append({c}.co_posonlyargcount)\n"
-			dbg_info += f"{tab1}{tab2}if hasattr({c},'co_kwonlyargcount' ) : args.append({c}.co_kwonlyargcount )\n"
-			dbg_info += f"{tab1}{tab2}args += (\n"
-			dbg_info += f"{tab1}{tab2}\t{c}.co_nlocals,{c}.co_stacksize,{c}.co_flags,{c}.co_code,{c}.co_consts,{c}.co_names,{c}.co_varnames\n"
-			dbg_info += f"{tab1}{tab2},\t{filename}\n"
-			dbg_info += f"{tab1}{tab2},\t{c}.co_name\n"
-			dbg_info += f"{tab1}{tab2},\t{firstlineno}\n"
-			dbg_info += f"{tab1}{tab2},\t{c}.co_lnotab,{c}.co_freevars,{c}.co_cellvars\n"
-			dbg_info += f"{tab1}{tab2})\n"
-			dbg_info += f"{tab1}{tab2}{func}.__code__     = {c}.__class__(*args)\n"
-			dbg_info += f"{tab1}{tab2}{func}.__module__   = {module}\n"
-			dbg_info += f"{tab1}{tab2}{func}.__qualname__ = {qualname}\n"
-		if not single :
-			for func,(module,qualname,filename,firstlineno) in dbg.items() :
-				dbg_info += f'{sourcify}({func},{module!r},{qualname!r},{filename!r},{firstlineno})\n'
-	return dbg_info
+def finalize_dyn_expr( dyn_expr , for_cmd ) :
+	if not ( for_cmd or dyn_expr.dbg_info ) :
+		del dyn_expr.dbg_info
+	else :
+		prelude  = []
+		dbg_info = []
+		if for_cmd :
+			sys_var        = avoid_ctx('sys'       ,dyn_expr.names)
+			lmake_root_var = avoid_ctx('lmake_root',dyn_expr.names)
+			repo_root_var  = avoid_ctx('repo_root' ,dyn_expr.names)
+			if sys_var=='sys' : prelude.append( 'import sys'             )
+			else              : prelude.append(f'import sys as {sys_var}')
+			prelude.append(f"{sys_var}.path.append(lmake_root+'/lib')")    # dont trust PYTHONPATH as we do not masterize it
+		sourcify_var = avoid_ctx('sourcify',dyn_expr.names)
+		prelude.append(f'from lmake import _sourcify as {sourcify_var}')   # even if no dbg_info, this ensures that lmake is imported with a secure sys.path
+		if for_cmd :
+			prelude.append(f'{sys_var}.path.pop()')
+		#
+		fl = ml = ql = pl = nl = ll = 0
+		has_lmake = has_repo        = False
+		for set_w in (True,False) :
+			if not set_w :
+				if for_cmd :
+					if lmake_root_var!='lmake_root' :
+						if has_lmake : prelude.append(f'{lmake_root_var} = lmake_root')                                                 # lmake_root prepended at exec time
+						if True      : prelude.append( 'del lmake_root'               )
+					if repo_root_var !='repo_root'  :
+						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                                 # repo_root  prepended at exec time
+						if True      : prelude.append( 'del repo_root'                )
+				prelude.append('#')
+			for func , (module,qualname,filename,firstlineno) in dyn_expr.dbg_info.items() :
+				pfx = ''
+				hl = hr = False
+				if for_cmd :
+					if   filename.startswith(lmake_root_s) : pfx,filename,hl = lmake_root_var+'+',    filename[len(lmake_root):],True # leave leading / in filename
+					elif filename.startswith(repo_root_s ) : pfx,filename,hr = repo_root_var +'+',    filename[len(repo_root ):],True # leave leading / in filename
+					elif filename[0]!='/'                  : pfx,filename,hr = repo_root_var +'+','/'+filename                  ,True # make filename absolute
+				if set_w :
+					fl = max( fl , len(str (func       )) )
+					ml = max( ml , len(repr(module     )) )
+					ql = max( ql , len(repr(qualname   )) )
+					pl = max( pl , len(str (pfx        )) )
+					nl = max( nl , len(repr(filename   )) )
+					ll = max( ll , len(repr(firstlineno)) )
+					has_lmake |= hl
+					has_repo  |= hr
+				else :
+					# python 3.6 does not support 0-width alignment and pl may be 0 (in which case there are no pfx's)
+					if pl : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {pfx:{pl}}{filename!r:{nl}} , {firstlineno:>{ll}} )')
+					else  : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {          filename!r:{nl}} , {firstlineno:>{ll}} )')
+		#
+		dyn_expr.glbs     = ''.join(l+'\n' for l in prelude ) + getattr(dyn_expr,'glbs','')
+		dyn_expr.dbg_info = ''.join(l+'\n' for l in dbg_info)
+	#
+	if dyn_expr.names : dyn_expr.names = tuple( k for k,v in dyn_expr.names.items() if v==False ) # only pass free names (dyamically associated at runtime, such as stems)
+	else              : del dyn_expr.names
 
 def static_fstring(s) :
 	'suppress double { and } assuming no variable part'
@@ -294,8 +303,8 @@ def static_fstring(s) :
 	assert prev_c not in '{}'
 	return res
 
-def avoid_ctx(name,ctxs) :
-	for i in range(sum(len(ks) for ks in ctxs)) :
+def avoid_ctx(name,*ctxs) :                         # find a non-conflicting name based on name argument, appending a suffix if necessary
+	for i in range(sum(len(ks) for ks in ctxs)+1) :
 		n = name + (f'_{i}' if i else '')
 		if not any(n in ks for ks in ctxs) : return n
 	assert False,f'cannot find suffix to make {name} an available name'
@@ -390,10 +399,8 @@ class Handle :
 		,	no_imports     = lcl_mod_file                    # dynamic attributes cannot afford local imports, so serialize in place all of them
 		,	call_callables = True
 		)
-		if static_val         : dyn_expr.static   = static_val
-		if dyn_expr.dbg_info  : dyn_expr.dbg_info = mk_dbg_info( dyn_expr.dbg_info , serialize_ctx , for_this_python=True )
-		else                  : del dyn_expr.dbg_info
-		if not dyn_expr.names : del dyn_expr.names
+		if static_val : dyn_expr.static = static_val
+		finalize_dyn_expr( dyn_expr , for_cmd=False )
 		for mod_name in dyn_expr.modules :                   # check for local modules
 			m = ''
 			for c in mod_name.split('.') :                   # check all packages along the path as they are all imported by Python
@@ -545,13 +552,12 @@ class Handle :
 			if multi :
 				for ci,c in enumerate(cmd_lst) :
 					# create a copy of c with its name modified (dont modify in place as this would be visible for other rules inheriting from the same parent)
-					cc                 = c.__class__( c.__code__ , c.__globals__ , avoid_ctx(f'cmd{ci}',serialize_ctx) , c.__defaults__ , c.__closure__ )
+					cc                 = c.__class__( c.__code__ , c.__globals__ , avoid_ctx(f'cmd{ci}',*serialize_ctx) , c.__defaults__ , c.__closure__ )
 					cc.__annotations__ = c.__annotations__
 					cc.__kwdefaults__  = c.__kwdefaults__
 					cc.__module__      = c.__module__
 					cc.__qualname__    = c.__qualname__
 					cmd_lst[ci] = cc
-			sourcify = avoid_ctx('lmake_sourcify',serialize_ctx)
 			dyn_src = serialize.get_src(
 				*cmd_lst
 			,	ctx        = serialize_ctx
@@ -561,30 +567,31 @@ class Handle :
 			)
 			cmd = dyn_src.pop('src')
 			if multi :
-				cmd += 'def cmd() :\n'
-				x = avoid_ctx('x',serialize_ctx)                                                                                  # find a non-conflicting name
+				cmd   += 'def cmd() :\n'
+				x_var  = avoid_ctx('x',dyn_src.names)
 				for i,c in enumerate(cmd_lst) :
-					if c.__defaults__ : n_dflts = len(c.__defaults__)
-					else              : n_dflts = 0                                                                               # stupid c.__defaults__ is None when no defaults, not ()
+					n_dflts = len(c.__defaults__ or ())
 					if   c.__code__.co_argcount> n_dflts+1 : raise "cmd cannot have more than a single arg without default value"
 					if   c.__code__.co_argcount<=n_dflts   : a = ''
 					elif i==0                              : a = 'None'
-					else                                   : a = x
+					else                                   : a = x_var
 					if i==len(self.attrs.cmd)-1 :
 						cmd += f'\treturn {c.__name__}({a})\n'
 					else :
-						b1 = cmd_lst[i+1].__code__.co_argcount!=0
-						a1 = '' if not b1 else x
+						c1 = cmd_lst[i+1]
+						b1 = c1.__code__.co_argcount>len(c1.__defaults__ or ())
+						a1 = x_var if b1 else ''
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			for_this_python = False                                                                                               # by default, be conservative
+			for_this_python = False                                               # by default, be conservative
 			try :
 				interpreter = self.rule_rep.start_cmd_attrs.static.interpreter[0] # code can be made simpler if we know we run the same python
 				if not lmake._maybe_lcl(interpreter) :                            # avoid creating a dep inside the repo if no interpreter (e.g. it may be dynamic)
 					for_this_python = osp.realpath(interpreter)==self.ThisPython
 			except : pass
-			dyn_src.expr      = cmd
-			dyn_src.dbg_info  = mk_dbg_info( dyn_src.dbg_info , serialize_ctx , for_this_python )
+			dyn_src.glbs = cmd
+			dyn_src.expr = 'cmd()'
+			finalize_dyn_expr( dyn_src , for_cmd=True )
 			self.rule_rep.cmd = dyn_src
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)

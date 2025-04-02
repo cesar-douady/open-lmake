@@ -160,8 +160,8 @@ namespace Engine::Makefiles {
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		try                      { config = (*py_info)["config"].as_a<Dict>() ;    }
 		catch(::string const& e) { throw "while processing config :\n"+indent(e) ; }
-		config.has_split_rules = !py_info->contains("rules"   ) ;
-		config.has_split_srcs  = !py_info->contains("manifest") ;
+		config.has_split_rules = !py_info->contains("rules"  ) ;
+		config.has_split_srcs  = !py_info->contains("sources") ;
 		//
 		return true/*done*/ ;
 	}
@@ -202,8 +202,8 @@ namespace Engine::Makefiles {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
-		try                      { res = (*py_info)[kind] ;                          }
-		catch(::string const& e) { throw "while processing "+kind+" :\n"+indent(e) ; }
+		try                      { res = (*py_info)[kind].as_a<typename T::PyType>() ; }
+		catch(::string const& e) { throw "while processing "+kind+" :\n"+indent(e) ;   }
 		return Maybe|+reason/*done*/ ;                                                                          // cannot be split without reason
 	}
 

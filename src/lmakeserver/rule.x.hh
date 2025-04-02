@@ -188,8 +188,8 @@ namespace Engine {
 		// services
 		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
 		void update( Py::Dict const& py_dct ) {
-			Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
-			if ( Attrs::acquire_from_dct( rsrcs , py_dct , "rsrcs" ) ) ::sort(rsrcs) ;                                              // stabilize rsrcs crc
+			/**/ Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
+			if ( Attrs::acquire_from_dct( rsrcs   , py_dct , "rsrcs"   ) ) ::sort(rsrcs) ;                                          // stabilize rsrcs crc
 		}
 		Tokens1 tokens1() const {
 			for(auto const& [k,v] : rsrcs) if (k=="cpu")
@@ -311,7 +311,7 @@ namespace Engine {
 		static constexpr const char* Msg = "execution command" ;
 		// services
 		void init  ( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) {}
-		void update( Py::Dict const&                                             ) {}
+//		void update( Py::Dict const&                                             ) {}
 	} ;
 	namespace Attrs {
 		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
@@ -325,48 +325,13 @@ namespace Engine {
 		using Kind = DynKind ;
 		// cxtros & casts
 		DynEntry() = default ;
-		DynEntry( Bool3 is_python , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
+		DynEntry( RulesBase const& , Bool3 is_python , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
 		// accesses
 		bool operator+() const { return +kind ; }
 		// services
-		template<IsStream S> void serdes(S& s) {
-			Trace trace("DynEntry::serdes",STR(IsIStream<S>)) ;
-			// START_OF_VERSIONING
-			Kind     kind_ ;
-			::string buf   ;
-			if (!IsIStream<S>) {
-				kind_ = kind ;
-				if (kind_==Kind::CompiledGlbs)
-					try                     { buf   = glbs->marshal() ; }
-					catch (::string const&) { kind_ = Kind::Compiled  ; }
-			}
-			::serdes(s,kind_) ;
-			if (IsIStream<S>) {
-				kind = kind_ ;
-			}
-			bool with_code      = false ;
-			bool with_glbs_code = false ;
-			bool with_glbs      = false ;
-			::serdes(s,ctx ) ;
-			switch (kind_) {
-				case Kind::None         :                                                                                                break ;
-				case Kind::ShellCmd     : ::serdes(s,code_str) ;                                                                         break ;
-				case Kind::PythonCmd    : ::serdes(s,code_str) ; ::serdes(s,glbs_str ) ; ::serdes(s,dbg_info) ;                          break ;
-				case Kind::Dyn          : ::serdes(s,code_str) ; ::serdes(s,glbs_str ) ; ::serdes(s,dbg_info) ; ::serdes(s,may_import) ; break ;
-				case Kind::Compiled     : with_code = true     ; with_glbs_code = true ;                      ; ::serdes(s,may_import) ; break ;
-				case Kind::CompiledGlbs : with_code = true     ; with_glbs      = true ;                      ; ::serdes(s,may_import) ; break ;
-			}
-			if (with_glbs     ) {                                                     ::serdes(s,buf) ; if (IsIStream<S>) glbs     .unmarshal(buf) ; } // do first as marshaled info is already in buf
-			if (with_code     ) { { if (!IsIStream<S>) buf = code     ->marshal() ; } ::serdes(s,buf) ; if (IsIStream<S>) code     .unmarshal(buf) ; }
-			if (with_glbs_code) { { if (!IsIStream<S>) buf = glbs_code->marshal() ; } ::serdes(s,buf) ; if (IsIStream<S>) glbs_code.unmarshal(buf) ; }
-			if ( IsIStream<S> && kind==Kind::Compiled ) {
-				glbs = glbs_code->run().boost() ;                                                                                                      // avoids problems at finalization
-				kind = Kind::CompiledGlbs       ;
-			}
-			// END_OF_VERSIONING
-			trace("done",kind,kind_) ;
-		}
-		void compile() ;
+		template<IsStream S> void serdes   ( S& , RulesBase const* =nullptr ) ;
+		/**/                 void compile  (      RulesBase const&          ) ;
+		/**/                 void decompile(                                ) ;
 		bool operator==(DynEntry const& de) const {
 			if (kind!=de.kind) return false ;
 			if (ctx !=de.ctx ) return false ;
@@ -381,8 +346,6 @@ namespace Engine {
 				case Kind::CompiledGlbs : FAIL() ;     // too heavy to marshal code to compare, we'll see if necessary
 			DF}
 		}
-		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const ; // /!\ update update_hash if modifying struct
-		void update_hash(Hash::Xxh&/*inout*/ h) const ;
 		// data
 		::vector<CmdIdx>  ctx        ;                 // a list of stems, targets & deps, accessed by code
 		::string          code_str   ;                 // contains string to compile to code object below or cmd for static shell cmd
@@ -402,7 +365,7 @@ namespace Engine {
 		static void s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
 		// cxtors & casts
 		DynBase() = default ;
-		DynBase( RulesBase& , Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python=Maybe ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
+		DynBase( Py::Ptr<>* /*out*/ py_update , RulesBase& , Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
 		// accesses
 		bool            has_entry(                   ) const { return dyn_idx ; }
 		DynEntry const& entry    (RulesBase const& rs) const ;
@@ -410,9 +373,6 @@ namespace Engine {
 		DynEntry const& entry    (                   ) const ;
 		bool            is_dyn   (RulesBase const& rs) const ;
 		bool            is_dyn   (                   ) const ;
-		// services
-		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rules ) const ;
-		void update_hash( Hash::Xxh&/*inout*/ h                          ) const ;
 		// data
 		RuleIdx dyn_idx = 0 ;
 	} ;
@@ -428,9 +388,12 @@ namespace Engine {
 			::serdes(s,static_cast<DynBase&>(self)) ;
 			::serdes(s,spec) ;
 		}
-		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rules ) const {
-			DynBase::update_hash( /*inout*/h , rules ) ;
-			h += spec ;
+		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const {
+			// START_OF_VERSIONING
+			/**/             h += spec        ;
+			/**/             h += has_entry() ;
+			if (has_entry()) const_cast<DynEntry&>(entry(rs)).serdes( /*inout*/h , &rs ) ; // serdes is declared non-const because it is also used for deserializing
+			// END_OF_VERSIONING
 		}
 		// RuleMatch is lazy evaluated from Job (when there is one)
 		T eval( Job   , Rule::RuleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
@@ -447,14 +410,12 @@ namespace Engine {
 			return parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 	protected :
-		Py::Ptr<Py::Object> _eval_code( Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
-		Py::Ptr<Py::Object> _eval_code(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const {
+		Py::Ptr<> _eval_code( Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
+		Py::Ptr<> _eval_code(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const {
 			return _eval_code( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ;                                                                 // cannot lazy evaluate w/o a job
 		}
 	public :
-		// START_OF_VERSIONING
-		T spec ;                                                                                      // contains default values when code does not provide the necessary entries
-		// END_OF_VERSIONING
+		T spec ; // contains default values when code does not provide the necessary entries
 	} ;
 
 	struct DynDepsAttrs : Dyn<DepsAttrs> {
@@ -470,10 +431,9 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
-		bool            has_entry() const = delete ; // always true for Cmd's, should not ask
-		::string const& cmd      () const ;
+		bool has_entry() const = delete ; // always true for Cmd's, should not ask
 		// services
-		::pair_ss/*script,call*/ eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
+		::string eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& ) const ;
 	} ;
 
 	struct TargetPattern {
@@ -795,39 +755,50 @@ namespace Engine {
 	inline bool            DynBase::is_dyn(RulesBase const& rs) const {                      return has_entry() && entry(rs).kind>=DynKind::Dyn ; } // for Cmd, static code is stored in DynEntry
 	inline bool            DynBase::is_dyn(                   ) const {                      return is_dyn(*Rule::s_rules)                      ; }
 
-	inline void DynEntry::update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const {
-		h += kind ;
-		bool with_sys_path  = false ;
-		bool with_code      = false ;
-		bool with_glbs_code = false ;
-		bool with_glbs      = false ;
-		switch (kind) {
-			case Kind::None         :                                                                                                    break ;
-			case Kind::ShellCmd     : h         += code_str ;                                                                            break ;
-			case Kind::PythonCmd    : h         += code_str ; h              += glbs_str ;                                               break ;
-			case Kind::Dyn          : h         += code_str ; h              += glbs_str ; with_sys_path = +may_import                 ; break ;
-			case Kind::Compiled     : with_code  = true     ; with_glbs_code  = true     ; with_sys_path = +may_import                 ; break ;
-			case Kind::CompiledGlbs : with_code  = true     ; with_glbs       = true     ; with_sys_path =  may_import[DynImport::Dyn] ; break ; // glbs is already computed
-		}
-		// revert to glbs_code if cannot compute hash on glbs
-		if (with_glbs     ) try { h += glbs     ->marshal() ; } catch (::string const&) { SWEAR(+glbs_code) ; h += glbs_code->marshal() ; with_sys_path = +may_import ; }
-		if (with_code     )       h += code     ->marshal() ;
-		if (with_glbs_code)       h += glbs_code->marshal() ;
-		if (with_sys_path )       h += rs.sys_path          ;
-	}
-	inline void DynEntry::update_hash(Hash::Xxh&/*inout*/ h) const { update_hash( h , *Rule::s_rules ) ; }
-
-	inline void DynBase::update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rules ) const {
+	template<IsStream S> void DynEntry::serdes( S& s , RulesBase const* rs ) {
+		static constexpr bool IsHash = Hash::IsHash<S> ;
+		Trace trace("DynEntry::serdes",STR(IsIStream<S>)) ;
 		// START_OF_VERSIONING
-		h += has_entry() ;
-		if (has_entry()) entry(rules).update_hash(h,rules) ;
+		Kind     kind_ ;
+		::string buf   ;
+		if (!IsIStream<S>) {
+			kind_ = kind ;
+			if (kind_==Kind::CompiledGlbs)
+				try                     { buf   = serialize(glbs) ; }
+				catch (::string const&) { kind_ = Kind::Compiled  ; }
+		}
+		::serdes(s,kind_) ;
+		if (IsIStream<S>) {
+			kind = kind_ ;
+		}
+		::serdes(s,ctx ) ;
+		switch (kind_) {
+			case Kind::None         :                                                                                                                 break ;
+			case Kind::ShellCmd     : ::serdes(s,code_str) ;                                                                                          break ;
+			case Kind::PythonCmd    : ::serdes(s,code_str) ; ::serdes(s,glbs_str ) ; { if (!IsHash) ::serdes(s,dbg_info) ; }                          break ; // dbg_info is not hashed as it no ...
+			case Kind::Dyn          : ::serdes(s,code_str) ; ::serdes(s,glbs_str ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } ::serdes(s,may_import) ; break ; // ... semantic value
+			case Kind::Compiled     : ::serdes(s,code    ) ; ::serdes(s,glbs_code) ;                                       ; ::serdes(s,may_import) ; break ;
+			case Kind::CompiledGlbs : ::serdes(s,code    ) ; ::serdes(s,buf      ) ;                                       ; ::serdes(s,may_import) ; break ; // buf is marshaled info
+		}
+		if constexpr (IsHash) {
+			if ( kind_>=Kind::Dyn && +may_import ) { SWEAR(rs) ; ::serdes(s,rs->sys_path_crc) ; }
+		} else if (IsIStream<S>) {
+			if      (kind_==Kind::Compiled    ) { SWEAR(rs) ; glbs = glbs_code->run( nullptr/*glbs*/ , rs->py_sys_path ) ; kind = Kind::CompiledGlbs ; }
+			else if (kind_==Kind::CompiledGlbs) { deserialize(buf,glbs) ;                                                                              }
+		}
 		// END_OF_VERSIONING
+		trace("done",kind,kind_) ;
 	}
-	inline void DynBase::update_hash(Hash::Xxh&/*inout*/ h) const { update_hash( h , *Rule::s_rules ) ; }
 
-	template<class T> Dyn<T>::Dyn( RulesBase& rules , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd )
-	:	DynBase( rules , py_src , var_idxs , ::is_same_v<T,Cmd>?No|rd.is_python:Maybe )
-	{	if (py_src.contains("static")) spec.init( &py_src["static"].as_a<Py::Dict>() , var_idxs , rd ) ;
+	template<class Spec> concept SpecHasUpdate = requires( Spec spec , Py::Dict dct ) { spec.update(dct) ; } ;
+	template<class T> Dyn<T>::Dyn( RulesBase& rules , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+		Py::Ptr<>  py_update ;
+		Py::Ptr<>* pu        = SpecHasUpdate<T> ? &py_update : nullptr ;
+		//
+		static_cast<DynBase&>(self) = DynBase( /*out*/pu , rules , py_src , var_idxs , ::is_same_v<T,Cmd>?No|rd.is_python:Maybe ) ;
+		if (py_src.contains("static") )                     spec.init  ( &py_src["static"].as_a<Py::Dict>() , var_idxs , rd ) ;
+		if constexpr (SpecHasUpdate<T>) { if   (+py_update) spec.update( py_update->as_a<Py::Dict>()                        ) ; }
+		else                              SWEAR(!py_update) ;                                                                     // if we have no update, we'd better have nothing to update
 	}
 
 	template<class T> void Dyn<T>::eval_ctx( Job job , Rule::RuleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
@@ -857,7 +828,7 @@ namespace Engine {
 		return res ;
 	}
 
-	template<class T> Py::Ptr<Py::Object> Dyn<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+	template<class T> Py::Ptr<> Dyn<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
 		Rule       r       = +match ? match.rule : job->rule() ;
@@ -869,7 +840,7 @@ namespace Engine {
 		Rule::s_last_dyn_msg  = T::Msg ;
 		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , New } ;
 		//
-		Py::Ptr<Py::Dict> tmp_glbs = entry().glbs ;                     // use a modifyable copy as we restore after use
+		Py::Ptr<Py::Dict> tmp_glbs = entry().glbs ;                        // use a modifyable copy as we restore after use
 		eval_ctx( job , match , rsrcs
 		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 				to_del.push_back(key) ;
@@ -883,37 +854,35 @@ namespace Engine {
 				tmp_glbs->set_item(key,*py_dct) ;
 			}
 		) ;
-		Py::py_run(to_eval,*tmp_glbs) ;
+		Py::py_run(to_eval,tmp_glbs) ;
 		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
-		Py::Ptr<Py::Object> res      ;
+		Py::Ptr res      ;
 		::string            err      ;
 		bool                seen_err = false  ;
-		AutodepLock         lock     { deps } ;                                       // ensure waiting for lock is not accounted as python exec time
+		AutodepLock         lock     { deps } ;                            // ensure waiting for lock is not accounted as python exec time
 		Rule::s_last_dyn_date = Pdate(New) ;
-		//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		try                       { res = entry().code->eval(*tmp_glbs) ; }
-		//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { err = e ; seen_err = true ;           }
-		for( ::string const& key : to_del ) tmp_glbs->del_item(key) ;                 // delete job-related info, just to avoid percolation to other jobs, even in case of error
+		//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		try                       { res = entry().code->eval(tmp_glbs) ; }
+		//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		catch (::string const& e) { err = e ; seen_err = true ;          }
+		for( ::string const& key : to_del ) tmp_glbs->del_item(key) ;      // delete job-related info, just to avoid percolation to other jobs, even in case of error
+		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
 		if ( +lock.err || seen_err ) throw ::pair_ss(lock.err/*msg*/,err/*stderr*/) ;
-		g_kpi.py_exec_time    += Pdate(New) - Rule::s_last_dyn_date ;
 		return res ;
 	}
 
 	template<class T> T Dyn<T>::eval( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		T res = spec ;
 		if (is_dyn()) {
-			Py::Gil             gil    ;
-			Py::Ptr<Py::Object> py_obj = _eval_code( job , match , rsrcs , deps ) ;
+			Py::Gil   gil    ;
+			Py::Ptr<> py_obj = _eval_code( job , match , rsrcs , deps ) ;
 			if (*py_obj!=Py::None) {
 				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
-				res.update(py_obj->template as_a<Py::Dict>()) ;
+				res.update(py_obj->as_a<Py::Dict>()) ;
 			}
 		}
 		return res ;
 	}
-
-	inline ::string const& DynCmd::cmd() const { return entry().code_str ; }
 
 	//
 	// RuleData

@@ -229,8 +229,7 @@ namespace Engine {
 		/**/                         res << ",\ttmp_dir        = " << mk_py_str(no_slash(tmp_dir_s             )) << '\n' ;
 		if (+job_space.tmp_view_s  ) res << ",\ttmp_view       = " << mk_py_str(no_slash(job_space.tmp_view_s  )) << '\n' ;
 		//
-		res << ",\tpreamble =\n" << mk_py_str(jsrr.cmd.first ) << '\n' ;
-		res << ",\tcmd =\n"      << mk_py_str(jsrr.cmd.second) << '\n' ;
+		res << ",\tcmd =\n" << mk_py_str(jsrr.cmd) <<'\n' ;
 		//
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env     = _mk_env(job_info) ;
 		::map_ss                                    env_map = mk_map(env.first) ;
@@ -556,7 +555,7 @@ namespace Engine {
 						} break ;
 						case ReqKey::Cmd :
 							if (!start) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							audit( fd , ro , start.cmd.first+start.cmd.second , true/*as_is*/ , lvl ) ;
+							audit( fd , ro , start.cmd , true/*as_is*/ , lvl ) ;
 						break ;
 						case ReqKey::Stdout :
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }

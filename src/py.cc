@@ -32,7 +32,7 @@ namespace Py {
 		PyObject* tb  = nullptr ;
 	} ;
 
-	static StaticUniqPtr<::vector_s> _g_std_path ;
+	static StaticUniqPtr<::vector_s> _g_std_sys_path ;
 
 	void init(::string const& lmake_root_s) {
 		static bool once=false ; if (once) return ; else once = true ;
@@ -60,9 +60,9 @@ namespace Py {
 		List& py_path = py_get_sys<List>("path") ;
 		py_path.append( *Ptr<Str>(lmake_root_s+"lib") ) ;
 		//
-		SWEAR(!_g_std_path,_g_std_path) ;
-		_g_std_path = New ;
-		for( Object& p : py_path ) _g_std_path->push_back(p.as_a<Str>()) ;
+		SWEAR(!_g_std_sys_path,_g_std_sys_path) ;
+		_g_std_sys_path = New ;
+		for( Object& p : py_path ) _g_std_sys_path->push_back(p.as_a<Str>()) ;
 		//
 		Dict::s_builtins = from_py<Dict>(PyEval_GetBuiltins()) ;
 		//
@@ -71,11 +71,22 @@ namespace Py {
 		#endif
 	}
 
-	void py_reset_path(                      ) { SWEAR(+_g_std_path) ; py_reset_path(*_g_std_path) ; }
-	void py_reset_path(::vector_s const& path) {
-		Gil gil ;
-		Ptr<Tuple> py_sys_path { path.size() } ; for( size_t i : iota(path.size()) ) py_sys_path->set_item( i , *Ptr<Str>(path[i]) ) ;
+	void py_reset_sys_path() {
+		SWEAR(+_g_std_sys_path) ;
+		Ptr<Tuple> py_sys_path { _g_std_sys_path->size() } ; for( size_t i : iota(_g_std_sys_path->size()) ) py_sys_path->set_item( i , *Ptr<Str>((*_g_std_sys_path)[i]) ) ;
 		py_set_sys("path",*py_sys_path) ;
+	}
+
+	nullptr_t py_err_set( Exception e , ::string const& txt ) {
+		static PyObject* s_exc_tab[] = {
+			PyExc_RuntimeError           // RuntimeErr
+		,	PyExc_TypeError              // TypeErr
+		,	PyExc_ValueError             // ValueErr
+		} ;
+		static_assert(sizeof(s_exc_tab)/sizeof(PyObject*)==N<Exception>) ;
+		Gil::s_swear_locked() ;
+		PyErr_SetString(s_exc_tab[+e],txt.c_str()) ;
+		return nullptr ;
 	}
 
 	// divert stderr to a memfd (if available, else to an internal pipe), call PyErr_Print and restore stderr
@@ -133,27 +144,18 @@ namespace Py {
 		return res ;
 	}
 
-	Ptr<Object> py_eval( ::string const& expr , Dict& glbs ) {
+	template<bool Run> static Ptr<::conditional_t<Run,Dict,Object>> _py_eval_run( ::string const& expr , Dict* glbs , Sequence const* sys_path ) {
 		Gil::s_swear_locked() ;
-		WithBuiltins wb { glbs } ;
-		return PyRun_String( expr.c_str() , Py_eval_input , glbs.to_py() , glbs.to_py() ) ;
+		Ptr<Dict> fresh_glbs ;
+		if (!glbs) glbs = fresh_glbs = _mk_glbs() ;
+		WithSysPath  wsp { sys_path } ;
+		WithBuiltins wb  { *glbs    } ;
+		Ptr<> res = PyRun_String( expr.c_str() , Run?Py_file_input:Py_eval_input , glbs->to_py() , glbs->to_py() ) ;
+		if constexpr (Run) return glbs ;
+		else               return res  ;
 	}
-
-	Ptr<Object> py_eval(::string const& expr) {
-		return py_eval( expr , *_mk_glbs() ) ;
-	}
-
-	void py_run( ::string const& text , Dict& glbs ) {
-		Gil::s_swear_locked() ;
-		WithBuiltins wb { glbs } ;
-		from_py( PyRun_String( text.c_str() , Py_file_input , glbs.to_py() , glbs.to_py() ) ) ;
-	}
-
-	Ptr<Dict> py_run (::string const& text) {
-		Ptr<Dict> glbs = _mk_glbs() ;
-		py_run( text , *glbs ) ;
-		return glbs ;
-	}
+	Ptr<    > py_eval( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<false/*Run*/>( expr , glbs , sys_path ) ; }
+	Ptr<Dict> py_run ( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<true /*Run*/>( expr , glbs , sys_path ) ; }
 
 	//
 	// val methods (mostly for debug)
@@ -172,19 +174,12 @@ namespace Py {
 	// Object
 	//
 
+	Callable* Ptr<Object>::s_dumps = nullptr ;
+	Callable* Ptr<Object>::s_loads = nullptr ;
+
 	Ptr<Str> Object::str() const {
 		try                     { return PyObject_Str(to_py()) ;                                          }
 		catch (::string const&) { py_err_clear() ; return cat('<',type_name()," object at 0x",this,'>') ; } // catch any error so calling str is reliable
-	}
-
-	::string Object::marshal() const {
-		static Callable& dumps = *Ptr<Module>("marshal")->get_attr<Callable>("dumps").boost() ; // ensure no destruction at finalization
-		return *dumps.call<Bytes>(self) ;
-	}
-
-	void Ptr<Object>::unmarshal(::string const& s) {
-		static Callable& loads = *Ptr<Module>("marshal")->get_attr<Callable>("loads").boost() ; // ensure no destruction at finalization
-		self = loads(*Ptr<Bytes>(s)) ;
 	}
 
 	//
@@ -232,25 +227,22 @@ namespace Py {
 	// Code
 	//
 
-	Ptr<Object> Code::eval(Dict& glbs) const {
+	template<bool Run> static Ptr<::conditional_t<Run,Dict,Object>> _code_eval_run( Code const& code , Dict* glbs , Sequence const* sys_path ) {
 		Gil::s_swear_locked() ;
 		#if PY_MAJOR_VERSION<3
-			PyCodeObject* c = (PyCodeObject*)(to_py()) ;
+			PyCodeObject* c = ::launder(reinterpret_cast<PyCodeObject*>(code.to_py())) ;
 		#else
-			PyObject    * c =                 to_py()  ;
+			PyObject    * c =                                           code.to_py()   ;
 		#endif
-		WithBuiltins wb { glbs } ;
-		return PyEval_EvalCode( c , glbs.to_py() , nullptr ) ;
-	}
-
-	Ptr<Object> Code::eval() const {
-		return eval(*_mk_glbs()) ;
-	}
-
-	Ptr<Dict> Code::run() const {
-		Ptr<Dict> glbs = _mk_glbs() ;
-		run(*glbs) ;
-		return glbs ;
-	}
+		Ptr<Dict> fresh_glbs ;
+		if (!glbs) glbs = fresh_glbs = _mk_glbs() ;
+		WithSysPath  wsp { sys_path } ;
+		WithBuiltins wb  { *glbs    } ;
+		Ptr<> res = PyEval_EvalCode( c , glbs->to_py() , nullptr ) ;
+		if constexpr (Run) return glbs ;
+		else               return res  ;
+	} //!                                                                                       Run
+	Ptr<    > Code::eval( Dict* glbs , Sequence const* sys_path ) const { return _code_eval_run<false>( self , glbs , sys_path ) ; }
+	Ptr<Dict> Code::run ( Dict* glbs , Sequence const* sys_path ) const { return _code_eval_run<true >( self , glbs , sys_path ) ; }
 
 }

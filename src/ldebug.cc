@@ -17,11 +17,11 @@ using namespace Py   ;
 ::string keys() {
 	Gil gil ;
 	try {
-		Ptr<Object> py_cfg_data = py_eval(AcFd(ADMIN_DIR_S "lmake/config_data.py").read()) ;
-		Object&     py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")             ;
-		Object&     py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )             ;
-		size_t      wk          = 0                                                        ;
-		::string    res         ;
+		Ptr      py_cfg_data = py_eval(AcFd(ADMIN_DIR_S "lmake/config_data.py").read()) ;
+		Object&  py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")             ;
+		Object&  py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )             ;
+		size_t   wk          = 0                                                        ;
+		::string res         ;
 		for( auto const& [py_k,_   ] : py_dbgs.as_a<Dict>() ) wk = ::max( wk , ::string(py_k.as_a<Str>()).size() ) ;
 		for( auto const& [py_k,py_v] : py_dbgs.as_a<Dict>() ) res <<'\t'<< widen(::string(py_k.as_a<Str>()),wk) <<" : "<< ::string(py_v.as_a<Str>()) <<'\n' ;
 		return res ;

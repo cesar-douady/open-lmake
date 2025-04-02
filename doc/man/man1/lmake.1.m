@@ -113,7 +113,7 @@ Else it exits with a non-zero status.
 .SH OUTPUT
 .LP
 While B(lmake) runs, it outputs a log.
-This log is also recorded in I(LMAKE/outputs/<start date>) with the following differences :
+This log is also recorded in I(LMAKE/outputs/<start date>) with the following differences:
 Bullet It is not colored.
 Bullet Reported files are relative to the root of the repository, not to the current working directory where the B(lmake) command has been launched.
 .LP

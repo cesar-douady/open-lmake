@@ -119,9 +119,9 @@ EXTRA_FLAGS      := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
 EXTRA_FLAGS      := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(EXTRA_FLAGS))
-EXTRA_FLAGS      += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG,-g)
+EXTRA_FLAGS      += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
 EXTRA_FLAGS      += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
-HIDDEN_FLAGS     += $(if $(findstring G, $(LMAKE_FLAGS)),-fno-omit-frame-pointer)
+HIDDEN_FLAGS     += $(if $(findstring G, $(LMAKE_FLAGS)),-g -fno-omit-frame-pointer)
 HIDDEN_FLAGS     += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
 SAN_FLAGS        := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS        += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
@@ -305,7 +305,7 @@ VERSION_SRCS := $(filter src/%.cc,$(SRCS)) $(filter src/%.hh,$(SRCS))
 
 # use a stamp to implement a by value update (while make works by date)
 version.hh.stamp : _bin/version Manifest $(VERSION_SRCS)
-	@./$< $(VERSION_SRCS) >$@
+	@VERSION=$(VERSION) TAG=$(TAG) ./$< $(VERSION_SRCS) >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
 	else                                cp $@ $(@:%.stamp=%) ; echo new    version ; \

@@ -113,9 +113,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
 	}
 public :
-	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                  // if force, emmit record even if recording is diabled
-	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                  // .
-	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                  // .
+	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                         // if force, emmit record even if recording is diabled
+	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                         // .
+	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                         // .
 	// for modifying accesses :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
 	// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
@@ -126,28 +126,26 @@ public :
 	//
 	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force=false ) const {
 		using Jerr = JobExecRpcReq ;
-		if (fl>FileLoc::Dep) return { {}/*confirm*/ , 0 } ;
+		if (fl>FileLoc::Dep ) return { {}/*confirm*/ , 0 } ;
+		if (fl>FileLoc::Repo) jerr.digest.write = No ;
 		// auto-generated id must be different for all accesses (could be random)
-		// if _real_path.pid is 0, ::this_thread::get_id() gives a good id, else we are ptracing, tid is mostly constant but, at least per thread, dates are different
-		static_assert(sizeof(::thread::id)<=sizeof(Jerr::Id)) ;                                                                  // else we have to think about it
-		bool         need_id = !jerr.id && jerr.digest.write==Maybe ;
-		Time::Pdate  now     ;
-		::thread::id tid     = ::this_thread::get_id()              ;
-		Jerr::Id     id      = 0                                    ;
-		if (::endian::native==::endian::little) ::memcpy(reinterpret_cast<char*>(&id)+sizeof(id)-sizeof(tid),&tid,sizeof(tid)) ; // copy tid in msb of id for better merging with date in ns
-		else                                    ::memcpy(                        &id                        ,&tid,sizeof(tid)) ; // .
-		if ( !jerr.date || (need_id&&_real_path.pid) ) now  = New       ;                                                        // used for date and id
-		if (                need_id&&_real_path.pid  ) id  += now.val() ;
+		// if _real_path.pid is 0, ::this_thread::get_id() gives a good id, else we are ptracing, tid is mostly constant but dates are different
+		static_assert(sizeof(::thread::id)<=sizeof(Jerr::Id)) ;                                                                         // else we have to think about it
+		Time::Pdate now     ;
+		Jerr::Id    id      = jerr.id                         ;
+		bool        need_id = !id && jerr.digest.write==Maybe ;
+		if      ( need_id && !_real_path.pid )               ::memcpy( &id , &ref(::this_thread::get_id()) , sizeof(::thread::id) ) ;
+		if      ( need_id &&  _real_path.pid ) { now = New ; id = now.val() ;                                                         }
+		else if ( !jerr.date                 )   now = New ;                                                                            // used for date
 		//
-		/**/                                            jerr.proc         = JobExecProc::Access          ;
-		if ( !jerr.date                               ) jerr.date         = now                          ;
-		if ( need_id                                  ) jerr.id           = id                           ;
-		if ( !jerr.file_info && +jerr.digest.accesses ) jerr.file_info    = {s_repo_root_fd(),jerr.file} ;
-		if (                    fl>FileLoc::Repo      ) jerr.digest.write = No                           ;
+		/**/                                            jerr.proc      = JobExecProc::Access          ;
+		if ( !jerr.date                               ) jerr.date      = now                          ;
+		if ( need_id                                  ) jerr.id        = id                           ;
+		if ( !jerr.file_info && +jerr.digest.accesses ) jerr.file_info = {s_repo_root_fd(),jerr.file} ;
 		//
 		Sent sent = report_cached( ::move(jerr) , force ) ;
-		if (jerr.digest.write!=Maybe) return { {}  /*confirm*/ , 0/*id*/ } ;
-		else                          return { sent/*confirm*/ , id      } ;
+		if (jerr.digest.write==Maybe) return { sent/*confirm*/ , id      } ;
+		else                          return { {}  /*confirm*/ , 0/*id*/ } ;
 	}
 	// if f0 is not empty, write is done to f0 rather than to jerr.file
 	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force=false ) const {
@@ -309,8 +307,11 @@ public :
 		void report_update( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
 			JobExecRpcReq                                jerr    { .comment=c , .comment_exts=ces , .digest={.write=Maybe,.accesses=accesses|a} , .id=confirm_id , .date{date} , .file=::move(real) } ;
 			::pair<Sent/*confirm_fd*/,JobExecRpcReq::Id> confirm = r.report_access( file_loc , ::move(jerr) , file_loc0 , ::move(real0) )                                                             ;
-			confirm_fds |= confirm.first  ;
-			confirm_id   = confirm.second ;
+			if (+confirm.first) {
+				confirm_fds |= confirm.first  ;
+				if (confirm_id)   SWEAR(confirm.second==confirm_id , confirm.second,confirm_id,jerr ) ;
+				else            { SWEAR(confirm.second             ,                           jerr ) ; confirm_id = confirm.second ; }
+			}
 		}
 		int operator()( Record& r , int rc ) {
 			for( Sent s : iota(Sent(1),All<Sent>) ) if (confirm_fds[s]) r.report_confirm( rc , {s,confirm_id} ) ;

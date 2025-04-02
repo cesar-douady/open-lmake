@@ -566,7 +566,7 @@ Status Gather::exec_child() {
 								case Proc::Encode         : _send_to_server(fd,::move(jerr)) ;      sync_ = false ; break ;                                // reply is delayed until server reply
 								case Proc::ChkDeps        : delayed_check_deps[fd] = ::move(jerr) ; sync_ = false ; break ;                                // if sync, reply is delayed as well
 								case Proc::Confirm : {
-									trace("confirm",kind,fd,jerr.digest.write) ;
+									trace("confirm",kind,fd,jerr.digest.write,jerr.id) ;
 									Trace trace2 ;
 									auto it = slave_entry.jerrs.find(jerr.id) ; SWEAR(it!=slave_entry.jerrs.end(),jerr.id,slave_entry.jerrs) ;
 									SWEAR(jerr.digest.write!=Maybe) ;                                                                                      // ensure we confirm/infirm
@@ -593,8 +593,8 @@ Status Gather::exec_child() {
 								break ;
 								case Proc::Access :
 									// for read accesses, trying is enough to trigger a dep, so confirm is useless
-									if (jerr.digest.write==Maybe) slave_entry.jerrs[jerr.id].push_back(::move(jerr)) ; // delay until confirmed/infirmed
-									else                          _new_access(fd,::move(jerr))                       ;
+									if (jerr.digest.write==Maybe) { trace("maybe",jerr) ; slave_entry.jerrs[jerr.id].push_back(::move(jerr)) ; } // delay until confirmed/infirmed
+									else                          _new_access(fd,::move(jerr))                                               ;
 								break ;
 								case Proc::Tmp :
 									if (!seen_tmp) {

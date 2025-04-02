@@ -351,8 +351,9 @@ if [ "$SLURM_ROOT" ] ; then
 	SLURM_INC_DIR=$SLURM_ROOT/include
 	SLURM_SO="$(find $SLURM_ROOT -name lib32 -prune -o -name libslurm.so || :)" # exclude 32 bits in case of ...
 	SLURM_SO=${SLURM_SO% *}                                                     # only select first if there is ambiguity
+else
+	SLURM_SO=libslurm.so
 fi
-[ "$SLURM_ROOT" ] || SLURM_SO=libslurm.so
 HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
 #
 [ $HAS_SLURM = 1 ] || echo no slurm support >>$SUM_FILE

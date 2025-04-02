@@ -18,7 +18,7 @@ if __name__!='__main__' :
 	import step as step_mod
 	from   step import step
 
-	if step>=4 :
+	if step>=5 :
 		sys.path.append('/toto')
 
 	def import_step() :
@@ -28,21 +28,28 @@ if __name__!='__main__' :
 		return step_mod.step
 	def get_step() :
 		return step
-	def get_sys_path() :
+	def sourcify() :    # create a conflict with variables internally used by lmake (which manages to avoid such conflicts)
 		return sys.path
 
 
 	class Base(Rule) :
 		cmd = 'echo $STEP'
 
-	class BadTarget(Base) :
-		target  = 'bad_target'
-		environ = { 'STEP' : import_step } # bad, imports are not allowed
+	class BadTarget1(Base) :
+		target  = 'bad_target1{Sfx:}'
+		environ = {
+			'STEP' : import_step # bad : imports are not allowed
+		,	'SFX'  : '{Sfx}'     # ensures environ is dynamic (if constant, it is made static)
+		}
 
 	if step==1 :
 		class BadMakefile(Base) :
 			target  = 'bad_makefile'
-			environ = { 'STEP' : get_step_step } # bad, imports in context makes a bad makefile
+			environ = { 'STEP' : get_step_step } # bad : imports in context makes a bad makefile
+	elif step==2 :
+		class BadTarget2(Base) :
+			target  = 'bad_target2'
+			environ = { 'STEP' : import_step }   # bad : not transformed into static because of disk access
 
 	class OkStep(Base) :
 		target  = 'ok_step'
@@ -50,7 +57,7 @@ if __name__!='__main__' :
 
 	class OkSysPath(Base) :
 		target = 'ok_sys_path'
-		environ = { 'STEP' : get_sys_path } # ok, imports are not allowed
+		environ = { 'STEP' : sourcify } # ok, imports are not allowed
 
 else :
 
@@ -63,12 +70,15 @@ else :
 	ut.lmake( rc=4 , no_ldump=True )         # just reading makefile produces an error
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'bad_target'  , new=1 , early_rerun=1 , failed=1 , rc=1 ) # python reads Lmakefile.py to report error
-	ut.lmake( 'ok_step'     , done=1                                  )
-	ut.lmake( 'ok_sys_path' , done=1                                  )
+	ut.lmake( 'bad_target2' , new=1 , early_rerun=1 , failed=1 , rc=1 , no_ldump=True ) # cannot find step as sys.path only contains external dirs
 
 	print('step=3',file=open('step.py','w'))
-	ut.lmake( 'ok_step' , 'ok_sys_path' , done=1 ) # step changed, sys.path did not
+	ut.lmake( 'bad_target1' , early_rerun=1 , failed=1 , rc=1 )
+	ut.lmake( 'ok_step'     ,                 done  =1        )
+	ut.lmake( 'ok_sys_path' ,                 done  =1        )
 
 	print('step=4',file=open('step.py','w'))
+	ut.lmake( 'ok_step' , 'ok_sys_path' , done=1 ) # step changed, sys.path did not
+
+	print('step=5',file=open('step.py','w'))
 	ut.lmake( 'ok_step' , 'ok_sys_path' , done=2 ) # step and sys.path changed

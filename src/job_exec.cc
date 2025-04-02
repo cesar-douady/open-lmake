@@ -387,25 +387,23 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	return true/*done*/ ;
 }
 
-::string g_to_unlnk ;                                                   // XXX> : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                         // XXX> : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line(::map_ss const& cmd_env) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
-	::vector_s res = ::move(g_start_info.interpreter) ;                 // avoid copying as interpreter is used only here
-	::string   cmd = g_start_info.cmd.first + g_start_info.cmd.second ;
-	if ( g_start_info.use_script || cmd.size()>ArgMax/2 ) {             // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+	::vector_s res = ::move(g_start_info.interpreter) ;                       // avoid copying as interpreter is used only here
+	if ( g_start_info.use_script || g_start_info.cmd.size()>ArgMax/2 ) {      // env+cmd line must not be larger than ARG_MAX, keep some margin for env
 		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-		// correct code :
-		// ::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;
+	//	::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ; // correct code
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
-		AcFd( dir_guard(cmd_file) , Fd::Write ).write(cmd) ;
+		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd) ;
 		res.reserve(res.size()+1) ;
-		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                // provide absolute script so as to support cwd
+		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                      // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
-		if (!mk_simple( res , cmd , cmd_env )) {                        // res is set if simple
+		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                 // res is set if simple
 			res.reserve(res.size()+2) ;
-			res.push_back("-c") ;
-			res.push_back(cmd ) ;
+			res.push_back("-c"                    ) ;
+			res.push_back(::move(g_start_info.cmd)) ;
 		}
 	}
 	return res ;

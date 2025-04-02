@@ -503,7 +503,7 @@ namespace Engine {
 		if (g_config->console.date_prec!=uint8_t(-1)) msg <<            date.str(g_config->console.date_prec,true/*in_day*/)                             <<' ' ;
 		if (g_config->console.host_len              ) msg <<      widen(SockFd::s_host(host)                                ,g_config->console.host_len) <<' ' ;
 		/**/                                          msg <<      widen(step                                                ,StepSz                    )       ;
-		/**/                                          msg <<' '<< widen(rule_name                                           ,Rule::s_name_sz           )       ;
+		/**/                                          msg <<' '<< widen(rule_name                                           ,Rule::s_rules->name_sz    )       ;
 		if (g_config->console.has_exec_time         ) msg <<' '<< widen((+exec_time?exec_time.short_str():"")               ,6                         )       ;
 		/**/                                          msg <<' '<<       mk_file(job_name)                                                                      ;
 		audit( audit_fd , log_fd , options , c , msg ) ;
@@ -551,8 +551,8 @@ namespace Engine {
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
-		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , widen(pfx,::max(size_t(8)/*dangling*/,Rule::s_name_sz)) , target , lvl ) ;
-		else       audit_info( Color::Warning                            , "..."                                                                  ) ;
+		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , widen(pfx,::max(size_t(8)/*dangling*/,Rule::s_rules->name_sz)) , target , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                         ) ;
 		return !n_err/*overflow*/ ;
 	}
 

@@ -163,6 +163,8 @@ namespace Hash {
 		XXH3_state_t _state ;
 	} ;
 
+	template<class T> concept IsHash = ::is_base_of_v<Xxh,T> ;
+
 	//
 	// implementation
 	//

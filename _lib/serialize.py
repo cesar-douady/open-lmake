@@ -50,7 +50,7 @@ def get_src(*args,no_imports=None,ctx=(),force=False,root=None) :
 		- if root is provided, source filename debug info are reported relative to this directory
 		The return value is a pdict where :
 			- src        : the source text that reproduces args
-			- names      : the set of names found in sets in ctx
+			- names      : the dict of accessed names, value is False if free (found in a set context), True if it has a value and None if no value found
 			- modules    : the modules mentioned in import statements
 			- dbg_info   : a dict mapping generated function names to (module,qualname,file,firstlineno)
 			- may_import : a tuple (if present) of keys among ('static','dyn') showing when imports can be done : when src is executed (static) or defined functions are called (dyn)
@@ -73,7 +73,7 @@ def get_expr(expr,*,no_imports=None,ctx=(),force=False,call_callables=False) :
 		The return value is a pdict where :
 			- expr       : the source text that reproduces expr as an expression when executed in the provided context
 			- glbs       : a source text that reproduces the the necessary context to evaluate args
-			- names      : the set of names found in sets in ctx
+			- names      : the dict of accessed names, value is False if free (found in a set context), True if it has a value and None if no value found
 			- modules    : the modules mentioned in import statements of ctx
 			- dbg_info   : a dict mapping generated function names to (module,qualname,file,firstlineno)
 			- may_import : a tuple (if present) of keys among ('static','dyn') showing when imports can be done : when src is executed (static) or defined functions are called (dyn)
@@ -117,16 +117,15 @@ def _analyze(filename) :
 		file_end_lines[start_lineno] = end_lineno
 
 class Serialize :
-	InSet      = object() # a marker to mean that we have no value as name was found in a set (versus in a dict) in the context list
-	may_import = set()    # default value
 
 	def __init__(self,no_imports,ctx,root=None) :
-		self.seen     = {}
-		self.modules  = {}
-		self.src      = []
-		self.in_sets  = set()
-		self.ctx      = list(ctx)
-		self.dbg_info = {}
+		self.seen       = {}
+		self.origin     = {}
+		self.modules    = {}
+		self.src        = []
+		self.ctx        = tuple(ctx)
+		self.dbg_info   = {}
+		self.may_import = set()
 		if   not root           : self.root_s = root
 		elif root.endswith('/') : self.root_s = root
 		else                    : self.root_s = root+'/'
@@ -175,8 +174,8 @@ class Serialize :
 			modules += '\n'
 		res = pdict(
 			src      = modules + '\n'.join(self.src)
-		,	names    = tuple( k   for k,v     in self.seen.items()     if v is self.InSet )
-		,	modules  = tuple( mod for mod,var in self.modules.values()                    )
+		,	names    = {      k:v[1] for k,v   in self.seen.items()     }
+		,	modules  = tuple( mod    for mod,_ in self.modules.values() )
 		,	dbg_info = self.dbg_info
 		)
 		if self.may_import : res.may_import = tuple(self.may_import)
@@ -206,10 +205,10 @@ class Serialize :
 			try                   : name = val.__name__
 			except AttributeError : pass
 		if name :
-			if name in self.seen :
-				if val==self.seen[name] : return
-				else                    : raise f'name conflict : {name} is both {val} and {self.seen[name]}'
-			self.seen[name] = val
+			if name in self.seen and self.seen[name][1]!=None :
+				if (val,True)==self.seen[name] : return
+				else                           : raise f'name conflict : {name} is both {val} and {self.seen[name][0]}'
+			self.seen[name] = ( val , True )
 		if isinstance(val,types.ModuleType) :
 			self.modules[name] = (val.__name__,None)
 		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and not self.no_imports_proc(val.__module__) and not force :
@@ -235,7 +234,7 @@ class Serialize :
 				self.modules[val.__module__] = (val.__module__,None)
 				return f'{val.__module__}.{val.__qualname__}{sfx}'
 		if isinstance(val,types.FunctionType) :
-			self.func_src(val.__name__,val)
+			self.val_src(val.__name__,val)
 			return f'{val.__name__}{sfx}'
 		if self.has_repr(val) :
 			return repr(val)
@@ -278,14 +277,16 @@ class Serialize :
 		raise ValueError(f'as of this version, dont know how to serialize {val} (consider defining this value within a function)')
 
 	BuiltinExecs = { 'eval' , 'exec' }
-	def gather_ctx(self,name) :
-		for d in self.ctx :
+	def gather_ctx(self,name,func_glbs=None) :
+		if func_glbs!=None : ctx = ( *self.ctx , func_glbs )
+		else               : ctx =    self.ctx
+		for d in ctx :
 			if name not in d : continue
-			try    : val = d[name]
-			except : self.seen[name] = self.InSet
+			try    : val             = d[name]
+			except : self.seen[name] = ( None , False )           # d is in a set, no associated value
 			else   : self.val_src(name,val)
 			return
-		# name may be a builtins or it does not exist, in both case, do nothing and we'll have a NameError exception at runtime if name is accessed and it is not a builtin
+		self.seen[name] = ( None , None )                         # name is not found (let go, there will be a runtime error if it is accessed)
 		if name in self.BuiltinExecs : self.may_import.add('dyn') # we may execute arbitrary code which may import
 
 	def get_first_line(self,name,func,first_line) :
@@ -314,9 +315,7 @@ class Serialize :
 		if first_line_no0>0 and file_src[first_line_no0-1].strip().startswith('@') : raise ValueError(f'cannot handle decorated {name}')
 		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'
 		#
-		if func.__globals__ not in self.ctx : self.ctx.append(func.__globals__)
-		for glb_var in self.get_glbs(code) :
-			self.gather_ctx(glb_var)
+		for glb_var in self.get_glbs(code) : self.gather_ctx( glb_var , func.__globals__ )
 		#
 		self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
 		self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines

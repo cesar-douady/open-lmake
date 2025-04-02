@@ -105,6 +105,29 @@ def run_cc(*cmd_line,**kwds) :
 	,	check=True
 	)
 
+try :
+	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1) # check if we have the replace method
+	def _sourcify(func,module,qualname,filename,firstlineno) :
+		func.__code__     = func.__code__.replace( co_filename=filename , co_firstlineno=firstlineno )
+		func.__module__   = module
+		func.__qualname__ = qualname
+except :                                                            # else revert to heavy old-fashioned code
+	def _sourcify(func,module,qualname,filename,firstlineno) :
+		c    = func.__code__
+		args = [c.co_argcount]
+		if hasattr(c,'co_posonlyargcount') : args.append(c.co_posonlyargcount)
+		if hasattr(c,'co_kwonlyargcount' ) : args.append(c.co_kwonlyargcount )
+		args += (
+			c.co_nlocals , c.co_stacksize , c.co_flags , c.co_code , c.co_consts , c.co_names , c.co_varnames
+		,	filename
+		,	c.co_name
+		,	firstlineno
+		,	c.co_lnotab,c.co_freevars,c.co_cellvars
+		)
+		func.__code__     = c.__class__(*args)
+		func.__module__   = module
+		func.__qualname__ = qualname
+
 def _find_cc_ld_library_path(cc) :
 	'''
 		_find_cc_ld_library_path(my_compiler) returns and adequate content to put in LD_LIBRARY_PATH for programs compiled with my_compiler.

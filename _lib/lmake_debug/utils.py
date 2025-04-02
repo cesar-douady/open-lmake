@@ -147,7 +147,6 @@ class Job :
 	def gen_shell_cmd( self , trace=False , enter=False , **kwds ) :
 		res = ''
 		if True            : res += self.gen_shebang()
-		if True            : res += add_nl(self.preamble)
 		if trace and enter : res += '(\n'
 		if trace           : res += 'set -x\n'
 		if True            : res += add_nl(self.cmd)
@@ -163,13 +162,11 @@ class Job :
 		return res
 
 	def gen_py_cmd( self , runner=None , **kwds ) :
-		cmd = no_nl(self.cmd)
-		if not runner :
-			cmd = cmd+'\n'
-		else :
+		preamble,cmd = self.cmd.rsplit('\n',1)
+		if runner :
 			assert cmd[-1]==')'                                                     # cmd must be of the form func(args,...) with 0 or more args
 			func,args = cmd.split('(',1)
-			args = args[:-1]
+			args      = args[:-1]
 			func_args = func
 			if args : func_args = f'{func},{args}'                                  # generate func,args,...
 			else    : func_args = func                                              # handle no args case
@@ -182,7 +179,7 @@ class Job :
 			''')
 		return (
 			self.gen_shebang()
-		+	add_nl(self.preamble)
+		+	preamble+'\n'
 		+	cmd
 		)
 

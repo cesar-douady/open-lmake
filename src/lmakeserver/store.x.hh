@@ -191,7 +191,6 @@ namespace Engine::Persistent {
 		// static data
 	public :
 		static MatchGen                            s_match_gen ;
-		static size_t                              s_name_sz   ;
 		static StaticUniqPtr<Rules,MutexLvl::None> s_rules     ;          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 		// cxtors & casts
 		using Base::Base ;

@@ -16,11 +16,16 @@ items (also used in XXX comments) :
 
 * exceptionnally, server blocks
 	- seems to be while taking GIL
+* job_exec crash in case :
+	- lmake foo on host1
+	- then lmake foo on host2
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* manage case where local job spawn remote execution through ssh
+	- correctly done if under slurm, but not locally because address is loop-back
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary

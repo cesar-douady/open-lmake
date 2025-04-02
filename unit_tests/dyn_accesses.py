@@ -45,11 +45,11 @@ else :
 
 	import ut
 
-	print(1,file=open('one'  ,'w'))
-	print(2,file=open('two'  ,'w'))
+	print(1,file=open('one','w'))
+	print(2,file=open('two','w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('deps','resources','env',new=1,deps_not_avail=1,done=2,rc=1) # resources can have dynamic deps
+	ut.lmake( 'deps','resources','env' , new=1 , deps_not_avail=1 , done=2 , rc=1 ) # resources can have dynamic deps
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake('deps','resources','env',new=1,done=3)
+	ut.lmake( 'deps','resources','env' , new=1 , done=3 )

@@ -213,11 +213,12 @@ namespace Engine {
 		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
 	}
 
-	DynEntry::DynEntry( Bool3 is_python , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile_ ) {
+	DynEntry::DynEntry( RulesBase const& rules , Bool3 is_python , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile_ ) {
 		switch (is_python) {
 			case Yes :
 				kind = Kind::PythonCmd ;
-				if (py_src.contains("expr"    )) code_str = ::string(py_src["expr"    ].as_a<Str >()) ;
+				if (py_src.contains("glbs"    )) glbs_str = ::string(py_src["glbs"    ].as_a<Str >()) ;
+				/**/                             code_str = ::string(py_src["expr"    ].as_a<Str >()) ;
 				if (py_src.contains("dbg_info")) dbg_info = ::string(py_src["dbg_info"].as_a<Str >()) ;
 			break ;
 			case No :
@@ -241,7 +242,7 @@ namespace Engine {
 					for( Object const& py_k : py_src["may_import"].as_a<Sequence>() )
 						may_import |= mk_enum<DynImport>(py_k.as_a<Str>()) ;
 				kind = Kind::Dyn ;
-				if (compile_) compile() ;
+				if (compile_) compile(rules) ;
 			break ;
 		DF}
 		if (py_src.contains("names")) {
@@ -254,22 +255,55 @@ namespace Engine {
 		}
 	}
 
-	void DynEntry::compile() {
-		if (kind!=Kind::Dyn) return ; //!          for_eval              avoids problems at finalization
-		try { code      = { code_str               , true  } ; code     .boost() ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
-		try { glbs_code = { glbs_str+'\n'+dbg_info , false } ; glbs_code.boost() ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
-		try { glbs      = glbs_code->run()                   ; glbs     .boost() ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e,1) ; }
+	void DynEntry::compile( RulesBase const& rules ) {
+		if (kind!=Kind::Dyn) return ;
+		// keep str info to allow decompilation    for_eval
+		try { code      = { code_str               , true  }                    ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
+		try { glbs_code = { glbs_str+'\n'+dbg_info , false }                    ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
+		try { glbs      = glbs_code->run( nullptr/*glbs*/ , rules.py_sys_path ) ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e,1) ; }
 		kind = Kind::CompiledGlbs ;
 	}
+	void DynEntry::decompile() {
+		SWEAR(kind==Kind::CompiledGlbs) ;
+		kind      = Kind::Dyn ;
+		code      = {} ;
+		glbs_code = {} ;
+		glbs      = {} ;
+	}
 
-	DynBase::DynBase( RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) {
-		DynEntry de { is_python , py_src , var_idxs , false/*compile*/ } ;
-		if (!de) return ;
+	DynBase::DynBase( Ptr<>* py_update , RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) {
+		Ptr<> cmd_update ;
+		if (is_python!=Maybe) {
+			SWEAR( !py_update , is_python ) ;                                                             // no report for Cmd as static info is stored in DynEntry
+			py_update = &cmd_update ;
+		}
+		DynEntry de { rules , is_python , py_src , var_idxs , false/*compile*/ } ;
+		if ( de.kind==DynKind::Dyn && py_update && !de.ctx ) {                                            // dynamic value depends on nothing, we can make it static
+			SWEAR(is_python!=Yes) ;                                                                       // python cmd cannot be dynamic
+			de.compile(rules) ;
+			::vmap_s<DepDigest> deps ;
+			{	AutodepLock lock { &deps } ;
+				try                       { *py_update = de.code->eval( de.glbs , rules.py_sys_path ) ; } // tell caller what to do in py_update
+				catch (::string const& e) { if (!deps) throw ;                                          } // if we do disk accesses, dont care about errors, we are going to decompile anyway
+			}
+			if (+deps) {
+				de.decompile() ;                                                                          // if doing disk accesses, we must record deps and we cannot precompile
+			} else {
+				de = {} ;                                                                                 // synthetize a static entry
+				if (is_python!=Maybe) {                                                                   // unless for ShellCmd, there is no dynamic entry at all
+					de.kind     = DynKind::ShellCmd                   ;
+					de.code_str = ::string((*py_update)->as_a<Str>()) ;                                   // note that f-string is not interpolated as this is already done during dynamic eval
+				}
+			}
+		}
+		if (!de) {                                                                                        // value is static
+			return ;
+		}
 		auto it_inserted = rules.dyn_idx_tab.try_emplace(de,0) ;
 		if (it_inserted.second) {
-			de.compile() ;
+			de.compile(rules) ;
 			rules.dyn_vec.emplace_back(::move(de)) ;
-			it_inserted.first->second = rules.dyn_vec.size() ; // dyn_idx 0 is used to mean non-dynamic
+			it_inserted.first->second = rules.dyn_vec.size() ;                                            // dyn_idx 0 is used to mean non-dynamic
 		}
 		dyn_idx = it_inserted.first->second ;
 	}
@@ -493,8 +527,8 @@ namespace Engine {
 		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 		//
 		if (is_dyn()) {
-			Gil         gil    ;
-			Ptr<Object> py_obj = _eval_code(match) ;
+			Gil gil    ;
+			Ptr py_obj = _eval_code(match) ;
 			//
 			::map_s<VarIdx> dep_idxs ;
 			for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
@@ -555,21 +589,22 @@ namespace Engine {
 		return res ;
 	}
 
-	pair_ss/*script,call*/ DynCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
-		Rule r = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+	string DynCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& start_cmd_attrs ) const {
+		Rule     r   = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+		::string res ;
 		if (!r->is_python) {
-			::string cmd_ ;
 			if (!is_dyn()) {
-				cmd_ = parse_fstr(cmd(),match,rsrcs) ;
+				res = parse_fstr( entry().code_str , match , rsrcs ) ;
 			} else {
-				Gil         gil    ;
-				Ptr<Object> py_obj = _eval_code( match , rsrcs , deps ) ;
+				Gil gil    ;
+				Ptr py_obj = _eval_code( match , rsrcs , deps ) ;
 				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
-				Attrs::acquire( cmd_ , &py_obj->as_a<Str>() ) ;
+				Attrs::acquire( res , &py_obj->as_a<Str>() ) ;
 			}
-			return {{}/*preamble*/,::move(cmd_)} ;
 		} else {
-			::string res ;
+			res << "lmake_root = " << mk_py_str(no_slash(start_cmd_attrs.job_space.lmake_view_s|*g_lmake_root_s)) <<'\n' ;
+			res << "repo_root  = " << mk_py_str(no_slash(start_cmd_attrs.job_space.repo_view_s |*g_repo_root_s )) <<'\n' ;
+			res << '#'                                                                                            <<'\n' ;
 			eval_ctx( match , rsrcs
 			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
 					res += r->gen_py_line( match , vc , i , key , val ) ;
@@ -585,9 +620,9 @@ namespace Engine {
 					res += "}\n" ;
 				}
 			) ;
-			res <<set_nl<< cmd() <<set_nl<< entry().dbg_info ;
-			return {res/*preamble*/,"cmd()"} ;
+			res <<"#\n"<< entry().glbs_str <<"#\n"<< entry().dbg_info <<"#\n"<< entry().code_str ;
 		}
+		return res ;
 	}
 
 	::string& operator+=( ::string& os , DbgEntry const& de ) {
@@ -927,7 +962,6 @@ namespace Engine {
 			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
 			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { rules , dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
 			//
-			//
 			for( VarIdx mi : iota(n_static_targets) ) {
 				if (matches[mi].first!="<stdout>") continue ;
 				stdout_idx = mi ;
@@ -1232,8 +1266,8 @@ namespace Engine {
 		if (!d.is_dyn()) return {} ;
 		::string res ;
 		/**/                         res <<"dynamic "<< T::Msg <<" :\n" ;
-		if (+d.entry().ctx       ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.entry().ctx) ) res << ' '<<k ; res <<'\n' ; }
-		if (+d.entry().may_import) { res << "\t<sys.path> :" ; for( ::string const& d : Rule::s_rules->sys_path  ) res <<' '<< d ; res <<'\n' ; }
+		if (+d.entry().ctx       ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.entry().ctx)    ) res << ' '<<k ; res <<'\n' ; }
+		if (+d.entry().may_import) { res << "\t<sys.path> :" ; for( Object   const& d : *Rule::s_rules->py_sys_path ) res <<' '<< ::string(d.as_a<Str>()) ; res <<'\n' ; }
 		if (+d.entry().glbs_str  )   res << "\t<globals> :\n" << ensure_nl(indent(ensure_nl(d.entry().glbs_str)+d.entry().dbg_info,2)) ;
 		if (+d.entry().code_str  )   res << "\t<code> :\n"    << ensure_nl(indent(          d.entry().code_str                    ,2)) ;
 		return res ;
@@ -1245,7 +1279,6 @@ namespace Engine {
 		::string  job_name_   = job_name ;
 		::string  interpreter ;
 		::string  kill_sigs   ;
-		::string  cmd_        ;
 		//
 		{	title = full_name() + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
 			for( auto const& [k,me] : matches ) if (job_name_==me.pattern) { job_name_ = "<targets."+k+'>' ; break ; }
@@ -1263,7 +1296,6 @@ namespace Engine {
 					if (seen.insert(sig).second) kill_sigs << '('<<::strsignal(sig)<<')' ;
 				}
 			}
-			if (+cmd.cmd()) cmd_ = is_python ? ensure_nl(cmd.cmd())+cmd.entry().dbg_info : _pretty_fstr(cmd.cmd()) ;
 		}
 		//
 		// first simple static attrs
@@ -1316,8 +1348,9 @@ namespace Engine {
 			res << indent( _pretty_dyn(cmd                   ) , 1 ) ;
 		}
 		// and finally the cmd
-		if (!is_special()) {
-			if (+cmd.cmd()) res << indent("cmd :\n",1) << indent(ensure_nl(cmd_),2) ;
+		if ( !is_special() && cmd.entry().kind<DynKind::Dyn ) {
+			if (is_python) res << indent("cmd :\n",1) << indent(ensure_nl(cmd.entry().glbs_str+cmd.entry().dbg_info+cmd.entry().code_str) ,2) ;
+			else           res << indent("cmd :\n",1) << indent(ensure_nl(_pretty_fstr(                             cmd.entry().code_str)),2) ;
 		}
 		return res ;
 	}
@@ -1338,7 +1371,6 @@ namespace Engine {
 		return res ;
 	}
 
-	// START_OF_VERSIONING
 	// crc->match is an id of the rule : a new rule is a replacement of an old rule if it has the same crc->match
 	// also, 2 rules matching identically is forbidden : the idea is that one is useless
 	// this is not strictly true, though : you could imagine a rule generating a* from b, another generating a* from b but with disjoint sets of a*
@@ -1348,6 +1380,7 @@ namespace Engine {
 		if (!is_special()) SWEAR(+rules) ;
 		Hash::Xxh h ;                                                                            // each crc continues after the previous one, so they are standalone
 		//
+		// START_OF_VERSIONING
 		::vmap_s<bool> targets ;
 		for( auto const& [k,me] : matches )
 			if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
@@ -1381,8 +1414,8 @@ namespace Engine {
 			//
 			crc = { match , cmd , rsrcs } ;
 		}
+		// END_OF_VERSIONING
 	}
-	// END_OF_VERSIONING
 
 	//
 	// RuleCrcData

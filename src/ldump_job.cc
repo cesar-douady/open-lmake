@@ -65,12 +65,12 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "tmp_view_s    : "  << jsrr.job_space.tmp_view_s    <<'\n' ;
 	g_out << "use_script    : "  << jsrr.use_script              <<'\n' ;
 	//
-	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )                         ;
-	g_out << "env :\n"            ; _print_map  (jsrr.env            )                         ;
-	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )                         ;
-	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )                         ;
-	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)                         ;
-	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jsrr.cmd.first+jsrr.cmd.second)) ;
+	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )   ;
+	g_out << "env :\n"            ; _print_map  (jsrr.env            )   ;
+	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )   ;
+	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )   ;
+	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)   ;
+	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jsrr.cmd)) ;
 }
 
 void print_end(JobEndRpcReq const& jerr) {

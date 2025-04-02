@@ -216,19 +216,25 @@ namespace Engine {
 	// Rules & Sources
 	//
 
-	RulesBase::RulesBase(Object const& py_o) : RulesBase{New} {
-		Dict const& py_d = py_o.as_a<Dict>() ;
-		for( Object const& py_s    : py_d["sys_path"].as_a<Sequence>() ) sys_path.emplace_back(        py_s   .as_a<Str >() ) ;
-		for( Object const& py_rule : py_d["rules"   ].as_a<Sequence>() )          emplace_back( self , py_rule.as_a<Dict>() ) ;
+	RulesBase::RulesBase(Dict const& py_d) : RulesBase{New} {
+		py_sys_path = &py_d["sys_path"].as_a<Sequence>() ;
+		if (!py_sys_path->is_a<Tuple>()) {                                                                                                  // convert to tuple if necessary, so as to be sure ...
+			Gil gil ;
+			Ptr<Tuple> py_t { py_sys_path->size() } ; for( size_t i : iota(py_sys_path->size()) ) py_t->set_item( i , (*py_sys_path)[i] ) ; // ... it is frozen and to stabilize crc
+			py_sys_path = ::move(py_t) ;
+		}
+		sys_path_crc = Xxh(::string(*py_sys_path->str())).digest() ;
+		for( Object const& py_rule : py_d["rules"].as_a<Sequence>() ) emplace_back( self , py_rule.as_a<Dict>() ) ;
 	}
 
 	void RulesBase::compile() {
-		Gil gil ;
 		for( RuleData& rd : self ) rd.compile() ; // for cmd and patterns
+		name_sz = Rule::NameSz ;
+		for( RuleData const& rd : self ) name_sz = ::max( name_sz , rd.name.size() ) ;
 	}
 
-	Sources::Sources(Py::Object const& py_o) {
-			for( Object const& py_src  : py_o.as_a<Sequence>() ) emplace_back(py_src.as_a<Str>()) ;
+	Sources::Sources(PyType const& py_srcs) {
+			for( Object const& py_src  : py_srcs ) emplace_back(py_src.as_a<Str>()) ;
 	}
 
 }

@@ -39,7 +39,7 @@ static ::vmap_s<JobSpace::ViewDescr> _mk_views(::string const& views) {
 	::vmap_s<JobSpace::ViewDescr> res ;
 	Gil                           gil ;
 	if (+views) {
-		Ptr<Object> py_views = py_eval(views) ;                   // hold objet in a Ptr
+		Ptr<> py_views = py_eval(views) ;                         // hold objet in a Ptr
 		for( auto const& [py_k,py_v] : py_views->as_a<Dict>() ) {
 			res.emplace_back( ::string(py_k.as_a<Str>()) , JobSpace::ViewDescr() ) ;
 			JobSpace::ViewDescr& descr = res.back().second ;
@@ -63,7 +63,7 @@ static ::vector_s _mk_src_dirs_s(::string const& src_dirs) {
 	::vector_s res ;
 	Gil        gil ;
 	if (+src_dirs) {
-		Ptr<Object> py_src_dirs = py_eval(src_dirs) ;                    // keep Python object alive during iteration
+		Ptr py_src_dirs = py_eval(src_dirs) ;                            // keep Python object alive during iteration
 		for( Object const&  py_src_dir : py_src_dirs->as_a<Sequence>() )
 			res.push_back(with_slash(py_src_dir.as_a<Str>())) ;
 	}
@@ -76,7 +76,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 	Gil       gil  ;
 	// use an intermediate variable (py_keep_env and py_env) to keep Python object alive during iteration
 	if (+keep_env) {
-		Ptr<Object> py_keep_env = py_eval(keep_env) ;                // hold in Ptr<> while iterating over
+		Ptr py_keep_env = py_eval(keep_env) ;                        // hold in Ptr<> while iterating over
 		for( Object const&  py_k : py_keep_env->as_a<Sequence>() ) {
 			::string k = py_k.as_a<Str>() ;
 			if (has_env(k)) {
@@ -87,7 +87,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 		}
 	}
 	if (+env) {
-		Ptr<Object> py_env = py_eval(env) ;
+		Ptr py_env = py_eval(env) ;
 		for( auto const& [py_k,py_v] : py_env->as_a<Dict>() ) {
 			::string k = py_k.as_a<Str>() ;
 			throw_if( seen.contains(k) ,  "cannot keep ",k," and provide it" ) ;
@@ -194,7 +194,7 @@ int main( int argc , char* argv[] ) {
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
-	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                           // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                        // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) deps += "  "  ;
@@ -208,7 +208,7 @@ int main( int argc , char* argv[] ) {
 		prev_dep        = dep        ;
 	} ;
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
-	/**/                                                                   send(                         ) ;    // send last
+	/**/                                                                   send(                         ) ; // send last
 	//
 	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(deps) ;
 	else                              Fd::Stdout                                     .write(deps) ;

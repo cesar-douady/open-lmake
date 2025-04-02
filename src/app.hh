@@ -9,6 +9,7 @@
 #include "lib.hh"
 #include "time.hh"
 #include "trace.hh"
+#include "version.hh"
 
 extern StaticUniqPtr<::string> g_startup_dir_s ; // relative to g_repo_root_s, includes final /,  dir from which command was launched
 extern StaticUniqPtr<::string> g_repo_root_s   ; // absolute                 , root of repository
@@ -87,6 +88,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	//
 	::string err_msg = ensure_nl(msg) ;
 	/**/                 err_msg << Disk::base_name(get_exe()) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	/**/                 err_msg << "version " << Version[0]<<'.'<<Version[1] <<" ("<< VersionMrkr <<")\n"                                                          ;
 	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                        ;
 	/**/                 err_msg << "-h or --help : print this help\n"                                                                                              ;
 	//
