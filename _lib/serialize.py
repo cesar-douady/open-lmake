@@ -213,7 +213,9 @@ class Serialize :
 				else                    : raise f'name conflict : {name} is both {val} and {self.seen[name]}'
 			self.seen[name] = val
 		if isinstance(val,types.ModuleType) :
-			self.modules[name] = (None,val.__name__)
+			assert val.__name__.startswith(val.__package__)
+			if '.' in val.__name__ : self.modules[name] = tuple(val.__name__.rsplit('.',1))
+			else                   : self.modules[name] = (None,val.__name__)
 		elif hasattr(val,'__module__') and hasattr(val,'__qualname__') and not self.no_imports_proc(val.__module__) and not force :
 			self.modules[name] = (val.__module__,val.__qualname__)
 		elif isinstance(val,types.FunctionType) :
