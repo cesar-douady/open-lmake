@@ -383,6 +383,7 @@ namespace Engine {
 		}
 		if (!dir()) goto NotDone ;
 		// step 2 : handle what can be done without making dir
+		dir()->set_buildable() ;
 		switch (dir()->buildable) {
 			case Buildable::DynAnti :
 			case Buildable::Anti    :
