@@ -24,6 +24,8 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* keep old incremental targets when they are not accessed
+	- as they are not unlinked
 * manage case where local job spawn remote execution through ssh
 	- correctly done if under slurm, but not locally because address is loop-back
 ! generate meaningful messages in case of I/O error such as disk full
@@ -68,15 +70,6 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* cleanup :
-	- set up a lmake.job_support module :
-		- fix_import
-		- sourcify
-		- use it as it is imported only once
-		- better than replicating in each rule
-	- seen relative path for external modules
-	- PyRule touches sys.path !
-	- x = cmd0() when cmd1 has args with default values
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
