@@ -180,6 +180,7 @@ The slurm backend connects to a slurm daemon to schedule jobs, which allows :
 The configuration is composed of :
 
 - `config` : The slurm configuration file to use to contact the slurm controller. By default, the slurm library auto detects its configuration.
+- `lib_slurm` : The slurm dynamic library. By default, `open-lmake` looks for `libslurm.so` in the default `$LD_LIBRARY_PATH` (as compiled in).
 - `n_max_queued_jobs` : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
   This is done to decrease the load of the slurm daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
   (helped in this by the limited precision on CPU, memory and temporary disk space requirements).

@@ -345,14 +345,10 @@ HAS_SGE=$(ok type -p qsub)
 [ $HAS_SGE = 1 ] || echo no sge support >>$SUM_FILE
 
 #
-# SLURM (HAS_SLURM+SLURM_INC_DIR+SLURM_SO)
+# SLURM (HAS_SLURM+SLURM_INC_DIR)
 #
 if [ "$SLURM_ROOT" ] ; then
 	SLURM_INC_DIR=$SLURM_ROOT/include
-	SLURM_SO="$(find $SLURM_ROOT -name lib32 -prune -o -name libslurm.so || :)" # exclude 32 bits in case of ...
-	SLURM_SO=${SLURM_SO% *}                                                     # only select first if there is ambiguity
-else
-	SLURM_SO=libslurm.so
 fi
 HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
 #
@@ -518,7 +514,6 @@ cat >$H_FILE <<-EOF
 	#define OS_ID                       "$OS_ID"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"
-	#define SLURM_SO                    "$SLURM_SO"
 	#define STACK_GROWS_DOWNWARD        $STACK_GROWS_DOWNWARD
 	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
 	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"

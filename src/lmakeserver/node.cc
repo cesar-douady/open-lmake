@@ -384,13 +384,18 @@ namespace Engine {
 		}
 		if (!dir()) goto NotDone ;
 		// step 2 : handle what can be done without making dir
+		//vvvvvvvvvvvvvvvvvvvvvvv
+		dir()->set_buildable(req) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^
 		switch (dir()->buildable) {
 			case Buildable::DynAnti :
 			case Buildable::Anti    :
 			case Buildable::No      :                            goto NotDone ;
 			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ;                         // status is overwritten Src if node actually exists
+			case Buildable::Unknown :                            FAIL()       ;
 			default                 :                            break        ;
 		}
+		//
 		if ( ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,NodeGoal::Status) ) {               // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
 				ReqInfo::WaitInc sav_n_wait{ri} ;                                                       // appear waiting in case of recursion loop (loop will be caught because of no job on going)

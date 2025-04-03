@@ -102,13 +102,13 @@ namespace Backends::Slurm {
 
 	Mutex<MutexLvl::Slurm> _slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
-	void slurm_init(const char* config_file) ;
+	void slurm_init( ::string const& lib_slurm , ::string const& config_file ) ;
 
-	RsrcsData                 parse_args        (::string const& args    ) ;
-	void                      slurm_cancel      (SlurmId         slurm_id) ;
-	::pair_s<Bool3/*job_ok*/> slurm_job_state   (SlurmId         slurm_id) ;
-	::string                  read_stderr       (Job                     ) ;
-	Daemon                    slurm_sense_daemon(                        ) ;
+	RsrcsData                 parse_args        (::string const& args       ) ;
+	void                      slurm_cancel      (SlurmId         slurm_id   ) ;
+	::pair_s<Bool3/*job_ok*/> slurm_job_state   (SlurmId         slurm_id   ) ;
+	::string                  read_stderr       (Job                        ) ;
+	Daemon                    slurm_sense_daemon(::string const& config_file) ;
 	//
 	SlurmId slurm_spawn_job(
 		::stop_token
@@ -163,12 +163,12 @@ namespace Backends::Slurm {
 		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
 			Trace trace(BeChnl,"Slurm::config",STR(dyn),dct) ;
 			//
-			const char* config_file = nullptr ;
 			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'c' : if(k=="config"           ) { config_file       = v.c_str()                ; continue ; } break ;
+						case 'c' : if(k=="config"           ) { config_file       =                       v  ; continue ; } break ;
+						case 'l' : if(k=="lib_slurm"        ) { lib_slurm         =                       v  ; continue ; } break ;
 						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
 						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
 						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
@@ -177,8 +177,8 @@ namespace Backends::Slurm {
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
 			if (!dyn) {
-				slurm_init(config_file) ;
-				daemon = slurm_sense_daemon() ;
+				slurm_init( lib_slurm , config_file ) ;
+				daemon = slurm_sense_daemon(config_file) ;
 				_s_slurm_cancel_thread.open('K',slurm_cancel) ;
 			}
 			//
@@ -308,12 +308,14 @@ namespace Backends::Slurm {
 		}
 
 		// data
-		SpawnedMap mutable  spawned_rsrcs     ;         // number of spawned jobs queued in slurm queue
-		::vector<RsrcsData> req_forces        ;         // indexed by req, resources forced by req
-		uint32_t            n_max_queued_jobs = 10    ; // by default, limit to 10 the number of jobs waiting for a given set of resources
-		bool                use_nice          = false ;
-		::string            repo_key          ;         // a short identifier of the repository
-		Daemon              daemon            ;         // info sensed from slurm daemon
+		SpawnedMap mutable  spawned_rsrcs     ;                 // number of spawned jobs queued in slurm queue
+		::vector<RsrcsData> req_forces        ;                 // indexed by req, resources forced by req
+		::string            config_file       ;
+		::string            lib_slurm         = "libslurm.so" ;
+		uint32_t            n_max_queued_jobs = 10            ; // by default, limit to 10 the number of jobs waiting for a given set of resources
+		bool                use_nice          = false         ;
+		::string            repo_key          ;                 // a short identifier of the repository
+		Daemon              daemon            ;                 // info sensed from slurm daemon
 	private :
 		::unique_ptr<const char*[]> _slurm_env     ;
 		::vector_s                  _slurm_env_vec ;
@@ -447,40 +449,42 @@ namespace Backends::Slurm {
 		decltype(::slurm_submit_batch_job                 )* submit_batch_job                  = nullptr/*garbage*/ ;
 	}
 
-	static constexpr char LibSlurm[] = SLURM_SO ;
 	template<class T> void _load_func( void* handler , T*& dst , const char* name ) {
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
-		if (!dst) throw "cannot find "s+name+" in "+LibSlurm ;
+		if (!dst) throw "cannot find "s+name ;
 	}
 	static void _exit1() { ::_exit(1) ; }
-	void slurm_init(const char* config_file) {
-		Trace trace(BeChnl,"slurm_init",LibSlurm,config_file?config_file:"<no config_file>") ;
-		void* handler = ::dlopen(LibSlurm,RTLD_NOW|RTLD_GLOBAL) ;
-		if (!handler) throw "cannot find "s+LibSlurm ;
-		//
-		_load_func( handler , SlurmApi::free_ctl_conf                     , "slurm_free_ctl_conf"                     ) ;
-		_load_func( handler , SlurmApi::free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
-		_load_func( handler , SlurmApi::free_submit_response_response_msg , "slurm_free_submit_response_response_msg" ) ;
-		_load_func( handler , SlurmApi::init                              , "slurm_init"                              ) ;
-		_load_func( handler , SlurmApi::init_job_desc_msg                 , "slurm_init_job_desc_msg"                 ) ;
-		_load_func( handler , SlurmApi::kill_job                          , "slurm_kill_job"                          ) ;
-		_load_func( handler , SlurmApi::load_ctl_conf                     , "slurm_load_ctl_conf"                     ) ;
-		_load_func( handler , SlurmApi::list_append                       , "slurm_list_append"                       ) ;
-		_load_func( handler , SlurmApi::list_create                       , "slurm_list_create"                       ) ;
-		_load_func( handler , SlurmApi::list_destroy                      , "slurm_list_destroy"                      ) ;
-		_load_func( handler , SlurmApi::load_job                          , "slurm_load_job"                          ) ;
-		_load_func( handler , SlurmApi::strerror                          , "slurm_strerror"                          ) ;
-		_load_func( handler , SlurmApi::submit_batch_het_job              , "slurm_submit_batch_het_job"              ) ;
-		_load_func( handler , SlurmApi::submit_batch_job                  , "slurm_submit_batch_job"                  ) ;
-		//
+	void slurm_init( ::string const& lib_slurm , ::string const& config_file ) {
+		Trace trace(BeChnl,"slurm_init",lib_slurm,config_file) ;
+		void* handler = ::dlopen(lib_slurm.c_str(),RTLD_NOW|RTLD_GLOBAL) ;
+		if (!handler) throw "cannot find "s+lib_slurm ;
+		try {
+			_load_func( handler , SlurmApi::free_ctl_conf                     , "slurm_free_ctl_conf"                     ) ;
+			_load_func( handler , SlurmApi::free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
+			_load_func( handler , SlurmApi::free_submit_response_response_msg , "slurm_free_submit_response_response_msg" ) ;
+			_load_func( handler , SlurmApi::init                              , "slurm_init"                              ) ;
+			_load_func( handler , SlurmApi::init_job_desc_msg                 , "slurm_init_job_desc_msg"                 ) ;
+			_load_func( handler , SlurmApi::kill_job                          , "slurm_kill_job"                          ) ;
+			_load_func( handler , SlurmApi::load_ctl_conf                     , "slurm_load_ctl_conf"                     ) ;
+			_load_func( handler , SlurmApi::list_append                       , "slurm_list_append"                       ) ;
+			_load_func( handler , SlurmApi::list_create                       , "slurm_list_create"                       ) ;
+			_load_func( handler , SlurmApi::list_destroy                      , "slurm_list_destroy"                      ) ;
+			_load_func( handler , SlurmApi::load_job                          , "slurm_load_job"                          ) ;
+			_load_func( handler , SlurmApi::strerror                          , "slurm_strerror"                          ) ;
+			_load_func( handler , SlurmApi::submit_batch_het_job              , "slurm_submit_batch_het_job"              ) ;
+			_load_func( handler , SlurmApi::submit_batch_job                  , "slurm_submit_batch_job"                  ) ;
+		} catch (::string const& e) {
+			throw e+" in "+lib_slurm ;
+		}
 		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
 		// so the idea here is to fork a process to probe SlurmApi::init
+		const char* cf = +config_file ? config_file.c_str() : nullptr ;
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
 			::atexit(_exit1) ;                                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
 			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                      // this is just a probe, we want nothing on stderr
 			::dup2(dev_null_fd,2) ;                                           // so redirect to /dev/null
-			SlurmApi::init(config_file) ;                                     // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
+			SlurmApi::init(cf) ;                                              // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
 			::_exit(0) ;                                                      // if we are here, everything went smoothly
 		} else {
 			// in parent
@@ -488,7 +492,7 @@ namespace Backends::Slurm {
 			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                      // gather status to know if we were able to call SlurmApi::init
 			if ( rc<=0 || !wstatus_ok(wstatus) ) throw "cannot init slurm"s ; // no, report error
 		}
-		SlurmApi::init(config_file) ;                                         // this is now safe as we have already probed it
+		SlurmApi::init(cf) ;                                                  // this should be safe now that we have checked it works in a child
 		//
 		trace("done") ;
 	}
@@ -777,13 +781,15 @@ namespace Backends::Slurm {
 		throw "cannot connect to slurm daemon"s ;
 	}
 
-	Daemon slurm_sense_daemon() {
+	Daemon slurm_sense_daemon(::string const& config_file) {
 		Trace trace(BeChnl,"slurm_sense_daemon") ;
 		slurm_conf_t* conf = nullptr ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
 		{	Lock lock { _slurm_mutex } ;
-			if (!is_target("/etc/slurm/slurm.conf")                           ) throw "no slurm config file /etc/slur/slurm.conf"s ;
-			if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw "cannot reach slurm daemon : "+slurm_err()   ;
+			::string cf = config_file|"/etc/slurm/slurm.conf"s ;
+			if (!is_target(cf)                                                ) throw "no slurm config file "+cf                 ;
+			if (SlurmApi::load_ctl_conf(0/*update_time*/,&conf)!=SLURM_SUCCESS) throw "cannot reach slurm daemon : "+slurm_err() ;
+			trace("version",conf->version) ;
 		}
 		SWEAR(conf) ;
 		Daemon res ;
