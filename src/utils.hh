@@ -1223,20 +1223,20 @@ template<char U,::integral I> ::string to_string_with_unit(I x) {
 template<char U,::integral I> ::string to_short_string_with_unit(I x) {
 	static constexpr int8_t E = _unit_val(U) ;
 	//
-	bool   neg = x<0 ; if (neg) x = -x ;
-	double d   = x   ;                                                                         // INVARIANT : value == (neg?-1:1)*::ldexp(d,10*e)
-	int8_t e   = E   ;                                                                         // .
-	while (d>=(1<<10)) {                                                                       // .
-		if (e>=6) return "++++" ;
+	bool   neg = x<0 ; if (neg) x = -x ;                                                         // INVARIANT : value == (neg?-1:1)*::ldexp(d,10*e)
+	double d   = x   ;                                                                           // .
+	int8_t e   = E   ;                                                                           // .
+	while (d>=(1<<10)) {                                                                         // d can be above 999.5 as above 100, there is no decimal point and we can have 4 digits
+		if (e>=6) return neg?"----":"++++" ;
 		d = ::ldexp(d,-10) ;
 		e++ ;
 	}
-	::string          res  ( 1/*neg*/+4/*d*/+1/*e*/ , 0 )          ;
-	::to_chars_result tcr                                          ; tcr.ptr = res.data() ;
-	int8_t            prec = e==E ? 0 : d>=100 ? 0 : d>=10 ? 1 : 2 ;                           // no frac part if result is known exact
-	if (neg) *tcr.ptr++ = '-'                                                                ;
-	/**/      tcr       = to_chars( tcr.ptr , tcr.ptr+4 , d , ::chars_format::fixed , prec ) ; SWEAR(tcr.ec==::errc()) ;
-	if (e)   *tcr.ptr++ = "afpnum?kMGTPE"[e+6]                                               ;
+	::string          res  ( 1/*neg*/+4/*d*/+1/*e*/ , 0 )               ;
+	::to_chars_result tcr                                               ; tcr.ptr = res.data() ;
+	int8_t            prec = e==E ? 0 : d>=99.95 ? 0 : d>=9.995 ? 1 : 2 ;                        // no frac part if result is known exact, /!\ beware of rounding to nearest
+	if (neg) *tcr.ptr++ = '-'                                                                  ;
+	/**/      tcr       = ::to_chars( tcr.ptr , tcr.ptr+4 , d , ::chars_format::fixed , prec ) ; SWEAR(tcr.ec==::errc()) ;
+	if (e)   *tcr.ptr++ = "afpnum?kMGTPE"[e+6]                                                 ;
 	res.resize(size_t(tcr.ptr-res.data())) ;
 	return res ;
 }
