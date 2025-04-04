@@ -1732,15 +1732,16 @@ By default, this is automatically determined by the SGE daemon.</li>
 <li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.</li>
 <li><code>default_prio</code> : the priority used to submit jobs to the SGE daemon if none is specified on the <code>lmake</code> command line.</li>
-<li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
-This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
+<li><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to SGE for each set of asked resources.
+This is done to decrease the load of the SGE daemon as open-lmake might have millions of jobs to run and the typical case is that they tend to require only a small set of different resources
 (helped in this by the limited precision on CPU, memory and temporary disk space requirements).
-for each given set of resources, only the jobs with highest priorities are submitted to slurm, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
+For each given set of resources, only the jobs with highest priorities are submitted to SGE, the other ones are retained by open-lmake so as to limit the number of waiting jobs in slurm queues
 (the number of running job is not limited, though).
-This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
+This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to SGE.
 If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
 If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
-A reasonable value probably lies in the 20-100 range.</li>
+A reasonable value probably lies in the 10-100 range.
+Default is 10.</li>
 <li><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make SGE job names.
 This key is meant to be a short identifier of the repository.
 By default it is the base name of the repository followed by <code>:</code>.
@@ -1780,7 +1781,8 @@ for each given set of resources, only the jobs with highest priorities are submi
 This attribute specifies the number of waiting jobs for each set of resources that open-lmake may submit to slurm.
 If too low, the schedule rate may decrease because by the time taken, when a job finishes, for open-lmake to submit a new job, slurm might have exhausted its waiting queue.
 If too high, the schedule rate may decrase because of the slurm daemon being overloaded.
-A reasonable value probably lies in the 20-100 range.</p>
+A reasonable value probably lies in the 10-100 range.
+Default is 10.</p>
 </li>
 <li>
 <p><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make slurm job names.
@@ -1827,7 +1829,7 @@ They have been implemented to have means to control interactions with jobs submi
 <p>The <code>resources</code> rule attributes is composed of:</p>
 <ul>
 <li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
-<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>part</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
+<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>partition</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
 For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example <code>gres0</code>, <code>gres1</code>).
 The absence of index is equivalent to index 0.</li>
 <li>any other resource passed to the slurm daemon as <code>licenses</code> if such licenses are declared in the slurm configuration, else as <code>gres</code>.</li>

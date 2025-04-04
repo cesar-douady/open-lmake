@@ -382,18 +382,19 @@ namespace Backends::Slurm {
 				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
 			} ;
 			switch (k[0]) {
-				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) {                                rsds.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ; // no mem if not managed
-				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
-				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                                           (v) ; continue ; } break ;
-				case 'f' : if (k=="features") {                                rsds.features = ::move                                           (v) ; continue ; }
-				/**/       if (k=="feature" ) {                                rsds.features = ::move                                           (v) ; continue ; } break ; // for backward compatibility
-				case 'g' : if (k=="gres"    ) {               _sort_entry(v) ; rsds.gres     = ::move                                           (v) ; continue ; } break ; // normalize to favor ...
-				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                                           (v) ; continue ; } break ; // ... resources sharing
-				case 'n' : if (k=="nodes"   ) {                                rsds.nodes    = ::move                                           (v) ; continue ; } break ;
-				case 'p' : if (k=="part"    ) {                                rsds.part     = ::move                                           (v) ; continue ; } break ;
-				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                                           (v) ; continue ; } break ;
-				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                                           (v) ; continue ; } break ;
+				case 'c' : if (k=="cpu"      ) {                                rsds.cpu      = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"      ) {                                rsds.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ; // no mem if not managed
+				case 't' : if (k=="tmp"      ) {                                rsds.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
+				case 'e' : if (k=="excludes" ) {                                rsds.excludes = ::move                                           (v) ; continue ; } break ;
+				case 'f' : if (k=="features" ) {                                rsds.features = ::move                                           (v) ; continue ; }
+				/**/       if (k=="feature"  ) {                                rsds.features = ::move                                           (v) ; continue ; } break ; // for backward compatibility
+				case 'g' : if (k=="gres"     ) {               _sort_entry(v) ; rsds.gres     = ::move                                           (v) ; continue ; } break ; // normalize to favor ...
+				case 'l' : if (k=="licenses" ) { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                                           (v) ; continue ; } break ; // ... resources sharing
+				case 'n' : if (k=="nodes"    ) {                                rsds.nodes    = ::move                                           (v) ; continue ; } break ;
+				case 'p' : if (k=="partition") {                                rsds.part     = ::move                                           (v) ; continue ; }
+				/**/       if (k=="part"     ) {                                rsds.part     = ::move                                           (v) ; continue ; } break ; // for backward compatibility
+				case 'q' : if (k=="qos"      ) {                                rsds.qos      = ::move                                           (v) ; continue ; } break ;
+				case 'r' : if (k=="reserv"   ) {                                rsds.reserv   = ::move                                           (v) ; continue ; } break ;
 			DN}
 			if ( auto it = d.licenses.find(k) ; it==d.licenses.end() ) {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
 			else                                                       { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
