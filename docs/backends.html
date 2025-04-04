@@ -308,6 +308,9 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <p><code>config</code> : The slurm configuration file to use to contact the slurm controller. By default, the slurm library auto detects its configuration.</p>
 </li>
 <li>
+<p><code>lib_slurm</code> : The slurm dynamic library. By default, <code>open-lmake</code> looks for <code>libslurm.so</code> in the default <code>$LD_LIBRARY_PATH</code> (as compiled in).</p>
+</li>
+<li>
 <p><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
 This is done to decrease the load of the slurm daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
 (helped in this by the limited precision on CPU, memory and temporary disk space requirements).
@@ -365,7 +368,7 @@ They have been implemented to have means to control interactions with jobs submi
 <p>The <code>resources</code> rule attributes is composed of:</p>
 <ul>
 <li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
-<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>part</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
+<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>partition</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
 For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example <code>gres0</code>, <code>gres1</code>).
 The absence of index is equivalent to index 0.</li>
 <li>any other resource passed to the slurm daemon as <code>licenses</code> if such licenses are declared in the slurm configuration, else as <code>gres</code>.</li>

@@ -196,6 +196,7 @@ This means:</p>
 <li>modifying the disk (open for writing and the like)</li>
 </ul>
 </li>
+<li>The environment variables cannot be tailored as is the case with cmd execution (there is no <code>environ</code> attribute as there is for <code>cmd</code>).</li>
 <li>Modifying the environment variables (via setenv and the like) is forbidden (trying to execute any of these results in an error).</li>
 <li>Altering imported modules is forbidden (e.g. it is forbidden to write to <code>sys.path</code>).
 <ul>
@@ -203,6 +204,8 @@ This means:</p>
 <li><code>sys.path</code> is made  <code>tuple</code> though, so that common calls such as <code>sys.path.append</code> will generate an error.</li>
 </ul>
 </li>
+<li><code>sys.path</code> is sampled after having read <code>Lmakefile.py</code> (while reading rules) and local directories are filtered out. There are no means to import local modules.</li>
+<li>However, reading local files is ok, as long as <code>sys.modules</code> is not updated.</li>
 <li>There is no containers, as for <code>cmd</code> execution (e.g. no <code>repo_view</code>).</li>
 </ul>
 <h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>

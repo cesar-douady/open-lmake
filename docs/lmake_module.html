@@ -242,6 +242,24 @@ Else an exception is raised.
 Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p><code>file</code> must be a source file.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
+<h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><code>xxhsum_file(file)</code></a></h3>
+<p>Return a checksum of provided file.</p>
+<p>The checksum is :</p>
+<ul>
+<li>none                                         if file does not exist, is a directory or a special file</li>
+<li>empty-R                                      if file is empty</li>
+<li>xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty</li>
+<li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
+</ul>
+<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
+<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<h3 id="xxhsumtextis_linkfalse"><a class="header" href="#xxhsumtextis_linkfalse"><code>xxhsum(text,is_link=False)</code></a></h3>
+<p>Return a checksum of provided text.</p>
+<p>It is a 16-digit hex value with no suffix.</p>
+<p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
+<p>Note : this checksum is not the same as the checksum of a file with same content.</p>
+<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
+<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
 
                     </main>
 

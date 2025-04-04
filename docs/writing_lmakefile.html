@@ -239,7 +239,7 @@ and the targets (as well as the <code>targets</code> variable) are defined and u
 Also, depending on the attribute, the deps (as well as the <code>deps</code> variable) and the resources (as well as the <code>resources</code> variable) may also be defined.
 Whether or not these are available depend on when a given attribute is needed.
 For example, when defining the <code>deps</code>, the deps are obviously not available.</p>
-<p>For composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
+<p>For composite values (dictionaries or sequences), the entire value may be a function or each value can individually be a function (but not the keys).
 For dictionaries, if the value function returns <code>None</code>, there will be no corresponding entry in the resulting dictionary.</p>
 <p>Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.</p>
 <h3 id="inheritance"><a class="header" href="#inheritance">Inheritance</a></h3>
@@ -275,7 +275,7 @@ And each such occurrence is replaced by the inherited value.</p>
 <p>For example, to add the directory <code>/mypath</code> after the inherited path, one would define the attribute <code>environ</code> as <code>{'PATH':'...:/mypath'}</code>.
 To add it before, one would use <code>{'PATH':'/mypath:...'}</code>.</p>
 <p>Entries going through this step are provided by the attribute <code>paths</code>, which is a dict with <attribute>.<key> as keys and <separator> as values.
-The default value is <code>{ 'environ.PATH':':' , 'environ.PYTHONPATH':':' , 'environ.LD_LIBRARY_PATH':':' }</code></p>
+The default value is <code>{ 'environ.PATH':':' , 'environ.LD_LIBRARY_PATH':':' , 'environ.MANPATH':':' , 'environ.PYTHONPATH':':' }</code></p>
 
                     </main>
 

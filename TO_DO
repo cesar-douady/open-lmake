@@ -24,6 +24,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* job must be retried in case of lost_err
+* define dep and target variables when pertinent
+	- much the same way as deps and targets
 * keep old incremental targets when they are not accessed
 	- as they are not unlinked
 * manage case where local job spawn remote execution through ssh

@@ -519,6 +519,24 @@ Else an exception is raised.
 Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p><code>file</code> must be a source file.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
+<h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><code>xxhsum_file(file)</code></a></h3>
+<p>Return a checksum of provided file.</p>
+<p>The checksum is :</p>
+<ul>
+<li>none                                         if file does not exist, is a directory or a special file</li>
+<li>empty-R                                      if file is empty</li>
+<li>xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty</li>
+<li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
+</ul>
+<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
+<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<h3 id="xxhsumtextis_linkfalse"><a class="header" href="#xxhsumtextis_linkfalse"><code>xxhsum(text,is_link=False)</code></a></h3>
+<p>Return a checksum of provided text.</p>
+<p>It is a 16-digit hex value with no suffix.</p>
+<p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
+<p>Note : this checksum is not the same as the checksum of a file with same content.</p>
+<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
+<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -702,7 +720,7 @@ and the targets (as well as the <code>targets</code> variable) are defined and u
 Also, depending on the attribute, the deps (as well as the <code>deps</code> variable) and the resources (as well as the <code>resources</code> variable) may also be defined.
 Whether or not these are available depend on when a given attribute is needed.
 For example, when defining the <code>deps</code>, the deps are obviously not available.</p>
-<p>For composite values (dictionaries or sequences), the entire value may be function or each value can individually be a function (but not the keys).
+<p>For composite values (dictionaries or sequences), the entire value may be a function or each value can individually be a function (but not the keys).
 For dictionaries, if the value function returns <code>None</code>, there will be no corresponding entry in the resulting dictionary.</p>
 <p>Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.</p>
 <h3 id="inheritance"><a class="header" href="#inheritance">Inheritance</a></h3>
@@ -738,7 +756,7 @@ And each such occurrence is replaced by the inherited value.</p>
 <p>For example, to add the directory <code>/mypath</code> after the inherited path, one would define the attribute <code>environ</code> as <code>{'PATH':'...:/mypath'}</code>.
 To add it before, one would use <code>{'PATH':'/mypath:...'}</code>.</p>
 <p>Entries going through this step are provided by the attribute <code>paths</code>, which is a dict with <attribute>.<key> as keys and <separator> as values.
-The default value is <code>{ 'environ.PATH':':' , 'environ.PYTHONPATH':':' , 'environ.LD_LIBRARY_PATH':':' }</code></p>
+The default value is <code>{ 'environ.PATH':':' , 'environ.LD_LIBRARY_PATH':':' , 'environ.MANPATH':':' , 'environ.PYTHONPATH':':' }</code></p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -959,6 +977,7 @@ This means:</p>
 <li>modifying the disk (open for writing and the like)</li>
 </ul>
 </li>
+<li>The environment variables cannot be tailored as is the case with cmd execution (there is no <code>environ</code> attribute as there is for <code>cmd</code>).</li>
 <li>Modifying the environment variables (via setenv and the like) is forbidden (trying to execute any of these results in an error).</li>
 <li>Altering imported modules is forbidden (e.g. it is forbidden to write to <code>sys.path</code>).
 <ul>
@@ -966,6 +985,8 @@ This means:</p>
 <li><code>sys.path</code> is made  <code>tuple</code> though, so that common calls such as <code>sys.path.append</code> will generate an error.</li>
 </ul>
 </li>
+<li><code>sys.path</code> is sampled after having read <code>Lmakefile.py</code> (while reading rules) and local directories are filtered out. There are no means to import local modules.</li>
+<li>However, reading local files is ok, as long as <code>sys.modules</code> is not updated.</li>
 <li>There is no containers, as for <code>cmd</code> execution (e.g. no <code>repo_view</code>).</li>
 </ul>
 <h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
@@ -1828,6 +1849,9 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <p><code>config</code> : The slurm configuration file to use to contact the slurm controller. By default, the slurm library auto detects its configuration.</p>
 </li>
 <li>
+<p><code>lib_slurm</code> : The slurm dynamic library. By default, <code>open-lmake</code> looks for <code>libslurm.so</code> in the default <code>$LD_LIBRARY_PATH</code> (as compiled in).</p>
+</li>
+<li>
 <p><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
 This is done to decrease the load of the slurm daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
 (helped in this by the limited precision on CPU, memory and temporary disk space requirements).
@@ -1885,7 +1909,7 @@ They have been implemented to have means to control interactions with jobs submi
 <p>The <code>resources</code> rule attributes is composed of:</p>
 <ul>
 <li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
-<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>part</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
+<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>partition</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
 For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example <code>gres0</code>, <code>gres1</code>).
 The absence of index is equivalent to index 0.</li>
 <li>any other resource passed to the slurm daemon as <code>licenses</code> if such licenses are declared in the slurm configuration, else as <code>gres</code>.</li>

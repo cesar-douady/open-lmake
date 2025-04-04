@@ -3,18 +3,20 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "generic.hh" // /!\ must be first because Python.h must be first
+
 #include <dlfcn.h>
 
 #include <filesystem>
 
-#include <slurm/slurm.h>
+#include <slurm/slurm.h> // XXX : suppress
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // seems to be necessary for compiling with -fsanitize
 #include "ext/cxxopts.hpp"
 #pragma GCC diagnostic pop
 
-#include "generic.hh" // /!\ must be first because Python.h must be first
+// #include "slurm_api.hh" // XXX : add
 
 using namespace Disk ;
 
@@ -22,6 +24,12 @@ namespace Backends::Slurm {
 
 	static constexpr int SlurmSpawnTrials  = 15 ;
 	static constexpr int SlurmCancelTrials = 10 ;
+
+//	namespace SlurmApi { // XXX : add
+//		::umap<size_t,off_t>        g_version_offset_tab ;
+//		::umap_s<::function<void()> g_init_tab           ;
+//		void*                       g_lib_handler        ;
+//	}
 
 	//
 	// daemon info
@@ -53,17 +61,17 @@ namespace Backends::Slurm {
 			return res ;
 		}
 		// data
-		uint16_t cpu      = 0 ; // number of logical cpu  (sbatch    --cpus-per-task option)
-		uint32_t mem      = 0 ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
-		uint32_t tmp      = 0 ; // tmp disk in MB         (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
-		::string excludes ;     // list of excludes nodes (sbatch -x,--exclude       option)
-		::string features ;     // features/contraint     (sbatch -C,--constraint    option)
-		::string gres     ;     // generic resources      (sbatch    --gres          option)
-		::string licenses ;     // licenses               (sbatch -L,--licenses      option)
-		::string nodes    ;     // list of required nodes (sbatch -w,--nodelist      option)
-		::string part     ;     // partition name         (sbatch -p,--partition     option)
-		::string qos      ;     // quality of service     (sbatch -q,--qos           option)
-		::string reserv   ;     // reservation            (sbatch -r,--reservation   option)
+		uint16_t cpu       = 0 ; // number of logical cpu  (sbatch    --cpus-per-task option)
+		uint32_t mem       = 0 ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is compulsery)
+		uint32_t tmp       = 0 ; // tmp disk in MB         (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
+		::string excludes  ;     // list of excludes nodes (sbatch -x,--exclude       option)
+		::string features  ;     // features/contraint     (sbatch -C,--constraint    option)
+		::string gres      ;     // generic resources      (sbatch    --gres          option)
+		::string licenses  ;     // licenses               (sbatch -L,--licenses      option)
+		::string nodes     ;     // list of required nodes (sbatch -w,--nodelist      option)
+		::string partition ;     // partition name         (sbatch -p,--partition     option)
+		::string qos       ;     // quality of service     (sbatch -q,--qos           option)
+		::string reserv    ;     // reservation            (sbatch -r,--reservation   option)
 	} ;
 
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
@@ -102,13 +110,13 @@ namespace Backends::Slurm {
 
 	Mutex<MutexLvl::Slurm> _slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
-	void slurm_init( ::string const& lib_slurm , ::string const& config_file ) ;
+	void slurm_init( ::string const& lib_slurm , ::string const& config_file ) ; // XXX : suppress
 
 	RsrcsData                 parse_args        (::string const& args       ) ;
 	void                      slurm_cancel      (SlurmId         slurm_id   ) ;
 	::pair_s<Bool3/*job_ok*/> slurm_job_state   (SlurmId         slurm_id   ) ;
 	::string                  read_stderr       (Job                        ) ;
-	Daemon                    slurm_sense_daemon(::string const& config_file) ;
+	Daemon                    slurm_sense_daemon(::string const& config_file) ; // XX : add lib_slurm arg
 	//
 	SlurmId slurm_spawn_job(
 		::stop_token
@@ -177,8 +185,8 @@ namespace Backends::Slurm {
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
 			if (!dyn) {
-				slurm_init( lib_slurm , config_file ) ;
-				daemon = slurm_sense_daemon(config_file) ;
+				slurm_init( lib_slurm , config_file ) ; //  XXX : suppress
+				daemon = slurm_sense_daemon(config_file) ; // XXX : add lib_slurm arg
 				_s_slurm_cancel_thread.open('K',slurm_cancel) ;
 			}
 			//
@@ -205,8 +213,8 @@ namespace Backends::Slurm {
 				lr["cpu"] += rds.cpu ;
 				lr["mem"] += rds.mem ;
 				lr["tmp"] += rds.tmp ;
-				if (+rds.features) single = true ;
-				if (+rds.part    ) single = true ;
+				if (+rds.features ) single = true ;
+				if (+rds.partition) single = true ;
 				for( ::string const& r : {rds.gres,rds.licenses} )
 					if (+r)
 						for( ::string const& x : split(r,',') ) {
@@ -342,21 +350,21 @@ namespace Backends::Slurm {
 	//
 
 	::string& operator+=( ::string& os , RsrcsDataSingle const& rsds ) {
-		/**/                os <<'('<< rsds.cpu       ;
-		if ( rsds.mem     ) os <<','<< rsds.mem<<"MB" ;
-		if ( rsds.tmp     ) os <<','<< rsds.tmp<<"MB" ;
-		if (+rsds.part    ) os <<','<< rsds.part      ;
-		if (+rsds.gres    ) os <<','<< rsds.gres      ;
-		if (+rsds.licenses) os <<','<< rsds.licenses  ;
-		if (+rsds.features) os <<','<< rsds.features  ;
-		if (+rsds.qos     ) os <<','<< rsds.qos       ;
-		if (+rsds.reserv  ) os <<','<< rsds.reserv    ;
-		if (+rsds.excludes) os <<','<< rsds.excludes  ;
-		if (+rsds.nodes   ) os <<','<< rsds.nodes     ;
+		/**/                 os <<'('<< rsds.cpu       ;
+		if ( rsds.mem      ) os <<','<< rsds.mem<<"MB" ;
+		if ( rsds.tmp      ) os <<','<< rsds.tmp<<"MB" ;
+		if (+rsds.partition) os <<','<< rsds.partition ;
+		if (+rsds.gres     ) os <<','<< rsds.gres      ;
+		if (+rsds.licenses ) os <<','<< rsds.licenses  ;
+		if (+rsds.features ) os <<','<< rsds.features  ;
+		if (+rsds.qos      ) os <<','<< rsds.qos       ;
+		if (+rsds.reserv   ) os <<','<< rsds.reserv    ;
+		if (+rsds.excludes ) os <<','<< rsds.excludes  ;
+		if (+rsds.nodes    ) os <<','<< rsds.nodes     ;
 		return              os <<')'                  ;
 	}
 
-	static void _sort_entry(::string& s) {
+	static void _sort(::string& s) {
 		if (s.find(',')==Npos) return ;
 		::vector_s v = split(s,',') ;
 		SWEAR(v.size()>1) ;
@@ -375,19 +383,20 @@ namespace Backends::Slurm {
 			auto chk_first = [&]()->void {
 				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
 			} ;
-			switch (k[0]) {
-				case 'c' : if (k=="cpu"     ) {                                rsds.cpu      = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
-				case 'm' : if (k=="mem"     ) {                                rsds.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ; // no mem if not managed
-				case 't' : if (k=="tmp"     ) {                                rsds.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
-				case 'e' : if (k=="excludes") {                                rsds.excludes = ::move                                           (v) ; continue ; } break ;
-				case 'f' : if (k=="features") {                                rsds.features = ::move                                           (v) ; continue ; }
-				/**/       if (k=="feature" ) {                                rsds.features = ::move                                           (v) ; continue ; } break ; // for backward compatibility
-				case 'g' : if (k=="gres"    ) {               _sort_entry(v) ; rsds.gres     = ::move                                           (v) ; continue ; } break ; // normalize to favor ...
-				case 'l' : if (k=="licenses") { chk_first() ; _sort_entry(v) ; rsds.licenses = ::move                                           (v) ; continue ; } break ; // ... resources sharing
-				case 'n' : if (k=="nodes"   ) {                                rsds.nodes    = ::move                                           (v) ; continue ; } break ;
-				case 'p' : if (k=="part"    ) {                                rsds.part     = ::move                                           (v) ; continue ; } break ;
-				case 'q' : if (k=="qos"     ) {                                rsds.qos      = ::move                                           (v) ; continue ; } break ;
-				case 'r' : if (k=="reserv"  ) {                                rsds.reserv   = ::move                                           (v) ; continue ; } break ;
+			switch (k[0]) { //!                                                                                                    RndUp
+				case 'c' : if (k=="cpu"      ) {                          rsds.cpu       = from_string_with_unit<    uint32_t     >(v) ; continue ; } break ;
+				case 'm' : if (k=="mem"      ) {                          rsds.mem       = from_string_with_unit<'M',uint32_t,true>(v) ; continue ; } break ; // no mem if not managed
+				case 't' : if (k=="tmp"      ) {                          rsds.tmp       = from_string_with_unit<'M',uint32_t,true>(v) ; continue ; } break ;
+				case 'e' : if (k=="excludes" ) {                          rsds.excludes  = ::move                                  (v) ; continue ; } break ;
+				case 'f' : if (k=="features" ) {                          rsds.features  = ::move                                  (v) ; continue ; }
+				/**/       if (k=="feature"  ) {                          rsds.features  = ::move                                  (v) ; continue ; } break ; // XXX> : for backward compatibility
+				case 'g' : if (k=="gres"     ) {               _sort(v) ; rsds.gres      = ::move                                  (v) ; continue ; } break ; // normalize to favor resources sharing
+				case 'l' : if (k=="licenses" ) { chk_first() ; _sort(v) ; rsds.licenses  = ::move                                  (v) ; continue ; } break ; // .
+				case 'n' : if (k=="nodes"    ) {                          rsds.nodes     = ::move                                  (v) ; continue ; } break ;
+				case 'p' : if (k=="partition") {                          rsds.partition = ::move                                  (v) ; continue ; }
+				/**/       if (k=="part"     ) {                          rsds.partition = ::move                                  (v) ; continue ; } break ; // XXX> : for backward compatibility
+				case 'q' : if (k=="qos"      ) {                          rsds.qos       = ::move                                  (v) ; continue ; } break ;
+				case 'r' : if (k=="reserv"   ) {                          rsds.reserv    = ::move                                  (v) ; continue ; } break ;
 			DN}
 			if ( auto it = d.licenses.find(k) ; it==d.licenses.end() ) {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
 			else                                                       { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
@@ -413,17 +422,17 @@ namespace Backends::Slurm {
 		if (+force)
 			for( size_t i=0 ; i<::min(rsrcs.size(),force.size()) ; i++ ) {
 				RsrcsDataSingle const& force1 = force[i] ;
-				if ( force1.cpu              ) rsrcs[i].cpu      = force1.cpu      ;
-				if ( force1.mem              ) rsrcs[i].mem      = force1.mem      ;
-				if ( force1.tmp!=uint32_t(-1)) rsrcs[i].tmp      = force1.tmp      ;
-				if (+force1.excludes         ) rsrcs[i].excludes = force1.excludes ;
-				if (+force1.features         ) rsrcs[i].features = force1.features ;
-				if (+force1.gres             ) rsrcs[i].gres     = force1.gres     ;
-				if (+force1.licenses         ) rsrcs[i].licenses = force1.licenses ;
-				if (+force1.nodes            ) rsrcs[i].nodes    = force1.nodes    ;
-				if (+force1.part             ) rsrcs[i].part     = force1.part     ;
-				if (+force1.qos              ) rsrcs[i].qos      = force1.qos      ;
-				if (+force1.reserv           ) rsrcs[i].reserv   = force1.reserv   ;
+				if ( force1.cpu              ) rsrcs[i].cpu       = force1.cpu       ;
+				if ( force1.mem              ) rsrcs[i].mem       = force1.mem       ;
+				if ( force1.tmp!=uint32_t(-1)) rsrcs[i].tmp       = force1.tmp       ;
+				if (+force1.excludes         ) rsrcs[i].excludes  = force1.excludes  ;
+				if (+force1.features         ) rsrcs[i].features  = force1.features  ;
+				if (+force1.gres             ) rsrcs[i].gres      = force1.gres      ;
+				if (+force1.licenses         ) rsrcs[i].licenses  = force1.licenses  ;
+				if (+force1.nodes            ) rsrcs[i].nodes     = force1.nodes     ;
+				if (+force1.partition        ) rsrcs[i].partition = force1.partition ;
+				if (+force1.qos              ) rsrcs[i].qos       = force1.qos       ;
+				if (+force1.reserv           ) rsrcs[i].reserv    = force1.reserv    ;
 			}
 		return ::move(rsrcs) ;
 	}
@@ -449,7 +458,7 @@ namespace Backends::Slurm {
 		decltype(::slurm_submit_batch_job                 )* submit_batch_job                  = nullptr/*garbage*/ ;
 	}
 
-	template<class T> void _load_func( void* handler , T*& dst , const char* name ) {
+	template<class T> void _load_func( void* handler , T*& dst , const char* name ) { // XXX : suppress slurm_init
 		dst = reinterpret_cast<T*>(::dlsym(handler,name)) ;
 		if (!dst) throw "cannot find "s+name ;
 	}
@@ -541,17 +550,17 @@ namespace Backends::Slurm {
 			try {
 				auto opts = s_opt_parse.parse(argv.size(),argv.data()) ;
 				//
-				if (opts.count("cpus-per-task")) res1.cpu      =                                                   opts["cpus-per-task"].as<uint16_t>()  ;
-				if (opts.count("mem"          )) res1.mem      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["mem"          ].as<::string>()) ;
-				if (opts.count("tmp"          )) res1.tmp      = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["tmp"          ].as<::string>()) ;
-				if (opts.count("constraint"   )) res1.features =                                                   opts["constraint"   ].as<::string>()  ;
-				if (opts.count("exclude"      )) res1.excludes =                                                   opts["exclude"      ].as<::string>()  ;
-				if (opts.count("gres"         )) res1.gres     =                                                   opts["gres"         ].as<::string>()  ;
-				if (opts.count("licenses"     )) res1.licenses =                                                   opts["licenses"     ].as<::string>()  ;
-				if (opts.count("nodelist"     )) res1.nodes    =                                                   opts["nodelist"     ].as<::string>()  ;
-				if (opts.count("partition"    )) res1.part     =                                                   opts["partition"    ].as<::string>()  ;
-				if (opts.count("qos"          )) res1.qos      =                                                   opts["qos"          ].as<::string>()  ;
-				if (opts.count("reservation"  )) res1.reserv   =                                                   opts["reservation"  ].as<::string>()  ;
+				if (opts.count("cpus-per-task")) res1.cpu       =                                                   opts["cpus-per-task"].as<uint16_t>()  ;
+				if (opts.count("mem"          )) res1.mem       = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["mem"          ].as<::string>()) ;
+				if (opts.count("tmp"          )) res1.tmp       = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["tmp"          ].as<::string>()) ;
+				if (opts.count("constraint"   )) res1.features  =                                                   opts["constraint"   ].as<::string>()  ;
+				if (opts.count("exclude"      )) res1.excludes  =                                                   opts["exclude"      ].as<::string>()  ;
+				if (opts.count("gres"         )) res1.gres      =                                                   opts["gres"         ].as<::string>()  ;
+				if (opts.count("licenses"     )) res1.licenses  =                                                   opts["licenses"     ].as<::string>()  ;
+				if (opts.count("nodelist"     )) res1.nodes     =                                                   opts["nodelist"     ].as<::string>()  ;
+				if (opts.count("partition"    )) res1.partition =                                                   opts["partition"    ].as<::string>()  ;
+				if (opts.count("qos"          )) res1.qos       =                                                   opts["qos"          ].as<::string>()  ;
+				if (opts.count("reservation"  )) res1.reserv    =                                                   opts["reservation"  ].as<::string>()  ;
 				if (opts.count("help"         )) throw s_opt_parse.help() ;
 			} catch (cxxopts::exceptions::exception const& e) {
 				throw "Error while parsing slurm options: "s+e.what() ;
@@ -706,15 +715,15 @@ namespace Backends::Slurm {
 			/**/                     j.std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ; // keep alive
 			/**/                     j.work_dir        = wd.data()                                                     ;
 			//
-			if(+r.excludes) j.exc_nodes     = const_cast<char*>(r.excludes.data()) ;
-			if(+r.features) j.features      = const_cast<char*>(r.features.data()) ;
-			if(+r.licenses) j.licenses      = const_cast<char*>(r.licenses.data()) ;
-			if(+r.nodes   ) j.req_nodes     = const_cast<char*>(r.nodes   .data()) ;
-			if(+r.part    ) j.partition     = const_cast<char*>(r.part    .data()) ;
-			if(+r.qos     ) j.qos           = const_cast<char*>(r.qos     .data()) ;
-			if(+r.reserv  ) j.reservation   = const_cast<char*>(r.reserv  .data()) ;
-			if(+r.gres    ) j.tres_per_node =                   gres      .data()  ;
-			if(i==0       ) j.script        =                   script    .data()  ;
+			if(+r.excludes ) j.exc_nodes     = const_cast<char*>(r.excludes .data()) ;
+			if(+r.features ) j.features      = const_cast<char*>(r.features .data()) ;
+			if(+r.licenses ) j.licenses      = const_cast<char*>(r.licenses .data()) ;
+			if(+r.nodes    ) j.req_nodes     = const_cast<char*>(r.nodes    .data()) ;
+			if(+r.partition) j.partition     = const_cast<char*>(r.partition.data()) ;
+			if(+r.qos      ) j.qos           = const_cast<char*>(r.qos      .data()) ;
+			if(+r.reserv   ) j.reservation   = const_cast<char*>(r.reserv   .data()) ;
+			if(+r.gres     ) j.tres_per_node =                   gres       .data()  ;
+			if(i==0        ) j.script        =                   script     .data()  ;
 			/**/            j.nice          = NICE_OFFSET+nice                     ;
 			i++ ;
 		}
@@ -781,6 +790,32 @@ namespace Backends::Slurm {
 		throw "cannot connect to slurm daemon"s ;
 	}
 
+//	static void _exit1() { ::_exit(1) ; } // XXX : add
+//	Daemon slurm_sense_daemon( ::string const& lib_slurm , ::string const& config_file ) {
+//		Trace trace(BeChnl,"slurm_sense_daemon",lib_slurm,config_file) ;
+//		//
+//		g_lib_handler = ::dlopen(lib_slurm.c_str(),RTLD_NOW|RTLD_GLOBAL) ; throw_unless( g_lib_handler , "cannot find ",lib_slurm ) ;
+//		//
+//		const char* cf        = +config_file ? config_file.c_str() : nullptr                    ;
+//		InitFunc    init_func = reinterpret_cast<InitFunc>(::dlsym(g_lib_handler,"slurm_init")) ; throw_unless( init_func , "cannot find slurm_init" ) ;
+//		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
+//		// so the idea here is to fork a process to probe SlurmApi::init
+//		if ( pid_t child_pid=::fork() ; !child_pid ) {
+//			// in child
+//			::atexit(_exit1) ;                                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
+//			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                      // this is just a probe, we want nothing on stderr
+//			::dup2(dev_null_fd,2) ;                                           // so redirect to /dev/null
+//			SlurmApi::init(cf) ;                                              // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
+//			::_exit(0) ;                                                      // if we are here, everything went smoothly
+//		} else {
+//			// in parent
+//			int wstatus ;
+//			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                      // gather status to know if we were able to call SlurmApi::init
+//			if ( rc<=0 || !wstatus_ok(wstatus) ) throw "cannot init slurm"s ; // no, report error
+//		}
+//		init_func(cf) ;                                                  // this should be safe now that we have checked it works in a child
+//		//
+//		size_t max_conf_sz = 0 ; for( auto [sz,_] : g_version_offset_tab ) max_conf_sz = ::max(max_conf_sz,sz) ;
 	Daemon slurm_sense_daemon(::string const& config_file) {
 		Trace trace(BeChnl,"slurm_sense_daemon") ;
 		slurm_conf_t* conf = nullptr ;
