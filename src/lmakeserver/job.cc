@@ -479,10 +479,11 @@ namespace Engine {
 			//
 			::umap  <Node,Tflags> old_incremental_targets ;
 			::vector<Target     > targets                 ; targets.reserve(digest.targets.size()) ;
-			for( Target t : jd.targets ) if (t->has_actual_job(self)) {
-				t->actual_job() = {} ;                                                                           // ensure targets we no more generate do not keep pointing to us
-				if (t.tflags[Tflag::Incremental]) old_incremental_targets.try_emplace(t,t.tflags) ;
-			}
+			for( Target t : jd.targets )
+				if (t->has_actual_job(self)) {
+					if (t.tflags[Tflag::Incremental]) old_incremental_targets.try_emplace(t,t.tflags) ;
+					else                              t->actual_job() = {} ;                                     // ensure targets we no more generate do not keep pointing to us
+				}
 			//
 			for( auto& [target,td] : digest.targets ) {
 				target->set_buildable() ;
@@ -502,7 +503,7 @@ namespace Engine {
 				//
 				if (+crc) {
 					// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-					if ( +start_date && target->date().date>start_date ) {         // if no start_date.p, job did not execute, it cannot generate a clash
+					if ( +start_date && target->date().date>start_date ) {                                                        // if no start_date.p, job did not execute, it cannot generate a clash
 						// /!\ This may be very annoying !
 						// A job was running in parallel with us and there was a clash on this target.
 						// There are 2 problems : for us and for them.
@@ -511,13 +512,14 @@ namespace Engine {
 						// and all that is wron.
 						// This is too complex and too rare to detect (and ideally handle).
 						// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
-						if ( crc.valid() && td.tflags[Tflag::Target] ) {           // official targets should have a valid crc, but if not, we dont care
+						if ( crc.valid() && td.tflags[Tflag::Target] ) {                                                          // official targets should have a valid crc, but if not, we dont care
 							trace("clash",start_date,target->date().date) ;
-							target_reason |= {JobReasonTag::ClashTarget,+target} ; // crc is actually unreliable, rerun
+							target_reason |= {JobReasonTag::ClashTarget,+target} ;                                                // crc is actually unreliable, rerun
 						}
-						if ( target->crc.valid() && target->has_actual_job() && target->actual_tflags()[Tflag::Target] && !is_src_anti ) { // existing crc was believed to be reliable ...
-							trace("critical_clash",start_date,target->date().date) ;                                                       // ... but actually was not (if no execution, ...
-							for( Req r : target->reqs() ) {                                                                                // ... there is no problem)
+						Job aj =target->actual_job() ;
+						if ( +aj && aj!=self && target->crc.valid() && target->actual_tflags()[Tflag::Target] && !is_src_anti ) { // existing crc was believed to be reliable but actually was not
+							trace("critical_clash",start_date,target->date().date) ;
+							for( Req r : target->reqs() ) {
 								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
 								target->req_info(r).done_ = NodeGoal::None ;                             // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 							}
