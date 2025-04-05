@@ -217,6 +217,13 @@ void write_backtrace( Fd      , int hide_cnt ) ;
 template<void (*Handler)(int sig,void* addr)> inline void _sig_action( int sig , siginfo_t* si , void* ) {
 	Handler(sig,si->si_addr) ;
 }
+inline struct sigaction get_sig_handler(int sig) {
+	struct sigaction action ; ::sigaction( sig , nullptr , &action ) ;
+	return action ;
+}
+inline void restore_sig_handler( int sig , struct sigaction const& action ) {
+	::sigaction( sig , &action , nullptr ) ;
+}
 template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
 	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
 	struct sigaction action = {} ;
@@ -233,6 +240,18 @@ template<void (*Handler)(int sig)> void set_sig_handler(int sig) {
 	action.sa_flags   = SA_RESTART ;
 	::sigaction( sig , &action , nullptr ) ;
 }
+
+template<void (*Handler)(int sig)> struct WithSigHandler {
+	WithSigHandler(int sig_) : sig{sig_} , sav_sa{get_sig_handler(sig_)} {
+		set_sig_handler<Handler>(sig) ;
+	}
+	~WithSigHandler() {
+		restore_sig_handler( sig , sav_sa ) ;
+	}
+	// data
+	int    sig              = 0  ;
+	struct sigaction sav_sa = {} ;
+} ;
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
 

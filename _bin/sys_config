@@ -338,23 +338,6 @@ HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o /dev/null -xc seccomp.c -l:
 [ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
 
 #
-# SGE (HAS_SGE)
-#
-HAS_SGE=$(ok type -p qsub)
-#
-[ $HAS_SGE = 1 ] || echo no sge support >>$SUM_FILE
-
-#
-# SLURM (HAS_SLURM+SLURM_INC_DIR)
-#
-if [ "$SLURM_ROOT" ] ; then
-	SLURM_INC_DIR=$SLURM_ROOT/include
-fi
-HAS_SLURM=$(ok cc -E ${SLURM_INC_DIR:+-isystem $SLURM_INC_DIR} --include slurm/slurm.h -xc /dev/null )
-#
-[ $HAS_SLURM = 1 ] || echo no slurm support >>$SUM_FILE
-
-#
 # STACK (HAS_STACKTRACE+HAS_STACKTRACE_32+LIB_STACKTRACE+LIB_STACKTACE_32+STACK_GROWS_DOWNWARD)
 #
 cat <<"EOF" >stacktrace.cc
@@ -448,8 +431,6 @@ cat >$MK_FILE <<-EOF
 	HAS_PY2_DYN               := ${HAS_PY2_DYN#0}
 	HAS_PY3_DYN               := ${HAS_PY3_DYN#0}
 	HAS_SECCOMP               := ${HAS_SECCOMP#0}
-	HAS_SGE                   := ${HAS_SGE#0}
-	HAS_SLURM                 := ${HAS_SLURM#0}
 	HAS_ZLIB                  := ${HAS_ZLIB#0}
 	HAS_ZSTD                  := ${HAS_ZSTD#0}
 	LD_SO_LIB                 := $LD_SO_LIB
@@ -471,7 +452,6 @@ cat >$MK_FILE <<-EOF
 	PY_LD_LIBRARY_PATH        := $PY_LD_LIBRARY_PATH
 	PYTHON                    := $PYTHON
 	PYTHON2                   := $PYTHON2
-	SLURM_INC_DIR             := $SLURM_INC_DIR
 	SPLIT_DBG                 := ${SPLIT_DBG#0}
 	SPLIT_DBG_32              := ${SPLIT_DBG_32#0}
 	STD_INC_DIRS              := $STD_INC_DIRS
@@ -501,8 +481,6 @@ cat >$H_FILE <<-EOF
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
-	#define HAS_SGE                     $HAS_SGE
-	#define HAS_SLURM                   $HAS_SLURM
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
 	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
 	#define HAS_ZLIB                    $HAS_ZLIB

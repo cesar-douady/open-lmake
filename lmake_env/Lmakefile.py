@@ -444,7 +444,8 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
 	,	'BE_LOCAL'   : 'src/lmakeserver/backends/local.o'
-	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add conditional compilation to compile slurm when it is available
+	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add slurm compilation
+	#,	'BE_SGE'     : 'src/lmakeserver/backends/sge.o'   # XXX : add sge compilation
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
 	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'

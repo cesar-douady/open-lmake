@@ -14,6 +14,9 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* -O0 crashes on centos7
+? git seems to bit statically linked with libc
+	- really surprising, justifies investigation
 * exceptionnally, server blocks
 	- seems to be while taking GIL
 * job_exec crash in case :

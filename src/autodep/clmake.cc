@@ -26,7 +26,7 @@ static Record _g_record ;
 
 template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
 	static PyObject* py_func( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-		NoGil no_gil ; // tell our mutex we already have the GIL
+		NoGil no_gil ;                                                                 // tell our mutex we already have the GIL
 		try {
 			if (kwds) return Func( *from_py<Tuple const>(args) , *from_py<Dict const>(kwds) )->to_py_boost() ;
 			else      return Func( *from_py<Tuple const>(args) , *Ptr<Dict>(New)            )->to_py_boost() ;
@@ -327,21 +327,18 @@ PyMODINIT_FUNC
 
 	_g_record = {New,Yes/*enabled*/} ;
 	//
+	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3} ;                                // PER_AUTODEP_METHOD : add entries here
+	{	size_t i = 0 ;
+		if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
+		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
+		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
+		/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
+		SWEAR(i==py_ads->size(),i,py_ads->size()) ;
+	}
 	//
-	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3} ;        // PER_AUTODEP_METHOD : add entries here
-	size_t i = 0 ;
-	if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
-	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
-	/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
-	/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
-	SWEAR(i==py_ads->size(),i,py_ads->size()) ;
-	//
-	Ptr<Tuple>  py_bes { 1+HAS_SGE+HAS_SLURM } ; // PER_BACKEND : add entries here
-	i = 0 ;
-	/**/           py_bes->set_item(i++,*Ptr<Str>("local")) ;
-	if (HAS_SGE  ) py_bes->set_item(i++,*Ptr<Str>("sge"  )) ;
-	if (HAS_SLURM) py_bes->set_item(i++,*Ptr<Str>("slurm")) ;
-	SWEAR(i==py_bes->size(),i,py_bes->size()) ;
+	static constexpr const char* Bes[] = { "local" , "sge" , "slurm" } ; // PER_BACKEND : add entries here
+	static constexpr size_t      NBes  = sizeof(Bes)/sizeof(Bes[0])    ;
+	Ptr<Tuple> py_bes { NBes } ; for( size_t i : iota(NBes) ) py_bes->set_item(i,*Ptr<Str>(Bes[i])) ;
 	//
 	AutodepEnv  ade { New }                                                    ;
 	Ptr<Module> mod { New , PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
@@ -351,7 +348,7 @@ PyMODINIT_FUNC
 	mod->set_attr( "backends"      , *py_bes                                                     ) ;
 	mod->set_attr( "autodeps"      , *py_ads                                                     ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	mod.boost() ;                               // avoid problems at finalization
+	mod.boost() ;                                                        // avoid problems at finalization
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py() ;
 	#endif

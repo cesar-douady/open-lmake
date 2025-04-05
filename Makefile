@@ -23,24 +23,23 @@ REPO_ROOT := $(abspath .)
 .PHONY : FORCE
 FORCE : ;
 sys_config.env : FORCE
-	@if [ ! -f $@ ] ; then                                                 \
-		echo new $@ ;                                                      \
-		{	echo PATH=\'$$(      echo "$$PATH"      |sed "s:':'\\'':")\' ; \
-			echo CXX=\'$$(       echo "$$CXX"       |sed "s:':'\\'':")\' ; \
-			echo PYTHON2=\'$$(   echo "$$PYTHON2"   |sed "s:':'\\'':")\' ; \
-			echo PYTHON3=\'$$(   echo "$$PYTHON"    |sed "s:':'\\'':")\' ; \
-			echo SLURM_ROOT=\'$$(echo "$$SLURM_ROOT"|sed "s:':'\\'':")\' ; \
-			echo LMAKE_FLAGS=$$LMAKE_FLAGS                               ; \
-		} >$@ ;                                                            \
+	@if [ ! -f $@ ] ; then                                           \
+		echo new $@ ;                                                \
+		{	echo PATH=\'$$(   echo "$$PATH"   |sed "s:':'\\'':")\' ; \
+			echo CXX=\'$$(    echo "$$CXX"    |sed "s:':'\\'':")\' ; \
+			echo PYTHON2=\'$$(echo "$$PYTHON2"|sed "s:':'\\'':")\' ; \
+			echo PYTHON3=\'$$(echo "$$PYTHON" |sed "s:':'\\'':")\' ; \
+			echo LMAKE_FLAGS=$$LMAKE_FLAGS                         ; \
+		} >$@ ;                                                      \
 	fi
 
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
-	@set -a                                          ; \
-	PATH=$$(env -i bash -c 'echo $$PATH')            ; \
-	unset CXX PYTHON2 PYTHON3 SLURM_ROOT LMAKE_FLAGS ; \
-	. ./sys_config.env                               ; \
+	@set -a                               ; \
+	PATH=$$(env -i bash -c 'echo $$PATH') ; \
+	unset CXX PYTHON2 PYTHON3 LMAKE_FLAGS ; \
+	. ./sys_config.env                    ; \
 	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -60,7 +59,7 @@ sys_config.err : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1
 	@echo '*'
 	@cat sys_config.sum
 
-# defines HAS_SECCOMP, HAS_SGE and HAS_SLURM
+# defines HAS_SECCOMP
 include sys_config.mk
 
 ifeq ($(SYS_CONFIG_OK),0)
@@ -87,11 +86,8 @@ Manifest : .git/index
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
 include Manifest.inc_stamp # Manifest is used in this makefile
-EXCLUDES := \
-	$(if $(HAS_SLURM)   ,,src/lmakeserver/backends/slurm.cc) \
-	$(if $(HAS_SGE)     ,,src/lmakeserver/backends/sge.cc  ) \
-	$(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc          )
-SRCS := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
+EXCLUDES := $(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc)
+SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
@@ -149,27 +145,30 @@ LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
 LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-CPP_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
+CC_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
 
 PCRE_LIB := $(if $(HAS_PCRE),-lpcre2-8)
 Z_LIB    := $(if $(HAS_ZSTD),-lzstd,$(if $(HAS_ZLIB),-lz))
 
-PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -isystem
+PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
 PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))  # .
-PY2_CC_FLAGS := $(if $(PYTHON2),$(patsubst %,-isystem %,$(PY2_INC_DIRS)) -Wno-register)
-PY3_CC_FLAGS :=                 $(patsubst %,-isystem %,$(PY3_INC_DIRS)) -Wno-register
+PY2_CC_FLAGS := $(if $(PYTHON2),$(patsubst %,-I %,$(PY2_INC_DIRS)) -Wno-register)
+PY3_CC_FLAGS :=                 $(patsubst %,-I %,$(PY3_INC_DIRS)) -Wno-register
 #
 PY2_LINK_FLAGS := $(if $(PYTHON2),$(if $(PY2_LIB_DIR),$(PY2_LIB_DIR)/$(PY2_LIB_BASE),-l:$(PY2_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY2_LIB_DIR)))
 PY3_LINK_FLAGS :=                 $(if $(PY3_LIB_DIR),$(PY3_LIB_DIR)/$(PY3_LIB_BASE),-l:$(PY3_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY3_LIB_DIR))
 
-PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY_CC_FLAGS    = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+PY_LINK_FLAGS  = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
 #
-PY_SO         = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
-MOD_SO        = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
-MOD_O         = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
+# /!\ LTO is incompatible with multiple definitions, even in different translation units
+SLURM_CC_FLAGS = $(if $(findstring src/lmakeserver/backends/slurm_api-,$<),$(<:src/lmakeserver/backends/slurm_api-%.cc=-I ext/slurm/%) -fno-lto)
+#
+PY_SO          = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
+MOD_SO         = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
+MOD_O          = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
 
-COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(CPP_FLAGS)
+COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(SLURM_CC_FLAGS) $(CC_FLAGS)
 
 # XXX> : use split debug info when stacktrace supports it
 SPLIT_DBG_CMD = \
@@ -326,8 +325,6 @@ lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk
 		-e 's!\$$BASH!$(BASH)!'                          \
 		-e 's!\$$GIT!$(GIT)!'                            \
 		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
-		-e 's!\$$HAS_SGE!$(HAS_SGE)!'                    \
-		-e 's!\$$HAS_SLURM!$(HAS_SLURM)!'                \
 		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
 		-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
 		-e 's!\$$PYTHON!$(PYTHON)!'                      \
@@ -395,7 +392,7 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 %-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
 %-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O) $(SAN_FLAGS) -o $@ $<
 
-%.chk   : %.cc ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CPP_FLAGS) >$@ ; [ ! -s $@ ]
+%.chk   : %.cc ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CC_FLAGS) >$@ ; [ ! -s $@ ]
 
 %.d : %.cc
 	@$(COMPILE) \
@@ -409,8 +406,19 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 		-MT '$@'                                             \
 		$< 2>/dev/null || :
 
-DEP_SRCS := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS)))
+SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmakeserver/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
+DEP_SRCS := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(patsubst %.cc,%.d,$(SLURM_SRCS))
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
+
+#
+# slurm
+#
+
+src/lmakeserver/backends/slurm_api-%.cc :
+	@echo generate $@
+	@(	echo '#define SLURM_VERSION "$*"' \
+	;	echo '#include "slurm_api.x.cc"'  \
+	) >$@
 
 #
 # lmake
@@ -418,8 +426,6 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
-
-src/lmakeserver/backends/slurm$(SAN).o : CPP_FLAGS += $(if $(SLURM_INC_DIR),-isystem $(SLURM_INC_DIR))
 
 RPC_JOB_SAN_OBJS := \
 	src/rpc_job$(SAN).o          \
@@ -457,26 +463,27 @@ SERVER_SAN_OBJS := \
 	src/lmakeserver/store$(SAN).o
 
 _bin/lmakeserver : \
-	$(SERVER_SAN_OBJS)                                         \
-	src/non_portable$(SAN).o                                   \
-	src/autodep/gather$(SAN).o                                 \
-	src/autodep/ptrace$(SAN).o                                 \
-	src/lmakeserver/backends/local$(SAN).o                     \
-	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
-	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
-	src/lmakeserver/cmd$(SAN).o                                \
-	src/lmakeserver/makefiles$(SAN).o                          \
+	$(SERVER_SAN_OBJS)                       \
+	src/non_portable$(SAN).o                 \
+	src/autodep/gather$(SAN).o               \
+	src/autodep/ptrace$(SAN).o               \
+	src/lmakeserver/cmd$(SAN).o              \
+	src/lmakeserver/makefiles$(SAN).o        \
+	src/lmakeserver/backends/local$(SAN).o   \
+	src/lmakeserver/backends/slurm$(SAN).o   \
+	$(patsubst %.cc,%$(SAN).o,$(SLURM_SRCS)) \
+	src/lmakeserver/backends/sge$(SAN).o     \
 	src/lmakeserver/main$(SAN).o
 
 bin/lrepair : \
-	$(SERVER_SAN_OBJS)                                         \
-	src/non_portable$(SAN).o                                   \
-	src/autodep/gather$(SAN).o                                 \
-	src/autodep/ptrace$(SAN).o                                 \
-	src/lmakeserver/backends/local$(SAN).o                     \
-	$(if $(HAS_SLURM) ,src/lmakeserver/backends/slurm$(SAN).o) \
-	$(if $(HAS_SGE)   ,src/lmakeserver/backends/sge$(SAN).o  ) \
-	src/lmakeserver/makefiles$(SAN).o                          \
+	$(SERVER_SAN_OBJS)                     \
+	src/non_portable$(SAN).o               \
+	src/autodep/gather$(SAN).o             \
+	src/autodep/ptrace$(SAN).o             \
+	src/lmakeserver/makefiles$(SAN).o      \
+	src/lmakeserver/backends/local$(SAN).o \
+	src/lmakeserver/backends/slurm$(SAN).o \
+	src/lmakeserver/backends/sge$(SAN).o   \
 	src/lrepair$(SAN).o
 
 _bin/ldump : \

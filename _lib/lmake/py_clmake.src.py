@@ -77,6 +77,4 @@ autodeps = ()
 if "$HAS_LD_AUDIT" : autodeps += ('ld_audit'  ,                              )
 if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
 #
-backends = ('local',)
-if "$HAS_SGE"   : backends += ('sge'  ,)
-if "$HAS_SLURM" : backends += ('slurm',)
+backends = ('local','sge','slurm')

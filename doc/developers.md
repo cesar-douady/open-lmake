@@ -271,6 +271,14 @@ By the way, the execution is lighter and code is not heavier.
 * before pushing any modification:
 	- run make without argument to check nothing unrelated to your modifications is broken
 
+* to add a slurm version
+	- in slurm source tree, type `./configure`
+	- copy file `slurm/slurm.h` from slurm source tree to `ext/slurm/<version>/slurm/slurm.h`
+	- also copy included files from there, as of today, they are `slurm/slurm_errno.h` and `slurm/slurm_version.h`
+	- git add `ext/slurm/<version>`
+	- <version> may be a prefix, e.g. `24.11` works for all `24.11.x`
+	- git clean and remake
+
 * to add a backend:
 	- make a file `src/lmakeserver/backends/<your_backend>.cc`
 		- and `git add` it
