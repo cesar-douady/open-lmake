@@ -16,42 +16,55 @@ if __name__!='__main__' :
 	class Clone(TraceRule) :
 		force = True
 		targets = {
-			'MRKR' : ( r'src/{Dir:.*}.repo'             , 'incremental' )
-		,	'TGT'  : (  'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' )
+			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'       )
+		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' )
 		}
 		cmd = '''
-			[ -f {MRKR} -a "$(cat {MRKR} 2>/dev/null)" = a ] && exit
+			[ "$(cat {TGT('a')} 2>/dev/null)" = a ] && exit
 			mkdir -p {TGT('')}
-			echo a > {MRKR}
+			echo a > {TGT('a')}
 			echo b > {TGT('b.zip')}
 		'''
 
 	class Unzip(Rule) :
 		targets = {
-			'MRKR' : ( r'src/{Dir:.*}.unzip' , 'phony' )
-		,	'TGT'  :    'src/{Dir}.zip_dir/{File*:.*}'
+			'MRKR' : ( '{Dir:.*}.zip_dir.trigger', 'phony' )
+		,	'TGT'  :   '{Dir:.*}.zip_dir/{File*:.*}'
 		}
-		dep = 'src/{Dir}.zip'
+		dep = '{Dir}.zip'
 		cmd = '''
-			cat  > {TGT('c.c')}
+			cat >{TGT('c.c')}
 		'''
 
 	class Cc(Rule) :
-		target = r'obj/{Dir:.*}.zip_dir/{File:.*}.o'
+		target = 'obj/{Dir:.*}.repo_dir/{File:.*}.o'
 		deps =  {
-			'MRKR' : 'src/{Dir}.unzip'
+			'SRC'  : 'src/{Dir}.repo_dir.trigger'
+		,	'MRKR' : 'src/{Dir}.repo_dir/b.zip_dir.trigger'
 		,	'TRIG' : 'trig'
 		}
-		cmd = 'cat trig src/{Dir}.zip_dir/{File}.c'
+		cmd = '''
+			cat trig src/{Dir}.repo_dir/b.zip_dir/{File}.c
+		'''
 
 
 else :
 
-	import ut
+	import ut,os
 
 	print('1',file=open('trig','w'))
-	ut.lmake( 'src/a.repo'                   ,                    done=1             )
-	ut.lmake( 'obj/a.repo_dir/b.zip_dir/c.o' , new=1 , steady=1 , done=2 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
+	ut.lmake( 'src/a.repo_dir.trigger' ,                   done=1             )
+	ut.lmake( 'obj/a.repo_dir/c.o'     , new=1 , steady=1, done=2 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
+
+	os.system('''
+		set -x
+		rm -rf src obj
+		lforget src/a.repo_dir.trigger
+		lforget -d src/a.repo
+		lforget obj/a.repo_dir/c.o
+		lforget -d obj/a.repo_dir/c.o
+	''')
 
 	print('2',file=open('trig','w'))
-	ut.lmake( 'obj/a.repo_dir/b.zip_dir/c.o' , changed=1 , steady=1 , done=1 )
+	ut.lmake( 'src/a.repo_dir.trigger' ,             steady=1                                  )
+	ut.lmake( 'obj/a.repo_dir/c.o'     , changed=1 , steady=2, may_rerun=1 , done=1 ,rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)

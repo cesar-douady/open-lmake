@@ -25,6 +25,24 @@ ENUM( Buildable
 ,	SubSrc      //                                   sub-file of a src listed in manifest
 ,	Loop        //                                   node is being analyzed, deemed buildable so as to block further analysis
 )
+static constexpr ::amap<Buildable,bool,N<Buildable>> BuildableHasFile {{
+	{ Buildable::DynAnti   , false }
+,	{ Buildable::Anti      , false }
+,	{ Buildable::SrcDir    , true  }
+,	{ Buildable::No        , false }
+,	{ Buildable::Maybe     , true  }
+,	{ Buildable::SubSrcDir , true  }
+,	{ Buildable::Unknown   , false }
+,	{ Buildable::Yes       , true  }
+,	{ Buildable::DynSrc    , true  }
+,	{ Buildable::Src       , true  }
+,	{ Buildable::Decode    , false }
+,	{ Buildable::Encode    , false }
+,	{ Buildable::SubSrc    , true  }
+,	{ Buildable::Loop      , false }
+}} ;
+static_assert(chk_enum_tab(BuildableHasFile)) ;
+
 
 ENUM_1( Manual
 ,	Changed = Empty // >=Changed means that job is sensitive to new content
@@ -222,6 +240,17 @@ namespace Engine {
 		DepsIter& operator++(   ) {
 			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
 			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk
+			return self ;
+		}
+		DepsIter& next_existing(DepsIter const& end) {
+			SWEAR(end.i_chunk==0) ;                                        // at end, an iterator always have a null i_chunk
+			if (hdr==end.hdr) return self ;
+			i_chunk = hdr->hdr.sz ;                                        // go to last item in chunk, i.e. skip over non-existing deps in the chunk
+			while ( hdr->hdr.is_crc && hdr->hdr.crc()==Crc::None ) {
+				hdr = hdr->next() ;                                        // go to next chunk if already at end of chunk
+				if (hdr==end.hdr) { i_chunk = 0           ; break ; }
+				else                i_chunk = hdr->hdr.sz ;                // go to last item in chunk, the only one that may be existing
+			}
 			return self ;
 		}
 		// data

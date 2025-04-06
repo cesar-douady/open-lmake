@@ -24,19 +24,24 @@ namespace Engine {
 	// jobs thread
 	//
 
-	vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool mark_target_dirs ) const { // thread-safe
+	vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool mark_target_dirs ) const {    // thread-safe
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
-		::uset<Node>                  to_mkdirs        = match.target_dirs() ;
-		::uset<Node>                  to_mkdir_uphills ;
-		::uset<Node>                  locked_dirs      ;
-		::umap<Node,NodeIdx/*depth*/> to_rmdirs        ;
-		::vmap<Node,FileAction>       actions          ;
+		::uset<Node>                  to_mkdirs          = match.target_dirs() ;
+		::uset<Node>                  to_mkdir_uphills   ;
+		::uset<Node>                  dep_locked_dirs    ;
+		::uset<Node>                  target_locked_dirs ;
+		::umap<Node,NodeIdx/*depth*/> to_rmdirs          ;
+		::vmap<Node,FileAction>       actions            ;
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		for( auto const& [_,d] : match.deps() )                    // no need to mkdir a target dir if it is also a static dep dir (which necessarily already exists)
-			for( Node hd=Node(d.txt)->dir() ; +hd ; hd=hd->dir() )
-				if (!locked_dirs.insert(hd).second) break ;        // if dir contains a dep, it cannot be rmdir'ed
+		auto end_it = deps.end() ;
+		for( auto it = deps.begin().next_existing(end_it) ; it!=end_it ; it++.next_existing(end_it) ) {
+			Node dep = *it ;
+			if (BuildableHasFile[+dep->buildable].second)
+				for( Node hd=dep->dir() ; +hd ; hd=hd->dir() )
+					if (!dep_locked_dirs.insert(hd).second) break ;                                               // if dir contains an existing dep, it cannot be rmdir'ed
+		}
 		//
 		// remove old targets
 		for( Target t : targets ) {
@@ -53,10 +58,10 @@ namespace Engine {
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
-				case FileActionTag::Src        : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ;                              break ; // nothing to do, not even integrity check
-				case FileActionTag::Uniquify   : if ( +t->dir()                      ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
-				case FileActionTag::NoUniquify : if ( +t->dir() && t->crc!=Crc::None ) locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
-				case FileActionTag::Unlink     :
+				case FileActionTag::Src        : if ( +t->dir() && t->crc!=Crc::None ) target_locked_dirs.insert(t->dir()) ;                              break ; // no action, not even integrity check
+				case FileActionTag::Uniquify   : if ( +t->dir()                      ) target_locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::NoUniquify : if ( +t->dir() && t->crc!=Crc::None ) target_locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::Unlink :
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) fa.tag = FileActionTag::UnlinkWarning ;
 				[[fallthrough]] ;
 				case FileActionTag::UnlinkPolluted :
@@ -64,12 +69,13 @@ namespace Engine {
 					actions.emplace_back(t,fa) ;
 					if ( Node td=t->dir() ; +td ) {
 						Lock    lock  { _s_target_dirs_mutex } ;
-						NodeIdx depth = 0 ;
+						NodeIdx depth = 0                      ;
 						for( Node hd=td ; +hd ; (hd=hd->dir()),depth++ )
 							if (_s_target_dirs.contains(hd)) goto NextTarget ; // everything under a protected dir is protected, dont even start walking from td
 						for( Node hd=td ; +hd ; hd=hd->dir() ) {
 							if (_s_hier_target_dirs.contains(hd)) break ;      // dir is protected
-							if (locked_dirs        .contains(hd)) break ;      // dir contains a file, no hope to remove it
+							if (dep_locked_dirs    .contains(hd)) break ;      // dir contains a dep    => no     hope and no desire to remove it
+							if (target_locked_dirs .contains(hd)) break ;      // dir contains a target => little hope and no desire to remove it
 							if (to_mkdirs          .contains(hd)) break ;      // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
 							if (to_mkdir_uphills   .contains(hd)) break ;      // .
 							//
@@ -83,7 +89,7 @@ namespace Engine {
 		}
 		// make target dirs
 		for( Node d : to_mkdirs ) {
-			if (locked_dirs     .contains(d)) continue ;                       // dir contains a file         => it already exists
+			if (dep_locked_dirs .contains(d)) continue ;                       // dir contains a dep          => it already exists (targets may have been unlinked)
 			if (to_mkdir_uphills.contains(d)) continue ;                       // dir is a dir of another dir => it will be automatically created
 			actions.emplace_back( d , FileActionTag::Mkdir ) ;                 // note that protected dirs (in _s_target_dirs and _s_hier_target_dirs) may not be created yet, so mkdir them to be sure
 		}

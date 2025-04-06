@@ -256,8 +256,8 @@ namespace Disk {
 	//
 	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool abs_ok=false , bool force=false , bool ignore_errs=false ) ;
 	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false , bool ignore_errs=false ) ; // if dir_ok <=> unlink whole dir if it is one
-	bool          can_uniquify  ( Fd at , ::string const& file                                                                                      ) ;
-	bool/*done*/  uniquify      ( Fd at , ::string const& file                                                                                      ) ;
+	Bool3         can_uniquify  ( Fd at , ::string const& file                                                                                      ) ;
+	Bool3/*done*/ uniquify      ( Fd at , ::string const& file                                                                                      ) ; // Maybe if single link
 	void          rmdir_s       ( Fd at , ::string const& dir_s                                                                                     ) ;
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
@@ -284,8 +284,8 @@ namespace Disk {
 	inline size_t/*pos*/   mk_dir_s      ( ::string const& dir_s ,                bool unlnk_ok=false                        ) { return mk_dir_s      (Fd::Cwd,dir_s,   unlnk_ok         ) ; }
 	inline size_t/*pos*/   mk_dir_s      ( ::string const& dir_s , NfsGuard& ng , bool unlnk_ok=false                        ) { return mk_dir_s      (Fd::Cwd,dir_s,ng,unlnk_ok         ) ; }
 	inline ::string const& dir_guard     ( ::string const& path                                                              ) {        dir_guard     (Fd::Cwd,path) ; return path ;         }
-	inline bool            can_uniquify  ( ::string const& file                                                              ) { return can_uniquify  (Fd::Cwd,file                      ) ; }
-	inline bool/*done*/    uniquify      ( ::string const& file                                                              ) { return uniquify      (Fd::Cwd,file                      ) ; }
+	inline Bool3           can_uniquify  ( ::string const& file                                                              ) { return can_uniquify  (Fd::Cwd,file                      ) ; }
+	inline Bool3/*done*/   uniquify      ( ::string const& file                                                              ) { return uniquify      (Fd::Cwd,file                      ) ; }
 	inline void            rmdir_s       ( ::string const& dir_s                                                             ) {        rmdir_s       (Fd::Cwd,dir_s                     ) ; }
 	inline void            lnk           ( ::string const& file  , ::string const& target                                    ) {        lnk           (Fd::Cwd,file ,target              ) ; }
 	inline ::string        read_lnk      ( ::string const& file                                                              ) { return read_lnk      (Fd::Cwd,file                      ) ; }
