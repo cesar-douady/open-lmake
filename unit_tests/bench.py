@@ -55,8 +55,6 @@ if __name__!='__main__' :
 		'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
 	}
 
-	import gxx
-
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'gxx.py'

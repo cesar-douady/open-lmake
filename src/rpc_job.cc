@@ -37,6 +37,7 @@ using namespace Hash ;
 ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
 	::uset_s keep_dirs       ;
 	::string msg             ;
+	::string garbage         ;
 	bool     ok              = true ;
 	::uset_s existing_dirs_s ;
 	//
@@ -46,31 +47,32 @@ using namespace Hash ;
 	} ;
 	//
 	Trace trace("do_file_actions",pre_actions) ;
-	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                                    // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                                            // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                                     // acting on root dir is non-sense
+	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                                      // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                                                                              // pre_actions are adequately sorted
+		::string& f_msg = a.no_warning ? garbage : msg ;
+		SWEAR(+f) ;                                                                                                                       // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None           : {
 				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) break ;                                                                                                       // file does not exist, nothing to do
+				if (!sig) break ;                                                                                                         // file does not exist, nothing to do
 				bool done       = true/*garbage*/                                                        ;
 				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ;
 				if (quarantine) {
 					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
-					if (done) { dir_exists(f) ; msg <<"quarantined "         << mk_file(f) <<'\n' ; }                                   // if a file has been renamed, its dir necessarily exists
-					else                        msg <<"failed to quarantine "<< mk_file(f) <<'\n' ;
+					if (done) { dir_exists(f) ; f_msg <<"quarantined "         << mk_file(f) <<'\n' ; }                                   // if a file has been renamed, its dir necessarily exists
+					else                        f_msg <<"failed to quarantine "<< mk_file(f) <<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
 					try {
 						done = unlnk(nfs_guard.change(f)) ;
-						if (done) { dir_exists(f) ; if (a.tag==FileActionTag::None) msg <<"unlinked "          << mk_file(f) <<'\n' ; } // if a file has been unlinked, its dir necessarily exists
-						else                        if (a.tag!=FileActionTag::None) msg <<"file disappeared : "<< mk_file(f) <<'\n' ;
+						if (done) { dir_exists(f) ; if (a.tag==FileActionTag::None) f_msg <<"unlinked "          << mk_file(f) <<'\n' ; } // if a file has been unlinked, its dir necessarily exists
+						else                        if (a.tag!=FileActionTag::None) f_msg <<"file disappeared : "<< mk_file(f) <<'\n' ;
 						done = true ;
 					} catch (::string const& e) {
-						msg <<  e << '\n' ;
+						f_msg << e <<'\n' ;
 						done = false ;
 					}
 				}
@@ -80,12 +82,12 @@ using namespace Hash ;
 			} break ;
 			case FileActionTag::NoUniquify : {
 				Bool3 cu = can_uniquify(nfs_guard.change(f)) ;
-				if (cu==Yes) msg <<"did not uniquify "<< mk_file(f) <<'\n' ;
+				if (cu==Yes) f_msg <<"did not uniquify "<< mk_file(f) <<'\n' ;
 				if (cu!=No ) dir_exists(f) ;
 			} break ;
 			case FileActionTag::Uniquify : {
 				Bool3 u = uniquify(nfs_guard.change(f)) ;
-				if (u==Yes) msg <<"uniquified "<< mk_file(f) <<'\n' ;
+				if (u==Yes) f_msg <<"uniquified "<< mk_file(f) <<'\n' ;
 				if (u!=No ) dir_exists(f) ;
 			} break ;
 			case FileActionTag::Mkdir : {
@@ -96,7 +98,7 @@ using namespace Hash ;
 				if (!keep_dirs.contains(f))
 					try {
 						rmdir_s(with_slash(nfs_guard.change(f))) ;
-					} catch (::string const&) {                                                                                         // if a dir cannot rmdir'ed, no need to try those uphill
+					} catch (::string const&) {                                                                                           // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
 							if (!keep_dirs.insert(no_slash(d_s)).second) break ;

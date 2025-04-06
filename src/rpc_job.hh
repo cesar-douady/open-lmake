@@ -275,12 +275,11 @@ namespace Caches {
 
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;
-	// cxtors & casts
-	FileAction(FileActionTag t={} , Hash::Crc c={} , Disk::FileSig s={} ) : tag{t} , crc{c} , sig{s}  {} // should be automatic but clang lacks some automatic conversions in some cases
 	// data
-	FileActionTag tag = {} ;
-	Hash::Crc     crc ;                                                                                  // expected (else, quarantine)
-	Disk::FileSig sig ;                                                                                  // .
+	FileActionTag tag        = {}    ;
+	bool          no_warning = false ;
+	Hash::Crc     crc        = {}    ; // expected (else, quarantine)
+	Disk::FileSig sig        = {}    ; // .
 } ;
 /**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
 inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& /*out*/ unlnks , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/&unlnks,::move(pa),ng) ; }

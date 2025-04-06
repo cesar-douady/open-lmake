@@ -54,7 +54,7 @@ namespace Engine {
 			else if (                       !t.tflags[Tflag::Incremental] ) fat = FileActionTag::Unlink         ; // wahs non-polluted non-incremental
 			else if (                        t.tflags[Tflag::NoUniquify ] ) fat = FileActionTag::NoUniquify     ;
 			else                                                            fat = FileActionTag::Uniquify       ;
-			FileAction fa { fat , t->crc , t->date().sig } ;
+			FileAction fa { .tag=fat , .no_warning=t.tflags[Tflag::NoWarning] , .crc=t->crc , .sig=t->date().sig } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
@@ -91,12 +91,12 @@ namespace Engine {
 		for( Node d : to_mkdirs ) {
 			if (dep_locked_dirs .contains(d)) continue ;                       // dir contains a dep          => it already exists (targets may have been unlinked)
 			if (to_mkdir_uphills.contains(d)) continue ;                       // dir is a dir of another dir => it will be automatically created
-			actions.emplace_back( d , FileActionTag::Mkdir ) ;                 // note that protected dirs (in _s_target_dirs and _s_hier_target_dirs) may not be created yet, so mkdir them to be sure
+			actions.emplace_back( d , ::FileAction({FileActionTag::Mkdir}) ) ; // note that protected dirs (in _s_target_dirs and _s_hier_target_dirs) may not be created yet, so mkdir them to be sure
 		}
 		// rm enclosing dirs of unlinked targets
 		::vmap<Node,NodeIdx/*depth*/> to_rmdir_vec ; for( auto [k,v] : to_rmdirs ) to_rmdir_vec.emplace_back(k,v) ;
 		::sort( to_rmdir_vec , [&]( ::pair<Node,NodeIdx/*depth*/> const& a , ::pair<Node,NodeIdx/*depth*/> const& b ) { return a.second>b.second ; } ) ; // sort deeper first, to rmdir after children
-		for( auto [d,_] : to_rmdir_vec ) actions.emplace_back(d,FileActionTag::Rmdir) ;
+		for( auto [d,_] : to_rmdir_vec ) actions.emplace_back(d,FileAction({FileActionTag::Rmdir})) ;
 		//
 		// mark target dirs to protect from deletion by other jobs
 		// this must be perfectly predictible as this mark is undone in end_exec below

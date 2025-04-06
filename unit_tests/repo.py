@@ -8,63 +8,91 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,TraceRule
 
+	import gxx
+
 	lmake.manifest = (
 		'Lmakefile.py'
-	,	'trig'
+	,	'dep.h'
+	,	'gxx.py'
 	)
 
 	class Clone(TraceRule) :
 		force = True
 		targets = {
-			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'       )
-		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' )
+			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'                                      )
+		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' , 'no_uniquify' , 'no_warning' ) # let git manage hard links : it does not support unification
 		}
 		cmd = '''
-			[ "$(cat {TGT('a')} 2>/dev/null)" = a ] && exit
-			mkdir -p {TGT('')}
-			echo a > {TGT('a')}
-			echo b > {TGT('b.zip')}
+			if [ -f {TGT('.git/index')} ]
+			then ( cd {TGT('')} ; git pull 2>&1 )
+			else   git clone LMAKE/{Dir}.repo {TGT('')} 2>&1
+			fi
 		'''
 
 	class Unzip(Rule) :
 		targets = {
 			'MRKR' : ( '{Dir:.*}.zip_dir.trigger', 'phony' )
-		,	'TGT'  :   '{Dir:.*}.zip_dir/{File*:.*}'
+		,	'TGT'  :   '{Dir}.zip_dir/{File*:.*}'
 		}
-		dep = '{Dir}.zip'
+		deps = { 'ZIP' : '{Dir}.zip' }
 		cmd = '''
-			cat >{TGT('c.c')}
+			unzip {ZIP} -d {TGT('')}
 		'''
 
 	class Cc(Rule) :
-		target = 'obj/{Dir:.*}.repo_dir/{File:.*}.o'
-		deps =  {
-			'SRC'  : 'src/{Dir}.repo_dir.trigger'
-		,	'MRKR' : 'src/{Dir}.repo_dir/b.zip_dir.trigger'
-		,	'TRIG' : 'trig'
-		}
-		cmd = '''
-			cat trig src/{Dir}.repo_dir/b.zip_dir/{File}.c
+		targets = { 'EXE' : 'exe/{File:.*}' }
+		deps    = { 'SRC' : 'src/{File}.c'  }
+		cmd = f'''
+			{gxx.gxx} -I . -o {{EXE}} {{SRC}}
 		'''
 
 
 else :
 
-	import ut,os
+	import os
+	import shutil
 
-	print('1',file=open('trig','w'))
-	ut.lmake( 'src/a.repo_dir.trigger' ,                   done=1             )
-	ut.lmake( 'obj/a.repo_dir/c.o'     , new=1 , steady=1, done=2 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
+	if not shutil.which('zip') :
+		print('zip not available',file=open('skipped','w'))
+		exit()
+
+	import ut
+
+	ut.mk_gxx_module('gxx')
+
+	print('''
+		#include <stdio.h>
+		#include "dep.h"
+		int main() {
+			printf("dep=%s\\n",dep) ;
+		}
+	''',file=open('c.c','w'))
+
+	os.system('''
+		mkdir -p LMAKE/a.repo
+		zip LMAKE/a.repo/b.zip c.c ; rm c.c
+		cd LMAKE/a.repo
+		git init .
+		git add b.zip
+		git commit -minit
+	''')
+
+	print('const char* dep = "my_dep" ;',file=open('dep.h','w'))
+
+	ut.lmake( 'exe/a.repo_dir/b.zip_dir/c' , new=1 , done=3 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
+	ut.lmake( 'exe/a.repo_dir/b.zip_dir/c' ,         done=1             ) # git pull creates a .git/ORIG_HEAD file
 
 	os.system('''
 		set -x
-		rm -rf src obj
+		rm -rf src exe
 		lforget src/a.repo_dir.trigger
-		lforget -d src/a.repo
-		lforget obj/a.repo_dir/c.o
-		lforget -d obj/a.repo_dir/c.o
+		lforget -d src/a.repo_dir.trigger
+		lforget exe/a.repo_dir/b.zip_dir/c
+		lforget -d exe/a.repo_dir/b.zip_dir/c
 	''')
 
-	print('2',file=open('trig','w'))
-	ut.lmake( 'src/a.repo_dir.trigger' ,             steady=1                                  )
-	ut.lmake( 'obj/a.repo_dir/c.o'     , changed=1 , steady=2, may_rerun=1 , done=1 ,rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
+	ut.lmake( 'exe/a.repo_dir/b.zip_dir/c' , steady=3 , done=1 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable), XXX : Clone should not be run twice
+
+	print('const char* dep = "my_dep2" ;',file=open('dep.h','w'))
+
+	ut.lmake( 'exe/a.repo_dir/b.zip_dir/c' , changed=1 , steady=1 , done=1 )

@@ -14,19 +14,19 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? git seems to bit statically linked with libc
-	- really surprising, justifies investigation
-* exceptionnally, server blocks
-	- seems to be while taking GIL
 * job_exec crash in case :
 	- lmake foo on host1
 	- then lmake foo on host2
+* exceptionnally, server blocks
+	- seems to be while taking GIL
+? git seems to bit statically linked with libc
+	- really surprising, justifies investigation
+	- not appearant in unit_tests/repo
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* ensure signals are delivered to job when specified with kill_sigs
 * job must be retried in case of lost_err
 * define dep and target variables when pertinent
 	- much the same way as deps and targets
