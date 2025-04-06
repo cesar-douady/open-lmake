@@ -111,7 +111,12 @@ namespace Engine {
 					Object const& py_history_days = py_console[fields[1]] ;
 					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
 				}
-				fields[1] = "host_length" ;
+				fields[1] = "host_length" ;                                                                                            // XXX> : suppress when backward compatibility can be abandoned
+				if (py_console.contains(fields[1])) {
+					Object const& py_host_len = py_console[fields[1]] ;
+					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
+				}
+				fields[1] = "host_len" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_host_len = py_console[fields[1]] ;
 					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
@@ -242,7 +247,7 @@ namespace Engine {
 			res << "\tcaches :\n" ;
 			for( auto const& [key,idx] : cache_idxs ) {
 				Cache const& cache = caches[idx] ;
-				size_t w = 3 ;                                                               // room for tag
+				size_t w = 3 ;                                                  // room for tag
 				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
 				res <<"\t\t"<< key <<" :\n" ;
 				/**/                                 res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
@@ -264,16 +269,16 @@ namespace Engine {
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
-		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
+		if (console.host_len              ) res << "\t\thost_len       : " << console.host_len      <<'\n' ;
 		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) {                                      // local backend is always present
+		for( BackendTag t : iota(1,All<BackendTag>) ) {                         // local backend is always present
 			Backend           const& be  = backends[+t]                       ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
-			if (!bbe                          ) continue ;                                   // not implemented
-			if (!be.configured                ) continue ;                                   // not configured
+			if (!bbe                          ) continue ;                      // not implemented
+			if (!be.configured                ) continue ;                      // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;

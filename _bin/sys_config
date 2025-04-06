@@ -20,8 +20,14 @@ echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when a
                         >$ERR_FILE # .
 
 ok() {
-	if $@ >/dev/null ; then echo 1
+	if "$@" >/dev/null ; then echo 1
 	else                    echo 0
+	fi
+}
+
+ko() {
+	if "$@" >/dev/null ; then echo 0
+	else                    echo 1
 	fi
 }
 
@@ -232,7 +238,7 @@ else
 fi
 
 #
-# LIBC (USE_LIBC_START_MAIN)
+# LIBC (USE_LIBC_START_MAIN,LIBC_MAP_STAT)
 #
 cat <<"EOF" >start_main.c
 	#include <unistd.h>
@@ -244,6 +250,17 @@ cat <<"EOF" >start_main.c
 EOF
 cc -o start_main -xc start_main.c
 USE_LIBC_START_MAIN=$(./start_main) # check if _libc_start_main is executed
+#
+cat <<"EOF" >map_stat.c
+	#include <sys/stat.h>
+	int main() {
+		struct stat buf ;
+		stat("0",&buf) ;
+	}
+EOF
+cc -o map_stat -xc map_stat.c
+nm -D map_stat >map_stat.nm
+LIBC_MAP_STAT=$(ko grep -q 'U  *stat\>' map_stat.nm)
 
 #
 # MAX_PID
@@ -487,6 +504,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_ZSTD                    $HAS_ZSTD
 	#define LD_SO_LIB                   "$LD_SO_LIB"
 	#define LD_SO_LIB_32                "$LD_SO_LIB_32"
+	#define LIBC_MAP_STAT               $LIBC_MAP_STAT
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define OS_ID                       "$OS_ID"

@@ -40,32 +40,40 @@ struct SyscallDescr {
 //
 // mere path accesses, no actual accesses to file data */
 //
+#if LIBC_MAP_STAT
+	// on some systems (e.g. centos7), libc does not define stat (&co) syscalls, and if present, they may be used (seen when open-lmake compiled with -fno-inline)
+	// on such systems, it is important not to define these entries for an yet obscure reason
+	#define ENUMERATE_PATH_STATS
+#else
+	#define ENUMERATE_PATH_STATS \
+	,	LIBCALL_ENTRY(stat     ) \
+	,	LIBCALL_ENTRY(lstat    ) \
+	,	LIBCALL_ENTRY(fstatat  ) \
+	,	LIBCALL_ENTRY(stat64   ) \
+	,	LIBCALL_ENTRY(fstatat64) \
+	,	LIBCALL_ENTRY(lstat64  )
+#endif
 #define ENUMERATE_PATH_LIBCALLS \
 ,	LIBCALL_ENTRY(access                ) \
 ,	LIBCALL_ENTRY(canonicalize_file_name) \
 ,	LIBCALL_ENTRY(faccessat             ) \
-,	LIBCALL_ENTRY(fstatat               ) \
-,	LIBCALL_ENTRY(__fxstatat            ) \
-,	LIBCALL_ENTRY(lstat                 ) \
-,	LIBCALL_ENTRY(__lxstat              ) \
 ,	LIBCALL_ENTRY(mkdirat               ) \
 ,	LIBCALL_ENTRY(opendir               ) \
 ,	LIBCALL_ENTRY(realpath              ) \
 ,	LIBCALL_ENTRY(__realpath_chk        ) \
 ,	LIBCALL_ENTRY(scandir               ) \
 ,	LIBCALL_ENTRY(scandirat             ) \
-,	LIBCALL_ENTRY(statx                 ) \
-,	LIBCALL_ENTRY(stat                  ) \
-,	LIBCALL_ENTRY(__xstat               ) \
-\
-,	LIBCALL_ENTRY(fstatat64             ) \
-,	LIBCALL_ENTRY(__fxstatat64          ) \
-,	LIBCALL_ENTRY(lstat64               ) \
-,	LIBCALL_ENTRY(__lxstat64            ) \
 ,	LIBCALL_ENTRY(scandir64             ) \
 ,	LIBCALL_ENTRY(scandirat64           ) \
-,	LIBCALL_ENTRY(stat64                ) \
-,	LIBCALL_ENTRY(__xstat64             )
+,	LIBCALL_ENTRY(statx                 ) \
+\
+,	LIBCALL_ENTRY(__xstat               ) \
+,	LIBCALL_ENTRY(__fxstatat            ) \
+,	LIBCALL_ENTRY(__lxstat              ) \
+,	LIBCALL_ENTRY(__xstat64             ) \
+,	LIBCALL_ENTRY(__fxstatat64          ) \
+,	LIBCALL_ENTRY(__lxstat64            ) \
+	ENUMERATE_PATH_STATS
 
 #define ENUMERATE_LIBCALLS \
 	LIBCALL_ENTRY(chdir            ) \

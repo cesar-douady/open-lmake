@@ -630,15 +630,19 @@ struct Mkstemp : WSolve {
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HDR1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::__xstat     } ; return r(orig(v,  p,b  )) ; }
 	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HDR1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::__lxstat    } ; return r(orig(v,  p,b  )) ; }
 	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HDR1(__fxstatat  ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::__fxstatat  } ; return r(orig(v,d,p,b,f)) ; }
-	int stat        (            CC* p,struct stat  * b      ) NE { HDR1(stat        ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::stat        } ; return r(orig(    p,b  )) ; }
-	int lstat       (            CC* p,struct stat  * b      ) NE { HDR1(lstat       ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::lstat       } ; return r(orig(    p,b  )) ; }
-	int fstatat     (      int d,CC* p,struct stat  * b,int f) NE { HDR1(fstatat     ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::fstatat     } ; return r(orig(  d,p,b,f)) ; }
 	int __xstat64   (int v,      CC* p,struct stat64* b      ) NE { HDR1(__xstat64   ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::__xstat64   } ; return r(orig(v,  p,b  )) ; }
 	int __lxstat64  (int v,      CC* p,struct stat64* b      ) NE { HDR1(__lxstat64  ,p,(v,  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::__lxstat64  } ; return r(orig(v,  p,b  )) ; }
 	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HDR1(__fxstatat64,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::__fxstatat64} ; return r(orig(v,d,p,b,f)) ; }
-	int stat64      (            CC* p,struct stat64* b      ) NE { HDR1(stat64      ,p,(    p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::stat64      } ; return r(orig(    p,b  )) ; }
-	int lstat64     (            CC* p,struct stat64* b      ) NE { HDR1(lstat64     ,p,(    p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::lstat64     } ; return r(orig(    p,b  )) ; }
-	int fstatat64   (      int d,CC* p,struct stat64* b,int f) NE { HDR1(fstatat64   ,p,(  d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::fstatat64   } ; return r(orig(  d,p,b,f)) ; }
+	#if ! LIBC_MAP_STAT
+		// on some systems (e.g. centos7), libc does not define stat (&co) syscalls, and if present, they may be used (seen when open-lmake compiled with -fno-inline)
+		// on such systems, it is important not to define these entries for an yet obscure reason
+		int stat     (      CC* p,struct stat  * b      ) NE { HDR1(stat     ,p,(  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::stat     } ; return r(orig(  p,b  )) ; }
+		int lstat    (      CC* p,struct stat  * b      ) NE { HDR1(lstat    ,p,(  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::lstat    } ; return r(orig(  p,b  )) ; }
+		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HDR1(fstatat  ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::fstatat  } ; return r(orig(d,p,b,f)) ; }
+		int stat64   (      CC* p,struct stat64* b      ) NE { HDR1(stat64   ,p,(  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::stat64   } ; return r(orig(  p,b  )) ; }
+		int lstat64  (      CC* p,struct stat64* b      ) NE { HDR1(lstat64  ,p,(  p,b  )) ; Stat r{   p ,true    ,~Accesses(),Comment::lstat64  } ; return r(orig(  p,b  )) ; }
+		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HDR1(fstatat64,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),~Accesses(),Comment::fstatat64} ; return r(orig(d,p,b,f)) ; }
+	#endif
 	//
 	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                   // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HDR1(statx,p,(d,p,f,msk,b)) ;

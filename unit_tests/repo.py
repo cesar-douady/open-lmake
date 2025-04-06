@@ -28,22 +28,21 @@ if __name__!='__main__' :
 
 	class Unzip(Rule) :
 		targets = {
-			'MRKR' : r'src/{Dir:.*}.unzip'
-		,	'TGT'  :  'src/{Dir}.zip_dir/{File*:.*}'
+			'MRKR' : ( r'src/{Dir:.*}.unzip' , 'phony' )
+		,	'TGT'  :    'src/{Dir}.zip_dir/{File*:.*}'
 		}
 		dep = 'src/{Dir}.zip'
 		cmd = '''
-			echo > {MRKR}
 			cat  > {TGT('c.c')}
 		'''
 
 	class Cc(Rule) :
-		target = r'obj/{File:.*}.o'
+		target = r'obj/{Dir:.*}.zip_dir/{File:.*}.o'
 		deps =  {
-			'SRC'  : 'src/{File}.c'
+			'MRKR' : 'src/{Dir}.unzip'
 		,	'TRIG' : 'trig'
 		}
-		cmd = 'cat trig -'
+		cmd = 'cat trig src/{Dir}.zip_dir/{File}.c'
 
 
 else :
@@ -51,7 +50,8 @@ else :
 	import ut
 
 	print('1',file=open('trig','w'))
-	ut.lmake( 'obj/a.repo_dir/b.zip_dir/c.o' , new=1 , done=3 )
+	ut.lmake( 'src/a.repo'                   ,                    done=1             )
+	ut.lmake( 'obj/a.repo_dir/b.zip_dir/c.o' , new=1 , steady=1 , done=2 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
 
 	print('2',file=open('trig','w'))
 	ut.lmake( 'obj/a.repo_dir/b.zip_dir/c.o' , changed=1 , steady=1 , done=1 )
