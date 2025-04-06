@@ -93,28 +93,13 @@ namespace Py {
 	//
 	nullptr_t py_err_set( Exception e , ::string const& txt ) ;
 
-	template<class T       > T    const* _chk   (Object const* o) { SWEAR(o) ; T const* r = static_cast<T const*>(o) ; { if (!r->qualify()    ) throw "not a "s+T::Name  ; }              return r ; }
-	template<class T       > T         * _chk   (Object      * o) { SWEAR(o) ; T      * r = static_cast<T      *>(o) ; { if (!r->qualify()    ) throw "not a "s+T::Name  ; }              return r ; }
-	template<class T=Object> T         * from_py(PyObject    * o) {            T      * r = static_cast<T      *>(o) ; { if (!r               ) throw py_err_str_clear() ; } _chk<T>(r) ; return r ; }
-	inline                   char const* from_py(char const  * s) {                                                    { if (!s               ) throw py_err_str_clear() ; }              return s ; }
-	inline                   int         from_py(int           i) {                                                    { if (i<0              ) throw py_err_str_clear() ; }              return i ; }
-	inline                   void        from_py(               ) {                                                      if (py_err_occurred()) throw py_err_str_clear() ;                           }
-
-	template<class T> struct WithGil : T {
-		using T::operator+ ;
-		// cxtors & casts
-		using T::T ;
-		WithGil(T const& t) : T{       t } {}
-		WithGil(T     && t) : T{::move(t)} {}
-		~WithGil() {
-			if (!self) return ; // fast path : dont pay init of all fields if not necessary
-			self = T() ;
-		}
-		WithGil& operator=(WithGil const& p) { if (+self) { Gil gil ; T::operator=(       p ) ; } else { T::operator=(       p ) ; } return self ; }
-		WithGil& operator=(WithGil     && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
-		WithGil& operator=(T       const& p) { if (+self) { Gil gil ; T::operator=(       p ) ; } else { T::operator=(       p ) ; } return self ; }
-		WithGil& operator=(T           && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
-	} ;
+	template<class T> T const* _chk(Object const* o) ;
+	template<class T> T      * _chk(Object      * o) ;
+	//
+	template<class T=Object> T         * from_py(PyObject  * o) { T* r = static_cast<T*>(o) ; { if (!r               ) throw py_err_str_clear() ; } _chk<T>(r) ; return r ; }
+	inline                   char const* from_py(char const* s) {                             { if (!s               ) throw py_err_str_clear() ; }              return s ; }
+	inline                   int         from_py(int         i) {                             { if (i<0              ) throw py_err_str_clear() ; }              return i ; }
+	inline                   void        from_py(             ) {                               if (py_err_occurred()) throw py_err_str_clear() ;                           }
 
 	//
 	// Object
@@ -628,26 +613,6 @@ namespace Py {
 	} ;
 
 	//
-	// RAII
-	//
-
-	struct WithBuiltins { // set __builtins__ in dict and remove it at the end
-		// cxtors & casts
-		WithBuiltins (Dict&) ;
-		~WithBuiltins(     ) ;
-		// data
-		Dict& dct ;
-	} ;
-
-	struct WithSysPath { // set __builtins__ in dict and remove it at the end
-		// cxtors & casts
-		WithSysPath (Sequence const*) ;
-		~WithSysPath(               ) ;
-		// data
-		Ptr<Sequence> sav_sys_path ;
-	} ;
-
-	//
 	// functions
 	//
 
@@ -672,28 +637,61 @@ namespace Py {
 	Ptr<Dict> py_run ( ::string const& text , Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) ; // update glbs if provided (else use clean dict), return globals after execution
 
 	//
+	// RAII
+	//
+
+	template<class T> struct WithGil : T {
+		using T::operator+ ;
+		// cxtors & casts
+		using T::T ;
+		WithGil(T const& t) : T{       t } {}
+		WithGil(T     && t) : T{::move(t)} {}
+		~WithGil() {
+			if (!self) return ; // fast path : dont pay init of all fields if not necessary
+			self = T() ;
+		}
+		WithGil& operator=(WithGil const& p) { if (+self) { Gil gil ; T::operator=(       p ) ; } else { T::operator=(       p ) ; } return self ; }
+		WithGil& operator=(WithGil     && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
+		WithGil& operator=(T       const& p) { if (+self) { Gil gil ; T::operator=(       p ) ; } else { T::operator=(       p ) ; } return self ; }
+		WithGil& operator=(T           && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
+	} ;
+
+	struct WithBuiltins { // set __builtins__ in dict and remove it at the end
+		// cxtors & casts
+		WithBuiltins (Dict& dct_) : dct{dct_} {
+			#ifndef NDEBUG                                          // avoid executing glb.contains if not debugging
+				SWEAR(!dct.contains("__builtins__")) ;
+			#endif
+			dct.set_item("__builtins__",*Dict::s_builtins) ;
+		}
+		~WithBuiltins() {
+			dct.del_item("__builtins__") ;
+		}
+		// data
+		Dict& dct ;
+	} ;
+
+	struct WithSysPath { // set __builtins__ in dict and remove it at the end
+		// cxtors & casts
+		WithSysPath (Sequence const* sys_path) {
+			if (!sys_path) return ;
+			sav_sys_path = &py_get_sys<Sequence>("path") ;
+			py_set_sys( "path" , *sys_path ) ;
+		}
+		~WithSysPath() {
+			if (!sav_sys_path) return ;
+			py_set_sys( "path" , *sav_sys_path ) ;
+		}
+		// data
+		Ptr<Sequence> sav_sys_path ;
+	} ;
+
+	//
 	// implementation
 	//
 
-	inline WithBuiltins::WithBuiltins(Dict& dct_) : dct{dct_} {
-		#ifndef NDEBUG                                          // avoid executing glb.contains if not debugging
-			SWEAR(!dct.contains("__builtins__")) ;
-		#endif
-		dct.set_item("__builtins__",*Dict::s_builtins) ;
-	}
-	inline WithBuiltins::~WithBuiltins() {
-		dct.del_item("__builtins__") ;
-	}
-
-	inline WithSysPath::WithSysPath(Sequence const* sys_path) {
-		if (!sys_path) return ;
-		sav_sys_path = &py_get_sys<Sequence>("path") ;
-		py_set_sys( "path" , *sys_path ) ;
-	}
-	inline WithSysPath::~WithSysPath() {
-		if (!sav_sys_path) return ;
-		py_set_sys( "path" , *sav_sys_path ) ;
-	}
+	template<class T> T const* _chk(Object const* o) { SWEAR(o) ; throw_unless(o->is_a<T>(),"type error : ",o->type_name()," is not a ",T::Name) ; return static_cast<T const*>(o) ; }
+	template<class T> T      * _chk(Object      * o) { SWEAR(o) ; throw_unless(o->is_a<T>(),"type error : ",o->type_name()," is not a ",T::Name) ; return static_cast<T      *>(o) ; }
 
 	//
 	// Object

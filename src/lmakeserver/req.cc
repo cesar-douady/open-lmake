@@ -52,25 +52,25 @@ namespace Engine {
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),Dflag::Static,true/*parallel*/) ) ;
 			Backend::s_open_req( +self , n_jobs ) ;
 			data.has_backend = true ;
+			trace("job",data.job) ;
+			//
+			Job::ReqInfo& jri = data.job->req_info(self) ;
+			jri.live_out = self->options.flags[ReqFlag::LiveOut] ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			data.job->make(jri,JobMakeAction::Status,{}/*JobReason*/,No/*speculate*/) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			for( Node d : data.job->deps ) {
+				/**/                           if (!d->done(self)              ) continue ;
+				Job j = d->conform_job_tgt() ; if (!j                          ) continue ;
+				/**/                           if (j->run_status!=RunStatus::Ok) continue ;
+				//
+				self->up_to_dates.push_back(d) ;
+			}
+			chk_end() ;
 		} catch (::string const& e) {
 			close() ;
 			throw ;
 		}
-		trace("job",data.job) ;
-		//
-		Job::ReqInfo& jri = data.job->req_info(self) ;
-		jri.live_out = self->options.flags[ReqFlag::LiveOut] ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		data.job->make(jri,JobMakeAction::Status,{}/*JobReason*/,No/*speculate*/) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		for( Node d : data.job->deps ) {
-			/**/                           if (!d->done(self)             ) continue ;
-			Job j = d->conform_job_tgt() ; if (!j                          ) continue ;
-			/**/                           if (j->run_status!=RunStatus::Ok) continue ;
-			//
-			self->up_to_dates.push_back(d) ;
-		}
-		chk_end() ;
 	}
 
 	void Req::kill(bool ctrl_c) {
@@ -277,13 +277,14 @@ namespace Engine {
 		Trace trace("chk_end",self,cri,job,job->status) ;
 		self->audit_stats() ;
 		self->audit_summary(job_err) ;
-		if (zombie()                     ) goto Done ;
-		if (!job_err                     ) goto Done ;
+		if (zombie()                     ) { trace("zombie") ; goto Done ; }
+		if (!job_err                     ) { trace("ok"    ) ; goto Done ; }
 		if (!job->c_req_info(self).done()) {
 			for( Dep const& d : job->deps )
-				if (!d->done(self)) { _report_cycle(d) ; goto Done ; }
+				if (!d->done(self)) { _report_cycle(d) ; trace("cycle") ; goto Done ; }
 			fail_prod("job not done but all deps are done :",job->name()) ;
 		} else {
+			trace("err",job->rule()->special) ;
 			size_t       n_err       = g_config->max_err_lines ? g_config->max_err_lines : size_t(-1) ;
 			bool         seen_stderr = false                                                          ;
 			::uset<Job > seen_jobs   ;
@@ -302,6 +303,7 @@ namespace Engine {
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,self) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		trace("done") ;
 	} ;
 
 	//

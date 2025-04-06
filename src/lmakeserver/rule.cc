@@ -197,12 +197,17 @@ namespace Engine {
 		}
 	}
 	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
-		if (py.is_a<Str>()) return py.as_a<Str>() ;
-		Sequence const& py_seq = py.as_a<Sequence>() ;
-		SWEAR(py_seq.size()>=n_skip,key) ;
-		SWEAR(py_seq[0].is_a<Str>(),key) ;
-		_mk_flags( key , py_seq , n_skip , flags , extra_flags ) ;
-		return py_seq[0].as_a<Str>() ;
+		if (py.is_a<Str>()) {
+			SWEAR(n_skip==1) ;                         // cannot skip 2 values with a single Str
+			return py.as_a<Str>() ;
+		}
+		Sequence const* py_seq ;
+		try                       { py_seq = &py.as_a<Sequence>() ; }
+		catch (::string const& e) { throw e+" nor a str" ;          } // e is a type error
+		SWEAR(py_seq->size()>=n_skip,key) ;
+		SWEAR((*py_seq)[0].is_a<Str>(),key) ;
+		_mk_flags( key , *py_seq , n_skip , flags , extra_flags ) ;
+		return (*py_seq)[0].as_a<Str>() ;
 	}
 
 	//
@@ -523,41 +528,47 @@ namespace Engine {
 	}
 
 	::vmap_s<DepSpec> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
-		::vmap_s<DepSpec> res ;
-		for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
-		//
-		if (is_dyn()) {
-			Gil gil    ;
-			Ptr py_obj = _eval_code(match) ;
+		try {
+			::vmap_s<DepSpec> res ;
+			for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 			//
-			::map_s<VarIdx> dep_idxs ;
-			for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
-			if (*py_obj!=None) {
-				throw_unless( +py_obj->is_a<Dict>() , "type error : ",py_obj->ob_type->tp_name," is not a dict" ) ;
-				for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
-					if (py_val==None) continue ;
-					::string key = py_key.as_a<Str>() ;
-					Dflags      df  { Dflag::Essential , Dflag::Static } ;
-					ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
-					::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
-					if ( !_qualify_dep( key , match.rule->is_python , dep ) ) continue ;
-					DepSpec ds { dep , df , edf } ;
-					if (spec.full_dyn) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          }                                // dep cannot be both static and dynamic
-					else                                                      res[dep_idxs.at(key)].second = ds ;                                  // if not full_dyn, all deps must be listed in spec
+			if (is_dyn()) {
+				Gil gil    ;
+				Ptr py_obj = _eval_code(match) ;
+				//
+				::map_s<VarIdx> dep_idxs ;
+				for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
+				if (*py_obj!=None)
+					for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
+						if (py_val==None) continue ;
+						::string key = py_key.as_a<Str>() ;
+						try {
+							Dflags      df  { Dflag::Essential , Dflag::Static } ;
+							ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
+							::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
+							if ( !_qualify_dep( key , match.rule->is_python , dep ) ) continue ;
+							DepSpec ds { dep , df , edf } ;
+							if (spec.full_dyn) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
+							else                                                      res[dep_idxs.at(key)].second = ds ;   // if not full_dyn, all deps must be listed in spec
+						} catch (::string const& e) {
+							throw cat("while processing dep ",key," : ",e) ;
+						}
+					}
+				if (!spec.full_dyn) {                                                                                       // suppress dep placeholders that are not set by dynamic code
+					NodeIdx i = 0 ;
+					for( NodeIdx j : iota(res.size()) ) {
+						if (!res[j].second.txt) continue ;
+						if (i!=j              ) res[i] = ::move(res[j]) ;
+						i++ ;
+					}
+					res.resize(i) ;
 				}
 			}
-			if (!spec.full_dyn) { // suppress dep placeholders that are not set by dynamic code
-				NodeIdx i = 0 ;
-				for( NodeIdx j : iota(res.size()) ) {
-					if (!res[j].second.txt) continue ;
-					if (i!=j              ) res[i] = ::move(res[j]) ;
-					i++ ;
-				}
-				res.resize(i) ;
-			}
+			//
+			return res  ;
+		} catch (::string const& e) { // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
+			throw ::pair(e,""s) ;
 		}
-		//
-		return res  ;
 	}
 
 	//

@@ -256,10 +256,10 @@ def finalize_dyn_expr( dyn_expr , for_cmd ) :
 			if not set_w :
 				if for_cmd :
 					if lmake_root_var!='lmake_root' :
-						if has_lmake : prelude.append(f'{lmake_root_var} = lmake_root')                                                 # lmake_root prepended at exec time
+						if has_lmake : prelude.append(f'{lmake_root_var} = lmake_root')                                               # lmake_root prepended at exec time
 						if True      : prelude.append( 'del lmake_root'               )
 					if repo_root_var !='repo_root'  :
-						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                                 # repo_root  prepended at exec time
+						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                               # repo_root  prepended at exec time
 						if True      : prelude.append( 'del repo_root'                )
 				prelude.append('#')
 			for func , (module,qualname,filename,firstlineno) in dyn_expr.dbg_info.items() :
@@ -345,7 +345,7 @@ class Handle :
 				res_is_dyn |= is_dyn
 				res_val.append(v)
 			return res_is_dyn,tuple(res_val)
-		if isinstance(x,dict) :
+		if isinstance(x,dict) and not for_deps :                             # deps values must be str or (tuple,list,set)
 			res_is_dyn = False
 			res_dct    = {}
 			for key,val in x.items() :
@@ -375,8 +375,8 @@ class Handle :
 			for k,v in val.items() :
 				is_dyn_k,k = self._fstring(k,False                  )
 				is_dyn_v,v = self._fstring(v      ,for_deps=for_deps)
-				if   is_dyn_k or is_dyn_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
-				else                      : sv[k]       =               v
+				if is_dyn_k or is_dyn_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
+				else                    : sv[k]       =               v
 			if sv : self.static_val[key] = sv
 			if dv : self.dyn_val   [key] = dv
 		else :

@@ -45,6 +45,7 @@ __pycache__
 */stamp
 *.*_stamp
 *.dbg
+src/lmakeserver/backends/slurm_api-*.cc
 
 # tests
 tok

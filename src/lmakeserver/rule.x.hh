@@ -876,10 +876,7 @@ namespace Engine {
 		if (is_dyn()) {
 			Py::Gil   gil    ;
 			Py::Ptr<> py_obj = _eval_code( job , match , rsrcs , deps ) ;
-			if (*py_obj!=Py::None) {
-				if (!py_obj->is_a<Py::Dict>()) throw "type error : "s+py_obj->ob_type->tp_name+" is not a dict" ;
-				res.update(py_obj->as_a<Py::Dict>()) ;
-			}
+			if (*py_obj!=Py::None) res.update(py_obj->as_a<Py::Dict>()) ;
 		}
 		return res ;
 	}
