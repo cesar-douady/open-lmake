@@ -112,7 +112,12 @@ namespace Engine {
 					Object const& py_history_days = py_console[fields[1]] ;
 					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
 				}
-				fields[1] = "host_length" ;
+				fields[1] = "host_length" ;                                                                                            // for backward compatibility
+				if (py_console.contains(fields[1])) {
+					Object const& py_host_len = py_console[fields[1]] ;
+					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
+				}
+				fields[1] = "host_len" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_host_len = py_console[fields[1]] ;
 					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
@@ -262,7 +267,7 @@ namespace Engine {
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
 		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
 		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
-		if (console.host_len              ) res << "\t\thost_length    : " << console.host_len      <<'\n' ;
+		if (console.host_len              ) res << "\t\thost_len       : " << console.host_len      <<'\n' ;
 		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
 		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
 		//

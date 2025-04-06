@@ -141,7 +141,7 @@ If this attribute is true, execution time is reported each time a job is complet
 
 This attribute specifies the number of days the output log history is kept in the `LMAKE/outputs` directory.
 
-### `console.host_length` : Dynamic (`None`)
+### `console.host_len` : Dynamic (`None`)
 
 This attribute specifies the width of the field showing the host that executed or is about to execute the job.
 If `None`, the host is not shown.

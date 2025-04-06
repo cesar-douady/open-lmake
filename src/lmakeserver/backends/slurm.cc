@@ -178,10 +178,11 @@ namespace Backends::Slurm {
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'c' : if(k=="config"           ) { config_file       = v.c_str()                ; continue ; } break ;
-						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
-						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
-						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
+						case 'c' : if(k=="config"           ) { config_file       =                       v.c_str() ; continue ; } break ;
+						case 'l' : if(k=="lib_slurm"        ) {                                                       continue ; } break ; // for forward compatibility
+						case 'n' : if(k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v)        ; continue ; } break ;
+						case 'r' : if(k=="repo_key"         ) { repo_key          =                       v         ; continue ; } break ;
+						case 'u' : if(k=="use_nice"         ) { use_nice          = from_string<bool    >(v)        ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
