@@ -64,7 +64,7 @@ StdAttrs = { #!               type   dynamic
 ,	'views'               : ( dict  , True  )
 }
 
-Keywords     = {'dep','deps','resources','stems','target','targets'}
+Keywords     = {'dep','deps','python','resources','shell','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
 SimpleStemRe = re.compile(r'{\w+}|{{|}}')                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
 SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
@@ -424,7 +424,8 @@ class Handle :
 		return dyn_expr
 
 	def handle_matches(self) :
-		if 'target' in self.attrs : self.attrs.targets['<stdout>'] = self.attrs.pop('target')
+		if 'target' in self.attrs :
+			self.attrs.targets = { 'target':self.attrs.pop('target') , **self.attrs.targets } # ensure target is first target (in insertion order)
 		#
 		def fmt(k,kind,val) :
 			if   isinstance(val,str         ) : return (val   ,kind        )
@@ -440,9 +441,8 @@ class Handle :
 
 	def handle_job_name(self) :
 		matches = self.rule_rep.matches
-		if   'job_name' in self.attrs : self.rule_rep.job_name = self.attrs.job_name    # if job name is specified, use it
-		elif '<stdout>' in matches    : self.rule_rep.job_name = matches['<stdout>'][0] # if we have a stdout, use it
-		else :                                                                          # use first target, the most specific one
+		if 'job_name' in self.attrs : self.rule_rep.job_name = self.attrs.job_name # if job name is specified, use it
+		else :                                                                     # else use first target, the most specific one
 			for t in matches.values() :
 				if t[1]=='target' :
 					self.rule_rep.job_name = t[0]
@@ -469,15 +469,15 @@ class Handle :
 	def handle_deps(self) :
 		attrs        = self.attrs
 		special_deps = {}
-		if   attrs.is_python : interpreter             = 'python'
-		else                 : interpreter             = 'shell'
-		if 'dep' in attrs    : special_deps['<stdin>'] = attrs.pop('dep')
+		if   attrs.is_python : interpreter         = 'python'
+		else                 : interpreter         = 'shell'
+		if 'dep' in attrs    : special_deps['dep'] = attrs.pop('dep')
 		if interpreter in attrs :
 			i = attrs[interpreter]
 			if not callable(i) :
 				i0 = i[0]
 				if not callable(i0) and self._is_simple_fstr(i0) :
-					special_deps['<interpreter>'] = i0                            # interpreter is only set as a static dep if it is simple enough as user may want to access files to determine it
+					special_deps[interpreter] = ( i0 , '-essential' )             # interpreter is only set as a static dep if it is simple enough as user may want to access files to determine it
 		if special_deps :
 			if callable(attrs.deps) : attrs.deps = serialize.based_dict(attrs.deps,special_deps)
 			else                    : attrs.deps.update(special_deps)

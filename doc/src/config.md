@@ -194,12 +194,14 @@ Each entry is a `pdict` providing resources. Such resources are backend specific
 ### `backends.*.interface` : Dynamic (best guess)
 
 When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
+The same is true if the job is launche locally but it launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
 This is done by connecting to a socket open-lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
 The host running open-lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
 There is no generic way to determine this address, so in general, open-lmake cannot determine it automatically.
 
-This value may be empty (loop-back for local backend, `hostname` look up for remote backends), given in standard dot notation, as the name of an interface (as shown by `ifconfig`)
+This value may be empty (using `hostname` for addresse look up), given in standard dot notation, as the name of an interface (as shown by `ifconfig`)
 or the name of a host (looked up as for `ping`).
+In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.
 
 ### `backends.*.environ` : Dynamic (`{}`)
 

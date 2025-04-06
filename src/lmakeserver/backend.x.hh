@@ -41,6 +41,10 @@ namespace Backends {
 
 	void send_reply( Job , JobMngtRpcReply&& ) ;
 
+	inline ::string get_log_dir_s  (Job job) { return job.ancillary_file(AncillaryTag::Backend)+'/' ; }
+	inline ::string get_stderr_file(Job job) { return get_log_dir_s(job) + "stderr"                 ; }
+	inline ::string get_stdout_file(Job job) { return get_log_dir_s(job) + "stdout"                 ; }
+
 	struct Backend {
 
 		friend void send_reply( Job , JobMngtRpcReply&& ) ;

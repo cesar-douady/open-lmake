@@ -753,38 +753,40 @@ namespace Backends {
 				continue ;
 			}
 			//
-			if (be->is_local()) {
-				be->addr = SockFd::LoopBackAddr ;
-			} else {
-				::string ifce ;
-				if (+cfg.ifce) {
-					Gil gil ;
-					try {
-						Ptr<Dict> glbs = py_run(cfg.ifce) ;
-						ifce = (*glbs)["interface"].as_a<Str>() ;
-					} catch (::string const& e) {
-						throw "bad interface for "s+t+'\n'+indent(e,1) ;
-					}
+			::string ifce ;
+			if (+cfg.ifce) {
+				Gil gil ;
+				try {
+					Ptr<Dict> glbs = py_run(cfg.ifce) ;
+					ifce = (*glbs)["interface"].as_a<Str>() ;
+				} catch (::string const& e) {
+					throw "bad interface for "s+t+'\n'+indent(e,1) ;
 				}
-				::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;
-				if (addrs.size()>1) {
-					::string msg   = "multiple possible interfaces : " ;
-					::string host_ = host()                            ;
-					::string fqdn_ = fqdn()                            ;
-					First    first ;
-					for( auto const& [ifce,addr] : addrs ) msg << first("",", ") << ifce <<'('<< ServerSockFd::s_addr_str(addr) <<')' ;
-					msg += '\n' ;
-					msg << "consider one of :\n" ;
-					/**/              msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(host_)<<'\n' ;
-					if (fqdn_!=host_) msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(fqdn_)<<'\n' ;
-					for( auto const& [ifce,addr] : addrs ) {
-						msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ifce                          )<<'\n' ;
-						msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
-					}
-					throw msg ;
-				}
-				be->addr = addrs[0].second ;
 			}
+			::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;
+			if (addrs.size()==1) {
+				be->addr = addrs[0].second ;
+			} else if (be->is_local()) {
+				be->addr = SockFd::LoopBackAddr ;                                                               // dont bother user for local backend
+			} else if (addrs.size()==0) {
+				throw "cannot determine address from interface "+cfg.ifce ;
+			} else {
+				::string msg   = "multiple possible interfaces : " ;
+				::string host_ = host()                            ;
+				::string fqdn_ = fqdn()                            ;
+				First    first ;
+				for( auto const& [ifce,addr] : addrs ) msg << first("",", ") << ifce <<'('<< ServerSockFd::s_addr_str(addr) <<')' ;
+				msg += '\n' ;
+				msg << "consider one of :\n" ;
+				/**/              msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(host_)<<'\n' ;
+				if (fqdn_!=host_) msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(fqdn_)<<'\n' ;
+				for( auto const& [ifce,addr] : addrs ) {
+					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ifce                          )<<'\n' ;
+					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
+				}
+				throw msg ;
+			}
+			be->addr = addrs[0].second ;
 		}
 		trace(_s_job_exec) ;
 		_s_job_start_thread.wait_started() ;

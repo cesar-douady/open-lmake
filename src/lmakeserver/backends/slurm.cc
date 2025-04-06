@@ -508,7 +508,7 @@ namespace Backends::Slurm {
 
 	::string read_stderr(Job job) {
 		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
-		::string stderr_file = _get_stderr_file(job) ;
+		::string stderr_file = get_stderr_file(job) ;
 		try {
 			::string res = AcFd(stderr_file).read() ;
 			if (!res) return {}                                    ;

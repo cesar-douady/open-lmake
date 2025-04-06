@@ -184,7 +184,7 @@ namespace Engine {
 			if (item.is_a<Str>()) {
 				::string flag_str = item.as_a<Str>() ;
 				bool     neg      = flag_str[0]=='-' ;
-				if (neg) flag_str.erase(0,1) ;         // suppress initial - sign
+				if (neg) flag_str.erase(0,1) ;                        // suppress initial - sign
 				//
 				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F ::NRule) ) flags      .set(f ,!neg) ;
 				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<EF::NRule) ) extra_flags.set(ef,!neg) ;
@@ -198,7 +198,7 @@ namespace Engine {
 	}
 	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
 		if (py.is_a<Str>()) {
-			SWEAR(n_skip==1) ;                         // cannot skip 2 values with a single Str
+			SWEAR(n_skip==1) ;                                        // cannot skip 2 values with a single Str
 			return py.as_a<Str>() ;
 		}
 		Sequence const* py_seq ;
@@ -471,12 +471,12 @@ namespace Engine {
 	// XXX : check all parts between stems for non-canon, not just the first
 	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
 		::string dir_s = dep.substr(0,dep.find(Rule::StemMrkr)) ; if ( size_t p=dir_s.rfind('/') ; p!=Npos ) dir_s.resize(p+1) ; else dir_s.clear() ;
+		const char* interpreter = is_python ? "python" : "shell" ;
 		//
-		auto bad = [&] ( ::string const& msg, bool interpreter_ok )->void {
-			if (key!="<interpreter>") throw "dep "+key+" ("+dep_for_msg+") "+msg ;
-			if (interpreter_ok      ) return                                     ;
-			if (is_python           ) throw "python ("     +dep_for_msg+") "+msg ;
-			/**/                      throw "shell ("      +dep_for_msg+") "+msg ;
+		auto bad = [&] ( ::string const& msg , bool interpreter_ok )->void {
+			if (key!=interpreter) throw "dep "+key+" ("+dep_for_msg+") "+msg ;
+			if (interpreter_ok  ) return                                     ;
+			/**/                  throw cat(interpreter," (",dep_for_msg,") ",msg) ;
 		} ;
 		//
 		if (!is_canon(dir_s,true/*empty_ok*/)) bad("canonical form is : "+mk_canon(full_dep),false/*interpreter_ok*/) ;
@@ -533,8 +533,8 @@ namespace Engine {
 			for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
 			//
 			if (is_dyn()) {
-				Gil gil    ;
-				Ptr py_obj = _eval_code(match) ;
+				Gil   gil    ;
+				Ptr<> py_obj = _eval_code(match) ;
 				//
 				::map_s<VarIdx> dep_idxs ;
 				for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
@@ -607,8 +607,8 @@ namespace Engine {
 			if (!is_dyn()) {
 				res = parse_fstr( entry().code_str , match , rsrcs ) ;
 			} else {
-				Gil gil    ;
-				Ptr py_obj = _eval_code( match , rsrcs , deps ) ;
+				Gil   gil    ;
+				Ptr<> py_obj = _eval_code( match , rsrcs , deps ) ;
 				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
 				Attrs::acquire( res , &py_obj->as_a<Str>() ) ;
 			}
@@ -836,7 +836,7 @@ namespace Engine {
 					::set_s         missing_stems      ;
 					bool            is_target          = kind!=MatchKind::SideDep                      ;
 					bool            is_official_target = kind==MatchKind::Target                       ;
-					bool            is_stdout          = field=="<stdout>"                             ;
+					bool            is_stdout          = field=="target"                               ;
 					MatchFlags      flags              ;
 					Tflags          tflags             ;
 					Dflags          dflags             ;
@@ -974,12 +974,12 @@ namespace Engine {
 			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { rules , dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
 			//
 			for( VarIdx mi : iota(n_static_targets) ) {
-				if (matches[mi].first!="<stdout>") continue ;
+				if (matches[mi].first!="target") continue ;                                                                    // target is a reserved key that means stdout
 				stdout_idx = mi ;
 				break ;
 			}
 			for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
-				if (deps_attrs.spec.deps[di].first!="<stdin>") continue ;
+				if (deps_attrs.spec.deps[di].first!="dep") continue ;                                                          // dep is a reserved key that means stdin
 				stdin_idx = di ;
 				break ;
 			}

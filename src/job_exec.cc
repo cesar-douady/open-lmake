@@ -71,17 +71,19 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	bool             found_server = false ;
 	JobStartRpcReply res          ;
 	try {
-		ClientSockFd fd {g_service_start} ;
-		fd.set_timeout(Delay(100)) ;                                                              // ensure we dont stay stuck in case server is in the coma ...
-		found_server = true ;                                                                     //  ... 100 = 100 simultaneous connections, 10 jobs/s
+		ClientSockFd fd { g_service_start } ;
+		fd.set_timeout(Delay(100)) ;          // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections, 10 jobs/s
+		throw_unless(+fd) ;
+		found_server = true ;
 		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		/**/  OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
 		res = IMsgBuf().receive<JobStartRpcReply>( fd                                                     ) ;
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) {
 		trace("no_start_info",STR(found_server),e) ;
-		if (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
-		else              exit(Rc::Fail,"cannot communicate with server",g_service_start,':',e) ; // this may be a server config problem, better to report
+		if      (found_server) exit(Rc::Fail                                                    ) ; // this is typically a ^C
+		else if (+e          ) exit(Rc::Fail,"cannot connect to server at",g_service_start,':',e) ; // this may be a server config problem, better to report if verbose
+		else                   exit(Rc::Fail,"cannot connect to server at",g_service_start      ) ; // .
 	}
 	g_exec_trace->push_back({ New , Comment::startInfo , CommentExt::Reply }) ;
 	trace(res) ;

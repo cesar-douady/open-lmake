@@ -27,11 +27,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* job must be retried in case of lost_err
-* define dep and target variables when pertinent
-	- much the same way as deps and targets
-* manage case where local job spawn remote execution through ssh
-	- correctly done if under slurm, but not locally because address is loop-back
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary
@@ -74,6 +69,7 @@ items (also used in XXX comments) :
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* replace ::pair_ss by a new type MsgStderr where pertinent
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm

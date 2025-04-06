@@ -18,6 +18,12 @@ Each attribute is characterized by a few flags:
   - Simple: globals include module globals, user attributes, stems and targets, no file access allowed.
   - Full:   globals include module globals, user attributes, stems, targets, deps and resources, file accesses become deps.
 
+When targets are allowed in dynamic values, the `targets` variable is also defined as the `dict` of the targets.
+Also, if `target` was used to redirect stdout, the `target` variable contains said file name.
+
+Similarly, when deps are allowed in dynamic values, the `deps` variable is also defined as the `dict` of the deps.
+Also, if `dep` was used to redirect stdin, the `dep` variable contains said file name.
+
 When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as Python f-strings, as for dynamic values.
 This is actually a form of dynamic value.
 

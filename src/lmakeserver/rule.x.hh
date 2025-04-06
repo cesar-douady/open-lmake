@@ -856,10 +856,10 @@ namespace Engine {
 		) ;
 		Py::py_run(to_eval,tmp_glbs) ;
 		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
-		Py::Ptr res      ;
-		::string            err      ;
-		bool                seen_err = false  ;
-		AutodepLock         lock     { deps } ;                            // ensure waiting for lock is not accounted as python exec time
+		Py::Ptr<>   res      ;
+		::string    err      ;
+		bool        seen_err = false  ;
+		AutodepLock lock     { deps } ;                            // ensure waiting for lock is not accounted as python exec time
 		Rule::s_last_dyn_date = Pdate(New) ;
 		//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try                       { res = entry().code->eval(tmp_glbs) ; }

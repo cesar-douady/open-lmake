@@ -17,7 +17,7 @@ using namespace Py   ;
 ::string keys() {
 	Gil gil ;
 	try {
-		Ptr      py_cfg_data = py_eval(AcFd(ADMIN_DIR_S "lmake/config_data.py").read()) ;
+		Ptr<>    py_cfg_data = py_eval(AcFd(ADMIN_DIR_S "lmake/config_data.py").read()) ;
 		Object&  py_cfg      = py_cfg_data->as_a<Dict>().get_item("config")             ;
 		Object&  py_dbgs     = py_cfg     . as_a<Dict>().get_item("debug" )             ;
 		size_t   wk          = 0                                                        ;

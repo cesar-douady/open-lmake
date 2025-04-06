@@ -257,7 +257,7 @@ If <code>None</code>, no timestamp is generated.</p>
 <p>If this attribute is true, execution time is reported each time a job is completed.</p>
 <h3 id="consolehistory_days--dynamic-7"><a class="header" href="#consolehistory_days--dynamic-7"><code>console.history_days</code> : Dynamic (<code>7</code>)</a></h3>
 <p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> directory.</p>
-<h3 id="consolehost_length--dynamic-none"><a class="header" href="#consolehost_length--dynamic-none"><code>console.host_length</code> : Dynamic (<code>None</code>)</a></h3>
+<h3 id="consolehost_len--dynamic-none"><a class="header" href="#consolehost_len--dynamic-none"><code>console.host_len</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the width of the field showing the host that executed or is about to execute the job.
 If <code>None</code>, the host is not shown.
 Note that no host is shown for local execution.</p>
@@ -287,11 +287,13 @@ Each color is a triplet RGB of values between 0 and 255.</p>
 <p>Each entry is a <code>pdict</code> providing resources. Such resources are backend specific.</p>
 <h3 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h3>
 <p>When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
+The same is true if the job is launche locally but it launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
 This is done by connecting to a socket open-lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
 The host running open-lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
 There is no generic way to determine this address, so in general, open-lmake cannot determine it automatically.</p>
-<p>This value may be empty (loop-back for local backend, <code>hostname</code> look up for remote backends), given in standard dot notation, as the name of an interface (as shown by <code>ifconfig</code>)
-or the name of a host (looked up as for <code>ping</code>).</p>
+<p>This value may be empty (using <code>hostname</code> for addresse look up), given in standard dot notation, as the name of an interface (as shown by <code>ifconfig</code>)
+or the name of a host (looked up as for <code>ping</code>).
+In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.</p>
 <h3 id="backendsenviron--dynamic-"><a class="header" href="#backendsenviron--dynamic-"><code>backends.*.environ</code> : Dynamic (<code>{}</code>)</a></h3>
 <p>Environment to pass when launching job in backend.
 This environment is accessed when the value mentioned in the rule is <code>...</code>.</p>

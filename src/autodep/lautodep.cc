@@ -63,7 +63,7 @@ static ::vector_s _mk_src_dirs_s(::string const& src_dirs) {
 	::vector_s res ;
 	Gil        gil ;
 	if (+src_dirs) {
-		Ptr py_src_dirs = py_eval(src_dirs) ;                            // keep Python object alive during iteration
+		Ptr<> py_src_dirs = py_eval(src_dirs) ;                          // keep Python object alive during iteration
 		for( Object const&  py_src_dir : py_src_dirs->as_a<Sequence>() )
 			res.push_back(with_slash(py_src_dir.as_a<Str>())) ;
 	}
@@ -76,7 +76,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 	Gil       gil  ;
 	// use an intermediate variable (py_keep_env and py_env) to keep Python object alive during iteration
 	if (+keep_env) {
-		Ptr py_keep_env = py_eval(keep_env) ;                        // hold in Ptr<> while iterating over
+		Ptr<> py_keep_env = py_eval(keep_env) ;                      // hold in Ptr<> while iterating over
 		for( Object const&  py_k : py_keep_env->as_a<Sequence>() ) {
 			::string k = py_k.as_a<Str>() ;
 			if (has_env(k)) {
@@ -87,7 +87,7 @@ static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
 		}
 	}
 	if (+env) {
-		Ptr py_env = py_eval(env) ;
+		Ptr<> py_env = py_eval(env) ;
 		for( auto const& [py_k,py_v] : py_env->as_a<Dict>() ) {
 			::string k = py_k.as_a<Str>() ;
 			throw_if( seen.contains(k) ,  "cannot keep ",k," and provide it" ) ;

@@ -176,6 +176,10 @@
 </ul>
 </li>
 </ul>
+<p>When targets are allowed in dynamic values, the <code>targets</code> variable is also defined as the <code>dict</code> of the targets.
+Also, if <code>target</code> was used to redirect stdout, the <code>target</code> variable contains said file name.</p>
+<p>Similarly, when deps are allowed in dynamic values, the <code>deps</code> variable is also defined as the <code>dict</code> of the deps.
+Also, if <code>dep</code> was used to redirect stdin, the <code>dep</code> variable contains said file name.</p>
 <p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as Python f-strings, as for dynamic values.
 This is actually a form of dynamic value.</p>
 <h1 id="dynamic-attribute-execution"><a class="header" href="#dynamic-attribute-execution">Dynamic attribute execution</a></h1>

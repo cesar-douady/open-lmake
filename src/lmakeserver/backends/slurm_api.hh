@@ -58,10 +58,6 @@ namespace Backends::Slurm {
 		}
 	} ;
 
-	inline ::string _get_log_dir_s  (Job job) { return job.ancillary_file(AncillaryTag::Backend)+'/' ; }
-	inline ::string _get_stderr_file(Job job) { return _get_log_dir_s(job) + "stderr"                ; }
-	inline ::string _get_stdout_file(Job job) { return _get_log_dir_s(job) + "stdout"                ; }
-
 	extern Mutex<MutexLvl::Slurm> slurm_mutex ; // ensure no more than a single outstanding request to daemon
 }
 

@@ -69,9 +69,9 @@ namespace Backends::Slurm::SlurmApi {
 		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                       // other elements  .
 		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                       // .             , .
 		if(verbose) {
-			stderr_file = _get_stderr_file(job) ;
-			stdout_file = _get_stdout_file(job) ;
-			mk_dir_s(_get_log_dir_s(job)) ;
+			stderr_file = get_stderr_file(job) ;
+			stdout_file = get_stdout_file(job) ;
+			mk_dir_s(get_log_dir_s(job)) ;
 		}
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			//                            first element            other elements
