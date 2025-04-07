@@ -310,7 +310,7 @@ Status Gather::exec_child() {
 		SWEAR(+autodep_env.fast_report_pipe) ;
 		fast_report_fd = ::open(autodep_env.fast_report_pipe.c_str(),O_RDONLY|O_CLOEXEC|O_NONBLOCK) ; // O_NONBLOCK is important to avoid blocking waiting for child, no impact on epoll-controled ops
 		//
-		if (+fast_report_fd) {                                                         // work w/o fast report if it does not work, XXX : in some cases, fast_report_pipe cannot be ::open'ed
+		if (+fast_report_fd) {                                                         // work w/o fast report if it does not work, XXX : seen on some instances of Centos7
 			trace("open_fast_report_fd",autodep_env.fast_report_pipe,fast_report_fd) ;
 			epoll.add_read( fast_report_fd , Kind::JobSlave ) ;
 			epoll.dec() ;                                                              // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd

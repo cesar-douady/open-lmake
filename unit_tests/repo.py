@@ -19,8 +19,8 @@ if __name__!='__main__' :
 	class Clone(TraceRule) :
 		force = True
 		targets = {
-			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'                                      )
-		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' , 'no_uniquify' , 'no_warning' ) # let git manage hard links : it does not support unification
+			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'                      )
+		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' ) # let git manage hard links : it does not support unification
 		}
 		cmd = '''
 			if [ -f {TGT('.git/index')} ]

@@ -172,27 +172,33 @@ namespace Backends {
 				iterator res = Base::try_emplace(j,rsrcs,rounded_rsrcs).first  ;
 				return res ;
 			}
-			void start( GenericBackend const& be , iterator it ) {
+			void start( GenericBackend const& be , iterator&& it ) {
 				SWEAR(!it->second.zombie ) ;
 				SWEAR(!it->second.started) ;
 				be.start_rsrcs(it->second.rounded_rsrcs) ;
 				it->second.started = true ;
+				#ifndef NDEBUG
+					it = end() ; // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+				#endif
 			}
-			void end( GenericBackend const& be , iterator it ) {
+			void end( GenericBackend const& be , iterator&& it ) {
 				SpawnedEntry& se = it->second ;
 				SWEAR(!se.zombie) ;
 				if ( !se.started)   be.start_rsrcs(se.rounded_rsrcs) ;
 				/**/                be.end_rsrcs  (se.rounded_rsrcs) ;
 				if (!se.hold    )   Base::erase(it)                  ;
-				else              { se.zombie = true ; _zombies.push_back(it) ; } // _launch may hold pointers with no lock, so dont physically erase entries
+				else              { se.zombie = true ; _zombies.push_back(it->first) ; } // _launch may hold pointers with no lock, so dont physically erase entries
+				#ifndef NDEBUG
+					it = end() ; // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+				#endif
 			} ;
 			void flush() {
-				if (!_zombies) return ;                                           // fast path : most of the time, there is nothing to do
-				for( iterator it : _zombies ) Base::erase(it) ;
+				if (!_zombies) return ;                                                  // fast path : most of the time, there is nothing to do
+				for( Job j : _zombies ) Base::erase(j) ;
 				_zombies.clear() ;
 			}
 		private :
-			::vector<iterator> _zombies ;
+			::vector<Job> _zombies ;
 		} ;
 
 		struct PressureEntry {
@@ -350,7 +356,7 @@ namespace Backends {
 			SpawnedEntry& se = it->second             ;
 			se.id.wait(StartingId) ;                                                                           // ensure job being launched has been recorded
 			//
-			spawned_jobs.start(self,it) ;
+			spawned_jobs.start(self,::move(it)) ;
 			::string msg = start_job(job,se) ;
 			if (call_launch_after_start()) _launch_queue.wakeup() ;
 			return msg ;
@@ -360,7 +366,7 @@ namespace Backends {
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
 			se.id.wait(StartingId) ;                                                                           // in case of immediate execution, can be starting at the time end is received
 			::pair_s<bool/*retry*/> digest = end_job(j,se,s) ;
-			spawned_jobs.end(self,it) ;                                                                        // erase before calling launch so job is freed w.r.t. n_jobs
+			spawned_jobs.end(self,::move(it)) ;                                                                // erase before calling launch so job is freed w.r.t. n_jobs
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
@@ -376,16 +382,16 @@ namespace Backends {
 				case NoId       :
 				case StartingId : return { {} , HeartbeatState::Alive } ;                                      // book keeping is not updated yet
 				case FailedId   : {
-					spawned_jobs.end(self,it) ;
-					auto     it  = msgs.find(j)       ; SWEAR(it!=msgs.end(),j) ;
-					::string msg = ::move(it->second) ;
-					msgs.erase(it) ;
+					spawned_jobs.end(self,::move(it)) ;
+					auto     mit = msgs.find(j)       ; SWEAR(mit!=msgs.end(),j) ;
+					::string msg = ::move(mit->second) ;
+					msgs.erase(mit) ;
 					return { ::move(msg) , HeartbeatState::Err } ;
 				}
 				default : {
 					::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 					trace(digest) ;
-					if (digest.second!=HeartbeatState::Alive) spawned_jobs.end(self,it) ;
+					if (digest.second!=HeartbeatState::Alive) spawned_jobs.end(self,::move(it)) ;
 					return digest ;
 				}
 			}
@@ -423,7 +429,7 @@ namespace Backends {
 			SpawnedEntry& se = it->second           ; SWEAR(!se.started) ;                                     // if job is started, it is not our responsibility any more
 			se.id.wait(StartingId) ;
 			if (se.id>=0) kill_queued_job(se) ;
-			spawned_jobs.end(self,it) ;
+			spawned_jobs.end(self,::move(it)) ;
 		}
 		virtual void launch() {
 			if (!_oldest_submitted_job) return ;

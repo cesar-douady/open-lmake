@@ -229,6 +229,11 @@ namespace Disk {
 			}
 			return path ;
 		}
+		::string const& rename(::string const& file) {
+			access(file) ;
+			change(file) ;
+			return file ;
+		}
 		void close() {
 			SWEAR( !to_stamp_dirs_s || !reliable_dirs ) ;                                  // cannot record dirs to stamp if reliable_dirs
 			for( ::string const& d_s : to_stamp_dirs_s ) _s_protect(d_s) ;                 // close to force NFS close to open cohenrence, open is useless

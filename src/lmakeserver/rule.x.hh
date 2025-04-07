@@ -859,7 +859,7 @@ namespace Engine {
 		Py::Ptr<>   res      ;
 		::string    err      ;
 		bool        seen_err = false  ;
-		AutodepLock lock     { deps } ;                            // ensure waiting for lock is not accounted as python exec time
+		AutodepLock lock     { deps } ;                                    // ensure waiting for lock is not accounted as python exec time
 		Rule::s_last_dyn_date = Pdate(New) ;
 		//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try                       { res = entry().code->eval(tmp_glbs) ; }
@@ -867,7 +867,7 @@ namespace Engine {
 		catch (::string const& e) { err = e ; seen_err = true ;          }
 		for( ::string const& key : to_del ) tmp_glbs->del_item(key) ;      // delete job-related info, just to avoid percolation to other jobs, even in case of error
 		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
-		if ( +lock.err || seen_err ) throw MsgStderr(lock.err,err) ;
+		if ( +lock.err || seen_err ) throw MsgStderr{.msg=lock.err,.stderr=err} ;
 		return res ;
 	}
 

@@ -52,15 +52,13 @@ namespace Engine {
 			else if ( +t->polluted       &&  t.tflags[Tflag::Target     ] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted targets
 			else if ( +t->polluted       && !t.tflags[Tflag::Incremental] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted non-incremental
 			else if (                       !t.tflags[Tflag::Incremental] ) fat = FileActionTag::Unlink         ; // wahs non-polluted non-incremental
-			else if (                        t.tflags[Tflag::NoUniquify ] ) fat = FileActionTag::NoUniquify     ;
 			else                                                            fat = FileActionTag::Uniquify       ;
 			FileAction fa { .tag=fat , .no_warning=t.tflags[Tflag::NoWarning] , .crc=t->crc , .sig=t->date().sig } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
-				case FileActionTag::Src        : if ( +t->dir() && t->crc!=Crc::None ) target_locked_dirs.insert(t->dir()) ;                              break ; // no action, not even integrity check
-				case FileActionTag::Uniquify   : if ( +t->dir()                      ) target_locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
-				case FileActionTag::NoUniquify : if ( +t->dir() && t->crc!=Crc::None ) target_locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::Src      : if ( +t->dir() && t->crc!=Crc::None ) target_locked_dirs.insert(t->dir()) ;                              break ; // no action, not even integrity check
+				case FileActionTag::Uniquify : if ( +t->dir()                      ) target_locked_dirs.insert(t->dir()) ; actions.emplace_back(t,fa) ; break ;
 				case FileActionTag::Unlink :
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) fa.tag = FileActionTag::UnlinkWarning ;
 				[[fallthrough]] ;
@@ -688,7 +686,7 @@ namespace Engine {
 				ri
 			,	true/*with_stats*/
 			,	pfx
-			,	{ job_msg , msg_stderr.stderr }
+			,	MsgStderr{ .msg=job_msg , .stderr=msg_stderr.stderr }
 			,	digest.max_stderr_len
 			,	digest.exec_time
 			,	job_reason.tag==JobReasonTag::Retry
@@ -725,7 +723,7 @@ namespace Engine {
 		bool           done        = ri.done()        ;
 		//
 		if      ( jd.run_status!=RunStatus::Ok               ) { res = JR::Failed     ; color = Color::Err     ; step = snake_cstr(jd.run_status) ; }
-		else if ( jd.status==Status::Killed                  ) { res = JR::Killed     ; color = Color::Note    ;                                    }
+		else if ( jd.status==Status::Killed                  ) { res = JR::Killed     ; color = Color::Note    ; with_stderr = false ;              }
 		else if ( is_lost(jd.status) && is_ok(jd.status)==No ) { res = JR::LostErr    ; color = Color::Err     ;                                    }
 		else if ( is_lost(jd.status)                         ) { res = JR::Lost       ; color = Color::Warning ; with_stderr = false ;              }
 		else if ( jd.status==Status::SubmitLoop              ) { res = JR::SubmitLoop ; color = Color::Err     ;                                    }
@@ -1046,7 +1044,7 @@ namespace Engine {
 						case No :
 							trace("dep_err",dep,STR(sense_err)) ;
 							state.reason |= {JobReasonTag::DepErr,+dep} ;
-							dep_err = RunStatus::DepErr ;
+							dep_err       = RunStatus::DepErr           ;
 						break ;
 						case Maybe :                                                                     // dep is not buidlable, check if required
 							if (dnd.status()==NodeStatus::Transient) {                                   // dep uphill is a symlink, it will disappear at next run
@@ -1133,11 +1131,11 @@ namespace Engine {
 			::string  pfx = status==Status::SubmitLoop ? "" : ja.report==JobReport::Hit ? "hit_" : "was_" ;
 			if (ja.has_stderr) {
 				JobEndRpcReq jerr = idx().job_info(JobInfoKind::End).end ;
-				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , MsgStderr( reason_str(jr) , jerr.msg_stderr.stderr ) , jerr.digest.max_stderr_len ) ;
-				else                           audit_end( ri , true/*with_stats*/ , pfx , MsgStderr( ja.msg         , jerr.msg_stderr.stderr ) , jerr.digest.max_stderr_len ) ;
+				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=reason_str(jr),.stderr=jerr.msg_stderr.stderr} , jerr.digest.max_stderr_len ) ;
+				else                           audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=ja.msg        ,.stderr=jerr.msg_stderr.stderr} , jerr.digest.max_stderr_len ) ;
 			} else {
-				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , MsgStderr( reason_str(jr)                          ) ) ;
-				else                           audit_end( ri , true/*with_stats*/ , pfx , MsgStderr( ja.msg                                  ) ) ;
+				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=reason_str(jr)                               } ) ;
+				else                           audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=ja.msg                                       } ) ;
 			}
 			req->missing_audits.erase(it) ;
 		}
@@ -1291,14 +1289,12 @@ namespace Engine {
 							//
 							vmap<Node,FileAction> fas     = pre_actions(match) ;
 							::vmap_s<FileAction>  actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-							::pair_s<bool/*ok*/>  dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
+							::string              dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
 							//
-							if ( +dfa_msg.first || !dfa_msg.second ) {
-								run_status = RunStatus::Err ;
-								req->audit_job ( dfa_msg.second?Color::Note:Color::Err , "wash" , idx()     ) ;
-								req->audit_info(                Color::Note            , dfa_msg.first  , 1 ) ;
-								trace("hit_err",dfa_msg,ri) ;
-								if (!dfa_msg.second) return false/*maybe_new_deps*/ ;
+							if (+dfa_msg) {
+								req->audit_job ( Color::Note , "wash"  , idx()     ) ;
+								req->audit_info( Color::Note , dfa_msg         , 1 ) ;
+								trace("hit_msg",dfa_msg,ri) ;
 							}
 							//
 							JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host

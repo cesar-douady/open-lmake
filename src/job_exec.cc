@@ -507,12 +507,13 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
-		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard ) ;
-			end_report.msg_stderr.msg += ensure_nl(::move(wash_report.first)) ;
-			if (!wash_report.second) {
-				end_report.digest.status = Status::LateLostErr ;
-				goto End ;
-			}
+		try {
+			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard )) ;
+		} catch (::string const& e) {
+			trace("bad_file_actions",e) ;
+			end_report.msg_stderr.msg += ensure_nl(e) ;
+			end_report.digest.status = Status::LateLostErr ;
+			goto End ;
 		}
 		Pdate washed { New } ;
 		g_exec_trace->push_back({ washed , Comment::washed }) ;

@@ -339,7 +339,7 @@ namespace Backends {
 						case FileActionTag::UnlinkWarning  :
 						case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
 					DN}
-			} catch (::string const& e) { throw MsgStderr({},e) ; }
+			} catch (::string const& e) { throw MsgStderr{.stderr=e} ; }
 		} catch (MsgStderr const& e) {
 			start_msg_err.msg    <<set_nl<< e.msg    ;
 			start_msg_err.stderr <<set_nl<< e.stderr ;
@@ -357,7 +357,7 @@ namespace Backends {
 				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
 					try                       { start_ancillary_attrs = rule->start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
-					catch (::string const& e) { throw MsgStderr(e,{}) ;                                                       }
+					catch (::string const& e) { throw MsgStderr{.msg=e} ;                                                       }
 				} catch (MsgStderr const& e) {
 					start_msg_err         = e                                ;
 					start_ancillary_attrs = rule->start_ancillary_attrs.spec ;

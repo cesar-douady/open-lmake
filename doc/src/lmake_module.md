@@ -87,13 +87,13 @@ For `critical`, `essential`, `ignore`, `ignore_error` and `required`, set the co
 
 Flags accumulate and are never reset.
 
-### `target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_uniquify=False , no_warning=False , source_ok=False )`
+### `target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )`
 
 Declare `targets` as targets.
 
 If `write`, pretend `targets` were written.
 
-For `allow`, `essential`, `ignore`, `incremental`, `no_uniquiy`, `no_warning` and `source_ok`, set the corresponding [flag](rules.html#targets) on all `targets`.
+For `allow`, `essential`, `ignore`, `incremental`, `no_warning` and `source_ok`, set the corresponding [flag](rules.html#targets) on all `targets`.
 
 Flags accumulate and are never reset.
 

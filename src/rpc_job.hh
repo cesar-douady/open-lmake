@@ -48,7 +48,6 @@ ENUM_1( FileActionTag
 ,	UnlinkWarning      // .
 ,	UnlinkPolluted     // .
 ,	None
-,	NoUniquify         // no action, just warn if file has several links
 ,	Uniquify
 ,	Mkdir
 ,	Rmdir
@@ -282,9 +281,9 @@ struct FileAction {
 	Hash::Crc     crc        = {}    ; // expected (else, quarantine)
 	Disk::FileSig sig        = {}    ; // .
 } ;
-/**/   ::pair_s<bool/*ok*/> do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
-inline ::pair_s<bool/*ok*/> do_file_actions( ::vector_s& /*out*/ unlnks , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/&unlnks,::move(pa),ng) ; }
-inline ::pair_s<bool/*ok*/> do_file_actions(                              ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/nullptr,::move(pa),ng) ; }
+/**/   ::string do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
+inline ::string do_file_actions( ::vector_s& /*out*/ unlnks , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/&unlnks,::move(pa),ng) ; }
+inline ::string do_file_actions(                              ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/nullptr,::move(pa),ng) ; }
 
 struct AccDflags {
 	// services

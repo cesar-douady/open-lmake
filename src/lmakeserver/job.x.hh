@@ -179,7 +179,7 @@ namespace Engine {
 		// audit_end returns the report to do if job is finally not rerun
 		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx , MsgStderr const&           , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const ;
 		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& stderr={}  , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const {
-			return audit_end( ri , with_stats , pfx , {.stderr=stderr} , max_stderr_len , exec_time , retry ) ;
+			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , max_stderr_len , exec_time , retry ) ;
 		}
 		// data
 		in_addr_t   host       = 0 ;

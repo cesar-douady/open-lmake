@@ -231,7 +231,7 @@ namespace Disk {
 		const char*   f   = file.c_str() ;
 		const char*   msg = nullptr      ;
 		{
-			struct ::stat st  ;
+			struct ::stat st       ;
 			int           stat_rc  = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)            ; if (stat_rc!=0    )                                     return No   /*done*/ ;
 			/**/                                                                          if (st.st_nlink<=1)                                     return Maybe/*done*/ ;
 			AcFd          rfd      = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }

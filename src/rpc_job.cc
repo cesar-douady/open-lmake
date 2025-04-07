@@ -28,67 +28,82 @@ using namespace Hash ;
 // FileAction
 //
 
+struct UniqKey {
+	bool operator==(UniqKey const&) const = default ;
+	dev_t dev = 0 ;
+	ino_t ino = 0 ;
+} ;
+namespace std {
+	template<> struct hash<UniqKey> { size_t operator()(UniqKey const& uk) const { return uk.dev+uk.ino ; } } ;
+}
+
+struct UniqEntry {
+	size_t          n_lnks     = 0/*garbage*/ ;
+	off_t           sz         = 0/*garbage*/ ;
+	mode_t          mode       = 0/*garbage*/ ;
+	struct timespec mtim       = {}           ;
+	bool            no_warning = true         ;
+	::vector_s      files      ;
+} ;
+
+bool operator==( struct timespec const& a , struct timespec const& b ) {
+	return a.tv_sec==b.tv_sec && a.tv_nsec==b.tv_nsec ;
+}
+
 ::string& operator+=( ::string& os , FileAction const& fa ) {
 	/**/                                os << "FileAction(" << fa.tag ;
 	if (fa.tag<=FileActionTag::HasFile) os <<','<< fa.sig             ;
 	return                              os <<')'                      ;
 }
 
-::pair_s<bool/*ok*/> do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
-	::uset_s keep_dirs       ;
-	::string msg             ;
-	::string garbage         ;
-	bool     ok              = true ;
-	::uset_s existing_dirs_s ;
+::string do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
+	::uset_s                  keep_dirs       ;
+	::string                  msg             ;
+	::string                  trash           ;
+	::uset_s                  existing_dirs_s ;
+	::umap<UniqKey,UniqEntry> uniq_tab        ;
 	//
 	auto dir_exists = [&](::string const& f)->void {
 		for( ::string d_s=dir_name_s(f) ; +d_s ; d_s = dir_name_s(d_s) )
 			if (!existing_dirs_s.insert(d_s).second) break ;
 	} ;
 	//
-	Trace trace("do_file_actions",pre_actions) ;
-	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                                      // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                                              // pre_actions are adequately sorted
-		::string& f_msg = a.no_warning ? garbage : msg ;
-		SWEAR(+f) ;                                                                                                                       // acting on root dir is non-sense
+	Trace trace("do_file_actions") ;
+	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                       // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                                                               // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                                        // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None           : {
 				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) break ;                                                                                                         // file does not exist, nothing to do
-				bool done       = true/*garbage*/                                                        ;
-				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ;
+				if (!sig) { trace(a.tag,"no_file",f) ; continue ; }                                                        // file does not exist, nothing to do
+				dir_exists(f) ;                                                                                            // if a file exists, its dir necessarily exists
+				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ;                 // only compute crc if file has been modified
 				if (quarantine) {
-					done = ::rename( f.c_str() , dir_guard(QuarantineDirS+f).c_str() )==0 ;
-					if (done) { dir_exists(f) ; f_msg <<"quarantined "         << mk_file(f) <<'\n' ; }                                   // if a file has been renamed, its dir necessarily exists
-					else                        f_msg <<"failed to quarantine "<< mk_file(f) <<'\n' ;
+					if (::rename( nfs_guard.rename(f).c_str() , dir_guard(QuarantineDirS+f).c_str() )<0) throw "cannot quarantine "+f ;
+					msg <<"quarantined " << mk_file(f) <<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
-					try {
-						done = unlnk(nfs_guard.change(f)) ;
-						if (done) { dir_exists(f) ; if (a.tag==FileActionTag::None) f_msg <<"unlinked "          << mk_file(f) <<'\n' ; } // if a file has been unlinked, its dir necessarily exists
-						else                        if (a.tag!=FileActionTag::None) f_msg <<"file disappeared : "<< mk_file(f) <<'\n' ;
-						done = true ;
-					} catch (::string const& e) {
-						f_msg << e <<'\n' ;
-						done = false ;
-					}
+					if (!unlnk(nfs_guard.change(f))) throw "cannot unlink "+f ;
+					if ( a.tag==FileActionTag::None && !a.no_warning ) msg <<"unlinked " << mk_file(f) <<'\n' ;            // if a file has been unlinked, its dir necessarily exists
 				}
-				trace(STR(quarantine),STR(done),f) ;
-				if ( done && unlnks ) unlnks->push_back(f) ;
-				ok &= done ;
-			} break ;
-			case FileActionTag::NoUniquify : {
-				Bool3 cu = can_uniquify(nfs_guard.change(f)) ;
-				if (cu==Yes) f_msg <<"did not uniquify "<< mk_file(f) <<'\n' ;
-				if (cu!=No ) dir_exists(f) ;
+				trace(a.tag,STR(quarantine),f) ;
+				if (unlnks) unlnks->push_back(f) ;
 			} break ;
 			case FileActionTag::Uniquify : {
-				Bool3 u = uniquify(nfs_guard.change(f)) ;
-				if (u==Yes) f_msg <<"uniquified "<< mk_file(f) <<'\n' ;
-				if (u!=No ) dir_exists(f) ;
+				struct stat s ;
+				if (   ::stat(f.c_str(),&s)<0                 ) { trace(a.tag,"no_file"  ,f) ; continue ; }                // file does not exist, nothing to do
+				dir_exists(f) ;                                                                                            // if file exists, certainly its dir exists as well
+				if (   s.st_nlink==1                          ) { trace(a.tag,"single"   ,f) ; continue ; }                // file is already unique, nothing to do
+				if (!( s.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only",f) ; continue ; }                // if file is read-only, assume it is immutable
+				if (!  S_ISREG(s.st_mode)                     ) { trace(a.tag,"awkward"  ,f) ; continue ; }                // do not handle awkward files and symlinks are immutable
+				UniqEntry& e = uniq_tab[{s.st_dev,s.st_ino}] ;                                                             // accumulate all links per file identified by dev/inode
+				if (!e.files) {      e.n_lnks= s.st_nlink ;  e.sz= s.st_size ;  e.mode= s.st_mode ;  e.mtim= s.st_mtim ; }
+				else          SWEAR( e.n_lnks==s.st_nlink && e.sz==s.st_size && e.mode==s.st_mode && e.mtim==s.st_mtim ) ; // check consistency
+				e.files.push_back(f) ;
+				e.no_warning &= a.no_warning ;
 			} break ;
 			case FileActionTag::Mkdir : {
 				::string f_s = with_slash(f) ;
@@ -98,7 +113,7 @@ using namespace Hash ;
 				if (!keep_dirs.contains(f))
 					try {
 						rmdir_s(with_slash(nfs_guard.change(f))) ;
-					} catch (::string const&) {                                                                                           // if a dir cannot rmdir'ed, no need to try those uphill
+					} catch (::string const&) {                                                                            // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
 							if (!keep_dirs.insert(no_slash(d_s)).second) break ;
@@ -106,8 +121,38 @@ using namespace Hash ;
 			break ;
 		DF}
 	}
-	trace("done",STR(ok),localize(msg)) ;
-	return {msg,ok} ;
+	for( auto const& [_,e] : uniq_tab ) {
+		SWEAR(e.files.size()<=e.n_lnks,e.n_lnks,e.files) ;                                                                 // check consistency
+		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                           // we have all the links, nothing to do
+		trace("uniquify",e.n_lnks,e.files) ;
+		//
+		const char* err = nullptr/*garbage*/ ;
+		{	const char* f0   = e.files[0].c_str()                           ;
+			AcFd        rfd  = ::open    ( f0 , O_RDONLY|O_NOFOLLOW       ) ; if (!rfd  ) { err = "cannot open for reading" ; goto Bad ; }
+			int         urc  = ::unlink  ( f0                             ) ; if (urc <0) { err = "cannot unlink"           ; goto Bad ; }
+			AcFd        wfd  = ::open    ( f0 , O_WRONLY|O_CREAT , e.mode ) ; if (!wfd  ) { err = "cannot open for writing" ; goto Bad ; }
+			int         sfrc = ::sendfile( wfd , rfd , nullptr , e.sz     ) ; if (sfrc<0) { err = "cannot copy"             ; goto Bad ; }
+			for( size_t i : iota(1,e.files.size()) ) {
+				const char* f = e.files[i].c_str() ;
+				int urc = ::unlink(      f ) ; if (urc!=0) { err = "cannot unlink" ; goto Bad ; }
+				int lrc = ::link  ( f0 , f ) ; if (lrc!=0) { err = "cannot link"   ; goto Bad ; }
+			}
+			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , e.mtim } ;
+			::futimens(wfd,times) ;                                                                                        // maintain original date
+			if (!e.no_warning) {
+				/**/                               msg <<"uniquified"  ;
+				if (e.files.size()>1)              msg <<" as a group" ;
+				/**/                               msg <<" :"          ;
+				for( ::string const& f : e.files ) msg <<' '<< f       ;
+				/**/                               msg <<'\n'          ;
+			}
+		}
+		continue ;
+	Bad :
+		throw cat(err," while uniquifying ",e.files) ;
+	}
+	trace("done",localize(msg)) ;
+	return msg ;
 }
 
 //
