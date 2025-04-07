@@ -567,10 +567,10 @@ namespace Engine {
 						case ReqKey::Stderr :
 							if (!( +end || (+start&&verbose) )) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl ) ;
-							//                                                                      as_is
-							if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg , false , lvl+1 ) ;
-							if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg       , false , lvl+1 ) ;
-							if ( +end              ) audit( fd , ro ,               end.stderr    , true  , lvl+1 ) ;
+							//                                                                              as_is
+							if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg         , false , lvl+1 ) ;
+							if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg_stderr.msg    , false , lvl+1 ) ;
+							if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , lvl+1 ) ;
 						break ;
 						case ReqKey::Trace : {
 							if (!end) { audit( fd , ro , Color::Err , "no info available" , true/*as_is*/ , lvl ) ; break ; }
@@ -656,7 +656,7 @@ namespace Engine {
 							try {
 								Rule::RuleMatch match ;
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
-							} catch(::pair_ss const&) {}
+							} catch(MsgStderr const&) {}
 							//
 							if (+end) push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
 							if ( +end && end.digest.status>Status::Early ) {
@@ -677,9 +677,9 @@ namespace Engine {
 									bool            overflow     = end.stats.mem > mem_rsrc                                                                                                      ;
 									::string        mem_str      = to_short_string_with_unit(end.stats.mem)+'B'                                                                                  ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
-									::string rc_str   = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.stderr?" (with non-empty stderr)":"") ;
-									Color    rc_color = wstatus_ok(end.wstatus) ? Color::Ok : Color::Err                                                ;
-									if ( rc_color==Color::Ok && +end.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
+									::string rc_str   = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.msg_stderr.stderr?" (with non-empty stderr)":"") ;
+									Color    rc_color = wstatus_ok(end.wstatus) ? Color::Ok : Color::Err                                                           ;
+									if ( rc_color==Color::Ok && +end.msg_stderr.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
 									push_entry( "rc"             , rc_str                       , rc_color                            ) ;
 									push_entry( "cpu time"       , end.stats.cpu   .short_str()                                       ) ;
 									push_entry( "elapsed in job" , end.stats.job   .short_str()                                       ) ;
@@ -691,8 +691,8 @@ namespace Engine {
 								if (end.compressed_sz) push_entry( "compressed size" , to_short_string_with_unit(end.compressed_sz)+'B' ) ;
 							}
 							//
-							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg,su) ) ;
-							if (+end.msg              ) push_entry( "message"       , localize(end.msg,su)       ) ;
+							if (+pre_start.msg        ) push_entry( "start message" , localize(pre_start.msg     ,su) ) ;
+							if (+end.msg_stderr.msg   ) push_entry( "message"       , localize(end.msg_stderr.msg,su) ) ;
 							// generate output
 							if (porcelaine) {
 								auto audit_map = [&]( ::string const& k , ::map_ss const& m , bool protect , bool allocated )->void {

@@ -300,9 +300,9 @@ namespace Engine {
 		void audit_job( Color c , SC& s , JobExec const& je , bool at_end=false , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,je     ,et) ; }
 		#undef SC
 		//
-		void         audit_status( bool ok                                                                                         ) const ;
-		void         audit_stats (                                                                                                 ) const ;
-		bool/*seen*/ audit_stderr( Job , ::string const& msg , ::string const& stderr , uint16_t max_stderr_len=0 , DepDepth lvl=0 ) const ;
+		void         audit_status( bool ok                                                             ) const ;
+		void         audit_stats (                                                                     ) const ;
+		bool/*seen*/ audit_stderr( Job , MsgStderr const& , uint16_t max_stderr_len=0 , DepDepth lvl=0 ) const ;
 	private :
 		void _open_log() ;
 		//

@@ -332,6 +332,15 @@ struct JobStats {
 	// END_OF_VERSIONING
 } ;
 
+struct MsgStderr {
+	friend ::string& operator+=( ::string& , MsgStderr const& ) ;
+	// accesses
+	bool operator+() const { return +msg || +stderr ; }
+	// data
+	::string msg    = {} ;
+	::string stderr = {} ;
+} ;
+
 template<class B> struct DepDigestBase ;
 
 ENUM( DepInfoKind
@@ -339,9 +348,7 @@ ENUM( DepInfoKind
 ,	Sig
 ,	Info
 )
-struct DepInfo
-:	             ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo >
-{
+struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	// START_OF_VERSIONING
 	using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 	// END_OF_VERSIONING
@@ -827,8 +834,7 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes(s,compressed_sz                ) ;
 		::serdes(s,end_date                     ) ;
 		::serdes(s,stats                        ) ;
-		::serdes(s,msg                          ) ;
-		::serdes(s,stderr                       ) ;
+		::serdes(s,msg_stderr                   ) ;
 		::serdes(s,stdout                       ) ;
 		::serdes(s,wstatus                      ) ;
 	}
@@ -843,8 +849,7 @@ struct JobEndRpcReq : JobRpcReq {
 	Disk::DiskSz             compressed_sz = 0 ;
 	Time::Pdate              end_date      ;
 	JobStats                 stats         ;
-	::string                 msg           ;
-	::string                 stderr        ;
+	MsgStderr                msg_stderr    ;
 	::string                 stdout        ;
 	int                      wstatus       = 0 ;
 	// END_OF_VERSIONING)

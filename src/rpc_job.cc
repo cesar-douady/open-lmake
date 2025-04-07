@@ -121,6 +121,14 @@ using namespace Hash ;
 }
 
 //
+// MsgStderr
+//
+
+::string& operator+=( ::string& os , MsgStderr const& ms ) {
+	return os <<'('<< ms.msg <<','<< ms.stderr <<')' ;
+}
+
+//
 // DepInfo
 //
 

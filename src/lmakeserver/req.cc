@@ -260,7 +260,7 @@ namespace Engine {
 					JobEndRpcReq    jerr  = job.job_info(JobInfoKind::End).end ;
 					//
 					if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-					else       seen_stderr = self->audit_stderr( job , jerr.msg , jerr.stderr , jerr.digest.max_stderr_len , lvl+1 ) ;
+					else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl+1 ) ;
 				} break ;
 			DN}
 		if (intermediate)
@@ -515,18 +515,18 @@ namespace Engine {
 	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok) ; } // allow access to global function ...
 	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok) ; } // ... w/o naming namespace
 
-	bool/*seen*/ ReqData::audit_stderr( Job j , ::string const& msg , ::string const& stderr , uint16_t max_stderr_len , DepDepth lvl ) const {
-		if (+msg          ) audit_info( Color::Note , msg , lvl ) ;
-		if (!stderr       ) return +msg ;
+	bool/*seen*/ ReqData::audit_stderr( Job j , MsgStderr const& msg_stderr , uint16_t max_stderr_len , DepDepth lvl ) const {
+		if (+msg_stderr.msg   ) audit_info( Color::Note , msg_stderr.msg , lvl ) ;
+		if (!msg_stderr.stderr) return +msg_stderr.msg ;
 		if (max_stderr_len) {
-			::string_view shorten = first_lines(stderr,max_stderr_len) ;
-			if (shorten.size()<stderr.size()) {
+			::string_view shorten = first_lines(msg_stderr.stderr,max_stderr_len) ;
+			if (shorten.size()<msg_stderr.stderr.size()) {
 				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
 				audit_info      ( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->full_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
 				return true ;
 			}
 		}
-		audit_info_as_is( Color::None , stderr , lvl ) ;
+		audit_info_as_is( Color::None , msg_stderr.stderr , lvl ) ;
 		return true ;
 	}
 
@@ -586,7 +586,7 @@ namespace Engine {
 			//
 			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass self as req to avoid generating error message at cxtor time
 			try                      { rt->rule->deps_attrs.eval(m) ; }
-			catch (::pair_ss const&) { goto Continue ;                }                                 // do not consider rule if deps cannot be computed
+			catch (MsgStderr const&) { goto Continue ;                }                                 // do not consider rule if deps cannot be computed
 			n_missing++ ;
 		Continue :
 			mrts.emplace_back(rt,::move(m)) ;
@@ -608,12 +608,12 @@ namespace Engine {
 				for( ::string const& t : m.star_targets  () ) { if (!is_canon(t)) { reason = "non-canonic target "+m.rule->matches[ti].first+" : "+t ; goto Report ; } ti++ ; }
 			}
 			//
-			try                              { static_deps = rt->rule->deps_attrs.eval(m)                               ;               }
-			catch (::pair_ss const& msg_err) { reason      = "cannot compute its deps :\n"+msg_err.first+msg_err.second ; goto Report ; }
+			try                              { static_deps = rt->rule->deps_attrs.eval(m)                             ;               }
+			catch (MsgStderr const& msg_err) { reason      = "cannot compute its deps :\n"+msg_err.msg+msg_err.stderr ; goto Report ; }
 			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
 					if (!is_canon(ds.txt,false/*empty_ok*/)) {
-						if (search_non_buildable  ) continue ;                                                      // non-canonic deps are detected after non-buidlable ones
+						if (search_non_buildable  ) continue ;                                          // non-canonic deps are detected after non-buidlable ones
 						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
 						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;
 						else         reason = "empty static dep "      +k                 ;
@@ -622,7 +622,7 @@ namespace Engine {
 					Node d { ds.txt } ;
 					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 					missing_dep = d ;
-					SWEAR(+missing_dep) ;                                                                           // else why wouldn't it apply ?!?
+					SWEAR(+missing_dep) ;                                                               // else why wouldn't it apply ?!?
 					FileTag tag = FileInfo(nfs_guard.access(missing_dep->name())).tag() ;
 					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 					goto Report ;

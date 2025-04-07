@@ -89,11 +89,11 @@ void print_end(JobEndRpcReq const& jerr) {
 	//
 	g_out << "dynamic_env :\n" ; _print_map(jerr.dyn_env) ;
 	//
-	g_out << "digest.targets :\n" ; _print_map(jerr.digest.targets)                ;
-	g_out << "digest.deps :\n"    ; _print_map(jerr.digest.deps   )                ;
-	g_out << "stderr :\n"         ; g_out << ensure_nl(indent(jerr.stderr       )) ;
-	g_out << "stdout :\n"         ; g_out << ensure_nl(indent(jerr.stdout       )) ;
-	g_out << "msg :\n"            ; g_out << ensure_nl(indent(localize(jerr.msg))) ;
+	g_out << "digest.targets :\n" ; _print_map(jerr.digest.targets)                              ;
+	g_out << "digest.deps :\n"    ; _print_map(jerr.digest.deps   )                              ;
+	g_out << "msg :\n"            ; g_out << ensure_nl(indent(localize(jerr.msg_stderr.msg   ))) ;
+	g_out << "stderr :\n"         ; g_out << ensure_nl(indent(         jerr.msg_stderr.stderr )) ;
+	g_out << "stdout :\n"         ; g_out << ensure_nl(indent(         jerr.stdout            )) ;
 }
 
 int main( int argc , char* argv[] ) {

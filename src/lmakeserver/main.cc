@@ -408,12 +408,12 @@ static bool/*interrupted*/ _engine_loop() {
 				trace("job",ecj.proc(),je) ;
 				Req::s_new_etas() ;                                                                           // regularly adjust queued job priorities if necessary
 				switch (ecj.proc()) {
-					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case JobRpcProc::Start       : je.started     ( ecj.start().report , ecj.start().report_unlnks , ecj.start().txts ) ; break ;
-					case JobRpcProc::ReportStart : je.report_start(                                                                   ) ; break ;
-					case JobRpcProc::GiveUp      : je.give_up     ( ecj.give_up().req , ecj.give_up().report                          ) ; break ;
-					case JobRpcProc::End         : je.end         ( ::move(ecj.end())                                                 ) ; break ;
-					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobRpcProc::Start       : je.started     ( ecj.start().report , ecj.start().report_unlnks , ecj.start().msg_stderr ) ; break ;
+					case JobRpcProc::ReportStart : je.report_start(                                                                         ) ; break ;
+					case JobRpcProc::GiveUp      : je.give_up     ( ecj.give_up().req , ecj.give_up().report                                ) ; break ;
+					case JobRpcProc::End         : je.end         ( ::move(ecj.end())                                                       ) ; break ;
+					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				DF}
 			} break ;
 			case EngineClosureKind::JobMngt : {

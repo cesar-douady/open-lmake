@@ -303,7 +303,7 @@ namespace Backends {
 		::vmap_s<DepSpec>        deps_attrs            ;
 		StartRsrcsAttrs          start_rsrcs_attrs     ;
 		StartAncillaryAttrs      start_ancillary_attrs ;
-		::pair_ss                start_msg_err         ;
+		MsgStderr                start_msg_err         ;
 		::vector<ReqIdx>         reqs                  ;
 		JobInfoStart             jis                   { .rule_cmd_crc=rule->crc->cmd } ;
 		JobStartRpcReply&        reply                 = jis.start                      ;
@@ -339,15 +339,15 @@ namespace Backends {
 						case FileActionTag::UnlinkWarning  :
 						case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
 					DN}
-			} catch (::string const& e) { throw ::pair_ss({},e) ; }
-		} catch (::pair_ss const& e) {
-			start_msg_err.first  <<set_nl<< e.first  ;
-			start_msg_err.second <<set_nl<< e.second ;
+			} catch (::string const& e) { throw MsgStderr({},e) ; }
+		} catch (MsgStderr const& e) {
+			start_msg_err.msg    <<set_nl<< e.msg    ;
+			start_msg_err.stderr <<set_nl<< e.stderr ;
 			switch (step) {
-				case 0 : start_msg_err.first <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
-				case 1 : start_msg_err.first <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
-				case 2 : start_msg_err.first <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
-				case 3 : start_msg_err.first <<set_nl<< "cannot wash targets"                                    ; break ;
+				case 0 : start_msg_err.msg <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
+				case 1 : start_msg_err.msg <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
+				case 2 : start_msg_err.msg <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
+				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                                    ; break ;
 			DF}
 		}
 		trace("deps",step,deps) ;
@@ -357,8 +357,8 @@ namespace Backends {
 				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
 					try                       { start_ancillary_attrs = rule->start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
-					catch (::string const& e) { throw ::pair_ss(e,{}) ;                                                       }
-				} catch (::pair_ss const& e) {
+					catch (::string const& e) { throw MsgStderr(e,{}) ;                                                       }
+				} catch (MsgStderr const& e) {
 					start_msg_err         = e                                ;
 					start_ancillary_attrs = rule->start_ancillary_attrs.spec ;
 					jsrr.msg <<set_nl<< rule->start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
@@ -452,21 +452,20 @@ namespace Backends {
 					start_msg_err = {}                   ;
 				}
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				s_end( entry.tag , +job , status ) ;                                                                                  // dont care about backend, job is dead for other reasons
+				s_end( entry.tag , +job , status ) ;                                                                                    // dont care about backend, job is dead for other reasons
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("early",start_msg_err) ;
 				//
 				JobEndRpcReq jerr { jsrr } ;
-				jerr.digest   = { .deps=reply.deps , .max_stderr_len=entry.max_stderr_len , .status=status , .has_msg_stderr=true } ;
-				jerr.end_date = New                                                                                                 ;
-				jerr.msg      = ::move(start_msg_err.first )                                                                        ;
-				jerr.stderr   = ::move(start_msg_err.second)                                                                        ;
-				JobDigest<Node> jd = jerr.digest ;                                                                                    // before jerr is moved
+				jerr.digest     = { .deps=reply.deps , .max_stderr_len=entry.max_stderr_len , .status=status , .has_msg_stderr=true } ;
+				jerr.end_date   = New                                                                                                 ;
+				jerr.msg_stderr = ::move(start_msg_err)                                                                               ;
+				JobDigest<Node> jd = jerr.digest ;                                                                                      // before jerr is moved
 				//
 				Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 				Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 				//
-				job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                        // job starts and ends
+				job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                          // job starts and ends
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 				g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
@@ -489,16 +488,16 @@ namespace Backends {
 		}
 		bool report_now =                                                                                             // dont defer long jobs or if a message is to be delivered to user
 				+pre_action_warnings
-			||	+start_msg_err.second
+			||	+start_msg_err.stderr
 			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                          // emit retry start message
 			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay                                              // if job is probably long, emit start message immediately
 		;
 		Job::s_record_thread.emplace( job , ::move(jis) ) ;
 		trace("started",job_exec,jis.start) ;
-		::vector_s txts ; if (+start_msg_err.second) txts = { jsrr.msg+start_msg_err.first , ::move(start_msg_err.second) } ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , report_now , ::move(pre_action_warnings) , ::move(txts) ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		MsgStderr msg_stderr ; if (+start_msg_err.stderr) msg_stderr = { jsrr.msg+start_msg_err.msg , ::move(start_msg_err.stderr) } ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , report_now , ::move(pre_action_warnings) , ::move(msg_stderr) ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (!report_now) {
 			Pdate report_date = Pdate(New) + start_ancillary_attrs.start_delay ;                                                                   // record before moving job_exec
 			{	TraceLock lock     { _s_mutex , BeChnl , "s_handle_job_start3" }                                           ;                       // allow queues manipulation
@@ -577,8 +576,8 @@ namespace Backends {
 			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if ( !ok && is_lost(jerr.digest.status) && is_ok(jerr.digest.status)!=No )
 				jerr.digest.status = jerr.digest.status==Status::EarlyLost ? Status::EarlyLostErr : Status::LateLostErr ;
-			if      (+msg                           ) { jerr.msg <<set_nl<< msg                      ; digest.has_msg_stderr = true ; }
-			else if (digest.status==Status::LateLost) { jerr.msg <<set_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
+			if      (+msg                           ) { jerr.msg_stderr.msg <<set_nl<< msg                      ; digest.has_msg_stderr = true ; }
+			else if (digest.status==Status::LateLost) { jerr.msg_stderr.msg <<set_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
 			_s_start_tab_erase(it) ;
 		}
 		trace("info") ;
@@ -692,7 +691,7 @@ namespace Backends {
 				JobEndRpcReq jerr { {0/*seq_id*/,+job} } ;
 				jerr.digest.status         = status                    ;
 				jerr.digest.has_msg_stderr = true                      ;
-				jerr.msg                   = ::move(lost_report.first) ;
+				jerr.msg_stderr.msg        = ::move(lost_report.first) ;
 				JobDigest<Node> jd = jerr.digest ;                                                                    // before jerr is moved
 				Job::s_record_thread.emplace( job , JobInfoStart() ) ;
 				Job::s_record_thread.emplace( job , ::move(jerr)   ) ;

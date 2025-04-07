@@ -98,7 +98,7 @@ namespace Engine {
 		/**/                     os << "Ecjs("                           ;
 		if (ecjs.report        ) os <<first("",",")<< "report"           ;
 		if (+ecjs.report_unlnks) os <<first("",",")<< ecjs.report_unlnks ;
-		if (+ecjs.txts         ) os <<first("",",")<< ecjs.txts          ;
+		if (+ecjs.msg_stderr   ) os <<first("",",")<< ecjs.msg_stderr    ;
 		return                   os <<')'                                ;
 	}
 

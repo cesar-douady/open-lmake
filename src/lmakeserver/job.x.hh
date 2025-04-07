@@ -164,10 +164,10 @@ namespace Engine {
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
-		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks , ::vector_s const& txts={} ) const ; // txts is {backend_msg,stderr}
-		bool/*reported*/ report_start( ReqInfo& ri                                                                               ) const ;
-		void             report_start(                                                                                           ) const ;
-		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , ::vector_s const& txts={} ) ;       // txts is {backend_msg,stderr}
+		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) const ; // txts is {backend_msg,stderr}
+		bool/*reported*/ report_start( ReqInfo& ri                                                                          ) const ;
+		void             report_start(                                                                                      ) const ;
+		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) ;       // txts is {backend_msg,stderr}
 		//
 		void live_out( ReqInfo& , ::string const& ) const ;
 		void live_out(            ::string const& ) const ;
@@ -177,9 +177,9 @@ namespace Engine {
 		void             give_up     ( Req={} , bool report=true               ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end(ReqInfo&   ,bool with_stats,::string const& pfx,::string const& msg,::string const& stderr   ,uint16_t max_stderr_len=0,Delay exec_time={} , bool retry=false ) const ;
-		JobReport audit_end(ReqInfo& ri,bool with_stats,::string const& pfx,                    ::string const& stderr={},uint16_t max_stderr_len=0,Delay exec_time={} , bool retry=false ) const {
-			return audit_end(ri,with_stats,pfx,{}/*msg*/,stderr,max_stderr_len,exec_time,retry) ;
+		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx , MsgStderr const&           , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const ;
+		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& stderr={}  , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const {
+			return audit_end( ri , with_stats , pfx , {.stderr=stderr} , max_stderr_len , exec_time , retry ) ;
 		}
 		// data
 		in_addr_t   host       = 0 ;

@@ -62,31 +62,26 @@ namespace Backends::Slurm::SlurmApi {
 		// first element is treated specially to avoid allocation in the very frequent case of a single element
 		::string                 job_name    = key + job->name()        ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
-		::string                 stderr_file ;                                                                           //                 keep alive until slurm is called
-		::string                 stdout_file ;                                                                           //                 .
-		job_desc_msg_t           job_desc0   ;                                                                           // first element   .
-		::string                 gres0       ;                                                                           // .             , .
-		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                       // other elements  .
-		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                       // .             , .
-		if(verbose) {
-			stderr_file = get_stderr_file(job) ;
-			stdout_file = get_stdout_file(job) ;
-			mk_dir_s(get_log_dir_s(job)) ;
-		}
+		::string                 stderr_file ;                                                                                                 //                 keep alive until slurm is called
+		job_desc_msg_t           job_desc0   ;                                     if(verbose) stderr_file = dir_guard(get_stderr_file(job)) ; // first element   .
+		::string                 gres0       ;                                                                                                 // .             , .
+		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                                             // other elements  .
+		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                                             // .             , .
+		if(verbose) stderr_file = dir_guard(get_stderr_file(job)) ;
 		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
 			//                            first element            other elements
-			job_desc_msg_t& j    = i==0 ? job_desc0              : job_descs.emplace_back()               ;              // keep alive
-			::string      & gres = i==0 ? (gres0="gres:"+r.gres) : gress    .emplace_back("gres:"+r.gres) ;              // .
+			job_desc_msg_t& j    = i==0 ? job_desc0              : job_descs.emplace_back()               ;                                    // keep alive
+			::string      & gres = i==0 ? (gres0="gres:"+r.gres) : gress    .emplace_back("gres:"+r.gres) ;                                    // .
 			//
 			_init_job_desc_msg(&j) ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
 			/**/                     j.environment     = const_cast<char**>(env)                                       ;
 			/**/                     j.env_size        = 1                                                             ;
 			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
-			/**/                     j.pn_min_memory   = r.mem                                                         ; //in MB
-			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ; //in MB
-			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ; // keep alive
-			/**/                     j.std_out         = verbose ? stdout_file.data() : const_cast<char*>("/dev/null") ; // keep alive
+			/**/                     j.pn_min_memory   = r.mem                                                         ;                       //in MB
+			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;                       //in MB
+			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
+			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
 			/**/                     j.work_dir        = wd.data()                                                     ;
 			//
 			if(+r.excludes ) j.exc_nodes     = const_cast<char*>(r.excludes .data()) ;

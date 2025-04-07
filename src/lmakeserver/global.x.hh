@@ -140,7 +140,7 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , EngineClosureJobStart const& ) ;
 		bool                       report        = false ;
 		::vmap<Node,FileActionTag> report_unlnks = {}    ;
-		::vector_s                 txts          = {}    ; // msg+stderr
+		MsgStderr                  msg_stderr    = {}    ;
 	} ;
 
 	struct EngineClosureJobReportStart {
@@ -223,8 +223,8 @@ namespace Engine {
 		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      }} { SWEAR( p==RP::Kill || p==RP::None  ) ; }
 		EngineClosure(RP p,R r                                        ) : Base{ECR{.proc=p,.req=r                                             }} { SWEAR( p==RP::Close                ) ; }
 		// Job
-		EngineClosure( JRP p , JE&& je , bool r , ::vmap<Node,FileActionTag>&& rus={} , ::vector_s&& txts={} ) :
-			Base{ECJ{ ::move(je) , EngineClosureJobStart{.report=r,.report_unlnks=::move(rus),.txts=::move(txts)} }}
+		EngineClosure( JRP p , JE&& je , bool r , ::vmap<Node,FileActionTag>&& rus={} , MsgStderr&& msg_stderr_={} ) :
+			Base{ECJ{ ::move(je) , EngineClosureJobStart{.report=r,.report_unlnks=::move(rus),.msg_stderr=::move(msg_stderr_)} }}
 		{ (void)p ; SWEAR(p==JRP::Start) ; }
 		//
 		EngineClosure( JRP p , JE&& je , R rq , bool rpt ) : Base{ECJ{::move(je),EngineClosureJobGiveUp     {.req=rq,.report=rpt}}} { SWEAR(p==JRP::GiveUp     ) ; }

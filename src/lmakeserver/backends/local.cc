@@ -158,7 +158,7 @@ namespace Backends::Local {
 			_wait_queue.push(se.id) ;                                                                       // defer wait in case job_exec process does some time consuming book-keeping
 			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                             // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::string msg ;
-			if (status!=Status::Ok) msg <<"return status : "<< status ;
+			if (status!=Status::Ok) msg <<"return status : "<< status <<'\n' ;
 			try                       { msg = AcFd(get_stderr_file(job)).read() ; }
 			catch (::string const& e) { msg = e                                 ; }
 			return { ::move(msg) , status==Status::Ok/*retry*/ } ;                                          // retry if garbage
@@ -187,13 +187,12 @@ namespace Backends::Local {
 			SWEAR(pid>=0) ;              // ensure vfork works
 			if (!pid) {                  // in child
 				if (se.verbose) {
-					mk_dir_s(get_log_dir_s(job)) ;
-					AcFd stderr_fd { get_stderr_file(job) , Fd::Write , true/*no_std*/ } ; // close fd once it has been dup2'ed
-					::dup2(stderr_fd,Fd::Stderr) ;                                         // we do *not* want the O_CLOEXEC flag as we are precisely preparing fd for child
+					AcFd stderr_fd { dir_guard(get_stderr_file(job)) , Fd::Write , true/*no_std*/ } ; // close fd once it has been dup2'ed
+					::dup2(stderr_fd,Fd::Stderr) ;                                                    // we do *not* want the O_CLOEXEC flag as we are precisely preparing fd for child
 				}
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_.data()) , const_cast<char**>(_env.get()) ) ;
 				Fd::Stderr.write("cannot exec job_exec\n") ;
-				::_exit(+Rc::System) ;                                                     // in case exec fails
+				::_exit(+Rc::System) ;                                                                // in case exec fails
 			}
 			return pid ;
 		}

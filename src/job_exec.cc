@@ -483,7 +483,7 @@ int main( int argc , char* argv[] ) {
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
 		get_start_info(server_fd) ;                                                                                          // getting start_info is useless, but necessary to be allowed to report end
-		end_report.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
+		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;
 	}
 	Trace::s_sz = 10<<20 ;                                                                                                   // this is more than enough
@@ -497,7 +497,7 @@ int main( int argc , char* argv[] ) {
 		g_start_info = get_start_info(server_fd) ;
 		if (!g_start_info) return 0 ;                                                                                        // server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
-		catch (::string const& e) { end_report.msg += e ; goto End ;                     }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;          }
 		//
 		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
 		//
@@ -508,7 +508,7 @@ int main( int argc , char* argv[] ) {
 		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
 		//
 		{	::pair_s<bool/*ok*/> wash_report = do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard ) ;
-			end_report.msg += ensure_nl(::move(wash_report.first)) ;
+			end_report.msg_stderr.msg += ensure_nl(::move(wash_report.first)) ;
 			if (!wash_report.second) {
 				end_report.digest.status = Status::LateLostErr ;
 				goto End ;
@@ -529,7 +529,7 @@ int main( int argc , char* argv[] ) {
 					else if (has_env("TMPDIR")                ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
 					if      (!end_report.phy_tmp_dir_s        ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<PrivateAdminDirS<<"tmp/"         <<g_start_info.small_id<<'/' ;
 					else if (!is_abs(end_report.phy_tmp_dir_s)) {
-						end_report.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
+						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
 						goto End ;
 					}
 				}
@@ -579,7 +579,7 @@ int main( int argc , char* argv[] ) {
 			) ;
 			//
 		} catch (::string const& e) {
-			end_report.msg += e ;
+			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
 		g_start_info.autodep_env.fast_host        = host()                                                                 ; // host on which fast_report_pipe works
@@ -629,9 +629,9 @@ int main( int argc , char* argv[] ) {
 		g_gather.cmd_line = cmd_line(cmd_env) ;
 		Status status ;
 		//                                   vvvvvvvvvvvvvvvvvvvvv
-		try                       { status = g_gather.exec_child() ; }
+		try                       { status = g_gather.exec_child() ;            }
 		//                                   ^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { end_report.msg += e ; goto End ; }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                // XXX> : suppress when CentOS7 bug is fixed
@@ -640,7 +640,7 @@ int main( int argc , char* argv[] ) {
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
 		::vector<FileInfo> target_fis ;
-		end_report.msg += compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
+		end_report.msg_stderr.msg += compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
 		//
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
@@ -657,8 +657,8 @@ int main( int argc , char* argv[] ) {
 		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.allow_stderr) ) )
 			status = Status::Err ;
 		//
-		/**/                        end_report.msg += g_gather.msg ;
-		if (status!=Status::Killed) end_report.msg += digest  .msg ;
+		/**/                        end_report.msg_stderr.msg += g_gather.msg ;
+		if (status!=Status::Killed) end_report.msg_stderr.msg += digest  .msg ;
 		JobStats stats {
 			.mem = size_t(rsrcs.ru_maxrss<<10)
 		,	.cpu = Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime)
@@ -670,13 +670,13 @@ int main( int argc , char* argv[] ) {
 		,	.deps           = ::move(digest.deps   )
 		,	.cache_idx      = g_start_info.cache_idx
 		,	.status         = status
-		,	.has_msg_stderr = +end_report.msg || +g_gather.stderr
+		,	.has_msg_stderr = +end_report.msg_stderr.msg || +g_gather.stderr
 		} ;
-		end_report.end_date =        g_gather.end_date  ;
-		end_report.stats    = ::move(stats            ) ;
-		end_report.stderr   = ::move(g_gather.stderr  ) ;
-		end_report.stdout   = ::move(g_gather.stdout  ) ;
-		end_report.wstatus  =        g_gather.wstatus   ;
+		end_report.end_date          =        g_gather.end_date  ;
+		end_report.stats             = ::move(stats            ) ;
+		end_report.msg_stderr.stderr = ::move(g_gather.stderr  ) ;
+		end_report.stdout            = ::move(g_gather.stdout  ) ;
+		end_report.wstatus           =        g_gather.wstatus   ;
 	}
 End :
 	{	Trace trace("end",end_report.digest.status) ;

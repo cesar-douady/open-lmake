@@ -198,21 +198,34 @@ namespace Backends::Sge {
 			SWEAR(+se.rsrcs) ;
 			return "sge_id:"s+se.id.load() ;
 		}
-		// XXX! : implement end_job to give explanations if verbose (mimic slurm)
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job , SpawnedEntry const& se ) const {
-			if (sge_exec_client({"qstat","-j",::to_string(se.id)})) return { {}/*msg*/                      , HeartbeatState::Alive } ;
-			else                                                    return { "lost job "+::to_string(se.id) , HeartbeatState::Lost  } ; // XXX! : try to distinguish between Lost and Err
+		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const {
+			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                    // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			::string msg ;
+			try                       { msg = AcFd(get_stderr_file(j)).read() ; }
+			catch (::string const& e) { msg = e                               ; }
+			return { ::move(msg) , true/*retry*/  } ;
+		}
+		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const {
+			if (sge_exec_client({"qstat","-j",::to_string(se.id)})) return { {}/*msg*/ , HeartbeatState::Alive } ;
+			::string msg ;
+			if (se.verbose)
+				try                       { msg = AcFd(get_stderr_file(job)).read() ; }
+				catch (::string const& e) { msg = e                                 ; }
+			else
+				msg = "lost job "+::to_string(se.id) ;
+			return { ::move(msg) , HeartbeatState::Lost } ;                                        // XXX! : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                                                      // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                 // asynchronous (as faster and no return value) cancel
 		}
 		virtual SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
+			::string stderr = se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s ;
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-terse"
 			,	"-b"     , "y"
-			,	"-o"     , "/dev/null"                                                                                                  // XXX? : if verbose, collect stdout/sderr (expensive)
-			,	"-j"     , "y"
+			,	"-o"     ,                                              "/dev/null"s
+			,	"-e"     , se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s
 			,	"-shell" , "n"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
 			} ;
@@ -223,7 +236,7 @@ namespace Backends::Sge {
 				sge_cmd_line.emplace_back("-v"   ) ;
 				sge_cmd_line.emplace_back(env_str) ;
 			}
-			SWEAR(+reqs) ;                                                                                                              // why launch a job if for no req ?
+			SWEAR(+reqs) ;                                                                                                 // why launch a job if for no req ?
 			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
 			Rsrcs const& rs = se.rsrcs ;
