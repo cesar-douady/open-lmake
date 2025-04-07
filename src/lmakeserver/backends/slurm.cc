@@ -217,7 +217,7 @@ namespace Backends::Slurm {
 			return "slurm_id:"s+se.id.load() ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const {
-			if ( !se.verbose && s==Status::Ok ) return {{},true/*retry*/} ;                          // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			if ( !se.verbose && s==Status::Ok ) return {{}/*msg*/,true/*retry*/} ;                   // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c : iota(2) ) {
 				Delay d { 0.01 }                                               ;
@@ -417,7 +417,7 @@ namespace Backends::Slurm {
 			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                      // gather status to know if we were able to call SlurmApi::init
 			if ( rc<=0 || !wstatus_ok(wstatus) ) throw "cannot init slurm"s ; // no, report error
 		}
-		init_func(cf) ;                                               // this should be safe now that we have checked it works in a child
+		init_func(cf) ;                                                       // this should be safe now that we have checked it works in a child
 		//
 		void* conf = nullptr ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
@@ -437,7 +437,7 @@ namespace Backends::Slurm {
 				daemon = sense_daemon_func(conf) ;
 				found  = true                    ;
 				break ;
-			} catch (::string const&) {}                              // ignore errors as well
+			} catch (::string const&) {}                                      // ignore errors as well
 		}
 		//
 		free_ctl_conf_func(conf) ;

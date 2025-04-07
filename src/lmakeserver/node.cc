@@ -609,9 +609,9 @@ namespace Engine {
 							} else switch (polluted) {
 								case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
 								case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
-								case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                          // polluting job is already set
+								case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                              // polluting job is already set
 							DF}
-						} else if (ri.goal!=NodeGoal::Status) {                                                                             // dont check disk if asked for Status
+						} else if (ri.goal!=NodeGoal::Status) {                                                                                 // dont check disk if asked for Status
 							if (jt->running(true/*with_zombies*/))
 								/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
 							else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
@@ -621,9 +621,13 @@ namespace Engine {
 								case Manual::Modif      : reason = {JobReasonTag::ManualTarget  ,+idx()} ; break ;
 							DF}
 						}
-						if ( !reason && !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                                        // ensure we dont let go a node with the wrong job
-								if (has_actual_job())   { reason = {JobReasonTag::PollutedTarget,+idx()} ; polluting_job = actual_job() ; }
-								else                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
+						if (+reason) {
+							if ( jri.done() && !jt.produces(idx()) ) reason = {} ;                                                              // job cannot do much if we know it does not produce us
+						} else {
+							if ( !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                                                   // ensure we dont let go a node with the wrong job
+									if (has_actual_job())   { reason = {JobReasonTag::PollutedTarget,+idx()} ; polluting_job = actual_job() ; }
+									else                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
+							}
 						}
 						if (ri.live_out) jri.live_out = ri.live_out ;                                                              // transmit user request to job for last level live output
 						jt->asking = idx() ;

@@ -89,8 +89,9 @@ ENUM( JobRpcProc
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM_3( JobReasonTag                           // see explanations in table below
-,	HasNode = BusyDep                          // if >=HasNode, a node is associated
+ENUM_4( JobReasonTag                           // see explanations in table below
+,	HasNode = BusyTarget                       // if >=HasNode, a node is associated
+,	HasDep  = BusyDep                          // if >=HasDep , a dep  is associated
 ,	Err     = DepOverwritten
 ,	Missing = DepMissingStatic
 	//
@@ -109,7 +110,6 @@ ENUM_3( JobReasonTag                           // see explanations in table belo
 ,	New
 ,	WasLost
 //	with node
-,	BusyDep                                    // job is waiting for an unknown dep
 ,	BusyTarget
 ,	NoTarget
 ,	OldTarget
@@ -117,6 +117,7 @@ ENUM_3( JobReasonTag                           // see explanations in table belo
 ,	PollutedTarget
 ,	ManualTarget
 ,	ClashTarget
+,	BusyDep                                    // job is waiting for an unknown dep
 ,	DepOutOfDate
 ,	DepTransient
 ,	DepUnlnked
@@ -146,7 +147,6 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::New                , "job was never run"                          }
 ,	{ JobReasonTag::WasLost            , "job was lost"                               }
 //	with node
-,	{ JobReasonTag::BusyDep            , "waiting dep"                                }
 ,	{ JobReasonTag::BusyTarget         , "busy target"                                }
 ,	{ JobReasonTag::NoTarget           , "missing target"                             }
 ,	{ JobReasonTag::OldTarget          , "target produced by an old job"              }
@@ -154,6 +154,7 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::PollutedTarget     , "polluted target"                            }
 ,	{ JobReasonTag::ManualTarget       , "target manually polluted"                   }
 ,	{ JobReasonTag::ClashTarget        , "multiple simultaneous writes"               }
+,	{ JobReasonTag::BusyDep            , "waiting dep"                                }
 ,	{ JobReasonTag::DepOutOfDate       , "dep out of date"                            }
 ,	{ JobReasonTag::DepTransient       , "dep dir is a symbolic link"                 }
 ,	{ JobReasonTag::DepUnlnked         , "dep not on disk"                            }
@@ -184,7 +185,6 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::New                , 100 }
 ,	{ JobReasonTag::WasLost            ,  60 }
 //	with node
-,	{ JobReasonTag::BusyDep            ,  11 }
 ,	{ JobReasonTag::BusyTarget         ,  10 } // this should not occur as there is certainly another reason to be running
 ,	{ JobReasonTag::NoTarget           ,  30 }
 ,	{ JobReasonTag::OldTarget          ,  31 }
@@ -192,6 +192,7 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::PollutedTarget     ,  33 }
 ,	{ JobReasonTag::ManualTarget       ,  34 }
 ,	{ JobReasonTag::ClashTarget        ,  35 }
+,	{ JobReasonTag::BusyDep            ,  11 }
 ,	{ JobReasonTag::DepOutOfDate       ,  50 }
 ,	{ JobReasonTag::DepTransient       ,  51 }
 ,	{ JobReasonTag::DepUnlnked         ,  51 }

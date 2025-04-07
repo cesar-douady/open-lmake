@@ -60,7 +60,7 @@ else :
 		set -x
 		rm -rf src obj
 		lforget src/a.repo_dir.trigger
-		lforget -d src/a.repo
+		lforget -d src/a.repo_dir.trigger
 		lforget obj/a.repo_dir/c.o
 		lforget -d obj/a.repo_dir/c.o
 	''')

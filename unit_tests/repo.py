@@ -72,7 +72,7 @@ else :
 		mkdir -p LMAKE/a.repo
 		zip LMAKE/a.repo/b.zip c.c ; rm c.c
 		cd LMAKE/a.repo
-		git init .
+		git init .      # -b main is not supported on older git's
 		git add b.zip
 		git commit -minit
 	''')
@@ -91,7 +91,7 @@ else :
 		lforget -d exe/a.repo_dir/b.zip_dir/c
 	''')
 
-	ut.lmake( 'exe/a.repo_dir/b.zip_dir/c' , steady=3 , done=1 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable), XXX : Clone should not be run twice
+	ut.lmake( 'exe/a.repo_dir/b.zip_dir/c' , steady=2 , done=1 , rerun=... ) # Cc may be rerun if .c dep is seen hot (too recent to be reliable)
 
 	print('const char* dep = "my_dep2" ;',file=open('dep.h','w'))
 
