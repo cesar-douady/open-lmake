@@ -14,6 +14,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* report clean message when using target instead of targets in rule def
 * job_exec crash in case :
 	- lmake foo on host1
 	- then lmake foo on host2

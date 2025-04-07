@@ -307,11 +307,18 @@ Status Gather::exec_child() {
 		trace("kill_done",end_kill) ;
 	} ;
 	auto open_fast_report_fd = [&]()->void {
+		SWEAR(+autodep_env.fast_report_pipe) ;
 		fast_report_fd = ::open(autodep_env.fast_report_pipe.c_str(),O_RDONLY|O_CLOEXEC|O_NONBLOCK) ; // O_NONBLOCK is important to avoid blocking waiting for child, no impact on epoll-controled ops
-		epoll.add_read( fast_report_fd , Kind::JobSlave ) ;
-		epoll.dec() ;                                       // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
-		job_slaves[fast_report_fd] ;                        // allocate entry
-		trace("open_fast_report_fd",fast_report_fd) ;
+		//
+		if (+fast_report_fd) {                                                         // work w/o fast report if it does not work, XXX : in some cases, fast_report_pipe cannot be ::open'ed
+			trace("open_fast_report_fd",autodep_env.fast_report_pipe,fast_report_fd) ;
+			epoll.add_read( fast_report_fd , Kind::JobSlave ) ;
+			epoll.dec() ;                                                              // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
+			job_slaves[fast_report_fd] ;                                               // allocate entry
+		} else {
+			trace("open_fast_report_fd",autodep_env.fast_report_pipe,::strerror(errno)) ;
+			autodep_env.fast_report_pipe.clear() ;
+		}
 	} ;
 	//
 	autodep_env.service = job_master_fd.service(addr) ;
@@ -609,7 +616,7 @@ Status Gather::exec_child() {
 									}
 								break ;
 								case Proc::Panic :
-									if (!panic_seen) {                                                                 // report only first panic
+									if (!panic_seen) {                                                                                           // report only first panic
 										_exec_trace( jerr.date , Comment::panic , {} , jerr.file ) ;
 										set_status(Status::Err,jerr.file) ;
 										kill() ;
@@ -632,10 +639,10 @@ Status Gather::exec_child() {
 	}
 Return :
 	//
-	SWEAR(!_child) ;                                                                                                   // _child must have been waited by now
+	SWEAR(!_child) ;                                                                                                                             // _child must have been waited by now
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;
-	reorder(true/*at_end*/) ;                                                                                          // ensure server sees a coherent view
+	reorder(true/*at_end*/) ;                                                                                                                    // ensure server sees a coherent view
 	return status ;
 }
 

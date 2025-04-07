@@ -731,24 +731,24 @@ namespace Engine {
 		bool           speculate   = ri.speculate!=No ;
 		bool           done        = ri.done()        ;
 		//
-		if      ( jd.run_status!=RunStatus::Ok               ) { res = JR::Failed     ; color = Color::Err     ;                       step = snake_cstr(jd.run_status) ; }
-		else if ( jd.status==Status::Killed                  ) { res = JR::Killed     ; color = Color::Note    ; with_stderr = false ;                                    }
-		else if ( is_lost(jd.status) && is_ok(jd.status)==No ) { res = JR::LostErr    ; color = Color::Err     ;                                                          }
-		else if ( is_lost(jd.status)                         ) { res = JR::Lost       ; color = Color::Warning ; with_stderr = false ;                                    }
-		else if ( jd.status==Status::SubmitLoop              ) { res = JR::SubmitLoop ; color = Color::Err     ;                                                          }
-		else if ( req.zombie()                               ) { res = JR::Completed  ; color = Color::Note    ; with_stderr = false ;                                    }
-		else if ( jd.err()                                   ) { res = JR::Failed     ; color = Color::Err     ;                                                          }
-		else if ( ri.modified                                ) { res = JR::Done       ; color = Color::Ok      ;                                                          }
-		else                                                   { res = JR::Steady     ; color = Color::Ok      ;                                                          }
+		if      ( jd.run_status!=RunStatus::Ok               ) { res = JR::Failed     ; color = Color::Err     ; step = snake_cstr(jd.run_status) ; }
+		else if ( jd.status==Status::Killed                  ) { res = JR::Killed     ; color = Color::Note    ;                                    }
+		else if ( is_lost(jd.status) && is_ok(jd.status)==No ) { res = JR::LostErr    ; color = Color::Err     ;                                    }
+		else if ( is_lost(jd.status)                         ) { res = JR::Lost       ; color = Color::Warning ; with_stderr = false ;              }
+		else if ( jd.status==Status::SubmitLoop              ) { res = JR::SubmitLoop ; color = Color::Err     ;                                    }
+		else if ( req.zombie()                               ) { res = JR::Completed  ; color = Color::Note    ; with_stderr = false ;              }
+		else if ( jd.err()                                   ) { res = JR::Failed     ; color = Color::Err     ;                                    }
+		else if ( ri.modified                                ) { res = JR::Done       ; color = Color::Ok      ;                                    }
+		else                                                   { res = JR::Steady     ; color = Color::Ok      ;                                    }
 		//
 		JR jr = res ;                                   // report to do now
 		if (done) {
 			ri.modified_speculate = ri.modified ;       // remember to accumulate stats in the right slot
 			ri.modified           = false       ;       // for the user, this is the base of future modifications
 		} else {
-			with_stderr = false          ;
-			step        = nullptr        ;
-			color      &= Color::Warning ;
+			with_stderr  = false          ;
+			step         = nullptr        ;
+			color       &= Color::Warning ;
 			if      (is_lost(jd.status)             ) {                                             }
 			else if (jd.status==Status::EarlyChkDeps) { jr = JR::EarlyRerun ; color = Color::Note ; }
 			else if (!retry                         ) { jr = JR::Rerun      ; color = Color::Note ; }
@@ -760,9 +760,9 @@ namespace Engine {
 		DN}
 		if (!step) step = snake_cstr(jr) ;
 		Trace trace("audit_end",color,pfx,step,self,ri,STR(with_stats),STR(retry),STR(with_stderr),STR(done),STR(speculate),jr,STR(+msg),STR(+stderr)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job(color,pfx+step,self,true/*at_end*/,exec_time) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		req->audit_job( color , pfx+step , self , true/*at_end*/ , exec_time ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true  ;
 		req->audit_stderr( self , msg , with_stderr?stderr:""s , max_stderr_len , 1 ) ;
 		//
