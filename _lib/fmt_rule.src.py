@@ -430,7 +430,11 @@ class Handle :
 		def fmt(k,kind,val) :
 			if   isinstance(val,str         ) : return (val   ,kind        )
 			elif isinstance(val,(list,tuple)) : return (val[0],kind,val[1:])
-			raise TypeError(f'bad {kind} {k} : {val}')
+			e = TypeError(f'bad {kind} {k} is a {val.__class__.__name__}, must be a str or list/tuple')
+			if kind=='target' and k=='target' and isinstance(val,dict) :
+				try                   : e.consider = f'{self.rule.name    }.targets = {val}'
+				except AttributeError : e.consider = f'{self.rule.__name__}.targets = {val}'
+			raise e
 		#
 		d = {
 			**{ k:fmt(k,'target'     ,t) for k,t in self.attrs.targets     .items() }
@@ -648,6 +652,6 @@ def fmt_rule(rule) :
 		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
 		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                         ,file=sys.stderr       )
 		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                   ,file=sys.stderr       )
-		if True                                : print(f'{tab}\t{e.__class__.__name__} : {e.msg}'            ,file=sys.stderr       )
+		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}" ,file=sys.stderr       )
 		if hasattr(e,'consider')               : print(f'{tab}\tconsider :\n'+indent(e.consider,f'{tab}\t\t'),file=sys.stderr,end='') # ending new line is already in e.consider
 		sys.exit(2)
