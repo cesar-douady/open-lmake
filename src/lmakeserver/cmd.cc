@@ -159,7 +159,7 @@ namespace Engine {
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
 			VarIdx          i = rule->n_statics   ;
-			for( auto const& [k,d] : rule->deps_attrs.eval(m) ) {
+			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {                                 // this cannot fail as we already have the job
 				w              = ::max( w , k.size() ) ;
 				rev_map[d.txt] = k                     ;
 			}
@@ -206,7 +206,7 @@ namespace Engine {
 		JobSpace        & job_space = jsrr.job_space                                                                               ;
 		::string          tmp_dir_s = ro.flags[ReqFlag::TmpDir] ? ro.flag_args[+ReqFlag::TmpDir] : *g_repo_root_s+dbg_dir_s+"tmp/" ;
 		//
-		for( Node t : job->targets ) t->set_buildable() ;                                                                   // necessary for pre_actions()
+		for( Node t : job->targets ) t->set_buildable() ;                   // necessary for pre_actions()
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
@@ -287,10 +287,10 @@ namespace Engine {
 			for( auto const& [view,descr] : job_space.views ) {
 				SWEAR(+descr.phys) ;
 				res << first1("\n\t\t",",\t") << mk_py_str(view) << " : " ;
-				if (+descr.phys.size()==1) {                                                                                // bind case
+				if (+descr.phys.size()==1) {                                // bind case
 					SWEAR(!descr.copy_up) ;
 					res << mk_py_str(descr.phys[0]) ;
-				} else {                                                                                                    // overlay case
+				} else {                                                    // overlay case
 					res << '{' ;
 					{	res <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
 					}

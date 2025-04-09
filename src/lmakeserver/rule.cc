@@ -40,7 +40,7 @@ namespace Engine {
 		return res ;
 	}
 
-	using ParsePyFuncFixed = ::function<void  ( string const& fixed                                             )> ;
+	using ParsePyFuncFixed = ::function<void  ( string const& fixed , bool has_pfx , bool has_sfx               )> ; // first is Yes is first, Maybe if in the middle, No if last
 	using ParsePyFuncStem  = ::function<void  ( string const& key , bool star , bool unnamed , string const* re )> ;
 	using SubstTargetFunc  = ::function<string( FileNameIdx pos , VarIdx stem                                   )> ;
 	using ParseTargetFunc  = ::function<void  ( FileNameIdx pos , VarIdx stem                                   )> ;
@@ -55,12 +55,14 @@ namespace Engine {
 	// - the regular expression that follows the : or nullptr for the first case
 	// /!\ : this function is also implemented in read_makefiles.py:add_stems, both must stay in sync
 	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncFixed const& cb_fixed , ParsePyFuncStem const& cb_stem ) {
-		enum { Literal , SeenStart , Key , Re , SeenStop } state = Literal ;
-		::string fixed ;
-		::string key   ;
-		::string re    ;
-		size_t unnamed_idx = 1 ;
-		size_t depth = 0 ;
+		enum State { Literal , SeenStart , Key , Re , SeenStop } ;
+		State    state       = Literal ;
+		::string fixed       ;
+		::string key         ;
+		::string re          ;
+		size_t   unnamed_idx = 1       ;
+		size_t   depth       = 0       ;
+		bool     has_pfx     = false   ;
 		for( char c : str ) {
 			bool with_re = false ;
 			switch (state) {
@@ -72,16 +74,15 @@ namespace Engine {
 				case SeenStop :
 					if (c!='}') goto End ;
 					state = Literal ;
-					fixed.push_back(c) ;                  // }} are transformed into }
+					fixed.push_back(c) ;                                                                             // }} are transformed into }
 				break ;
 				case SeenStart :
 					if (c=='{') {
 						state = Literal ;
-						fixed.push_back(c) ;              // {{ are transformed into {
+						fixed.push_back(c) ;                                                                         // {{ are transformed into {
 						break ;
 					}
-					cb_fixed(fixed) ;
-					fixed.clear() ;
+					if (+fixed) { cb_fixed(fixed,has_pfx,true/*has_sfx*/) ; fixed.clear() ; }
 					state = Key ;
 				[[fallthrough]] ;
 				case Key :
@@ -119,21 +120,22 @@ namespace Engine {
 					if (with_re) { cb_stem(key,star,unnamed,&re    ) ; re .clear() ; }
 					else         { cb_stem(key,star,unnamed,nullptr) ;               }
 					key.clear() ;
-					state = Literal ;
+					state   = Literal ;
+					has_pfx = true    ;
 				break ;
 			}
 		}
 	End :
 		switch (state) {
-			case Literal   : cb_fixed(fixed) ; break ;    // trailing fixed
-			case SeenStop  : throw "spurious } in "+str ;
+			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_pfx*/) ; } break                      ; // trailing fixed
+			case SeenStop  :                                                            throw "spurious } in "+str ;
 			case SeenStart :
 			case Key       :
-			case Re        : throw "spurious { in "+str ;
+			case Re        :                                                            throw "spurious { in "+str ;
 		DF}
 	}
 	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
-		_parse_py( str , unnamed_star_idx , [](::string const&)->void{} , cb_stem ) ;
+		_parse_py( str , unnamed_star_idx , [](::string const&,bool/*has_pfx*/,bool/*has_sfx*/)->void{} , cb_stem ) ;
 	}
 
 	// star stems are represented by a StemMrkr followed by the stem idx
@@ -210,6 +212,61 @@ namespace Engine {
 		return (*py_seq)[0].as_a<Str>() ;
 	}
 
+	::string _subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , bool* /*out*/ keep_for_deps=nullptr ) {
+		::string res ;
+		//
+		if (keep_for_deps) *keep_for_deps = true ;                                                                                             // unless found to be external
+		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
+			[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
+				SWEAR(+fixed) ;
+				res.append(fixed) ;
+				if (!keep_for_deps                                   ) return                                                                ; // not a dep, no check
+				if (!is_canon(fixed,true/*empty_ok*/,has_pfx,has_sfx)) throw cat(fstr," is not canonical, consider using : ",mk_canon(fstr)) ;
+				if (has_pfx                                          ) return                                                                ; // further check only for prefix
+				if (is_lcl(fixed)                                    ) return                                                                ;
+				//
+				// dep is non-local, check if it lies within a source dirs
+				*keep_for_deps = false ;                                      // unless found in a source dir
+				if (!*g_src_dirs_s) return ;                                  // fast path : no need to compute rel/abs versions
+				//
+				::string dir_s     = fixed.substr(0,fixed.rfind('/')+1) ;
+				::string rel_fixed = mk_rel(fixed,*g_repo_root_s)       ;
+				::string abs_fixed = mk_abs(fixed,*g_repo_root_s)       ;
+				::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s)       ;
+				::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s)       ;
+				if (is_lcl_s(rel_dir_s)) throw "must be provided as local file, consider : "+rel_dir_s+substr_view(fstr,dir_s.size()) ;
+				//
+				for( ::string const& sd_s : *g_src_dirs_s ) {
+					if (is_lcl_s(sd_s)) continue ;                            // nothing to recognize inside repo
+					bool            abs_sd = is_abs_s(sd_s)                 ;
+					::string const& f_s    = abs_sd ? abs_fixed : rel_fixed ;
+					::string const& d_s    = abs_sd ? abs_dir_s : rel_dir_s ;
+					if (!( has_sfx && sd_s.starts_with(f_s) )) {              // we only have a prefix, could lie in this source dir when complemented if we have the right initial part
+						if ( !d_s.starts_with(sd_s)   ) continue ;                                                                                               // not in this source dir
+						if (  is_abs(fstr) && !abs_sd ) throw "must be relative inside source dir "+no_slash(sd_s)+", consider : "+mk_rel(fstr,*g_repo_root_s) ;
+						if ( !is_abs(fstr) &&  abs_sd ) throw "must be absolute inside source dir "+no_slash(sd_s)+", consider : "+mk_abs(fstr,*g_repo_root_s) ;
+					}
+					*keep_for_deps = true ;
+					break ;
+				}
+			}
+		,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
+				SWEAR(var_idxs.contains(k)) ;
+				SWEAR(!star               ) ;
+				SWEAR(!def                ) ;
+				size_t sz = res.size() ;
+				res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
+				char* p = res.data()+sz ;
+				auto it = var_idxs.find(k)    ;
+				p[0] = Rule::StemMrkr ;
+				encode_enum( p+1                , it->second.bucket ) ;
+				encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
+				n_unnamed += unnamed ;
+			}
+		) ;
+		return res ;
+	}
+
 	//
 	// Dyn
 	//
@@ -230,7 +287,7 @@ namespace Engine {
 				if (py_src.contains("static")) {
 					kind = Kind::ShellCmd ;
 					VarIdx n_unnamed = 0 ;
-					code_str = Attrs::subst_fstr( ::string(py_src["static"].as_a<Dict>()["cmd"].as_a<Str>()) , var_idxs , n_unnamed ) ;
+					code_str = _subst_fstr( ::string(py_src["static"].as_a<Dict>()["cmd"].as_a<Str>()) , var_idxs , n_unnamed ) ;
 					SWEAR( !n_unnamed , n_unnamed ) ;
 					break ;
 				}
@@ -325,7 +382,7 @@ namespace Engine {
 		auto stems = [&]()->::vector_s      const& {                                      return match().stems ; } ;
 		//
 		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,r->sub_repo_s)) ; } return mtab ; } ;
-		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps      () ) dtab.emplace_back(k,mk_lcl(dn.txt,r->sub_repo_s)) ; } return dtab ; } ;
+		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps_holes() ) dtab.emplace_back(k,mk_lcl(dn.txt,r->sub_repo_s)) ; } return dtab ; } ;
 		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                 } return rtab ; } ;
 		for( auto [vc,i] : ctx ) {
 			::vmap_ss dct ;
@@ -344,6 +401,29 @@ namespace Engine {
 		}
 	}
 
+	::string DynBase::s_parse_fstr( ::string const& fstr , Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs ) {
+		::vector<CmdIdx> ctx_  ;
+		::vector_s       fixed { 1 } ;
+		size_t           fi    = 0   ;
+		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
+			if (fstr[ci]==Rule::StemMrkr) {
+				VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
+				VarIdx i  = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
+				ctx_ .push_back   (CmdIdx{vc,i}) ;
+				fixed.emplace_back(            ) ;
+				fi++ ;
+			} else {
+				fixed[fi] += fstr[ci] ;
+			}
+		}
+		fi = 0 ;
+		::string res = ::move(fixed[fi++]) ;
+		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { res<<val<<fixed[fi++] ; } ;
+		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                ; } ;
+		DynBase::s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
+		return res ;
+	}
+
 	//
 	// Rule
 	//
@@ -356,6 +436,32 @@ namespace Engine {
 		/**/    os << "R(" ;
 		if (+r) os << +r   ;
 		return  os << ')'  ;
+	}
+
+	bool/*keep*/ Rule::s_qualify_dep( ::string const& key , ::string const& dep ) {
+		auto bad = [&] ( ::string const& msg , ::string const& consider={} )->void {
+			::string e = cat("dep ",key," (",dep,") ",msg) ;
+			if (+consider) e <<", consider : "<< consider ;
+			throw e ;
+		} ;
+		if (!is_canon(dep)) bad( "is not canonical" , mk_canon(dep) ) ;
+		if (is_lcl(dep)   ) return true/*keep*/ ;
+		// dep is non-local, substitute relative/absolute if it lies within a source dirs
+		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
+		::string abs_dep = mk_abs( dep , *g_repo_root_s ) ;
+		if (is_lcl_s(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
+		//
+		for( ::string const& sd_s : *g_src_dirs_s ) {
+			if (is_lcl_s(sd_s)) continue ;                                                                                                      // nothing to recognize inside repo
+			::string const& d = is_abs_s(sd_s) ? abs_dep : rel_dep ;
+			if (!( d.starts_with(sd_s) && is_lcl_s(d.substr(sd_s.size())) )) continue ;                                                         // not in this source dir
+			if (    is_abs(dep) && !is_abs_s(sd_s)                         ) bad( cat("must be relative inside source dir ",sd_s) , rel_dep ) ;
+			if (   !is_abs(dep) &&  is_abs_s(sd_s)                         ) bad( cat("must be absolute inside source dir ",sd_s) , abs_dep ) ;
+			return true/*keep*/ ;
+		}
+		if ( key=="python" || key=="shell" ) return false/*keep*/ ;                                                                             // accept external dep for interpreter (but ignore it)
+		bad( "is outside repository and all source dirs" , "suppress dep" ) ;
+		return false/*garage*/ ;                                                                                                                // never reached
 	}
 
 	//
@@ -439,69 +545,14 @@ namespace Engine {
 			return true/*updated*/ ;
 		}
 
-		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed ) {
-			::string res ;
-			_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
-				[&]( ::string const& fixed )->void {
-					res.append(fixed) ;
-				}
-			,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
-					SWEAR(var_idxs.contains(k)) ;
-					SWEAR(!star               ) ;
-					SWEAR(!def                ) ;
-					size_t sz = res.size() ;
-					res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
-					char* p = res.data()+sz ;
-					auto it = var_idxs.find(k)    ;
-					p[0] = Rule::StemMrkr ;
-					encode_enum( p+1                , it->second.bucket ) ;
-					encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
-					n_unnamed += unnamed ;
-				}
-			) ;
-			return res ;
-		}
-
 	}
 
 	//
 	// DepsAttrs
 	//
 
-	// XXX : check all parts between stems for non-canon, not just the first
-	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep , ::string const& full_dep , ::string const& dep_for_msg ) {
-		::string dir_s = dep.substr(0,dep.find(Rule::StemMrkr)) ; if ( size_t p=dir_s.rfind('/') ; p!=Npos ) dir_s.resize(p+1) ; else dir_s.clear() ;
-		const char* interpreter = is_python ? "python" : "shell" ;
-		//
-		auto bad = [&] ( ::string const& msg , bool interpreter_ok )->void {
-			if (key!=interpreter) throw "dep "+key+" ("+dep_for_msg+") "+msg ;
-			if (interpreter_ok  ) return                                     ;
-			/**/                  throw cat(interpreter," (",dep_for_msg,") ",msg) ;
-		} ;
-		//
-		if (!is_canon(dir_s,true/*empty_ok*/)) bad("canonical form is : "+mk_canon(full_dep),false/*interpreter_ok*/) ;
-		if (is_lcl(dep)     ) return true/*keep*/ ;
-		// dep is non-local, substitute relative/absolute if it lies within a source dirs
-		::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s) ;
-		::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s) ;
-		if (is_lcl_s(rel_dir_s)) bad("must be provided as local file : "+rel_dir_s+substr_view(full_dep,dir_s.size()),false/*interpreter_ok*/) ;
-		//
-		for( ::string const& sd_s : *g_src_dirs_s ) {
-			if ( is_lcl_s(sd_s)                                                ) continue ;                                                                  // nothing to recognize inside repo
-			::string const& d_s = is_abs_s(sd_s) ? abs_dir_s : rel_dir_s ;
-			if (!( d_s.starts_with(sd_s) && is_lcl_s(d_s.substr(sd_s.size())) )) continue            ;                                                       // not in this source dir
-			if ( is_abs_s(dir_s)==is_abs_s(sd_s)                               ) return true/*keep*/ ;
-			bad("must be "s+(is_abs_s(sd_s)?"absolute":"relative")+" inside source dir "+sd_s,false/*interpreter_ok*/) ;
-		}
-		bad("is outside repository and all source dirs, consider : lmake.manifest.append("+mk_py_str(dir_s)+")",true/*interpreter_ok*/) ;                    // interpreter is typically outside repo
-		return false/*keep*/ ;
-	}
-	static bool/*keep*/ _qualify_dep( ::string const& key , bool is_python , ::string const& dep ) {
-		if ( is_canon(dep) && is_lcl(dep) ) return true/*keep*/                            ;                                                                 // fast path when evaluating job deps
-		else                                return _qualify_dep(key,is_python,dep,dep,dep) ;
-	}
 	void DepsAttrs::init( Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dyn = false ;                                                                                                                                   // if full dynamic, we are not initialized
+		full_dyn = false ;                                                                                                          // if full dynamic, we are not initialized
 		//
 		for( auto const& [py_key,py_val] : py_src->as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
@@ -509,28 +560,43 @@ namespace Engine {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx      n_unnamed  = 0                                                                                    ;
-			Dflags      df         { Dflag::Essential , Dflag::Static }                                                   ;
-			ExtraDflags edf        ;
-			::string    dep        = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf )                         ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
-			::string    parsed_dep = rd.add_cwd( Attrs::subst_fstr( dep , var_idxs , n_unnamed ) , edf[ExtraDflag::Top] ) ;
-			::string    full_dep   = rd.add_cwd( ::copy(dep)                                     , edf[ExtraDflag::Top] ) ;
-			//
-			if (!_qualify_dep( key , rd.is_python , parsed_dep , full_dep , dep )) continue ;
-			//
-			if (n_unnamed) {
-				for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
-				throw_unless( !n_unnamed , "dep ",key," (",dep,") contains some but not all unnamed static stems" ) ;
+			VarIdx      n_unnamed = 0                                                            ;
+			Dflags      df        { Dflag::Essential , Dflag::Static }                           ;
+			ExtraDflags edf       ;
+			::string    dep       = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
+			::string    full_dep  = rd.add_cwd( ::move(dep) , edf[ExtraDflag::Top] )             ;
+			try {
+				bool     keep       = false/*garbage*/                                                                                           ;
+				::string parsed_dep = _subst_fstr( full_dep , var_idxs , n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
+				if (!keep) {
+					if ( key=="python" || key=="shell" ) continue            ;                                                      // accept external dep for interpreter (but ignore it)
+					else                                 throw "is external" ;
+				}
+				//
+				if (n_unnamed) {
+					for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
+					throw_unless( !n_unnamed , "contains some but not all unnamed static stems" ) ;
+				}
+				deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
+			} catch (::string const& e) {
+				throw cat("dep ",key," (",full_dep,") ",e) ;
 			}
-			deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
 		}
-		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ; // -1 to leave some room to the interpreter, if any
+		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ;                                         // -1 to leave some room to the interpreter, if any
 	}
 
-	::vmap_s<DepSpec> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
+	::pair_s</*msg*/::vmap_s<DepSpec>> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
 		try {
-			::vmap_s<DepSpec> res ;
-			for( auto const& [k,ds] : spec.deps ) res.emplace_back( k , DepSpec{parse_fstr(ds.txt,match),ds.dflags,ds.extra_dflags} ) ;
+			::pair_s</*msg*/::vmap_s<DepSpec>> res       ;
+			/**/            ::vmap_s<DepSpec>& dep_specs = res.second ;
+			for( auto const& [k,ds] : spec.deps ) {
+				dep_specs.emplace_back( k , DepSpec{ {} , ds.dflags , ds.extra_dflags } ) ; // create an entry for each dep so that indexes stored in other attributes (e.g. cmd) are correct
+				if (!ds.txt) continue ;                                                     // entry is dynamic
+				::string  d   = s_parse_fstr(ds.txt,match)  ;
+				::string& txt = dep_specs.back().second.txt ;
+				try                      { if (Rule::s_qualify_dep(k,d)) txt       = ::move(d) ; }
+				catch(::string const& e) { if (!res.first              ) res.first = e         ; }
+			}
 			//
 			if (is_dyn()) {
 				Gil   gil    ;
@@ -538,37 +604,53 @@ namespace Engine {
 				//
 				::map_s<VarIdx> dep_idxs ;
 				for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
+				if (spec.full_dyn) SWEAR(!dep_idxs) ;                                                               // no static deps at all for full_dyn
 				if (*py_obj!=None)
 					for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
 						if (py_val==None) continue ;
 						::string key = py_key.as_a<Str>() ;
 						try {
 							Dflags      df  { Dflag::Essential , Dflag::Static } ;
-							ExtraDflags edf ; SWEAR(!(edf&~ExtraDflag::Top)) ;                                                                             // or we must review side_deps
-							::string    dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
-							if ( !_qualify_dep( key , match.rule->is_python , dep ) ) continue ;
-							DepSpec ds { dep , df , edf } ;
-							if (spec.full_dyn) { SWEAR(!dep_idxs.contains(key),key) ; res.emplace_back(key,ds) ;          } // dep cannot be both static and dynamic
-							else                                                      res[dep_idxs.at(key)].second = ds ;   // if not full_dyn, all deps must be listed in spec
+							ExtraDflags edf ;                                      SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
+							//
+							::string dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
+							DepSpec  ds  { dep , df , edf }                                                                                           ;
+							try {
+								if (!Rule::s_qualify_dep(key,ds.txt)) continue ;
+								if (spec.full_dyn) {
+									dep_specs.emplace_back( key , ::move(ds) ) ;
+								} else {
+									DepSpec& ds2 = dep_specs[dep_idxs.at(key)].second ;
+									SWEAR(!ds2.txt) ;                                                               // dep cannot be both static and dynamic
+									ds2 = ::move(ds) ;                                                              // if not full_dyn, all deps must be listed in spec
+								}
+							} catch(::string const& e) {
+								if (!res.first) res.first = e ;
+							}
 						} catch (::string const& e) {
 							throw cat("while processing dep ",key," : ",e) ;
 						}
 					}
-				if (!spec.full_dyn) {                                                                                       // suppress dep placeholders that are not set by dynamic code
-					NodeIdx i = 0 ;
-					for( NodeIdx j : iota(res.size()) ) {
-						if (!res[j].second.txt) continue ;
-						if (i!=j              ) res[i] = ::move(res[j]) ;
-						i++ ;
-					}
-					res.resize(i) ;
-				}
 			}
 			//
 			return res  ;
 		} catch (::string const& e) { // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
 			throw ::pair(e,""s) ;
 		}
+	}
+
+	::vmap_s<DepSpec>  DynDepsAttrs::dep_specs(Rule::RuleMatch const& m) const {
+		::pair_s</*msg*/::vmap_s<DepSpec>> digest = eval(m) ;
+		if (+digest.first) throw digest.first ;
+		::vmap_s<DepSpec>& dep_specs = digest.second ;
+		NodeIdx            i         = 0             ;
+		for( NodeIdx j : iota(dep_specs.size()) ) {
+			if (!dep_specs[j].second.txt) continue ;                            // filter holes out
+			if (i!=j                    ) dep_specs[i] = ::move(dep_specs[j]) ;
+			i++ ;
+		}
+		dep_specs.resize(i) ;
+		return ::move(dep_specs) ;
 	}
 
 	//
@@ -605,7 +687,7 @@ namespace Engine {
 		::string res ;
 		if (!r->is_python) {
 			if (!is_dyn()) {
-				res = parse_fstr( entry().code_str , match , rsrcs ) ;
+				res = s_parse_fstr( entry().code_str , match , rsrcs ) ;
 			} else {
 				Gil   gil    ;
 				Ptr<> py_obj = _eval_code( match , rsrcs , deps ) ;
@@ -872,8 +954,6 @@ namespace Engine {
 					// check
 					if ( target.starts_with(*g_repo_root_s)                            ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
 					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target  ;
-					// XXX : check all parts between stems regexprs may not be canonical
-//					if ( !is_canon(target)                                             ) throw snake_str(kind)+" must be canonical : "                     +target  ;
 					if ( +missing_stems                                                ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
 					if (  is_star                              && is_special()         ) throw "star "s+kind+"s are meaningless for source and anti-rules"          ;
 					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                        ;
@@ -895,7 +975,7 @@ namespace Engine {
 				n_statics  = matches.size() ;
 				/**/                                      for( auto& st : star_matches       ) matches.push_back(::move(st)) ; // then star
 			}
-			field = "" ;
+			field.clear() ;
 			throw_unless( matches.size()<NoVar , "too many targets, side_targets and side_deps ",matches.size()," >= ",int(NoVar) ) ;
 			::umap_s<VarIdx> stem_idxs ;
 			for( bool star : {false,true} ) {                                                                                  // keep only useful stems and order them : static first, then star
@@ -918,27 +998,42 @@ namespace Engine {
 			// {Stem} is replaced by "StemMrkr<stem_idx>"
 			// StemMrkr is there to unambiguously announce a stem idx
 			//
-			::string mk_tgt ;
-			auto mk_fixed = [&]( ::string const& fixed                                                       )->void { mk_tgt += fixed ;                                   } ;
-			auto mk_stem  = [&]( ::string const& key , bool star , bool /*unnamed*/ , ::string const* /*re*/ )->void { _append_stem(mk_tgt,stem_idxs.at(key+" *"[star])) ; } ;
+			::string        mk_tgt       ;
+			::string const* ensure_canon = nullptr ;
+			auto mk_fixed = [&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
+				SWEAR(+fixed) ;
+				mk_tgt += fixed ;
+				if (!ensure_canon                                    ) return                                                                                  ;
+				if (!is_canon(fixed,true/*empty_ok*/,has_pfx,has_sfx)) throw cat(*ensure_canon," is not canonical, consider using : ",mk_canon(*ensure_canon)) ;
+				if (!has_sfx && fixed.back()=='/'                    ) throw cat(*ensure_canon," ends with /, consider using : "     ,no_slash(*ensure_canon)) ;
+			} ;
+			auto mk_stem  = [&]( ::string const& key , bool star , bool /*unnamed*/ , ::string const* /*re*/ )->void {
+				_append_stem(mk_tgt,stem_idxs.at(key+" *"[star])) ;
+			} ;
 			unnamed_star_idx = 1 ;                                                                                             // reset free running at each pass over job_name+targets
 			mk_tgt.clear() ;
+			if (+job_name_key) { field = job_name_key ; ensure_canon = &job_name ; }                                           // if job_name is a target, canon must be checked
+			else                 field = "job_name"   ;
 			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 			::string new_job_name = ::move(mk_tgt) ;
 			// compile potential conflicts as there are rare and rather expensive to detect, we can avoid most of the verifications by statically analyzing targets
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) {
-				MatchEntry& me = matches[mi].second ;
+				/**/        field = matches[mi].first  ;
+				MatchEntry& me    = matches[mi].second ;
 				// avoid processing target if it is identical to job_name
 				// this is not an optimization, it is to ensure unnamed_star_idx's match
-				if (me.pattern==job_name) me.set_pattern(new_job_name,stems.size()) ;
-				else {
+				if (me.pattern==job_name) {
+					me.set_pattern(new_job_name,stems.size()) ;
+				} else {
 					mk_tgt.clear() ;
+					ensure_canon = &me.pattern ;
 					_parse_py( me.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 					me.set_pattern(::move(mk_tgt),stems.size()) ;
 				}
 				for( VarIdx mi2 : iota(mi) )
 					if ( _may_conflict( n_static_stems , me.pattern , matches[mi2].second.pattern ) ) { trace("conflict",mi,mi2) ; me.conflicts.push_back(mi2) ; }
 			}
+			field.clear() ;
 			job_name = ::move(new_job_name) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvvvvv
@@ -973,6 +1068,8 @@ namespace Engine {
 			field = "start_ancillary_attrs" ; if (dct.contains(field)) start_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
 			field = "cmd"                   ; if (dct.contains(field)) cmd                   = { rules , dct[field].as_a<Dict>() , var_idxs , self } ; else throw "not found"s ;
 			//
+			field.clear() ;
+			//
 			for( VarIdx mi : iota(n_static_targets) ) {
 				if (matches[mi].first!="target") continue ;                                                                    // target is a reserved key that means stdout
 				stdout_idx = mi ;
@@ -984,7 +1081,10 @@ namespace Engine {
 				break ;
 			}
 		}
-		catch(::string const& e) { throw "while processing "+full_name()+'.'+field+" :\n"+indent(e) ; }
+		catch(::string const& e) {
+			if (+field) throw "while processing "+full_name()+'.'+field+" :\n"+indent(e) ;
+			else        throw "while processing "+full_name()+          " :\n"+indent(e) ;
+		}
 	}
 
 	TargetPattern RuleData::_mk_pattern( MatchEntry const& me , bool for_name ) const {

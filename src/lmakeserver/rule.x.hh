@@ -106,6 +106,8 @@ namespace Engine {
 		static constexpr char   StarMrkr =  0 ; // signal a star stem in job_name
 		static constexpr char   StemMrkr =  0 ; // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
+		// statics
+		static bool/*keep*/ s_qualify_dep( ::string const& key , ::string const& dep ) ;
 		// static data
 		static Atomic<Pdate> s_last_dyn_date ;  // used to check dynamic attribute computation does not take too long
 		static Job           s_last_dyn_job  ;
@@ -158,8 +160,6 @@ namespace Engine {
 				else                      return false                                    ;
 		}
 		inline void acquire_env( ::vmap_ss& dst , Py::Dict const& py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
-		//
-		::string subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed ) ;
 	} ;
 
 	struct DepSpec {
@@ -363,6 +363,10 @@ namespace Engine {
 
 	struct DynBase {
 		static void s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
+		static ::string s_parse_fstr( ::string const& fstr , Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} ) ;
+		static ::string s_parse_fstr( ::string const& fstr ,       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} ) {
+			return s_parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
+		}
 		// cxtors & casts
 		DynBase() = default ;
 		DynBase( Py::Ptr<>* /*out*/ py_update , RulesBase& , Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
@@ -405,10 +409,6 @@ namespace Engine {
 		void eval_ctx(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
 			return eval_ctx( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , cbs , cbd ) ;                                                              // cannot lazy evaluate w/o a job
 		}
-		::string parse_fstr( ::string const& fstr , Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} ) const ;
-		::string parse_fstr( ::string const& fstr ,       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} ) const {
-			return parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
-		}
 	protected :
 		Py::Ptr<> _eval_code( Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
 		Py::Ptr<> _eval_code(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const {
@@ -423,7 +423,8 @@ namespace Engine {
 		// cxtors & casts
 		using Base::Base ;
 		// services
-		::vmap_s<DepSpec> eval(Rule::RuleMatch const&) const ;
+		::pair_s</*msg*/::vmap_s<DepSpec>> eval     (Rule::RuleMatch const&  ) const ;
+		/**/            ::vmap_s<DepSpec>  dep_specs(Rule::RuleMatch const& m) const ;
 	} ;
 
 	struct DynCmd : Dyn<Cmd> {
@@ -596,10 +597,10 @@ namespace Engine {
 		::vector_s static_targets() const ;
 		::vector_s star_targets  () const ;
 		//
-		::vmap_s<DepSpec> const& deps() const {
+		::vmap_s<DepSpec> const& deps_holes() const {
 			if (!_has_deps) {
-				_deps = rule->deps_attrs.eval(self) ;
-				_has_deps = true ;
+				_deps     = rule->deps_attrs.eval(self).second ; // this includes empty slots
+				_has_deps = true                               ;
 			}
 			return _deps ;
 		}
@@ -803,29 +804,6 @@ namespace Engine {
 
 	template<class T> void Dyn<T>::eval_ctx( Job job , Rule::RuleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {
 		DynBase::s_eval( job , match_ , rsrcs_ , entry().ctx , cb_str , cb_dct ) ;
-	}
-
-	template<class T> ::string Dyn<T>::parse_fstr( ::string const& fstr , Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs ) const {
-		::vector<CmdIdx> ctx_  ;
-		::vector_s       fixed { 1 } ;
-		size_t           fi    = 0   ;
-		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
-			if (fstr[ci]==Rule::StemMrkr) {
-				VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
-				VarIdx i  = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
-				ctx_ .push_back   (CmdIdx{vc,i}) ;
-				fixed.emplace_back(            ) ;
-				fi++ ;
-			} else {
-				fixed[fi] += fstr[ci] ;
-			}
-		}
-		fi = 0 ;
-		::string res = ::move(fixed[fi++]) ;
-		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { res<<val<<fixed[fi++] ; } ;
-		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                ; } ;
-		DynBase::s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
-		return res ;
 	}
 
 	template<class T> Py::Ptr<> Dyn<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {

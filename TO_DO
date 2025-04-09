@@ -21,6 +21,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* improve tmp_dir management in ldebug :
+	- LMAKE/debug/<job>tmp if -t is given
+	- else the value it would have if job is launched locally (i.e. lmake.config.local.env.TMPDIR if job contains ...)
+	- if not defined, revert to -t case
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary

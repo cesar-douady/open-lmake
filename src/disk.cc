@@ -11,97 +11,74 @@
 
 using namespace filesystem ;
 
-// ENUM macro does not work inside namespace's
-ENUM( CanonState
-,	First
-,	Empty
-,	Dot
-,	DotDot
-,	Plain
-)
-
 namespace Disk {
 
 	//
 	// path name library
 	//
 
-	bool is_canon( ::string const& path , bool empty_ok ) {
-		bool       accept_dot_dot = true              ;
-		CanonState state          = CanonState::First ;
-		for( char c : path ) {
-			switch (c) {
-				case '\0' : return false ;                                                    // file names are not supposed to contain any nul char
-				case '/' :
-					switch (state) {
-						case CanonState::Empty  :                      return false ;
-						case CanonState::Dot    :                      return false ;
-						case CanonState::DotDot : if (!accept_dot_dot) return false ; break ;
-						case CanonState::First  :                                             // seen from /, First is like Plain
-						case CanonState::Plain  : accept_dot_dot = false ;            break ; // .. is only accepted as relative prefix
-					DF}
-					state = CanonState::Empty ;
-				break ;
-				case '.' :
-					switch (state) {
-						case CanonState::First  :                                             // seen from ., First is like Empty
-						case CanonState::Empty  : state = CanonState::Dot    ; break ;
-						case CanonState::Dot    : state = CanonState::DotDot ; break ;
-						case CanonState::DotDot : state = CanonState::Plain  ; break ;
-						case CanonState::Plain  :                              break ;
-					DF}
-				break ;
-				default :
-					state = CanonState::Plain ;
-			}
+	// /!\ this code is derived from mk_canon
+	bool is_canon( ::string const& path , bool empty_ok , bool has_pfx , bool has_sfx ) {
+		if (!path) return empty_ok ;
+		const char* p = path.data() ;
+		//
+		auto handle_slash = [&]()->bool {
+			size_t sz = p - path.data() ;                            // if test ok, else, [path:p) is (x is single wildcard, y is not /, z is not / nor .) :
+			if (sz==0     ) return true    ;                         //                *x
+			if (p[-1]=='/') return false   ;                         //   */           *y
+			if (p[-1]!='.') return true    ;                         //   *z           *.
+			if (sz==1     ) return has_pfx ;                         //    .          *x.
+			if (p[-2]=='/') return false   ;                         //  */.          *y.
+			if (p[-2]!='.') return true    ;                         //  *z.          *..
+			if (sz==2     ) return true    ;                         //   ..         *x.. leading .. is relative (!is_fragment) or could be the end of a dir (is_fragment)
+			if (p[-3]!='/') return true    ;                         // *y..         */..
+			/**/            return false   ;                         //  /..        *x/..
+		} ;
+		for(; p!=path.data()+path.size() ; p++ ) {
+			char c = *p ;
+			throw_if( c=='\0' , "file contains nul char : ",path ) ; // file names are not supposed to contain any nul char, cannot canonicalize
+			if ( c=='/' && !handle_slash() ) return false ;
 		}
-		switch (state) {
-			case CanonState::First  : return empty_ok       ;                                 // an empty path
-			case CanonState::Empty  : return true           ;                                 // a directory ending with /
-			case CanonState::Dot    : return false          ;
-			case CanonState::DotDot : return accept_dot_dot ;
-			case CanonState::Plain  : return true           ;
-		DF}
-		return true ;
+		return path.back()=='/' || has_sfx || handle_slash() ;
 	}
 
+	// /!\ is_canon is derived from this code
 	::string mk_canon(::string const& path) {
-		::string   res   ;
-		CanonState state = CanonState::First ;
-		for( char c : path ) {
-			switch (c) {
-				case '\0' : throw "file contains nul char : "+path ;           // file names are not supposed to contain any nul char, cannot canonicalize
-				case '/' :
-					switch (state) {
-						case CanonState::Empty  :                  continue ;  // suppress empty components
-						case CanonState::Dot    : res.pop_back() ; continue ;  // suppress . components
-						case CanonState::DotDot : {
-							if (res.size()==2)              break    ;         // keep initial .. , keep it
-							if (res.size()==3) { res = {} ; continue ; }       // keep initial /.., suppress it
-							size_t slash = res.rfind('/',res.size()-4) ;
-							size_t slash1 = slash==Npos ? 0 : slash+1  ;
-							if (res.substr(slash1,res.size()-3)=="..") break ; // keep .. after ..
-							res = res.substr(0,slash1) ;                       // suppress prev component
-							continue ;
-						}
-						case CanonState::First  :
-						case CanonState::Plain  : break ;
-					DF}
-					state = CanonState::Empty ;
-				break ;
-				case '.' :
-					switch (state) {
-						case CanonState::First  :
-						case CanonState::Empty  : state = CanonState::Dot    ; break ;
-						case CanonState::Dot    : state = CanonState::DotDot ; break ;
-						case CanonState::DotDot : state = CanonState::Plain  ; break ;
-						case CanonState::Plain  :                              break ;
-					DF}
-				break ;
-				default :
-					state = CanonState::Plain ;
-			}
+		if (!path) return {} ;
+		//
+		::string res    ;               res.reserve(path.size()) ;
+		bool     is_abs = res[0]=='/' ;
+		//
+		auto handle = [&](char c)->void {
 			res.push_back(c) ;
+			if (c!='/') return ;
+			size_t      sz  = res.size()-1    ;
+			const char* end = res.data() + sz ;
+			//                                                             // if test ok, else, res[:-1] is (x is single wildcard, y is not /, z is not / nor .) :
+			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return ; } //                *x if not abs, it must have been preceded by ./ which have been suppressed, it is an empty component
+			if (end[-1]=='/') {              res.resize(sz  ) ; return ; } //   */           *y suppress empty component
+			if (end[-1]!='.')                                   return ;   //   *z           *.
+			if (sz==1       ) {              res.resize(sz-1) ; return ; } //    .          *x. suppress leading ., if fragment => could be preceded by z, hence . must be kept
+			if (end[-2]=='/') {              res.resize(sz-1) ; return ; } //  */.          *y. suppress internal .
+			if (end[-2]!='.')                                   return ;   //  *z.          *..
+			if (sz==2       )                                   return ;   //   ..         *x..
+			if (end[-3]!='/')                                   return ;   // *y..         */..
+			if (sz==3       ) {              res.resize(sz-2) ; return ; } //  /..        *x/.. suppress absolute ..
+			//
+			size_t pos = res.rfind('/',sz-4) ;
+			if (pos==Npos) pos = 0 ; else pos += 1 ;                       // pos is char after / (or 0 if not found)
+			//
+			if (!( pos==sz-6 && end[-4]=='.' && end[-5]=='.' ))
+				res.resize(pos) ;                                          // parent dir is plain (not ..), suppress it
+		} ;
+		for( char c : path ) {
+			throw_if( c=='\0' , "file contains nul char : ",path ) ;       // file names are not supposed to contain any nul char, cannot canonicalize
+			handle(c) ;
+		}
+		if (res.back()!='/') {
+			handle('/') ;
+			if (+res) res.pop_back (   ) ;
+			else      res.push_back('.') ;
 		}
 		return res ;
 	}

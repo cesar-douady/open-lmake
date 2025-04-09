@@ -300,7 +300,6 @@ namespace Backends {
 		vmap<Node,FileActionTag> pre_action_warnings   ;
 		StartCmdAttrs            start_cmd_attrs       ;
 		::string                 cmd                   ;
-		::vmap_s<DepSpec>        deps_attrs            ;
 		StartRsrcsAttrs          start_rsrcs_attrs     ;
 		StartAncillaryAttrs      start_ancillary_attrs ;
 		MsgStderr                start_msg_err         ;
@@ -323,10 +322,10 @@ namespace Backends {
 			tie(jis.eta,reply.keep_tmp) = entry.req_info()           ;
 		}
 		trace("submit_attrs",submit_attrs) ;
-		::vmap_s<DepDigest>& deps          = submit_attrs.deps ;
-		size_t               n_submit_deps = deps.size()       ;
-		int                  step          = 0                 ;
-		deps_attrs = rule->deps_attrs.eval(match) ;                                                 // this cannot fail as it was already run to construct job
+		::vmap_s<DepDigest>& deps          = submit_attrs.deps                 ;                    // these are the deps for dynamic attriute evaluation
+		size_t               n_submit_deps = deps.size()                       ;
+		int                  step          = 0                                 ;
+		::vmap_s<DepSpec>    dep_specs     = rule->deps_attrs.dep_specs(match) ;                    // this cannot fail as it was already run to construct job
 		try {
 			try {
 				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps                ) ; step = 1 ;
@@ -357,7 +356,7 @@ namespace Backends {
 				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
 					try                       { start_ancillary_attrs = rule->start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
-					catch (::string const& e) { throw MsgStderr{.msg=e} ;                                                       }
+					catch (::string const& e) { throw MsgStderr{.msg=e} ;                                                     }
 				} catch (MsgStderr const& e) {
 					start_msg_err         = e                                ;
 					start_ancillary_attrs = rule->start_ancillary_attrs.spec ;
@@ -394,7 +393,7 @@ namespace Backends {
 				for( ::string const& tn : match.static_targets() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 				for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
 				//
-				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = deps_attrs          [rule->stdin_idx ].second.txt ;
+				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = dep_specs           [rule->stdin_idx ].second.txt ;
 				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
 				/**/                               reply.addr                      = fd.peer_addr()                                    ; SWEAR(reply.addr) ; // 0 means no address
 				/**/                               reply.autodep_env.lnk_support   = g_config->lnk_support                             ;
@@ -415,7 +414,7 @@ namespace Backends {
 		//
 		jis.stems     =                 ::move(match.stems)  ;
 		jis.pre_start =                 ::move(jsrr       )  ;
-		reply.deps    = _mk_digest_deps(::move(deps_attrs )) ;
+		reply.deps    = _mk_digest_deps(::move(dep_specs  )) ;
 		if (+deps) {
 			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )

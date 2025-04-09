@@ -608,7 +608,7 @@ namespace Engine {
 				for( ::string const& t : m.star_targets  () ) { if (!is_canon(t)) { reason = "non-canonic target "+m.rule->matches[ti].first+" : "+t ; goto Report ; } ti++ ; }
 			}
 			//
-			try                              { static_deps = rt->rule->deps_attrs.eval(m)                             ;               }
+			try                              { static_deps = rt->rule->deps_attrs.dep_specs(m)                        ;               }
 			catch (MsgStderr const& msg_err) { reason      = "cannot compute its deps :\n"+msg_err.msg+msg_err.stderr ; goto Report ; }
 			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {

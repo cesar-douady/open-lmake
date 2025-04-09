@@ -210,19 +210,26 @@ namespace Engine {
 		if (!match) { trace("no_match") ; return ; }
 		//
 		Rule rule = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
-		auto audit_err = [&]( ::string const& kind , ::string const& key , ::string const& file ) -> void {
-			req->audit_job( Color::Warning , "bad_"+kind , rule->name , match.name() ) ;
-			if (+file) req->audit_stderr( self , {"non-canonic "+kind+' '+key+" : "+file} , 0/*max_stderr_len*/ , 1 ) ;
-			else       req->audit_stderr( self , {"empty "      +kind+' '+key           } , 0/*max_stderr_len*/ , 1 ) ;
+		auto handle_target = [&]( ::string const& key , ::string const& tgt )->bool/*ok*/ {
+			if ( +tgt && is_canon(tgt) && is_lcl(tgt) ) return true/*ok*/ ;
+			//
+			req->audit_job( Color::Warning , "bad_target" , rule->name , match.name() ) ;
+			//
+			if      (!tgt          ) req->audit_stderr( self , {.msg="empty target "      +key          } , 0/*max_stderr_len*/ , 1 ) ;
+			else if (!is_canon(tgt)) req->audit_stderr( self , {.msg="non-canonic target "+key+" : "+tgt} , 0/*max_stderr_len*/ , 1 ) ;
+			else                     req->audit_stderr( self , {.msg="non-local target "  +key+" : "+tgt} , 0/*max_stderr_len*/ , 1 ) ;
+			//
+			return false/*ok*/ ;
 		} ;
 		//
 		VarIdx ti = 0 ;
-		for( ::string const& t : match.static_targets() ) { if (!is_canon(t)) { audit_err("target",rule->matches[ti].first,t) ; return ; } ti++ ; }
-		for( ::string const& t : match.star_targets  () ) { if (!is_canon(t)) { audit_err("target",rule->matches[ti].first,t) ; return ; } ti++ ; }
+		for( ::string const& t : match.static_targets() ) { { if (!handle_target(rule->matches[ti].first,t)) return ; } ti++ ; }
+		for( ::string const& t : match.star_targets  () ) { { if (!handle_target(rule->matches[ti].first,t)) return ; } ti++ ; }
 		//
-		::vmap_s<DepSpec> dep_specs ;
+		::pair_s</*msg*/::vmap_s<DepSpec>> digest    ;
+		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ; // contains holes
 		try {
-			dep_specs = rule->deps_attrs.eval(match) ;
+			digest = rule->deps_attrs.eval(match) ;
 		} catch (MsgStderr const& msg_err) {
 			trace("no_dep_subst") ;
 			if (+req) {
@@ -231,17 +238,13 @@ namespace Engine {
 			}
 			return ;
 		}
-		::vector<Dep>       deps      ;        deps.reserve(dep_specs.size()) ;
-		::umap<Node,VarIdx> dis       ;
-		size_t              non_canon = Npos ;
-		for( auto const& kds : dep_specs ) {
+		::vector<Dep>       deps ; deps.reserve(dep_specs_holes.size()) ;
+		::umap<Node,VarIdx> dis  ;
+		for( auto const& kds : dep_specs_holes ) {
 			DepSpec const& ds = kds.second ;
-			if (!is_canon(ds.txt)) {
-				if (non_canon==Npos) non_canon = &kds-dep_specs.data() ;
-				continue ;
-			}
-			Node     d { ds.txt }                                                       ;
-			Accesses a = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
+			if (!ds.txt) continue ;                                                                                                           // filter out holes
+			Node           d  { ds.txt }                                                       ;
+			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			d->set_buildable_throw(req,lvl) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -253,15 +256,16 @@ namespace Engine {
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
 			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
-		if (non_canon!=Npos) {                                // only bother user for non-canonic deps for job that otherwise apply, so handle them once static deps have been analyzed
-			audit_err( "dep" , dep_specs[non_canon].first , dep_specs[non_canon].second.txt ) ;
+		if (+digest.first) {                                                           // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
+			req->audit_job( Color::Warning , "bad_dep" , rule->name , match.name() ) ;
+			req->audit_stderr( self , {.msg=digest.first} , 0/*max_stderr_len*/ , 1 ) ;
 			return ;
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//          args for store         args for JobData
-		self = Job( match.full_name(),Dflt , match,deps   ) ; // initially, static deps are deemed read, then actual accesses will be considered
+		self = Job( match.full_name(),Dflt , match,deps   ) ;                          // initially, static deps are deemed read, then actual accesses will be considered
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		trace("found",self) ;
+		trace("found",self,self->deps) ;
 	}
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
@@ -669,7 +673,7 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;                                      // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = done || !has_new_deps             ;                                                 // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -703,9 +707,9 @@ namespace Engine {
 		}
 		if (+digest.upload_key) {
 			Cache* cache = Cache::s_tab[digest.cache_idx] ;
-			SWEAR(cache,digest.cache_idx) ;                                                                 // cannot commit/dismiss without cache
-			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;            // cache only successful results
-			else        cache->dismiss( digest.upload_key                                    ) ;            // free up temporary storage copied in job_exec
+			SWEAR(cache,digest.cache_idx) ;                                                                            // cannot commit/dismiss without cache
+			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;                       // cache only successful results
+			else        cache->dismiss( digest.upload_key                                    ) ;                       // free up temporary storage copied in job_exec
 		}
 		trace("summary",self) ;
 	}
