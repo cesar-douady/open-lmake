@@ -19,7 +19,7 @@
 //		- deps crcs      in <job_dir>/deps      (the deps part of meta-data for fast matching)
 //		- target content in <job_dir>/data      (concatenation of all targets that can be split based on target sizes stored in meta-data)
 
-// XXX : implement timeout when locking cache
+// XXX? : implement timeout when locking cache (cache v1 is a proof of concept anyway)
 
 #include "app.hh"
 

@@ -159,7 +159,7 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 		else if constexpr (requires{T{                  U4           };}) { auto& [                        A4()               ] = x ;                  S4()           }
 		else if constexpr (requires{T{                       U2 , U1 };}) { auto& [                               A2() , A1() ] = x ;                       S2() S1() }
 		else if constexpr (requires{T{                       U2      };}) { auto& [                               A2()        ] = x ;                       S2()      }
-		else if constexpr (requires{T{                            U1 };}) { auto& [                                      A1() ] = x ;                            S1() } // XXX : find a working way
+		else if constexpr (requires{T{                            U1 };}) { auto& [                                      A1() ] = x ;                            S1() } // XXX! : find a working way
 		else if constexpr (requires{T{                               };}) {                                                                                           }
 		else                                                              { U(0) ; } // cannot use static_assert(false) with gcc-11
 

@@ -60,7 +60,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Freeze          // if proc==                         Mark        , prevent job rebuild
 ,	Job             //                                                 interpret (unique) arg as job name
 ,	Jobs            // if proc==                  Make               , max number of jobs
-,	KeepTmp         // if proc== Debug            Make               , keep tmp dir after job execution
+,	KeepTmp         // if proc==                  Make               , keep tmp dir after job execution
 ,	Key             // if proc== Debug                               , key used to look up into config.debug to find helper module used to debug
 ,	LiveOut         // if proc==                  Make               , generate live output for last job
 ,	Local           // if proc==                  Make               , lauch all jobs locally
@@ -71,6 +71,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	RetryOnError    // if proc==                  Make               , retry jobs in error
 ,	Rule            //                                                 rule name when interpreting arg as job name
 ,	SourceOk        // if proc==                  Make               , allow lmake to overwrite source files
+,	StdTmp          // if proc== Debug                               , use standard tmp dir, not the one provided in job
 ,	Sync            //                                               , force synchronous operation (start server and wait for its end)
 ,	Targets         // if proc==         Forget                      , forget targets
 ,	TmpDir          // if proc== Debug                               , tmp dir to use in case TMPDIR is specified as ... in job

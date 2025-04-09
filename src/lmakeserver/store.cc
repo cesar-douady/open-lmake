@@ -91,7 +91,6 @@ namespace Engine::Persistent {
 		for( Rule r : rule_lst() ) s_prev_rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
 		s_prev_rules->dyn_vec     = ::move(new_rules.dyn_vec    ) ;
 		s_prev_rules->py_sys_path = ::move(new_rules.py_sys_path) ;
-		// XXX : what about other threads accessing RuleData in other threads ? we should take a lock to prevent that here, maybe Backend::_s_mutex is enough
 		s_prev_rules->compile() ;
 		//
 		Rules* sav_rules    = &*s_rules            ;                                              // exchange s_rules and s_prev_rules, making s_prev_rules the previous rules

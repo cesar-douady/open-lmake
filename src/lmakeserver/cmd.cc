@@ -131,11 +131,12 @@ namespace Engine {
 
 	static void _audit_node( Fd fd , ReqOptions const& ro , bool verbose , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		if      ( hide==Yes                            ) color = Color::HiddenNote ;
-		else if ( node->ok()==No                       ) color = Color::Err        ;
-		else if ( node->crc==Crc::None                 ) color = Color::HiddenNote ;
-		else if ( !node->has_actual_job()              ) color = Color::Warning    ;
-		if      ( hide==No && color==Color::HiddenNote ) color = Color::None       ;
+		if      ( hide==Yes                                                      ) color = Color::HiddenNote ;
+		else if ( node->ok()==No                                                 ) color = Color::Err        ;
+		else if ( node->crc==Crc::None                                           ) color = Color::HiddenNote ;
+		else if ( node->is_plain() && !BuildableHasFile[+node->buildable].second ) color = Color::Warning    ;
+		else if ( !node->is_src_anti() && !node->has_actual_job()                ) color = Color::Warning    ;
+		if      ( hide==No && color==Color::HiddenNote                           ) color = Color::None       ;
 		//
 		if ( verbose || color!=Color::HiddenNote ) {
 			if (ro.flags[ReqFlag::Quiet]) audit( fd , ro , color ,         mk_file(node->name()) , false/*as_is*/ , 0   ) ; // if quiet, no header, no reason to indent
@@ -205,6 +206,18 @@ namespace Engine {
 		AutodepEnv      & ade       = jsrr.autodep_env                                                                             ;
 		JobSpace        & job_space = jsrr.job_space                                                                               ;
 		::string          tmp_dir_s = ro.flags[ReqFlag::TmpDir] ? ro.flag_args[+ReqFlag::TmpDir] : *g_repo_root_s+dbg_dir_s+"tmp/" ;
+		//
+		if (ro.flags[ReqFlag::TmpDir]) { tmp_dir_s = ro.flag_args[+ReqFlag::TmpDir] ; goto Tmp ; }
+		if (ro.flags[ReqFlag::StdTmp])                                                goto Tmp ;
+			for( auto const& [k,v] : jsrr.env ) {
+				if (k!="TMPDIR"   )                   continue ;
+				if (v!=EnvPassMrkr) { tmp_dir_s = v ; goto Tmp ; }
+				for( auto const& [k2,v2] : g_config->backends[+BackendTag::Local].env )
+					if (k2=="TMPDIR") { tmp_dir_s = v2 ; goto Tmp ; }
+			}
+	Tmp :
+		if (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp" ;
+		/**/            tmp_dir_s = with_slash(tmp_dir_s)          ;
 		//
 		for( Node t : job->targets ) t->set_buildable() ;                   // necessary for pre_actions()
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;

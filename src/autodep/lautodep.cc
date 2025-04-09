@@ -22,7 +22,6 @@ ENUM( CmdFlag
 ,	ChrootDir
 ,	Cwd
 ,	Env
-,	KeepEnv
 ,	KeepTmp
 ,	LinkSupport
 ,	LmakeView
@@ -70,28 +69,20 @@ static ::vector_s _mk_src_dirs_s(::string const& src_dirs) {
 	return res ;
 }
 
-static ::vmap_ss _mk_env( ::string const& keep_env , ::string const& env ) {
+static ::vmap_ss _mk_env( ::string const& env ) {
 	::uset_s  seen ;
 	::vmap_ss res  ;
 	Gil       gil  ;
-	// use an intermediate variable (py_keep_env and py_env) to keep Python object alive during iteration
-	if (+keep_env) {
-		Ptr<> py_keep_env = py_eval(keep_env) ;                      // hold in Ptr<> while iterating over
-		for( Object const&  py_k : py_keep_env->as_a<Sequence>() ) {
+	// use an intermediate variable (py_env) to keep Python object alive during iteration
+	if (+env) {
+		Ptr<> py_env = py_eval(env) ;                           // hold in Ptr<> while iterating over
+		for( Object const&  py_k : py_env->as_a<Sequence>() ) {
 			::string k = py_k.as_a<Str>() ;
 			if (has_env(k)) {
 				throw_if( seen.contains(k) , "cannot keep ",k," twice" ) ;
 				res.emplace_back(k,get_env(k)) ;
 				seen.insert(k) ;
 			}
-		}
-	}
-	if (+env) {
-		Ptr<> py_env = py_eval(env) ;
-		for( auto const& [py_k,py_v] : py_env->as_a<Dict>() ) {
-			::string k = py_k.as_a<Str>() ;
-			throw_if( seen.contains(k) ,  "cannot keep ",k," and provide it" ) ;
-			res.emplace_back(k,py_v.as_a<Str>()) ;
 		}
 	}
 	return res ;
@@ -107,18 +98,17 @@ int main( int argc , char* argv[] ) {
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                       } }
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }
 	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                         } }
-	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="environment variables to set, given as a python dict"                                                      } }
-	,	{ CmdFlag::KeepEnv       , { .short_name='k' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
-	,	{ CmdFlag::KeepTmp       , { .short_name='K' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
+	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
+	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
-	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                      } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
-	,	{ CmdFlag::RepoView      , { .short_name='r' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
-	,	{ CmdFlag::TmpView       , { .short_name='t' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                          } }
-	,	{ CmdFlag::TmpDir        , { .short_name='T' , .has_arg=true  , .doc="physical tmp dir"                                                                                          } }
-	,	{ CmdFlag::Views         , { .short_name='v' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}" } }
+	,	{ CmdFlag::TmpDir        , { .short_name='t' , .has_arg=true  , .doc="physical tmp dir"                                                                                          } }
+	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                      } }
+	,	{ CmdFlag::RepoView      , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
+	,	{ CmdFlag::TmpView       , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                          } }
+	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}" } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
@@ -149,9 +139,9 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
 		/**/                                        autodep_env.views       = job_space.flat_phys()                                               ;
 		//
-		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::KeepEnv],cmd_line.flag_args[+CmdFlag::Env]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
-		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]                               ) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
-		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]                               ) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
+		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::Env       ]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
+		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
+		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		::string top_repo_root_s ;
 		(void)jsrr.enter(
