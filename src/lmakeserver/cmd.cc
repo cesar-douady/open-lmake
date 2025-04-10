@@ -220,11 +220,23 @@ namespace Engine {
 		AutodepEnv       const& ade       = start.autodep_env    ;
 		Rule::SimpleMatch       match     = j->simple_match()    ;
 		//
-		for( Node t  : j->targets ) t->set_buildable() ;                                                                 // necessary for pre_actions()
-		::string tmp_dir = ro.flags[ReqFlag::TmpDir] ? ro.flag_args[+ReqFlag::TmpDir] : *g_repo_root_s+dbg_dir_s+"tmp" ;
+		::string          tmp_dir_s ;
+		{	bool add_key = false ;
+			if (ro.flags[ReqFlag::TmpDir] ) { tmp_dir_s = with_slash(ro.flag_args[+ReqFlag::TmpDir]) ; goto Tmp ; }
+			if (ro.flags[ReqFlag::KeepTmp])                                                            goto Tmp ;
+			for( auto const& [k,v] : start.env ) {
+				if (k!="TMPDIR") continue ;
+				/**/                                                                    if ( v!=EnvPassMrkr) { tmp_dir_s = with_slash(v ) ; add_key = true ; goto Tmp ; }
+				for( auto const& [k2,v2] : g_config->backends[+BackendTag::Local].env ) if ( k2=="TMPDIR"  ) { tmp_dir_s = with_slash(v2) ; add_key = true ; goto Tmp ; }
+			}
+		Tmp :
+			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
+			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
+		}
+		for( Node t : j->targets ) t->set_buildable() ;                                                                 // necessary for pre_actions()
+		//
 		::string res     ;
 		res << "script = gen_script(\n" ;
-		//
 		/**/                               res <<  "\tauto_mkdir     = " << mk_py_str(ade.auto_mkdir                        ) << '\n' ;
 		/**/                               res << ",\tautodep_method = " << mk_py_str(snake(start.method)                   ) << '\n' ;
 		if (+start.job_space.chroot_dir_s) res << ",\tchroot_dir     = " << mk_py_str(no_slash(start.job_space.chroot_dir_s)) << '\n' ;
@@ -240,7 +252,7 @@ namespace Engine {
 		if (+start.job_space.repo_view_s ) res << ",\trepo_view      = " << mk_py_str(no_slash(start.job_space.repo_view_s )) << '\n' ;
 		/**/                               res << ",\tstdin          = " << mk_py_str(start.stdin                           ) << '\n' ;
 		/**/                               res << ",\tstdout         = " << mk_py_str(start.stdout                          ) << '\n' ;
-		/**/                               res << ",\ttmp_dir        = " << mk_py_str(tmp_dir                               ) << '\n' ;
+		/**/                               res << ",\ttmp_dir        = " << mk_py_str(no_slash(tmp_dir_s)                   ) << '\n' ;
 		if (+start.job_space.tmp_view_s  ) res << ",\ttmp_view       = " << mk_py_str(no_slash(start.job_space.tmp_view_s  )) << '\n' ;
 		//
 		res << ",\tpreamble =\n" << mk_py_str(start.cmd.first ) << '\n' ;
@@ -251,7 +263,7 @@ namespace Engine {
 		// /!\ this code is a duplicate of src/rpc_job.cc:JobStartRpcReply::enter, they must be updated together
 		// this was done to minimize evoluation, the main branch correctly share this code
 		::map_ss env_map = ::mk_map(env.first) ;
-		env_map["TMPDIR"] = tmp_dir ;
+		env_map["TMPDIR"] = no_slash(tmp_dir_s) ;
 		if (PY_LD_LIBRARY_PATH[0]!=0) {
 			auto [it,inserted] = env_map.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
 			if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
@@ -265,12 +277,12 @@ namespace Engine {
 					case 'L' : _handle( v  , d  , "LMAKE_ROOT"             , +job_space.lmake_view_s?job_space.lmake_view_s:*g_lmake_root_s                  ) ; break ;
 					case 'P' : _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , *g_lmake_root_s                                                                 )
 					||         _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , *g_repo_root_s                                                 , ade.sub_repo_s )
-					||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , with_slash(tmp_dir)                                                             )
+					||         _handle( v  , d  , "PHYSICAL_TMPDIR"        , tmp_dir_s                                                                       )
 					||         _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , *g_repo_root_s                                                                  ) ; break ;
 					case 'R' : _handle( v  , d  , "REPO_ROOT"              , +job_space.repo_view_s?job_space.repo_view_s:*g_repo_root_s    , ade.sub_repo_s ) ; break ;
 					case 'S' : _handle( v  , d  , "SEQUENCE_ID"            , "0"                                                                             )
 					||         _handle( v  , d  , "SMALL_ID"               , "0"                                                                             ) ; break ;
-					case 'T' : _handle( v  , d  , "TMPDIR"                 , +job_space.tmp_view_s?job_space.tmp_view_s:with_slash(tmp_dir)                  )
+					case 'T' : _handle( v  , d  , "TMPDIR"                 , +job_space.tmp_view_s?job_space.tmp_view_s:tmp_dir_s                            )
 					||         _handle( v  , d  , "TOP_REPO_ROOT"          , +job_space.repo_view_s?job_space.repo_view_s:*g_repo_root_s                     ) ; break ;
 				DN}
 			}
