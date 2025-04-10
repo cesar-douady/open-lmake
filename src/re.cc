@@ -19,24 +19,30 @@ namespace Re {
 		// Match
 		//
 
-		static ::string _mk_subject( ::string const& s , RegExpr const& re ) {
-			if ( s.size() > re.pfx.size()+re.sfx.size() ) return s.substr( re.pfx.size() , s.size()-(re.pfx.size()+re.sfx.size()) ) ;
-			else                                          return {}                                                                 ;
-		}
-		Match::Match( RegExpr const& re , ::string const& s , bool chk_psfx ) : _subject{ _mk_subject(s,re) } {
-			if (chk_psfx) {
-				if (!s.starts_with(re.pfx)) return ;
-				if (!s.ends_with  (re.sfx)) return ;
-			} else {
-				SWEAR(s.starts_with(re.pfx),s,re.pfx,re.sfx) ;
-				SWEAR(s.ends_with  (re.sfx),s,re.pfx,re.sfx) ;
+		Match::Match( RegExpr const& re , ::string const& s , Bool3 chk_psfx ) {
+			switch (chk_psfx) {
+				case Yes :
+					if   ( s.size() <  re.pfx.size()+re.sfx.size() ) return ;
+					if   ( !s.starts_with(re.pfx)                  ) return ;
+					if   ( !s.ends_with  (re.sfx)                  ) return ;
+				break ;
+				case Maybe :
+					if   ( s.size() <  re.pfx.size()+re.sfx.size() ) return ;
+					SWEAR( s.starts_with(re.pfx)                   , s,re.pfx,re.sfx ) ;
+					SWEAR( s.ends_with  (re.sfx)                   , s,re.pfx,re.sfx ) ;
+				break ;
+				case No :
+					SWEAR( s.size() >= re.pfx.size()+re.sfx.size() , s,re.pfx,re.sfx ) ;
+					SWEAR( s.starts_with(re.pfx)                   , s,re.pfx,re.sfx ) ;
+					SWEAR( s.ends_with  (re.sfx)                   , s,re.pfx,re.sfx ) ;
+				break ;
 			}
 			_data = pcre2_match_data_create_from_pattern(re._code,nullptr) ;
 			SWEAR(pcre2_get_ovector_count(_data)>0) ;
 			pcre2_get_ovector_pointer(_data)[0] = PCRE2_UNSET ;
 			pcre2_match(
 				re._code
-			,	RegExpr::_s_cast_in(_subject.c_str()) , _subject.size() , 0/*start_offset*/
+			,	RegExpr::_s_cast_in(s.c_str()) , s.size()-re.sfx.size() , re.pfx.size()
 			,	0/*options*/
 			,	_data
 			,	nullptr/*context*/

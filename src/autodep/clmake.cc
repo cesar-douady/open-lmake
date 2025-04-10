@@ -68,9 +68,9 @@ static ::vector_s _get_files(Tuple const& py_args) {
 }
 
 static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
-	bool         no_follow = true                      ;
-	bool         verbose   = false                     ;
-	AccessDigest ad        { .dflags=Dflag::Required } ;
+	bool         no_follow = true                       ;
+	bool         verbose   = false                      ;
+	AccessDigest ad        { .dflags=DflagsDfltDepend } ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;

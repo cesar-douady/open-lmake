@@ -299,13 +299,13 @@ namespace Backends {
 		vmap<Node,FileAction>    pre_actions           ;
 		vmap<Node,FileActionTag> pre_action_warnings   ;
 		StartCmdAttrs            start_cmd_attrs       ;
-		::string                 cmd                   ;
 		StartRsrcsAttrs          start_rsrcs_attrs     ;
 		StartAncillaryAttrs      start_ancillary_attrs ;
 		MsgStderr                start_msg_err         ;
 		::vector<ReqIdx>         reqs                  ;
 		JobInfoStart             jis                   { .rule_cmd_crc=rule->crc->cmd } ;
 		JobStartRpcReply&        reply                 = jis.start                      ;
+		::string        &        cmd                   = reply.cmd                      ;
 		SubmitAttrs     &        submit_attrs          = jis.submit_attrs               ;
 		::vmap_ss       &        rsrcs                 = jis.rsrcs                      ;
 		//
@@ -328,9 +328,9 @@ namespace Backends {
 		::vmap_s<DepSpec>    dep_specs     = rule->deps_attrs.dep_specs(match) ;                    // this cannot fail as it was already run to construct job
 		try {
 			try {
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps                ) ; step = 1 ;
-				cmd               = rule->cmd              .eval(match,rsrcs,&deps,start_cmd_attrs) ; step = 2 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps                ) ; step = 3 ;
+				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
+				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps                                                      ) ; step = 2 ;
+				cmd               = rule->cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
 				//
 				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
 				for( auto const& [t,a] : pre_actions )
@@ -370,14 +370,12 @@ namespace Backends {
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
 			case 3 :
+			case 2 :
 				reply.method     = start_rsrcs_attrs.method     ;
 				reply.timeout    = start_rsrcs_attrs.timeout    ;
 				reply.use_script = start_rsrcs_attrs.use_script ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
-			[[fallthrough]] ;
-			case 2 :
-				reply.cmd = ::move(cmd) ;
 			[[fallthrough]] ;
 			case 1 :
 				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;

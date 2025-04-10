@@ -202,24 +202,23 @@ namespace Engine {
 	}
 
 	static ::string _mk_gen_script_line( Job job , ReqOptions const& ro , JobInfo&& job_info , ::string const& dbg_dir_s , ::string const& key ) {
-		JobStartRpcReply& jsrr      = job_info.start.start                                                                         ;
-		AutodepEnv      & ade       = jsrr.autodep_env                                                                             ;
-		JobSpace        & job_space = jsrr.job_space                                                                               ;
-		::string          tmp_dir_s = ro.flags[ReqFlag::TmpDir] ? ro.flag_args[+ReqFlag::TmpDir] : *g_repo_root_s+dbg_dir_s+"tmp/" ;
-		//
-		if (ro.flags[ReqFlag::TmpDir]) { tmp_dir_s = ro.flag_args[+ReqFlag::TmpDir] ; goto Tmp ; }
-		if (ro.flags[ReqFlag::StdTmp])                                                goto Tmp ;
+		JobStartRpcReply& jsrr      = job_info.start.start ;
+		AutodepEnv      & ade       = jsrr.autodep_env     ;
+		JobSpace        & job_space = jsrr.job_space       ;
+		::string          tmp_dir_s ;
+		{	bool add_key = false ;
+			if (ro.flags[ReqFlag::TmpDir]) { tmp_dir_s = with_slash(ro.flag_args[+ReqFlag::TmpDir]) ; goto Tmp ; }
+			if (ro.flags[ReqFlag::StdTmp])                                                            goto Tmp ;
 			for( auto const& [k,v] : jsrr.env ) {
-				if (k!="TMPDIR"   )                   continue ;
-				if (v!=EnvPassMrkr) { tmp_dir_s = v ; goto Tmp ; }
-				for( auto const& [k2,v2] : g_config->backends[+BackendTag::Local].env )
-					if (k2=="TMPDIR") { tmp_dir_s = v2 ; goto Tmp ; }
+				if (k!="TMPDIR") continue ;
+				/**/                                                                    if ( v!=EnvPassMrkr) { tmp_dir_s = with_slash(v ) ; add_key = true ; goto Tmp ; }
+				for( auto const& [k2,v2] : g_config->backends[+BackendTag::Local].env ) if ( k2=="TMPDIR"  ) { tmp_dir_s = with_slash(v2) ; add_key = true ; goto Tmp ; }
 			}
-	Tmp :
-		if (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp" ;
-		/**/            tmp_dir_s = with_slash(tmp_dir_s)          ;
-		//
-		for( Node t : job->targets ) t->set_buildable() ;                   // necessary for pre_actions()
+		Tmp :
+			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
+			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
+		}
+		for( Node t : job->targets ) t->set_buildable() ;                      // necessary for pre_actions()
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
@@ -300,10 +299,10 @@ namespace Engine {
 			for( auto const& [view,descr] : job_space.views ) {
 				SWEAR(+descr.phys) ;
 				res << first1("\n\t\t",",\t") << mk_py_str(view) << " : " ;
-				if (+descr.phys.size()==1) {                                // bind case
+				if (+descr.phys.size()==1) {                                   // bind case
 					SWEAR(!descr.copy_up) ;
 					res << mk_py_str(descr.phys[0]) ;
-				} else {                                                    // overlay case
+				} else {                                                       // overlay case
 					res << '{' ;
 					{	res <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
 					}

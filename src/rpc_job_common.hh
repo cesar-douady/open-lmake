@@ -22,6 +22,7 @@ ENUM_2( Dflag        // flags for deps
 ,	IgnoreError      // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 ,	Required         // dep must be buildable (static deps are always required)
 ,	Static           // is static dep, for internal use only
+,	Full             // if false, dep is only necessary to compute resources
 )
 // END_OF_VERSIONING
 static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
@@ -30,9 +31,14 @@ static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
 ,	{ Dflag::IgnoreError , 'e' }
 ,	{ Dflag::Required    , 'r' }
 ,	{ Dflag::Static      , 'S' }
+,	{ Dflag::Full        , 'F' }
 }} ;
 using Dflags = BitMap<Dflag> ;
 static_assert(chk_enum_tab(DflagChars)) ;
+static constexpr Dflags DflagsDflt       = Dflag::Full                               ;
+static constexpr Dflags DflagsDfltStatic = DflagsDflt|Dflag::Essential|Dflag::Static ;
+static constexpr Dflags DflagsDfltDyn    = DflagsDflt                                ;
+static constexpr Dflags DflagsDfltDepend = DflagsDflt|Dflag::Required                ;
 
 // START_OF_VERSIONING
 ENUM_1( ExtraDflag

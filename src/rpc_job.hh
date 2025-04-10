@@ -421,15 +421,15 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
 	//cxtors & casts
-	constexpr DepDigestBase(                                                            bool p=false ) :                                       parallel{p} { crc    ({}) ; }
-	constexpr DepDigestBase(          Accesses a ,                      Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc    ({}) ; }
-	constexpr DepDigestBase(          Accesses a , Crc             c  , Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc    (c ) ; }
-	constexpr DepDigestBase(          Accesses a , FileInfo const& fi , Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { sig    (fi) ; }
-	constexpr DepDigestBase(          Accesses a , DepInfo  const& di , Dflags dfs={} , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc_sig(di) ; }
-	constexpr DepDigestBase( Base b , Accesses a ,                      Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc    ({}) ; }
-	constexpr DepDigestBase( Base b , Accesses a , Crc             c  , Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc    (c ) ; }
-	constexpr DepDigestBase( Base b , Accesses a , FileInfo const& fi , Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { sig    (fi) ; }
-	constexpr DepDigestBase( Base b , Accesses a , DepInfo  const& di , Dflags dfs={} , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc_sig(di) ; }
+	constexpr DepDigestBase(                                                                    bool p=false ) :                                       parallel{p} { crc    ({}) ; }
+	constexpr DepDigestBase(          Accesses a ,                      Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc    ({}) ; }
+	constexpr DepDigestBase(          Accesses a , Crc             c  , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc    (c ) ; }
+	constexpr DepDigestBase(          Accesses a , FileInfo const& fi , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { sig    (fi) ; }
+	constexpr DepDigestBase(          Accesses a , DepInfo  const& di , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc_sig(di) ; }
+	constexpr DepDigestBase( Base b , Accesses a ,                      Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc    ({}) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Crc             c  , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc    (c ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , FileInfo const& fi , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { sig    (fi) ; }
+	constexpr DepDigestBase( Base b , Accesses a , DepInfo  const& di , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc_sig(di) ; }
 	// initializing _crc in all cases (which crc_date does not do) is important to please compiler (gcc-11 -O3)
 	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :         accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { crc_sig(dd) ; }
 	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b},accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { crc_sig(dd) ; }
@@ -491,11 +491,11 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	// START_OF_VERSIONING
 	static constexpr uint8_t NSzBits = 5 ;                                         // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
 	Accesses accesses         ;                                                    // 3<8 bits
-	Dflags   dflags           ;                                                    // 5<8 bits
-	bool     parallel:1       = false ;                                            //   1 bit
-	bool     is_crc  :1       = true  ;                                            //   1 bit
-	uint8_t  sz      :NSzBits = 0     ;                                            //   6 bits, number of items in chunk following header (semantically before)
-	bool     hot     :1       = false ;                                            //   1 bit , if true <= file date was very close from access date (within date granularity)
+	Dflags   dflags           = DflagsDflt ;                                       // 5<8 bits
+	bool     parallel:1       = false      ;                                       //   1 bit
+	bool     is_crc  :1       = true       ;                                       //   1 bit
+	uint8_t  sz      :NSzBits = 0          ;                                       //   6 bits, number of items in chunk following header (semantically before)
+	bool     hot     :1       = false      ;                                       //   1 bit , if true <= file date was very close from access date (within date granularity)
 	Accesses chunk_accesses   ;                                                    // 3<8 bits
 private :
 	union {
@@ -509,7 +509,7 @@ template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& d
 	/**/                                          os << "D("                           ;
 	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
 	if           ( +dd.accesses               ) { os <<sep<< dd.accesses               ; sep = "," ; }
-	if           ( +dd.dflags                 ) { os <<sep<< dd.dflags                 ; sep = "," ; }
+	if           (  dd.dflags!=DflagsDflt     ) { os <<sep<< dd.dflags                 ; sep = "," ; }
 	if           (  dd.parallel               ) { os <<sep<< "parallel"                ; sep = "," ; }
 	if           ( +dd.accesses && !dd.is_crc ) { os <<sep<< dd.sig()                  ; sep = "," ; }
 	else if      ( +dd.accesses && +dd.crc()  ) { os <<sep<< dd.crc()                  ; sep = "," ; }

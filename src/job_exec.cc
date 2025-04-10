@@ -90,9 +90,9 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	return res ;
 }
 
-Digest analyze(Status status=Status::New) {                                                                                                    // status==New means job is not done
+Digest analyze(Status status=Status::New) {                                                                                                 // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
-	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                      // typically most of accesses are deps
+	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                   // typically most of accesses are deps
 	Pdate  prev_first_read ;
 	Pdate  relax           = Pdate(New)+g_start_info.network_delay ;
 	//
@@ -106,13 +106,14 @@ Digest analyze(Status status=Status::New) {                                     
 			case Maybe :                                                                       ;                                                                                      break ;
 		DF}
 		//
-		if (ad.write==Yes)                                                                                                                     // ignore reads after earliest confirmed write
+		if (ad.write==Yes)                                                                                                                  // ignore reads after earliest confirmed write
 			for( Access a : iota(All<Access>) )
 				if ( info.read[+a]>info.write || info.read[+a]>info.target ) ad.accesses &= ~a ;
-		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                ;
-		bool                   ignore_err = ad.dflags[Dflag::IgnoreError]||ad.extra_dflags[ExtraDflag::Ignore]                               ;
-		bool                   is_read    = +ad.accesses || info.digest_required || !ignore_err                                              ;
-		bool                   is_dep     = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && is_read && first_read.first<=info.target ) ; // if a (side) target, it is so since the beginning
+		::pair<Pdate,Accesses> first_read = info.first_read()                                                                             ;
+		bool                   ignore  = ad.extra_dflags[ExtraDflag::Ignore] || ad.extra_tflags[ExtraTflag::Ignore]                       ;
+		bool                   sense   = info.digest_required || !ad.dflags[Dflag::IgnoreError]                                           ;
+		bool                   is_read = +ad.accesses || ( !ignore && sense )                                                             ;
+		bool                   is_dep  = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && is_read && first_read.first<=info.target ) ; // if a (side) target, it is so since the beginning
 		bool is_tgt =
 			ad.write!=No
 		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
@@ -389,20 +390,22 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	return true/*done*/ ;
 }
 
-::string g_to_unlnk ;                                                         // XXX> : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                          // XXX> : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line(::map_ss const& cmd_env) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
-	::vector_s res = ::move(g_start_info.interpreter) ;                       // avoid copying as interpreter is used only here
-	if ( g_start_info.use_script || g_start_info.cmd.size()>ArgMax/2 ) {      // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+	::vector_s res = ::move(g_start_info.interpreter) ;                        // avoid copying as interpreter is used only here
+	if (g_start_info.use_script) {
 		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-	//	::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ; // correct code
+	//	::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;  // correct code
 		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
 		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd) ;
 		res.reserve(res.size()+1) ;
-		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                      // provide absolute script so as to support cwd
+		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                       // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
-		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                 // res is set if simple
+		// large commands are forced use_script=true in server
+		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ; // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                  // res is set if simple
 			res.reserve(res.size()+2) ;
 			res.push_back("-c"                    ) ;
 			res.push_back(::move(g_start_info.cmd)) ;

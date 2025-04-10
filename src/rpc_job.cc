@@ -694,14 +694,17 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 	return dst_ok ;
 }
 
-template<class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
+template<bool IsFile,class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
 	size_t len   = ::strlen(key)    ;
 	bool   brace = v[d+1/*$*/]=='{' ;
 	size_t start = d+1/*$*/+brace   ;
 	if ( ::string_view(&v[start],len)!=key    ) return false/*match*/ ;
 	if (  brace && v[start+len]!='}'          ) return false/*match*/ ;
 	if ( !brace && is_word_char(v[start+len]) ) return false/*match*/ ;
-	::string pfx = v.substr(0,d) + no_slash(cat(args...)) ;
+	::string pfx =
+		IsFile ? v.substr(0,d) + no_slash(cat(args...))
+		:        v.substr(0,d) +          cat(args...)
+	;
 	d = pfx.size()                                             ;
 	v = ::move(pfx) + ::string_view(v).substr(start+len+brace) ;
 	return true/*match*/ ;
@@ -731,17 +734,17 @@ void JobSpace::update_env(
 			d = v.find('$',d) ;
 			if (d==Npos) break ;
 			switch (v[d+1/*$*/]) {
-				//                                 inout inout
-				case 'L' :                  _handle( v  , d  , "LMAKE_ROOT"             , lmake_root_s               )   ; break ;
-				case 'P' :                  _handle( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s           )
-				||                          _handle( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s ,sub_repo_s)
-				||         ( has_tmp_dir && _handle( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s              ) )
-				||                          _handle( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s            )   ; break ;
-				case 'R' :                  _handle( v  , d  , "REPO_ROOT"              , repo_root_s     ,sub_repo_s)   ; break ;
-				case 'S' :                  _handle( v  , d  , "SEQUENCE_ID"            , seq_id                     )
-				||                          _handle( v  , d  , "SMALL_ID"               , small_id                   )   ; break ;
-				case 'T' : ( has_tmp_dir && _handle( v  , d  , "TMPDIR"                 , tmp_dir_s                  ) )
-				||                          _handle( v  , d  , "TOP_REPO_ROOT"          , repo_root_s                )   ; break ;
+				//                                 IsFile inout inout
+				case 'L' :                  _handle<true >( v  , d  , "LMAKE_ROOT"             , lmake_root_s               )   ; break ;
+				case 'P' :                  _handle<true >( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s           )
+				||                          _handle<true >( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s ,sub_repo_s)
+				||         ( has_tmp_dir && _handle<true >( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s              ) )
+				||                          _handle<true >( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s            )   ; break ;
+				case 'R' :                  _handle<true >( v  , d  , "REPO_ROOT"              , repo_root_s     ,sub_repo_s)   ; break ;
+				case 'S' :                  _handle<false>( v  , d  , "SEQUENCE_ID"            , seq_id                     )
+				||                          _handle<false>( v  , d  , "SMALL_ID"               , small_id                   )   ; break ;
+				case 'T' : ( has_tmp_dir && _handle<true >( v  , d  , "TMPDIR"                 , tmp_dir_s                  ) )
+				||                          _handle<true >( v  , d  , "TOP_REPO_ROOT"          , repo_root_s                )   ; break ;
 			DN}
 		}
 	}
@@ -1021,9 +1024,9 @@ void JobEndRpcReq::cache_cleanup() {
 ::string& operator+=( ::string& os , MatchFlags const& mf ) {
 	/**/             os << "MatchFlags(" ;
 	switch (mf.is_target) {
-		case Yes   : os << "target" ; if (+mf.tflags()) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
-		case No    : os << "dep,"   ; if (+mf.dflags()) os<<','<<mf.dflags() ; if (+mf.extra_dflags()) os<<','<<mf.extra_dflags() ; break ;
-		case Maybe :                                                                                                                break ;
+		case Yes   : os << "target" ; if (+mf.tflags()           ) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
+		case No    : os << "dep,"   ; if (mf.dflags()!=DflagsDflt) os<<','<<mf.dflags() ; if (+mf.extra_dflags()) os<<','<<mf.extra_dflags() ; break ;
+		case Maybe :                                                                                                                           break ;
 	DF}
 	return           os << ')' ;
 }

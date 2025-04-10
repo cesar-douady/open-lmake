@@ -229,7 +229,7 @@ public :
 			//
 			SolveReport sr = r._real_path.solve(at,file,no_follow) ;
 			//
-			auto report_dep = [&]( FileLoc fl , ::string&& file , Accesses a , bool store , CommentExt exts )->void {
+			auto handle_dep = [&]( FileLoc fl , ::string&& file , Accesses a , bool store , CommentExt exts )->void {
 				if ( ::vmap_s<::vector_s> const& views = s_autodep_env().views ; +views ) {
 					Fd repo_root_fd = s_repo_root_fd() ;
 					for( auto const& [view,phys] : s_autodep_env().views ) {
@@ -263,9 +263,9 @@ public :
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
 			//                                                                                                                      accesses      store
-			for( ::string& lnk : sr.lnks                               ) report_dep( FileLoc::Dep , ::move(lnk)                   , Access::Lnk , false , CommentExt::Lnk  ) ;
-			if ( !read  && sr.file_accessed==Maybe && has_dir(sr.real) ) report_dep( sr.file_loc  , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , CommentExt::Last ) ; // real dir is not ...
-			/**/                                                         report_dep( sr.file_loc  , ::move(sr.real)               , {}          , true  , CommentExt::File ) ; // ... protected by real
+			for( ::string& lnk : sr.lnks                               ) handle_dep( FileLoc::Dep , ::move(lnk)                   , Access::Lnk , false , CommentExt::Lnk  ) ;
+			if ( !read  && sr.file_accessed==Maybe && has_dir(sr.real) ) handle_dep( sr.file_loc  , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , CommentExt::Last ) ; // real dir is not ...
+			/**/                                                         handle_dep( sr.file_loc  , ::move(sr.real)               , {}          , true  , CommentExt::File ) ; // ... protected by real
 			//
 			if ( create && sr.file_loc==FileLoc::Tmp ) r.report_tmp() ;
 		}

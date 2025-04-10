@@ -86,7 +86,7 @@ struct Gather {                                                                 
 		PD           target          = PD::Future                             ;                                 // first date at which file was known to be a target
 		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
 		DI           dep_info        ;                                                                          // state when first read
-		AccessDigest digest          ;
+		AccessDigest digest          = { .dflags={} }                         ;                                 // initially, no dflags, not even default ones (as they accumulate)
 		bool         digest_seen     = false                                  ;                                 // if true <=> not ignored when seen existing
 		bool         digest_required = false                                  ;                                 // if true <=> dep has been required
 	} ;
@@ -111,7 +111,7 @@ private :
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
 public : //!                                                                                                                                    crc_file_info
 	void new_target( PD pd , ::string const& t , Comment c=Comment::staticTarget , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }
-	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::staticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; } // used for internal wash
+	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::staticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }  // used for internal wash
 	void new_guard (         ::string const& f                                                         ) { guards.insert(f) ;                                         }
 	//
 	void new_exec( PD    , ::string const& exe ,              Comment  =Comment::staticExec                      ) ;
@@ -121,12 +121,12 @@ public : //!                                                                    
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;
 		try                     { OMsgBuf().send(fd,jerr) ; }
-		catch (::string const&) {                           }                                         // dont care if we cannot report the reply to job
+		catch (::string const&) {                           }                                           // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child() ;
 	//
-	void reorder(bool at_end) ;                                                                       // reorder accesses by first read access and suppress superfluous accesses
+	void reorder(bool at_end) ;                                                                         // reorder accesses by first read access and suppress superfluous accesses
 private :
 	Fd   _spawn_child (                               ) ;
 	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
@@ -171,11 +171,11 @@ public :
 private :
 	::map_ss                            _add_env              ;
 	Child                               _child                ;
-	::umap<Fd,::pair_ss/*file,ctx*/>    _codecs               ;                                       // pushed info waiting for Encode/Decode
-	::umap<Fd,::string>                 _codec_files          ;                                       // used to generate codec reply
-	::umap<Fd,::vmap_s<Disk::FileInfo>> _dep_verboses         ;                                       // pushed deps waiting for DepVerbose
+	::umap<Fd,::pair_ss/*file,ctx*/>    _codecs               ;                                         // pushed info waiting for Encode/Decode
+	::umap<Fd,::string>                 _codec_files          ;                                         // used to generate codec reply
+	::umap<Fd,::vmap_s<Disk::FileInfo>> _dep_verboses         ;                                         // pushed deps waiting for DepVerbose
 	size_t                              _n_server_req_pending = 0 ;
-	NodeIdx                             _parallel_id          = 0 ;                                   // id to identify parallel deps
-	BitMap<Kind>                        _wait                 ;                                       // events we are waiting for
+	NodeIdx                             _parallel_id          = 0 ;                                     // id to identify parallel deps
+	BitMap<Kind>                        _wait                 ;                                         // events we are waiting for
 	::jthread                           _ptrace_thread        ;
 } ;

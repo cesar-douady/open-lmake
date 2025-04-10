@@ -139,7 +139,7 @@ namespace Engine::Makefiles {
 		::uset_s   dep_set ;
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
-			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = ::string(m[1/*dir_s*/])+::string(m[2/*module*/])+".py" ;
+			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = cat( m.group(d,1/*dir_s*/) , m.group(d,2/*module*/) , ".py" ) ;
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}

@@ -310,8 +310,7 @@ namespace Engine {
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
 		// services
-		void init  ( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) {}
-//		void update( Py::Dict const&                                             ) {}
+		void init( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) {}
 	} ;
 	namespace Attrs {
 		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
@@ -365,7 +364,7 @@ namespace Engine {
 		static void s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
 		static ::string s_parse_fstr( ::string const& fstr , Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs={} ) ;
 		static ::string s_parse_fstr( ::string const& fstr ,       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} ) {
-			return s_parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                                                 // cannot lazy evaluate w/o a job
+			return s_parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                              // cannot lazy evaluate w/o a job
 		}
 		// cxtors & casts
 		DynBase() = default ;
@@ -434,16 +433,17 @@ namespace Engine {
 		// accesses
 		bool has_entry() const = delete ; // always true for Cmd's, should not ask
 		// services
-		::string eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& ) const ;
+		// use_script is set to true if result is too large and used to generate cmd
+		::string eval( bool&/*inout*/ use_script , Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& ) const ;
 	} ;
 
 	struct TargetPattern {
 		// services
-		Re::Match match(::string const& t,bool chk_psfx=true) const { return re.match(t,chk_psfx) ; }
+		Re::Match match(::string const& t,Bool3 chk_psfx=Yes) const { return re.match(t,chk_psfx) ; } //chk_psfx=Maybe means check size only
 		// data
 		Re::RegExpr        re     ;
-		::vector<uint32_t> groups ; // indexed by stem index, provide the corresponding group number in pattern
-		::string           txt    ; // human readable pattern
+		::vector<uint32_t> groups ;                                                                   // indexed by stem index, provide the corresponding group number in pattern
+		::string           txt    ;                                                                   // human readable pattern
 	} ;
 
 	struct RuleData {
@@ -584,10 +584,10 @@ namespace Engine {
 		RuleMatch(                                        ) = default ;
 		RuleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
 		RuleMatch( Job                                    ) ;
-		RuleMatch( Rule    r , ::string   const& job_name , bool chk_psfx=true ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {}
-		RuleMatch( RuleTgt   , ::string   const& target   , bool chk_psfx=true ) ;
+		RuleMatch( Rule    r , ::string   const& job_name , Bool3 chk_psfx=Yes ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {} // chk_psfx=Maybe means check size only
+		RuleMatch( RuleTgt   , ::string   const& target   , Bool3 chk_psfx=Yes ) ;                                                       // .
 	private :
-		RuleMatch( Rule , TargetPattern const& , ::string const& , bool chk_psfx=true ) ;
+		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                                // .
 	public :
 		bool operator==(RuleMatch const&) const = default ;
 		bool operator+ (                ) const { return +rule ; }
@@ -599,7 +599,7 @@ namespace Engine {
 		//
 		::vmap_s<DepSpec> const& deps_holes() const {
 			if (!_has_deps) {
-				_deps     = rule->deps_attrs.eval(self).second ; // this includes empty slots
+				_deps     = rule->deps_attrs.eval(self).second ;                                                                         // this includes empty slots
 				_has_deps = true                               ;
 			}
 			return _deps ;
@@ -610,7 +610,7 @@ namespace Engine {
 		::uset<Node> target_dirs() const ;
 		// data
 		Rule       rule  ;
-		::vector_s stems ; // static stems only of course
+		::vector_s stems ;                                                                                                               // static stems only of course
 		// cache
 	private :
 		mutable bool              _has_deps = false ;

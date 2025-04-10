@@ -227,7 +227,7 @@ namespace Engine {
 		for( ::string const& t : match.star_targets  () ) { { if (!handle_target(rule->matches[ti].first,t)) return ; } ti++ ; }
 		//
 		::pair_s</*msg*/::vmap_s<DepSpec>> digest    ;
-		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ; // contains holes
+		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                  // contains holes
 		try {
 			digest = rule->deps_attrs.eval(match) ;
 		} catch (MsgStderr const& msg_err) {
@@ -1026,10 +1026,11 @@ namespace Engine {
 					bool dep_missing_dsk = !query && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk                       ;                                   // job needs this dep if it must run
 					dep_modif          = !dep.up_to_date( is_static && modif ) ; // after a modified dep, consider static deps as being fully accessed to avoid reruns due to previous errors
-					if ( dep_modif && status==Status::Ok && dep.no_trigger() ) { // no_trigger only applies to successful jobs
-						trace("no_trigger",dep) ;
-						req->no_triggers.emplace(dep,req->no_triggers.size()) ;  // record to repeat in summary, value is just to order summary in discovery order
-						dep_modif = false ;
+					if ( dep_modif && status==Status::Ok ) {                     // no_trigger only applies to successful jobs
+						// if not full, a dep is only used to compute resources
+						// if asked by user, record to repeat in summary, value is just to order summary in discovery order
+						if      (!dep.dflags[Dflag::Full])   dep_modif = false ;
+						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.emplace(dep,req->no_triggers.size()) ; }
 					}
 					if ( +state.stamped_err  ) goto Continue ;                   // we are already in error, no need to analyze errors any further
 					if ( !is_static && modif ) goto Continue ;                   // if not static, errors may be washed by previous modifs, dont record them
@@ -1265,15 +1266,17 @@ namespace Engine {
 		//
 		for( Node t : targets ) t->set_buildable() ;                  // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
+		::vmap_s<DepDigest>  early_deps             ;
 		SubmitAncillaryAttrs submit_ancillary_attrs ;
 		try {
-			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( idx() , match , &::ref(::vmap_s<DepDigest>()) ) ; // dont care about dependencies as these attributes have no impact on result
+			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( idx() , match , &early_deps ) ; // dont care about dependencies as these attributes have no impact on result
 		} catch (MsgStderr const& msg_err) {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.spec ;
 			req->audit_job(Color::Note,"no_dynamic",idx()) ;
 			req->audit_stderr( idx() , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } , 0/*max_stderr_len*/ , 1 ) ;
 		}
-		CacheIdx cache_idx = 0 ;
+		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                     // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
+		CacheIdx cache_idx = 0 ;                                                                     // ... just record deps to trigger building on a best effort basis
 		if (+submit_ancillary_attrs.cache) {
 			auto it = g_config->cache_idxs.find(submit_ancillary_attrs.cache) ;
 			if (it!=g_config->cache_idxs.end()) {
@@ -1338,8 +1341,8 @@ namespace Engine {
 			}
 		}
 		//
-		::vmap_s<DepDigest> early_deps         ;
-		SubmitRsrcsAttrs    submit_rsrcs_attrs ;
+		SubmitRsrcsAttrs submit_rsrcs_attrs ;
+		size_t           n_ancillary_deps   = early_deps.size() ;
 		try {
 			submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( idx() , match , &early_deps ) ;
 		} catch (MsgStderr const& msg_err) {
@@ -1349,6 +1352,7 @@ namespace Engine {
 			trace("no_rsrcs",ri) ;
 			return false/*maybe_new_deps*/ ;
 		}
+		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;             // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
 			Node         d   { dn }             ;
 			NodeReqInfo& dri = d->req_info(req) ;

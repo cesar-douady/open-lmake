@@ -183,6 +183,7 @@ class Job :
 			''')
 		return (
 			self.gen_shebang()
+		+	"import sys ; sys.path[0] = '' ; del sys\n"                             # ensure same sys.path as if run with -c, del sys to ensure total transparency
 		+	preamble+'\n'
 		+	cmd
 		)

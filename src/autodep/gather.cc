@@ -667,9 +667,9 @@ void Gather::reorder(bool at_end) {
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
 		::string const& file   = it->first         ;
 		::AccessDigest& digest = it->second.digest ;
-		if (digest.write!=No)                   goto NextDep ;
-		if (+digest.dflags  ) { lasts.clear() ; goto NextDep ; }
-		if (!digest.accesses)                   goto NextDep ;
+		if (digest.write!=No)               goto NextDep ;
+		if (digest.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
+		if (!digest.accesses)               goto NextDep ;
 		for( auto last : lasts ) {
 			if (!( last->first.starts_with(file) && last->first[file.size()]=='/' ))                                                                                            continue     ;
 			if (   last->second.dep_info.exists()==Yes                             ) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ;                       goto NextDep ; }
@@ -689,7 +689,7 @@ void Gather::reorder(bool at_end) {
 	for( auto& access : accesses ) {
 		::string const& file   = access.first         ;
 		::AccessDigest& digest = access.second.digest ;
-		if ( digest.write==No && !digest.dflags && !digest.tflags ) {
+		if ( digest.write==No && digest.dflags==DflagsDfltDyn && !digest.tflags ) {
 			auto it = dirs.find(file+'/') ;
 			if (it!=dirs.end()) {
 				if (it->second) { trace("skip_from_prev"  ,file) ; digest.accesses  = {}           ; }

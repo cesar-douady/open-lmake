@@ -44,13 +44,13 @@ int main( int argc , char* argv[]) {
 	//
 	bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks] ;
 	bool         verbose   =  cmd_line.flags[Flag::Verbose       ] ;
-	AccessDigest ad        ;
-	if      ( cmd_line.flags[Flag::Critical   ]) ad.dflags       |= Dflag     ::Critical    ;
-	if      ( cmd_line.flags[Flag::Essential  ]) ad.dflags       |= Dflag     ::Essential   ;
-	if      ( cmd_line.flags[Flag::Ignore     ]) ad.extra_dflags |= ExtraDflag::Ignore      ;
-	if      ( cmd_line.flags[Flag::IgnoreError]) ad.dflags       |= Dflag     ::IgnoreError ;
-	else if (!cmd_line.flags[Flag::NoRequired ]) ad.dflags       |= Dflag     ::Required    ;
-	if      ( cmd_line.flags[Flag::Read       ]) ad.accesses      = ~Accesses()             ;
+	AccessDigest ad        { .dflags=DflagsDfltDepend }            ;
+	if (cmd_line.flags[Flag::Critical   ]) ad.dflags       |=  Dflag     ::Critical    ;
+	if (cmd_line.flags[Flag::Essential  ]) ad.dflags       |=  Dflag     ::Essential   ;
+	if (cmd_line.flags[Flag::Ignore     ]) ad.extra_dflags |=  ExtraDflag::Ignore      ;
+	if (cmd_line.flags[Flag::IgnoreError]) ad.dflags       |=  Dflag     ::IgnoreError ;
+	if (cmd_line.flags[Flag::NoRequired ]) ad.dflags       &= ~Dflag     ::Required    ;
+	if (cmd_line.flags[Flag::Read       ]) ad.accesses      = ~Accesses()              ;
 	//
 	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ; }

@@ -49,7 +49,7 @@ namespace Re {
 			// cxtors & casts
 			Match() = default ;
 			//
-			Match( RegExpr const& re , ::string const& s , bool chk_psfx ) ;
+			Match( RegExpr const& re , ::string const& s , Bool3 chk_psfx ) ; // chk_psfx=Maybe means check size only
 		public :
 			~Match() {
 				if (_data) pcre2_match_data_free(_data) ;
@@ -60,18 +60,17 @@ namespace Re {
 			// accesses
 			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
 			//
-			::string_view operator[](size_t i) const {
+			::string_view group( ::string const& subject , size_t i ) const {
 				PCRE2_SIZE const* v = pcre2_get_ovector_pointer(_data) ;
-				return { _subject.data()+v[2*i] , v[2*i+1]-v[2*i] } ;
+				SWEAR( v[2*i+1]<=subject.size() , v[2*i],v[2*i+1],subject ) ;
+				return { subject.data()+v[2*i] , v[2*i+1]-v[2*i] } ;
 			}
 			// data
 		private :
-			pcre2_match_data* _data    = nullptr ;
-			::string          _subject ;
+			pcre2_match_data* _data = nullptr ;
 		} ;
 		inline void swap( Match& a , Match& b ) {
-			::swap(a._data   ,b._data   ) ;
-			::swap(a._subject,b._subject) ;
+			::swap( a._data , b._data ) ;
 		}
 
 		inline void swap( RegExpr& a , RegExpr& b ) ;
@@ -174,7 +173,7 @@ namespace Re {
 			//
 			~RegExpr() { if (_own) ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; }
 			// services
-			Match match( ::string const& subject , bool chk_psfx=true ) const {
+			Match match( ::string const& subject , Bool3 chk_psfx=Yes ) const { // chk_psfx=Maybe means check size only
 				return { self , subject , chk_psfx } ;
 			}
 			size_t mark_count() const {
@@ -183,16 +182,16 @@ namespace Re {
 				return cnt ;
 			}
 			// data
-			::string pfx ;                      // fixed prefix
-			::string sfx ;                      // fixed suffix
+			::string pfx ;                                                      // fixed prefix
+			::string sfx ;                                                      // fixed suffix
 		private :
-			pcre2_code const* _code = nullptr ; // only contains code for infix part, shared and stored in s_store
-			bool              _own  = false   ; // if true <=> _code is private and must be freed in dxtor
+			pcre2_code const* _code = nullptr ;                                 // only contains code for infix part, shared and stored in s_store
+			bool              _own  = false   ;                                 // if true <=> _code is private and must be freed in dxtor
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
-			::swap(a.pfx  ,b.pfx  ) ;
-			::swap(a.sfx  ,b.sfx  ) ;
-			::swap(a._code,b._code) ;
+			::swap( a.pfx   , b.pfx   ) ;
+			::swap( a.sfx   , b.sfx   ) ;
+			::swap( a._code , b._code ) ;
 		}
 
 	#else
@@ -206,16 +205,16 @@ namespace Re {
 		public :
 			bool operator+() const { return !empty() ; }
 			//
-			::string_view operator[](size_t i) const {
+			::string_view group( ::string const& , size_t i ) const {
 				::sub_match sm = ::smatch::operator[](i) ;
-				return {sm.first,sm.second} ;
+				return { sm.first , sm.second } ;
 			}
 		} ;
 
 		struct RegExpr : private ::regex {
 			friend Match ;
 			static constexpr flag_type Flags = ECMAScript|optimize ;
-			struct Cache {                                           // there is no serialization facility and cache is not implemented, fake it
+			struct Cache {                                                                       // there is no serialization facility and cache is not implemented, fake it
 				static constexpr bool steady() { return true ; }
 			} ;
 			// static data
@@ -224,7 +223,7 @@ namespace Re {
 			RegExpr() = default ;
 			RegExpr( ::string const& pattern , bool /*cache*/=true ) : ::regex{pattern,Flags} {} // cache is ignored as no cache is implemented
 			// services
-			Match match( ::string const& subject , bool /*chk_psfx*/=true ) const {
+			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {              // chk_psfx=Maybe means check size only
 				Match res ;
 				::regex_match(subject,res,self) ;
 				return res ;

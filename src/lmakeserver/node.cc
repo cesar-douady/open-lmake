@@ -247,8 +247,8 @@ namespace Engine {
 		for( RuleTgt const& rt : rule_tgts().view() ) {
 			Rule r = rt->rule ; if (!r) continue ;
 			if (r->special==Special::Plain                  ) { rule_tgts().shorten_by(n_skip) ; return Buildable::Maybe ; } // no special rule applies, avoid pattern matching
-			if (!rt.pattern().match(name_,false/*chk_psfx*/)) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix
-			rule_tgts() = ::vector<RuleTgt>({rt}) ;
+			if (!rt.pattern().match(name_,Maybe/*chk_psfx*/)) { n_skip++                       ; continue                ; } // rule is pre-filtered, so no need to match prefix and suffix ...
+			rule_tgts() = ::vector<RuleTgt>({rt}) ;                                                                          // ... check size, though, as pfx and sfx could overlap
 			if (r->special==Special::Anti      ) return Buildable::DynAnti ;
 			if (r->special==Special::GenericSrc) return Buildable::DynSrc  ;
 			FAIL("unexpected special rule",r->full_name(),r->special) ;
@@ -275,7 +275,7 @@ namespace Engine {
 			if (r->prio<prio) goto Done ;
 			if (lvl>=g_config->max_dep_depth) throw ::vector<Node>() ;         // too deep, must be an infinite dep path
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobTgt jt = JobTgt(rt,name_,false/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix
+			JobTgt jt = JobTgt(rt,name_,Maybe/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (+jt) {
 				if (jt.sure()) { buildable  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
@@ -836,7 +836,7 @@ namespace Engine {
 	}
 
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
-		bool can_compress = dep.is_crc && dep.crc()==Crc::None && !dep.dflags && !dep.parallel ;
+		bool can_compress = dep.is_crc && dep.crc()==Crc::None && dep.dflags==DflagsDfltDyn && !dep.parallel ;
 		if (hole==Npos) {
 			if (can_compress) {                                                                       // create new open chunk
 				/**/ hole                         = deps.size()             ;

@@ -48,8 +48,8 @@ namespace Engine {
 		try {
 			if (ecr.options.flags[ReqFlag::RetryOnError]) data.n_retries = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::RetryOnError]                 ) ;
 			JobIdx                                        n_jobs         = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
-			if (ecr.as_job()) data.job = ecr.job()                                                                            ;
-			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),Dflag::Static,true/*parallel*/) ) ;
+			if (ecr.as_job()) data.job = ecr.job()                                                                               ;
+			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),DflagsDfltStatic,true/*parallel*/) ) ;
 			Backend::s_open_req( +self , n_jobs ) ;
 			data.has_backend = true ;
 			trace("job",data.job) ;
@@ -608,8 +608,9 @@ namespace Engine {
 				for( ::string const& t : m.star_targets  () ) { if (!is_canon(t)) { reason = "non-canonic target "+m.rule->matches[ti].first+" : "+t ; goto Report ; } ti++ ; }
 			}
 			//
-			try                              { static_deps = rt->rule->deps_attrs.dep_specs(m)                        ;               }
-			catch (MsgStderr const& msg_err) { reason      = "cannot compute its deps :\n"+msg_err.msg+msg_err.stderr ; goto Report ; }
+			try                              { static_deps = rt->rule->deps_attrs.dep_specs(m)                                       ;               }
+			catch (::string  const& msg    ) { reason      = "cannot compute its deps :\n"+indent<' ',2>(msg                       ) ; goto Report ; }
+			catch (MsgStderr const& msg_err) { reason      = "cannot compute its deps :\n"+indent<' ',2>(msg_err.msg+msg_err.stderr) ; goto Report ; }
 			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
 					if (!is_canon(ds.txt,false/*empty_ok*/)) {

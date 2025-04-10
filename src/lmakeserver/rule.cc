@@ -215,15 +215,16 @@ namespace Engine {
 	::string _subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , bool* /*out*/ keep_for_deps=nullptr ) {
 		::string res ;
 		//
-		if (keep_for_deps) *keep_for_deps = true ;                                                                                             // unless found to be external
+		if (keep_for_deps) *keep_for_deps = true ;                                                                                         // unless found to be external
 		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
 			[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
 				SWEAR(+fixed) ;
 				res.append(fixed) ;
-				if (!keep_for_deps                                   ) return                                                                ; // not a dep, no check
-				if (!is_canon(fixed,true/*empty_ok*/,has_pfx,has_sfx)) throw cat(fstr," is not canonical, consider using : ",mk_canon(fstr)) ;
-				if (has_pfx                                          ) return                                                                ; // further check only for prefix
-				if (is_lcl(fixed)                                    ) return                                                                ;
+				if ( !keep_for_deps                                    ) return                                                          ; // not a dep, no check
+				if ( !is_canon(fixed,true/*empty_ok*/,has_pfx,has_sfx) ) throw cat("is not canonical, consider using : ",mk_canon(fstr)) ;
+				if ( !has_sfx && fixed.back()=='/'                     ) throw cat("is ends with /, consider using : "  ,no_slash(fstr)) ;
+				if ( has_pfx                                           ) return                                                          ; // further check only for prefix
+				if ( is_lcl(fixed)                                     ) return                                                          ;
 				//
 				// dep is non-local, check if it lies within a source dirs
 				*keep_for_deps = false ;                                      // unless found in a source dir
@@ -444,8 +445,10 @@ namespace Engine {
 			if (+consider) e <<", consider : "<< consider ;
 			throw e ;
 		} ;
-		if (!is_canon(dep)) bad( "is not canonical" , mk_canon(dep) ) ;
-		if (is_lcl(dep)   ) return true/*keep*/ ;
+		if (!dep           ) bad( "is empty"                         ) ;
+		if (!is_canon(dep) ) bad( "is not canonical" , mk_canon(dep) ) ;
+		if (dep.back()=='/') bad( "ends with /"      , no_slash(dep) ) ;
+		if (is_lcl(dep)    ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
 		::string abs_dep = mk_abs( dep , *g_repo_root_s ) ;
@@ -561,7 +564,7 @@ namespace Engine {
 				continue ;
 			}
 			VarIdx      n_unnamed = 0                                                            ;
-			Dflags      df        { Dflag::Essential , Dflag::Static }                           ;
+			Dflags      df        = DflagsDfltStatic                                             ;
 			ExtraDflags edf       ;
 			::string    dep       = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
 			::string    full_dep  = rd.add_cwd( ::move(dep) , edf[ExtraDflag::Top] )             ;
@@ -569,8 +572,8 @@ namespace Engine {
 				bool     keep       = false/*garbage*/                                                                                           ;
 				::string parsed_dep = _subst_fstr( full_dep , var_idxs , n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
 				if (!keep) {
-					if ( key=="python" || key=="shell" ) continue            ;                                                      // accept external dep for interpreter (but ignore it)
-					else                                 throw "is external" ;
+					if ( key=="python" || key=="shell" ) continue             ;                                                     // accept external dep for interpreter (but ignore it)
+					else                                 throw "is external"s ;
 				}
 				//
 				if (n_unnamed) {
@@ -590,8 +593,8 @@ namespace Engine {
 			::pair_s</*msg*/::vmap_s<DepSpec>> res       ;
 			/**/            ::vmap_s<DepSpec>& dep_specs = res.second ;
 			for( auto const& [k,ds] : spec.deps ) {
-				dep_specs.emplace_back( k , DepSpec{ {} , ds.dflags , ds.extra_dflags } ) ; // create an entry for each dep so that indexes stored in other attributes (e.g. cmd) are correct
-				if (!ds.txt) continue ;                                                     // entry is dynamic
+				dep_specs.emplace_back( k , DepSpec{ {} , ds.dflags , ds.extra_dflags } ) ;            // create an entry for each dep so that indexes stored in other attributes (e.g. cmd) are correct
+				if (!ds.txt) continue ;                                                                // entry is dynamic
 				::string  d   = s_parse_fstr(ds.txt,match)  ;
 				::string& txt = dep_specs.back().second.txt ;
 				try                      { if (Rule::s_qualify_dep(k,d)) txt       = ::move(d) ; }
@@ -604,14 +607,14 @@ namespace Engine {
 				//
 				::map_s<VarIdx> dep_idxs ;
 				for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
-				if (spec.full_dyn) SWEAR(!dep_idxs) ;                                                               // no static deps at all for full_dyn
+				if (spec.full_dyn) SWEAR(!dep_idxs) ;                                                  // no static deps at all for full_dyn
 				if (*py_obj!=None)
 					for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
 						if (py_val==None) continue ;
 						::string key = py_key.as_a<Str>() ;
 						try {
-							Dflags      df  { Dflag::Essential , Dflag::Static } ;
-							ExtraDflags edf ;                                      SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps
+							Dflags      df  = DflagsDfltStatic ;
+							ExtraDflags edf ;                    SWEAR(!(edf&~ExtraDflag::Top)) ;      // or we must review side_deps
 							//
 							::string dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
 							DepSpec  ds  { dep , df , edf }                                                                                           ;
@@ -621,8 +624,8 @@ namespace Engine {
 									dep_specs.emplace_back( key , ::move(ds) ) ;
 								} else {
 									DepSpec& ds2 = dep_specs[dep_idxs.at(key)].second ;
-									SWEAR(!ds2.txt) ;                                                               // dep cannot be both static and dynamic
-									ds2 = ::move(ds) ;                                                              // if not full_dyn, all deps must be listed in spec
+									SWEAR(!ds2.txt) ;                                                  // dep cannot be both static and dynamic
+									ds2 = ::move(ds) ;                                                 // if not full_dyn, all deps must be listed in spec
 								}
 							} catch(::string const& e) {
 								if (!res.first) res.first = e ;
@@ -682,9 +685,10 @@ namespace Engine {
 		return res ;
 	}
 
-	string DynCmd::eval( Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& start_cmd_attrs ) const {
+	string DynCmd::eval( bool&/*inout*/ use_script , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& start_cmd_attrs ) const {
 		Rule     r   = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		::string res ;
+		// if script is large (roughly >64k), force use_script to ensure reasonable debug experience and no Linux resources overrun (max 2M for script+env if not use_script)
 		if (!r->is_python) {
 			if (!is_dyn()) {
 				res = s_parse_fstr( entry().code_str , match , rsrcs ) ;
@@ -694,8 +698,11 @@ namespace Engine {
 				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
 				Attrs::acquire( res , &py_obj->as_a<Str>() ) ;
 			}
+			if (res.size()>1<<16) use_script = true ;
 		} else {
-			res << "lmake_root = " << mk_py_str(no_slash(start_cmd_attrs.job_space.lmake_view_s|*g_lmake_root_s)) <<'\n' ;
+			if ( entry().glbs_str.size() + entry().code_str.size() > 1<<16 ) use_script = true ;
+			if ( use_script                                                ) res << "import sys ; sys.path[0] = '' ; del sys.path\n#\n" ; // ensure sys.path is the same as if run with -c, ...
+			res << "lmake_root = " << mk_py_str(no_slash(start_cmd_attrs.job_space.lmake_view_s|*g_lmake_root_s)) <<'\n' ;                // ... del sys to ensure total transparency
 			res << "repo_root  = " << mk_py_str(no_slash(start_cmd_attrs.job_space.repo_view_s |*g_repo_root_s )) <<'\n' ;
 			res << '#'                                                                                            <<'\n' ;
 			eval_ctx( match , rsrcs
@@ -1553,19 +1560,19 @@ namespace Engine {
 		}
 	}
 
-	Rule::RuleMatch::RuleMatch( Rule r , TargetPattern const& pattern , ::string const& name , bool chk_psfx ) {
-		Trace trace("RuleMatch",r,name,STR(chk_psfx)) ;
+	Rule::RuleMatch::RuleMatch( Rule r , TargetPattern const& pattern , ::string const& name , Bool3 chk_psfx ) {
+		Trace trace("RuleMatch",r,name,chk_psfx) ;
 		/**/                                         if (!r) { trace("no_rule" ) ; return ; }
 		Re::Match m = pattern.match(name,chk_psfx) ; if (!m) { trace("no_match") ; return ; }
 		rule = r ;
-		for( VarIdx s : iota(r->n_static_stems) ) stems.push_back(::string(m[pattern.groups[s]])) ;
+		for( VarIdx s : iota(r->n_static_stems) ) stems.push_back( ::string(m.group( name , pattern.groups[s] )) ) ;
 		trace("stems",stems) ;
 	}
 
-	Rule::RuleMatch::RuleMatch( RuleTgt rt , ::string const& target , bool chk_psfx ) : RuleMatch{rt->rule,rt.pattern(),target,chk_psfx} {
+	Rule::RuleMatch::RuleMatch( RuleTgt rt , ::string const& target , Bool3 chk_psfx ) : RuleMatch{rt->rule,rt.pattern(),target,chk_psfx} {
 		if (!self) return ;
 		for( VarIdx t : rt.matches().conflicts ) {
-			if (!rule->patterns[t].match(target,true/*chk_psfx*/)) continue ;
+			if (!rule->patterns[t].match(target)) continue ;
 			rule .clear() ;
 			stems.clear() ;
 			Trace("RuleMatch","conflict",rt.tgt_idx,t) ;

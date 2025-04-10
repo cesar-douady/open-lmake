@@ -14,17 +14,13 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* exceptionnally, server blocks
+! exceptionnally, server blocks
 	- seems to be while taking GIL
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* improve tmp_dir management in ldebug :
-	- LMAKE/debug/<job>tmp if -t is given
-	- else the value it would have if job is launched locally (i.e. lmake.config.local.env.TMPDIR if job contains ...)
-	- if not defined, revert to -t case
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary
@@ -133,11 +129,11 @@ items (also used in XXX comments) :
 	? much like a bunch of resources w/ capacity=1
 	? stored as a set
 ? implement prelude
-	? for very short rules (.pyc, opts, ...), put script in prelude and no cmd
-	? generally speaking, prelude can trigger deps and avoid rerun
-	? use autodep from within server
-		? it should be possible to link in such a way that only Python sees autodep, that would be ideal
-		? once this is done, we may record deps for rsrcs & forbid them for deps computation
+	- this is a kind of artificial submit_cmd_attrs
+		- does not exist yet but straightforward to implement after  submit_rsrcs_attrs
+		! except that write to target is allowed
+	? for very short rules (.pyc, opts, ...), put script in prelude instead of cmd
+	- generally speaking, prelude can avoid rerun as they are executed during analysis
 ? find a way for local resources to be anything
 	? int/float/str/bool/None/... or list/tuple/set/dict thereof
 ? add a new autodep mechanism based on syscall user dispatch
@@ -156,15 +152,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* implement a RsrcsOnly Dflag
-	- or more exactly its opposite as composition is 'or'
-! find a way to serialize global dict
-	- like marshal, with functions
-! prepare namespace while waiting for server if possible
-	- i.e. when tmp size info is static
-	- move views to submit_cmd_attrs
-	- share views in submit_attrs as there is very few variability
-! no req_info for non-buildable nodes
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
@@ -172,6 +159,13 @@ M port to Darwin
 	- find a way to be certain that seq_id is not necessary to qualify job start
 	- difficult to work out : acquire_cmd_line would call _handle_job_start which needs to record pid which we do not have yet
 	- saves about 1% on benchmark (10000)
+! prepare namespace while waiting for server if possible
+	- i.e. when tmp size info is static
+	- move views to submit_cmd_attrs
+	- share views in submit_attrs as there is very few variability
+! no req_info for non-buildable nodes
+! find a way to serialize global dict
+	- like marshal, with functions
 ? evaluate dynamic deps only if static deps match
 	- at least for those deps placed before
 	- is it worth ?
@@ -222,8 +216,10 @@ M manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
+* add unification tests
+* add canonisation and qualification tests
+* add resources only deps tests
 * gcov
-* add a more agressive TU for sub-Lmakefile.py
 * ancillary commands to unit tests
 	- lshow, ...
 ! add a unit_test to validate max_retries_on_lost
@@ -231,7 +227,7 @@ M manage HUGE pages in store
 	- check with 8-bits indexes
 ! test crash recovery
 	- including atomicity of store
-? add a TU for scp
+? add a UT for scp
 
 ****************************************************************************************************
 * TOOLS

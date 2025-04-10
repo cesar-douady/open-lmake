@@ -36,7 +36,8 @@ if __name__!='__main__' :
 		allow_stderr = True
 		cmd = '''
 			ltarget --ignore bad_target
-			cat >bad_target
+			ldepend          bad_target
+			cat             >bad_target
 		'''
 
 	class DynTargetPy(PyRule) :

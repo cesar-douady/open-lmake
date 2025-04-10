@@ -40,12 +40,12 @@ struct AccessDigest {                                                // order is
 	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return self ; }
 	AccessDigest  operator| (Accesses     const& a ) const { return ::copy(self) |= a  ;   }
 	// data
-	Bool3       write        = No ;                                  // if Maybe, write is not confirmed
-	Accesses    accesses     = {} ;
-	Tflags      tflags       = {} ;                                  // dflags are inherited from DepDigest
-	ExtraTflags extra_tflags = {} ;
-	Dflags      dflags       = {} ;
-	ExtraDflags extra_dflags = {} ;
+	Bool3       write        = No            ;                       // if Maybe, write is not confirmed
+	Accesses    accesses     = {}            ;
+	Tflags      tflags       = {}            ;
+	ExtraTflags extra_tflags = {}            ;
+	Dflags      dflags       = DflagsDfltDyn ;
+	ExtraDflags extra_dflags = {}            ;
 } ;
 
 struct JobExecRpcReq {

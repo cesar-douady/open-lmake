@@ -17,14 +17,14 @@ using namespace Hash ;
 
 ::string& operator+=( ::string& os , AccessDigest const& ad ) {
 	const char* sep = "" ;
-	/**/                         os << "AccessDigest("                          ;
-	if      (+ad.accesses    ) { os <<      ad.accesses                         ; sep = "," ; }
-	if      (+ad.dflags      ) { os <<sep<< ad.dflags                           ; sep = "," ; }
-	if      (+ad.extra_dflags) { os <<sep<< ad.extra_dflags                     ; sep = "," ; }
-	if      (+ad.tflags      ) { os <<sep<< ad.tflags                           ; sep = "," ; }
-	if      (+ad.extra_tflags) { os <<sep<< ad.extra_tflags                     ; sep = "," ; }
-	if      ( ad.write!=No   )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
-	return                       os <<')'                                       ;
+	/**/                               os << "AccessDigest("                          ;
+	if      (+ad.accesses          ) { os <<      ad.accesses                         ; sep = "," ; }
+	if      ( ad.dflags!=DflagsDflt) { os <<sep<< ad.dflags                           ; sep = "," ; }
+	if      (+ad.extra_dflags      ) { os <<sep<< ad.extra_dflags                     ; sep = "," ; }
+	if      (+ad.tflags            ) { os <<sep<< ad.tflags                           ; sep = "," ; }
+	if      (+ad.extra_tflags      ) { os <<sep<< ad.extra_tflags                     ; sep = "," ; }
+	if      ( ad.write!=No         )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
+	return                             os <<')'                                       ;
 }
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
