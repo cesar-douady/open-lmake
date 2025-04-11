@@ -287,7 +287,10 @@ namespace Engine::Persistent {
 			break ;
 		}
 		//
-		if (g_config->path_max!=old_config.path_max) invalidate_match() ; // we may discover new buildable nodes or vice versa
+		if (
+			g_config->path_max     !=old_config.path_max
+		||	g_config->max_dep_depth!=old_config.max_dep_depth
+		) invalidate_match() ;                                // we may discover new buildable nodes or vice versa
 	}
 
 	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
