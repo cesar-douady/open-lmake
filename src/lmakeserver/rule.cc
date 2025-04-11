@@ -772,8 +772,9 @@ namespace Engine {
 		if (s<Special::NShared) SWEAR( !src_dir_s                           , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && is_dir_name(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		switch (s) {
-			case Special::Req      : force = true ; break ;
-			case Special::Infinite :                break ;
+			case Special::Req          : force = true ; break ;
+			case Special::InfiniteDep  :
+			case Special::InfinitePath :                break ;
 			case Special::GenericSrc :
 				name             = "source dir" ;
 				job_name         = src_dir_s    ; _append_stem(job_name,0) ;

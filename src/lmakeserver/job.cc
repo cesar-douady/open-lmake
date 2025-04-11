@@ -907,14 +907,15 @@ namespace Engine {
 		}
 		ri.speculate = ri.speculate & speculate ;                                               // cannot use &= with bit fields
 		if (ri.done()) {
-			if (!reason(ri.state).need_run()) goto Wakeup ;
-			if (req.zombie()                ) goto Wakeup ;
-			/**/                              goto Run    ;
+			if (!reason(ri.state).need_run()  ) goto Wakeup ;
+			if (req.zombie()                  ) goto Wakeup ;
+			/**/                                goto Run    ;
 		} else {
-			if (ri.waiting()                ) goto Wait   ;                                     // we may have looped in which case stats update is meaningless and may fail()
-			if (req.zombie()                ) goto Done   ;
-			if (idx().frozen()              ) goto Run    ;                                     // ensure crc are updated, akin sources
-			if (special==Special::Infinite  ) goto Run    ;                                     // special case : Infinite actually has no dep, just a list of node showing infinity
+			if (ri.waiting()                  ) goto Wait   ;                                   // we may have looped in which case stats update is meaningless and may fail()
+			if (req.zombie()                  ) goto Done   ;
+			if (idx().frozen()                ) goto Run    ;                                   // ensure crc are updated, akin sources
+			if (special==Special::InfiniteDep ) goto Run    ;                                   // special case : Infinite's actually have no dep, just a list of node showing infinity
+			if (special==Special::InfinitePath) goto Run    ;                                   // .
 		}
 		if (ri.step()==Step::None) {
 			estimate_stats() ;                                                                  // initial guestimate to accumulate waiting costs while resources are not fully known yet
@@ -1177,21 +1178,45 @@ namespace Engine {
 		}
 	}
 
-	::string JobData::special_stderr(Node node) const {
+	MsgStderr JobData::special_msg_stderr( Node node , bool short_msg ) const {
 		if (is_ok(status)!=No) return {} ;
-		Rule r = rule() ;
+		Rule      r          = rule()            ;
+		MsgStderr msg_stderr ;
+		::string& msg        = msg_stderr.msg    ;
+		::string& stderr     = msg_stderr.stderr ;
 		switch (r->special) {
 			case Special::Plain :
 				SWEAR(idx().frozen()) ;
-				if (+node) return "frozen file does not exist while not phony : "+node->name()+'\n' ;
-				else       return "frozen file does not exist while not phony\n"                    ;
-			case Special::Infinite : {
-				::string res ;
-				for( Dep const& d : deps ) res << d->name() << '\n' ;
-				return res ;
+				if (+node) return {.msg="frozen file does not exist while not phony : "+node->name()+'\n'} ;
+				else       return {.msg="frozen file does not exist while not phony\n"                   } ;
+			case Special::InfiniteDep  :
+				msg << cat("max dep depth limit (",g_config->max_dep_depth,") reached, consider : lmake.config.max_dep_depth = ",g_config->max_dep_depth+1     ," (or larger)") ;
+				goto DoInfinitePath ;
+			case Special::InfinitePath : {
+				msg << cat("max path limit ("     ,g_config->path_max     ,") reached, consider : lmake.config.max_path = "     ,(*deps.begin())->name().size()," (or larger)") ;
+			DoInfinitePath :
+				if (short_msg) {
+					auto gen_dep = [&](::string const& dn)->void {
+						if (dn.size()>111) stderr << dn.substr(0,50)<<"...("<<widen(cat(dn.size()-100),3,true/*right*/)<<")..."<<dn.substr(dn.size()-50) ;
+						else               stderr << dn                                                                                                  ;
+						stderr <<'\n' ;
+					} ;
+					::vector_s dns ;
+					for( Dep const& d : deps ) dns.push_back(d->name()) ;
+					if (dns.size()>23) {
+						for( NodeIdx i : iota(10) )   gen_dep(dns[              i]) ;
+						for( NodeIdx _ : iota( 3) ) { stderr << ".\n.\n.\n"         ; (void)_ ; }
+						for( NodeIdx i : iota(10) )   gen_dep(dns[dns.size()-10+i]) ;
+					} else {
+						for( ::string const& dn : dns ) gen_dep(dn) ;
+					}
+				} else {
+					for( Dep const& d : deps ) stderr << d->name() << '\n' ;
+				}
+				return msg_stderr ;
 			}
 			default :
-				return r->special+" error\n"s ;
+				return {.msg=cat(r->special," error\n")} ;
 		}
 	}
 
@@ -1233,7 +1258,8 @@ namespace Engine {
 			case Special::Req :
 				status = Status::Ok ;
 			break ;
-			case Special::Infinite :
+			case Special::InfiniteDep  :
+			case Special::InfinitePath :
 				status = Status::Err ;
 				audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ;
 			break ;
@@ -1400,9 +1426,9 @@ namespace Engine {
 		SWEAR( status>Status::Garbage , status ) ;
 		Trace trace("audit_end_special",idx(),req,step,modified,status) ;
 		//
-		bool     frozen_  = idx().frozen()       ;
-		::string stderr   = special_stderr(node) ;
-		::string step_str ;
+		bool      frozen_    = idx().frozen()           ;
+		MsgStderr msg_stderr = special_msg_stderr(node) ;
+		::string  step_str   ;
 		switch (step) {
 			case SpecialStep::Idle :                                                                             break ;
 			case SpecialStep::Ok   : step_str = modified==Yes ? "changed" : modified==Maybe ? "new" : "steady" ; break ;
@@ -1419,8 +1445,9 @@ namespace Engine {
 			else           step_str  = "frozen"  ;
 		}
 		if (+step_str) {
-			/**/         req->audit_job (color      ,step_str,idx()  ) ;
-			if (+stderr) req->audit_info(Color::None,stderr        ,1) ;
+			/**/                    req->audit_job (color      ,step_str,idx()     ) ;
+			if (+msg_stderr.msg   ) req->audit_info(Color::Note,msg_stderr.msg   ,1) ;
+			if (+msg_stderr.stderr) req->audit_info(Color::None,msg_stderr.stderr,1) ;
 		}
 	}
 

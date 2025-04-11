@@ -283,15 +283,15 @@ namespace Engine {
 		// static data
 	private :
 		static Mutex<MutexLvl::TargetDir> _s_target_dirs_mutex ;
-		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ;                                                        // dirs created for job execution that must not be deleted
-		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ;                                                        // uphill hierarchy of _s_target_dirs
+		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ;                                                         // dirs created for job execution that must not be deleted
+		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ;                                                         // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
 		JobData(                                  ) = default ;
 		JobData( Name n                           ) : JobNodeData{n}                                      {}
-		JobData( Name n , Special sp , Deps ds={} ) : JobNodeData{n} , deps{ds} , rule_crc{Rule(sp)->crc} {}            // special Job, all deps
+		JobData( Name n , Special sp , Deps ds={} ) : JobNodeData{n} , deps{ds} , rule_crc{Rule(sp)->crc} {}             // special Job, all deps
 		//
-		JobData( Name n , Rule::RuleMatch const& m , Deps sds ) : JobNodeData{n} , deps{sds} , rule_crc{m.rule->crc} {  // plain Job, static targets and deps
+		JobData( Name n , Rule::RuleMatch const& m , Deps sds ) : JobNodeData{n} , deps{sds} , rule_crc{m.rule->crc} {   // plain Job, static targets and deps
 			SWEAR(!m.rule.is_shared()) ;
 			_reset_targets(m) ;
 		}
@@ -311,24 +311,24 @@ namespace Engine {
 		::string name() const {
 			::string res ;
 			if ( Rule r=rule() ; +r )   res = full_name(r->job_sfx_len()) ;
-			else                      { res = full_name(                ) ; res.resize(res.find(RuleData::JobMrkr)) ; } // heavier, but works without rule
+			else                      { res = full_name(                ) ; res.resize(res.find(RuleData::JobMrkr)) ; }  // heavier, but works without rule
 			return res ;
 		}
 		::string unique_name() const ;
 		//
 		ReqInfo const& c_req_info  ( Req                                        ) const ;
 		ReqInfo      & req_info    ( Req                                        ) const ;
-		ReqInfo      & req_info    ( ReqInfo const&                             ) const ;                               // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info    ( ReqInfo const&                             ) const ;                                // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs        (                                            ) const ;
 		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
-		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                               // fast implementation of +running_reqs(...)
+		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                // fast implementation of +running_reqs(...)
 		//
 		bool cmd_ok    (   ) const { return                      rule_crc->state<RuleCrcState::CmdOld ; }
-		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }               // dont care about rsrcs if job went ok
+		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }                // dont care about rsrcs if job went ok
 		bool is_special(   ) const { return rule()->is_special() || idx().frozen()                    ; }
 		bool has_req   (Req) const ;
 		//
-		void set_exec_ok() { Rule r = rule() ; SWEAR(!r->is_special(),r->special) ; rule_crc = r->crc ; }               // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
+		void set_exec_ok() { Rule r = rule() ; SWEAR(!r->is_special(),r->special) ; rule_crc = r->crc ; }                // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
 		//
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
@@ -342,24 +342,24 @@ namespace Engine {
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }
 		// services
-		vmap<Node,FileAction> pre_actions( Rule::RuleMatch const& , bool mark_target_dirs=false ) const ;               // thread-safe
+		vmap<Node,FileAction> pre_actions( Rule::RuleMatch const& , bool mark_target_dirs=false ) const ;                // thread-safe
 		//
 		Tflags tflags(Node target) const ;
 		//
-		void     end_exec      (                                   ) const ;                                            // thread-safe
-		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const { return idx().ancillary_file(tag) ; }
-		::string special_stderr(Node                               ) const ;
-		::string special_stderr(                                   ) const ;                                            // cannot declare a default value for incomplete type Node
+		void      end_exec          (                                     ) const ;                                      // thread-safe
+		::string  ancillary_file    ( AncillaryTag tag=AncillaryTag::Data ) const { return idx().ancillary_file(tag) ; }
+		MsgStderr special_msg_stderr( Node , bool short_msg=false         ) const ;
+		MsgStderr special_msg_stderr(        bool short_msg=false         ) const ;                                      // cannot declare a default value for incomplete type Node
 		//
-		Rule::RuleMatch rule_match    (                                              ) const ;                          // thread-safe
-		void            estimate_stats(                                              ) ;                                // may be called any time
-		void            estimate_stats(                                      Tokens1 ) ;                                // must not be called during job execution as cost must stay stable
-		void            record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 ) ;                                // .
+		Rule::RuleMatch rule_match    (                                              ) const ;                           // thread-safe
+		void            estimate_stats(                                              ) ;                                 // may be called any time
+		void            estimate_stats(                                      Tokens1 ) ;                                 // must not be called during job execution as cost must stay stable
+		void            record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 ) ;                                 // .
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ;                                         // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ;                                          // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.reported && ri.done() ) {
@@ -378,14 +378,14 @@ namespace Engine {
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
 		//
-		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ;                                     // modified=Maybe means file is new
-		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ;                                     // cannot use default Node={} as Node is incomplete
+		void audit_end_special( Req , SpecialStep , Bool3 modified , Node ) const ;                                      // modified=Maybe means file is new
+		void audit_end_special( Req , SpecialStep , Bool3 modified        ) const ;                                      // cannot use default Node={} as Node is incomplete
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
 		void _propag_speculate(ReqInfo const&) const ;
 		//
-		void                   _submit_special ( ReqInfo&                        ) ;                                    // special never report new deps
+		void                   _submit_special ( ReqInfo&                        ) ;                                     // special never report new deps
 		bool/*maybe_new_deps*/ _submit_plain   ( ReqInfo& , CoarseDelay pressure ) ;
 		void                   _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
 		// data
@@ -463,8 +463,8 @@ namespace Engine {
 	inline JobData::~JobData          (            ) {                                                            targets.pop   () ;    deps.pop   () ;               }
 	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; self = jd ; jd.targets.forget() ; jd.deps.forget() ; return self ; }
 
-	inline ::string JobData::special_stderr   (                                 ) const { return special_stderr   (      {}) ; }
-	inline void     JobData::audit_end_special( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}) ; }
+	inline MsgStderr JobData::special_msg_stderr( bool short_msg                  ) const { return special_msg_stderr({},short_msg) ; }
+	inline void      JobData::audit_end_special ( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}     ) ; }
 
 	inline Tflags JobData::tflags(Node target) const {
 		Target t = *::lower_bound( targets , {target,{}} ) ;

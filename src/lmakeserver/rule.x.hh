@@ -56,7 +56,8 @@ ENUM_2( Special
 //
 ,	None            // value 0 reserved to mean not initialized
 ,	Req
-,	Infinite
+,	InfiniteDep
+,	InfinitePath
 ,	Plain
 // ordered by decreasing matching priority within each prio
 ,	Anti

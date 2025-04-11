@@ -165,10 +165,10 @@ namespace Engine {
 		return true/*updated*/ ;
 	}
 
-	void NodeData::set_infinite(::vector<Node> const& deps) {
+	void NodeData::set_infinite( Special s , ::vector<Node> const& deps ) {
 		Trace trace("set_infinite",idx(),deps) ;
 		job_tgts().assign(::vector<JobTgt>({{
-			Job( Special::Infinite , idx() , Deps(deps,{}/*accesses*/,{}/*dflags*/,false/*parallel*/) )
+			Job( s , idx() , Deps(deps,{}/*accesses*/,{}/*dflags*/,false/*parallel*/) )
 		,	true/*is_sure*/
 		}})) ;
 		Buildable buildable_ = Buildable::Yes ;
@@ -262,18 +262,18 @@ namespace Engine {
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
 	Buildable NodeData::_gather_prio_job_tgts( ::string const& name_ , Req req , DepDepth lvl ) {
 		//
-		RuleIdx           prio       = 0                  ;                    // initially, we are ready to accept any rule
+		RuleIdx           prio       = 0                  ;                                         // initially, we are ready to accept any rule
 		RuleIdx           n          = 0                  ;
-		Buildable         buildable  = Buildable::No      ;                    // return val if we find no job candidate
+		Buildable         buildable  = Buildable::No      ;                                         // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
 		//
 		SWEAR(is_lcl(name_),name_) ;
-		::vector<JobTgt> jts ; jts.reserve(rule_tgts_.size()) ;                // typically, there is a single priority
+		::vector<JobTgt> jts ; jts.reserve(rule_tgts_.size()) ;                                     // typically, there is a single priority
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			Rule r = rt->rule ; if (!r) continue ;
 			SWEAR(!r->is_special()) ;
 			if (r->prio<prio) goto Done ;
-			if (lvl>=g_config->max_dep_depth) throw ::vector<Node>() ;         // too deep, must be an infinite dep path
+			if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ; // too deep, must be an infinite dep path
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobTgt jt = JobTgt(rt,name_,Maybe/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -297,7 +297,7 @@ namespace Engine {
 
 	void NodeData::_do_set_buildable( Req req , DepDepth lvl ) {
 		Trace trace("_do_set_buildable",idx(),req,lvl) ;
-		switch (buildable) {                                                                                        // ensure we do no update sources
+		switch (buildable) {                                                                                                                     // ensure we do no update sources
 			case Buildable::Src    :
 			case Buildable::SrcDir :
 			case Buildable::Anti   : SWEAR(!rule_tgts(),rule_tgts()) ; goto Return ;
@@ -310,11 +310,11 @@ namespace Engine {
 		{	::string name_ = name() ;
 			//
 			{	Buildable buildable_ = _gather_special_rule_tgts(name_) ;
-				//                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (buildable_<=Buildable::No      ) { buildable = Buildable::No       ; goto Return            ; } // AntiRule have priority so no warning message is generated
-				if (name_.size()>g_config->path_max) {                                   throw ::vector<Node>() ; } // path is ridiculously long, pretend an infinite recursion (most probable cause)
-				if (buildable_>=Buildable::Yes     ) { buildable = buildable_          ; goto Return            ; }
-				//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                                     vvvvvvvvvvvvvvvvvvvvvvvvv
+				if (buildable_<=Buildable::No      ) { buildable = Buildable::No ; goto Return                                               ; } // AntiRule's have priority so no warning message
+				if (name_.size()>g_config->path_max) {                             throw ::pair(Special::InfinitePath,::vector<Node>{idx()}) ; } // path is ridiculously long, pretend an ...
+				if (buildable_>=Buildable::Yes     ) { buildable = buildable_    ; goto Return                                               ; } // ... infinite recursion
+				//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			buildable = Buildable::Loop ;                                     // during analysis, temporarily set buildable to break loops (will be caught at exec time) ...
 			try {                                                             // ... in case of crash, rescue mode is used and ensures all matches are recomputed
@@ -348,10 +348,10 @@ namespace Engine {
 				buildable = buildable_ ;
 				//^^^^^^^^^^^^^^^^^^^^
 				goto Return ;
-			} catch (::vector<Node>& e) {
+			} catch (::pair<Special,::vector<Node>>& e) {
 				buildable = Buildable::Unknown ;                              // restore Unknown as we do not want to appear as having been analyzed
 				match_gen = 0                  ;
-				e.push_back(idx()) ;
+				e.second.push_back(idx()) ;
 				throw ;
 			}
 		}
@@ -479,7 +479,7 @@ namespace Engine {
 						SWEAR(is_lcl(lazy_name()),lazy_name()) ;
 						if (query) { trace("query","unlnk") ; return false ; }
 						unlnk(lazy_name(),true/*dir_ok*/) ;                                             // wash pollution if not manual
-						req->audit_job( Color::Warning , "unlink" , "no_rule" , lazy_name() ) ;
+						req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , lazy_name() ) ;
 					}
 					refresh(Crc::None) ;                                                                // if not physically unlinked, node will be manual
 					actual_job() = {} ;
@@ -578,8 +578,8 @@ namespace Engine {
 						buildable = buildable | _gather_prio_job_tgts(req) ;
 						//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if (ri.prio_idx>=job_tgts().size()) break ;                          // fast path
-					} catch (::vector<Node> const& e) {
-						set_infinite(e) ;
+					} catch (::pair<Special,::vector<Node>> const& e) {
+						set_infinite(e.first,e.second) ;
 						break ;
 					}
 				}

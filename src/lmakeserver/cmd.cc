@@ -542,8 +542,10 @@ namespace Engine {
 					switch (ro.key) {
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
-							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job , lvl   ) ;
-							audit     ( fd , ro , job->special_stderr() , false/*as_is*/   , lvl+1 ) ;
+							MsgStderr msg_stderr = job->special_msg_stderr() ;
+							_audit_job( fd , ro , false/*show_deps*/ , false/*hide*/ , job         , lvl   ) ;
+							audit     ( fd , ro , Color::Note , msg_stderr.msg    , false/*as_is*/ , lvl+1 ) ;
+							audit     ( fd , ro ,               msg_stderr.stderr , false/*as_is*/ , lvl+1 ) ;
 						} break ;
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :

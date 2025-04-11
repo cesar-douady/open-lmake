@@ -71,7 +71,7 @@ However, there is an associated cost which may be useless in some situations.
 | `'file'` | symbolic links are only supported if pointing to files |
 | `'none'` | symbolic links are not supported                       |
 
-### `max_dep_depth`: Static (`1000`)
+### `max_dep_depth`: Static (`100`)
 
 The [rule selection](rule_selection.hml) process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.
@@ -96,7 +96,7 @@ This attribute provides an approximate upper bound of the time it takes for an e
 
 The default value should fit most cases.
 
-### `path_max` : Static (`400`)
+### `path_max` : Static (`200`)
 
 The [rule selection](rule_selection.html) process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.

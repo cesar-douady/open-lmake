@@ -96,9 +96,9 @@ namespace Engine {
 		Time::Delay       ddate_prec      { 0.01 } ; // precision of dates on disk
 		Time::Delay       heartbeat       { 10   } ; // min time between successive heartbeat probes for any given job
 		Time::Delay       heartbeat_tick  { 0.01 } ; // min time between successive heartbeat probes
-		DepDepth          max_dep_depth   = 1000   ; // max dep of the whole flow used to detect infinite recursion
+		DepDepth          max_dep_depth   = 100    ; // max dep of the whole flow used to detect infinite recursion
 		Time::Delay       network_delay   { 1    } ;
-		size_t            path_max        = 400    ; // if -1 <=> unlimited
+		size_t            path_max        = 200    ; // if -1 <=> unlimited
 		::vector_s        sub_repos_s     ;
 		TraceConfig       trace           ;
 		::vector<Cache>   caches          ;

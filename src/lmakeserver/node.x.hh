@@ -485,7 +485,7 @@ namespace Engine {
 			_propag_speculate(ri) ;
 		}
 		//
-		void set_infinite(::vector<Node> const& deps) ;
+		void set_infinite( Special , ::vector<Node> const& deps ) ;
 		//
 		void make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
 		void wakeup( ReqInfo& ri                                 ) { return make(ri,MakeAction::Wakeup) ; }
@@ -626,9 +626,9 @@ namespace Engine {
 		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 
-	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {        // req is for error reporting only
-		try                             { set_buildable_throw(req,lvl) ; }
-		catch (::vector<Node> const& e) { set_infinite(e) ;              }
+	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {                          // req is for error reporting only
+		try                                             { set_buildable_throw(req,lvl) ;   }
+		catch (::pair<Special,::vector<Node>> const& e) { set_infinite(e.first,e.second) ; }
 		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 

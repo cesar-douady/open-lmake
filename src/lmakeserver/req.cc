@@ -251,10 +251,13 @@ namespace Engine {
 		//
 		if ( !seen_stderr && job->run_status==RunStatus::Ok ) // show first stderr
 			switch (r->special) {
-				case Special::Infinite :
-					self->audit_info( Color::None , job->special_stderr() , lvl+1 ) ;
+				case Special::InfiniteDep  :
+				case Special::InfinitePath : {
+					MsgStderr msg_stderr = job->special_msg_stderr(true/*short_msg*/) ;
+					self->audit_info( Color::Note , msg_stderr.msg    , lvl+1 ) ;
+					self->audit_info( Color::None , msg_stderr.stderr , lvl+1 ) ;
 					seen_stderr = true ;
-				break ;
+				} break ;
 				case Special::Plain : {
 					Rule::RuleMatch match ;
 					JobEndRpcReq    jerr  = job.job_info(JobInfoKind::End).end ;

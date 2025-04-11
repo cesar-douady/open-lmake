@@ -176,10 +176,8 @@ namespace Engine::Persistent {
 	:	             Idxed<RuleIdx>
 	{	using Base = Idxed<RuleIdx> ;
 		friend Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared) ;
-	private :
-		static constexpr char _Name[] = "no_rule" ;                       // cannot use ::strlen which not constexpr with clang
-	public :
-		static constexpr size_t NameSz = sizeof(_Name)-1 ;                // -1 to account for teminating null, minimum size of the rule field : account for internally generated messages
+		static constexpr char   NoRuleName[] = "no_rule"            ;
+		static constexpr size_t NoRuleNameSz = sizeof(NoRuleName)-1 ;                // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
 		// statics
 		static void s_from_disk       (       ) ;
 		static void s_from_vec_dyn    (Rules&&) ;
