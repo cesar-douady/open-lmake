@@ -28,7 +28,8 @@ struct Record {
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
 	// statics
-	static bool s_is_simple (const char*) ;
+	static bool s_is_simple(const char*         ) ;
+	static bool s_is_simple(::string const& path) { return s_is_simple(path.c_str()) ; }
 	//
 	static bool s_has_server() {
 		return _s_autodep_env->has_server() ;
@@ -174,7 +175,7 @@ public :
 	}
 	#undef FL
 	//
-	template<bool Writable=false> struct _Path {                                                                    // if !Writable <=> file is is read-only
+	template<bool Writable=false> struct _Path {                                                                  // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
 		_Path(                          )                           {                       }
@@ -190,8 +191,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                                                                             // safer to avoid dangling pointers
-			p.allocated = false       ;                                                                             // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                                                                           // safer to avoid dangling pointers
+			p.allocated = false       ;                                                                           // we have clobbered allocation, so it is no more p's responsibility
 			return self ;
 		}
 		~_Path() { _deallocate() ; }
@@ -204,16 +205,16 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                                                                            // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                                                                          // +1 to account for terminating null
 			::memcpy( buf , file , sz+1 ) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-		Char* file      = nullptr ;                                                                                 // at & file may be modified, but together, they always refer to the same file ...
-		Fd    at        = Fd::Cwd ;                                                                                 // ... except in the case of mkstemp (& al.) that modifies its arg in place
-		bool  allocated = false   ;                                                                                 // if true <=> file has been allocated and must be freed upon destruction
+		Char* file      = nullptr ;                                                                               // at & file may be modified, but together, they always refer to the same file ...
+		Fd    at        = Fd::Cwd ;                                                                               // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool  allocated = false   ;                                                                               // if true <=> file has been allocated and must be freed upon destruction
 	} ; //!            Writable
 	using Path  = _Path<false> ;
 	using WPath = _Path<true > ;
@@ -233,18 +234,18 @@ public :
 				if ( ::vmap_s<::vector_s> const& views = s_autodep_env().views ; +views ) {
 					Fd repo_root_fd = s_repo_root_fd() ;
 					for( auto const& [view,phys] : s_autodep_env().views ) {
-						if (!phys                                                                      ) continue ; // empty phys do not represent a view
-						if (!( file.starts_with(view) && (is_dirname(view)||file.size()==view.size()) )) continue ;
+						if (!phys                                                                       ) continue ; // empty phys do not represent a view
+						if (!( file.starts_with(view) && (is_dir_name(view)||file.size()==view.size()) )) continue ;
 						for( size_t i : iota(phys.size()) ) {
 							bool     last  = i==phys.size()-1                                               ;
 							::string f     = phys[i] + substr_view(file,view.size())                        ;
 							FileInfo fi    = !last||+a ? FileInfo(repo_root_fd,f) : FileInfo(FileTag::None) ;
-							bool     found = fi.exists() || !read                                           ;       // if not reading, assume file is found in upper
-							fl = r._real_path.file_loc(f) ;                                                         // use f before ::move
+							bool     found = fi.exists() || !read                                           ;     // if not reading, assume file is found in upper
+							fl = r._real_path.file_loc(f) ;                                                       // use f before ::move
 							if (store) {
 								if      (last ) { real  = f ; file_loc  = fl ; }
 								else if (found) { real  = f ; file_loc  = fl ; }
-								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                    // real0 is only significative when not equal to real
+								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                  // real0 is only significative when not equal to real
 							}
 							if      (last ) { if (+a) r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a             } , .file=::move(f) , .file_info=fi } ) ; return ; }
 							else if (found) {         r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a|Access::Stat} , .file=::move(f) , .file_info=fi } ) ; return ; }

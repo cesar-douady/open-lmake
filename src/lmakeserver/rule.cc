@@ -243,7 +243,15 @@ namespace Engine {
 					::string const& f_s    = abs_sd ? abs_fixed : rel_fixed ;
 					::string const& d_s    = abs_sd ? abs_dir_s : rel_dir_s ;
 					if (!( has_sfx && sd_s.starts_with(f_s) )) {              // we only have a prefix, could lie in this source dir when complemented if we have the right initial part
-						if ( !d_s.starts_with(sd_s)   ) continue ;                                                                                               // not in this source dir
+						bool inside = d_s.starts_with(sd_s) ;
+						if ( !abs_sd && sd_s.ends_with("../") && (sd_s.size()==3||sd_s[sd_s.size()-4]=='/') ) { // sd_s is entirely composed of .. components (as it is canonical)
+							inside = !inside ;                                                                  // criteria is reversed when dealing with ..'s
+							if (!inside) {
+								const char* p = &d_s[sd_s.size()] ;
+								inside = !( p[0]=='.' && p[1]=='.' && (p[2]=='/'||p[2]==0) ) ;
+							}
+						}
+						if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
 						if (  is_abs(fstr) && !abs_sd ) throw "must be relative inside source dir "+no_slash(sd_s)+", consider : "+mk_rel(fstr,*g_repo_root_s) ;
 						if ( !is_abs(fstr) &&  abs_sd ) throw "must be absolute inside source dir "+no_slash(sd_s)+", consider : "+mk_abs(fstr,*g_repo_root_s) ;
 					}
@@ -455,16 +463,27 @@ namespace Engine {
 		if (is_lcl_s(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
-			if (is_lcl_s(sd_s)) continue ;                                                                                                      // nothing to recognize inside repo
-			::string const& d = is_abs_s(sd_s) ? abs_dep : rel_dep ;
-			if (!( d.starts_with(sd_s) && is_lcl_s(d.substr(sd_s.size())) )) continue ;                                                         // not in this source dir
-			if (    is_abs(dep) && !is_abs_s(sd_s)                         ) bad( cat("must be relative inside source dir ",sd_s) , rel_dep ) ;
-			if (   !is_abs(dep) &&  is_abs_s(sd_s)                         ) bad( cat("must be absolute inside source dir ",sd_s) , abs_dep ) ;
+			if (is_lcl_s(sd_s)) continue ;                                                                    // nothing to recognize inside repo
+			bool            abs_sd = is_abs_s(sd_s)             ;
+			::string const& d      = abs_sd ? abs_dep : rel_dep ;
+			bool            inside = d.starts_with(sd_s)        ;
+			if ( !abs_sd && sd_s.ends_with("../") && (sd_s.size()==3||sd_s[sd_s.size()-4]=='/') ) {           // sd_s is entirely composed of .. components (as it is canonical)
+				inside = !inside ;                                                                            // criteria is reversed when dealing with ..'s
+				if (!inside) {
+					const char* p = &d[sd_s.size()] ;
+					inside = !( p[0]=='.' && p[1]=='.' && (p[2]=='/'||p[2]==0) ) ;
+				}
+			} else {
+				inside = d.starts_with(sd_s) ;
+			}
+			if ( !inside                 ) continue ;                                                         // dont keep dep because of this source dir if not inside it
+			if (  is_abs(dep) && !abs_sd ) bad( cat("must be relative inside source dir ",sd_s) , rel_dep ) ;
+			if ( !is_abs(dep) &&  abs_sd ) bad( cat("must be absolute inside source dir ",sd_s) , abs_dep ) ;
 			return true/*keep*/ ;
 		}
-		if ( key=="python" || key=="shell" ) return false/*keep*/ ;                                                                             // accept external dep for interpreter (but ignore it)
+		if ( key=="python" || key=="shell" ) return false/*keep*/ ;                                           // accept external dep for interpreter (but ignore it)
 		bad( "is outside repository and all source dirs" , "suppress dep" ) ;
-		return false/*garage*/ ;                                                                                                                // never reached
+		return false/*garage*/ ;                                                                              // never reached
 	}
 
 	//
@@ -750,8 +769,8 @@ namespace Engine {
 	RuleData::RuleData( Special s , ::string const& src_dir_s ) : special{s} , name{snake(s)} {
 		SWEAR(+s) ;
 		//
-		if (s<Special::NShared) SWEAR( !src_dir_s                          , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
-		else                    SWEAR( +src_dir_s && is_dirname(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
+		if (s<Special::NShared) SWEAR( !src_dir_s                           , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
+		else                    SWEAR( +src_dir_s && is_dir_name(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		switch (s) {
 			case Special::Req      : force = true ; break ;
 			case Special::Infinite :                break ;
@@ -762,13 +781,13 @@ namespace Engine {
 				n_static_stems   = 1            ;
 				n_static_targets = 1            ;
 				n_statics        = 1            ;
-				allow_ext        = true         ;                                              // sources may lie outside repo
+				allow_ext        = true         ;                                               // sources may lie outside repo
 				stems         .emplace_back("",".*"                ) ;
 				stem_mark_cnts.push_back   (0                      ) ;
 				matches       .emplace_back("",MatchEntry{job_name}) ;
 			break ;
 		DF}
-		_set_crcs({}) ;                                                                        // rules is not necessary for special rules
+		_set_crcs({}) ;                                                                         // rules is not necessary for special rules
 	}
 
 	::string& operator+=( ::string& os , RuleData const& rd ) {

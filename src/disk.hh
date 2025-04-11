@@ -71,8 +71,8 @@ namespace Disk {
 	::string mk_canon( ::string const&                                                                 ) ;
 	//
 	inline bool has_dir(::string const& path) {
-		if (path.size()<3) return false ;       // we must have at least 2 components and a / to have a dir component
-		return path.find('/',1)<path.size()-2 ; // search a / at neither ends of path
+		if (path.size()<3) return false ;                                                                  // we must have at least 2 components and a / to have a dir component
+		return path.find('/',1)<path.size()-2 ;                                                            // search a / at neither ends of path
 	}
 	inline ::string dir_name_s( ::string const& path , FileNameIdx n=1 ) {
 		SWEAR( n>=1 , path ) ;
@@ -93,8 +93,8 @@ namespace Disk {
 		throw_unless( path!="/" , "no base for /"          ) ;
 		return path ;
 	}
-	inline bool is_dirname( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
-	inline bool is_in_dir ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
+	inline bool is_dir_name( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
+	inline bool is_in_dir  ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
 
 	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
 	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute

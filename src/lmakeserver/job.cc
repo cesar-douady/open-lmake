@@ -1108,7 +1108,7 @@ namespace Engine {
 		report_reason = ri.reason = reason(ri.state) ;                                             // ensure we have a reason to report that we would have run if not queried
 		trace("run",ri,run_status) ;
 		if ( query && !is_special() )                     goto Return                      ;
-		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; }     // cant run if we are missing some deps on disk
+		if ( ri.state.missing_dsk   ) { ri.reset(idx()) ; goto RestartAnalysis/*BACKWARD*/ ; }     // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
 		inc_submits(ri.reason.tag) ;
 		//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (is_special()) {      _submit_special( ri                ) ; goto Done ; }              // special never report new deps

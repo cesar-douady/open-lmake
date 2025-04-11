@@ -3,49 +3,91 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-bad_target_dep = (
-	( '.'                       , 'a'                       )
-,	( '/'                       , 'a'                       )
-,	( '/{File}'                 , 'a'                       )
-,	( './{File}'                , 'a'                       )
-,	( '../{File}'               , 'a'                       )
-,	( '{File}/'                 , 'a'                       )
-,	( '{File}/.'                , 'a'                       )
-,	( '{File}/..'               , 'a'                       )
-,	( '{File}//{File}'          , 'a'                       )
-,	( '{File}/./{File}'         , 'a'                       )
-,	( '{File}/../{File}'        , 'a'                       )
-,	( '{File}//.././..//{File}' , 'a'                       )
-,	( '{File}'                  , '/{File}'                 )
-,	( '.{File}'                 , './{File}'                )
-,	( '..{File}'                , '../{File}'               )
-,	( '{File}'                  , '{File}/'                 )
-,	( '{File}.'                 , '{File}/.'                )
-,	( '{File}..'                , '{File}/..'               )
-,	( '{File}{File}'            , '{File}//{File}'          )
-,	( '{File}.{File}'           , '{File}/./{File}'         )
-,	( '{File}..{File}'          , '{File}/../{File}'        )
-,	( '{File}../.{File}'        , '{File}//.././..//{File}' )
-)
+bad_target_dep = {
+	'' : (
+		{ 'tgt':'.'                       , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'/'                       , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'/{File}'                 , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'./{File}'                , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'../{File}'               , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}/'                 , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}/.'                , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}/..'               , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}//{File}'          , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}/./{File}'         , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}/../{File}'        , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}//.././..//{File}' , 'dep':'x'                       , 'ok':False }
+	,	{ 'tgt':'{File}'                  , 'dep':'/{File}'                 , 'ok':False }
+	,	{ 'tgt':'.{File}'                 , 'dep':'./{File}'                , 'ok':False }
+	,	{ 'tgt':'..{File}'                , 'dep':'../{File}'               , 'ok':False }
+	,	{ 'tgt':'{File}'                  , 'dep':'{File}/'                 , 'ok':False }
+	,	{ 'tgt':'{File}.'                 , 'dep':'{File}/.'                , 'ok':False }
+	,	{ 'tgt':'{File}..'                , 'dep':'{File}/..'               , 'ok':False }
+	,	{ 'tgt':'{File}{File}'            , 'dep':'{File}//{File}'          , 'ok':False }
+	,	{ 'tgt':'{File}.{File}'           , 'dep':'{File}/./{File}'         , 'ok':False }
+	,	{ 'tgt':'{File}..{File}'          , 'dep':'{File}/../{File}'        , 'ok':False }
+	,	{ 'tgt':'{File}../.{File}'        , 'dep':'{File}//.././..//{File}' , 'ok':False }
+	)
+,	'..' : (
+		{ 'tgt':'../{File}'     , 'dep':'x'             , 'ok':False }
+	,	{ 'tgt':'../x{File}'    , 'dep':'x'             , 'ok':False }
+	,	{ 'tgt':'../../{File}'  , 'dep':'x'             , 'ok':False }
+	,	{ 'tgt':'..//../{File}' , 'dep':'x'             , 'ok':False }
+	,	{ 'tgt':'..{File}'      , 'dep':'../{File}'     , 'ok':True  }
+	,	{ 'tgt':'..x{File}'     , 'dep':'../x{File}'    , 'ok':True  }
+	,	{ 'tgt':'....{File}'    , 'dep':'../../{File}'  , 'ok':False }
+	,	{ 'tgt':'....{File}'    , 'dep':'..//../{File}' , 'ok':False }
+	)
+,	'/' : (
+		{ 'tgt':'x' , 'dep':'y' , 'ok':False }
+	,)
+,	'/usr' : (
+		{ 'tgt':'x' , 'dep':'y' , 'ok':False }
+	,)
+,	'../base' : (
+		{ 'tgt':'..{File}'   , 'dep':'../{File}'     , 'ok':True  }
+	,	{ 'tgt':'..x{File}'  , 'dep':'../x{File}'    , 'ok':False }
+	,	{ 'tgt':'..x{File}'  , 'dep':'../base{File}' , 'ok':True  }
+	,	{ 'tgt':'....{File}' , 'dep':'../../{File}'  , 'ok':False }
+	,	{ 'tgt':'....{File}' , 'dep':'..//../{File}' , 'ok':False }
+	)
+,	'/tmp' : (
+		{ 'tgt':'..{File}'   , 'dep':'../{File}'     , 'ok':False }
+	,	{ 'tgt':'..x{File}'  , 'dep':'../x{File}'    , 'ok':False }
+	,	{ 'tgt':'....{File}' , 'dep':'../../{File}'  , 'ok':False }
+	,	{ 'tgt':'....{File}' , 'dep':'..//../{File}' , 'ok':False }
+	,	{ 'tgt':'..x{File}'  , 'dep':'/x{File}'      , 'ok':False }
+	,	{ 'tgt':'..x{File}'  , 'dep':'/{File}'       , 'ok':True  }
+	,	{ 'tgt':'..x{File}'  , 'dep':'/tmp{File}'    , 'ok':True  }
+	)
+}
 
 if __name__!='__main__' :
 
 	import lmake
 	from lmake.rules import Rule
 
-	from step import step
+	import step
 
-	lmake.manifest = (
+	import sys
+
+	lmake.manifest = [
 		'Lmakefile.py'
 	,	'step.py'
-	)
+	]
 
-	if step<len(bad_target_dep) :
+	if step.bad :
+		print('bad',step.src_dir,step.step,file=sys.stderr)
+		if step.src_dir :
+			if step.src_dir[-1]=='/' : lmake.manifest.append(step.src_dir    )
+			else                     : lmake.manifest.append(step.src_dir+'/')
 		class DutConfig(Rule) :
 			stems  = { 'File' : r'.*' }
-			target = bad_target_dep[step][0]
-			dep    = bad_target_dep[step][1]
+			target = bad_target_dep[step.src_dir][step.step]['tgt']
+			dep    = bad_target_dep[step.src_dir][step.step]['dep']
 			cmd    = 'cat'
+	else :
+		print('ok',file=sys.stderr)
 
 	class DutExe1(Rule) :
 		stems  = { 'File' : r'.*' }
@@ -61,13 +103,18 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+
 	import ut
 
-	for s in range(len(bad_target_dep)) :
-		print(f'step={s}',file=open('step.py','w'))
-		ut.lmake( rc=4) # check Lmakefile cannot be read
+	for src_dir,lst in bad_target_dep.items() :
+		os.system('rm -rf LMAKE')
+		for s in range(len(lst)) :
+			print(f'bad=True ; src_dir={src_dir!r} ; step={s}',file=open('step.py','w'))
+			ut.lmake( rc = 0 if lst[s]['ok'] else 4 )
 
-	print(f'step={len(bad_target_dep)}',file=open('step.py','w'))
+	os.system('rm -rf LMAKE')
+	print(f'bad=False',file=open('step.py','w'))
 
 	ut.lmake( '11'        , bad_dep=1 , rc=1 )
 	ut.lmake( '1.1'       , bad_dep=1 , rc=1 )

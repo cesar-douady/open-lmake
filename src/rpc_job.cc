@@ -678,7 +678,7 @@ bool JobSpace::_is_lcl_tmp(::string const& f) const {
 bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& dst , ::string const& src ) const {
 	if (!_is_lcl_tmp(dst)) return false/*dst_ok*/ ;
 	bool dst_ok = true ;
-	if (is_dirname(dst)) {
+	if (is_dir_name(dst)) {
 		mk_dir_s(dst) ;
 		deps.emplace_back(no_slash(dst),MountAction::Access) ;
 	} else if (+FileInfo(dst).tag()) {
@@ -875,10 +875,10 @@ bool JobSpace::enter(
 		for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,top_repo_root_s)) ;
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
-		if (is_dirname(view)) {
+		if (is_dir_name(view)) {
 			for( ::string const& cu : descr.copy_up ) {
 				::string dst = descr.phys[0]+cu ;
-				if (is_dirname(cu))
+				if (is_dir_name(cu))
 					_create(report,dst) ;
 				else
 					for( size_t i : iota(1,descr.phys.size()) )
@@ -953,15 +953,15 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	}
 	//
 	for( auto& [view,descr] : views ) {
-		bool is_dir_view = is_dirname(view)  ;
+		bool is_dir_view = is_dir_name(view)  ;
 		/**/                             if ( !is_dir_view && descr.phys.size()!=1                                     ) throw "cannot map non-dir " +no_slash(view)+" to an overlay" ;
 		for( auto const& [v,_] : views ) if ( &v!=&view && view.starts_with(v) && (v.back()=='/'||view[v.size()]=='/') ) throw "cannot map "+no_slash(view)+" within "+v              ;
 		bool lcl_view = _is_lcl_tmp(view) ;
 		for( ::string& phy : descr.phys ) {
 			do_path(phy) ;
-			if ( !lcl_view && _is_lcl_tmp(phy)    ) throw "cannot map external view "+no_slash(view)+" to local or tmp "+no_slash(phy) ;
-			if (  is_dir_view && !is_dirname(phy) ) throw "cannot map dir "          +no_slash(view)+" to file "        +no_slash(phy) ;
-			if ( !is_dir_view &&  is_dirname(phy) ) throw "cannot map file "         +no_slash(view)+" to dir "         +no_slash(phy) ;
+			if ( !lcl_view && _is_lcl_tmp(phy)     ) throw "cannot map external view "+no_slash(view)+" to local or tmp "+no_slash(phy) ;
+			if (  is_dir_view && !is_dir_name(phy) ) throw "cannot map dir "          +no_slash(view)+" to file "        +no_slash(phy) ;
+			if ( !is_dir_view &&  is_dir_name(phy) ) throw "cannot map file "         +no_slash(view)+" to dir "         +no_slash(phy) ;
 			if (+phy) {
 				for( auto const& [v,_] : views ) {                                                                            // XXX! : suppress this check when recursive maps are implemented
 					if ( phy.starts_with(v  ) && (v  .back()=='/'||phy[v  .size()]=='/') ) throw "cannot map "+no_slash(view)+" to "+no_slash(phy)+" within "    +no_slash(v) ;

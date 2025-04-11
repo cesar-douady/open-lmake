@@ -59,9 +59,9 @@
 
 template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
 	::string arg = _get_str(pid,args[At]) ;
-	if (Record::s_is_simple(arg.c_str())) throw 0                      ;
-	if (At                              ) return { Fd(args[0]) , arg } ;
-	else                                  return {               arg } ;
+	if (Record::s_is_simple(arg)) throw 0                      ;
+	if (At                      ) return { Fd(args[0]) , arg } ;
+	else                          return {               arg } ;
 }
 
 static constexpr int FlagAlways = -1 ;

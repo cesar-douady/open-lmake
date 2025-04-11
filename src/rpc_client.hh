@@ -52,31 +52,31 @@ inline bool is_mark_glb(ReqKey key) {
 }
 
 ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
-,	Archive         // if proc==                  Make               , all intermediate files are generated
-,	Backend         // if proc==                  Make               , send argument to backends
-,	Deps            // if proc==         Forget                      , forget deps
-,	Force           // if proc==                         Mark        , act if doable, even if awkward
-,	ForgetOldErrors // if proc==                  Make               , assume old errors are transient
-,	Freeze          // if proc==                         Mark        , prevent job rebuild
-,	Job             //                                                 interpret (unique) arg as job name
-,	Jobs            // if proc==                  Make               , max number of jobs
-,	KeepTmp         // if proc==                  Make               , keep tmp dir after job execution
-,	Key             // if proc== Debug                               , key used to look up into config.debug to find helper module used to debug
-,	LiveOut         // if proc==                  Make               , generate live output for last job
-,	Local           // if proc==                  Make               , lauch all jobs locally
-,	NoExec          // if proc== Debug                               , dont execute, just generate files
-,	NoTrigger       // if proc==                         Mark        , prevent lmake from rebuilding dependent jobs
-,	Porcelaine      //                                                 generate easy to parse output
-,	Quiet           //                                                 do not generate user oriented messages
-,	RetryOnError    // if proc==                  Make               , retry jobs in error
-,	Rule            //                                                 rule name when interpreting arg as job name
-,	SourceOk        // if proc==                  Make               , allow lmake to overwrite source files
-,	StdTmp          // if proc== Debug                               , use standard tmp dir, not the one provided in job
-,	Sync            //                                               , force synchronous operation (start server and wait for its end)
-,	Targets         // if proc==         Forget                      , forget targets
-,	TmpDir          // if proc== Debug                               , tmp dir to use in case TMPDIR is specified as ... in job
-,	Verbose         // if proc==                  Make        | Show , generate generous output
-,	Video           //                                               , assume output video : n(ormal), r(everse) or f(ile)
+,	Archive         // if proc== Make   , all intermediate files are generated
+,	Backend         // if proc== Make   , send argument to backends
+,	Deps            // if proc== Forget , forget deps
+,	Force           // if proc== Mark   , act if doable, even if awkward
+,	ForgetOldErrors // if proc== Make   , assume old errors are transient
+,	Freeze          // if proc== Mark   , prevent job rebuild
+,	Job             //                    interpret (unique) arg as job name
+,	Jobs            // if proc== Make   , max number of jobs
+,	KeepTmp         // if proc== Make   , keep tmp dir after job execution
+,	Key             // if proc== Debug  , key used to look up into config.debug to find helper module used to debug
+,	LiveOut         // if proc== Make   , generate live output for last job
+,	Local           // if proc== Make   , lauch all jobs locally
+,	NoExec          // if proc== Debug  , dont execute, just generate files
+,	NoTrigger       // if proc== Mark   , prevent lmake from rebuilding dependent jobs
+,	Porcelaine      //                    generate easy to parse output
+,	Quiet           //                    do not generate user oriented messages
+,	RetryOnError    // if proc== Make   , retry jobs in error
+,	Rule            //                    rule name when interpreting arg as job name
+,	SourceOk        // if proc== Make   , allow lmake to overwrite source files
+,	StdTmp          // if proc== Debug  , use standard tmp dir, not the one provided in job
+,	Sync            //                    force synchronous operation (start server and wait for its end)
+,	Targets         // if proc== Forget , forget targets
+,	TmpDir          // if proc== Debug  , tmp dir to use in case TMPDIR is specified as ... in job
+,	Verbose         //                    generate generous output
+,	Video           //                  , assume output video : n(ormal), r(everse) or f(ile)
 )
 using ReqFlags = BitMap<ReqFlag> ;
 

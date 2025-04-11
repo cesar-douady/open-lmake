@@ -100,7 +100,7 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 	RealPath              rp       { autodep_env }                    ;
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(sr) )
-		if (!Record::s_is_simple(f.c_str())) _new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
+		if (!Record::s_is_simple(f)) _new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
 bool/*sent*/ Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {

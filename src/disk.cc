@@ -46,8 +46,8 @@ namespace Disk {
 	::string mk_canon(::string const& path) {
 		if (!path) return {} ;
 		//
-		::string res    ;               res.reserve(path.size()) ;
-		bool     is_abs = res[0]=='/' ;
+		::string res    ;                res.reserve(path.size()) ;
+		bool     is_abs = path[0]=='/' ;
 		//
 		auto handle = [&](char c)->void {
 			res.push_back(c) ;
@@ -84,7 +84,7 @@ namespace Disk {
 	}
 
 	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
-		SWEAR( is_dirname(dir_s)             ,        dir_s ) ;
+		SWEAR( is_dir_name(dir_s)            ,        dir_s ) ;
 		SWEAR( is_abs(file)==is_abs_s(dir_s) , file , dir_s ) ;
 		size_t last_slash1 = 0 ;
 		for( size_t i : iota(file.size()) ) {

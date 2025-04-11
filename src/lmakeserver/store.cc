@@ -536,9 +536,9 @@ namespace Engine::Persistent {
 		RealPath    real_path      { rpe                                                              } ;
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
-			bool        is_dir_ = is_dirname(src)                   ;
-			const char* src_msg = is_dir_ ? "source dir" : "source" ;
-			if (!is_canon(src)) throw src_msg+src+" canonical form is "+mk_canon(src) ;
+			bool is_dir_ = is_dir_name(src) ;
+			if (!is_canon(src)          ) throw cat("source ",is_dir_?"dir ":"",src," canonical form is ",mk_canon(src)                 ) ;
+			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within or encompass system directories") ;
 			//
 			if (is_dir_) {
 				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_repo_root_s) ;

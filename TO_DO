@@ -53,13 +53,6 @@ items (also used in XXX comments) :
 	- dont know how to do that
 
 ****************************************************************************************************
-* TECHNICAL DEBTH (coded poorly and needing to be reworked)
-****************************************************************************************************
-
-? rework dep analysis in JobData::make
-	- to ensure SWEAR(!ri.state.missing_dsk) does not fire
-
-****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 

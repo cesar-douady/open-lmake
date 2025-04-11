@@ -56,7 +56,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s  = parse_printable<::vector_s>          (env,pos,false ) ;
 	{ if (env[pos++]!=':') goto Fail ; }                                      views       = parse_printable<::vmap_s<::vector_s>>(env,pos,false ) ;
 	{ if (env[pos  ]!=0  ) goto Fail ; }
-	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dirname(src_dir_s)) goto Fail ;
+	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dir_name(src_dir_s)) goto Fail ;
 	return ;
 Fail :
 	fail_prod("bad autodep env format at pos",pos,":",env) ;

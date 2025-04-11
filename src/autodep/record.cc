@@ -37,21 +37,22 @@ Fd                                                                   Record::_s_
 pid_t                                                                Record::_s_report_pid[2] = { 0 , 0 } ;
 
 bool Record::s_is_simple(const char* file) {
-	if (!file        ) return true  ;                                    // no file is simple (not documented, but used in practice)
-	if (!file[0]     ) return true  ;                                    // empty file is simple
-	if ( file[0]!='/') return false ;                                    // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
+	if (!file        ) return true  ;                                          // no file is simple (not documented, but used in practice)
+	if (!file[0]     ) return true  ;                                          // empty file is simple
+	if ( file[0]!='/') return false ;                                          // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
 Restart :
 	size_t pfx_sz = 0 ;
-	switch (file[1]) {                                                   // recognize simple and frequent top level system directories
-		case 'b' : if (strncmp(file+1,"bin" ,3)==0) pfx_sz = 5 ; break ;
-		case 'd' : if (strncmp(file+1,"dev" ,3)==0) pfx_sz = 5 ; break ;
-		case 'e' : if (strncmp(file+1,"etc" ,3)==0) pfx_sz = 5 ; break ;
-		case 'o' : if (strncmp(file+1,"opt" ,3)==0) pfx_sz = 5 ; break ; // used to install 3rd party software, not a data dir
-		case 'r' : if (strncmp(file+1,"run" ,3)==0) pfx_sz = 5 ; break ;
+	switch (file[1]) {                                                         // recognize simple and frequent top level system directories
+		case 0   :                                               return true ; // / is simple
+		case 'b' : if (strncmp(file+1,"bin" ,3)==0) pfx_sz = 5 ; break       ;
+		case 'd' : if (strncmp(file+1,"dev" ,3)==0) pfx_sz = 5 ; break       ;
+		case 'e' : if (strncmp(file+1,"etc" ,3)==0) pfx_sz = 5 ; break       ;
+		case 'o' : if (strncmp(file+1,"opt" ,3)==0) pfx_sz = 5 ; break       ; // used to install 3rd party software, not a data dir
+		case 'r' : if (strncmp(file+1,"run" ,3)==0) pfx_sz = 5 ; break       ;
 		case 's' : if (strncmp(file+1,"sbin",4)==0) pfx_sz = 6 ;
-		/**/       if (strncmp(file+1,"sys" ,3)==0) pfx_sz = 5 ; break ;
-		case 'u' : if (strncmp(file+1,"usr" ,3)==0) pfx_sz = 5 ; break ;
-		case 'v' : if (strncmp(file+1,"var" ,3)==0) pfx_sz = 5 ; break ;
+		/**/       if (strncmp(file+1,"sys" ,3)==0) pfx_sz = 5 ; break       ;
+		case 'u' : if (strncmp(file+1,"usr" ,3)==0) pfx_sz = 5 ; break       ;
+		case 'v' : if (strncmp(file+1,"var" ,3)==0) pfx_sz = 5 ; break       ;
 		case 'l' :
 			if      (strncmp(file+1,"lib",3)!=0) break ;          // not in lib* => not simple
 			if      (strncmp(file+4,"32" ,2)==0) pfx_sz = 7 ;     // in lib32    => simple
