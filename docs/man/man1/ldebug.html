@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Apr  7 00:07:26 2025 -->
+<!-- CreationDate: Sat Apr 12 14:53:39 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -204,10 +204,24 @@ default (unless overridden in <i>Lmakefile.py</i>) in the
 <p style="margin-left:18%;">Dont run the debug script, stop
 after generation.</p>
 
-<p style="margin-left:9%;"><b>-t</b>,<b>--keep-tmp</b></p>
+<p style="margin-left:9%;"><b>-t</b>,<b>--std-tmp</b></p>
 
-<p style="margin-left:18%;">Keep tmp directory after job
-execution (cf. <b>lmake</b>(1)).</p>
+<p style="margin-left:18%;">By default the tmp dir used
+during job execution is the one provided by the
+<b>$TMPDIR</b> variable for the job if there is one. If its
+value is <b>...</b> (python ellipsis), the value provided by
+the local backend (and not the backend for the job as debug
+execution is local) is use. If this does not lead to a
+value, the standard value is used :
+<i>LMAKE/debug/&lt;job_id&gt;/tmp</i>. When this option is
+used, the tmp dir is forced to its standard value,
+regardless of job and backend environment.</p>
+
+<p style="margin-left:9%;"><b>-T</b>
+<i>abs_dir</i>,<b>--tmp-dir</b>=<i>abs_dir</i></p>
+
+<p style="margin-left:18%;">When this option is used, it
+forces the tmp dir for job execution to its value.</p>
 
 <h2>STANDARD METHODS
 <a name="STANDARD METHODS"></a>
@@ -220,7 +234,7 @@ overridden in the configuration (through the <i>dict</i>
 methods are provided :</p>
 
 
-<p align="center"><img src="grohtml-1363715-1.png" alt="Image grohtml-1363715-1.png"></p>
+<p align="center"><img src="grohtml-1972222-1.png" alt="Image grohtml-1972222-1.png"></p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -347,7 +361,7 @@ environment.</p>
 <b>lmark</b>(1), <b>lrepair</b>(1), <b>lrun_cc</b>(1),
 <b>lshow</b>(1), <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
 
-<p style="margin-left:9%; margin-top: 1em">The Python
+<p style="margin-left:9%; margin-top: 1em">The python
 module <b>lmake</b>.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The full

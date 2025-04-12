@@ -5,7 +5,7 @@
 
 'This module is a runtime support for running python jobs under pdb control'
 
-# /!\ must be Python2/Python3 compatible
+# /!\ must be python2/python3 compatible
 # /!\ this file must *not* be named pdb.py or the system pdb module cannot be imported
 
 from .utils import load_modules

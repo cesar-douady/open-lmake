@@ -202,7 +202,7 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 <p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repository.</p>
 <p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used and if nothing is said, <code>auto_sources()</code> is called.</p>
 <h2 id="the-rules"><a class="header" href="#the-rules">The rules</a></h2>
-<p>Rules are described as Python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
+<p>Rules are described as python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
 <p>Such classes are either defined directly in <code>Lmakefile.py</code> or you can define a callable or a sub-module called <code>rules</code> that does the same thing when called/imported.
 For example you can define :</p>
 <pre><code class="language-python">def rules() :
@@ -243,7 +243,7 @@ For example, when defining the <code>deps</code>, the deps are obviously not ava
 For dictionaries, if the value function returns <code>None</code>, there will be no corresponding entry in the resulting dictionary.</p>
 <p>Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.</p>
 <h3 id="inheritance"><a class="header" href="#inheritance">Inheritance</a></h3>
-<p>Python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base <code>class</code> such as:</p>
+<p>python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base <code>class</code> such as:</p>
 <ul>
 <li>provide environment variables</li>
 <li>provide some default actions for some files with given pattern</li>

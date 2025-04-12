@@ -57,7 +57,7 @@ The helper functions defined in [lib/lmake/sources.py](../../lib/lmake/sources.p
 
 ## The rules
 
-Rules are described as Python `class`'es inheriting from `lmake.Rule`, `lmake.AntiRule` or `lmake.SourceRule`.
+Rules are described as python `class`'es inheriting from `lmake.Rule`, `lmake.AntiRule` or `lmake.SourceRule`.
 
 Such classes are either defined directly in `Lmakefile.py` or you can define a callable or a sub-module called `rules` that does the same thing when called/imported.
 For example you can define :
@@ -113,7 +113,7 @@ Note that regarding resources available in the function environment, the values 
 
 ### Inheritance
 
-Python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base `class` such as:
+python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base `class` such as:
 
 - provide environment variables
 - provide some default actions for some files with given pattern

@@ -22,7 +22,7 @@ With these assumptions, which correspond to usual code organization, the list of
 
 ## The `Lmakefile.py` file
 
-`Lmakefile.py` is the file that describes the flow. It is analogous to `Makefile` when using `make` and is plain Python (hence its name).
+`Lmakefile.py` is the file that describes the flow. It is analogous to `Makefile` when using `make` and is plain python (hence its name).
 It is composed of 3 parts:
 
 - config
@@ -36,7 +36,7 @@ If your code based is managed by `git`, it will be automatically used to list so
 We will assume we are in this common case for this introduction.
 
 We are left with rules that really describe the flow.
-Rules are Python classes inheriting from `lmake.rules.Rule`.
+Rules are python classes inheriting from `lmake.rules.Rule`.
 
 So we must import these:
 
@@ -97,7 +97,7 @@ class Link(Rule) :
 
 Notes:
 
-- You have the full power of Python, including loops, conditionals etc.
+- You have the full power of python, including loops, conditionals etc.
 - It is not a problem to have several classes defined with the same name (as `ListObjects` here).
   However, to avoid confusion when reporting execution to the user open-lmake refuses to have several rules with the same name.
   The name of a rule is its `name` attribute and defaults to the class name.
@@ -140,7 +140,7 @@ Notes:
 - In `TestSuiteExpansion` targets, there is a `*` after `Test`.
   This a so-called 'star-stem'.
   It means that a single execution of the job generates files with diferent values for this star-stem.
-- for Python `cmd` (when it is a function), targets, deps and stems are accessible as global variables.
+- for python `cmd` (when it is a function), targets, deps and stems are accessible as global variables.
   Star-stems are not defined (they would be meaningless) and the corresponding targets are functions instead of variables: you must pass the star-stems as arguments.
 
 Special notes on content based up-to-date definition:

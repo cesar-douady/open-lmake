@@ -60,7 +60,7 @@ As a consequence, there is an implicit rule (Uphill) that prevents `a/b` from be
 Also, because directories cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
 Such constructs are strongly discouraged:
 
-- use of `glob.glob` in Python
+- use of `glob.glob` in python
 - use of wildcard in bash
 
 ## Jobs

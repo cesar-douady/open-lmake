@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh" // must be first to include Python.h first
+#include "core.hh" // /!\ must be first to include Python.h first
 
 #include "rpc_job.hh"
 
@@ -1204,9 +1204,9 @@ namespace Engine {
 					::vector_s dns ;
 					for( Dep const& d : deps ) dns.push_back(d->name()) ;
 					if (dns.size()>23) {
-						for( NodeIdx i : iota(10) )   gen_dep(dns[              i]) ;
-						for( NodeIdx _ : iota( 3) ) { stderr << ".\n.\n.\n"         ; (void)_ ; }
-						for( NodeIdx i : iota(10) )   gen_dep(dns[dns.size()-10+i]) ;
+						for(                  NodeIdx i : iota(10) ) gen_dep(dns[              i]) ;
+						for( [[maybe_unused]] NodeIdx _ : iota( 3) ) stderr << ".\n.\n.\n"         ;
+						for(                  NodeIdx i : iota(10) ) gen_dep(dns[dns.size()-10+i]) ;
 					} else {
 						for( ::string const& dn : dns ) gen_dep(dn) ;
 					}
@@ -1453,9 +1453,9 @@ namespace Engine {
 
 	bool/*ok*/ JobData::forget( bool targets_ , bool deps_ ) {
 		Trace trace("Jforget",idx(),STR(targets_),STR(deps_)) ;
-		for( Req r : running_reqs() ) { (void)r ; return false ; } // ensure job is not running
+		for( [[maybe_unused]] Req r : running_reqs() ) return false ; // ensure job is not running
 		status = Status::New ;
-		fence() ;                                                  // once status is New, we are sure target is not up to date, we can safely modify it
+		fence() ;                                                     // once status is New, we are sure target is not up to date, we can safely modify it
 		run_status = RunStatus::Ok ;
 		if (deps_) {
 			::vector<Dep> static_deps ;

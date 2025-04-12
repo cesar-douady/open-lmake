@@ -23,7 +23,7 @@ class Job (utils.Job) :
 	Extensions = (
 		'ms-python.python'
 	,	'ms-vscode.cpptools'
-	,	'coolchyni.beyond-debug' # necessary to provide a Python/C debug experience
+	,	'coolchyni.beyond-debug' # necessary to provide a python/C debug experience
 	)
 
 	Associations = {}

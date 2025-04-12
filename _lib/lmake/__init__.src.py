@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# /!\ this file must be Python2/Python3 compatible
+# /!\ this file must be python2/python3 compatible
 
 """
 Lmakefile.py must :
@@ -21,13 +21,12 @@ Lmakefile.py must :
 import sys as _sys
 import os  as _os
 
-try :
-	if _sys.version_info.major<3 : from clmake2 import * # if not in an lmake repo, top_repo_root is not set to current dir
-	else                         : from clmake  import * # .
-	_has_clmake = True
-except :
-	_has_clmake = False
-	from .py_clmake import *
+if _sys.version_info.major>=3 :
+	try                        : from clmake     import * # if not in an lmake repo, top_repo_root is not set to current dir
+	except ModuleNotFoundError : from .py_clmake import *
+else :
+	try                        : from clmake2    import * # .
+	except ImportError         : from .py_clmake import *
 
 from .utils import *
 
@@ -54,7 +53,7 @@ class Autodep :
 			with Autodep(enable) :
 				<code with autodep activated (enable=True) or deactivated (enable=False)>
 	"""
-	IsFake = not _has_clmake
+	IsFake = getattr(set_autodep,'is_fake',False)
 	def __init__(self,enable) :
 		self.cur  = enable
 	def __enter__(self) :
@@ -63,7 +62,7 @@ class Autodep :
 	def __exit__(self,*args) :
 		set_autodep(self.prev)
 
-#def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when Python2 is no more supported
+#def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when python2 is no more supported
 def run_cc(*cmd_line,**kwds) :
 	'''
 		Run cmd_line assuming it is a C/C++ compiler.
@@ -74,7 +73,7 @@ def run_cc(*cmd_line,**kwds) :
 		You can pass keyword argument marker (defaults to '...') to specify the marker (a file inside dirs) that guarantees dir existences.
 		You can exceptionnally pass stdin as the stdin argument.
 	'''
-	marker = '...'                                                           # XXX> : suppress kwds analysis when Python2 is no more supported
+	marker = '...'                                                           # XXX> : suppress kwds analysis when python2 is no more supported
 	stdin  = None
 	for k,v in kwds.items() :
 		if   k=='marker' : marker = v

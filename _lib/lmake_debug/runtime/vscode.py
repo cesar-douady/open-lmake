@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# /!\ must be Python2/Python3 compatible
+# /!\ must be python2/python3 compatible
 # /!\ this file must be able to accept that its own path is not in sys.path, it is read with exec, not with import
 
 from . import utils

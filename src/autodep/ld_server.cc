@@ -65,5 +65,5 @@ AutodepLock::~AutodepLock() {
 	Record::s_deps_err = nullptr ;
 	t_active           = false   ;
 	Record::s_access_cache->clear() ;
-	if (auditor().seen_chdir) swear_prod(::fchdir(Record::s_repo_root_fd())==0) ; // restore cwd in case it has been modified during user Python code execution
+	if (auditor().seen_chdir) swear_prod(::fchdir(Record::s_repo_root_fd())==0) ; // restore cwd in case it has been modified during user python code execution
 }

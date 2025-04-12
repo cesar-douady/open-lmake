@@ -62,7 +62,7 @@ static ::vector_s _mk_src_dirs_s(::string const& src_dirs) {
 	::vector_s res ;
 	Gil        gil ;
 	if (+src_dirs) {
-		Ptr<> py_src_dirs = py_eval(src_dirs) ;                          // keep Python object alive during iteration
+		Ptr<> py_src_dirs = py_eval(src_dirs) ;                          // keep python object alive during iteration
 		for( Object const&  py_src_dir : py_src_dirs->as_a<Sequence>() )
 			res.push_back(with_slash(py_src_dir.as_a<Str>())) ;
 	}
@@ -73,7 +73,7 @@ static ::vmap_ss _mk_env( ::string const& env ) {
 	::uset_s  seen ;
 	::vmap_ss res  ;
 	Gil       gil  ;
-	// use an intermediate variable (py_env) to keep Python object alive during iteration
+	// use an intermediate variable (py_env) to keep python object alive during iteration
 	if (+env) {
 		Ptr<> py_env = py_eval(env) ;                           // hold in Ptr<> while iterating over
 		for( Object const&  py_k : py_env->as_a<Sequence>() ) {
@@ -144,7 +144,7 @@ int main( int argc , char* argv[] ) {
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		::string top_repo_root_s ;
-		(void)jsrr.enter(
+		jsrr.enter(
 			/*out*/::ref(::vmap_s<MountAction>())
 		,	/*out*/cmd_env
 		,	/*out*/::ref(::vmap_ss())/*dyn_env*/

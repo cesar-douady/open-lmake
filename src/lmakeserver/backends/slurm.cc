@@ -355,7 +355,7 @@ namespace Backends::Slurm {
 			if ( d.manage_mem && !rds.mem ) throw "must reserve memory when managed by slurm daemon, consider : "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
 		}
 	}
-	::vmap_ss RsrcsData::mk_vmap(void) const {
+	::vmap_ss RsrcsData::mk_vmap() const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
 		/**/                           res.emplace_back( "cpu" , to_string_with_unit     (self[0].cpu) ) ;

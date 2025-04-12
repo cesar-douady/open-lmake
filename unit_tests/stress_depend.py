@@ -49,7 +49,7 @@ if __name__!='__main__' :
 	class All(PyRule):
 		target = r'all_{Backend:slurm|local}{Verbose:(_verbose)?}_{N:\d+}{SFX:.*}'
 		def cmd():
-			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))),verbose=True)
+			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))),verbose=Verbose)
 
 	class Multi(PyRule):
 		target = r'multi_{N:\d+}_{P:\d+}'
@@ -70,7 +70,7 @@ else :
 		backends.append('slurm')
 
 	for backend in backends :
-		ut.lmake( f'all_{backend}_{n}'     , done=n+1 , may_rerun=n+1 , was_done=n )
+		ut.lmake( f'all_{backend}_{n}'     , done=n   , may_rerun=n+1 , was_done=n+1 )
 	if not lmake.Autodep.IsFake :
-		ut.lmake( f'all_local_verbose_{n}' , done=n+1 , may_rerun=1                )
-		ut.lmake( f'multi_{n}_{p}'         , done=p   , may_rerun=1   , was_done=1 )
+		ut.lmake( f'all_local_verbose_{n}' , done=n+1 , may_rerun=  1                )
+		ut.lmake( f'multi_{n}_{p}'         , done=p   , may_rerun=  1 , was_done=  1 )

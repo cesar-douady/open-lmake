@@ -172,7 +172,7 @@ In this flow, we will assume that:</p>
 </ul>
 <p>With these assumptions, which correspond to usual code organization, the list of objects necessary to link an executable can be derived automatically by analyzing the source files.</p>
 <h2 id="the-lmakefilepy-file"><a class="header" href="#the-lmakefilepy-file">The <code>Lmakefile.py</code> file</a></h2>
-<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain Python (hence its name).
+<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain python (hence its name).
 It is composed of 3 parts:</p>
 <ul>
 <li>config</li>
@@ -184,7 +184,7 @@ It is composed of 3 parts:</p>
 If your code based is managed by <code>git</code>, it will be automatically used to list source files.
 We will assume we are in this common case for this introduction.</p>
 <p>We are left with rules that really describe the flow.
-Rules are Python classes inheriting from <code>lmake.rules.Rule</code>.</p>
+Rules are python classes inheriting from <code>lmake.rules.Rule</code>.</p>
 <p>So we must import these:</p>
 <pre><code class="language-python">from lmake.rules import Rule
 </code></pre>
@@ -234,7 +234,7 @@ class Link(Rule) :
 </code></pre>
 <p>Notes:</p>
 <ul>
-<li>You have the full power of Python, including loops, conditionals etc.</li>
+<li>You have the full power of python, including loops, conditionals etc.</li>
 <li>It is not a problem to have several classes defined with the same name (as <code>ListObjects</code> here).
 However, to avoid confusion when reporting execution to the user open-lmake refuses to have several rules with the same name.
 The name of a rule is its <code>name</code> attribute and defaults to the class name.</li>
@@ -274,7 +274,7 @@ Although more rarely used, <code>dep</code> can be used and feeds <code>cmd</cod
 <li>In <code>TestSuiteExpansion</code> targets, there is a <code>*</code> after <code>Test</code>.
 This a so-called 'star-stem'.
 It means that a single execution of the job generates files with diferent values for this star-stem.</li>
-<li>for Python <code>cmd</code> (when it is a function), targets, deps and stems are accessible as global variables.
+<li>for python <code>cmd</code> (when it is a function), targets, deps and stems are accessible as global variables.
 Star-stems are not defined (they would be meaningless) and the corresponding targets are functions instead of variables: you must pass the star-stems as arguments.</li>
 </ul>
 <p>Special notes on content based up-to-date definition:</p>

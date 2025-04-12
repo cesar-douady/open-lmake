@@ -36,7 +36,7 @@ Dont run the debug script, stop after generation.
 
 Item(B(-t),B(--std-tmp))
 By default the tmp dir used during job execution is the one provided by the B($TMPDIR) variable for the job if there is one.
-If its value is B(...) (Python ellipsis), the value provided by the local backend (and not the backend for the job as debug execution is local) is use.
+If its value is B(...) (python ellipsis), the value provided by the local backend (and not the backend for the job as debug execution is local) is use.
 If this does not lead to a value, the standard value is used : I(LMAKE/debug/<job_id>/tmp).
 When this option is used, the tmp dir is forced to its standard value, regardless of job and backend environment.
 
@@ -53,7 +53,7 @@ c           c                     l                                     l       
 _           _                     _                                     _                          _
 cB          cI                    l                                     l                          c
 .
-Key       ! Module              ! Python job                           ! Shell job               ! Note
+Key       ! Module              ! python job                           ! shell job               ! Note
 <default> ! lmake_debug.default ! run under pdb control                ! run with the B(-x) flag ! (1)
 g         ! lmake_debug.gdb     ! interpreter is run under gdb control ! idem                    ! (2)
 u         ! lmake_debug.pudb    ! run under pudb control               ! Not supported           ! (3)

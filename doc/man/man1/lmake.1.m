@@ -19,7 +19,7 @@ Bullet
 B(lmake) is scalable.
 Millions of files can be derived easily (job execution may require heavy resources, but B(lmake) will stay light).
 Bullet
-The makefile is called I(Lmakefile.py) and is written in Python3.
+The makefile is called I(Lmakefile.py) and is written in python3.
 Bullet
 Rule matching is based of regular expressions, not just a single wildcard (% with I(make)).
 Bullet

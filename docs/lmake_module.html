@@ -209,10 +209,10 @@ For example, some default values may be modified and if they are used before thi
 <p>If <code>read</code>, pretend <code>deps</code> were read.</p>
 <p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>.</p>
 <p>Flags accumulate and are never reset.</p>
-<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_uniquifyfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_uniquifyfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_uniquify=False , no_warning=False , source_ok=False )</code></a></h3>
+<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )</code></a></h3>
 <p>Declare <code>targets</code> as targets.</p>
 <p>If <code>write</code>, pretend <code>targets</code> were written.</p>
-<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_uniquiy</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
 <p>Flags accumulate and are never reset.</p>
 <h3 id="check_depsverbosefalse"><a class="header" href="#check_depsverbosefalse"><code>check_deps(verbose=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date.

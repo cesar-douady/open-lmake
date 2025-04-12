@@ -51,14 +51,14 @@ If such a file is required and does not exist, it is an error condition.
 
 ### `class Py2Rule(Rule)`, `class Py3Rule(Rule)` and `class PyRule(Rule)`
 
-These classes may be used as base class for rules that execute Python code doing imports.
+These classes may be used as base class for rules that execute python code doing imports.
 
 It manages `.pyc` files.
-Also, it provides dependencies to module source files although Python may optimize such accesses and miss deps on dynamically generated modules.
+Also, it provides dependencies to module source files although python may optimize such accesses and miss deps on dynamically generated modules.
 
-If `cmd` is not a function, and Python is called, this last feature is provided if `lmake.import_machinery.fix_import` is called.
+If `cmd` is not a function, and python is called, this last feature is provided if `lmake.import_machinery.fix_import` is called.
 
-Py2Rule is used for Python 2, Py3Rule is used for Python3. PyRule is an alias for Py3Rule.
+Py2Rule is used for python2, Py3Rule is used for python3. PyRule is an alias for Py3Rule.
 
 ### `class RustRule(Rule)`
 

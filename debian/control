@@ -42,4 +42,4 @@ Description: pythonic workflow management system
  workflows. This project aims to reduce the complexity of creating workflows
  by automatically handling dependencies, together with a fast and
  comfortable execution environment.
- It leverages Python for the user interface and is scalable to millions of jobs.
+ It leverages python for the user interface and is scalable to millions of jobs.

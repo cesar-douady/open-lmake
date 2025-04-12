@@ -279,7 +279,7 @@ def finalize_dyn_expr( dyn_expr , for_cmd ) :
 					has_lmake |= hl
 					has_repo  |= hr
 				else :
-					# python 3.6 does not support 0-width alignment and pl may be 0 (in which case there are no pfx's)
+					# python3.6 does not support 0-width alignment and pl may be 0 (in which case there are no pfx's)
 					if pl : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {pfx:{pl}}{filename!r:{nl}} , {firstlineno:>{ll}} )')
 					else  : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {          filename!r:{nl}} , {firstlineno:>{ll}} )')
 		#
@@ -403,7 +403,7 @@ class Handle :
 		finalize_dyn_expr( dyn_expr , for_cmd=False )
 		for mod_name in dyn_expr.modules :                   # check for local modules
 			m = ''
-			for c in mod_name.split('.') :                   # check all packages along the path as they are all imported by Python
+			for c in mod_name.split('.') :                   # check all packages along the path as they are all imported by python
 				if m : m += '.'
 				m   += c
 				f = lcl_mod_file(m)

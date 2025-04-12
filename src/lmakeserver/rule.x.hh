@@ -577,7 +577,7 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	// RuleMatch does not call Python and only provides services that can be served with this constraint
+	// RuleMatch does not call python and only provides services that can be served with this constraint
 	struct Rule::RuleMatch {
 		friend ::string& operator+=( ::string& , RuleMatch const& ) ;
 		// cxtors & casts

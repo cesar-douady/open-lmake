@@ -246,7 +246,7 @@ In this flow, we will assume that:</p>
 </ul>
 <p>With these assumptions, which correspond to usual code organization, the list of objects necessary to link an executable can be derived automatically by analyzing the source files.</p>
 <h2 id="the-lmakefilepy-file"><a class="header" href="#the-lmakefilepy-file">The <code>Lmakefile.py</code> file</a></h2>
-<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain Python (hence its name).
+<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain python (hence its name).
 It is composed of 3 parts:</p>
 <ul>
 <li>config</li>
@@ -258,7 +258,7 @@ It is composed of 3 parts:</p>
 If your code based is managed by <code>git</code>, it will be automatically used to list source files.
 We will assume we are in this common case for this introduction.</p>
 <p>We are left with rules that really describe the flow.
-Rules are Python classes inheriting from <code>lmake.rules.Rule</code>.</p>
+Rules are python classes inheriting from <code>lmake.rules.Rule</code>.</p>
 <p>So we must import these:</p>
 <pre><code class="language-python">from lmake.rules import Rule
 </code></pre>
@@ -308,7 +308,7 @@ class Link(Rule) :
 </code></pre>
 <p>Notes:</p>
 <ul>
-<li>You have the full power of Python, including loops, conditionals etc.</li>
+<li>You have the full power of python, including loops, conditionals etc.</li>
 <li>It is not a problem to have several classes defined with the same name (as <code>ListObjects</code> here).
 However, to avoid confusion when reporting execution to the user open-lmake refuses to have several rules with the same name.
 The name of a rule is its <code>name</code> attribute and defaults to the class name.</li>
@@ -348,7 +348,7 @@ Although more rarely used, <code>dep</code> can be used and feeds <code>cmd</cod
 <li>In <code>TestSuiteExpansion</code> targets, there is a <code>*</code> after <code>Test</code>.
 This a so-called 'star-stem'.
 It means that a single execution of the job generates files with diferent values for this star-stem.</li>
-<li>for Python <code>cmd</code> (when it is a function), targets, deps and stems are accessible as global variables.
+<li>for python <code>cmd</code> (when it is a function), targets, deps and stems are accessible as global variables.
 Star-stems are not defined (they would be meaningless) and the corresponding targets are functions instead of variables: you must pass the star-stems as arguments.</li>
 </ul>
 <p>Special notes on content based up-to-date definition:</p>
@@ -486,10 +486,10 @@ For example, some default values may be modified and if they are used before thi
 <p>If <code>read</code>, pretend <code>deps</code> were read.</p>
 <p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>.</p>
 <p>Flags accumulate and are never reset.</p>
-<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_uniquifyfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_uniquifyfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_uniquify=False , no_warning=False , source_ok=False )</code></a></h3>
+<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )</code></a></h3>
 <p>Declare <code>targets</code> as targets.</p>
 <p>If <code>write</code>, pretend <code>targets</code> were written.</p>
-<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_uniquiy</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
 <p>Flags accumulate and are never reset.</p>
 <h3 id="check_depsverbosefalse"><a class="header" href="#check_depsverbosefalse"><code>check_deps(verbose=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date.
@@ -591,11 +591,11 @@ In that case, the file is deemed to be a source.</p>
 <p>If such a file is required and does not exist, it is an error condition.</p>
 <h2 id="helper-rules"><a class="header" href="#helper-rules">Helper rules</a></h2>
 <h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><code>class Py2Rule(Rule)</code>, <code>class Py3Rule(Rule)</code> and <code>class PyRule(Rule)</code></a></h3>
-<p>These classes may be used as base class for rules that execute Python code doing imports.</p>
+<p>These classes may be used as base class for rules that execute python code doing imports.</p>
 <p>It manages <code>.pyc</code> files.
-Also, it provides dependencies to module source files although Python may optimize such accesses and miss deps on dynamically generated modules.</p>
-<p>If <code>cmd</code> is not a function, and Python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
-<p>Py2Rule is used for Python 2, Py3Rule is used for Python3. PyRule is an alias for Py3Rule.</p>
+Also, it provides dependencies to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
+<p>If <code>cmd</code> is not a function, and python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
+<p>Py2Rule is used for python2, Py3Rule is used for python3. PyRule is an alias for Py3Rule.</p>
 <h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><code>class RustRule(Rule)</code></a></h3>
 <p>This class may be used as a base class to execute executable written in rust.</p>
 <p>Rust uses a special link mechanism which defeats the default <code>ld_audit</code> autodep mechanism.
@@ -622,7 +622,7 @@ It is meant to be a practical way to do trials without having to work out all th
 <h3 id="fix_import"><a class="header" href="#fix_import"><code>fix_import()</code></a></h3>
 <p>This should be called before importing any module that may be dynamically generated.</p>
 <p>It updates the import mechanism to ensure that a dep is set to the source file when importing a module, even if such source file does not exist (yet).
-Without fix, when a statement <code>import foo</code> is executed, although <code>foo.py</code> is read if it exists, Python does not attempt to access it if it does not exist.
+Without fix, when a statement <code>import foo</code> is executed, although <code>foo.py</code> is read if it exists, python does not attempt to access it if it does not exist.
 This is embarassing if <code>foo.py</code> is dynamically produced as initially, it does not exist and if no attempt is made to access it, there will be no dep on it and it will not be built.</p>
 <h3 id="module_suffixes"><a class="header" href="#module_suffixes"><code>module_suffixes</code></a></h3>
 <p>This variable holds the list of suffixes used to generate deps when importing a module and <code>lmake.import_machinery.fix_import()</code> has been called.</p>
@@ -631,7 +631,7 @@ This is embarassing if <code>foo.py</code> is dynamically produced as initially,
 Reducing this list avoids useless deps.</p>
 <p>The default value is the full standard list,
 e.g. <code>('.py','.cpython-312-x86_64-linux-gnu.so','.abi3.so','.so','/__init__.py','/__init__.cpython-312-x86_64-linux-gnu.so','/__init__.abi3.so','/__init__.so')</code>
-for a Python version 3.12 running on Linux with a x86_64 processor architecture.</p>
+for python3.12 running on Linux with a x86_64 processor architecture.</p>
 <p>A reasonable value would be <code>('.py','.so','/__init__.py')</code>, or <code>('.py','/__init__.py')</code> if no module are compiled, or even <code>('.py',)</code> if no package is generated.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
@@ -683,7 +683,7 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 <p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repository.</p>
 <p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used and if nothing is said, <code>auto_sources()</code> is called.</p>
 <h2 id="the-rules"><a class="header" href="#the-rules">The rules</a></h2>
-<p>Rules are described as Python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
+<p>Rules are described as python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
 <p>Such classes are either defined directly in <code>Lmakefile.py</code> or you can define a callable or a sub-module called <code>rules</code> that does the same thing when called/imported.
 For example you can define :</p>
 <pre><code class="language-python">def rules() :
@@ -724,7 +724,7 @@ For example, when defining the <code>deps</code>, the deps are obviously not ava
 For dictionaries, if the value function returns <code>None</code>, there will be no corresponding entry in the resulting dictionary.</p>
 <p>Note that regarding resources available in the function environment, the values are the ones instantiated by the backend.</p>
 <h3 id="inheritance"><a class="header" href="#inheritance">Inheritance</a></h3>
-<p>Python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base <code>class</code> such as:</p>
+<p>python's native inheritance mechanism is not ideal to describe a rule as one would like to prepare a base <code>class</code> such as:</p>
 <ul>
 <li>provide environment variables</li>
 <li>provide some default actions for some files with given pattern</li>
@@ -814,7 +814,7 @@ If <code>None</code> (discouraged), it is equivalent to 0.</p>
 <tr><td><code>'none'</code></td><td>symbolic links are not supported</td></tr>
 </tbody></table>
 </div>
-<h3 id="max_dep_depth-static-1000"><a class="header" href="#max_dep_depth-static-1000"><code>max_dep_depth</code>: Static (<code>1000</code>)</a></h3>
+<h3 id="max_dep_depth-static-100"><a class="header" href="#max_dep_depth-static-100"><code>max_dep_depth</code>: Static (<code>100</code>)</a></h3>
 <p>The <a href="rule_selection.hml">rule selection</a> process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if the depth of the search reaches the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
@@ -833,7 +833,7 @@ The purpose is to ease reading.</p>
 <li>If too high, there may be a loss of reactivity.</li>
 </ul>
 <p>The default value should fit most cases.</p>
-<h3 id="path_max--static-400"><a class="header" href="#path_max--static-400"><code>path_max</code> : Static (<code>400</code>)</a></h3>
+<h3 id="path_max--static-200"><a class="header" href="#path_max--static-200"><code>path_max</code> : Static (<code>200</code>)</a></h3>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
@@ -945,7 +945,7 @@ Values contain the module name optionnaly followed by a human description (that 
 <li>How inheritance is handled:
 <ul>
 <li>None: (ignore values from base classes)</li>
-<li>Python: (normal Python processing)</li>
+<li>python: (normal python processing)</li>
 <li>Combine: (Combine inherited values and currently defined one).</li>
 </ul>
 </li>
@@ -963,14 +963,14 @@ Values contain the module name optionnaly followed by a human description (that 
 Also, if <code>target</code> was used to redirect stdout, the <code>target</code> variable contains said file name.</p>
 <p>Similarly, when deps are allowed in dynamic values, the <code>deps</code> variable is also defined as the <code>dict</code> of the deps.
 Also, if <code>dep</code> was used to redirect stdin, the <code>dep</code> variable contains said file name.</p>
-<p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as Python f-strings, as for dynamic values.
+<p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.</p>
 <h1 id="dynamic-attribute-execution"><a class="header" href="#dynamic-attribute-execution">Dynamic attribute execution</a></h1>
 <p>If the value of an attribute (other than <code>cmd</code>) is dynamic, it is interpreted within open-lmake, not as a separate process as for the execution of cmd.
 This means:</p>
 <ul>
 <li>Such executions are not parallelized, this has performance impact.</li>
-<li>They are executed within a single Python interpreter, this implies restrictions.</li>
+<li>They are executed within a single python interpreter, this implies restrictions.</li>
 </ul>
 <p>Overall, these functions must be kept as simple and fast as possible, in favor of <code>cmd</code> which is meant to carry out heavy computations.</p>
 <p>The restrictions are the following:</p>
@@ -1021,7 +1021,7 @@ Usually, the default value is fine, but you may need to set a name, for example:
 In that case, it is only used as a base class to define other rules.</p>
 <h3 id="prio"><a class="header" href="#prio"><code>prio</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>float</code></td><td><code>0</code> or <code>+inf</code></td><td>No</td><td><code>1</code></td></tr>
+<tr><td>python</td><td><code>float</code></td><td><code>0</code> or <code>+inf</code></td><td>No</td><td><code>1</code></td></tr>
 </tbody></table>
 </div>
 <p>Default value is 0 if inheriting from <code>lmake.Rule</code>, else <code>+inf</code>.</p>
@@ -1036,7 +1036,7 @@ Rules with higher priorities are tried first and if none of them are applicable,
 <p>Each entry <key>:<value> define a stem named <key> whose associated regular expression is <value>.</p>
 <h3 id="job_name"><a class="header" href="#job_name"><code>job_name</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code></td><td>...</td><td>No</td><td></td></tr>
+<tr><td>python</td><td><code>str</code></td><td>...</td><td>No</td><td></td></tr>
 </tbody></table>
 </div>
 <p>Default is the first target of the most derived <code>class</code> in the inheritance hierarchy (i.e. the MRO) having a matching target.</p>
@@ -1051,10 +1051,10 @@ If it contains star stems, they will be replaced by <code>*</code>'s in the repo
 </tbody></table>
 </div>
 <p>This attribute is used to define the regular expression which targets must match to select this rule (cf <a href="rule_selection.html">rule selection</a>).</p>
-<p>Keys must be Python identifiers.
+<p>Keys must be python identifiers.
 Values are <code>list</code>'s or <code>tuple</code>'s whose first item defines the target regular expression and following items define flags.
 They may also be a simple <code>str</code> in which case it is as if there were no associated flags.</p>
-<p>The regular expression looks like Python f-strings.
+<p>The regular expression looks like python f-strings.
 The fixed parts (outside <code>{}</code>) must match exactly.
 The variable parts, called stems, are composed of:</p>
 <ul>
@@ -1075,11 +1075,10 @@ If a regular expression requires unbalanced <code>{}</code>, it must be put in a
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
-<tr><td><code>Incremental</code></td><td><code>incremental</code></td><td>No</td><td>Previous content may be used to produce these targets.  In that case, these are not unlinked before execution. However, if the link count is more than 1, they are uniquified, i.e. they are copied in place to ensure modification to the link does not alter other links.</td></tr>
+<tr><td><code>Incremental</code></td><td><code>incremental</code></td><td>No</td><td>Previous content may be used to produce these targets.  In that case, these are not unlinked before execution. However, if targets have non-targets hard links and are not read-only, they are uniquified, i.e. they are copied in place to ensure modification to such targets do not alter other links.</td></tr>
 <tr><td><code>Optional</code></td><td><code>optional</code></td><td>No</td><td>If this target is not generated, it is not deemed to be produced by the job. Open-lmake will try to find an alternative rule. This is equivalent to being a star target, except that there is no star stem.</td></tr>
 <tr><td><code>Phony</code></td><td><code>phony</code></td><td>No</td><td>Accept that this target is not generated, this target is deemed generated even not physically on disk. If a star target, do not search for an alternative rule to produce the file.</td></tr>
 <tr><td><code>SourceOk</code></td><td><code>source_ok</code></td><td>No</td><td>Do not generate an error if target is actually a source</td></tr>
-<tr><td><code>NoUniquify</code></td><td><code>no_uniquify</code></td><td>No</td><td>If such a target has several hard links pointing to it, it is not uniquified (i.e. copied in place) before job execution.</td></tr>
 <tr><td><code>NoWarning</code></td><td><code>no_warning</code></td><td>No</td><td>Warning is not reported if a target is either uniquified or unlinked before job execution while generated by another job.</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>target pattern is interpreted relative to the root directory of the repository, else it is relative to the <code>cwd</code> of the rule.</td></tr>
 </tbody></table>
@@ -1091,7 +1090,7 @@ The first match will provide the associated stem definitions and flags.</p>
 If the <code>top</code> flag is set, the pattern is always rooted at the top-level repo.</p>
 <h3 id="target"><a class="header" href="#target"><code>target</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>No</td><td></td></tr>
+<tr><td>python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>No</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines an unnamed target.
@@ -1114,8 +1113,8 @@ Its syntax is the same as any target entry except that it may not be <code>incre
 </tbody></table>
 </div>
 <p>This attribute defines the static dependencies.
-It is a <code>dict</code> which associates Python identifiers to files computed from the available environment.</p>
-<p>They are f-strings, i.e. their value follow the Python f-string syntax and semantic
+It is a <code>dict</code> which associates python identifiers to files computed from the available environment.</p>
+<p>They are f-strings, i.e. their value follow the python f-string syntax and semantic
 but they are interpreted when open-lmake tries to match the rule (the rule only matches if static dependencies are buildable, cf <a href="rule_selection.html">rule selection</a>).
 Hence they lack the initial <code>f</code> in front of the string.</p>
 <p>Alternatively, values can also be <code>list</code> or <code>tuple</code> whose first item is as described above, followed by flags.</p>
@@ -1132,7 +1131,7 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <p>Flag order and dependency order are not significative.</p>
 <h3 id="dep"><a class="header" href="#dep"><code>dep</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>Simple</td><td></td></tr>
+<tr><td>python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines an unnamed static dependency.</p>
@@ -1151,7 +1150,7 @@ Syntactically, it follows the <code>side_targets</code> attribute except that:</
 </ul>
 <h3 id="chroot_dir"><a class="header" href="#chroot_dir"><code>chroot_dir</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/ubuntu22.04'</code></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/ubuntu22.04'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines a directory in which jobs will <code>chroot</code> into before execution begins.
@@ -1161,7 +1160,7 @@ It must be an absoluted path.</p>
 However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used nonetheless.</p>
 <h3 id="repo_view"><a class="header" href="#repo_view"><code>repo_view</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/repo'</code></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/repo'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
@@ -1171,7 +1170,7 @@ This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">na
 <p>As of now, this attribute must be a top level directory, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
 <h3 id="tmp_view"><a class="header" href="#tmp_view"><code>tmp_view</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines the name which the temporary directory available for job execution is mounted on (cf <a href="namespaces.html">namespaces</a>).</p>
@@ -1206,7 +1205,7 @@ This is the normal behavior, other means to define environment are there to mana
 <p>The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from <code>lmake.user_environ</code>.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.</p>
 <p>Except the exception below, the value must be a <code>f-str</code>.</p>
-<p>If resulting value is <code>...</code> (the Python ellipsis), the value from the backend environment is used.
+<p>If resulting value is <code>...</code> (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <p>If a value contains one of the following strings, they are replaced by their corresponding definitions:</p>
 <div class="table-wrapper"><table><thead><tr><th>Key</th><th>Replacement</th><th>Comment</th></tr></thead><tbody>
@@ -1240,7 +1239,7 @@ This is typically used to access some environment variables set by <code>slurm</
 <p>The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from <code>lmake.user_environ</code>.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.</p>
 <p>Except the exception below, the value must be a <code>f-str</code>.</p>
-<p>If resulting value is <code>...</code> (the Python ellipsis), the value from the backend environment is used.
+<p>If resulting value is <code>...</code> (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <h3 id="environ_ancillary"><a class="header" href="#environ_ancillary"><code>environ_ancillary</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
@@ -1253,7 +1252,7 @@ This is typically used to access some environment variables set by <code>slurm</
 <p>The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from <code>lmake.user_environ</code>.
 Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.</p>
 <p>Except the exception below, the value must be a <code>f-str</code>.</p>
-<p>If resulting value is <code>...</code> (the Python ellipsis), the value from the backend environment is used.
+<p>If resulting value is <code>...</code> (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <p>By default the following environment variables are defined :</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Defined in</th><th>Value</th><th>comment</th></tr></thead><tbody>
@@ -1263,19 +1262,19 @@ This is typically used to access some environment variables set by <code>slurm</
 </div>
 <h3 id="python"><a class="header" href="#python"><code>python</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>list</code> or <code>tuple</code></td><td>system python</td><td>Full</td><td><code>venv/bin/python3</code></td></tr>
+<tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td>system python</td><td>Full</td><td><code>venv/bin/python3</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines the interpreter used to run the <code>cmd</code> if it is a function.</p>
 <p>Items must be <code>f-str</code>.</p>
 <p>At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding <code>-c</code>.</p>
-<p>Open-lmake uses Python 3.6+ to read <code>Lmakefile.py</code>, but that being done, any interpreter can be used to execute <code>cmd</code>.
-In particular, Python2.7 and all revisions of Python3 are fully supported.</p>
+<p>Open-lmake uses python3.6+ to read <code>Lmakefile.py</code>, but that being done, any interpreter can be used to execute <code>cmd</code>.
+In particular, python2.7 and all revisions of python3 are fully supported.</p>
 <p>If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.</p>
 <h3 id="shell"><a class="header" href="#shell"><code>shell</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>list</code> or <code>tuple</code></td><td><code>/bin/bash</code></td><td>Full</td><td><code>('/bin/bash','-e')</code></td></tr>
+<tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>/bin/bash</code></td><td>Full</td><td><code>('/bin/bash','-e')</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines the interpreter used to run the <code>cmd</code> if it is a <code>str</code>.</p>
@@ -1311,7 +1310,7 @@ Values may come from (by order of preference):</p>
 <ul>
 <li>The <code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> as named in their respective <code>dict</code>.</li>
 <li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
-<li>Any attribute defined in the class, or a base class (as for normal Python attribute access).</li>
+<li>Any attribute defined in the class, or a base class (as for normal python attribute access).</li>
 <li>Any value in the module globals.</li>
 <li>Any builtin value.</li>
 <li>undefined variables are not defined, which is ok as long as they are not accessed.</li>
@@ -1327,7 +1326,7 @@ The serialization process may improve over time but as of today, the following a
 <li>Imported objects (functions and <code>class</code>'es and generally all objects with a <code>__qualname__</code> attribute) are transported as an <code>import</code> statement.</li>
 <li>Builtin objects are transported spontaneously, without requiring any generated code.</li>
 </ul>
-<p>Values are captured according to the normal Python semantic, i.e. once the <code>Lmakefile</code> module is fully imported.
+<p>Values are captured according to the normal python semantic, i.e. once the <code>Lmakefile</code> module is fully imported.
 Care must be taken for variables whose values change during the <code>import</code> process.
 This typically concerns loop indices.
 To capture these at definition time and not at the end, such values must be saved somewhere.
@@ -1342,7 +1341,7 @@ There are mostly 2 practical possibilities:</p>
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine <code>str</code>'s and functions because they use different paradigms.
-As a consequence, a base class may want to have 2 implementations, one for subclasses that use Python <code>cmd</code> and another for subclasses that use shell <code>cmd</code>.
+As a consequence, a base class may want to have 2 implementations, one for subclasses that use python <code>cmd</code> and another for subclasses that use shell <code>cmd</code>.
 For such a base class, the solution is to define <code>cmd</code> as a function and set its <code>shell</code> attribute to the <code>str</code> version.</p>
 <p>If several definitions exist along the MRO, They must all be <code>str</code>'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.</p>
@@ -1350,7 +1349,7 @@ So, it is possible for a first definition to define an environment variable that
 <p>The job is deemed to be successful if the return code of the overall process is <code>0</code>.</p>
 <h3 id="cache"><a class="header" href="#cache"><code>cache</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the cache to use for jobs executed by this rule.</p>
@@ -1359,7 +1358,7 @@ If space is needed (all caches are constrained in size), any other entry can be 
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.</p>
 <h3 id="compression"><a class="header" href="#compression"><code>compression</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>int</code></td><td><code>0</code></td><td>Full</td><td><code>1</code></td></tr>
+<tr><td>python</td><td><code>int</code></td><td><code>0</code></td><td>Full</td><td><code>1</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the compression level used when caching.
@@ -1370,13 +1369,13 @@ It is passed to the zlib library used to compress job targets.</p>
 </ul>
 <h3 id="backend"><a class="header" href="#backend"><code>backend</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the <a href="backends.html">backend</a> to use to launch jobs.</p>
 <h3 id="autodep"><a class="header" href="#autodep"><code>autodep</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden dependencies.</p>
@@ -1392,21 +1391,21 @@ These may be cpu availability, memory, commercial tool licenses, access to dedic
 <p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf @pxref{local-backend} for the local backend).</p>
 <h3 id="max_stderr_len"><a class="header" href="#max_stderr_len"><code>max_stderr_len</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>int</code></td><td><code>100</code></td><td>Full</td><td><code>1</code></td></tr>
+<tr><td>python</td><td><code>int</code></td><td><code>100</code></td><td>Full</td><td><code>1</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines the maximum number of lines of stderr that will be displayed in the output of <code>lmake</code>.
 The whole content of stderr stays accessible with the <code>lshow -e</code> command.</p>
 <h3 id="allow_stderr"><a class="header" href="#allow_stderr"><code>allow_stderr</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
 If it is <code>True</code>, writing to stderr is allowed and does not produce an error. The <code>lmake</code> output will exhibit a warning, though.</p>
 <h3 id="auto_mkdir"><a class="header" href="#auto_mkdir"><code>auto_mkdir</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute has a true value, executing a <code>chdir</code> syscall (e.g. executing <code>cd</code> in bash) will create the target directory if it does not exist.</p>
@@ -1421,7 +1420,7 @@ If it is <code>True</code>, writing to stderr is allowed and does not produce an
 </ul>
 <h3 id="keep_tmp"><a class="header" href="#keep_tmp"><code>keep_tmp</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute is set to a true value, the temporary directory is kept after job execution.
@@ -1430,34 +1429,34 @@ It can be retreived with <code>lshow -i</code>.</p>
 When this attribute has a false value, the temporary directory is cleaned up at the end of the job execution.</p>
 <h3 id="force"><a class="header" href="#force"><code>force</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
 It is rarely necessary.</p>
 <h3 id="max_submits"><a class="header" href="#max_submits"><code>max_submits</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>int</code></td><td><code>10</code></td><td>No</td><td></td></tr>
+<tr><td>python</td><td><code>int</code></td><td><code>10</code></td><td>No</td><td></td></tr>
 </tbody></table>
 </div>
 <p>The goal is to protect agains potential infinite loop cases.
 The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).</p>
 <h3 id="timeout"><a class="header" href="#timeout"><code>timeout</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>float</code></td><td>no timeout</td><td>Full</td><td></td></tr>
+<tr><td>python</td><td><code>float</code></td><td>no timeout</td><td>Full</td><td></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.</p>
 <h3 id="start_delay"><a class="header" href="#start_delay"><code>start_delay</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>
+<tr><td>python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
 The consequence is only cosmetic, it has no other impact.</p>
 <h3 id="kill_sigs"><a class="header" href="#kill_sigs"><code>kill_sigs</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>list</code> or <code>tuple</code></td><td><code>(signal.SIGKILL,)</code></td><td>Full</td><td></td></tr>
+<tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>(signal.SIGKILL,)</code></td><td>Full</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute provides a list of signals to send the job when @lmake decides to kill it.</p>
@@ -1476,7 +1475,7 @@ in which case <code>stdout</code> is redirected to the the target and is not wai
 <p>Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.</p>
 <h3 id="max_retries_on_lost"><a class="header" href="#max_retries_on_lost"><code>max_retries_on_lost</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>int</code></td><td><code>1</code></td><td>No</td><td></td></tr>
+<tr><td>python</td><td><code>int</code></td><td><code>1</code></td><td>No</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute provides the number of allowed retries before giving up when a job is lost.
@@ -1484,7 +1483,7 @@ For example, a job may be lost because of a remote host being misconfigured, or 
 <p>In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.</p>
 <h3 id="use_script"><a class="header" href="#use_script"><code>use_script</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute commands an implementation detail.</p>
@@ -1640,7 +1639,7 @@ As a consequence, there is an implicit rule (Uphill) that prevents <code>a/b</co
 <p>Also, because directories cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
 Such constructs are strongly discouraged:</p>
 <ul>
-<li>use of <code>glob.glob</code> in Python</li>
+<li>use of <code>glob.glob</code> in python</li>
 <li>use of wildcard in bash</li>
 </ul>
 <h2 id="jobs"><a class="header" href="#jobs">Jobs</a></h2>
@@ -1679,7 +1678,7 @@ Groups are ordered with higher <code>prio</code> first.</p>
 <h4 id="match-a-target"><a class="header" href="#match-a-target">Match a target</a></h4>
 <p>For a given rule, the file is matched against each target in turn.
 Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
-Target order is made of <code>targets</code> and <code>target</code> entries in reversed MRO order (i.e. higher classes in the Python class hierarchy are considered first),</p>
+Target order is made of <code>targets</code> and <code>target</code> entries in reversed MRO order (i.e. higher classes in the python class hierarchy are considered first),</p>
 <p>If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a <code>*</code>).
 Else, the rule does not apply.</p>
 <h4 id="check-static-dependencies"><a class="header" href="#check-static-dependencies">Check static dependencies</a></h4>
@@ -2362,7 +2361,7 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 <p>This is a wellknown counter intuitive problem linked to checksum collision.</p>
 <p>It is extensively described <a href="https://en.wikipedia.org/wiki/Birthday_problem">here</a>.</p>
 <h3 id="diamond-rule"><a class="header" href="#diamond-rule">diamond rule</a></h3>
-<p>A feature of Python that allows the following behavior:</p>
+<p>A feature of python that allows the following behavior:</p>
 <ul>
 <li>A class <code>D</code> inherits from <code>B</code> and <code>C</code> in that order.</li>
 <li>Both <code>B</code> and <code>C</code> inherit from a class <code>A</code>.</li>
@@ -2370,8 +2369,8 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 <li>Then if <code>m</code> is called from an instance of <code>D</code>, <code>C.m</code> will be called and not <code>B.m</code> (which turns out to be <code>A.m</code>).</li>
 </ul>
 <p>It is extensively described <a href="https://docs.python.org/3.12/whatsnew/2.2.html#multiple-inheritance-the-diamond-rule">here</a>.</p>
-<p>This feature is a central point that makes Python multiple inheritance easy to use and enables the class hierarchy shopping list style.</p>
-<p>Python computes the MRO in such a way as to enforce the diamond rule.</p>
+<p>This feature is a central point that makes python multiple inheritance easy to use and enables the class hierarchy shopping list style.</p>
+<p>python computes the MRO in such a way as to enforce the diamond rule.</p>
 <div style="break-before: page; page-break-before: always;"></div>
                     </main>
 

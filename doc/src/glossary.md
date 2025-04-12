@@ -35,7 +35,7 @@ It is extensively described [here](https://en.wikipedia.org/wiki/Birthday_proble
 
 ### diamond rule
 
-A feature of Python that allows the following behavior:
+A feature of python that allows the following behavior:
 
 - A class `D` inherits from `B` and `C` in that order.
 - Both `B` and `C` inherit from a class `A`.
@@ -44,6 +44,6 @@ A feature of Python that allows the following behavior:
 
 It is extensively described [here](https://docs.python.org/3.12/whatsnew/2.2.html#multiple-inheritance-the-diamond-rule).
 
-This feature is a central point that makes Python multiple inheritance easy to use and enables the class hierarchy shopping list style.
+This feature is a central point that makes python multiple inheritance easy to use and enables the class hierarchy shopping list style.
 
-Python computes the MRO in such a way as to enforce the diamond rule.
+python computes the MRO in such a way as to enforce the diamond rule.

@@ -247,7 +247,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 		- `T` : wait terminated processes in local backend
 		- `U` : Slurm launch jobs
 		- `W` : deferred processing of wakeup connection errors
-		- 'Y' : thread used to gather stderr from Python when printing stack trace in case of uncaught exception and !HAS\_MEMFD
+		- 'Y' : thread used to gather stderr from python when printing stack trace in case of uncaught exception and !HAS\_MEMFD
 	- in job exec:
 		- `<number>` : compute crc
 	- in lmake:

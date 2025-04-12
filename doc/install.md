@@ -24,7 +24,7 @@ To install these, execute:
 To compile open-lmake, you will need:
 
 - c++20
-- python 3.6 or later with developer support (i.e. access to the `Python.so` file)
+- python3.6 or later with developer support (i.e. access to the `libpython*.so` file)
 
 It has been tested with the dockers listed in the docker directory
 
@@ -52,8 +52,8 @@ It has been tested with the dockers listed in the docker directory
 	- you can specialize the build process to better suit your needs:
 	- this can be done by setting variables
 		- for example, you can run: `CXX=/my/g++ make`
-		- `$PYTHON2. can be set to your preferred Python 2 (defaults to `python2` as found in your `$PATH`). You will be told if it is not supported.
-		- `$PYTHON` can be set to your preferred Python 3  (defaults to `python3` as found in your `$PATH`). You will be told if it is not supported.
+		- `$PYTHON2. can be set to your preferred python2 (defaults to `python2` as found in your `$PATH`). You will be told if it is not supported.
+		- `$PYTHON` can be set to your preferred python3  (defaults to `python3` as found in your `$PATH`). You will be told if it is not supported.
 		- `$CXX` can be set to your preferred C++ compiler (defaults to `g++`     as found in your `$PATH`). You will be told if it is not supported.
 		- `$SLURM_ROOT` can be set to the root dir of the slurm installation (by default, `slurm/slurm.h` will be searched in the standard include path).
 		  For example, `slurm.h` will be found as `$SLURM_ROOT/include/slurm/slurm.h`

@@ -13,6 +13,16 @@
 
 #include "process.hh"
 
+static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{
+	{ PyException::OsErr      , PyExc_OSError      }
+,	{ PyException::RuntimeErr , PyExc_RuntimeError }
+,	{ PyException::TypeErr    , PyExc_TypeError    }
+,	{ PyException::ValueErr   , PyExc_ValueError   }
+	#if PY_MAJOR_VERSION>=3
+	,	{ PyException::FileNotFoundErr , PyExc_FileNotFoundError }
+	#endif
+}} ;
+
 namespace Py {
 
 	Mutex<MutexLvl::Gil> Gil::_s_mutex ;
@@ -77,15 +87,10 @@ namespace Py {
 		py_set_sys("path",*py_sys_path) ;
 	}
 
-	nullptr_t py_err_set( Exception e , ::string const& txt ) {
-		static PyObject* s_exc_tab[] = {
-			PyExc_RuntimeError           // RuntimeErr
-		,	PyExc_TypeError              // TypeErr
-		,	PyExc_ValueError             // ValueErr
-		} ;
-		static_assert(sizeof(s_exc_tab)/sizeof(PyObject*)==N<Exception>) ;
+	nullptr_t py_err_set( PyException e , ::string const& txt ) {
+		[[maybe_unused]] static bool once = (SWEAR(chk_enum_tab(PyExceptionTab)),true) ; // cannot be static_assert'ed because PyExceptionTab cannot be constexpr, although keys are all constexpr
 		Gil::s_swear_locked() ;
-		PyErr_SetString(s_exc_tab[+e],txt.c_str()) ;
+		PyErr_SetString(PyExceptionTab[+e].second,txt.c_str()) ;
 		return nullptr ;
 	}
 
@@ -217,7 +222,7 @@ namespace Py {
 
 	Ptr<Module>::Ptr( ::string const& name ) {
 		Gil::s_swear_locked() ;
-		// XXX> : use PyImport_ImportModuleEx with a non-empy from_list when Python2 support is no longer required
+		// XXX> : use PyImport_ImportModuleEx with a non-empy from_list when python2 support is no longer required
 		Ptr<Module> py_top = PyImport_ImportModule(name.c_str()) ;            // in case of module in a package, PyImport_ImportModule returns the top level package
 		if (name.find('.')==Npos) self = py_top                             ;
 		else                      self = &py_get_sys<Dict>("modules")[name] ; // it is a much more natural API to return the asked module, get it from sys.modules

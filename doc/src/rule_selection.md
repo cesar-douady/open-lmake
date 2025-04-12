@@ -52,7 +52,7 @@ The following steps is executed for each group in order, until a rule is found. 
 
 For a given rule, the file is matched against each target in turn.
 Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
-Target order is made of `targets` and `target` entries in reversed MRO order (i.e. higher classes in the Python class hierarchy are considered first),
+Target order is made of `targets` and `target` entries in reversed MRO order (i.e. higher classes in the python class hierarchy are considered first),
 
 If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a `*`).
 Else, the rule does not apply.

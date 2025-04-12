@@ -3,14 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"      // must be first to include Python.h first
+#include "core.hh"      // /!\ must be first to include Python.h first
 #include "serialize.hh"
-
-ENUM( DepKind
-,	Dep
-,	Python
-,	Shell
-)
 
 ENUM( StarAction
 ,	None
@@ -45,7 +39,7 @@ namespace Engine {
 	using SubstTargetFunc  = ::function<string( FileNameIdx pos , VarIdx stem                                   )> ;
 	using ParseTargetFunc  = ::function<void  ( FileNameIdx pos , VarIdx stem                                   )> ;
 
-	// str has the same syntax as Python f-strings
+	// str has the same syntax as python f-strings
 	// cb_fixed is called on each fixed part found
 	// cb_stem  is called on each stem       found
 	// stems are of the form {<identifier>\*?} or {<identifier>?\*?:.*} (where .* after : must have matching {})
@@ -1115,11 +1109,11 @@ namespace Engine {
 	}
 
 	TargetPattern RuleData::_mk_pattern( MatchEntry const& me , bool for_name ) const {
-		// Generate and compile Python pattern
-		// target has the same syntax as Python f-strings except expressions must be named as found in stems
+		// Generate and compile python pattern
+		// target has the same syntax as python f-strings except expressions must be named as found in stems
 		// we transform that into a pattern by :
 		// - escape specials outside keys
-		// - transform f-string syntax into Python regexpr syntax
+		// - transform f-string syntax into python regexpr syntax
 		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(.*)c\.d"
 		TargetPattern res       ;
 		VarIdx        cur_group = 1 ;

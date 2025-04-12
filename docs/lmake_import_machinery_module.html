@@ -160,7 +160,7 @@
 <h3 id="fix_import"><a class="header" href="#fix_import"><code>fix_import()</code></a></h3>
 <p>This should be called before importing any module that may be dynamically generated.</p>
 <p>It updates the import mechanism to ensure that a dep is set to the source file when importing a module, even if such source file does not exist (yet).
-Without fix, when a statement <code>import foo</code> is executed, although <code>foo.py</code> is read if it exists, Python does not attempt to access it if it does not exist.
+Without fix, when a statement <code>import foo</code> is executed, although <code>foo.py</code> is read if it exists, python does not attempt to access it if it does not exist.
 This is embarassing if <code>foo.py</code> is dynamically produced as initially, it does not exist and if no attempt is made to access it, there will be no dep on it and it will not be built.</p>
 <h3 id="module_suffixes"><a class="header" href="#module_suffixes"><code>module_suffixes</code></a></h3>
 <p>This variable holds the list of suffixes used to generate deps when importing a module and <code>lmake.import_machinery.fix_import()</code> has been called.</p>
@@ -169,7 +169,7 @@ This is embarassing if <code>foo.py</code> is dynamically produced as initially,
 Reducing this list avoids useless deps.</p>
 <p>The default value is the full standard list,
 e.g. <code>('.py','.cpython-312-x86_64-linux-gnu.so','.abi3.so','.so','/__init__.py','/__init__.cpython-312-x86_64-linux-gnu.so','/__init__.abi3.so','/__init__.so')</code>
-for a Python version 3.12 running on Linux with a x86_64 processor architecture.</p>
+for python3.12 running on Linux with a x86_64 processor architecture.</p>
 <p>A reasonable value would be <code>('.py','.so','/__init__.py')</code>, or <code>('.py','/__init__.py')</code> if no module are compiled, or even <code>('.py',)</code> if no package is generated.</p>
 
                     </main>

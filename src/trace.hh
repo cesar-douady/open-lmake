@@ -113,7 +113,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 			*_t_buf << '\t' ;
 		}
 		*_t_buf << _tag ;
-		int _[1+sizeof...(Ts)] = { 0 , (*_t_buf<<' ',_output<P>(args),0)... } ; (void)_ ;
+		[[maybe_unused]] int _[1+sizeof...(Ts)] = { 0 , (*_t_buf<<' ',_output<P>(args),0)... } ;
 		*_t_buf << '\n' ;
 		_t_commit() ;
 	}

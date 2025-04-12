@@ -17,8 +17,8 @@ import lmake
 version = lmake.user_environ.get('VERSION','??.??')
 gxx     = lmake.user_environ.get('CXX'    ,'g++'  )
 
-from lmake       import config,pdict,repo_root,run_cc
-from lmake.rules import Rule,PyRule,AntiRule,TraceRule,DirRule
+from lmake       import config , pdict , repo_root , run_cc
+from lmake.rules import Rule , PyRule , AntiRule , TraceRule , DirRule
 
 if 'slurm' in lmake.backends :
 	backend = 'slurm'

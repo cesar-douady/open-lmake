@@ -189,11 +189,11 @@ In that case, the file is deemed to be a source.</p>
 <p>If such a file is required and does not exist, it is an error condition.</p>
 <h2 id="helper-rules"><a class="header" href="#helper-rules">Helper rules</a></h2>
 <h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><code>class Py2Rule(Rule)</code>, <code>class Py3Rule(Rule)</code> and <code>class PyRule(Rule)</code></a></h3>
-<p>These classes may be used as base class for rules that execute Python code doing imports.</p>
+<p>These classes may be used as base class for rules that execute python code doing imports.</p>
 <p>It manages <code>.pyc</code> files.
-Also, it provides dependencies to module source files although Python may optimize such accesses and miss deps on dynamically generated modules.</p>
-<p>If <code>cmd</code> is not a function, and Python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
-<p>Py2Rule is used for Python 2, Py3Rule is used for Python3. PyRule is an alias for Py3Rule.</p>
+Also, it provides dependencies to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
+<p>If <code>cmd</code> is not a function, and python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
+<p>Py2Rule is used for python2, Py3Rule is used for python3. PyRule is an alias for Py3Rule.</p>
 <h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><code>class RustRule(Rule)</code></a></h3>
 <p>This class may be used as a base class to execute executable written in rust.</p>
 <p>Rust uses a special link mechanism which defeats the default <code>ld_audit</code> autodep mechanism.

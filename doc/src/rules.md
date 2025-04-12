@@ -9,7 +9,7 @@ Each attribute is characterized by a few flags:
 
 - How inheritance is handled:
   - None: (ignore values from base classes)
-  - Python: (normal Python processing)
+  - python: (normal python processing)
   - Combine: (Combine inherited values and currently defined one).
 - The type.
 - The default value.
@@ -24,7 +24,7 @@ Also, if `target` was used to redirect stdout, the `target` variable contains sa
 Similarly, when deps are allowed in dynamic values, the `deps` variable is also defined as the `dict` of the deps.
 Also, if `dep` was used to redirect stdin, the `dep` variable contains said file name.
 
-When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as Python f-strings, as for dynamic values.
+When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.
 
 # Dynamic attribute execution
@@ -33,7 +33,7 @@ If the value of an attribute (other than `cmd`) is dynamic, it is interpreted wi
 This means:
 
 - Such executions are not parallelized, this has performance impact.
-- They are executed within a single Python interpreter, this implies restrictions.
+- They are executed within a single python interpreter, this implies restrictions.
 
 Overall, these functions must be kept as simple and fast as possible, in favor of `cmd` which is meant to carry out heavy computations.
 
@@ -89,7 +89,7 @@ In that case, it is only used as a base class to define other rules.
 
 | Inheritance | Type    | Default       | Dynamic | Example |
 |-------------|---------|---------------|---------|---------|
-| Python      | `float` | `0` or `+inf` | No      | `1`     |
+| python      | `float` | `0` or `+inf` | No      | `1`     |
 
 Default value is 0 if inheriting from `lmake.Rule`, else `+inf`.
 
@@ -110,7 +110,7 @@ Each entry <key>:<value> define a stem named <key> whose associated regular expr
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
-| Python      | `str` | ...     | No      |         |
+| python      | `str` | ...     | No      |         |
 
 Default is the first target of the most derived `class` in the inheritance hierarchy (i.e. the MRO) having a matching target.
 
@@ -130,11 +130,11 @@ If defined, this attribute must have the same set of static stems (i.e. stems th
 
 This attribute is used to define the regular expression which targets must match to select this rule (cf [rule selection](rule_selection.html)).
 
-Keys must be Python identifiers.
+Keys must be python identifiers.
 Values are `list`'s or `tuple`'s whose first item defines the target regular expression and following items define flags.
 They may also be a simple `str` in which case it is as if there were no associated flags.
 
-The regular expression looks like Python f-strings.
+The regular expression looks like python f-strings.
 The fixed parts (outside `{}`) must match exactly.
 The variable parts, called stems, are composed of:
 
@@ -178,7 +178,7 @@ If the `top` flag is set, the pattern is always rooted at the top-level repo.
 
 | Inheritance | Type                       | Default | Dynamic | Example |
 |-------------|----------------------------|---------|---------|---------|
-| Python      | `str` or `list` or `tuple` | -       | No      |         |
+| python      | `str` or `list` or `tuple` | -       | No      |         |
 
 This attribute defines an unnamed target.
 Its syntax is the same as any target entry except that it may not be `incremental`. Also, such a target may not be a `star` target.
@@ -205,9 +205,9 @@ This attribute is identical to `targets` except that:
 | Combined    | `dict` | `{}`    | Simple  | `{ 'SRC' : '{File}.c' }` |
 
 This attribute defines the static dependencies.
-It is a `dict` which associates Python identifiers to files computed from the available environment.
+It is a `dict` which associates python identifiers to files computed from the available environment.
 
-They are f-strings, i.e. their value follow the Python f-string syntax and semantic
+They are f-strings, i.e. their value follow the python f-string syntax and semantic
 but they are interpreted when open-lmake tries to match the rule (the rule only matches if static dependencies are buildable, cf [rule selection](rule_selection.html)).
 Hence they lack the initial `f` in front of the string.
 
@@ -230,7 +230,7 @@ Flag order and dependency order are not significative.
 
 | Inheritance | Type                       | Default | Dynamic | Example |
 |-------------|----------------------------|---------|---------|---------|
-| Python      | `str` or `list` or `tuple` | -       | Simple  |         |
+| python      | `str` or `list` or `tuple` | -       | Simple  |         |
 
 This attribute defines an unnamed static dependency.
 
@@ -253,7 +253,7 @@ Syntactically, it follows the `side_targets` attribute except that:
 
 | Inheritance | Type    | Default | Dynamic | Example          |
 |-------------|---------|---------|---------|------------------|
-| Python      | `f-str` | `None`  | Full    | `'/ubuntu22.04'` |
+| python      | `f-str` | `None`  | Full    | `'/ubuntu22.04'` |
 
 This attribute defines a directory in which jobs will `chroot` into before execution begins.
 It must be an absoluted path.
@@ -267,7 +267,7 @@ However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
 
 | Inheritance | Type    | Default | Dynamic | Example   |
 |-------------|---------|---------|---------|-----------|
-| Python      | `f-str` | `None`  | Full    | `'/repo'` |
+| python      | `f-str` | `None`  | Full    | `'/repo'` |
 
 This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
 This is done by using `mount -rbind` (cf [namespaces](namespaces.html)).
@@ -282,7 +282,7 @@ As of now, this attribute must be a top level directory, i.e. `'/a'` is ok, but 
 
 | Inheritance | Type    | Default | Dynamic | Example  |
 |-------------|---------|---------|---------|----------|
-| Python      | `f-str` | `None`  | Full    | `'/tmp'` |
+| python      | `f-str` | `None`  | Full    | `'/tmp'` |
 
 This attribute defines the name which the temporary directory available for job execution is mounted on (cf [namespaces](namespaces.html)).
 
@@ -328,7 +328,7 @@ Hence, it is quite simple to copy some variables from the user environment altho
 
 Except the exception below, the value must be a `f-str`.
 
-If resulting value is `...` (the Python ellipsis), the value from the backend environment is used.
+If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
 
 If a value contains one of the following strings, they are replaced by their corresponding definitions:
@@ -371,7 +371,7 @@ Hence, it is quite simple to copy some variables from the user environment altho
 
 Except the exception below, the value must be a `f-str`.
 
-If resulting value is `...` (the Python ellipsis), the value from the backend environment is used.
+If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
 
 ### `environ_ancillary`
@@ -391,7 +391,7 @@ Hence, it is quite simple to copy some variables from the user environment altho
 
 Except the exception below, the value must be a `f-str`.
 
-If resulting value is `...` (the Python ellipsis), the value from the backend environment is used.
+If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
 
 By default the following environment variables are defined :
@@ -405,7 +405,7 @@ By default the following environment variables are defined :
 
 | Inheritance | Type              | Default       | Dynamic | Example            |
 |-------------|-------------------|---------------|---------|--------------------|
-| Python      | `list` or `tuple` | system python | Full    | `venv/bin/python3` |
+| python      | `list` or `tuple` | system python | Full    | `venv/bin/python3` |
 
 This attribute defines the interpreter used to run the `cmd` if it is a function.
 
@@ -414,8 +414,8 @@ Items must be `f-str`.
 At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
 
-Open-lmake uses Python 3.6+ to read `Lmakefile.py`, but that being done, any interpreter can be used to execute `cmd`.
-In particular, Python2.7 and all revisions of Python3 are fully supported.
+Open-lmake uses python3.6+ to read `Lmakefile.py`, but that being done, any interpreter can be used to execute `cmd`.
+In particular, python2.7 and all revisions of python3 are fully supported.
 
 If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
 
@@ -423,7 +423,7 @@ If simple enough (i.e. if it can be recognized as a static dep), it is made a st
 
 | Inheritance | Type              | Default     | Dynamic | Example              |
 |-------------|-------------------|-------------|---------|----------------------|
-| Python      | `list` or `tuple` | `/bin/bash` | Full    | `('/bin/bash','-e')` |
+| python      | `list` or `tuple` | `/bin/bash` | Full    | `('/bin/bash','-e')` |
 
 This attribute defines the interpreter used to run the `cmd` if it is a `str`.
 
@@ -466,7 +466,7 @@ Values may come from (by order of preference):
 
 - The `stems`, `targets`, `deps`, `resources` as named in their respective `dict`.
 - `stems`, `targets`, `deps`, `resources` that contain their respective whole `dict`.
-- Any attribute defined in the class, or a base class (as for normal Python attribute access).
+- Any attribute defined in the class, or a base class (as for normal python attribute access).
 - Any value in the module globals.
 - Any builtin value.
 - undefined variables are not defined, which is ok as long as they are not accessed.
@@ -482,7 +482,7 @@ The serialization process may improve over time but as of today, the following a
 - Imported objects (functions and `class`'es and generally all objects with a `__qualname__` attribute) are transported as an `import` statement.
 - Builtin objects are transported spontaneously, without requiring any generated code.
 
-Values are captured according to the normal Python semantic, i.e. once the `Lmakefile` module is fully imported.
+Values are captured according to the normal python semantic, i.e. once the `Lmakefile` module is fully imported.
 Care must be taken for variables whose values change during the `import` process.
 This typically concerns loop indices.
 To capture these at definition time and not at the end, such values must be saved somewhere.
@@ -500,7 +500,7 @@ Combined inheritance is a special case for `cmd`.
 
 While walking the MRO, if for a base class `cmd` is defined as a function and it has a `shell` attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine `str`'s and functions because they use different paradigms.
-As a consequence, a base class may want to have 2 implementations, one for subclasses that use Python `cmd` and another for subclasses that use shell `cmd`.
+As a consequence, a base class may want to have 2 implementations, one for subclasses that use python `cmd` and another for subclasses that use shell `cmd`.
 For such a base class, the solution is to define `cmd` as a function and set its `shell` attribute to the `str` version.
 
 If several definitions exist along the MRO, They must all be `str`'s and they are run successively in reverse MRO in the same process.
@@ -514,7 +514,7 @@ The job is deemed to be successful if the return code of the overall process is 
 
 | Inheritance | Type    | Default | Dynamic | Example |
 |-------------|---------|---------|---------|---------|
-| Python      | `f-str` | -       | Simple  |         |
+| python      | `f-str` | -       | Simple  |         |
 
 This attribute specifies the cache to use for jobs executed by this rule.
 
@@ -526,7 +526,7 @@ The cache replacement policy (described in its own section, in the config chapte
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
-| Python      | `int` | `0`     | Full    | `1`     |
+| python      | `int` | `0`     | Full    | `1`     |
 
 This attribute specifies the compression level used when caching.
 It is passed to the zlib library used to compress job targets.
@@ -538,7 +538,7 @@ It is passed to the zlib library used to compress job targets.
 
 | Inheritance | Type    | Default | Dynamic | Example   |
 |-------------|---------|---------|---------|-----------|
-| Python      | `f-str` | -       | Full    | `'slurm'` |
+| python      | `f-str` | -       | Full    | `'slurm'` |
 
 This attribute specifies the [backend](backends.html) to use to launch jobs.
 
@@ -546,7 +546,7 @@ This attribute specifies the [backend](backends.html) to use to launch jobs.
 
 | Inheritance | Type    | Default                                       | Dynamic | Example    |
 |-------------|---------|-----------------------------------------------|---------|------------|
-| Python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
+| python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
 
 This attribute specifies the method used by [autodep](autodep.html) to discover hidden dependencies.
 
@@ -569,7 +569,7 @@ After interpretation, the `dict` is passed to the `backend` to be used in its sc
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
-| Python      | `int` | `100`   | Full    | `1`     |
+| python      | `int` | `100`   | Full    | `1`     |
 
 This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
 The whole content of stderr stays accessible with the `lshow -e` command.
@@ -578,7 +578,7 @@ The whole content of stderr stays accessible with the `lshow -e` command.
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
-| Python      | `bool` | `False` | Full    | `True`  |
+| python      | `bool` | `False` | Full    | `True`  |
 
 When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
 If it is `True`, writing to stderr is allowed and does not produce an error. The `lmake` output will exhibit a warning, though.
@@ -587,7 +587,7 @@ If it is `True`, writing to stderr is allowed and does not produce an error. The
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
-| Python      | `bool` | `False` | Full    | `True`  |
+| python      | `bool` | `False` | Full    | `True`  |
 
 When this attribute has a true value, executing a `chdir` syscall (e.g. executing `cd` in bash) will create the target directory if it does not exist.
 
@@ -604,7 +604,7 @@ This is useful for scripts in situations such as:
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
-| Python      | `bool` | `False` | Full    | `True`  |
+| python      | `bool` | `False` | Full    | `True`  |
 
 When this attribute is set to a true value, the temporary directory is kept after job execution.
 It can be retreived with `lshow -i`.
@@ -616,7 +616,7 @@ When this attribute has a false value, the temporary directory is cleaned up at 
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
-| Python      | `bool` | `False` | Full    | `True`  |
+| python      | `bool` | `False` | Full    | `True`  |
 
 When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
 It is rarely necessary.
@@ -625,7 +625,7 @@ It is rarely necessary.
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
-| Python      | `int` | `10`    | No      |         |
+| python      | `int` | `10`    | No      |         |
 
 The goal is to protect agains potential infinite loop cases.
 The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
@@ -634,7 +634,7 @@ The default value should be both comfortable (avoid hitting it in normal situati
 
 | Inheritance | Type    | Default    | Dynamic | Example |
 |-------------|---------|------------|---------|---------|
-| Python      | `float` | no timeout | Full    |         |
+| python      | `float` | no timeout | Full    |         |
 
 When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
 
@@ -642,7 +642,7 @@ When this attribute has a non-zero value, job is killed and a failure is reporte
 
 | Inheritance | Type    | Default    | Dynamic | Example |
 |-------------|---------|------------|---------|---------|
-| Python      | `float` | `3`        | Full    |         |
+| python      | `float` | `3`        | Full    |         |
 
 When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
 The consequence is only cosmetic, it has no other impact.
@@ -651,7 +651,7 @@ The consequence is only cosmetic, it has no other impact.
 
 | Inheritance | Type              | Default             | Dynamic | Example |
 |-------------|-------------------|---------------------|---------|---------|
-| Python      | `list` or `tuple` | `(signal.SIGKILL,)` | Full    |         |
+| python      | `list` or `tuple` | `(signal.SIGKILL,)` | Full    |         |
 
 This attribute provides a list of signals to send the job when @lmake decides to kill it.
 
@@ -675,7 +675,7 @@ Note: some backends, such as slurm, may have other means to manage timeouts. Bot
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
-| Python      | `int` | `1`     | No      |         |
+| python      | `int` | `1`     | No      |         |
 
 This attribute provides the number of allowed retries before giving up when a job is lost.
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called `job_exec`) was manually killed.
@@ -686,7 +686,7 @@ In that case, the job is retried, but a maximum number of retry attemps are allo
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
-| Python      | `bool` | `False` | Full    | `True`  |
+| python      | `bool` | `False` | Full    | `True`  |
 
 This attribute commands an implementation detail.
 

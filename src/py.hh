@@ -10,11 +10,11 @@
 #include "serialize.hh"
 #include "trace.hh"
 
-ENUM( Exception
-,	RuntimeErr
-,	TypeErr
-,	ValueErr
-)
+#if PY_MAJOR_VERSION>=3
+	ENUM( PyException , OsErr , RuntimeErr , TypeErr , ValueErr , FileNotFoundErr )
+#else
+	ENUM( PyException , OsErr , RuntimeErr , TypeErr , ValueErr                   )
+#endif
 
 namespace Py {
 
@@ -89,9 +89,9 @@ namespace Py {
 	inline void py_err_clear   () {        PyErr_Clear   () ; }
 	inline bool py_err_occurred() { return PyErr_Occurred() ; }
 	//
-	::string py_err_str_clear() ; // like PyErr_Print, but return text instead of printing it (Python API provides no means to do this !)
+	::string py_err_str_clear() ; // like PyErr_Print, but return text instead of printing it (python API provides no means to do this !)
 	//
-	nullptr_t py_err_set( Exception e , ::string const& txt ) ;
+	nullptr_t py_err_set( PyException e , ::string const& txt ) ;
 
 	template<class T> T const* _chk(Object const* o) ;
 	template<class T> T      * _chk(Object      * o) ;
@@ -108,7 +108,7 @@ namespace Py {
 	struct Object : PyObject {
 		static constexpr const char* Name = "object" ;
 		// cxtors & casts
-		Object(Object&&) = delete ;                                          // manipulating objects is Python's responsibility
+		Object(Object&&) = delete ;                                          // manipulating objects is python's responsibility
 		Object& operator=(Object&&) = delete ;                               // .
 		// accesses
 		bool operator==(Object const& other) const { return this==&other ; }
@@ -599,10 +599,10 @@ namespace Py {
 		//
 		/**/                 Ptr<> operator()(           ) const { Gil::s_swear_locked() ; return PyObject_CallObject( to_py() , nullptr ) ; } // fast path : no empty tuple
 		template<class... A> Ptr<> operator()(A&&... args) const {
-			Gil::s_swear_locked() ;
-			Ptr<Tuple> t               { sizeof...(A) }                       ;
-			size_t     i               = 0                                    ;
-			bool       _[sizeof...(A)] = { (t->set_item(i++,args),false)... } ; (void)_ ;
+			/**/             Gil::s_swear_locked() ;
+			/**/             Ptr<Tuple> t               { sizeof...(A) }                       ;
+			/**/             size_t     i               = 0                                    ;
+			[[maybe_unused]] bool       _[sizeof...(A)] = { (t->set_item(i++,args),false)... } ;
 			return PyObject_CallObject( to_py() , t->to_py() ) ;
 		}
 		template<class R=Object,class... A> Ptr<R> call(A&&... args) const { return self(args...) ; }

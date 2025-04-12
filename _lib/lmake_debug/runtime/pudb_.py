@@ -5,7 +5,7 @@
 
 'This module is a runtime support for running python jobs under pudb control'
 
-# /!\ must be Python2/Python3 compatible
+# /!\ must be python2/python3 compatible
 # /!\ this file must *not* be named pudb.py or the system pdb module cannot be imported
 
 from .utils import Code,load_modules
@@ -20,10 +20,10 @@ def run_py(dbg_dir,deps,func,*args,**kwds) :
 	if pudb.NUM_VERSION==(2023,1) :
 		def replace_consts(code,consts) :
 			try :
-				# Python version >= 3.10 (simpler, more reliable as we do not need the exact order of arguments)
+				# python version >= 3.10 (simpler, more reliable as we do not need the exact order of arguments)
 				return code.replace(co_consts=consts)
 			except :
-				# Python version < 3.10 (fall back to more fragile code if we have no choice)
+				# python version < 3.10 (fall back to more fragile code if we have no choice)
 				args = [
 					code.co_argcount
 				]

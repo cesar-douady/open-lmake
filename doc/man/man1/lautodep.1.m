@@ -44,7 +44,7 @@ Item(B(-d) I(dir),B(--cwd)=I(dir))
 Mimic setting the rule attribute B(cwd)=I(dir).
 
 Item(B(-e) I(list),B(--env)=I(list))
-I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
+I(list) must be provided as a  tuple or list of str using the python syntax (which most probably requires shell quoting).
 Listed variables are kept from the environment.
 
 Item(B(-k),B(--keep-tmp))
@@ -60,7 +60,7 @@ Item(B(-o) I(file),B(--out)=I(file))
 Write access info (deps and targets) to I(file).
 
 Item(B(-s) I(list),B(--source-dirs)=I(list))
-I(list) must be provided as a  tuple or list of str using the Python syntax (which most probably requires shell quoting).
+I(list) must be provided as a  tuple or list of str using the python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(source_dirs)=I(list).
 
 Item(B(-t) I(abs_dir),B(--tmp-dir)=I(abs_dir))
@@ -79,7 +79,7 @@ Item(B(-T) I(abs_dir),B(--tmp-view)=I(abs_dir))
 Mimic setting the rule attribute B(tmp_view)=I(abs_dir).
 
 Item(B(-V) I(dict),B(--views)=I(dict))
-I(dict) must be provided as a dict mapping str to view descriptions using the Python syntax (which most probably requires shell quoting).
+I(dict) must be provided as a dict mapping str to view descriptions using the python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(views)=I(dict).
 
 .SH FILES

@@ -34,11 +34,11 @@ def _fix_path() :
 
 if _sys.version_info.major==2 :
 
-	_std_suffixes = ['.py','.so'] # standard suffixes are not available with Python2
+	_std_suffixes = ['.py','.so'] # standard suffixes are not available with python2
 
 	def fix_import() :
 		'''fix imports so as to be sure all files needed to do an import are correctly reported as deps'''
-		# Python accesses pyc files and merely stats the py file to check date
+		# python accesses pyc files and merely stats the py file to check date
 		# Safer to explicitly depend on py file
 		class Depend :                               # this a special finder that explicitly depends on searched files, ...
 			@staticmethod                            # ... but otherwise finds no module, so that system machinery is actually used to load module
@@ -55,7 +55,7 @@ else :
 
 	def fix_import() :
 		'''fix imports so as to be sure all files needed to do an import are correctly reported as  deps (not merely those that exist)'''
-		# Instead of trying to access file candidates implementing the module, Python optimizes by first reading the englobing dir and only access existing files.
+		# Instead of trying to access file candidates implementing the module, python optimizes by first reading the englobing dir and only access existing files.
 		# This is severely anti-lmake :
 		# - if a file can be generated, there will be no dep (as the file is not accessed)
 		# - this may lead to a non-existing module without job rerun

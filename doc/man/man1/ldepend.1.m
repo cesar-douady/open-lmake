@@ -47,7 +47,7 @@ Default is to optimize dependency check as much as possible.
 
 .SH NOTES
 Item((1))
-	The same functionality is provided with the B(lmake.depend) Python function.
+	The same functionality is provided with the B(lmake.depend) python function.
 Item((2))
 	Flags can be associated to deps on a regexpr (matching on dep name) basis by using the B(side_deps) rule attribute.
 Item((3))

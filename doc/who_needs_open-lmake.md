@@ -26,7 +26,7 @@ Such tools are called build systems.
 
 Open-lmake is such a tool that will provide apt solutions to all the above-mentioned points.
 
-If your development is mainstream (such as writing an app in C, Python or Java) and you are seeking a fast on-boarding tool, you may find some other tools adequate.
+If your development is mainstream (such as writing an app in C, python or Java) and you are seeking a fast on-boarding tool, you may find some other tools adequate.
 These may be for example `Cmake`, `PyBuilder` or `maven`. They will save you from writing common case rules, call the compiler with the right options etc.
 
 In other cases (e.g. you use CAD tools, you write embedded code, the complexity of your flow comes from testing & evaluating KPI's rather than compiling, etc.),

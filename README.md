@@ -19,7 +19,7 @@ It is unique in that:
 Also:
 
 - Performance is excellent despite these apparently heavy features. Visit [benchmarks](doc/benchmark.md).
-- Config file (called `Lmakefile.py`) is plain Python: **no DSL!**.
+- Config file (called `Lmakefile.py`) is plain python: **no DSL!**.
 - Native `slurm` and `SGE` support.
 - Fully traceable: you can retrieve logs, know why a job was run, who asked for it, when it was run, etc.
 
@@ -81,11 +81,11 @@ Open-lmake does the following:
 - Rules may have several targets:
 	- Usually target list is known before job is executed.
 	- But target reg-expr is also supported for rules such as `unzip` that generate a bunch of targets whose precise list depends on input content.
-- Makefile (called `Lmakefile.py`) is based on Python3.6 (& upward):
+- Makefile (called `Lmakefile.py`) is based on python3.6 (& upward):
 	- No reason to invent a new language (no DSL).
 	- Each rule is a class.
-	- Can leverage loops, conditions, inheritance, ... full Python power.
-	- Job scripts can be either shell scripts or Python functions.
+	- Can leverage loops, conditions, inheritance, ... full python power.
+	- Job scripts can be either shell scripts or python functions.
 	- Very readable.
 - Handles parallelism & remote execution
 	- Either locally or by submitting jobs to slurm or SGE.

@@ -81,7 +81,7 @@ fi
 echo "using $CXX as $CXX_STD compiler (version $CXX_VERSION)" >>$SUM_FILE
 
 #
-# Python configuration (Python2 is optional)
+# python configuration (python2 is optional)
 #
 
 config_python() {

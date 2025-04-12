@@ -59,7 +59,7 @@ namespace Backends::Sge {
 		::vector_s         soft   ;     // soft options          : qsub -soft <val>
 		::vmap_s<uint64_t> tokens ;     // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		// services
-		::vmap_ss mk_vmap(void) const ;
+		::vmap_ss mk_vmap() const ;
 	} ;
 
 }
@@ -444,7 +444,7 @@ namespace Backends::Sge {
 			tokens.emplace_back( k , from_string_with_unit<uint64_t>(v) ) ;
 		}
 	}
-	::vmap_ss RsrcsData::mk_vmap(void) const {
+	::vmap_ss RsrcsData::mk_vmap() const {
 		::vmap_ss res ;
 		// It may be interesting to know the number of cpu reserved to know how many thread to launch in some situation
 		if (cpu              )            res.emplace_back( "cpu" , to_string_with_unit     (cpu) ) ;

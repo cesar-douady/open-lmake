@@ -59,7 +59,7 @@ if 'importer_done' not in sys.__dict__ :
 	def fromSystemModule() :
 		# determine caller of __import__
 		# caller is the deepest non frozen frame other than this very module
-		# as the Python import machinery is frozen
+		# as the python import machinery is frozen
 		frame = sys._getframe()
 		here  = frame.f_code.co_filename
 		while frame :

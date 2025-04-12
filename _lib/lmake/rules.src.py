@@ -149,7 +149,7 @@ class DirtyRule(Rule) :
 class _PyRule(Rule) :
 	environ = pdict(PYTHONPATH='$LMAKE_ROOT/lib')
 class Py2Rule(_PyRule) :
-	'base rule that handle pyc creation when importing modules in Python'
+	'base rule that handle pyc creation when importing modules in python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file
 	side_targets = { '__PYC__' : ( r'{*:(?:.+/)?}{*:\w+}.pyc' , 'incremental','top' ) }
 	python       = python2
@@ -163,11 +163,11 @@ class Py2Rule(_PyRule) :
 		fix_import()
 	cmd.shell = ''       # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 class Py3Rule(_PyRule) :
-	'base rule that handle pyc creation when importing modules in Python'
+	'base rule that handle pyc creation when importing modules in python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file (guaranteed if fix_import is called)
 	side_targets = {
 		'__PYC__'     : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc'         , 'incremental','top' )
-	,	'__PYC_TMP__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}' , 'ignore'     ,'top' ) # these are temporary files guaranteed unique by Python
+	,	'__PYC_TMP__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}' , 'ignore'     ,'top' ) # these are temporary files guaranteed unique by python
 	}
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :

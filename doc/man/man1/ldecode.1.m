@@ -23,7 +23,7 @@ Usage and use cases are more extensively documented the full OpenLmake documenta
 
 .SH NOTES
 Item((1))
-	The same functionality is provided with the B(lmake.decode) Python function.
+	The same functionality is provided with the B(lmake.decode) python function.
 Item((2))
 	C(lencode) and B(ldecode) are useful tools when the flow implies file names whose names are impractical.
 	This is a way to transform long file names into much shorter ones by keeping an association file to retrieve long info from short codes.

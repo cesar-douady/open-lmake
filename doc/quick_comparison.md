@@ -17,7 +17,7 @@
 | Scalability                              | ➖ <100.000 | ✅ >100.000      | ✅ >1.000.000    | ❓ not a backend | ✅ >1.000.000     | c.f. [benchmarks](benchmark.md)                           |
 | content based                            | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?             |
 | Matching                                 | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                           |
-| User friendly DSL                        | ❌ specific | ✅ very simple   | ➖ Python subset | ❌ specific      | ✅ Python         |                                                           |
+| User friendly DSL                        | ❌ specific | ✅ very simple   | ➖ python subset | ❌ specific      | ✅ python         |                                                           |
 | Remote job execution                     | ❌          | ❌               | ✅               | ❌               | ✅ slurm or SGE   |                                                           |
 | inter-user cache                         | ❌          | ❌               | ✅ (no abs path) | ❌               | ✅ (experimental) | can you reuse the result of another user ?                |
 | job isolation                            | ❌          | ❌               | ✅ (container)   | ❌               | ✅ (autodep)      |                                                           |
@@ -116,10 +116,10 @@ As with `ninja`, most of the time, this is not necessary, and open-lmake will be
 As `ninja`, `bazel` advertises itself as a back-end tool, although in a softer form.
 As per its documentation: "It is common for BUILD files to be generated or edited by tools".
 This defeats the goal of its DSL Starlark.
-Starlark was designed as a subset of Python that provides guarantees (such as repeatability, speed, etc.).
+Starlark was designed as a subset of python that provides guarantees (such as repeatability, speed, etc.).
 But if a generator is used, the real DSL is the one of the generator, and the guarantees of Starlark do not hold anymore.
 
-Open-lmake allows full Python, avoiding the need for a generator alltogether.
+Open-lmake allows full python, avoiding the need for a generator alltogether.
 
 The reliability of dependencies is also left to such a tool, or to the user.
 Again, per its documentation:

@@ -124,7 +124,7 @@ define(`SeeAlsoSection',`
 	ifelse(Name,ltarget,    ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
 	ifelse(Name,xxhsum,     ,`C(xxhsum)'                         )
 	.LP
-	The Python module B(lmake).
+	The python module B(lmake).
 	.LP
 	The full OpenLmake documentation in I(<open-lmake-installation-dir>/docs/index.html).
 ')

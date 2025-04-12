@@ -31,8 +31,8 @@ template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
 			if (kwds) return Func( *from_py<Tuple const>(args) , *from_py<Dict const>(kwds) )->to_py_boost() ;
 			else      return Func( *from_py<Tuple const>(args) , *Ptr<Dict>(New)            )->to_py_boost() ;
 		}
-		catch (                 ::string  const& e) { return py_err_set(Exception::TypeErr,e       ) ; }
-		catch (::pair<Exception,::string> const& e) { return py_err_set(e.first           ,e.second) ; }
+		catch (                   ::string  const& e) { return py_err_set(PyException::TypeErr,e       ) ; }
+		catch (::pair<PyException,::string> const& e) { return py_err_set(e.first             ,e.second) ; }
 	}
 template<void(*Func)( Tuple const& args , Dict const& kwds )>
 	static Ptr<> add_none( Tuple const& args , Dict const& kwds ) {
@@ -89,7 +89,7 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	//
 	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ; }
-	catch (::string const& e) { throw ::pair(Exception::ValueErr,e) ;                                                    }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                  }
 	//
 	if (!verbose) return &None ;
 	//
@@ -121,7 +121,7 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 	::vector_s files = _get_files(py_args) ;
 	try                       { JobSupport::target( _g_record , ::move(files) , ad ) ; }
-	catch (::string const& e) { throw ::pair(Exception::ValueErr,e) ;                  }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                }
 }
 
 static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
@@ -134,9 +134,9 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 		else                throw "unexpected keyword arg "+key ;
 	}
 	Bool3 ok = JobSupport::check_deps(_g_record,verbose) ;
-	if (!verbose ) return &None                                                     ;
-	if (ok==Maybe) throw ::pair(Exception::RuntimeErr,"some deps are out-of-date"s) ; // defensive only : job should be killed in that case
-	/**/           return Ptr<Bool>(ok==Yes)                                        ;
+	if (!verbose ) return &None                                                       ;
+	if (ok==Maybe) throw ::pair(PyException::RuntimeErr,"some deps are out-of-date"s) ; // defensive only : job should be killed in that case
+	/**/           return Ptr<Bool>(ok==Yes)                                          ;
 }
 
 // encode and decode are very similar, it is easier to define a template for both
@@ -325,9 +325,18 @@ PyMODINIT_FUNC
 	} ;
 	#undef F
 
-	_g_record = {New,Yes/*enabled*/} ;
+	try {
+		_g_record = { New , Yes/*enabled*/ } ;
+	} catch (::string const& e) {
+		#if PY_MAJOR_VERSION>=3
+			return py_err_set( PyException::FileNotFoundErr , e ) ;
+		#else
+			py_err_set( PyException::OsErr , e ) ; // FileNotFoundErr does not exist with python2
+			return ;
+		#endif
+	}
 	//
-	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3} ;                                // PER_AUTODEP_METHOD : add entries here
+	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;                               // PER_AUTODEP_METHOD : add entries here
 	{	size_t i = 0 ;
 		if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
 		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
@@ -348,9 +357,10 @@ PyMODINIT_FUNC
 	mod->set_attr( "backends"      , *py_bes                                                     ) ;
 	mod->set_attr( "autodeps"      , *py_ads                                                     ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	mod.boost() ;                                                        // avoid problems at finalization
 	#if PY_MAJOR_VERSION>=3
-		return mod->to_py() ;
+		return mod->to_py_boost() ;
+	#else
+		mod.boost() ;                                                    // ensure mod survives to mod dxtor
 	#endif
 
 }
