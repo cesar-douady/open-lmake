@@ -695,6 +695,12 @@ namespace Engine {
 								else if (sa.used_tag==sa.asked_tag      ) push_entry( "backend" , snake_str(sa.asked_tag)                                     ) ;
 								else                                      push_entry( "backend" , snake_str(sa.asked_tag)+" -> "+sa.used_tag , Color::Warning ) ;
 							}
+							Color status_color =
+								StatusAttrs[+job->status].second.first==Yes   ? Color::Ok
+							:	StatusAttrs[+job->status].second.first==Maybe ? Color::Note
+							:	                                                Color::Err
+							;
+							push_entry( "status" , cat(::copy(job->status)) , status_color , false ) ;
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
 							::map_ss required_rsrcs  ;

@@ -188,7 +188,8 @@ namespace Engine {
 				default           : return false  ;
 			}
 		}
-		bool done() const { return step()>=Step::Done ; }
+		bool done        () const { return step()>=Step::Done                     ; }
+		bool first_submit() const { return !( n_submits || n_losts || n_retries ) ; }
 		//
 		Step step(          ) const { return _step ; }
 		void step(Step s,Job) ;

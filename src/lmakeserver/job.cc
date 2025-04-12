@@ -348,7 +348,7 @@ namespace Engine {
 				return {proc,{}/*seq_id*/,{}/*fd*/,res} ;
 			}
 			case JobMngtProc::ChkDeps :
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe} ;                         // if job is not running, it is too late, seq_id will be filled in later
+				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,Maybe,{}/*txt*/} ;                         // if job is not running, it is too late, seq_id will be filled in later
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{},dep->name()) ;          // dep is const
 					Bool3 dep_ok = Yes ;
@@ -359,11 +359,11 @@ namespace Engine {
 						if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
 						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
 					}
-					if (dep_ok!=Yes) return {proc,{}/*seq_id*/,{}/*fd*/,dep_ok} ;              // seq_id will be filled in later
+					if (dep_ok!=Yes) return {proc,{}/*seq_id*/,{}/*fd*/,dep_ok,dep->name()} ;  // seq_id will be filled in later
 					trace("ok",dep) ;
 				}
 				trace("done") ;
-				return {proc,{}/*seq_id*/,{}/*fd*/,Yes} ;                                      // seq_id will be filled in later
+				return {proc,{}/*seq_id*/,{}/*fd*/,Yes,{}/*txt*/} ;                            // seq_id will be filled in later
 		DF}
 	}
 
@@ -831,10 +831,10 @@ namespace Engine {
 				default                  : if (rt>=JobReasonTag::Err) return NoRunReason::Dep ;
 			}
 			switch (pre_reason.tag) {
-				case JobReasonTag::Retry : if (is_lost(status)) goto Retry  ;
-				/**/                       else                 goto Submit ;
-				case JobReasonTag::Lost  :                      goto Lost   ;
-				default                  :                      goto Submit ;
+				case JobReasonTag::Retry : if ( is_lost(status) && !ri.first_submit() ) goto Retry  ;
+				/**/                       else                                         goto Submit ;
+				case JobReasonTag::Lost  :                                              goto Lost   ;
+				default                  :                                              goto Submit ;
 			}
 			Retry  : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
 			Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
@@ -846,11 +846,11 @@ namespace Engine {
 				case JobReasonTag::Retry :                      ri.n_retries++ ; break ;
 			DN}
 			switch (pre_reason.tag) {
-				case JobReasonTag::Retry : if (is_lost(status)) ri.n_retries++ ;
-				/**/                       else                 ri.n_submits++ ;
+				case JobReasonTag::Retry : if ( is_lost(status) && !ri.first_submit() ) ri.n_retries++ ;
+				/**/                       else                                         ri.n_submits++ ;
 				break ;
-				case JobReasonTag::Lost  :                      ri.n_losts  ++ ; break ;
-				default                  :                      ri.n_submits++ ;
+				case JobReasonTag::Lost  :                                              ri.n_losts  ++ ; break ;
+				default                  :                                              ri.n_submits++ ;
 			}
 		} ;
 		switch (make_action) {

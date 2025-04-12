@@ -890,7 +890,7 @@ struct JobMngtRpcReply {
 	//
 	JobMngtRpcReply( Proc p , SeqId si ) : proc{p} , seq_id{si} { SWEAR(p==Proc::Kill||p==Proc::Heartbeat,p) ; }
 	//
-	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , Bool3                                  o  ) : proc{p},seq_id{si},fd{fd_},ok{o}               { SWEAR(p==Proc::ChkDeps                   ,p) ; }
+	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , Bool3 o , ::string const& t               ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t}        { SWEAR(p==Proc::ChkDeps                   ,p) ; }
 	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::vector<pair<Bool3/*ok*/,Crc>> const& is ) : proc{p},seq_id{si},fd{fd_},      dep_infos{is} { SWEAR(p==Proc::DepVerbose                ,p) ; }
 	JobMngtRpcReply( Proc p , SeqId si , Fd fd_ , ::string const& t  , Crc c , Bool3 o      ) : proc{p},seq_id{si},fd{fd_},ok{o},txt{t},crc{c} { SWEAR(p==Proc::Decode||proc==Proc::Encode,p) ; }
 	// services
@@ -906,8 +906,9 @@ struct JobMngtRpcReply {
 				::serdes(s,dep_infos) ;
 			break ;
 			case Proc::ChkDeps :
-				::serdes(s,fd) ;
-				::serdes(s,ok) ;
+				::serdes(s,fd ) ;
+				::serdes(s,ok ) ;
+				::serdes(s,txt) ;
 			break ;
 			case Proc::Decode :
 			case Proc::Encode :
