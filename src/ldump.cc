@@ -26,20 +26,11 @@ int main( int argc , char* /*argv*/[] ) {
 	for( const Node n : Persistent::node_lst(                   ) ) {
 		n.chk() ;
 		switch (n->buildable) {
-			case Buildable::DynAnti   :
-			case Buildable::Anti      :
-			case Buildable::SrcDir    :
-			case Buildable::No        :
-			case Buildable::SubSrcDir :
-			case Buildable::Src       :
-			case Buildable::Decode    :
-			case Buildable::Encode    :
-			case Buildable::SubSrc    :
-			case Buildable::Loop      : _out( cat(n) , snake_str(n->buildable) , n->name() ) ; break ;
-			case Buildable::Maybe     :
-			case Buildable::Yes       :
-			case Buildable::DynSrc    :
-			case Buildable::Unknown   : _out( cat(n) , cat(n->actual_job())    , n->name() ) ; break ;
+			case Buildable::Maybe   :
+			case Buildable::Yes     :
+			case Buildable::DynSrc  :
+			case Buildable::Unknown : _out( cat(n) , cat(n->actual_job())    , n->name() ) ; break ;
+			default                 : _out( cat(n) , snake_str(n->buildable) , n->name() ) ; break ;
 		}
 	}
 	//

@@ -54,38 +54,41 @@ Restart :
 		case 'u' : if (strncmp(file+1,"usr" ,3)==0) pfx_sz = 5 ; break       ;
 		case 'v' : if (strncmp(file+1,"var" ,3)==0) pfx_sz = 5 ; break       ;
 		case 'l' :
-			if      (strncmp(file+1,"lib",3)!=0) break ;          // not in lib* => not simple
-			if      (strncmp(file+4,"32" ,2)==0) pfx_sz = 7 ;     // in lib32    => simple
-			else if (strncmp(file+4,"64" ,2)==0) pfx_sz = 7 ;     // in lib64    => simple
-			else                                 pfx_sz = 5 ;     // in lib      => simple
-		break ;                                                   // else        => not simple
-		case 'p' :                                                // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-			if ( strncmp(file+1,"proc",4)!=0  ) break           ; // not in /proc      => not simple
-			if ( !file[5]                     ) return true     ; // /proc             => simple
-			if ( file[5]!='/'                 ) return false    ; // false prefix      => not simple
-			if ( file[6]>='0' && file[6]<='9' ) return false    ; // in /proc/<pid>    => not simple
-			if ( strncmp(file+6,"self",4)!=0  ) goto SimpleProc ; // not in /proc/self => simple
-			if ( !file[10]                    ) return true     ; // /proc/self        => simple
-			if ( file[10]=='/'                ) return false    ; // in /proc/self     => not simple
+			if      (strncmp(file+1,"lib",3)!=0) break ;            // not in lib* => not simple
+			if      (strncmp(file+4,"32" ,2)==0) pfx_sz = 7 ;       // in lib32    => simple
+			else if (strncmp(file+4,"64" ,2)==0) pfx_sz = 7 ;       // in lib64    => simple
+			else                                 pfx_sz = 5 ;       // in lib      => simple
+		break ;                                                     // else        => not simple
+		case 'p' :                                                  // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
+			if ( strncmp(file+1,"proc",4)!=0  ) break            ;  // not in /proc      => not simple
+			if ( !file[5]                     ) return true      ;  // /proc             => simple
+			if ( file[5]!='/'                 ) goto ReturnFalse ;  // false prefix      => not simple
+			if ( file[6]>='0' && file[6]<='9' ) goto ReturnFalse ;  // in /proc/<pid>    => not simple
+			if ( strncmp(file+6,"self",4)!=0  ) goto SimpleProc  ;  // not in /proc/self => simple
+			if ( !file[10]                    ) return true      ;  // /proc/self        => simple
+			if ( file[10]=='/'                ) goto ReturnFalse ;  // in /proc/self     => not simple
 		SimpleProc :
 			pfx_sz = 6 ;
 		break ;
 	DN}
-	if ( !pfx_sz                               ) return false ;   // no prefix
-	if ( file[pfx_sz-1] && file[pfx_sz-1]!='/' ) return false ;   // false prefix
+	if ( !pfx_sz                               ) goto ReturnFalse ; // no prefix
+	if ( file[pfx_sz-1] && file[pfx_sz-1]!='/' ) goto ReturnFalse ; // false prefix
 	//
-	int depth = 0 ;
-	for ( const char* p=file+pfx_sz ; *p ; p++ ) {                // ensure we do not escape from top level dir
-		if (p[ 0]!='/')              continue     ;               // not a dir boundary, go on
-		if (p[-1]=='/')              continue     ;               // consecutive /'s, ignore
-		if (p[-1]!='.') { depth++  ; continue     ; }             // plain dir  , e.g. foo  , go down
-		if (p[-2]=='/')              continue     ;               // dot dir    ,             stay still
-		if (p[-2]!='.') { depth++  ; continue     ; }             // plain dir  , e.g. foo. , go down
-		if (p[-3]!='/') { depth++  ; continue     ; }             // plain dir  , e.g. foo.., go down
-		if (!depth    ) { file = p ; goto Restart ; }             // dot-dot dir, restart if we get back to top-level
-		/**/              depth--  ;                              // dot-dot dir
+	{	int depth = 0 ;
+		for ( const char* p=file+pfx_sz ; *p ; p++ ) {              // ensure we do not escape from top level dir
+			if (p[ 0]!='/')              continue     ;             // not a dir boundary, go on
+			if (p[-1]=='/')              continue     ;             // consecutive /'s, ignore
+			if (p[-1]!='.') { depth++  ; continue     ; }           // plain dir  , e.g. foo  , go down
+			if (p[-2]=='/')              continue     ;             // dot dir    ,             stay still
+			if (p[-2]!='.') { depth++  ; continue     ; }           // plain dir  , e.g. foo. , go down
+			if (p[-3]!='/') { depth++  ; continue     ; }           // plain dir  , e.g. foo.., go down
+			if (!depth    ) { file = p ; goto Restart ; }           // dot-dot dir, restart if we get back to top-level
+			/**/              depth--  ;                            // dot-dot dir
+		}
 	}
 	return true ;
+ReturnFalse :
+	return ::strnlen(file,PATH_MAX+1)==PATH_MAX+1 ;                 // above PATH_MAX, no disk access can succeed, so it is not a dep and this makes sure no unreasonable data access
 }
 
 void Record::_static_report(JobExecRpcReq&& jerr) const {

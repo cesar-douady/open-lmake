@@ -80,8 +80,8 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) {
 		if (+c) {
-			if (is_new) _exec_trace(pd,c,ces,accesses.back().first) ;                                                           // file has been ::move()'ed
-			else        _exec_trace(pd,c,ces,file                 ) ;
+			if (is_new) _exec_trace( pd , c , ces , accesses.back().first ) ;                                                   // file has been ::move()'ed
+			else        _exec_trace( pd , c , ces , file                  ) ;
 		}
 		Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , *info , it->first ) ; // only trace if something changes
 	}
@@ -284,7 +284,7 @@ Status Gather::exec_child() {
 	size_t                   kill_step          = 0           ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if ( status==Status::New || status==Status::Ok ) status = status_ ;                           // else there is already another reason
+		if ( status==Status::New || status==Status::Ok ) status = status_ ;                           // else there is already another reason or caller does not want to set a reason
 		if ( +msg_                                     ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
@@ -391,7 +391,7 @@ Status Gather::exec_child() {
 					/**/          child_fd     = _spawn_child()       ;
 					/**/          _wait       &= ~Kind::ChildStart    ;
 					if (+timeout) end_timeout  = start_date + timeout ;
-					_exec_trace(start_date,Comment::startJob) ;
+					_exec_trace( start_date , Comment::startJob ) ;
 					trace("started","wait",_wait,+epoll) ;
 				} catch(::string const& e) {
 					if (child_stderr==Child::PipeFd) stderr = ensure_nl(e) ;
@@ -448,10 +448,10 @@ Status Gather::exec_child() {
 					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0) ;                             wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
 					trace(kind,fd,_child.pid,ws) ;
-					SWEAR(!WIFSTOPPED(ws),_child.pid) ;     // child must have ended if we are here
+					SWEAR(!WIFSTOPPED(ws),_child.pid) ;                                                   // child must have ended if we are here
 					end_date  = New                      ;
-					end_child = end_date + network_delay ;  // wait at most network_delay for reporting & stdout & stderr to settle down
-					_exec_trace(end_date,Comment::endJob) ;
+					end_child = end_date + network_delay ;                                                // wait at most network_delay for reporting & stdout & stderr to settle down
+					_exec_trace( end_date , Comment::endJob , {}/*CommentExt*/ , to_hex(uint16_t(ws)) ) ;
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 					else                           fail("unexpected wstatus : ",ws) ;
@@ -497,11 +497,12 @@ Status Gather::exec_child() {
 							case JobMngtProc::ChkDeps :
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								if (jmrr.ok==Maybe) {
-									_exec_trace( New , Comment::chkDeps , {CommentExt::Reply,CommentExt::Killed} ) ;
-									set_status(Status::ChkDeps) ; kill() ;
+									_exec_trace( New , Comment::chkDeps , {CommentExt::Reply,CommentExt::Killed} , jmrr.txt ) ;
+									set_status( Status::ChkDeps , "waiting dep : "+jmrr.txt ) ;
+									kill() ;
 									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
 								} else {
-									_exec_trace( New , Comment::chkDeps , +jmrr.ok?CommentExts(CommentExt::Reply):CommentExts(CommentExt::Reply,CommentExt::Err) ) ;
+									_exec_trace( New , Comment::chkDeps , +jmrr.ok?CommentExts(CommentExt::Reply):CommentExts(CommentExt::Reply,CommentExt::Err) , jmrr.txt ) ;
 								}
 							break ;
 							case JobMngtProc::Decode :

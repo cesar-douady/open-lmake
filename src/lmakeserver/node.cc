@@ -166,18 +166,19 @@ namespace Engine {
 	}
 
 	void NodeData::set_infinite( Special s , ::vector<Node> const& deps ) {
-		Trace trace("set_infinite",idx(),deps) ;
-		job_tgts().assign(::vector<JobTgt>({{
-			Job( s , idx() , Deps(deps,{}/*accesses*/,{}/*dflags*/,false/*parallel*/) )
-		,	true/*is_sure*/
-		}})) ;
-		Buildable buildable_ = Buildable::Yes ;
-		for( Node const& d : deps )
-			if (d->buildable==Buildable::Unknown) buildable_ &= Buildable::Maybe ; // if not computed yet, well note we do not know
-			else                                  buildable_ &= d->buildable     ; // could break as soon as !Yes is seen, but this way, we can have a more agressive swear
-		SWEAR(buildable_>Buildable::No) ;
-		if (buildable_>=Buildable::Yes) rule_tgts().clear() ;
-		buildable = buildable_ ;
+		Trace trace("set_infinite",idx(),buildable,s,deps) ;
+		if (buildable>Buildable::No) {
+			job_tgts().assign(::vector<JobTgt>({{
+				Job( s , idx() , Deps(deps,{}/*accesses*/,{}/*dflags*/,false/*parallel*/) )
+			,	true/*is_sure*/
+			}})) ;
+			Buildable b = Buildable::Yes ;
+			for( Node const& d : deps )
+				if ( d->buildable!=Buildable::Unknown && d->buildable!=Buildable::PathTooLong )
+					b &= d->buildable ;
+			buildable = b ;
+		}
+		rule_tgts().clear() ;
 		_set_match_ok() ;
 	}
 
@@ -264,7 +265,7 @@ namespace Engine {
 		//
 		RuleIdx           prio       = 0                  ;                                         // initially, we are ready to accept any rule
 		RuleIdx           n          = 0                  ;
-		Buildable         buildable  = Buildable::No      ;                                         // return val if we find no job candidate
+		Buildable         b          = Buildable::No      ;                                         // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
 		//
 		SWEAR(is_lcl(name_),name_) ;
@@ -275,32 +276,32 @@ namespace Engine {
 			if (r->prio<prio) goto Done ;
 			if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ; // too deep, must be an infinite dep path
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobTgt jt = JobTgt(rt,name_,Maybe/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
+			JobTgt jt = JobTgt(rt,name_,Maybe/*chk_psfx*/,req,lvl+1) ; // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (+jt) {
-				if (jt.sure()) { buildable  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
-				else             buildable |= Buildable::Maybe ;
+				if (jt.sure()) { b  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
+				else             b |= Buildable::Maybe ;
 				jts.push_back(jt) ;
 				prio = r->prio ;
 			}
 			if (n!=NoIdx) n++ ;
 		}
-		n = NoIdx ;                                                            // we have exhausted all rules
+		n = NoIdx ;                                                    // we have exhausted all rules
 	Done :
 		//            vvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (+jts    ) job_tgts ().append    (jts) ;
 		if (n==NoIdx) rule_tgts().clear     (   ) ;
 		else          rule_tgts().shorten_by(n  ) ;
 		//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		return buildable ;
+		return b ;
 	}
 
 	void NodeData::_do_set_buildable( Req req , DepDepth lvl ) {
 		Trace trace("_do_set_buildable",idx(),req,lvl) ;
-		switch (buildable) {                                                                                                                     // ensure we do no update sources
-			case Buildable::Src    :
+		switch (buildable) {                                                         // ensure we do no update sources
+			case Buildable::Anti   :
 			case Buildable::SrcDir :
-			case Buildable::Anti   : SWEAR(!rule_tgts(),rule_tgts()) ; goto Return ;
+			case Buildable::Src    : SWEAR(!rule_tgts(),rule_tgts()) ; goto Return ;
 			case Buildable::Decode :
 			case Buildable::Encode :
 			case Buildable::Loop   :                                   goto Return ;
@@ -308,20 +309,24 @@ namespace Engine {
 		status(NodeStatus::Unknown) ;
 		//
 		{	::string name_ = name() ;
-			//
-			{	Buildable buildable_ = _gather_special_rule_tgts(name_) ;
-				//                                     vvvvvvvvvvvvvvvvvvvvvvvvv
-				if (buildable_<=Buildable::No      ) { buildable = Buildable::No ; goto Return                                               ; } // AntiRule's have priority so no warning message
-				if (name_.size()>g_config->path_max) {                             throw ::pair(Special::InfinitePath,::vector<Node>{idx()}) ; } // path is ridiculously long, pretend an ...
-				if (buildable_>=Buildable::Yes     ) { buildable = buildable_    ; goto Return                                               ; } // ... infinite recursion
-				//                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (name_.size()>g_config->path_max) {                                   // path is ridiculously long, pretend an infinite recursion
+				buildable = Buildable::PathTooLong ;
+				_set_match_ok() ;
+				throw ::pair( Special::InfinitePath , ::vector<Node>{idx()} ) ;
 			}
-			buildable = Buildable::Loop ;                                     // during analysis, temporarily set buildable to break loops (will be caught at exec time) ...
-			try {                                                             // ... in case of crash, rescue mode is used and ensures all matches are recomputed
+			//
+			{	Buildable b = _gather_special_rule_tgts(name_) ;
+				//                       vvvvvvvvvvvvvvvvvvvvvvvvv
+				if (b<=Buildable::No ) { buildable = Buildable::No ; goto Return ; } // AntiRule's have priority so no warning message
+				if (b>=Buildable::Yes) { buildable = b             ; goto Return ; }
+				//                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+			}
+			buildable = Buildable::Loop ;                                            // during analysis, temporarily set buildable to break loops (will be caught at exec time) ...
+			try {                                                                    // ... in case of crash, rescue mode is used and ensures all matches are recomputed
 				Buildable db = Buildable::No ;
 				if (+dir()) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					dir()->set_buildable_throw(req,lvl) ;                     // dir is necessarily shorter than us, no need to increment lvl, and this is not user-visible level
+					dir()->set_buildable_throw(req,lvl) ;                            // dir is necessarily shorter than us, no need to increment lvl, and this is not user-visible level
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					switch ((db=dir()->buildable)) {
 						case Buildable::DynAnti   :
@@ -342,14 +347,14 @@ namespace Engine {
 				if (!is_lcl(name_)) { buildable = Buildable::No ; goto Return ; }
 				//                    ^^^^^^^^^^^^^^^^^^^^^^^^^
 				//
-				Buildable buildable_ = _gather_prio_job_tgts(name_,req,lvl) ;
-				if (db==Buildable::Maybe) buildable_ |= Buildable::Maybe ;    // we are at least as buildable as our dir
-				//vvvvvvvvvvvvvvvvvvvv
-				buildable = buildable_ ;
-				//^^^^^^^^^^^^^^^^^^^^
+				Buildable b = _gather_prio_job_tgts(name_,req,lvl) ;
+				if (db==Buildable::Maybe) b |= Buildable::Maybe ;                    // we are at least as buildable as our dir
+				//vvvvvvvvvvv
+				buildable = b ;
+				//^^^^^^^^^^^
 				goto Return ;
 			} catch (::pair<Special,::vector<Node>>& e) {
-				buildable = Buildable::Unknown ;                              // restore Unknown as we do not want to appear as having been analyzed
+				buildable = Buildable::Unknown ;                                     // restore Unknown as we do not want to appear as having been analyzed
 				match_gen = 0                  ;
 				e.second.push_back(idx()) ;
 				throw ;
@@ -362,7 +367,7 @@ namespace Engine {
 	}
 
 	bool/*solved*/ NodeData::_make_pre( ReqInfo& ri , bool query ) {
-		Trace trace("Nmake_pre",idx(),ri) ;
+		Trace trace("Nmake_pre",idx(),buildable,ri) ;
 		Req      req   = ri.req ;
 		::string name_ ;                                                                                // lazy evaluated
 		auto lazy_name = [&]()->::string const& {
@@ -371,16 +376,17 @@ namespace Engine {
 		} ;
 		// step 1 : handle what can be done without dir
 		switch (buildable) {
-			case Buildable::DynAnti :
-			case Buildable::Anti    :
-			case Buildable::SrcDir  :
-			case Buildable::No      : status(NodeStatus::None) ; goto NoSrc ;
-			case Buildable::DynSrc  :
-			case Buildable::Src     : status(NodeStatus::Src ) ; goto Src   ;
-			case Buildable::Decode  :
-			case Buildable::Encode  : status(NodeStatus::Src ) ; goto Codec ;
-			case Buildable::Unknown :                            FAIL()     ;
-			default                 :                            break      ;
+			case Buildable::PathTooLong :
+			case Buildable::Anti        :
+			case Buildable::SrcDir      :
+			case Buildable::DynAnti     :
+			case Buildable::No          : status(NodeStatus::None) ; goto NoSrc ;
+			case Buildable::DynSrc      :
+			case Buildable::Src         : status(NodeStatus::Src ) ; goto Src   ;
+			case Buildable::Decode      :
+			case Buildable::Encode      : status(NodeStatus::Src ) ; goto Codec ;
+			case Buildable::Unknown     :                            FAIL()     ;
+			default                     :                            break      ;
 		}
 		if (!dir()) goto NotDone ;
 		// step 2 : handle what can be done without making dir
@@ -388,12 +394,13 @@ namespace Engine {
 		dir()->set_buildable(req) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^
 		switch (dir()->buildable) {
-			case Buildable::DynAnti :
-			case Buildable::Anti    :
-			case Buildable::No      :                            goto NotDone ;
-			case Buildable::SrcDir  : status(NodeStatus::None) ; goto Src     ;                         // status is overwritten Src if node actually exists
-			case Buildable::Unknown :                            FAIL()       ;
-			default                 :                            break        ;
+			case Buildable::DynAnti     :
+			case Buildable::Anti        :
+			case Buildable::No          :                            goto NotDone ;
+			case Buildable::SrcDir      : status(NodeStatus::None) ; goto Src     ;                     // status is overwritten Src if node actually exists
+			case Buildable::PathTooLong :                                                               // path too long have been discovered above
+			case Buildable::Unknown     :                            FAIL()       ;
+			default                     :                            break        ;
 		}
 		//
 		if ( ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,NodeGoal::Status) ) {               // fast path : no need to call make if dir is done

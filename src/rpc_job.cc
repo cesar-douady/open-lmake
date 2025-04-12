@@ -1165,7 +1165,7 @@ void JobStartRpcReply::exit() {
 ::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {
 	/**/                               os << "JobMngtRpcReply(" << jmrr.proc ;
 	switch (jmrr.proc) {
-		case JobMngtProc::ChkDeps    : os <<','<< jmrr.fd <<','<<                                   jmrr.ok ; break ;
+		case JobMngtProc::ChkDeps    : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<<                  jmrr.ok ; break ;
 		case JobMngtProc::DepVerbose : os <<','<< jmrr.fd <<','<< jmrr.dep_infos                            ; break ;
 		case JobMngtProc::Decode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
 		case JobMngtProc::Encode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;

@@ -85,7 +85,7 @@ namespace JobSupport {
 	}
 
 	Bool3 check_deps( Record const& r , bool verbose ) {
-		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|verbose , .date=New }).ok ;
+		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|verbose , .comment=Comment::chkDeps , .date=New }).ok ;
 	}
 
 	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {

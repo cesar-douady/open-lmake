@@ -915,8 +915,9 @@ struct JobMngtRpcReply {
 				::serdes(s,dep_infos) ;
 			break ;
 			case Proc::ChkDeps :
-				::serdes(s,fd) ;
-				::serdes(s,ok) ;
+				::serdes(s,fd ) ;
+				::serdes(s,ok ) ;
+				::serdes(s,txt) ;
 			break ;
 			case Proc::Decode :
 			case Proc::Encode :
@@ -932,7 +933,7 @@ struct JobMngtRpcReply {
 	SeqId                           seq_id    = 0     ;
 	Fd                              fd        = {}    ; // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
 	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}    ; // proc ==         DepVerbose
-	::string                        txt       = {}    ; // proc ==                    Decode|Encode , value for Decode, code for Encode
+	::string                        txt       = {}    ; // proc == ChkDeps|           Decode|Encode , reason for ChkDeps, value for Decode, code for Encode
 	Crc                             crc       = {}    ; // proc ==                    Decode|Encode , crc of txt
 	Bool3                           ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
 } ;

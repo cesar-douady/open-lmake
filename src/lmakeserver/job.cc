@@ -38,7 +38,7 @@ namespace Engine {
 		auto end_it = deps.end() ;
 		for( auto it = deps.begin().next_existing(end_it) ; it!=end_it ; it++.next_existing(end_it) ) {
 			Node dep = *it ;
-			if (BuildableHasFile[+dep->buildable].second)
+			if (dep->has_file()==Maybe)
 				for( Node hd=dep->dir() ; +hd ; hd=hd->dir() )
 					if (!dep_locked_dirs.insert(hd).second) break ;                                               // if dir contains an existing dep, it cannot be rmdir'ed
 		}
@@ -377,7 +377,7 @@ namespace Engine {
 					trace("dep_info",dep,dep_ok) ;
 					res.emplace_back(dep_ok,dep->crc) ;
 				}
-				return {proc,{}/*seq_id*/,{}/*fd*/,res} ;
+				return { proc , {}/*seq_id*/ , {}/*fd*/ , res } ;
 			}
 			case JobMngtProc::ChkDeps :
 				if (!reqs) return { .proc=proc , .ok=Maybe } ;                                 // if job is not running, it is too late, seq_id will be filled in later
@@ -391,7 +391,7 @@ namespace Engine {
 						if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
 						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
 					}
-					if (dep_ok!=Yes) return { .proc=proc , .ok=dep_ok } ;                      // seq_id will be filled in later
+					if (dep_ok!=Yes) return { .proc=proc , .txt=dep->name() , .ok=dep_ok } ;   // seq_id will be filled in later
 					trace("ok",dep) ;
 				}
 				trace("done") ;
@@ -546,13 +546,14 @@ namespace Engine {
 							if (crc==Crc::None) msg += " unlink of" ;
 							else                msg += " write to"  ;
 							switch (target->buildable) {
-								case Buildable::DynAnti   :
-								case Buildable::Anti      : msg << " anti-file"      ; break ;
-								case Buildable::SrcDir    : msg << " source dir"     ; break ;
-								case Buildable::SubSrcDir : msg << " source sub-dir" ; break ;
-								case Buildable::DynSrc    :
-								case Buildable::Src       : msg << " source"         ; break ;
-								case Buildable::SubSrc    : msg << " sub-source"     ; break ;
+								case Buildable::PathTooLong : msg << " path too long"  ; break ;
+								case Buildable::Anti        :
+								case Buildable::DynAnti     : msg << " anti-file"      ; break ;
+								case Buildable::SrcDir      : msg << " source dir"     ; break ;
+								case Buildable::SubSrcDir   : msg << " source sub-dir" ; break ;
+								case Buildable::DynSrc      :
+								case Buildable::Src         : msg << " source"         ; break ;
+								case Buildable::SubSrc      : msg << " sub-source"     ; break ;
 							DF}
 							severe_msg << msg <<" : "<< mk_file(target->name(),No /*exists*/) <<'\n' ;
 						}
@@ -872,10 +873,10 @@ namespace Engine {
 				default                  : if (rt>=JobReasonTag::Err) return NoRunReason::Dep ;
 			}
 			switch (pre_reason.tag) {
-				case JobReasonTag::Retry : if (is_lost(status)) goto Retry  ;
-				/**/                       else                 goto Submit ;
-				case JobReasonTag::Lost  :                      goto Lost   ;
-				default                  :                      goto Submit ;
+				case JobReasonTag::Retry : if ( is_lost(status) && !ri.first_submit() ) goto Retry  ;
+				/**/                       else                                         goto Submit ;
+				case JobReasonTag::Lost  :                                              goto Lost   ;
+				default                  :                                              goto Submit ;
 			}
 			Retry  : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
 			Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
@@ -884,14 +885,14 @@ namespace Engine {
 		// /!\ no_run_reason and inc_submits must stay in sync
 		auto inc_submits = [&](JobReasonTag rt)->void {                                         // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
 			switch (rt) {
-				case JobReasonTag::Retry :                      ri.n_retries++ ; break ;
+				case JobReasonTag::Retry :                                             ri.n_retries++ ; break ;
 			DN}
 			switch (pre_reason.tag) {
-				case JobReasonTag::Retry : if (is_lost(status)) ri.n_retries++ ;
-				/**/                       else                 ri.n_submits++ ;
+				case JobReasonTag::Retry : if ( is_lost(status) && ri.first_submit() ) ri.n_retries++ ;
+				/**/                       else                                        ri.n_submits++ ;
 				break ;
-				case JobReasonTag::Lost  :                      ri.n_losts  ++ ; break ;
-				default                  :                      ri.n_submits++ ;
+				case JobReasonTag::Lost  :                                             ri.n_losts  ++ ; break ;
+				default                  :                                             ri.n_submits++ ;
 			}
 		} ;
 		switch (make_action) {
@@ -1098,11 +1099,11 @@ namespace Engine {
 			if (+(run_status=ri.state.stamped_err)) goto Done ;
 			NoRunReason nrr = no_run_reason(ri.state) ;
 			switch (nrr) {
-				case NoRunReason::None       :                                                                                                     break     ;
-				case NoRunReason::RetryLoop  : trace("fail_loop")   ; pre_reason = JobReasonTag::None                                            ; goto Done ;
-				case NoRunReason::LostLoop   : trace("lost_loop")   ; status = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; goto Done ;
-				case NoRunReason::SubmitLoop : trace("submit_loop") ; status = Status::SubmitLoop                                                ; goto Done ;
-				case NoRunReason::Dep        :                                                                                                     goto Done ;
+				case NoRunReason::None       :                                                                                                         break     ;
+				case NoRunReason::RetryLoop  : trace("fail_loop")   ; pre_reason = JobReasonTag::None                                                ; goto Done ;
+				case NoRunReason::LostLoop   : trace("lost_loop")   ; status     = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; goto Done ;
+				case NoRunReason::SubmitLoop : trace("submit_loop") ; status     = Status::SubmitLoop                                                ; goto Done ;
+				case NoRunReason::Dep        :                                                                                                         goto Done ;
 			}
 		}
 	Run :

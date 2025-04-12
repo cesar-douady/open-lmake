@@ -31,10 +31,10 @@ config = pdict(
 ,	link_support        = 'Full'                            # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 #,	local_admin_dir     = '/path/to/local/disk/LMAKE_LOCAL' # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
 #	                                                        # open-lmake ensures unicity between repos, so a hard-coded value is ok
-,	max_dep_depth       = 1000                              # used to detect infinite recursions and loops
+,	max_dep_depth       = 100                               # used to detect infinite recursions and loops
 ,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay       = 1                                 # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
-,	path_max            = 400                               # max path length, smaller values make debugging easier (if None, not activated)
+,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
 ,	reliable_dirs       = False                             # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
 #	                                                        # - forced true if only local backend is used
 #	                                                        # - set   true  for ceph

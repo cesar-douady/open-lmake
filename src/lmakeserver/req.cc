@@ -567,7 +567,7 @@ namespace Engine {
 		RuleTgt                         art       ;                                                     // set if an anti-rule matches
 		RuleIdx                         n_missing = 0            ;                                      // number of rules missing deps
 		//
-		if (name.size()>g_config->path_max) {
+		if (node->buildable==Buildable::PathTooLong) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
 			return ;
 		}

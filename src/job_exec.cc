@@ -687,14 +687,14 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->push_back({ end_overhead , Comment::endOverhead }) ;
-			end_report.digest.exec_time = end_overhead - start_overhead ;                   // measure overhead as late as possible
+			g_exec_trace->push_back(ExecTraceEntry{ end_overhead , Comment::endOverhead , {}/*CommentExt*/ , cat(end_report.digest.status) }) ;
+			end_report.digest.exec_time = end_overhead - start_overhead ;                                                                       // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                      // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                                          // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}

@@ -9,39 +9,44 @@
 
 #ifdef STRUCT_DECL
 
+// START_OF_VERSIONING
 ENUM( Buildable
-,	DynAnti     //                                   match dependent
 ,	Anti        //                                   match independent
-,	SrcDir      //                                   match independent (much like star targets, i.e. only existing files are deemed buildable)
+,	SrcDir      //                                   match independent dir of a Src or SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
+,	SubSrc      //                                   match independent sub-file of a Src listed in manifest
+,	PathTooLong //                                   match dependent (as limit may change with config)
+,	DynAnti     //                                   match dependent
 ,	No          // <=No means node is not buildable
 ,	Maybe       //                                   buildability is data dependent (maybe converted to Yes by further analysis)
 ,	SubSrcDir   //                                   sub-file of a SrcDir
 ,	Unknown
 ,	Yes         // >=Yes means node is buildable
 ,	DynSrc      //                                   match dependent
-,	Src         //                                   match independent
+,	Src         //                                   file listed in manifest, match independent
 ,	Decode      //                                   file name representing a code->val association
 ,	Encode      //                                   file name representing a val->code association
-,	SubSrc      //                                   sub-file of a src listed in manifest
 ,	Loop        //                                   node is being analyzed, deemed buildable so as to block further analysis
 )
-static constexpr ::amap<Buildable,bool,N<Buildable>> BuildableHasFile {{
-	{ Buildable::DynAnti   , false }
-,	{ Buildable::Anti      , false }
-,	{ Buildable::SrcDir    , true  }
-,	{ Buildable::No        , false }
-,	{ Buildable::Maybe     , true  }
-,	{ Buildable::SubSrcDir , true  }
-,	{ Buildable::Unknown   , false }
-,	{ Buildable::Yes       , true  }
-,	{ Buildable::DynSrc    , true  }
-,	{ Buildable::Src       , true  }
-,	{ Buildable::Decode    , false }
-,	{ Buildable::Encode    , false }
-,	{ Buildable::SubSrc    , true  }
-,	{ Buildable::Loop      , false }
+// END_OF_VERSIONING
+static constexpr ::amap<Buildable,::pair<Bool3,bool>,N<Buildable>> BuildableAttrs {{
+	//                         has_file src_anti
+	{ Buildable::Anti        , { No    , true  } }
+,	{ Buildable::SrcDir      , { No    , true  } }
+,	{ Buildable::SubSrc      , { No    , true  } }
+,	{ Buildable::PathTooLong , { No    , true  } }
+,	{ Buildable::DynAnti     , { No    , true  } }
+,	{ Buildable::No          , { No    , false } }
+,	{ Buildable::Maybe       , { Maybe , false } }
+,	{ Buildable::SubSrcDir   , { Maybe , true  } }
+,	{ Buildable::Unknown     , { Maybe , false } }
+,	{ Buildable::Yes         , { Maybe , false } }
+,	{ Buildable::DynSrc      , { Maybe , true  } }
+,	{ Buildable::Src         , { Yes   , true  } }
+,	{ Buildable::Decode      , { No    , false } }
+,	{ Buildable::Encode      , { No    , false } }
+,	{ Buildable::Loop        , { No    , false } }
 }} ;
-static_assert(chk_enum_tab(BuildableHasFile)) ;
+static_assert(chk_enum_tab(BuildableAttrs)) ;
 
 
 ENUM_1( Manual
@@ -78,12 +83,14 @@ ENUM_1( NodeStatus
 ,	Unknown
 )
 
+// START_OF_VERSIONING
 ENUM( Polluted
 ,	Clean      // must be first
 ,	Old
 ,	PreExist
 ,	Job
 )
+// END_OF_VERSIONING
 
 namespace Engine {
 
@@ -433,21 +440,8 @@ namespace Engine {
 			return false ;
 		}
 		//
-		bool is_src_anti() const {
-			SWEAR(match_ok()) ;
-			switch (buildable) {
-				case Buildable::DynAnti   :
-				case Buildable::Anti      :
-				case Buildable::SrcDir    :
-				case Buildable::SubSrcDir :
-				case Buildable::DynSrc    :
-				case Buildable::Src       :
-				case Buildable::Decode    :
-				case Buildable::Encode    :
-				case Buildable::SubSrc    : return true  ;
-				default                   : return false ;
-			}
-		}
+		Bool3 has_file   () const {                     return BuildableAttrs[+buildable].second.first  ; }
+		bool  is_src_anti() const { SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.second ; }
 		//
 		// services
 		bool read(Accesses a) const {                                                          // return true <= file was perceived different from non-existent, assuming access provided in a
@@ -621,9 +615,10 @@ namespace Engine {
 		match_gen = Rule::s_match_gen ;
 	}
 
-	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) { // req is for error reporting only
-		if (!match_ok()) _do_set_buildable(req,lvl) ;                     // if not already set
+	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) {                                      // req is for error reporting only
+		if (!match_ok()) _do_set_buildable(req,lvl) ;                                                          // if not already set
 		SWEAR(buildable!=Buildable::Unknown) ;
+		if (buildable==Buildable::PathTooLong) throw ::pair( Special::InfinitePath , ::vector<Node>{idx()} ) ; // mimic _do_set_buildable
 	}
 
 	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {                          // req is for error reporting only
