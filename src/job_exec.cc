@@ -425,16 +425,21 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 		::pair_s<TargetDigest>& e      = (*targets)[ti] ;
 		Pdate                   before = New            ;
 		FileInfo                fi     ;
-		//             vvvvvvvvvvvvvvvvvvvvvvvvvv
-		e.second.crc = Crc( e.first , /*out*/fi ) ;
-		//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+		try {
+			//             vvvvvvvvvvvvvvvvvvvvvvvvvv
+			e.second.crc = Crc( e.first , /*out*/fi ) ;
+			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+		} catch (::string const& e) {
+			Lock lock{*msg_mutex} ;
+			*msg <<set_nl<< "while computing checksum for "<<e<<" : "<<e ;
+		}
 		e.second.sig       = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
 		*sz               += fi.sz    ;
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
-			*msg<<"cannot compute checksum for "<<e.first ;
+			*msg <<set_nl<< "cannot compute checksum for "<<e.first ;
 		}
 	}
 	trace("done",cnt) ;

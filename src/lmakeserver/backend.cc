@@ -486,7 +486,7 @@ namespace Backends {
 		bool report_now =                                                                                             // dont defer long jobs or if a message is to be delivered to user
 				+pre_action_warnings
 			||	+start_msg_err.stderr
-			||	submit_attrs.reason.tag==JobReasonTag::Retry                                                          // emit retry start message
+			||	is_retry(submit_attrs.reason.tag)                                                                     // emit retry start message
 			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay                                              // if job is probably long, emit start message immediately
 		;
 		Job::s_record_thread.emplace( job , ::move(jis) ) ;

@@ -63,6 +63,7 @@ ENUM_2( Special
 ,	Anti
 ,	GenericSrc
 )
+inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
 
 ENUM( VarCmd
 ,	Stems   , Stem

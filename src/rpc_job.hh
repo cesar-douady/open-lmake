@@ -95,7 +95,8 @@ ENUM_4( JobReasonTag                           // see explanations in table belo
 ,	Missing = DepMissingStatic
 	//
 ,	None
-,	Retry                                      // job is retried in case of error if asked so by user
+,	Retry                                      // job is retried in case of error      if asked so by user
+,	LostRetry                                  // job is retried in case of lost_error if asked so by user
 //	with reason
 ,	OldErr
 ,	Rsrcs
@@ -133,6 +134,7 @@ ENUM_4( JobReasonTag                           // see explanations in table belo
 static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagStrs = {{
 	{ JobReasonTag::None               , "no reason"                                  }
 ,	{ JobReasonTag::Retry              , "job is retried after error"                 }
+,	{ JobReasonTag::LostRetry          , "job is retried after lost_error"            }
 //	with reason
 ,	{ JobReasonTag::OldErr             , "job was in error"                           }
 ,	{ JobReasonTag::Rsrcs              , "resources changed and job was in error"     }
@@ -171,6 +173,7 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 //	no reason, must be 0
 	{ JobReasonTag::None               ,   0 }
 ,	{ JobReasonTag::Retry              ,   1 } // must be least prio, below other reasons to run as retries are limited (normally 0)
+,	{ JobReasonTag::LostRetry          ,   1 } // .
 //	with reason
 ,	{ JobReasonTag::OldErr             ,  20 }
 ,	{ JobReasonTag::Rsrcs              ,  21 }
@@ -205,6 +208,7 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::DepMissingStatic   ,  80 }
 }} ;
 static_assert(chk_enum_tab(JobReasonTagPrios)) ;
+inline bool is_retry(JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry ; }
 
 // START_OF_VERSIONING
 ENUM( MatchKind
