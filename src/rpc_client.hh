@@ -64,6 +64,7 @@ ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with othe
 ,	Key             // if proc== Debug  , key used to look up into config.debug to find helper module used to debug
 ,	LiveOut         // if proc== Make   , generate live output for last job
 ,	Local           // if proc== Make   , lauch all jobs locally
+,	MaxSubmits      // if proc== Make   , max submit count, on top of rule prescription
 ,	NoExec          // if proc== Debug  , dont execute, just generate files
 ,	NoTrigger       // if proc== Mark   , prevent lmake from rebuilding dependent jobs
 ,	Porcelaine      //                    generate easy to parse output

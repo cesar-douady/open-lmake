@@ -257,7 +257,7 @@ namespace Engine {
 		// START_OF_VERSIONING
 		::string module         ;
 		::string qual_name      ;
-		::string filename       ;
+		::string file_name      ;
 		size_t   first_line_no1 = 0 ; // illegal value as lines start at 1
 		// END_OF_VERSIONING
 	} ;

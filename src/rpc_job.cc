@@ -1216,12 +1216,12 @@ void JobInfoStart::cache_cleanup() {
 // JobInfo
 //
 
-void JobInfo::fill_from(::string const& filename , JobInfoKinds need ) {
-	Trace trace("fill_from",filename,need) ;
+void JobInfo::fill_from(::string const& file_name , JobInfoKinds need ) {
+	Trace trace("fill_from",file_name,need) ;
 	need &= ~JobInfoKind::None ;                                                                                                          // this is not a need, but it is practical to allow it
-	if (!need) return ;                                                                                                                   // fast path : dont read filename
+	if (!need) return ;                                                                                                                   // fast path : dont read file_name
 	try {
-		::string      job_info = AcFd(filename).read() ;
+		::string      job_info = AcFd(file_name).read() ;
 		::string_view jis      = job_info              ;
 		deserialize( jis , need[JobInfoKind::Start] ? start : ::ref(JobInfoStart()) ) ; need &= ~JobInfoKind::Start ; if (!need) return ; // skip if not needed
 		deserialize( jis , need[JobInfoKind::End  ] ? end   : ::ref(JobEndRpcReq()) ) ; need &= ~JobInfoKind::End   ; if (!need) return ; // .

@@ -75,11 +75,11 @@ If `follow_symlinks` and one of the `deps` is a symbolic link, follow it.
 If `verbose`, return a dict with one entry par dep where:
 
 - the key is dep
-- the value is a tuple (ok,crc) where:
+- the value is a tuple (ok,checksum) where:
   - ok = True if the dep is built with no error
   - ok = False if the dep is built in error
   - ok = None is the dep was not built
-  - crc is the checksum of the dep
+  - checksum is computed after the dep
 
 If `read`, pretend `deps` were read.
 

@@ -94,7 +94,7 @@ namespace Codec {
 			res.push_back(c) ;
 			if (!codes.contains(res)) return res ;
 		}
-		FAIL("codec crc clash for code",code,crc,val) ;
+		FAIL("codec checksum clash for code",code,crc,val) ;
 	}
 
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
@@ -250,7 +250,7 @@ namespace Codec {
 			if (!_buildable_ok(file,decode_node)) goto NewCode ;
 		}
 		trace("clash") ;
-		return { .proc=JobMngtProc::Encode , .txt="crc clash" , .ok=No } ;       // this is a true full crc clash, seq_id and fd will be filled in later
+		return { .proc=JobMngtProc::Encode , .txt="checksum clash" , .ok=No } ;                  // this is a true full crc clash, seq_id and fd will be filled in later
 	NewCode :
 		trace("new_code",code) ;
 		AcFd(file,Fd::Append).write(_codec_line(ctx,code,txt,true/*with_nl*/)) ;                 // Maybe means append

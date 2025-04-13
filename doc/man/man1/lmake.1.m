@@ -86,6 +86,10 @@ However, sometimes it is practical to have the output while jobs are running.
 Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
 When this option is used, only the jobs directly producing the asked targets have their output generated on the output of B(lmake).
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
+Item(B(-m) I(count),B(--max-submits)=I(count))
+Ask B(lmake) to limit number of submits for any job to this number.
+This constraint must be enforced together with the B(max_submits) rule attribute, i.e. the min of these 2 constraints is used.
+This is useful to observe a job while it is supposed to rerun.
 Item(B(-r) I(count),B(--retry-on-error)=I(count))
 Ask B(lmake) to retry jobs in case of error.
 This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.

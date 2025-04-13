@@ -34,7 +34,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd(_g_rules_filename,Fd::Write).write(serialize(*Rule::s_rules)) ;
+		AcFd(_g_rules_file_name,Fd::Write).write(serialize(*Rule::s_rules)) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -72,8 +72,8 @@ namespace Engine::Persistent {
 	void RuleBase::s_from_disk() {
 		Trace trace("s_from_disk") ;
 		//
-		try        { s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
-		catch(...) { s_rules = nullptr ;                                                       }
+		try        { s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_file_name).read())} ; }
+		catch(...) { s_rules = nullptr ;                                                        }
 		_s_set_rules() ;
 		//
 		trace("done") ;
@@ -167,22 +167,22 @@ namespace Engine::Persistent {
 	//
 
 	// on disk
-	::string                      _g_rules_filename ;
+	::string _g_rules_file_name ;
 	//
-	JobFile                       _g_job_file       ; // jobs
-	DepsFile                      _g_deps_file      ; // .
-	TargetsFile                   _g_targets_file   ; // .
-	NodeFile                      _g_node_file      ; // nodes
-	JobTgtsFile                   _g_job_tgts_file  ; // .
-	RuleCrcFile                   _g_rule_crc_file  ; // rules
-	RuleTgtsFile                  _g_rule_tgts_file ; // .
-	SfxFile                       _g_sfxs_file      ; // .
-	PfxFile                       _g_pfxs_file      ; // .
-	NameFile                      _g_name_file      ; // commons
+	JobFile      _g_job_file       ; // jobs
+	DepsFile     _g_deps_file      ; // .
+	TargetsFile  _g_targets_file   ; // .
+	NodeFile     _g_node_file      ; // nodes
+	JobTgtsFile  _g_job_tgts_file  ; // .
+	RuleCrcFile  _g_rule_crc_file  ; // rules
+	RuleTgtsFile _g_rule_tgts_file ; // .
+	SfxFile      _g_sfxs_file      ; // .
+	PfxFile      _g_pfxs_file      ; // .
+	NameFile     _g_name_file      ; // commons
 	// in memory
-	::uset<Job >       _frozen_jobs  ;
-	::uset<Node>       _frozen_nodes ;
-	::uset<Node>       _no_triggers  ;
+	::uset<Job > _frozen_jobs  ;
+	::uset<Node> _frozen_nodes ;
+	::uset<Node> _no_triggers  ;
 
 	static void _compile_srcs() {
 		Trace trace("_compile_srcs") ;
@@ -202,7 +202,7 @@ namespace Engine::Persistent {
 		// START_OF_VERSIONING
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
-		_g_rules_filename = dir_s+"rule" ;
+		_g_rules_file_name = dir_s+"rule" ;
 		//
 		mk_dir_s(dir_s) ;
 		// jobs

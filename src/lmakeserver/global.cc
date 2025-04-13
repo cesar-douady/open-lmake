@@ -219,8 +219,8 @@ namespace Engine {
 	RulesBase::RulesBase(Dict const& py_d) : RulesBase{New} {
 		py_sys_path = &py_d["sys_path"].as_a<Sequence>() ;
 		if (!py_sys_path->is_a<Tuple>()) {                                                                                                  // convert to tuple if necessary, so as to be sure ...
-			Gil gil ;
-			Ptr<Tuple> py_t { py_sys_path->size() } ; for( size_t i : iota(py_sys_path->size()) ) py_t->set_item( i , (*py_sys_path)[i] ) ; // ... it is frozen and to stabilize crc
+			Gil gil ;                                                                                                                       // ... it is frozen and to stabilize crc
+			Ptr<Tuple> py_t { py_sys_path->size() } ; for( size_t i : iota(py_sys_path->size()) ) py_t->set_item( i , (*py_sys_path)[i] ) ;
 			py_sys_path = ::move(py_t) ;
 		}
 		sys_path_crc = Xxh(::string(*py_sys_path->str())).digest() ;

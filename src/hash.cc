@@ -20,10 +20,10 @@ namespace Hash {
 	}
 
 	// START_OF_VERSIONING
-	Crc::Crc(::string const& filename) {
+	Crc::Crc(::string const& file_name) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
-		if ( AcFd fd = ::open(filename.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
+		if ( AcFd fd = ::open(file_name.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC) ; +fd ) {
 			FileInfo fi  { fd }                         ;
 			::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 			switch (fi.tag()) {
@@ -39,8 +39,8 @@ namespace Hash {
 						else if (cnt==0) break ;                                // file could change while crc is being computed
 						else switch (errno) {
 							case EAGAIN :
-							case EINTR  : continue                                       ;
-							default     : throw "I/O error while reading file "+filename ;
+							case EINTR  : continue                                        ;
+							default     : throw "I/O error while reading file "+file_name ;
 						}
 						SWEAR(cnt>0,cnt) ;
 						if (size_t(cnt)>=sz) break ;
@@ -49,7 +49,7 @@ namespace Hash {
 					self = ctx.digest() ;
 				} break ;
 			DN}
-		} else if ( ::string lnk_target = read_lnk(filename) ; +lnk_target ) {
+		} else if ( ::string lnk_target = read_lnk(file_name) ; +lnk_target ) {
 			Xxh ctx { FileTag::Lnk } ;
 			ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 			self = ctx.digest() ;
@@ -81,8 +81,8 @@ namespace Hash {
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;
-			if (! diff                                       ) return {} ;                                                               // crc's are identical, cannot perceive difference
-			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near crc clash, must increase CRC size",self,"versus",other) ;
+			if (! diff                                       ) return {} ;                                                                    // crc's are identical, cannot perceive difference
+			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near checksum clash, must increase CRC size",self,"versus",other) ;
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = ~Accesses() ;

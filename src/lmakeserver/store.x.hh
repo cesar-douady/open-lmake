@@ -311,7 +311,7 @@ namespace Engine::Persistent {
 	// END_OF_VERSIONING
 
 	// on disk
-	extern ::string _g_rules_filename ;
+	extern ::string _g_rules_file_name ;
 	//
 	extern JobFile      _g_job_file       ; // jobs
 	extern DepsFile     _g_deps_file      ; // .

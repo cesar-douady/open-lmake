@@ -664,12 +664,6 @@ namespace Engine {
 								else if (sa.used_tag ==job->backend     ) push_entry( "backend" , snake_str(job->backend)                                     ) ;
 								else                                      push_entry( "backend" , snake_str(job->backend)+" -> "+sa.used_tag , Color::Warning ) ;
 							}
-							Color status_color =
-								StatusAttrs[+job->status].second.first==Yes   ? Color::Ok
-							:	StatusAttrs[+job->status].second.first==Maybe ? Color::Note
-							:	                                                Color::Err
-							;
-							push_entry( "status" , cat(::copy(job->status)) , status_color , false ) ;
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
 							::map_ss required_rsrcs  ;
@@ -678,8 +672,16 @@ namespace Engine {
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(MsgStderr const&) {}
 							//
-							if (+end) push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
-							if ( +end && end.digest.status>Status::Early ) {
+							if (+end) {
+								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
+								Color status_color =
+									StatusAttrs[+digest.status].second.first==Yes   ? Color::Ok
+								:	StatusAttrs[+digest.status].second.first==Maybe ? Color::Note
+								:	                                                  Color::Err
+								;
+								push_entry( "status" , cat(digest.status) , status_color , false ) ;
+							}
+							if ( +end && digest.status>Status::Early ) {
 								// no need to localize phy_tmp_dir as this is an absolute dir
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;

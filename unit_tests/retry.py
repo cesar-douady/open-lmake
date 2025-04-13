@@ -27,7 +27,14 @@ if __name__!='__main__' :
 		target = 'dut2'
 		cmd    = 'cat dep ; exit 1'
 
+	class Rerun(Rule) :
+		target = 'rerun'
+		cmd    = 'cat dep'
+
+
 else :
+
+	import os
 
 	import ut
 
@@ -38,3 +45,8 @@ else :
 	ut.lmake('dep' , done=1 )
 	print('step=2',file=open('step.py','w'))
 	ut.lmake( '-r2' , 'dut2' , may_rerun=1 , steady=1 , retry=2 , failed=2 , rc=1 ) # check retry also works when dut would be was_failed
+
+	os.unlink('dep')
+	print('step=3',file=open('step.py','w'))
+	ut.lmake( '-m1' , 'rerun' , may_rerun=1 , steady=1 , submit_loop=1 , rc=1 ) # observe job in the middle of rerun loop
+	ut.lmake(         'rerun' ,               steady=1                        ) # observe job at end

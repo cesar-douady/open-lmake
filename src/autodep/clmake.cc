@@ -244,7 +244,7 @@ PyMODINIT_FUNC
 			"depend(\n"
 			"\t*deps\n"
 			",\tfollow_symlinks=False\n"
-			",\tverbose        =False    # return a report as a dict  dep:(ok,crc) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
+			",\tverbose        =False    # return a report as a dict  dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
 			",\tread           =False    # pretend deps are read in addition to setting flags\n"
 			"# flags :\n"
 			",\tcritical       =False    # if modified, ignore following deps\n"

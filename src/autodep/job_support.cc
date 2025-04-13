@@ -64,7 +64,7 @@ namespace JobSupport {
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad ) {
 		::vmap_s<FileInfo> targets ;
 		_chk_files(files) ;
-		Pdate pd { New } ;                                                                                                          // for perf and in trace, we will see all targets with same date
+		Pdate pd { New } ;                                                                                                         // for perf and in trace, we will see all targets with same date
 		for( ::string& f : files ) {
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
 				.file      = ::move(f)
@@ -89,9 +89,9 @@ namespace JobSupport {
 	}
 
 	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {
-		if (Encode) { //!                                                                                                      ok
-			if (min_len<=1            ) return { cat("min_len (",min_len,") must be at least 1"                            ) , false } ;
-			if (min_len> sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most crc length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
+		if (Encode) { //!                                                                                                           ok
+			if (min_len<=1            ) return { cat("min_len (",min_len,") must be at least 1"                                 ) , false } ;
+			if (min_len> sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
 		}
 		Comment comment = Encode ? Comment::encode : Comment::decode ;
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;

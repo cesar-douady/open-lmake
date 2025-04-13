@@ -820,7 +820,7 @@ namespace Engine {
 		DN} //!                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
-	static JobReasonTag _mk_reason(Status s) {
+	static JobReasonTag _mk_pre_reason(Status s) {
 		static constexpr ::amap<Status,JobReasonTag,N<Status>> ReasonTab {{
 			{ Status::New          , JobReasonTag::New             }
 		,	{ Status::EarlyChkDeps , JobReasonTag::ChkDeps         }
@@ -848,18 +848,18 @@ namespace Engine {
 		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
-		Rule        r            = rule()                                                        ;
-		bool        query        = make_action==MakeAction::Query                                ;
-		Req         req          = ri.req                                                        ;
-		Special     special      = r->special                                                    ;
-		bool        dep_live_out = special==Special::Req && req->options.flags[ReqFlag::LiveOut] ;
-		CoarseDelay dep_pressure = ri.pressure + exec_time                                       ;
-		bool        archive      = req->options.flags[ReqFlag::Archive]                          ;
+		Rule              r            = rule()                                              ;
+		bool              query        = make_action==MakeAction::Query                      ;
+		Req               req          = ri.req                                              ;
+		ReqOptions const& ro           = req->options                                        ;
+		Special           special      = r->special                                          ;
+		bool              dep_live_out = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
+		CoarseDelay       dep_pressure = ri.pressure + exec_time                             ;
+		bool              archive      = ro.flags[ReqFlag::Archive]                          ;
 		//
 	RestartFullAnalysis :
 		JobReason pre_reason    ;                                                               // reason to run job when deps are ready before deps analysis
 		JobReason report_reason ;
-		bool      forget_err    = req->options.flags[ReqFlag::ForgetOldErrors] && err() ;
 		auto reason = [&](ReqInfo::State const& s)->JobReason {
 			if (ri.force) return pre_reason | ri.reason | s.reason             ;
 			else          return pre_reason |             s.reason | ri.reason ;
@@ -873,31 +873,31 @@ namespace Engine {
 				default                  : if (rt>=JobReasonTag::Err) return NoRunReason::Dep ;
 			}
 			switch (pre_reason.tag) {
-				case JobReasonTag::Retry : if ( is_lost(status) && !ri.first_submit() ) goto Retry  ;
-				/**/                       else                                         goto Submit ;
-				case JobReasonTag::Lost  :                                              goto Lost   ;
-				default                  :                                              goto Submit ;
+				case JobReasonTag::Lost  :                                                        goto Lost   ;
+				case JobReasonTag::Retry : if ( is_lost(status) && make_action==MakeAction::End ) goto Retry  ; [[fallthrough]] ; // retry if lost error (other reasons are not reliable)
+				default                  :                                                        goto Submit ;
 			}
-			Retry  : return                 ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
-			Lost   : return                 ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
-			Submit : return r->n_submits && ri.n_submits>=r->n_submits   ? NoRunReason::SubmitLoop : NoRunReason::None ;
+			Retry  : return ri.n_retries>=req->n_retries ? NoRunReason::RetryLoop  : NoRunReason::None ;
+			Lost   : return ri.n_losts  >=r->n_losts     ? NoRunReason::LostLoop   : NoRunReason::None ;
+			Submit :
+				bool rule_constraint   = r  ->n_submits && ri.n_submits>=r  ->n_submits ;
+				bool option_constraint = req->n_submits && ri.n_submits>=req->n_submits ;
+				return rule_constraint || option_constraint ? NoRunReason::SubmitLoop : NoRunReason::None ;
 		} ;
 		// /!\ no_run_reason and inc_submits must stay in sync
-		auto inc_submits = [&](JobReasonTag rt)->void {                                         // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
+		auto inc_submits = [&](JobReasonTag rt)->void {       // inc counter associated with no_run_reason (returning None) assuming rt==reason(ri.state).tag
 			switch (rt) {
-				case JobReasonTag::Retry :                                             ri.n_retries++ ; break ;
+				case JobReasonTag::Retry :                                                        ri.n_retries++ ; break ;
 			DN}
 			switch (pre_reason.tag) {
-				case JobReasonTag::Retry : if ( is_lost(status) && ri.first_submit() ) ri.n_retries++ ;
-				/**/                       else                                        ri.n_submits++ ;
-				break ;
-				case JobReasonTag::Lost  :                                             ri.n_losts  ++ ; break ;
-				default                  :                                             ri.n_submits++ ;
+				case JobReasonTag::Lost  :                                                        ri.n_losts  ++ ; break ;
+				case JobReasonTag::Retry : if ( is_lost(status) && make_action==MakeAction::End ) ri.n_retries++ ; [[fallthrough]] ; // retry if lost error (other reasons are not reliable)
+				default                  :                                                        ri.n_submits++ ;
 			}
 		} ;
 		switch (make_action) {
 			case MakeAction::End :
-				ri.reset(idx(),true/*has_run*/) ;                                               // deps have changed
+				ri.reset(idx(),true/*has_run*/) ;             // deps have changed
 			[[fallthrough]] ;
 			case MakeAction::Wakeup : ri.dec_wait() ; break     ;
 			case MakeAction::GiveUp : ri.dec_wait() ; goto Done ;
@@ -906,30 +906,30 @@ namespace Engine {
 			if (ri.state.missing_dsk) { trace("reset",asked_reason) ; ri.reset(idx()) ; }
 			ri.reason |= asked_reason ;
 		}
-		ri.speculate = ri.speculate & speculate ;                                               // cannot use &= with bit fields
+		ri.speculate = ri.speculate & speculate ;             // cannot use &= with bit fields
 		if (ri.done()) {
 			if (!reason(ri.state).need_run()  ) goto Wakeup ;
 			if (req.zombie()                  ) goto Wakeup ;
 			/**/                                goto Run    ;
 		} else {
-			if (ri.waiting()                  ) goto Wait   ;                                   // we may have looped in which case stats update is meaningless and may fail()
+			if (ri.waiting()                  ) goto Wait   ; // we may have looped in which case stats update is meaningless and may fail()
 			if (req.zombie()                  ) goto Done   ;
-			if (idx().frozen()                ) goto Run    ;                                   // ensure crc are updated, akin sources
-			if (special==Special::InfiniteDep ) goto Run    ;                                   // special case : Infinite's actually have no dep, just a list of node showing infinity
-			if (special==Special::InfinitePath) goto Run    ;                                   // .
+			if (idx().frozen()                ) goto Run    ; // ensure crc are updated, akin sources
+			if (special==Special::InfiniteDep ) goto Run    ; // special case : Infinite's actually have no dep, just a list of node showing infinity
+			if (special==Special::InfinitePath) goto Run    ; // .
 		}
 		if (ri.step()==Step::None) {
-			estimate_stats() ;                                                                  // initial guestimate to accumulate waiting costs while resources are not fully known yet
+			estimate_stats() ;                                // initial guestimate to accumulate waiting costs while resources are not fully known yet
 			ri.step(Step::Dep,idx()) ;
 			JobReasonTag jrt = {} ;
-			if      (r->force   ) jrt = JobReasonTag::Force  ;
-			else if (!cmd_ok()  ) jrt = JobReasonTag::Cmd    ;
-			else if (forget_err ) jrt = JobReasonTag::OldErr ;                                  // probably a transient error
-			else if (!rsrcs_ok()) jrt = JobReasonTag::Rsrcs  ;                                  // probably a resource  error
-			else                  goto NoReason ;
+			if      ( r->force                                                                         ) jrt = JobReasonTag::Force  ;
+			else if ( !cmd_ok()                                                                        ) jrt = JobReasonTag::Cmd    ;
+			else if ( (ro.flags[ReqFlag::ForgetOldErrors]&&err()) || (is_lost(status)&&!is_ok(status)) ) jrt = JobReasonTag::OldErr ; // probably a transient error
+			else if ( !rsrcs_ok()                                                                      ) jrt = JobReasonTag::Rsrcs  ; // probably a resource  error
+			else                                                                                         goto NoReason ;
 			ri.reason              = jrt  ;
 			ri.force               = true ;
-			ri.state.proto_modif   = true ;                                                     // ensure we can copy proto_modif to stamped_modif anytime when pertinent
+			ri.state.proto_modif   = true ;                                                               // ensure we can copy proto_modif to stamped_modif anytime when pertinent
 			ri.state.stamped_modif = true ;
 		NoReason : ;
 		}
@@ -944,9 +944,9 @@ namespace Engine {
 			bool           sure                 = true     ;
 			ReqInfo::State state                = ri.state ;
 			//
-			ri.speculative_wait = false              ;                                                    // initially, we are not waiting at all
-			report_reason       = {}                 ;
-			pre_reason          = _mk_reason(forget_err?Status::Ok:status) ;
+			ri.speculative_wait = false                  ;                                                // initially, we are not waiting at all
+			report_reason       = {}                     ;
+			pre_reason          = _mk_pre_reason(status) ;
 			if ( pre_reason.tag==JobReasonTag::Lost && make_action!=MakeAction::End ) pre_reason = JobReasonTag::WasLost ;
 			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {

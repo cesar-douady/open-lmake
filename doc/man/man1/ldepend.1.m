@@ -28,14 +28,14 @@ Bullet
 .LP
 Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
 Item(B(-v),B(--verbose))
-	Write lines composed of the crc and the name separated by a space for each required dep.
+	Write lines composed of the checksum and the name separated by a space for each required dep.
 	.RS
-	The crc is :
-	Item(I(unknown)) the crc could not be computed, typically because the file is a special file (such as a device for example)
+	The checksum is :
+	Item(I(unknown)) the checksum could not be computed, typically because the file is a special file (such as a device for example)
 	Item(I(none))    the file does not exist
 	Item(I(empty-R)) the file is an empty non-executable regular file
-	Item(I(<crc>-R)) the file is a regular file , <crc> is 16-digit hexadecimal number computed after its content (the exe permission is taken into account when computing crc)
-	Item(I(<crc>-L)) the file is a symbolic link, <crc> is 16-digit hexadecimal number computed on the link (not the content of the target of the link)
+	Item(I(<checksum>-R)) the file is a regular file , <checksum> is 16-digit hexadecimal number computed after its content (the exe permission is taken into account when computing checksum)
+	Item(I(<checksum>-L)) the file is a symbolic link, <checksum> is 16-digit hexadecimal number computed on the link (not the content of the target of the link)
 	.RE
 Item(B(-R),B(--read))         Report an actual read. Default is to only alter flags.
 Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).

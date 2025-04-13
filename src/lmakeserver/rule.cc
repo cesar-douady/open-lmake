@@ -556,7 +556,7 @@ namespace Engine {
 			Sequence const& py_seq = py_src->as_a<Sequence>() ;
 			acquire(dst.module        ,&py_seq[0].as_a<Str>()                 ) ;
 			acquire(dst.qual_name     ,&py_seq[1].as_a<Str>()                 ) ;
-			acquire(dst.filename      ,&py_seq[2].as_a<Str>()                 ) ;
+			acquire(dst.file_name     ,&py_seq[2].as_a<Str>()                 ) ;
 			acquire(dst.first_line_no1,&py_seq[3].as_a<Int>(),size_t(1)/*min*/) ;
 			return true/*updated*/ ;
 		}
@@ -739,8 +739,8 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , DbgEntry const& de ) {
-		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.filename<<" , "<<de.first_line_no1<<" )" ;
-		else     return os<<"()"                                                                                     ;
+		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.file_name<<" , "<<de.first_line_no1<<" )" ;
+		else     return os<<"()"                                                                                      ;
 	}
 
 	//

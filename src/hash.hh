@@ -72,21 +72,21 @@ namespace Hash {
 				case FileTag::Empty : self = Crc::Empty ; break ;
 			DF}
 		}
-		Crc( ::string const& filename                             ) ;
-		Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
-			fi  = Disk::FileInfo(filename) ;
-			self = Crc(filename)           ;
-			Disk::FileSig sig_before = fi.sig()                ;
-			Disk::FileSig sig_after  = Disk::FileSig(filename) ;
+		Crc( ::string const& file_name                             ) ;
+		Crc( ::string const& file_name , Disk::FileInfo&/*out*/ fi ) {
+			fi  = Disk::FileInfo(file_name) ;
+			self = Crc(file_name)           ;
+			Disk::FileSig sig_before = fi.sig()                 ;
+			Disk::FileSig sig_after  = Disk::FileSig(file_name) ;
 			if (sig_after!=sig_before) {                                              // file was moving, association date<=>crc is not reliable
 				if (sig_after.tag()==sig_before.tag()) self = Crc(sig_before.tag()) ; // file type is reliable
 				else                                   self = {}                    ; // nothing is reliable
 			}
 		}
-		Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
+		Crc( ::string const& file_name , Disk::FileSig&/*out*/ sig ) {
 			Disk::FileInfo fi ;
-			self = Crc(filename,/*out*/fi) ;
-			sig  = fi.sig()                ;
+			self = Crc(file_name,/*out*/fi) ;
+			sig  = fi.sig()                 ;
 		}
 	private :
 		constexpr Crc( CrcSpecial special ) : _val{+special} {}

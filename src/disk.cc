@@ -379,8 +379,8 @@ namespace Disk {
 	// FileMap
 	//
 
-	FileMap::FileMap( Fd at , ::string const& filename ) {
-		_fd = Fd(at,filename) ;
+	FileMap::FileMap( Fd at , ::string const& file_name ) {
+		_fd = Fd(at,file_name) ;
 		if (!_fd) return ;
 		sz = FileInfo(_fd,{},false/*no_follow*/).sz ;
 		if (sz) {

@@ -75,12 +75,12 @@ def run_py(dbg_dir,deps,func,*args,**kwds) :
 			import importlib.util
 			if not getattr(mod,'__file__',None) : return False
 			#
-			filename = osp.abspath(mod.__file__)
+			file_name = osp.abspath(mod.__file__)
 			#
-			if not filename.startswith(os.getcwd()+'/') : return False
-			if filename.endswith('.pyc')                : filename = importlib.util.source_from_cache(filename)
-			if not filename.endswith('.py')             : return False
-			else                                        : return osp.exists(filename)
+			if not file_name.startswith(os.getcwd()+'/') : return False
+			if file_name.endswith('.pyc')                : file_name = importlib.util.source_from_cache(file_name)
+			if not file_name.endswith('.py')             : return False
+			else                                         : return osp.exists(file_name)
 		#
 		# hack pudb.debugger.DebuggerUI.__init__.show_output as it reads from sys.stdin instead of reading from stdin
 		# else the 'o' command does not work when debuggee has its input redirected

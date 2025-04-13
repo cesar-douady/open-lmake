@@ -55,9 +55,9 @@ Several prefixes can be used, for example a private static variable will start w
 - special cases:
 	<table>
 	<tr> <th> abbrev   </th> <th> full-name              </td> </tr>
+	<tr> <td> crc      </td> <td> checksum               </td> </tr>
 	<tr> <td> ddate    </td> <td> disk date              </td> </tr>
 	<tr> <td> dflag    </td> <td> dependency flag        </td> </tr>
-	<tr> <td> filename </td> <td> file name              </td> </tr>
 	<tr> <td> lnk      </td> <td> symbolic link          </td> </tr>
 	<tr> <td> ongoing  </td> <td> on going               </td> </tr>
 	<tr> <td> pdate    </td> <td> process date           </td> </tr>

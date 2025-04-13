@@ -434,7 +434,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
-			*msg<<"cannot compute crc for "<<e.first ;
+			*msg<<"cannot compute checksum for "<<e.first ;
 		}
 	}
 	trace("done",cnt) ;

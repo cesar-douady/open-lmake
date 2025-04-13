@@ -284,8 +284,8 @@ Status Gather::exec_child() {
 	size_t                   kill_step          = 0           ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if ( status==Status::New || status==Status::Ok ) status = status_ ;                           // else there is already another reason or caller does not want to set a reason
-		if ( +msg_                                     ) msg << set_nl << msg_ ;
+		if (status==Status::New) status = status_ ;                                                   // only record first status
+		if (+msg_              ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
 		trace("kill",STR(next_step),kill_step,STR(as_session),_child.pid,_wait) ;
