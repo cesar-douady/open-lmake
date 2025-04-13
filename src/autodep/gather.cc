@@ -455,8 +455,6 @@ Status Gather::exec_child() {
 									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
 								} else {
 									_exec_trace( New , cat("chk_deps.",jmrr.ok) , jmrr.txt ) ;
-									if (jmrr.ok==No) { _exec_trace( New , "chk_deps.err" , jmrr.txt ) ; set_status( Status::New , "dep in error : "+jmrr.txt ) ; } // dont set a status, just log a msg
-									else             { _exec_trace( New , "chk_deps.ok"  , jmrr.txt ) ; set_status( Status::New , "all deps ok"              ) ; }
 								}
 							break ;
 							case JobMngtProc::Decode :
