@@ -903,7 +903,7 @@ namespace Engine {
 			//
 			ri.speculative_wait = false              ;                                                    // initially, we are not waiting at all
 			report_reason       = {}                 ;
-			pre_reason          = _mk_reason(forget_err?Status::Ok:status) ;
+			pre_reason          = _mk_reason(status) ;
 			if ( pre_reason.tag==JobReasonTag::Lost && make_action!=MakeAction::End ) pre_reason = JobReasonTag::WasLost ;
 			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
