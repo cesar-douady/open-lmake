@@ -14,7 +14,7 @@ if __name__!='__main__' :
 		kill_sigs = (2,)                                        # SIGKILL (9) is automatically added when list is exhausted
 		targets = { 'TGT' : ( r'dut.{*:\d}' , 'incremental' ) }
 		cmd = '''
-			trap 'echo killed > {TGT(2)}' 2
+			trap 'echo killed > {TGT(2)} ; sleep 2 ; echo killed >{TGT(3)}' 2
 			cat dep > {TGT(1)}
 			lcheck_deps
 			sleep 3
@@ -33,4 +33,5 @@ else :
 
 	ut.lmake( 'dut.1' , rerun=1 , done=2 )
 
-	assert osp.exists('dut.2') # created when job is killed because of new dep
+	assert     osp.exists('dut.2') # created when job is killed because of new dep
+	assert not osp.exists('dut.3') # should be kill -9'ed before generating 2nd message

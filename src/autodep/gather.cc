@@ -354,7 +354,7 @@ Status Gather::exec_child() {
 			break ;
 		}
 		if (now>end_kill) {
-			kill() ;
+			kill(true/*next*/) ;
 		}
 		if ( now>end_timeout && !timeout_fired ) {
 			_exec_trace(now,Comment::timeout) ;

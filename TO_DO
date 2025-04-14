@@ -14,6 +14,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* check if side_targets generate crc
 ! exceptionnally, server blocks
 	- seems to be while taking GIL
 
@@ -40,6 +41,7 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* gather stdout/stderr from running job_exec when lshow -o/-e
 ! add a warning when ids reach 15/16 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
@@ -208,9 +210,6 @@ M manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* add unification tests
-* add canonisation and qualification tests
-* add resources only deps tests
 * gcov
 * ancillary commands to unit tests
 	- lshow, ...
