@@ -714,8 +714,8 @@ namespace Engine {
 			if (res.size()>1<<16) use_script = true ;
 		} else {
 			if ( entry().glbs_str.size() + entry().code_str.size() > 1<<16 ) use_script = true ;
-			if ( use_script                                                ) res << "import sys ; sys.path[0] = '' ; del sys.path\n#\n" ; // ensure sys.path is the same as if run with -c, ...
-			res << "lmake_root = " << mk_py_str(no_slash(start_cmd_attrs.job_space.lmake_view_s|*g_lmake_root_s)) <<'\n' ;                // ... del sys to ensure total transparency
+			if ( use_script                                                ) res << "import sys ; sys.path[0] = '' ; del sys\n#\n" ; // ensure sys.path is the same as if run with -c, ...
+			res << "lmake_root = " << mk_py_str(no_slash(start_cmd_attrs.job_space.lmake_view_s|*g_lmake_root_s)) <<'\n' ;           // ... del sys to ensure total transparency
 			res << "repo_root  = " << mk_py_str(no_slash(start_cmd_attrs.job_space.repo_view_s |*g_repo_root_s )) <<'\n' ;
 			res << '#'                                                                                            <<'\n' ;
 			eval_ctx( match , rsrcs

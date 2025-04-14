@@ -477,7 +477,7 @@ template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const&
 	//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( IsBool && res>1 ) throw "bool value must be 0 or 1"s       ;
 	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
-	else                   return res ;
+	else                   return res                               ;
 }
 template<::integral I> inline I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt) , empty_ok , hex ) ; }
 //

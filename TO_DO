@@ -62,7 +62,6 @@ items (also used in XXX comments) :
 	- or write such functions in C, so that malloc are necessary visible
 ? use the Path struct instead of at/file
 	- everywhere applicable
-? implement noexcept everywhere pertinent
 ? if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process

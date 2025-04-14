@@ -181,9 +181,10 @@ class Job :
 				lmake_sys.path.pop()                                                # restore
 				lmake_runner({self.debug_dir!r},{self.static_deps!r},{func_args})
 			''')
+		fix_path = "import sys ; sys.path[0] = '' ; del sys\n"                      # ensure same sys.path as if run with -c, del sys to ensure total transparency
+		if not preamble.startswith(fix_path) : preamble = fix_path+'#\n'+preamble   # if cmd was already in a script, it already contains the fix
 		return (
 			self.gen_shebang()
-		+	"import sys ; sys.path[0] = '' ; del sys\n#\n"                          # ensure same sys.path as if run with -c, del sys to ensure total transparency
 		+	preamble+'\n'
 		+	cmd
 		)
