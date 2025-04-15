@@ -424,17 +424,15 @@ Status Gather::exec_child() {
 						} else {
 							size_t old_sz = stdout.size() ;
 							stdout.append(buf_view) ;
-							if (live_out) {
-								if ( size_t pos = buf_view.rfind('\n') ;  pos!=Npos ) {
-									pos++ ;
+							if (live_out)
+								if ( size_t pos = buf_view.rfind('\n')+1 ;  pos ) {
 									size_t len = old_sz + pos - live_out_pos ;
 									trace("live_out",live_out_pos,len) ;
-									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 									OMsgBuf().send( ClientSockFd(service_mngt) , JobMngtRpcReq({ .proc=JobMngtProc::LiveOut , .seq_id=seq_id , .job=job , .txt=stdout.substr(live_out_pos,len) }) ) ;
-									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-									live_out_pos = old_sz+pos ;
+									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+									live_out_pos += len ;
 								}
-							}
 						}
 					} else {
 						epoll.del(false/*write*/,fd) ;
@@ -515,6 +513,17 @@ Status Gather::exec_child() {
 								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode ) ;
 								_codec_files.erase(it) ;
 							} break ;
+							case JobMngtProc::AddLiveOut : {
+								trace("add_live_out",STR(live_out),live_out_pos) ;
+								if (!live_out) {
+									live_out     = true                 ;
+									live_out_pos = stdout.rfind('\n')+1 ;
+								}
+								if (live_out_pos)
+									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+									OMsgBuf().send( ClientSockFd(service_mngt) , JobMngtRpcReq({ .proc=JobMngtProc::AddLiveOut , .seq_id=seq_id , .job=job , .txt=stdout.substr(0,live_out_pos) }) ) ;
+									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							} break ;
 						DF}
 						if (+rfd) {
 							JobExecRpcReply jerr ;
@@ -525,6 +534,7 @@ Status Gather::exec_child() {
 								case JobMngtProc::Decode     :                         jerr = { .proc=Proc::Decode     , .ok=jmrr.ok , .txt      =::move(jmrr.txt      ) } ; break ;
 								case JobMngtProc::Encode     :                         jerr = { .proc=Proc::Encode     , .ok=jmrr.ok , .txt      =::move(jmrr.txt      ) } ; break ;
 							DF}
+							trace("reply",jerr) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvv
 							sync( rfd , ::move(jerr) ) ;
 							//^^^^^^^^^^^^^^^^^^^^^^^^

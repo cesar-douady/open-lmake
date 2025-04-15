@@ -140,11 +140,11 @@ namespace Backends {
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
-		static void s_open_req    (             Req , JobIdx n_jobs                          ) ;
-		static void s_close_req   (             Req                                          ) ;
-		static void s_submit      ( Tag , Job , Req , SubmitAttrs     && , ::vmap_ss&& rsrcs ) ;
-		static void s_add_pressure( Tag , Job , Req , SubmitAttrs const&                     ) ;
-		static void s_set_pressure( Tag , Job , Req , SubmitAttrs const&                     ) ;
+		static void                  s_open_req    (             Req , JobIdx n_jobs                          ) ;
+		static void                  s_close_req   (             Req                                          ) ;
+		static void                  s_submit      ( Tag , Job , Req , SubmitAttrs     && , ::vmap_ss&& rsrcs ) ;
+		static bool/*miss_live_out*/ s_add_pressure( Tag , Job , Req , SubmitAttrs const&                     ) ;
+		static void                  s_set_pressure( Tag , Job , Req , SubmitAttrs const&                     ) ;
 		//
 		static void s_kill_all    (     ) {             _s_kill_req( ) ; }
 		static void s_kill_req    (Req r) { SWEAR(+r) ; _s_kill_req(r) ; }

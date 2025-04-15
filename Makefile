@@ -94,33 +94,40 @@ SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 COMMA := ,
 
 # XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
-HIDDEN_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
-# syntax for LMAKE_FLAGS : (O[01234])?G?d?t?(S[AT])?P?C?
+HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
+# syntax for LMAKE_FLAGS : (O[01234])?g?d?t?(S[AT])?P?C?
 # - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
-# - G       : ease debugging
+# - g       : dont ease debugging
 # - d       : -DNDEBUG
 # - t       : -DNO_TRACE
 # - SA      : -fsanitize address
 # - ST      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
-LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR)),-flto=2,-flto)
-COVERAGE         := $(if $(findstring C, $(LMAKE_FLAGS)),--coverage)
-PROFILE          := $(if $(findstring P, $(LMAKE_FLAGS)),-pg)
-EXTRA_FLAGS      := $(if $(findstring P, $(LMAKE_FLAGS)),-O1,$(LTO_FLAGS))
-EXTRA_LINK_FLAGS := $(if $(findstring P, $(LMAKE_FLAGS)),,$(LTO_FLAGS))
-EXTRA_FLAGS      := $(if $(findstring O4,$(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_FLAGS))
-EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_LINK_FLAGS))
-EXTRA_FLAGS      := $(if $(findstring O3,$(LMAKE_FLAGS)),-O3,$(EXTRA_FLAGS))
-EXTRA_FLAGS      := $(if $(findstring O2,$(LMAKE_FLAGS)),-O2,$(EXTRA_FLAGS))
-EXTRA_FLAGS      := $(if $(findstring O1,$(LMAKE_FLAGS)),-O1,$(EXTRA_FLAGS))
-EXTRA_FLAGS      := $(if $(findstring O0,$(LMAKE_FLAGS)),-O0 -fno-inline,$(EXTRA_FLAGS))
-EXTRA_FLAGS      += $(if $(findstring d, $(LMAKE_FLAGS)),-DNDEBUG)
-EXTRA_FLAGS      += $(if $(findstring t, $(LMAKE_FLAGS)),-DNO_TRACE)
-HIDDEN_FLAGS     += $(if $(findstring G, $(LMAKE_FLAGS)),-g -fno-omit-frame-pointer)
-HIDDEN_FLAGS     += $(if $(findstring P, $(LMAKE_FLAGS)),-DPROFILING)
-SAN_FLAGS        := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
-SAN_FLAGS        += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread)
+LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR) ),-flto=2     ,-flto                  )
+COVERAGE         :=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
+PROFILE          :=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
+EXTRA_LINK_FLAGS :=     $(if $(findstring P,  $(LMAKE_FLAGS)),            ,$(LTO_FLAGS)           )
+EXTRA_LINK_FLAGS :=     $(if $(findstring O4, $(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_LINK_FLAGS)    )
+EXTRA_LINK_FLAGS :=     $(if $(findstring O3, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
+EXTRA_LINK_FLAGS :=     $(if $(findstring O2, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
+EXTRA_LINK_FLAGS :=     $(if $(findstring O1, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
+EXTRA_LINK_FLAGS :=     $(if $(findstring O0, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
+EXTRA_CC_FLAGS   :=     $(if $(findstring P,  $(LMAKE_FLAGS)),-O1         ,$(LTO_FLAGS)           )
+EXTRA_CC_FLAGS   :=     $(if $(findstring O4, $(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_CC_FLAGS)      )
+EXTRA_CC_FLAGS   :=     $(if $(findstring O3, $(LMAKE_FLAGS)),-O3         ,$(EXTRA_CC_FLAGS)      )
+EXTRA_CC_FLAGS   :=     $(if $(findstring O2, $(LMAKE_FLAGS)),-O2         ,$(EXTRA_CC_FLAGS)      )
+EXTRA_CC_FLAGS   :=     $(if $(findstring O1, $(LMAKE_FLAGS)),-O1         ,$(EXTRA_CC_FLAGS)      )
+EXTRA_CC_FLAGS   :=     $(if $(findstring O0, $(LMAKE_FLAGS)),-O0         ,$(EXTRA_CC_FLAGS)      )
+EXTRA_CC_FLAGS   +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-g                     )
+EXTRA_CC_FLAGS   +=     $(if $(findstring d,  $(LMAKE_FLAGS)),-DNDEBUG                            )
+EXTRA_CC_FLAGS   +=     $(if $(findstring t,  $(LMAKE_FLAGS)),-DNO_TRACE                          )
+HIDDEN_CC_FLAGS  +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-fno-omit-frame-pointer)
+HIDDEN_CC_FLAGS  +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-DPROFILING                         )
+HIDDEN_CC_FLAGS  +=     $(if $(findstring O0, $(LMAKE_FLAGS)),-fno-inline                         )
+#
+SAN_FLAGS := $(if $(findstring SA,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
+SAN_FLAGS += $(if $(findstring ST,$(LMAKE_FLAGS)),-fsanitize=thread                      )
 # some user codes may have specific (and older) libs, in that case, unless flag l is used, link libstdc++ statically
 LIB_STDCPP := $(if $(findstring l,$(LMAKE_FLAGS)),,-static-libstdc++)
 #
@@ -137,10 +144,10 @@ ifeq ($(CXX_FLAVOR),clang)
 endif
 #
 # XXX : suppress -fno-strict-aliasing when proven correct
-USER_FLAGS := -std=$(CXX_STD) $(EXTRA_FLAGS) $(COVERAGE) $(PROFILE)
-COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_FLAGS) -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
+USER_FLAGS := -std=$(CXX_STD) $(EXTRA_CC_FLAGS) $(COVERAGE) $(PROFILE)
+COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_CC_FLAGS) -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
 LINT       := clang-tidy
-LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
+LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_CC_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
 LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
 
@@ -381,10 +388,10 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 %-py2.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
 %-san.i : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E $(SAN_FLAGS) -o $@ $<
 
-%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
-%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -m32         -o $@ $<
-%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S              -o $@ $<
-%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S $(SAN_FLAGS) -o $@ $<
+%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
+%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm -m32         -o $@ $<
+%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
+%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S -fverbose-asm $(SAN_FLAGS) -o $@ $<
 
 COMPILE_O = $(COMPILE) -c -frtti -fPIC
 %.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
@@ -835,7 +842,7 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@echo generate $(DEBIAN_DIR)
 	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
-	@echo LMAKE_FLAGS=O4Gtl > $(DEBIAN_DIR)/sys_config.env
+	@echo LMAKE_FLAGS=tl > $(DEBIAN_DIR)/sys_config.env
 	@tar -cz -C$(DEBIAN_DIR) -f $@ .
 	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
 	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f       /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links

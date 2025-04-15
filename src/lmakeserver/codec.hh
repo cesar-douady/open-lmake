@@ -40,13 +40,12 @@ namespace Codec {
 		// cxtors & casts
 		Closure() = default ;
 		Closure(
-			Proc                    p
-		,	JobIdx                  j
-		,	Fd                      fd_
-		,	::string&&              code
-		,	::string&&              f
-		,	::string&&              c
-		,	::vector<ReqIdx> const& rs
+			Proc       p
+		,	JobIdx     j
+		,	Fd         fd_
+		,	::string&& code
+		,	::string&& f
+		,	::string&& c
 		) :
 			proc {        p     }
 		,	job  {        j     }
@@ -54,17 +53,15 @@ namespace Codec {
 		,	file { ::move(f   ) }
 		,	ctx  { ::move(c   ) }
 		,	txt  { ::move(code) }
-		,	reqs {        rs    }
 		{ SWEAR(p==Proc::Decode) ; }
 		Closure(
-			Proc                    p
-		,	JobIdx                  j
-		,	Fd                      fd_
-		,	::string&&              val
-		,	::string&&              f
-		,	::string&&              c
-		,	uint8_t                 ml
-		,	::vector<ReqIdx> const& rs
+			Proc       p
+		,	JobIdx     j
+		,	Fd         fd_
+		,	::string&& val
+		,	::string&& f
+		,	::string&& c
+		,	uint8_t    ml
 		) :
 			proc     {        p    }
 		,	_min_len {        ml   }
@@ -73,13 +70,10 @@ namespace Codec {
 		,	file     { ::move(f  ) }
 		,	ctx      { ::move(c  ) }
 		,	txt      { ::move(val) }
-		,	reqs     {        rs   }
 		{ SWEAR(p==Proc::Encode) ; }
 		// accesses
 		uint8_t min_len() const { SWEAR(proc==Proc::Encode) ; return _min_len ; }
 		// services
-	private :
-	public :
 		JobMngtRpcReply decode() const ;
 		JobMngtRpcReply encode() const ;
 		// data
@@ -87,12 +81,11 @@ namespace Codec {
 	private :
 		uint8_t _min_len = 0/*garbage*/ ;
 	public :
-		JobIdx           job  ;
-		Fd               fd   ;
-		::string         file ;
-		::string         ctx  ;
-		::string         txt  ;
-		::vector<ReqIdx> reqs ;
+		JobIdx   job  ;
+		Fd       fd   ;
+		::string file ;
+		::string ctx  ;
+		::string txt  ;
 	} ;
 
 	struct ValMrkr  {} ;

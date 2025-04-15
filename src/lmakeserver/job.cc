@@ -151,18 +151,19 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , JobReqInfo const& ri ) {
-		/**/                  os << "JRI(" << ri.req     ;
-		if (ri.speculate!=No) os <<",S:" << ri.speculate ;
-		if (ri.modified     ) os <<",modified"           ;
-		/**/                  os <<','   << ri.step()    ;
-		/**/                  os <<'@'   << ri.iter      ;
-		/**/                  os <<':'   << ri.state     ;
-		if (ri.n_wait       ) os <<",W:" << ri.n_wait    ;
-		if (+ri.reason      ) os <<','   << ri.reason    ;
-		if (+ri.n_losts     ) os <<",NL:"<< ri.n_losts   ;
-		if (+ri.n_retries   ) os <<",NR:"<< ri.n_retries ;
-		if (+ri.n_submits   ) os <<",NS:"<< ri.n_submits ;
-		return                os <<')'                   ;
+		/**/                   os << "JRI(" << ri.req     ;
+		if ( ri.speculate!=No) os <<",S:" << ri.speculate ;
+		if ( ri.modified     ) os <<",modified"           ;
+		/**/                   os <<','   << ri.step()    ;
+		/**/                   os <<'@'   << ri.iter      ;
+		/**/                   os <<':'   << ri.state     ;
+		if ( ri.n_wait       ) os <<",W:" << ri.n_wait    ;
+		if (+ri.reason       ) os <<','   << ri.reason    ;
+		if (+ri.n_losts      ) os <<",NL:"<< ri.n_losts   ;
+		if (+ri.n_retries    ) os <<",NR:"<< ri.n_retries ;
+		if (+ri.n_submits    ) os <<",NS:"<< ri.n_submits ;
+		if ( ri.miss_live_out) os <<",miss_live_out"      ;
+		return                 os <<')'                   ;
 	}
 
 	void JobReqInfo::step( Step s , Job j ) {
@@ -400,8 +401,7 @@ namespace Engine {
 	}
 
 	void JobExec::live_out( ReqInfo& ri , ::string const& txt ) const {
-		if (!txt        ) return ;
-		if (!ri.live_out) return ;
+		if (!txt) return ;
 		Req r = ri.req ;
 		if ( !report_start(ri) && r->last_info!=self ) {
 			Pdate now = New ;
@@ -414,8 +414,22 @@ namespace Engine {
 	}
 
 	void JobExec::live_out(::string const& txt) const {
-		Trace trace("report_start",self) ;
-		for( Req req : self->running_reqs(false/*with_zombies*/) ) live_out(self->req_info(req),txt) ;
+		Trace trace("live_out",self) ;
+		for( Req req : self->running_reqs(false/*with_zombies*/) ) {
+			ReqInfo& ri = self->req_info(req) ;
+			if ( ri.live_out && !ri.miss_live_out ) live_out(ri,txt) ; // if we missed already sent info, wait for them to ensure coherent reports
+		}
+	}
+
+	void JobExec::add_live_out(::string const& txt) const {
+		Trace trace("add_live_out",self) ;
+		for( Req req : self->running_reqs(false/*with_zombies*/) ) {
+			ReqInfo& ri = self->req_info(req) ;
+			if ( ri.live_out && ri.miss_live_out ) {
+				live_out(ri,txt) ;                   // report missed info
+				ri.miss_live_out = false ;           // we are now up to date with reports
+			}
+		}
 	}
 
 	bool/*reported*/ JobExec::report_start( ReqInfo& ri , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& msg_stderr ) const {
@@ -1283,21 +1297,21 @@ namespace Engine {
 		SWEAR(!ri.running(),ri) ;
 		for( Req rr : running_reqs(false/*with_zombies*/) ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
-			ri.step(cri.step(),idx()) ;                               // Exec or Queued, same as other reqs
+			ri.step(cri.step(),idx()) ;                                                  // Exec or Queued, same as other reqs
 			ri.inc_wait() ;
 			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",idx()) ;
 			SubmitAttrs sa = {
 				.pressure = pressure
 			,	.live_out = ri.live_out
 			} ;
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_add_pressure( backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			ri.miss_live_out = Backend::s_add_pressure( backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",rr,ri) ;
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		for( Node t : targets ) t->set_buildable() ;                  // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		for( Node t : targets ) t->set_buildable() ;                                     // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		::vmap_s<DepDigest>  early_deps             ;
 		SubmitAncillaryAttrs submit_ancillary_attrs ;

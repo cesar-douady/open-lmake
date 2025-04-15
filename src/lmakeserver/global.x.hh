@@ -231,7 +231,7 @@ namespace Engine {
 		EngineClosure( JRP p , JE&& je                   ) : Base{ECJ{::move(je),EngineClosureJobReportStart{                   }}} { SWEAR(p==JRP::ReportStart) ; }
 		EngineClosure( JRP p , JE&& je , JD&& jd         ) : Base{ECJ{::move(je),::move(jd)                                      }} { SWEAR(p==JRP::End        ) ; }
 		// JobMngt
-		EngineClosure( JMP p , JE&& je , ::string&& t                 ) : Base{ECJM{.proc=p,         .job_exec=::move(je),.txt=::move(t)    }} { SWEAR(p==JMP::LiveOut) ; }
+		EngineClosure( JMP p , JE&& je , ::string&& t                 ) : Base{ECJM{.proc=p,         .job_exec=::move(je),.txt=::move(t)    }} { SWEAR( p==JMP::LiveOut || p==JMP::AddLiveOut ) ; }
 		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vector<Dep>&& dds ) : Base{ECJM{.proc=p,.fd{fd_},.job_exec=::move(je),.deps{::move(dds)}}} {
 			SWEAR( p==JMP::DepVerbose || p==JMP::ChkDeps ) ;
 		}

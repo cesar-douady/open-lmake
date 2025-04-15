@@ -421,9 +421,10 @@ static bool/*interrupted*/ _engine_loop() {
 				JobExec             & je   = ecjm.job_exec  ;
 				trace("job_mngt",ecjm.proc,je) ;
 				switch (ecjm.proc) {
-					//                          vvvvvvvvvvvvvvvvvvvvv
-					case JobMngtProc::LiveOut : je.live_out(ecjm.txt) ; break ;
-					//                          ^^^^^^^^^^^^^^^^^^^^^
+					//                             vvvvvvvvvvvvvvvvvvvvvvvvv
+					case JobMngtProc::LiveOut    : je.live_out    (ecjm.txt) ; break ;
+					case JobMngtProc::AddLiveOut : je.add_live_out(ecjm.txt) ; break ;
+					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobMngtProc::ChkDeps    :
 					case JobMngtProc::DepVerbose : {
 						JobMngtRpcReply jmrr = je.job_analysis(ecjm.proc,ecjm.deps) ;

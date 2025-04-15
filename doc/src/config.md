@@ -245,7 +245,7 @@ In the current version, only 2 tags may be used:
 This attribute specifies the directory in which the cache puts its data.
 
 The directory must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
-The size may be suffixed by a unit suffix (k, M, G, T, P or E). These refer to base 1024.
+The size may be suffixed by a unit suffix (`k`, `M`, `G`, `T`, `P` or `E`). These refer to base 1024.
 
 ### `caches.<dir>.reliable_dirs` : Static (`False`)
 

@@ -197,12 +197,12 @@ For example, some default values may be modified and if they are used before thi
 <p>If <code>verbose</code>, return a dict with one entry par dep where:</p>
 <ul>
 <li>the key is dep</li>
-<li>the value is a tuple (ok,crc) where:
+<li>the value is a tuple (ok,checksum) where:
 <ul>
 <li>ok = True if the dep is built with no error</li>
 <li>ok = False if the dep is built in error</li>
 <li>ok = None is the dep was not built</li>
-<li>crc is the checksum of the dep</li>
+<li>checksum is computed after the dep</li>
 </ul>
 </li>
 </ul>

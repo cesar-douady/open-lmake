@@ -70,6 +70,7 @@ ENUM( JobMngtProc
 ,	ChkDeps
 ,	DepVerbose
 ,	LiveOut
+,	AddLiveOut // report missing live_out info (Req) or tell job_exec to send missing live_out info (Reply)
 ,	Decode
 ,	Encode
 ,	Heartbeat
@@ -860,7 +861,7 @@ struct JobEndRpcReq : JobRpcReq {
 
 struct JobMngtRpcReq {
 	using JMMR = JobMngtRpcReq       ;
-	using P    = JobMngtProc         ;
+	using Proc = JobMngtProc         ;
 	using SI   = SeqId               ;
 	using JI   = JobIdx              ;
 	using MDD  = ::vmap_s<DepDigest> ;
@@ -871,35 +872,26 @@ struct JobMngtRpcReq {
 		::serdes(s,seq_id) ;
 		::serdes(s,job   ) ;
 		switch (proc) {
-			case P::None       :
-			case P::Heartbeat  :                    break ;
-			case P::LiveOut    : ::serdes(s,txt ) ; break ;
-			case P::ChkDeps    :
-			case P::DepVerbose :
-				::serdes(s,fd  ) ;
-				::serdes(s,deps) ;
-			break ;
-			case P::Encode :
-				::serdes(s,min_len) ;
-				[[fallthrough]] ;
-			case P::Decode :
-				::serdes(s,fd  ) ;
-				::serdes(s,ctx ) ;
-				::serdes(s,file) ;
-				::serdes(s,txt ) ;
-			break ;
+			case Proc::None       :
+			case Proc::Heartbeat  :                                                                                               break ;
+			case Proc::LiveOut    :
+			case Proc::AddLiveOut :                                                       ::serdes(s,txt) ;                       break ;
+			case Proc::ChkDeps    :
+			case Proc::DepVerbose : ::serdes(s,fd) ; ::serdes(s,deps) ;                                                           break ;
+			case Proc::Decode     : ::serdes(s,fd) ; ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ;                       break ;
+			case Proc::Encode     : ::serdes(s,fd) ; ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ; ::serdes(s,min_len) ; break ;
 		DF}
 	}
 	// data
-	P                   proc    = P::None ;
-	SI                  seq_id  = 0       ;
-	JI                  job     = 0       ;
-	Fd                  fd      = {}      ; // fd to which reply must be forwarded
-	::vmap_s<DepDigest> deps    = {}      ; // proc==ChkDeps|DepVerbose
-	::string            ctx     = {}      ; // proc==                           Decode|Encode
-	::string            file    = {}      ; // proc==                           Decode|Encode
-	::string            txt     = {}      ; // proc==                   LiveOut|Decode|Encode
-	uint8_t             min_len = 0       ; // proc==                                  Encode
+	Proc                proc    = Proc::None ;
+	SI                  seq_id  = 0          ;
+	JI                  job     = 0          ;
+	Fd                  fd      = {}         ; // fd to which reply must be forwarded
+	::vmap_s<DepDigest> deps    = {}         ; // proc==ChkDeps|DepVerbose
+	::string            ctx     = {}         ; // proc==                           Decode|Encode
+	::string            file    = {}         ; // proc==                           Decode|Encode
+	::string            txt     = {}         ; // proc==                   LiveOut|Decode|Encode
+	uint8_t             min_len = 0          ; // proc==                                  Encode
 } ;
 
 struct JobMngtRpcReply {
@@ -913,23 +905,12 @@ struct JobMngtRpcReply {
 		switch (proc) {
 			case Proc::None       :
 			case Proc::Kill       :
-			case Proc::Heartbeat  : break ;
-			case Proc::DepVerbose :
-				::serdes(s,fd       ) ;
-				::serdes(s,dep_infos) ;
-			break ;
-			case Proc::ChkDeps :
-				::serdes(s,fd ) ;
-				::serdes(s,ok ) ;
-				::serdes(s,txt) ;
-			break ;
-			case Proc::Decode :
-			case Proc::Encode :
-				::serdes(s,fd ) ;
-				::serdes(s,ok ) ;
-				::serdes(s,txt) ;
-				::serdes(s,crc) ;
-			break ;
+			case Proc::Heartbeat  :
+			case Proc::AddLiveOut :                                                                        break ;
+			case Proc::DepVerbose : ::serdes(s,fd) ; ::serdes(s,dep_infos) ;                               break ;
+			case Proc::ChkDeps    : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ;                   break ;
+			case Proc::Decode     :
+			case Proc::Encode     : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ; ::serdes(s,crc) ; break ;
 		DF}
 	}
 	// data

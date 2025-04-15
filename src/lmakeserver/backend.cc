@@ -204,19 +204,27 @@ namespace Backends {
 		s_tab[+tag]->submit(j,r,submit_attrs,::move(rsrcs)) ;
 	}
 
-	void Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
+	bool/*miss_live_out*/ Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,r)) tag = Tag::Local ;
 		TraceLock lock { _s_mutex , BeChnl , "s_add_pressure" } ;
 		Trace trace(BeChnl,"s_add_pressure",tag,j,r,sa) ;
 		auto it = _s_start_tab.find(j) ;
-		if (it==_s_start_tab.end()) {
-			s_tab[+tag]->add_pressure(j,r,sa) ; // ask sub-backend to raise its priority
+		bool started = it!=_s_start_tab.end() ;
+		if (!started) {
+			s_tab[+tag]->add_pressure(j,r,sa) ;                                                                   // ask sub-backend to raise its priority
 		} else {
-			it->second.reqs.push_back(+r) ;     // note the new Req as we maintain the list of Req's associated to each job
-			it->second.submit_attrs |= sa ;     // and update submit_attrs in case job was not actually started
+			Backend::StartEntry& e = it->second ;
+			e.reqs.push_back(+r) ;                                                                                // note the new Req as we maintain the list of Req's associated to each job
+			e.submit_attrs |= sa ;                                                                                // and update submit_attrs in case job was not actually started
+			if (sa.live_out)                                                                                      // tell job_exec to resend allready sent live_out messages that we missed
+				try {
+					ClientSockFd fd( e.conn.host , e.conn.port ) ;
+					OMsgBuf().send( fd , JobMngtRpcReply{.proc=JobMngtProc::AddLiveOut,.seq_id=e.conn.seq_id} ) ;
+				} catch (...) {}                                                                                  // if we cannot connect to job, it cannot send live_out messages any more
 		}
-		_s_workload.add(r,j) ;                  // if not started, we must account for job being queued for this new req
+		_s_workload.add(r,j) ;                                                                                    // if not started, we must account for job being queued for this new req
+		return sa.live_out && started ;
 	}
 
 	void Backend::s_set_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
@@ -515,7 +523,8 @@ namespace Backends {
 			case JobMngtProc::DepVerbose :
 			case JobMngtProc::Decode     :
 			case JobMngtProc::Encode     : SWEAR(+fd,jmrr.proc) ; break                   ; // fd is needed to reply
-			case JobMngtProc::LiveOut    :                        break                   ; // no reply
+			case JobMngtProc::LiveOut    :
+			case JobMngtProc::AddLiveOut :                        break                   ; // no reply
 		DF}
 		Job job { jmrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jmrr) ;
@@ -526,12 +535,13 @@ namespace Backends {
 			auto        it    = _s_start_tab.find(+job)                   ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return false/*keep_fd*/ ; }
 			StartEntry& entry = it->second                                ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jmrr.seq_id) ; return false/*keep_fd*/ ; }
 			trace("entry",job,entry) ;
-			switch (jmrr.proc) { //!        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				case JobMngtProc::LiveOut : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , ::move(jmrr.txt) ) ; break ;
+			switch (jmrr.proc) {
+				case JobMngtProc::LiveOut    : //!vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				case JobMngtProc::AddLiveOut : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , ::move(jmrr.txt) ) ; break ;
 				//
-				case JobMngtProc::Decode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) ,                entry.reqs ) ; break ;
-				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len , entry.reqs ) ; break ;
-				case JobMngtProc::ChkDeps    : //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				case JobMngtProc::Decode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
+				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
+				case JobMngtProc::ChkDeps    : //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				case JobMngtProc::DepVerbose : {
 					::vector<Dep> deps ; deps.reserve(jmrr.deps.size()) ; for( auto const& [d,dd] : jmrr.deps ) deps.emplace_back(Node(d),dd) ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

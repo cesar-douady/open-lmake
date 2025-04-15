@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Apr 12 14:53:40 2025 -->
+<!-- CreationDate: Mon Apr 14 19:29:39 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -546,6 +546,16 @@ have their output generated on the output of <b>lmake</b>.
 Because most of the time there is a single target, this
 ensures that there is a single job generating its output,
 avoiding the intermixing problem.</p>
+
+<p style="margin-left:9%;"><b>-m</b>
+<i>count</i>,<b>--max-submits</b>=<i>count</i></p>
+
+<p style="margin-left:18%;">Ask <b>lmake</b> to limit
+number of submits for any job to this number. This
+constraint must be enforced together with the
+<b>max_submits</b> rule attribute, i.e. the min of these 2
+constraints is used. This is useful to observe a job while
+it is supposed to rerun.</p>
 
 <p style="margin-left:9%;"><b>-r</b>
 <i>count</i>,<b>--retry-on-error</b>=<i>count</i></p>

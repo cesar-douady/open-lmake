@@ -169,8 +169,9 @@ namespace Engine {
 		void             report_start(                                                                                      ) const ;
 		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) ;       // txts is {backend_msg,stderr}
 		//
-		void live_out( ReqInfo& , ::string const& ) const ;
-		void live_out(            ::string const& ) const ;
+		void live_out    ( ReqInfo& , ::string const& ) const ;
+		void live_out    (            ::string const& ) const ;
+		void add_live_out(            ::string const& ) const ;
 		//
 		JobMngtRpcReply  job_analysis( JobMngtProc , ::vector<Dep> const& deps ) const ; // answer to requests from job execution
 		void             end         ( JobDigest<Node>&&                       ) ;
@@ -265,6 +266,7 @@ namespace Engine {
 		bool             reported          :1 = false ;                //          1 bit , used for delayed report when speculating
 		bool             modified          :1 = false ;                //          1 bit , modified when last run
 		bool             modified_speculate:1 = false ;                //          1 bit , modified when marked speculative
+		bool             miss_live_out     :1 = false ;                //          1 bit , live_out info has not been sent to user
 	private :
 		Step _step:3 = {} ;                                            //          3 bits
 	} ;

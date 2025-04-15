@@ -25,14 +25,14 @@ namespace Codec {
 
 	StaticUniqPtr<DequeThread<Codec::Closure>> g_codec_queue ;
 
-	::umap_s<Closure::Entry> Closure::s_tab      ;
+	::umap_s<Closure::Entry> Closure::s_tab ;
 
 	void codec_thread_func(Closure const& cc) ;
 
 	::string& operator+=( ::string& os , Closure const& cc ) {
-		/**/                              os << "Closure(" << cc.proc                                              ;
-		if (cc.proc==JobMngtProc::Encode) os <<','<< cc.min_len()                                                  ;
-		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<','<< cc.reqs <<')' ;
+		/**/                              os << "Closure(" << cc.proc                              ;
+		if (cc.proc==JobMngtProc::Encode) os <<','<< cc.min_len()                                  ;
+		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<')' ;
 	}
 
 	void Closure::s_init() {
@@ -214,8 +214,9 @@ namespace Codec {
 	JobMngtRpcReply Closure::decode() const {
 		Trace trace("decode",self) ;
 		SWEAR(proc==JobMngtProc::Decode,proc) ;
-		Node decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
-		bool refreshed = s_refresh( file , +decode_node , reqs ) ;
+		Node             decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
+		::vector<ReqIdx> reqs        ;                                                 ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
+		bool             refreshed   = s_refresh( file , +decode_node , reqs )         ;
 		if (refreshed) {                                                                            // else codec file not available
 			if (_buildable_ok(file,decode_node)) {
 				::string val { decode_node->codec_val().str_view() } ;
@@ -230,8 +231,10 @@ namespace Codec {
 	JobMngtRpcReply Closure::encode() const {
 		Trace trace("encode",self) ;
 		SWEAR(proc==JobMngtProc::Encode,proc) ;
-		Node encode_node { mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
-		if ( !s_refresh( file , +encode_node , reqs ) ) {
+		Node             encode_node { mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
+		::vector<ReqIdx> reqs        ;                                                 ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
+		bool             refreshed   = s_refresh( file , +encode_node , reqs )         ;
+		if (!refreshed) {
 			trace("no_refresh") ;
 			return { .proc=JobMngtProc::Encode , .crc=Crc::None , .ok=No } ;                     // codec file not available, seq_id and fd will be filled in later
 		}
