@@ -401,6 +401,18 @@ namespace Engine {
 			return false ;
 		}
 		//
+		Bool3 has_file() const {
+			SWEAR(match_ok()) ;
+			switch (buildable) {
+				case Buildable::Maybe     :
+				case Buildable::SubSrcDir :
+				case Buildable::Unknown   :
+				case Buildable::Yes       :
+				case Buildable::DynSrc    : return Maybe ;
+				case Buildable::Src       : return Yes   ;
+				default                   : return No    ;
+			}
+		}
 		bool is_src_anti() const {
 			SWEAR(match_ok()) ;
 			switch (buildable) {
