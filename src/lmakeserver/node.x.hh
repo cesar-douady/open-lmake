@@ -413,8 +413,8 @@ namespace Engine {
 				default                   : return No    ;
 			}
 		}
-		bool is_src_anti() const {
-			SWEAR(match_ok()) ;
+		bool is_src_anti(bool permissive=false) const {
+			if (!permissive) SWEAR(match_ok()) ;
 			switch (buildable) {
 				case Buildable::DynAnti   :
 				case Buildable::Anti      :

@@ -131,12 +131,12 @@ namespace Engine {
 
 	static void _audit_node( Fd fd , ReqOptions const& ro , bool verbose , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = Color::None ;
-		if      (  hide==Yes                                                          ) color = Color::HiddenNote ;
-		else if (  node->ok()==No                                                     ) color = Color::Err        ;
-		else if (  node->crc==Crc::None                                               ) color = Color::HiddenNote ;
-		else if (  node->is_plain() && node->has_file()==No                           ) color = Color::Warning    ;
-		else if ( !(node->match_ok()&&node->is_src_anti()) && !node->has_actual_job() ) color = Color::Warning    ;
-		if      (  hide==No && color==Color::HiddenNote                               ) color = Color::None       ;
+		if      (  hide==Yes                                                        ) color = Color::HiddenNote ;
+		else if (  node->ok()==No                                                   ) color = Color::Err        ;
+		else if (  node->crc==Crc::None                                             ) color = Color::HiddenNote ;
+		else if (  node->is_plain() && node->has_file()==No                         ) color = Color::Warning    ;
+		else if ( !node->is_src_anti(true/*permissive*/) && !node->has_actual_job() ) color = Color::Warning    ;
+		if      (  hide==No && color==Color::HiddenNote                             ) color = Color::None       ;
 		//
 		if ( verbose || color!=Color::HiddenNote ) {
 			if      (ro.flags[ReqFlag::Quiet]) audit( fd , ro , color ,         mk_file(node->name()) , false/*as_is*/ , 0   ) ; // if quiet, no header, no reason to indent
