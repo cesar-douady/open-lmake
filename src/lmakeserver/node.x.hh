@@ -440,8 +440,8 @@ namespace Engine {
 			return false ;
 		}
 		//
-		Bool3 has_file   () const {                     return BuildableAttrs[+buildable].second.first  ; }
-		bool  is_src_anti() const { SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.second ; }
+		Bool3 has_file   (                     ) const {                                          return BuildableAttrs[+buildable].second.first  ; }
+		bool  is_src_anti(bool permissive=false) const { { if (!permissive) SWEAR(match_ok()) ; } return BuildableAttrs[+buildable].second.second ; }
 		//
 		// services
 		bool read(Accesses a) const {                                                          // return true <= file was perceived different from non-existent, assuming access provided in a

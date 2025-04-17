@@ -130,7 +130,7 @@ namespace Backends {
 		using JobStartThread = ServerThread    <JobStartRpcReq,false/*Flush*/> ;
 		using JobMngtThread  = ServerThread    <JobMngtRpcReq ,false/*Flush*/> ;
 		using JobEndThread   = ServerThread    <JobEndRpcReq  ,false/*Flush*/> ;
-		using DeferredThread = TimedDequeThread<DeferredEntry ,false/*Flush*/> ;
+		using DeferredThread = TimedQueueThread<DeferredEntry ,false/*Flush*/> ;
 		// statics
 		static bool             s_is_local  (Tag) ;
 		static bool             s_ready     (Tag) ;

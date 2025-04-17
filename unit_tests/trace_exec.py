@@ -37,7 +37,7 @@ else :
 	import os
 	import subprocess as sp
 
-	from lmake.utils import multi_strip
+	from lmake.utils import multi_strip , indent
 
 	import ut
 
@@ -47,9 +47,8 @@ else :
 	ut.lmake( 'test' , done=2 , new=1 )
 
 	log = sp.check_output(('lshow','-o','dut'),universal_newlines=True)
-	ref = multi_strip('''
-		Dut dut
-		+ ./sub_script
-		+ cat /tmp/tmp
-	''')
-	assert log==ref,f'log={log} ref={ref}'
+	ref = indent(multi_strip('''
+			+ ./sub_script
+			+ cat /tmp/tmp
+	'''))
+	assert log==ref,f'log={log!r} ref={ref!r}'

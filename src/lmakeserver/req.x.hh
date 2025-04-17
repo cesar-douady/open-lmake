@@ -285,11 +285,11 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                          as_is
-		void audit_info      ( Color c , SC& t , SC& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l ) ; }
-		void audit_info      ( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l ) ; }
-		void audit_info_as_is( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , true  , l ) ; }
-		void audit_node      ( Color c , SC& p , Node n , DepDepth l=0 ) const ;
+		//                                                                                                                                     as_is
+		void audit_info ( Color c , SC& t , SC& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l      ) ; }
+		void audit_info ( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l      ) ; }
+		void audit_node ( Color c , SC& p , Node n , DepDepth l=0 ) const ;
+		void audit_as_is(           SC& t                         ) const { audit( audit_fd , log_fd , options ,     t                       , true  , 1,'\t' ) ; } // maintain internal aligment
 		//
 		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=0 , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=0 , Delay exec_time={} ) const ;
@@ -312,29 +312,29 @@ namespace Engine {
 	public :
 		Idx                  idx_by_start   = Idx(-1) ;
 		Idx                  idx_by_eta     = Idx(-1) ;
-		Job                  job            ;                   // owned if job->rule->special==Special::Req
+		Job                  job            ;           // owned if job->rule->special==Special::Req
 		InfoMap<Job >        jobs           ;
 		InfoMap<Node>        nodes          ;
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
-		Fd                   audit_fd       ;                   // to report to user
-		AcFd                 log_fd         ;                   // saved output
-		Job mutable          last_info      ;                   // used to identify last message to generate an info line in case of ambiguity
+		Fd                   audit_fd       ;           // to report to user
+		AcFd                 log_fd         ;           // saved output
+		Job mutable          last_info      ;           // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
-		Pdate                eta            ;                   // Estimated Time of Arrival
-		Delay                ete            ;                   // Estimated Time Enroute
-		::umap<Rule,JobIdx > ete_n_rules    ;                   // number of jobs participating to stats.ete with exec_time from rule
+		Pdate                eta            ;           // Estimated Time of Arrival
+		Delay                ete            ;           // Estimated Time Enroute
+		::umap<Rule,JobIdx > ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
 		uint8_t              n_retries      = 0       ;
 		uint8_t              n_submits      = 0       ;
 		bool                 has_backend    = false   ;
 		// summary
-		::vector<Node>                up_to_dates  ;            // asked nodes already done when starting
-		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;            // frozen     jobs                                   (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> frozen_nodes ;            // frozen     nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> no_triggers  ;            // no-trigger nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> clash_nodes  ;            // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                up_to_dates  ;    // asked nodes already done when starting
+		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;    // frozen     jobs                                   (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> frozen_nodes ;    // frozen     nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> no_triggers  ;    // no-trigger nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,NodeIdx/*order*/> clash_nodes  ;    // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

@@ -119,13 +119,14 @@ int main( int argc , char* argv[] ) {
 	Gather           gather      ;
 	//
 	try {
+		::string tmp_dir = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
 		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
 		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::LmakeView] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
-		throw_if( !cmd_line.flags[CmdFlag::TmpDir   ]                                                     , "tmp dir must be specified"                                              ) ;
-		throw_if(                                        !is_abs(cmd_line.flag_args[+CmdFlag::TmpDir   ]) , "tmp dir must be absolute : "   ,cmd_line.flag_args[+CmdFlag::TmpDir   ] ) ;
+		throw_if( !tmp_dir                                                                                , "tmp dir must be specified"                                              ) ;
+		throw_if(                                        !is_abs(tmp_dir                                ) , "tmp dir must be absolute : "   ,tmp_dir                                 ) ;
 		//
 		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        jsrr.key                =                        "debug"                                      ;
@@ -152,7 +153,7 @@ int main( int argc , char* argv[] ) {
 		,	/*out*/top_repo_root_s
 		,	       *g_lmake_root_s
 		,	       *g_repo_root_s
-		,	       with_slash(cmd_line.flag_args[+CmdFlag::TmpDir])
+		,	       with_slash(tmp_dir)
 		,	       0/*small_id*/
 		) ;
 		//

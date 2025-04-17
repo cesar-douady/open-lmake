@@ -33,7 +33,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 	bool     server_is_local = false ;
 	pid_t    server_pid      = 0     ;
 	Pdate    now             = New   ;
-	for ( int i : iota(3) ) {
+	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
 			// try to connect to an existing server
@@ -41,8 +41,6 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			::vector_s      lines              = server_mrkr_fd.read_lines() ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			::string const& server_service_str = lines[0]                    ;
 			::string const& pid_str            = lines[1]                    ;
-			server_pid = from_string<pid_t>(pid_str) ;
-			trace("server",server_pid) ;
 			try {
 				if (host()==SockFd::s_host(server_service_str)) {
 					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary
@@ -55,6 +53,8 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 					return 0 ;
 				}
 			} catch(::string const&) { trace("cannot_connect",server_service_str,server_service) ; }
+			server_pid = from_string<pid_t>(pid_str) ;
+			trace("server",server_pid) ;
 			//
 		}
 	LaunchServer :
@@ -82,7 +82,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			if (_server_ok(server_to_client.read,"new")) {
 				g_server_fds = ClientFdPair{ server_to_client.read , client_to_server.write } ;
 				pid_t pid = server.pid ;
-				server.mk_daemon() ;
+				server.mk_daemon() ;                                         // let process survive to server dxtor
 				return pid ;
 			}
 			client_to_server.write.close() ;

@@ -16,7 +16,7 @@ if __name__!='__main__' :
 		cmd = '''
 			trap 'echo killed > {TGT(2)} ; sleep 2 ; echo killed >{TGT(3)}' 2
 			cat dep > {TGT(1)}
-			lcheck_deps
+			lcheck_deps -v                                      # XXX : for some reason, it seems signal is only received by top-level process, handle such that the whole group receives it
 			sleep 3
 		'''
 

@@ -204,7 +204,7 @@ namespace Backends::Local {
 		RsrcsData mutable occupied        ;
 		::vmap_s<size_t>  public_capacity ;
 	private :
-		DequeThread<pid_t> mutable  _wait_queue ;
+		QueueThread<pid_t> mutable  _wait_queue ;
 		::unique_ptr<const char*[]> _env        ; // directly call ::execve without going through Child to improve perf
 		::vector_s                  _env_vec    ; // hold _env strings of the form key=value
 

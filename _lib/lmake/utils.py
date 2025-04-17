@@ -69,5 +69,5 @@ def indent(txt,pfx='\t') :
 	'''indent txt by adding pfx in front of each line not composed entirely of spaces'''
 	lines = txt.split('\n')
 	for i,line in enumerate(lines) :
-		if not line.isspace() : lines[i] = pfx+line
+		if line and not line.isspace() : lines[i] = pfx+line
 	return '\n'.join(lines)

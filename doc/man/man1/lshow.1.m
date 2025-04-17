@@ -127,7 +127,7 @@ Unless I(--quiet), output is preceded by a description of the job which it relat
 
 SpecificOptions
 Item(B(-p),B(--porcelaine))
-In porcelaine mode, information shown with I(--info) is provided as an easy-to-parse python B(dict).
+In porcelaine mode, information is provided as an easy-to-parse python object.
 Also,reported files are relative to the root of the repository, not the current workind directory.
 
 .SH ENVIRONMENT

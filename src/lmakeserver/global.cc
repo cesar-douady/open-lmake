@@ -12,18 +12,22 @@ using namespace Time ;
 
 namespace Engine {
 
-	ThreadDeque<EngineClosure> g_engine_queue ;
-	bool                       g_writable     = false ;
-	Kpi                        g_kpi          ;
+	ThreadQueue<EngineClosure,true/*Flush*/,true/*Urgent*/> g_engine_queue ;
+	bool                                                    g_writable     = false ;
+	Kpi                                                     g_kpi          ;
 
 	static ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
 		if (!l) {
 			SWEAR(!sep) ;      // cannot have a sep if we have no room to put it
 			return ::move(t) ;
 		}
-		::string res = indent<' ',2>(t,l) ;
-		if (sep) res[2*(l-1)] = sep ;
-		return res ;
+		if (sep=='\t') {
+			return indent<'\t',1>(t,l) ;
+		} else {
+			::string res = indent<' ',2>(t,l) ;
+			if (sep) res[2*(l-1)] = sep ;
+			return res ;
+		}
 	}
 
 	void _audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep , bool err ) {
@@ -147,7 +151,7 @@ namespace Engine {
 	}
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
-		SWEAR(!as_job()) ;
+		SWEAR(!is_job()) ;
 		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
 		RealPath       real_path { rpe                                                              } ;
 		::vector<Node> targets   ; targets.reserve(files.size()) ;                                      // typically, there is no bads
@@ -163,7 +167,7 @@ namespace Engine {
 	}
 
 	Job EngineClosureReq::job(::string const& startup_dir_s) const {
-		SWEAR(as_job()) ;
+		SWEAR(is_job()) ;
 		::vector<Job> candidates ;
 		for( Rule r : Persistent::rule_lst() ) {
 			Job j { r , files[0] } ;

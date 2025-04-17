@@ -178,7 +178,7 @@ namespace Engine {
 	// Job
 	//
 
-	DequeThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> Job::s_record_thread ;
+	QueueThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> Job::s_record_thread ;
 
 	::string& operator+=( ::string& os , Job j ) {
 		/**/    os << "J(" ;
@@ -408,9 +408,9 @@ namespace Engine {
 			r->audit_job( Color::HiddenNote , "continue" , JobExec(self,host,start_date,now) , true/*at_end*/ , now-start_date ) ; // identify job (with a continue message if no start message)
 		}
 		r->last_info = self ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		r->audit_info_as_is(Color::None,txt,1) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvv
+		r->audit_as_is(txt) ;
+		//^^^^^^^^^^^^^^^^^
 	}
 
 	void JobExec::live_out(::string const& txt) const {

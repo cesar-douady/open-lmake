@@ -122,7 +122,7 @@ namespace Backends::Sge {
 		}
 
 		// static data
-		static DequeThread<::pair<SgeBackend const*,SgeId>> _s_sge_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static QueueThread<::pair<SgeBackend const*,SgeId>> _s_sge_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
@@ -355,7 +355,7 @@ namespace Backends::Sge {
 
 	} ;
 
-	DequeThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;
+	QueueThread<::pair<SgeBackend const*,SgeId>> SgeBackend::_s_sge_cancel_thread ;
 
 	//
 	// init

@@ -129,10 +129,10 @@ struct JobExecRpcReply {
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
 		switch (proc) {
-			case Proc::ChkDeps    : ::serdes(s,ok       ) ;             break ;
-			case Proc::DepVerbose : ::serdes(s,dep_infos) ;             break ;
+			case Proc::ChkDeps    : ::serdes(s,ok       ) ;            break ;
+			case Proc::DepVerbose : ::serdes(s,dep_infos) ;            break ;
 			case Proc::Decode     :
-			case Proc::Encode     : ::serdes(s,ok ) ; ::serdes(s,txt) ; break ;
+			case Proc::Encode     : ::serdes(s,ok) ; ::serdes(s,txt) ; break ;
 		DN}
 	}
 	// data

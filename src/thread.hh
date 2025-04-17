@@ -14,58 +14,62 @@
 #include "time.hh"
 #include "trace.hh"
 
-template<class Q,bool Flush=true> struct ThreadQueue : Q { // if Flush, process remaining items when asked to stop
+template<class T,bool Flush=true,bool Urgent=false> struct ThreadQueue { // if Flush, process remaining items when asked to stop
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
-	using Val         = typename Q::value_type  ;
 	using L           = Lock<ThreadMutex>       ;
 	using Delay       = Time::Delay             ;
-	//
-	using Q::empty ;
 	// accesses
-	bool operator+() const {
-		Lock<ThreadMutex> lock{_mutex} ;
-		return !Q::empty() ;
-	}
+	#define LCK Lock lock{_mutex}
+	bool operator+() const { LCK ; return !_empty() ; }
 	//
 	void lock        (MutexLvl& lvl) const { _mutex.lock        (lvl) ; }
 	void unlock      (MutexLvl& lvl) const { _mutex.unlock      (lvl) ; }
 	void swear_locked(             ) const { _mutex.swear_locked(   ) ; }
-	// accesses
-	#define LCK Lock lock{_mutex}
-	size_t  size() const { LCK ; return Q::size() ; }
-	// services
-	template<class    T> void push_urgent   (T&&    x) { LCK ; Q::push_front   (::forward<T>(x)   ) ; _cond.notify_one() ; }
-	template<class    T> void push          (T&&    x) { LCK ; Q::push_back    (::forward<T>(x)   ) ; _cond.notify_one() ; }
-	template<class... A> void emplace_urgent(A&&... a) { LCK ; Q::emplace_front(::forward<A>(a)...) ; _cond.notify_one() ; }
-	template<class... A> void emplace       (A&&... a) { LCK ; Q::emplace_back (::forward<A>(a)...) ; _cond.notify_one() ; }
-	// clear res while we are waiting
-	void           pop    (                               Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ;                         _wait(       lock) ;        _pop(res) ;            }
-	bool/*popped*/ pop    ( ::stop_token stop ,           Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,  lock) ; if (p) _pop(res) ; return p ; }
-	bool/*popped*/ pop_for(                     Delay d , Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(     d,lock) ; if (p) _pop(res) ; return p ; }
-	bool/*popped*/ pop_for( ::stop_token stop , Delay d,  Val&/*out*/ res ) { LCK ; bool e = empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,d,lock) ; if (p) _pop(res) ; return p ; }
 	//
-	/**/                  Val  pop    (                             ) { LCK ;                                    _wait(       lock) ; return                   _pop()         ; }
-	::pair<bool/*popped*/,Val> pop    ( ::stop_token stop           ) { LCK ; bool popped = (Flush&&!empty()) || _wait(stop,  lock) ; return { popped , popped?_pop():Val() } ; }
-	::pair<bool/*popped*/,Val> pop_for(                     Delay d ) { LCK ; bool popped = (Flush&&!empty()) || _wait(     d,lock) ; return { popped , popped?_pop():Val() } ; }
-	::pair<bool/*popped*/,Val> pop_for( ::stop_token stop , Delay d ) { LCK ; bool popped = (Flush&&!empty()) || _wait(stop,d,lock) ; return { popped , popped?_pop():Val() } ; }
+	size_t size () const { LCK ; size_t res = _queue[0].size () ; if (Urgent) res += _queue[1].size () ; return res ; }
+	//
+	auto begin()       requires(!Urgent) { return _queue[0].begin() ; }  // if needed for Urgent, we must iterate over both queues
+	auto begin() const requires(!Urgent) { return _queue[0].begin() ; }  // .
+	auto end  ()       requires(!Urgent) { return _queue[0].end  () ; }  // .
+	auto end  () const requires(!Urgent) { return _queue[0].end  () ; }  // .
 private :
-	void _pop ( Val& res                                              ) { swear_locked() ;     res = ::move(Q::front()) ; Q::pop_front() ;                              }
-	Val  _pop (                                                       ) { swear_locked() ; Val res = ::move(Q::front()) ; Q::pop_front() ; return res ;                 }
-	void _wait(                               Lock<ThreadMutex>& lock ) {        _cond.wait    ( lock ,                                   [&](){ return !empty() ; } ) ; }
-	bool _wait( ::stop_token stop           , Lock<ThreadMutex>& lock ) { return _cond.wait    ( lock , stop ,                            [&](){ return !empty() ; } ) ; }
-	bool _wait(                     Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&](){ return !empty() ; } ) ; }
-	bool _wait( ::stop_token stop , Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&](){ return !empty() ; } ) ; }
+	bool _empty() const {
+		bool res = _queue[0].empty() ; if (Urgent) res &= _queue[1].empty() ;
+		return res ;
+	}
+	// services
+public :
+	template<class    U> void push_urgent   (U&&    x) requires(Urgent) { LCK ; _queue[1].push_back   (::forward<U>(x)   ) ; _cond.notify_one() ; }
+	template<class    U> void push          (U&&    x)                  { LCK ; _queue[0].push_back   (::forward<U>(x)   ) ; _cond.notify_one() ; }
+	template<class... A> void emplace_urgent(A&&... a) requires(Urgent) { LCK ; _queue[1].emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
+	template<class... A> void emplace       (A&&... a)                  { LCK ; _queue[0].emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
+	// clear res while we are waiting
+	void           pop    (                               T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ;                         _wait(       lock) ;        _pop(res) ;            }
+	bool/*popped*/ pop    ( ::stop_token stop ,           T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,  lock) ; if (p) _pop(res) ; return p ; }
+	bool/*popped*/ pop_for(                     Delay d , T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(     d,lock) ; if (p) _pop(res) ; return p ; }
+	bool/*popped*/ pop_for( ::stop_token stop , Delay d,  T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,d,lock) ; if (p) _pop(res) ; return p ; }
+	//
+	/**/                  T  pop    (                             ) { LCK ;                                     _wait(       lock) ; return                   _pop()       ; }
+	::pair<bool/*popped*/,T> pop    ( ::stop_token stop           ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,  lock) ; return { popped , popped?_pop():T() } ; }
+	::pair<bool/*popped*/,T> pop_for(                     Delay d ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(     d,lock) ; return { popped , popped?_pop():T() } ; }
+	::pair<bool/*popped*/,T> pop_for( ::stop_token stop , Delay d ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,d,lock) ; return { popped , popped?_pop():T() } ; }
 	#undef LCK
-	// data
 private :
-	ThreadMutex mutable      _mutex ;
-	::condition_variable_any _cond  ;
+	void _pop(T& res) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ;   res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ;              }
+	T    _pop(      ) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ; T res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ; return res ; }
+	//
+	void _wait(                               Lock<ThreadMutex>& lock ) {        _cond.wait    ( lock ,                                   [&](){ return !_empty() ; } ) ; }
+	bool _wait( ::stop_token stop           , Lock<ThreadMutex>& lock ) { return _cond.wait    ( lock , stop ,                            [&](){ return !_empty() ; } ) ; }
+	bool _wait(                     Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
+	bool _wait( ::stop_token stop , Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
+	// data
+	ThreadMutex mutable      _mutex           ;
+	::condition_variable_any _cond            ;
+	::deque<T>               _queue[1+Urgent] ;                          // need 2 queues if we manage urgent messages
 } ;
-template<class T,bool Flush=true> using ThreadDeque = ThreadQueue<::deque<T>,Flush> ;
 
-template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : private ThreadQueue<Q,Flush> { // if Flush, process remaining items when asked to stop
-	using Base = ThreadQueue<Q,Flush> ;
-	using Val  = typename Base::Val  ;
+template<class T,bool Flush=true,bool QueueAccess=false,bool Urgent=false> struct QueueThread : private ThreadQueue<T,Flush,Urgent> { // if Flush, process remaining items when stopped
+	using Base = ThreadQueue<T,Flush,Urgent> ;
 	using Base::push_urgent    ;
 	using Base::push           ;
 	using Base::emplace_urgent ;
@@ -79,13 +83,13 @@ template<class Q,bool Flush=true,bool QueueAccess=false> struct QueueThread : pr
 	// statics
 private :
 	// XXX! : why gcc refuses to call both functions _s_thread_func ?
-	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val const&)> func ) RQA {
+	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,T const&)> func ) RQA {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func1") ;
 		while (self_->pop(stop,self_->_cur)) func(stop,self_->_cur) ;
 		trace("done") ;
 	}
-	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,Val&&)> func ) RNQA {
+	static void _s_thread_func2( ::stop_token stop , char key , QueueThread* self_ , ::function<void(::stop_token,T&&)> func ) RNQA {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func2") ;
 		for(;;) {
@@ -98,16 +102,15 @@ private :
 	// cxtors & casts
 public :
 	QueueThread() = default ;
-	QueueThread( char k , ::function<void(             Val const&)> f ) RQA  { open(k,f) ; }
-	QueueThread( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { open(k,f) ; }
-	QueueThread( char k , ::function<void(             Val     &&)> f ) RNQA { open(k,f) ; }
-	QueueThread( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { open(k,f) ; }
-	void open  ( char k , ::function<void(             Val const&)> f ) RQA  { _thread = ::jthread( _s_thread_func1 , k , this , [=](::stop_token,Val const& v)->void {f(       v );} ) ; }
-	void open  ( char k , ::function<void(::stop_token,Val const&)> f ) RQA  { _thread = ::jthread( _s_thread_func1 , k , this , f                                                    ) ; }
-	void open  ( char k , ::function<void(             Val     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , [=](::stop_token,Val     && v)->void {f(::move(v));} ) ; }
-	void open  ( char k , ::function<void(::stop_token,Val     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , f                                                    ) ; }
+	QueueThread( char k , ::function<void(               T const&)> f ) { open(k,f) ; }
+	QueueThread( char k , ::function<void(::stop_token , T const&)> f ) { open(k,f) ; }
+	//
+	void open( char k , ::function<void(               T const&)> f ) RQA  { _thread = ::jthread( _s_thread_func1 , k , this , [=](::stop_token,T const& v)->void {f(       v );} ) ; }
+	void open( char k , ::function<void(::stop_token , T const&)> f ) RQA  { _thread = ::jthread( _s_thread_func1 , k , this , f                                                  ) ; }
+	void open( char k , ::function<void(               T     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , [=](::stop_token,T     && v)->void {f(::move(v));} ) ; }
+	void open( char k , ::function<void(::stop_token , T     &&)> f ) RNQA { _thread = ::jthread( _s_thread_func2 , k , this , f                                                  ) ; }
 	// accesses
-	Val const& cur() const RQA { return _cur ; }
+	T const& cur() const RQA { return _cur ; }
 	// services
 	auto begin()       RQA { swear_locked() ; return Base::begin() ; }
 	auto begin() const RQA { swear_locked() ; return Base::begin() ; }
@@ -117,22 +120,20 @@ public :
 	#undef RNQA
 	// data
 private :
-	bool                                  _has_cur = false ;
-	::conditional_t<QueueAccess,Val,Void> _cur     ;
-	::jthread                             _thread  ; // ensure _thread is last so other fields are constructed before it starts and destructed after it ends
+	bool                                _has_cur = false ;
+	::conditional_t<QueueAccess,T,Void> _cur     ;
+	::jthread                           _thread  ; // ensure _thread is last so other fields are constructed before it starts and destructed after it ends
 } ;
-template<class T,bool Flush=true,bool QueueAccess=false> using DequeThread = QueueThread<::deque<T>,Flush,QueueAccess> ;
 
-template<class T,bool Flush=true> struct TimedDequeThread : ThreadDeque<::pair<Time::Pdate,T>,Flush> { // if Flush, process immediately executable remaining items when asked to stop
-	using Base  = ThreadDeque<::pair<Time::Pdate,T>,Flush> ;
+template<class T,bool Flush=true> struct TimedQueueThread : ThreadQueue<::pair<Time::Pdate,T>,Flush> { // if Flush, process immediately available remaining items when stopped
+	using Base  = ThreadQueue<::pair<Time::Pdate,T>,Flush> ;
 	using Pdate = Time::Pdate                              ;
 	using Delay = Time::Delay                              ;
-	using Val   = T                                        ;
 	// statics
 private :
-	static void _s_thread_func( ::stop_token stop , char key , TimedDequeThread* self_ , ::function<void(::stop_token,Val&&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , TimedQueueThread* self_ , ::function<void(::stop_token,T&&)> func ) {
 		t_thread_key = key ;
-		Trace trace("TimedDequeThread::_s_thread_func") ;
+		Trace trace("TimedQueueThread::_s_thread_func") ;
 		for(;;) {
 			auto [popped,info] = self_->pop(stop) ;
 			if (!popped                            ) break ;
@@ -143,21 +144,22 @@ private :
 	}
 	// cxtors & casts
 public :
-	TimedDequeThread() = default ;
-	TimedDequeThread( char k , ::function<void(             Val&&)> f ) { open(k,f) ; }
-	TimedDequeThread( char k , ::function<void(::stop_token,Val&&)> f ) { open(k,f) ; }
-	void open       ( char k , ::function<void(             Val&&)> f ) { _thread = ::jthread( _s_thread_func , k , this , [=](::stop_token,Val&& v)->void {f(::move(v));} ) ; }
-	void open       ( char k , ::function<void(::stop_token,Val&&)> f ) { _thread = ::jthread( _s_thread_func , k , this , f                                               ) ; }
+	TimedQueueThread() = default ;
+	TimedQueueThread( char k , ::function<void(             T&&)> f ) { open(k,f) ; }
+	TimedQueueThread( char k , ::function<void(::stop_token,T&&)> f ) { open(k,f) ; }
+	//
+	void open( char k , ::function<void(             T&&)> f ) { _thread = ::jthread( _s_thread_func , k , this , [=](::stop_token,T&& v)->void {f(::move(v));} ) ; }
+	void open( char k , ::function<void(::stop_token,T&&)> f ) { _thread = ::jthread( _s_thread_func , k , this , f                                             ) ; }
 	// services
 	template<class U> void push_urgent(           U&& x ) { Base::emplace_urgent(Pdate()     , ::forward<U>(x) ) ; }
 	template<class U> void push       (           U&& x ) { Base::emplace       (Pdate()     , ::forward<U>(x) ) ; }
 	template<class U> void push_at    ( Pdate d , U&& x ) { Base::emplace       (d           , ::forward<U>(x) ) ; }
 	template<class U> void push_after ( Delay d , U&& x ) { Base::emplace       (Pdate(New)+d, ::forward<U>(x) ) ; }
 	//
-	template<class... A> void emplace_urgent(           A&&... a ) { push_urgent(  Val(::forward<A>(a)...)) ; }
-	template<class... A> void emplace       (           A&&... a ) { push       (  Val(::forward<A>(a)...)) ; }
-	template<class... A> void emplace_at    ( Pdate d , A&&... a ) { push_at    (d,Val(::forward<A>(a)...)) ; }
-	template<class... A> void emplace_after ( Delay d , A&&... a ) { push_after (d,Val(::forward<A>(a)...)) ; }
+	template<class... A> void emplace_urgent(           A&&... a ) { push_urgent(  T(::forward<A>(a)...)) ; }
+	template<class... A> void emplace       (           A&&... a ) { push       (  T(::forward<A>(a)...)) ; }
+	template<class... A> void emplace_at    ( Pdate d , A&&... a ) { push_at    (d,T(::forward<A>(a)...)) ; }
+	template<class... A> void emplace_after ( Delay d , A&&... a ) { push_after (d,T(::forward<A>(a)...)) ; }
 	// data
 private :
 	::jthread _thread ;                                                                                // ensure _thread is last so other fields are constructed when it starts
@@ -221,11 +223,11 @@ ENUM(ServerThreadEventKind
 ,	Slave
 ,	Stop
 )
-template<class Req,bool Flush=true> struct ServerThread {                          // if Flush, finish on going connections
+template<class T,bool Flush=true> struct ServerThread {                            // if Flush, finish on going connections
 	using Delay     = Time::Delay           ;
 	using EventKind = ServerThreadEventKind ;
 private :
-	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self_ , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , ServerThread* self_ , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> func ) {
 		using Event = Epoll<EventKind>::Event ;
 		t_thread_key = key ;
 		EventFd            stop_fd { New } ;
@@ -271,7 +273,7 @@ private :
 						else       return ;                                        // stop immediately
 					} break ;
 					case EventKind::Slave : {
-						Req r ;
+						T r ;
 						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
 						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
 						//
@@ -290,13 +292,13 @@ private :
 	// cxtors & casts
 public :
 	ServerThread() = default ;
-	ServerThread( char key , ::function<bool/*keep_fd*/(             Req&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
-	ServerThread( char key , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
-	void open( char key , ::function<bool/*keep_fd*/(Req&&,SlaveSockFd const&)> f , int backlog=0 ) {
-		fd      = {New,backlog}                                                                                                                            ;
-		_thread = ::jthread( _s_thread_func , key , this , [=](::stop_token,Req&& r,SlaveSockFd const& fd)->bool/*keep_fd*/ { return f(::move(r),fd) ; } ) ;
+	ServerThread( char key , ::function<bool/*keep_fd*/(             T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
+	ServerThread( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
+	void open( char key , ::function<bool/*keep_fd*/(T&&,SlaveSockFd const&)> f , int backlog=0 ) {
+		fd      = {New,backlog}                                                                                                                          ;
+		_thread = ::jthread( _s_thread_func , key , this , [=](::stop_token,T&& r,SlaveSockFd const& fd)->bool/*keep_fd*/ { return f(::move(r),fd) ; } ) ;
 	}
-	void open( char key , ::function<bool/*keep_fd*/(::stop_token,Req&&,SlaveSockFd const&)> f , int backlog=0 ) {
+	void open( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) {
 		fd      = {New,backlog}                                ;
 		_thread = ::jthread( _s_thread_func , key , this , f ) ;
 	}

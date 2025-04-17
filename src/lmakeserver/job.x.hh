@@ -105,7 +105,7 @@ namespace Engine {
 			) ;
 		}
 		// static data
-		static DequeThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> s_record_thread ;
+		static QueueThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> s_record_thread ;
 		// cxtors & casts
 		using JobBase::JobBase ;
 		Job( Rule::RuleMatch&&                                 , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting

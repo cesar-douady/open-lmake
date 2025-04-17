@@ -49,7 +49,7 @@ namespace Engine {
 			if (ecr.options.flags[ReqFlag::RetryOnError]) data.n_retries = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::RetryOnError]                 ) ;
 			if (ecr.options.flags[ReqFlag::MaxSubmits  ]) data.n_submits = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::MaxSubmits  ]                 ) ;
 			JobIdx                                        n_jobs         = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
-			if (ecr.as_job()) data.job = ecr.job()                                                                               ;
+			if (ecr.is_job()) data.job = ecr.job()                                                                               ;
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),DflagsDfltStatic,true/*parallel*/) ) ;
 			Backend::s_open_req( +self , n_jobs ) ;
 			data.has_backend = true ;
@@ -57,9 +57,9 @@ namespace Engine {
 			//
 			Job::ReqInfo& jri = data.job->req_info(self) ;
 			jri.live_out = self->options.flags[ReqFlag::LiveOut] ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			data.job->make(jri,JobMakeAction::Status,{}/*JobReason*/,No/*speculate*/) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			data.job->make( jri,JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			for( Node d : data.job->deps ) {
 				/**/                           if (!d->done(self)              ) continue ;
 				Job j = d->conform_job_tgt() ; if (!j                          ) continue ;
@@ -260,7 +260,7 @@ namespace Engine {
 				Rule::RuleMatch match ;
 				JobEndRpcReq    jerr  = job.job_info(JobInfoKind::End).end ;
 				if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl+1 ) ;
+				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl ) ;
 			}
 		}
 		if (intermediate)
@@ -491,7 +491,7 @@ namespace Engine {
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if ( Rule r=job->rule() ; r->special!=Special::Req) {
-				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->full_name())+" -J "+mk_shell_str(job->name()) ) ;
+				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->full_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
 			} else {
 				::string dl ;
 				for( Dep const& d : job->deps ) dl<<' '<<mk_shell_str(d->name()) ;
@@ -521,12 +521,12 @@ namespace Engine {
 		if (max_stderr_len) {
 			::string_view shorten = first_lines(msg_stderr.stderr,max_stderr_len) ;
 			if (shorten.size()<msg_stderr.stderr.size()) {
-				audit_info_as_is( Color::None , ::string(shorten) , lvl ) ;
-				audit_info      ( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->full_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
+				audit_as_is(::string(shorten)) ;
+				audit_info( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->full_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
 				return true ;
 			}
 		}
-		audit_info_as_is( Color::None , msg_stderr.stderr , lvl ) ;
+		audit_as_is(msg_stderr.stderr) ;
 		return true ;
 	}
 

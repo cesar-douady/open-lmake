@@ -497,7 +497,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	static constexpr uint8_t NSzBits = 5 ;                                         // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
 	Accesses accesses         ;                                                    // 3<8 bits
 	Dflags   dflags           = DflagsDflt ;                                       // 5<8 bits
-	bool     parallel:1       = false      ;                                       //   1 bit
+	bool     parallel:1       = false      ;                                       //   1 bit , dep is parallel with prev dep
 	bool     is_crc  :1       = true       ;                                       //   1 bit
 	uint8_t  sz      :NSzBits = 0          ;                                       //   6 bits, number of items in chunk following header (semantically before)
 	bool     hot     :1       = false      ;                                       //   1 bit , if true <= file date was very close from access date (within date granularity)

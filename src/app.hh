@@ -82,15 +82,17 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
 	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
     static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
-	size_t wk      = 0     ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) wk       = ::max( wk , snake(k).size() ) ;
-	size_t wf      = 0     ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) wf       = ::max( wf , snake(f).size() ) ;
-	bool   has_arg = false ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg             ;
+	::string exe_path  = get_exe()                 ;
+	::string exe_name  = Disk::base_name(exe_path) ;
+	size_t   wk        = 0                         ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) wk       = ::max( wk , snake(k).size() ) ;
+	size_t   wf        = 0                         ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) wf       = ::max( wf , snake(f).size() ) ;
+	bool     has_arg   = false                     ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg             ;
 	//
 	::string err_msg = ensure_nl(msg) ;
-	/**/                 err_msg << Disk::base_name(get_exe()) <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	/**/                 err_msg << "version " << Version[0]<<'.'<<Version[1] <<" ("<< VersionMrkr <<")\n"                                                          ;
-	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                                        ;
-	/**/                 err_msg << "-h or --help : print this help\n"                                                                                              ;
+	/**/                 err_msg << exe_name <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	/**/                 err_msg << "version " << Version[0]<<'.'<<Version[1] <<" ("<< VersionMrkr <<")\n"                                        ;
+	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                      ;
+	/**/                 err_msg << "-h or --help : print this help\n"                                                                            ;
 	//
 	if (wk) {
 		if (has_dflt_key) { err_msg << "keys (at most 1) :\n" ; wk = ::max(wk,NoKeySz) ; }
@@ -113,9 +115,8 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 			/**/                                err_msg << " : "<<flags[+f].doc<<set_nl                        ;
 		}
 	}
-	::string exe_path = get_exe() ;
 	err_msg << "consider :"                                                   <<'\n' ;
-	err_msg << "  man "      <<Disk::base_name (exe_path  )                   <<'\n' ;
+	err_msg << "  man "      <<exe_name                                       <<'\n' ;
 	err_msg << "  <browser> "<<Disk::dir_name_s(exe_path,2)<<"docs/index.html"<<'\n' ;
 
 	exit(Rc::Usage,err_msg) ;

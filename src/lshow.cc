@@ -26,24 +26,13 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"         } }
 	,	{ ReqKey::Trace      , { .short_name='u' , .doc="show execution trace of jobs leading to files" } }
 	},{
-		{ ReqFlag::Porcelaine , { .short_name='p' , .has_arg=false , .doc="generate output as an easy to parse python dict" } }
-	,	{ ReqFlag::Verbose    , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"      } }
+		{ ReqFlag::Porcelaine , { .short_name='p' , .has_arg=false , .doc="generate output as an easy to parse python object" } }
+	,	{ ReqFlag::Verbose    , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"        } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	bool may_verbose = false ;
-	switch (cmd_line.key) {
-		case ReqKey::Bom     :
-		case ReqKey::Deps    :
-		case ReqKey::Targets :
-		case ReqKey::Running :
-		case ReqKey::Stderr  : may_verbose = true ;
-	DN}
-	//
-	if ( cmd_line.flags[ReqFlag::Verbose   ] && !may_verbose                     ) syntax.usage("verbose is only for showing deps, targets or stderr") ;
-	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"                ) ;
-	if ( cmd_line.flags[ReqFlag::Job       ] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs"            ) ;
-	if ( cmd_line.flags[ReqFlag::Porcelaine] && cmd_line.key!=ReqKey::Info       ) syntax.usage("porcelaine output is only valid with --info"        ) ;
+	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"    ) ;
+	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs") ;
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Show , read_only , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

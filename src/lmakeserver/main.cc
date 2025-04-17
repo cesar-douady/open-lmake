@@ -158,7 +158,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	/**/            { epoll.add_sig ( SIGINT       , EventKind::Int    ) ; trace("read_int"                ) ; }
 	if ( +_g_watch_fd && ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY )>=0 ) {
 		trace("read_watch",_g_watch_fd) ;
-		epoll.add_read( _g_watch_fd , EventKind::Watch ) ; // if server marker is touched by user, we do as we received a ^C
+		epoll.add_read( _g_watch_fd , EventKind::Watch ) ;                                                       // if server marker is touched by user, we do as we received a ^C
 	}
 	//
 	if (!_g_is_daemon) {
@@ -201,7 +201,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						r.zombie(true) ;
 					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace_urgent(GlobalProc::Int) ;
+					g_engine_queue.emplace_urgent(GlobalProc::Int) ;                                             // this will close ofd when done writing to it, urgent to ensure good reactivity
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				} break ;
 				case EventKind::Slave :
@@ -216,7 +216,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							SWEAR(g_writable) ;
 							Req r ;
 							try {
-								r = {New} ;
+								r = New ;
 							} catch (::string const& e) {
 								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
 								OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ;
@@ -226,32 +226,32 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							}
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ; // urgent to ensure in order Kill/None
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							trace("make",r) ;
 						} break ;
-						case ReqProc::Debug  :             // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 						case ReqProc::Forget :
 						case ReqProc::Mark   :
 							SWEAR(g_writable) ;
 						[[fallthrough]] ;
 						case ReqProc::Show :
-							epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;  // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;                     // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							in_tab.erase(fd) ;
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace( rrr.proc , fd , ofd , rrr.files , rrr.options ) ;
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							g_engine_queue.emplace_urgent( rrr.proc , fd , ofd , rrr.files , rrr.options ) ; // urgent to ensure in order Kill/None
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						break ;
 						case ReqProc::Kill :
 						case ReqProc::None : {
-							epoll.del(false/*write*/,fd) ; trace("stop_fd",rrr.proc,fd) ; // must precede close(fd) which may occur as soon as we push to g_engine_queue
+							epoll.del(false/*write*/,fd) ; trace("stop_fd",rrr.proc,fd) ;                    // must precede close(fd) which may occur as soon as we push to g_engine_queue
 							auto it=in_tab.find(fd) ;
 							Req r = it->second.second ;
 							trace("eof",fd) ;
-							if (+r) { trace("zombie",r) ; r.zombie(true) ; }              // make req zombie immediately to optimize reaction time
+							if (+r) { trace("zombie",r) ; r.zombie(true) ; }                                 // make req zombie immediately to optimize reaction time
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd ) ;    // this will close ofd when done writing to it
+							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd ) ;                       // this will close ofd when done writing to it, urgent to ensure good reactivity
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							in_tab.erase(it) ;
 						} break ;
@@ -260,18 +260,18 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 			DF}
 		}
 		//
-		if ( !_g_is_daemon && !in_tab ) break ;                                           // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !in_tab ) break ;                                                              // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = _g_server_fd.accept().detach() ;
-			in_tab[slave_fd] ;                                                            // allocate entry
+			in_tab[slave_fd] ;                                                                               // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ; trace("new_req",slave_fd) ;
 			_report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                        // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                           // ensure engine loop sees we are done
 	trace("done") ;
 }
 
@@ -338,18 +338,17 @@ static bool/*interrupted*/ _engine_loop() {
 						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                       // close out_fd before in_fd as closing clears out_fd, defeating the equality test
 						/**/                       ecr.in_fd .close() ;
 					} break ;
-					// Make, Kill and Close management :
-					// there is exactly one Kill and one Close and one Make for each with only one guarantee : Close comes after Make
-					// there is one exception : if already killed when Make is seen, the Req is not made and Make executes as if immediately followed by Close
+					// 2 possible orders : Make-Kill-Close or Make-Close-Kill
+					// None counts as Kill
 					// read  side is closed upon Kill  (cannot be upon Close as epoll.del must be called before close)
 					// write side is closed upon Close (cannot be upon Kill  as this may trigger lmake command termination, which, in turn, will trigger eof on the read side
 					case ReqProc::Make : {
-						bool allocated = false ;
+						bool     allocated = false ;
+						::string msg       ;
 						if (req.zombie()) {                                                                   // if already zombie, dont make req
-							trace("already_killed",req) ;
+							trace("zombie_when_make",req) ;
 							goto NoMake ;
 						}
-						::string msg ;
 						try {
 							Makefiles::dyn_refresh( msg , startup_dir_s ) ;
 							if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
@@ -367,14 +366,14 @@ static bool/*interrupted*/ _engine_loop() {
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
 						}
-						if (!ecr.as_job()) _record_targets(req->job) ;
+						if (!ecr.is_job()) _record_targets(req->job) ;
 						SWEAR( +ecr.in_fd && +ecr.out_fd , ecr.in_fd , ecr.out_fd ) ;                         // in_fd and out_fd are used as marker for killed and closed respectively
 						fd_tab[req] = { .in=ecr.in_fd , .out=ecr.out_fd } ;
-					} break ;
+						break ;
 					NoMake :
 						if (ecr.in_fd!=ecr.out_fd) ::close   (ecr.out_fd        ) ;                           // do as if immediate Close
 						else                       ::shutdown(ecr.out_fd,SHUT_WR) ;                           // .
-					break ;
+					} break ;
 					case ReqProc::Close : {
 						auto     it  = fd_tab.find(req) ; SWEAR(it!=fd_tab.end()) ;
 						FdEntry& fde = it->second       ;
@@ -389,7 +388,7 @@ static bool/*interrupted*/ _engine_loop() {
 					} break ;
 					case ReqProc::Kill :
 					case ReqProc::None : {
-						auto     it  = fd_tab.find(req) ; if (it==fd_tab.end()) { trace("kill_before_make",ecr) ; break ; }
+						auto     it  = fd_tab.find(req) ; if (it==fd_tab.end()) { trace("was_zombie_when_make",ecr) ; break ; }
 						FdEntry& fde = it->second       ;
 						trace("kill_req",ecr,fde.in,fde.out) ;
 						//                                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

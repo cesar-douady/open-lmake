@@ -107,7 +107,7 @@ namespace Backends::Slurm {
 		}
 
 		// static data
-		static DequeThread<SlurmId> _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
+		static QueueThread<SlurmId> _s_slurm_cancel_thread ; // when a req is killed, a lot of queued jobs may be canceled, better to do it in a separate thread
 
 		// accesses
 
@@ -275,7 +275,7 @@ namespace Backends::Slurm {
 		::vector_s                  _slurm_env_vec ;
 	} ;
 
-	DequeThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
+	QueueThread<SlurmId> SlurmBackend::_s_slurm_cancel_thread ;
 
 	//
 	// init

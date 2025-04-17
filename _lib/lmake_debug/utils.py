@@ -95,55 +95,70 @@ class Job :
 					fi
 				}
 			''')
+		actions = []
 		for f,a in self.pre_actions.items() :
 			f = mk_shell_str(f)
-			if   a=='mkdir'           : res += f'mkdir -p            {f}\n'
-			elif a=='rmdir'           : res += f'rmdir               {f} 2>/dev/null\n'
-			elif a=='unlink'          : res += f'rm -f               {f}\n'
-			elif a=='unlink_warning'  : res += f'rm_warning warning  {f}\n'
-			elif a=='unlink_polluted' : res += f'rm_warning polluted {f}\n'
-			elif a=='uniquify'        : res += f'uniquify            {f}\n'
+			if   a=='mkdir'           : actions.append(( 'mkdir -p'            , f                ))
+			elif a=='rmdir'           : actions.append(( 'rmdir'               , f+' 2>/dev/null' ))
+			elif a=='unlink'          : actions.append(( 'rm -f'               , f                ))
+			elif a=='unlink_warning'  : actions.append(( 'rm_warning warning'  , f                ))
+			elif a=='unlink_polluted' : actions.append(( 'rm_warning polluted' , f                ))
+			elif a=='uniquify'        : actions.append(( 'uniquify'            , f                ))
+		w = max( (len(a) for a,_ in actions) , default=0 )
+		for a,f in actions :
+			res += f'{a:{w}} {f}\n'
+		if res : res = '#\n' + res
 		return res
 
 	def starter(self,*args,enter=False,**kwds) :
-		autodep  = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/lautodep'
+		autodep = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/lautodep'
 		#
-		preamble = ''
-		if enter : preamble += 'export LMAKE_HOME="$HOME"\n'                            # use specified value in job, but original one in entered shell
-		if enter : preamble += 'export LMAKE_SHLVL="${SHLVL:-1}"\n'                     # .
-		if True  : preamble += 'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
+		preamble = '#\n'
+		if enter : preamble +=  'export LMAKE_HOME="$HOME"\n'                            # use specified value in job, but original one in entered shell
+		if enter : preamble +=  'export LMAKE_SHLVL="${SHLVL:-1}"\n'                     # .
+		if True  : preamble += f'export LMAKE_DEBUG_KEY={mk_shell_str(self.key)}\n'
+		if True  : preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
 		#
 		keep_env = list(self.keep_env)
+		if self.env : preamble += '#\n'
 		for k,v in self.env.items() :
-			preamble += f'export {k}={mk_shell_str(v)}\n'
+			if k=='UID' : preamble += f'export {k}={mk_shell_str(v)} 2>/dev/null || :\n' # UID is read-only on some systems
+			else        : preamble += f'export {k}={mk_shell_str(v)}\n'
 			keep_env.append(k)
 		#
-		res = mk_shell_str(autodep)
-		if self.auto_mkdir        : res +=  ' -a'
-		if self.chroot_dir        : res += f' -c{mk_shell_str(     self.chroot_dir            )}'
-		if self.cwd               : res += f' -d{mk_shell_str(     self.cwd                   )}'
-		if True                   : res += f' -e{mk_shell_str(repr(keep_env                  ))}'
-		if True                   : res += f' -k'
-		if True                   : res += f' -l{                  self.link_support           }'
-		if True                   : res += f' -m{                  self.autodep_method         }'
-		if True                   : res += f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
-		if self.source_dirs       : res += f' -s{mk_shell_str(repr(self.source_dirs          ))}'
-		if True                   : res += f" -t{mk_shell_str(self.tmp_dir                    )}"
-		if self.lmake_view        : res += f' -L{mk_shell_str(     self.lmake_view            )}'
-		if self.repo_view         : res += f' -R{mk_shell_str(     self.repo_view             )}'
-		if self.tmp_view          : res += f' -T{mk_shell_str(     self.tmp_view              )}'
-		if self.views             : res += f' -V{mk_shell_str(repr(self.views                ))}'
+		simple = True
+		res    = ''
+		if True             :          res =         res+mk_shell_str(autodep)
+		if self.auto_mkdir  : simple , res = False , res+ ' -a'
+		if self.chroot_dir  : simple , res = False , res+f' -c{mk_shell_str(     self.chroot_dir            )}'
+		if self.cwd         : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
+		if True             :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
+		if True             :          res =         res+f' -k'
+		if True             :          res =         res+f' -l{                  self.link_support           }'
+		if True             :          res =         res+f' -m{                  self.autodep_method         }'
+		if True             :          res =         res+f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
+		if self.source_dirs : simple , res = False , res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'
+		if self.tmp_dir     :          res =         res+f' -t{mk_shell_str(     self.tmp_dir               )}'
+		if self.lmake_view  : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'
+		if self.repo_view   : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
+		if self.tmp_view    : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
+		if self.views       : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'
+		if True             :          res =         res+ ' \\\n'
 		#
-		if True                   : res += ''.join(' '+x for x in args)                 # must be before redirections to files if args contains redirections
+		if True        : res += ' '.join(x for x in args)                                # must be before redirections to files if args contains redirections
 		#
-		if self.stdin             : res += f' <{mk_shell_str(self.stdin )}'
-		if self.stdout            : res += f' >{mk_shell_str(self.stdout)}'
+		if self.stdin  : res += f' <{mk_shell_str(self.stdin )}'
+		if self.stdout : res += f' >{mk_shell_str(self.stdout)}'
+		#
+		if simple : res = '#\n# following line can be suppressed to get lautodep out\n' + res
+		else      : res = '#\n'                                                         + res
 		#
 		return preamble,res
 
 	def gen_init(self) :
 		res = multi_strip(f'''
 			#!/bin/bash
+			#
 			cd {mk_shell_str(lmake.top_repo_root)}
 		''')
 		return res
@@ -151,12 +166,14 @@ class Job :
 	def gen_shell_cmd( self , trace=False , enter=False , **kwds ) :
 		res = ''
 		if True            : res += self.gen_shebang()
+		if trace           : res += '#\n'
 		if trace and enter : res += '(\n'
 		if trace           : res += 'set -x\n'
 		if True            : res += add_nl(self.cmd)
 		if trace and enter : res += ')\n'
 		if enter           :
 			res += multi_strip(f'''
+				#
 				export HOME="$LMAKE_HOME"   ; unset LMAKE_HOME
 				export SHLVL="$LMAKE_SHLVL" ; unset LMAKE_SHLVL
 				[ "$LMAKE_DEBUG_STDIN"  ] && exec <"$LMAKE_DEBUG_STDIN"
@@ -198,7 +215,6 @@ class Job :
 
 	def gen_lmake_env(self,enter=False,**kwds) :
 		res = ''
-		self.env['LMAKE_DEBUG_KEY'] = mk_shell_str(self.key)
 		if enter :
 			def add_env(key,val) :
 				nonlocal res
@@ -206,6 +222,7 @@ class Job :
 				self.keep_env.append(key)
 			if self.stdin  : add_env('LMAKE_DEBUG_STDIN' ,'/proc/$$/fd/0')
 			if self.stdout : add_env('LMAKE_DEBUG_STDOUT','/proc/$$/fd/1')
+		if res : res = '#\n'+res
 		return res
 
 	def gen_preamble(self,**kwds) :

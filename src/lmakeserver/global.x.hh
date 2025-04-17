@@ -120,7 +120,7 @@ namespace Engine {
 	struct EngineClosureReq {
 		friend ::string& operator+=( ::string& , EngineClosureReq const& ) ;
 		// accesses
-		bool as_job() const {
+		bool is_job() const {
 			if (options.flags[ReqFlag::Job]) { SWEAR(files.size()==1,files) ; return true  ; }
 			else                             {                                return false ; }
 		}
@@ -249,8 +249,8 @@ namespace Engine {
 		ECJM      & ecjm()       { return ::get<ECJM>(self) ; }
 	} ;
 
-	extern ThreadDeque<EngineClosure,true/*Flush*/> g_engine_queue ;
-	extern bool                                     g_writable     ;
+	extern ThreadQueue<EngineClosure,true/*Flush*/,true/*Urgent*/> g_engine_queue ;
+	extern bool                                                    g_writable     ;
 
 	//
 	// Rules & Sources
