@@ -693,8 +693,8 @@ namespace Engine {
 		::string res   = "def "+key+'(' ;
 		First    first ;
 		for( ::string const& a : args ) res <<first("",",")<<' '<<a<<' ' ;
-		res<<") : return f"<<mk_py_str(expr)<<'\n'    ;
-		res<<key<<".regexpr = "<<mk_py_str(val)<<'\n' ;
+		res << ") : return f"<<mk_py_str(expr)      <<'\n' ;
+		res << key<<".reg_expr = "<<mk_py_str(val ) <<'\n' ;
 		return res ;
 	}
 

@@ -34,7 +34,7 @@ struct Record {
 	static bool s_has_server() {
 		return _s_autodep_env->has_server() ;
 	}
-	static Fd s_repo_root_fd() { return s_repo_root_fd(::getpid()) ; }
+	static Fd s_repo_root_fd(         ) { return s_repo_root_fd(::getpid()) ; }
 	static Fd s_repo_root_fd(pid_t pid) {
 		if (!( +_s_repo_root_fd && _s_repo_root_pid==pid )) {
 			_s_repo_root_fd  = _s_autodep_env->repo_root_fd() ;
@@ -94,10 +94,10 @@ public :
 	static StaticUniqPtr<::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>> s_access_cache   ; // map file to read accesses
 private :
 	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
-	static Fd                        _s_repo_root_fd          ; // a file descriptor to repo root dir
-	static pid_t                     _s_repo_root_pid         ; // pid in which _s_repo_root_fd is valid
-	static Fd                        _s_report_fd [2/*Fast*/] ; // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
-	static pid_t                     _s_report_pid[2/*Fast*/] ; // pid in which corresponding _s_report_fd is valid
+	static Fd                        _s_repo_root_fd          ;                 // a file descriptor to repo root dir
+	static pid_t                     _s_repo_root_pid         ;                 // pid in which _s_repo_root_fd is valid
+	static Fd                        _s_report_fd [2/*Fast*/] ;                 // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t                     _s_report_pid[2/*Fast*/] ;                 // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
 	Record(                                        ) = default ;
@@ -114,9 +114,9 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
 	}
 public :
-	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ;                                                         // if force, emmit record even if recording is diabled
-	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ;                                                         // .
-	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ;                                                         // .
+	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ; // if force, emmit record even if recording is diabled
+	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ; // .
+	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ; // .
 	// for modifying accesses :
 	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
 	// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
@@ -130,14 +130,15 @@ public :
 		if (fl>FileLoc::Dep ) return { {}/*confirm*/ , 0 } ;
 		if (fl>FileLoc::Repo) jerr.digest.write = No ;
 		// auto-generated id must be different for all accesses (could be random)
-		// if _real_path.pid is 0, ::this_thread::get_id() gives a good id, else we are ptracing, tid is mostly constant but dates are different
-		static_assert(sizeof(::thread::id)<=sizeof(Jerr::Id)) ;                                                                         // else we have to think about it
+		// if _real_path.pid is not 0, we are ptracing, pid is meaningless but we are single thread and dates are different
+		// else, ::gettid() would be a good id but it is not available on all systems,
+		// however, within a process, dates are always different, so mix pid and date (multipication is to inject entropy in high order bits, practically suppressing all conflict possibilities)
 		Time::Pdate now     ;
 		Jerr::Id    id      = jerr.id                         ;
 		bool        need_id = !id && jerr.digest.write==Maybe ;
-		if      ( need_id && !_real_path.pid )               ::memcpy( &id , &ref(::this_thread::get_id()) , sizeof(::thread::id) ) ;
-		if      ( need_id &&  _real_path.pid ) { now = New ; id = now.val() ;                                                         }
-		else if ( !jerr.date                 )   now = New ;                                                                            // used for date
+		static_assert(sizeof(Jerr::Id)==8) ;                                                                                                          // else, rework shifting
+		if      (need_id   ) { now = New ; id = now.val() ; if (!_real_path.pid) id += Jerr::Id(::getpid())*((uint64_t(1)<<48)+(uint64_t(1)<<32)) ; } // .
+		else if (!jerr.date)   now = New ;
 		//
 		/**/                                            jerr.proc      = JobExecProc::Access          ;
 		if ( !jerr.date                               ) jerr.date      = now                          ;
@@ -175,7 +176,7 @@ public :
 	}
 	#undef FL
 	//
-	template<bool Writable=false> struct _Path {                                                                  // if !Writable <=> file is is read-only
+	template<bool Writable=false> struct _Path {                                                                     // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
 		_Path(                          )                           {                       }
@@ -191,8 +192,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                                                                           // safer to avoid dangling pointers
-			p.allocated = false       ;                                                                           // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                                                                              // safer to avoid dangling pointers
+			p.allocated = false       ;                                                                              // we have clobbered allocation, so it is no more p's responsibility
 			return self ;
 		}
 		~_Path() { _deallocate() ; }
@@ -205,16 +206,16 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                                                                          // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                                                                             // +1 to account for terminating null
 			::memcpy( buf , file , sz+1 ) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-		Char* file      = nullptr ;                                                                               // at & file may be modified, but together, they always refer to the same file ...
-		Fd    at        = Fd::Cwd ;                                                                               // ... except in the case of mkstemp (& al.) that modifies its arg in place
-		bool  allocated = false   ;                                                                               // if true <=> file has been allocated and must be freed upon destruction
+		Char* file      = nullptr ;                                                                                  // at & file may be modified, but together, they always refer to the same file ...
+		Fd    at        = Fd::Cwd ;                                                                                  // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool  allocated = false   ;                                                                                  // if true <=> file has been allocated and must be freed upon destruction
 	} ; //!            Writable
 	using Path  = _Path<false> ;
 	using WPath = _Path<true > ;
@@ -240,12 +241,12 @@ public :
 							bool     last  = i==phys.size()-1                                               ;
 							::string f     = phys[i] + substr_view(file,view.size())                        ;
 							FileInfo fi    = !last||+a ? FileInfo(repo_root_fd,f) : FileInfo(FileTag::None) ;
-							bool     found = fi.exists() || !read                                           ;     // if not reading, assume file is found in upper
-							fl = r._real_path.file_loc(f) ;                                                       // use f before ::move
+							bool     found = fi.exists() || !read                                           ;        // if not reading, assume file is found in upper
+							fl = r._real_path.file_loc(f) ;                                                          // use f before ::move
 							if (store) {
 								if      (last ) { real  = f ; file_loc  = fl ; }
 								else if (found) { real  = f ; file_loc  = fl ; }
-								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                  // real0 is only significative when not equal to real
+								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                     // real0 is only significative when not equal to real
 							}
 							if      (last ) { if (+a) r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a             } , .file=::move(f) , .file_info=fi } ) ; return ; }
 							else if (found) {         r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a|Access::Stat} , .file=::move(f) , .file_info=fi } ) ; return ; }

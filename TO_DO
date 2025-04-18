@@ -22,6 +22,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* document porcelaine lshow output
+* document job execution
+	- in particular star-targets and star-deps as functions and its attribute reg_expr
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary

@@ -9,7 +9,7 @@ ut_launch -done 2 -new 1 lmake src1.6.wait &
 sleep 2
 lmake src1.4.wait &
 sleep 2
-kill -2 %2
+kill -2 %2 ; date
 wait %2 || :
 ut_launch -done 2 lmake src1.4.wait
 wait %1
