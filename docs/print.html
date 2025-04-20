@@ -859,10 +859,6 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 <li>If wrongly set to True, builds will be unreliable with difficult to analyze patterns.</li>
 </ul>
 <p>So if in doubt, leave False.</p>
-<h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
-<p>This attribute provide the list of sub-repositories.</p>
-<p>Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a <code>Lmakefile.py</code>.
-Inside such sub-repositories, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
 <h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If <code>None</code>, no timestamp is generated.</p>

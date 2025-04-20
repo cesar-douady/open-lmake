@@ -121,13 +121,6 @@ Known file systems :
 
 So if in doubt, leave False.
 
-### `sub_repos` : Static (`()`)
-
-This attribute provide the list of sub-repositories.
-
-Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a `Lmakefile.py`.
-Inside such sub-repositories, the applied flow is the one described in it (cf [Subrepos](experimental_subrepos.html)).
-
 ### `console.date_precision` : Dynamic (`None`)
 
 This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
