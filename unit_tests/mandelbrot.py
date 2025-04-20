@@ -37,7 +37,7 @@ if __name__!='__main__' :
 		,	'COMPILE' : r'mandelbrot/target/{*:.*}'
 		}
 		side_targets = {
-			'SCRATCH' : ( r'.cargo/{*:.*}' , 'Top' )
+			'SCRATCH' : r'.cargo/{*:.*}'
 		}
 		deps         = { 'MAIN' : 'mandelbrot/src/main.rs' }
 		allow_stderr = True
