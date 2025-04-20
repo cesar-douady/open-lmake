@@ -214,12 +214,20 @@ For example, some default values may be modified and if they are used before thi
 <p>If <code>write</code>, pretend <code>targets</code> were written.</p>
 <p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
 <p>Flags accumulate and are never reset.</p>
-<h3 id="check_depsverbosefalse"><a class="header" href="#check_depsverbosefalse"><code>check_deps(verbose=False)</code></a></h3>
+<h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date.
 Job will be killed in case some deps are not up-to-date.</p>
-<p>If <code>verbose</code>, wait for server reply. Return value is False if at least a dep is in error.
+<p>If <code>sync</code>, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
 the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
+<p><strong>CAVEAT</strong></p>
+<p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
+and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
+it may be that said process does not see the signal.
+This is due to a race condition in I(python) when said process is just starting.</p>
+<p>This may be annoying if said process was supposed to do some clean up or if it is very long.
+The solution in this case is to pass <code>sync=True</code>.
+This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as <code>check_deps</code> will still be running when the signal fires up.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>
 <p>By default, autodep is active.</p>

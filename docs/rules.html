@@ -505,33 +505,14 @@ In the latter case, a file that contains the script is created and its name is p
 <tr><td>Combined</td><td>function</td><td>-</td><td>Full</td><td><code>def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))</code></td></tr>
 </tbody></table>
 </div>
-<p>Whether <code>cmd</code> is a <code>str</code> or a function, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
-They must remain untouched:</p>
-<ul>
-<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
-<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
-<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
-<li><code>$TMPDIR</code>            : The name of a directory which is empty at the start of the job.
-If the temporary directory is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this directory is cleaned up at the end of the job execution.</li>
-</ul>
 <h4 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h4>
-<p>In that case, this attribute is called to run the job.
+<p>In that case, this attribute is called to run the job (cf <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
 The first (i.e. the most basic) one must have no non-defaulted arguments and will be called with no argument.
 The other ones may have arguments, all but the first having default values.
 In that case, such <code>function</code>'s are called with the result of the previous one as unique argument.
 Else, if a <code>function</code> has no argument, the result of the previous function is dropped.</p>
-<p>During evaluation, when the job runs, its global <code>dict</code> is populated to contain values referenced in these functions.
-Values may come from (by order of preference):</p>
-<ul>
-<li>The <code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> as named in their respective <code>dict</code>.</li>
-<li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
-<li>Any attribute defined in the class, or a base class (as for normal python attribute access).</li>
-<li>Any value in the module globals.</li>
-<li>Any builtin value.</li>
-<li>undefined variables are not defined, which is ok as long as they are not accessed.</li>
-</ul>
 <p>Because jobs are executed remotely using the interpreter mentioned in the <code>python</code> attribute
 and to avoid depending on the whole <code>Lmakefile.py</code> (which would force to rerun all jobs as soon as any rule is modified),
 these functions and their context are serialized to be transported by value.
@@ -543,6 +524,7 @@ The serialization process may improve over time but as of today, the following a
 <li>Imported objects (functions and <code>class</code>'es and generally all objects with a <code>__qualname__</code> attribute) are transported as an <code>import</code> statement.</li>
 <li>Builtin objects are transported spontaneously, without requiring any generated code.</li>
 </ul>
+<p>Also, care has been taken to hide this transport by value in backtrace and during debug sessions, so that functions appear to be executed where they were originally defined.</p>
 <p>Values are captured according to the normal python semantic, i.e. once the <code>Lmakefile</code> module is fully imported.
 Care must be taken for variables whose values change during the <code>import</code> process.
 This typically concerns loop indices.
@@ -552,9 +534,8 @@ There are mostly 2 practical possibilities:</p>
 <li>Declare an argument with a default value. Such default value is saved when the function is defined.</li>
 <li>Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.</li>
 </ul>
-<p>The job is deemed to be successful if no exception is raised.</p>
 <h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str">if it is a <code>f-str</code></a></h4>
-<p>In that case, this attribute is executed as a shell command to run the job.
+<p>In that case, this attribute is executed as a shell command to run the job (cf <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine <code>str</code>'s and functions because they use different paradigms.
@@ -563,7 +544,6 @@ For such a base class, the solution is to define <code>cmd</code> as a function 
 <p>If several definitions exist along the MRO, They must all be <code>str</code>'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.</p>
 <p>As for other attributes that may be dynamic, <code>cmd</code> is interpreted as an f-string.</p>
-<p>The job is deemed to be successful if the return code of the overall process is <code>0</code>.</p>
 <h3 id="cache"><a class="header" href="#cache"><code>cache</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>

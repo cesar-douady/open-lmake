@@ -491,12 +491,20 @@ For example, some default values may be modified and if they are used before thi
 <p>If <code>write</code>, pretend <code>targets</code> were written.</p>
 <p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
 <p>Flags accumulate and are never reset.</p>
-<h3 id="check_depsverbosefalse"><a class="header" href="#check_depsverbosefalse"><code>check_deps(verbose=False)</code></a></h3>
+<h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date.
 Job will be killed in case some deps are not up-to-date.</p>
-<p>If <code>verbose</code>, wait for server reply. Return value is False if at least a dep is in error.
+<p>If <code>sync</code>, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
 the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
+<p><strong>CAVEAT</strong></p>
+<p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
+and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
+it may be that said process does not see the signal.
+This is due to a race condition in I(python) when said process is just starting.</p>
+<p>This may be annoying if said process was supposed to do some clean up or if it is very long.
+The solution in this case is to pass <code>sync=True</code>.
+This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as <code>check_deps</code> will still be running when the signal fires up.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>
 <p>By default, autodep is active.</p>
@@ -1288,33 +1296,14 @@ In the latter case, a file that contains the script is created and its name is p
 <tr><td>Combined</td><td>function</td><td>-</td><td>Full</td><td><code>def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))</code></td></tr>
 </tbody></table>
 </div>
-<p>Whether <code>cmd</code> is a <code>str</code> or a function, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
-They must remain untouched:</p>
-<ul>
-<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
-<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
-<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
-<li><code>$TMPDIR</code>            : The name of a directory which is empty at the start of the job.
-If the temporary directory is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this directory is cleaned up at the end of the job execution.</li>
-</ul>
 <h4 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h4>
-<p>In that case, this attribute is called to run the job.
+<p>In that case, this attribute is called to run the job (cf <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
 The first (i.e. the most basic) one must have no non-defaulted arguments and will be called with no argument.
 The other ones may have arguments, all but the first having default values.
 In that case, such <code>function</code>'s are called with the result of the previous one as unique argument.
 Else, if a <code>function</code> has no argument, the result of the previous function is dropped.</p>
-<p>During evaluation, when the job runs, its global <code>dict</code> is populated to contain values referenced in these functions.
-Values may come from (by order of preference):</p>
-<ul>
-<li>The <code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> as named in their respective <code>dict</code>.</li>
-<li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
-<li>Any attribute defined in the class, or a base class (as for normal python attribute access).</li>
-<li>Any value in the module globals.</li>
-<li>Any builtin value.</li>
-<li>undefined variables are not defined, which is ok as long as they are not accessed.</li>
-</ul>
 <p>Because jobs are executed remotely using the interpreter mentioned in the <code>python</code> attribute
 and to avoid depending on the whole <code>Lmakefile.py</code> (which would force to rerun all jobs as soon as any rule is modified),
 these functions and their context are serialized to be transported by value.
@@ -1326,6 +1315,7 @@ The serialization process may improve over time but as of today, the following a
 <li>Imported objects (functions and <code>class</code>'es and generally all objects with a <code>__qualname__</code> attribute) are transported as an <code>import</code> statement.</li>
 <li>Builtin objects are transported spontaneously, without requiring any generated code.</li>
 </ul>
+<p>Also, care has been taken to hide this transport by value in backtrace and during debug sessions, so that functions appear to be executed where they were originally defined.</p>
 <p>Values are captured according to the normal python semantic, i.e. once the <code>Lmakefile</code> module is fully imported.
 Care must be taken for variables whose values change during the <code>import</code> process.
 This typically concerns loop indices.
@@ -1335,9 +1325,8 @@ There are mostly 2 practical possibilities:</p>
 <li>Declare an argument with a default value. Such default value is saved when the function is defined.</li>
 <li>Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.</li>
 </ul>
-<p>The job is deemed to be successful if no exception is raised.</p>
 <h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str">if it is a <code>f-str</code></a></h4>
-<p>In that case, this attribute is executed as a shell command to run the job.
+<p>In that case, this attribute is executed as a shell command to run the job (cf <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine <code>str</code>'s and functions because they use different paradigms.
@@ -1346,7 +1335,6 @@ For such a base class, the solution is to define <code>cmd</code> as a function 
 <p>If several definitions exist along the MRO, They must all be <code>str</code>'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.</p>
 <p>As for other attributes that may be dynamic, <code>cmd</code> is interpreted as an f-string.</p>
-<p>The job is deemed to be successful if the return code of the overall process is <code>0</code>.</p>
 <h3 id="cache"><a class="header" href="#cache"><code>cache</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
@@ -1594,6 +1582,51 @@ There are cases where open-lmake cannot anticipate such an overwrite.</p>
 <li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually <code>/tmp</code>), an error is generated.</li>
 <li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="job-execution"><a class="header" href="#job-execution">Job execution</a></h1>
+<p>Job are executed by calling the provided interpreter (generally python or bash).</p>
+<p>When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
+They must remain untouched:</p>
+<ul>
+<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
+<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
+<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
+<li><code>$TMPDIR</code>            : The name of a directory which is empty at the start of the job.
+If the temporary directory is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this directory is cleaned up at the end of the job execution.</li>
+</ul>
+<p>After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</p>
+<p>The job is reported ok if all of the following conditions are met:</p>
+<ul>
+<li>Job execution (as mentioned below) is successful.</li>
+<li>All static targets are generated</li>
+<li>All written files are allowed (either appear as target, side target or are dynamically allowed by a call to <code>ltarget</code> or <code>lmake.target</code>)</li>
+<li>Nothing is written to stderr, or the <code>allow_stderr</code> attribute is set.</li>
+</ul>
+<h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str">if cmd is a <code>str</code></a></h2>
+<p>Because this attribute undergo dynamic evaluation as described in the <code>cmd</code> rule attribute, there is not further specificities.</p>
+<p>The job execution is successful (but see above) if the interpreter return code is 0.</p>
+<h2 id="if-it-is-a-function-1"><a class="header" href="#if-it-is-a-function-1">if it is a function</a></h2>
+<p>In that case, this attribute is called to run the job.</p>
+<p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
+Values may come from (by order of preference):</p>
+<ul>
+<li>The stems, targets, deps, resources, side targets and side deps, as named in their respective <code>dict</code>.</li>
+<li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
+<li>if a single target was specified with the <code>target</code> attribute, that target is named <code>target</code>.</li>
+<li>if a single dep was specified with the <code>dep</code> attribute, that dep is named <code>dep</code>.</li>
+<li>Any attribute defined in the class, or a base class (as for normal python attribute access).</li>
+<li>Any value in the module globals.</li>
+<li>Any builtin value.</li>
+<li>undefined variables are not defined, which is ok as long as they are not accessed (or they are accessed in a try/except block that handle the <code>NameError</code> exception).</li>
+</ul>
+<p>Static targets, deps, side targets and side deps are defined as <code>str</code>.
+Star targets, side targets and side deps are defined as functions taking the star-stems as argument and returning the then fully specified file.
+Also, in that latter case, the <code>reg_expr</code> attribute is defined as a <code>str</code> ready to be provided to the <code>re</code> module
+and containing named (if corresponding star-stem is named) groups, one for each star-stem.</p>
+<p>The job execution is successful (but see above) if no exception is raised.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -2297,7 +2330,7 @@ If the target refers to a code, he may need some further steps to create the cod
 <li>So, a file provides a certain number of tables (the contexts), each table associating some codes with some values</li>
 <li>These tables are stored in files as lines containing triplet : context, code, value</li>
 <li>When reading, <code>lencode</code>/<code>ldecode</code> are very flexible. The files may contain garbage lines, duplicates, collisions, they are all ignored.
-When 2 values are associated with the same code by 2 different lines, a new code is generated by lenghtening one of them with further digites of the checksum computed on the value.
+When 2 values are associated with the same code by 2 different lines, a new code is generated by lengthening one of them with further digites of the checksum computed on the value.
 When 2 codes are associated with the same value by 2 different lines, only one code is retained, the shorter of the 2 (or any if of equal length).</li>
 <li>When writing, <code>lencode</code>/<code>ldecode</code> are very rigid. File is generated sorted, with no garbage lines, nor duplicates, or collisions.</li>
 <li>When open-lmake starts and read a file, it write it back in its canonical form.</li>

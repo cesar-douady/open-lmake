@@ -97,14 +97,25 @@ For `allow`, `essential`, `ignore`, `incremental`, `no_warning` and `source_ok`,
 
 Flags accumulate and are never reset.
 
-### `check_deps(verbose=False)`
+### `check_deps(sync=False)`
 
 Ensure that all previously seen deps are up-to-date.
 Job will be killed in case some deps are not up-to-date.
 
-If `verbose`, wait for server reply. Return value is False if at least a dep is in error.
+If `sync`, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
 the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).
+
+**CAVEAT**
+
+If used in conjonction with the `kill_sigs` attribute with a handler to manage the listed signal(s) (typically by calling `signal.signal(...)` and without `sync=True`,
+and if a process is launched shortly after (typically by calling `subprocess.run` or `os.system`),
+it may be that said process does not see the signal.
+This is due to a race condition in I(python) when said process is just starting.
+
+This may be annoying if said process was supposed to do some clean up or if it is very long.
+The solution in this case is to pass `sync=True`.
+This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as `check_deps` will still be running when the signal fires up.
 
 ### `get_autodep()`
 

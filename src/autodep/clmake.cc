@@ -126,17 +126,21 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 
 static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 	if (py_args.size()>1) throw "too many args" ;
-	bool verbose = +py_args && +py_args[0] ;
+	bool sync = +py_args && +py_args[0] ;
 	if ( +py_args && +py_kwds ) throw "too many args" ;
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
-		if (key=="verbose") verbose = +py_val ;
-		else                throw "unexpected keyword arg "+key ;
+		if (key=="sync") sync = +py_val ;
+		else             throw "unexpected keyword arg "+key ;
 	}
-	Bool3 ok = JobSupport::check_deps(_g_record,verbose) ;
-	if (!verbose ) return &None                                                       ;
-	if (ok==Maybe) throw ::pair(PyException::RuntimeErr,"some deps are out-of-date"s) ; // defensive only : job should be killed in that case
-	/**/           return Ptr<Bool>(ok==Yes)                                          ;
+	try {
+		Bool3 ok = JobSupport::check_deps(_g_record,sync) ;
+		if (!sync) return &None ;
+		throw_if(ok==Maybe,"some deps are out-of-date") ; // in case handler catches killing signal as job will be killed in that case
+		return Ptr<Bool>(ok==Yes) ;
+	} catch (::string const& e) {
+		throw ::pair(PyException::RuntimeErr,e) ;
+	}
 }
 
 // encode and decode are very similar, it is easier to define a template for both
@@ -331,7 +335,7 @@ PyMODINIT_FUNC
 		#if PY_MAJOR_VERSION>=3
 			return py_err_set( PyException::FileNotFoundErr , e ) ;
 		#else
-			py_err_set( PyException::OsErr , e ) ; // FileNotFoundErr does not exist with python2
+			py_err_set( PyException::OsErr , e ) ;                       // FileNotFoundErr does not exist with python2
 			return ;
 		#endif
 	}

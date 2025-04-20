@@ -40,8 +40,7 @@ struct IMsgBuf : MsgBuf {
 	template<class T> bool/*complete*/ receive_step( Fd fd , T& res ) {
 	DataPass :
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if      (cnt<0 ) throw "cannot receive over "      +cat(fd)+" : "+::strerror(errno) ;
-		else if (cnt==0) throw "peer closed connection on "+cat(fd)                         ;
+		if (cnt<=0) throw cat("cannot receive over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
 		_len += cnt ;
 		if (_len<_buf.size()) return false/*complete*/ ; // _buf is still partial
 		if (_data_pass) {
@@ -91,7 +90,7 @@ struct OMsgBuf : MsgBuf {
 	bool/*complete*/ send_step(Fd fd) {
 		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) { int en=errno ; throw cat("cannot send over ",fd," : ",::strerror(en)) ; }
+		if (cnt<=0) throw cat("cannot send over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
 		_len += cnt ;
 		return _len==_buf.size()/*complete*/ ;
 	}

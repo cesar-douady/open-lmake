@@ -16,7 +16,7 @@ if __name__!='__main__' :
 		cmd = '''
 			trap 'echo killed > {TGT(2)} ; sleep 2 ; echo killed >{TGT(3)}' 2
 			cat dep > {TGT(1)}
-			lcheck_deps -v                                      # XXX : for some reason, it seems signal is only received by top-level process, handle such that the whole group receives it
+			lcheck_deps --sync                                  # signal 2 may not be received by following sleep because of a race inside bash if fired just at the beginning of sleep
 			sleep 3
 		'''
 

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Codec - open-lmake documentation</title>
+        <title>Job execution - open-lmake documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -156,93 +156,57 @@
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="encoding-and-decoding"><a class="header" href="#encoding-and-decoding">Encoding and decoding</a></h1>
-<p>In some situations with heavily parameterized generated files, file names can become very long.
-Think of the mere compilation of a C++ file <code>foo.c</code>.
-You may want to specify:</p>
+<h1 id="job-execution"><a class="header" href="#job-execution">Job execution</a></h1>
+<p>Job are executed by calling the provided interpreter (generally python or bash).</p>
+<p>When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
+They must remain untouched:</p>
 <ul>
-<li>the optimization level through a <code>-O</code> argument</li>
-<li>Whether debug checks are enable through the definition of <code>NDEBUG</code></li>
-<li>a trace level through the definition of a macro such as <code>TRACE_LEVEL</code></li>
-<li>whether and how to instrument with <code>-fsanitize</code></li>
-<li>whether some internal data are 32 or 64 bits</li>
-<li>whether to use a reference algorithm or an agressively optimized one used in production.</li>
-<li>...</li>
+<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
+<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
+<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
+<li><code>$TMPDIR</code>            : The name of a directory which is empty at the start of the job.
+If the temporary directory is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this directory is cleaned up at the end of the job execution.</li>
 </ul>
-<p>You may want to be able to generate any combination so as, for example, compare the output of any 2 of them for validation purpose.
-You easily end up with an object file with a name such as <code>foo.O3.NDEBUG.TRACE_LEVEL=1.sanitize=address.32.o</code>.
-Already 50 characters or so.
-In a real projects, file names can easily be 200, 300, 400 characters long.</p>
-<p>As long as the file name, with adequate shorthands such as using <code>TL</code> instead of <code>TRACE_LEVEL</code> fits within a few hundreds of characters, the situation is heavy but manageable.
-But if you need, say 3000 characters to specify a file, then it becomes completely impractical.</p>
-<p>When the configuration can be devised in advance, in a stable way, an efficient alternative is to create a file to contain it, which becomes a configuration name,
-and just specify the configuration name in the generated file.</p>
-<p>In the example above, you may have a file <code>test.opts</code> that contains options for testing and <code>prod.opts</code> that contains options for production.
-then, your object file is simply named <code>foo.test.o</code> or <code>foo.prod.o</code>.</p>
-<p>When it is not, the situation is more complex and you need to automatically generate these configuration files with reasonably short names.
-A practical and stable way to generate short names is to compute a checksum on the parameters.
-You then need a way to retrieve the original parameters from the checksum to generate the generated file (the <code>.o</code> file in our example).
-In doing so, you must account for:</p>
+<p>After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</p>
+<p>The job is reported ok if all of the following conditions are met:</p>
 <ul>
-<li>robustness    : because such checksums are subject to the birthday paradox, you need either to deal with collisions are provide enough margin (roughly doubling the size) to avoid them.</li>
-<li>repeatability : your system must not prevent you from being able to repeat a scenario that was generated some days, weeks, months earlier.</li>
-<li>merging       : when you invent a name, think that some colleagues working on the same project may also invent names, and they may collide.
-Tools such as <code>git</code> are there to help you in this process, but your scheme must be git friendly.</li>
-<li>performance   : you must have a scheme that support as many code/value associations as necessary for your case, without spending most of its time searching for value when given a code.</li>
-<li>communication : ideally, you may want to signal a bug to a colleague by just telling him "build that target, and you see the bug".
-If the target refers to a code, he may need some further steps to create the code/value association, which goes against communication.</li>
+<li>Job execution (as mentioned below) is successful.</li>
+<li>All static targets are generated</li>
+<li>All written files are allowed (either appear as target, side target or are dynamically allowed by a call to <code>ltarget</code> or <code>lmake.target</code>)</li>
+<li>Nothing is written to stderr, or the <code>allow_stderr</code> attribute is set.</li>
 </ul>
-<p>One way to deal with this case is to create a central database, with the following pros and cons:</p>
+<h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str">if cmd is a <code>str</code></a></h2>
+<p>Because this attribute undergo dynamic evaluation as described in the <code>cmd</code> rule attribute, there is not further specificities.</p>
+<p>The job execution is successful (but see above) if the interpreter return code is 0.</p>
+<h2 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h2>
+<p>In that case, this attribute is called to run the job.</p>
+<p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
+Values may come from (by order of preference):</p>
 <ul>
-<li>robustness    : collisions can easily be dealt with.</li>
-<li>repeatability : this is a probleme. When dealing with collisions, some codes change, which change old repository because the database is not itself versioned. This is a serious problem.</li>
-<li>merging       : no merging.</li>
-<li>perfomance    : accessing the data in a performant way is easy. Detecting modifications so that open-lmake can take sound decisions may be more challenging.</li>
-<li>communication : excellent, the database is shared</li>
-<li>installation  : you need a server, configure clients to connect to it, etc. it is some work</li>
-<li>maintainance  : as any central services, you may inadvertently enter wrong data, you need a way to administer it as it has the potential to block the whole team.</li>
+<li>The stems, targets, deps, resources, side targets and side deps, as named in their respective <code>dict</code>.</li>
+<li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
+<li>if a single target was specified with the <code>target</code> attribute, that target is named <code>target</code>.</li>
+<li>if a single dep was specified with the <code>dep</code> attribute, that dep is named <code>dep</code>.</li>
+<li>Any attribute defined in the class, or a base class (as for normal python attribute access).</li>
+<li>Any value in the module globals.</li>
+<li>Any builtin value.</li>
+<li>undefined variables are not defined, which is ok as long as they are not accessed (or they are accessed in a try/except block that handle the <code>NameError</code> exception).</li>
 </ul>
-<p>The <code>lencode</code>/<code>ldecode</code> commands (or the <code>lmake.encode</code>/<code>lmake.decode</code> fonctions) are there to address this question.</p>
-<p>The principle of operation is the following:</p>
-<ul>
-<li>There are a certain number of files storing code/value associations. These are sources seen from open-lmake, i.e. they are normally managed by <code>git</code>.</li>
-<li>To keep the number of such files to a reasonably low level (say low compared to the overal number of sources), there are contexts, mostly used as a subdivision of files</li>
-<li>So, a file provides a certain number of tables (the contexts), each table associating some codes with some values</li>
-<li>These tables are stored in files as lines containing triplet : context, code, value</li>
-<li>When reading, <code>lencode</code>/<code>ldecode</code> are very flexible. The files may contain garbage lines, duplicates, collisions, they are all ignored.
-When 2 values are associated with the same code by 2 different lines, a new code is generated by lengthening one of them with further digites of the checksum computed on the value.
-When 2 codes are associated with the same value by 2 different lines, only one code is retained, the shorter of the 2 (or any if of equal length).</li>
-<li>When writing, <code>lencode</code>/<code>ldecode</code> are very rigid. File is generated sorted, with no garbage lines, nor duplicates, or collisions.</li>
-<li>When open-lmake starts and read a file, it write it back in its canonical form.</li>
-<li>When open-lmake runs, that <code>lencode</code> is used and generate new codes on the fly, additional lines are merely appended to the file.</li>
-</ul>
-<p>This has the following properties:</p>
-<ul>
-<li>Information is under git. No further server, central database, management, configuration etc.</li>
-<li>repeatability is excellent. As long as you do not merge, your are insensitive to external activities.
-When merging, the probability of collision depends on the length of the used codes, which is under user control.
-Moreover, the length increasing automatically with collisions maintain the number of such collision to a reasonably low level, even in fully automatic mode.</li>
-<li>Merging is very easy : actually one need not even merge. The simple collision file generated by <code>git</code> can be used as is. This makes this tool very <code>git</code> friendly.</li>
-<li>Robustness is perfect : collisions are detected and dealt with.</li>
-<li>Coherence is perfect : seen from open-lmake, each association is managed as a source.
-If anything changes (i.e. a new value is associated with an old code or a new code is associated with an old value), the adequate jobs are rerun.</li>
-<li>Performance is very good as the content of the file is cached in a performance friendly format by open-lmake. And update to the file is done by a simple append.
-However, the file is sorted at every <code>lmake</code> command, making the content more rigid and the merge process easier.</li>
-<li>Associations files can be editing by hand, so that human friendly codes may be associated to some heavily used values.
-<code>lencode</code> will only generate codes from checksums, but will handle any code generated externally (manually or otherwise).
-In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
-If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.</li>
-</ul>
+<p>Static targets, deps, side targets and side deps are defined as <code>str</code>.
+Star targets, side targets and side deps are defined as functions taking the star-stems as argument and returning the then fully specified file.
+Also, in that latter case, the <code>reg_expr</code> attribute is defined as a <code>str</code> ready to be provided to the <code>re</code> module
+and containing named (if corresponding star-stem is named) groups, one for each star-stem.</p>
+<p>The job execution is successful (but see above) if no exception is raised.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="experimental_cache.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="execution.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="experimental_subrepos.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="data_model.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -252,11 +216,11 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="experimental_cache.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="execution.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="experimental_subrepos.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="data_model.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

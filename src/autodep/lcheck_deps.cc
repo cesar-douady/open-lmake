@@ -10,16 +10,16 @@
 
 ENUM(Key,None)
 ENUM(Flag
-,	Verbose
+,	Sync
 )
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::Verbose , { .short_name='v' , .has_arg=false , .doc="wait for server reply that previous deps are up-to-date with no error" } }
+		{ Flag::Sync , { .short_name='s' , .has_arg=false , .doc="wait for server reply that previous deps are up-to-date with no error" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                   ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
-	bool              verbose  = cmd_line.flags[Flag::Verbose]                            ;
-	Bool3             ok       = JobSupport::check_deps( {New,Yes/*enabled*/} , verbose ) ;
-	if (!verbose) return 0       ;
-	else          return ok!=Yes ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
+	bool              sync     = cmd_line.flags[Flag::Sync]                            ;
+	Bool3             ok       = JobSupport::check_deps( {New,Yes/*enabled*/} , sync ) ;
+	if (!sync) return 0       ;
+	else       return ok!=Yes ;
 }

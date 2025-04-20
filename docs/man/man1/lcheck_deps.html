@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Apr 14 19:29:38 2025 -->
+<!-- CreationDate: Sun Apr 20 11:46:58 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -24,6 +24,7 @@
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#OPTIONS">OPTIONS</a><br>
+<a href="#CAVEAT">CAVEAT</a><br>
 <a href="#NOTES">NOTES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
 <a href="#COPYRIGHT">COPYRIGHT</a><br>
@@ -99,7 +100,7 @@ minutes 10 secondes instead of 20 minutes.</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>-v</b>,<b>--verbose</b></p>
+<p style="margin-left:9%; margin-top: 1em"><b>-s</b>,<b>--sync</b></p>
 
 <p style="margin-left:18%;">wait for server answer rather
 than letting job go speculatively while it is interrogated.
@@ -108,6 +109,29 @@ is necessary, even without checking return code, to ensure
 that after this call, the directories of previous deps
 actually exist if such deps are not read (such as with
 <b>lmake.depend</b>).</p>
+
+<h2>CAVEAT
+<a name="CAVEAT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">If used in
+conjonction with the <b>kill_sigs</b> attribute with a
+handler to manage the listed signal(s) (typically using
+<b>trap ... SIG</b> and without the <b>--sync</b> option, it
+may be that the command following the call to
+<b>lcheck_deps</b> does not see the signal. This is due to a
+race condition in <i>bash</i> when command is just
+starting.</p>
+
+<p style="margin-left:9%; margin-top: 1em">This may be
+annoying if said command was supposed to do some clean up or
+if it is very long. The solution in this case is to pass the
+<b>--sync</b> option to <b>lcheck_deps</b>. This has a small
+cost in the general case where deps are actually up-to-date,
+but provides a reliable way to kill the job as
+<b>lcheck_deps</b> will still be running when signal fires
+up.</p>
 
 <h2>NOTES
 <a name="NOTES"></a>

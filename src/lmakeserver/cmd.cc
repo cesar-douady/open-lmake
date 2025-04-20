@@ -616,14 +616,23 @@ namespace Engine {
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
 							MsgStderr msg_stderr = job->special_msg_stderr() ;
-							audit( fd , ro , Color::Note , msg_stderr.msg    , false/*as_is*/ , lvl+1 ) ;
-							audit( fd , ro ,               msg_stderr.stderr , false/*as_is*/ , lvl+1 ) ;
+							if (porcelaine) { //!                                           as_is
+								if (verbose) audit( fd , ro , "None"                       , true , lvl+1 , '(' ) ;
+								if (verbose) audit( fd , ro , mk_py_str(msg_stderr.msg   ) , true , lvl+1 , ',' ) ;
+								if (verbose) audit( fd , ro , ","                          , true , lvl         ) ;
+								/**/         audit( fd , ro , mk_py_str(msg_stderr.stderr) , true               ) ;
+								if (verbose) audit( fd , ro , ")"                          , true , lvl         ) ;
+							} else {
+								audit( fd , ro , Color::Note , msg_stderr.msg    , false/*as_is*/ , lvl+1 ) ;
+								audit( fd , ro ,               msg_stderr.stderr , false/*as_is*/ , lvl+1 ) ;
+							}
 						} break ;
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
-						case ReqKey::Trace  :
-							audit( fd , ro , Color::Err , "no "s+ro.key+" available" , true/*as_is*/ , lvl+1 ) ;
+						case ReqKey::Trace  : //!                                                     as_is
+							if (porcelaine) audit( fd , ro ,              "None"                     , true , lvl+1 ) ;
+							else            audit( fd , ro , Color::Err , "no "s+ro.key+" available" , true , lvl+1 ) ;
 						break ;
 					DF}
 				} else {
@@ -960,41 +969,38 @@ namespace Engine {
 				if (+rule) {
 					Rule::RuleMatch m = job->rule_match() ;
 					VarIdx          i = 0                 ;
-					for( ::string const& t : m.static_targets() ) {
-						::string const& k = rule->matches[i++].first ;
-						if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
-						else            wk = ::max( wk ,           k .size() ) ;
-						rev_map[t] = k ;
-					}
+					for( ::string const& t : m.static_targets() ) rev_map[t] = rule->matches[i++].first ;
 					SWEAR(i==rule->n_statics) ;
 					for( ::string const& p : m.star_patterns() ) {
 						::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
 						if (me.second.flags.is_target!=Yes) continue ;
-						if (porcelaine) wk = ::max( wk , mk_py_str(me.first).size() ) ;
-						else            wk = ::max( wk ,           me.first .size() ) ;
 						res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
 					}
 				}
 				for( Target t : job->targets ) {
-					::string tn = t->name()        ;
-					auto     it = rev_map.find(tn) ;
-					if (it!=rev_map.end())                                                     keys.push_back(it->second) ;
-					else                   for ( auto const& [k,e] : res ) if (+e.match(tn)) { keys.push_back(k         ) ; break ; }
-					if (porcelaine) wt = ::max( wt , mk_py_str(tn).size() ) ;
-					else            wt = ::max( wt ,           tn .size() ) ;
+					::string tn  = t->name()        ;
+					auto     it  = rev_map.find(tn) ;
+					::string key ;
+					if (it!=rev_map.end())                                                     key = it->second ;
+					else                   for ( auto const& [k,e] : res ) if (+e.match(tn)) { key = k          ; break ; }
+					keys.push_back(key) ;
+					if (porcelaine) wk = ::max( wk , mk_py_str(key).size() ) ;
+					else            wk = ::max( wk ,           key .size() ) ;
+					if (porcelaine) wt = ::max( wt , mk_py_str(tn ).size() ) ;
+					else            wt = ::max( wt ,           tn  .size() ) ;
 				}
 				NodeIdx ti = 0 ;
 				for( Target t : job->targets ) {
-					bool  exists = t->crc!=Crc::None                        ;
-					Bool3 hide   = Maybe|!(exists||t.tflags[Tflag::Target]) ;
-					Color c      = _node_color( t , hide )                  ;
+					bool            exists = t->crc!=Crc::None                        ;
+					Bool3           hide   = Maybe|!(exists||t.tflags[Tflag::Target]) ;
+					Color           c      = _node_color( t , hide )                  ;
+					::string const& k      = keys[ti++]                               ;
 					//
 					if ( !verbose && c==Color::HiddenNote ) continue ;
 					//
-					::string const& k     = keys[ti++]                  ;
-					::string        tn    = t->name()                   ;
-					char            wr    = !exists?'U':+t->crc?'W':'-' ;
-					::string        flags ;                               for( Tflag tf : iota(All<Tflag>) ) flags << (t.tflags[tf]?TflagChars[+tf].second:'-') ;
+					::string tn    = t->name()                   ;
+					char     wr    = !exists?'U':+t->crc?'W':'-' ;
+					::string flags ;                               for( Tflag tf : iota(All<Tflag>) ) flags << (t.tflags[tf]?TflagChars[+tf].second:'-') ;
 					//                                                                                                                                                  as_is
 					if (porcelaine) audit( fd , ro ,     cat(first('{',',')," ( '",wr,"' , '",flags,"' , ",widen(mk_py_str(k),wk)," , ",widen(mk_py_str(tn),wt)," )") , true  , lvl ) ;
 					else            audit( fd , ro , c , cat(                      wr,' '    ,flags,' '   ,widen(          k ,wk),' '  ,      mk_file  (tn)         ) , false , lvl ) ;

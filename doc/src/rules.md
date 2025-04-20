@@ -441,18 +441,9 @@ If simple enough (i.e. if it can be recognized as a static dep), it is made a st
 | Combined    | `f-str`  | -           | Full    | `'gcc -c -o {OBJ} {SRC}'`                                          |
 | Combined    | function | -           | Full    | `def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))` |
 
-Whether `cmd` is a `str` or a function, the following environment variable are automatically set, in addition to what is mentioned in the `environ` attribute (and the like).
-They must remain untouched:
-
-- `$LD_AUDIT`          : A variable necessary for [autodep](autodep.html) when it is set to `'ld_audit'`
-- `$LD_PRELOAD`        : A variable necessary for [autodep](autodep.html) when it is set to `'ld_preload'` or `'ld_preload_jemalloc'`
-- `$LMAKE_AUTODEP_ENV` : A variable necessary for [autodep](autodep.html) in all cases
-- `$TMPDIR`            : The name of a directory which is empty at the start of the job.
-  If the temporary directory is not kept through the use of the `keep_tmp` attribute or the `-t` option, this directory is cleaned up at the end of the job execution.
-
 #### if it is a function
 
-In that case, this attribute is called to run the job.
+In that case, this attribute is called to run the job (cf [job execution](job_execution.html)).
 Combined inheritance is a special case for `cmd`.
 
 If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
@@ -460,16 +451,6 @@ The first (i.e. the most basic) one must have no non-defaulted arguments and wil
 The other ones may have arguments, all but the first having default values.
 In that case, such `function`'s are called with the result of the previous one as unique argument.
 Else, if a `function` has no argument, the result of the previous function is dropped.
-
-During evaluation, when the job runs, its global `dict` is populated to contain values referenced in these functions.
-Values may come from (by order of preference):
-
-- The `stems`, `targets`, `deps`, `resources` as named in their respective `dict`.
-- `stems`, `targets`, `deps`, `resources` that contain their respective whole `dict`.
-- Any attribute defined in the class, or a base class (as for normal python attribute access).
-- Any value in the module globals.
-- Any builtin value.
-- undefined variables are not defined, which is ok as long as they are not accessed.
 
 Because jobs are executed remotely using the interpreter mentioned in the `python` attribute
 and to avoid depending on the whole `Lmakefile.py` (which would force to rerun all jobs as soon as any rule is modified),
@@ -482,6 +463,8 @@ The serialization process may improve over time but as of today, the following a
 - Imported objects (functions and `class`'es and generally all objects with a `__qualname__` attribute) are transported as an `import` statement.
 - Builtin objects are transported spontaneously, without requiring any generated code.
 
+Also, care has been taken to hide this transport by value in backtrace and during debug sessions, so that functions appear to be executed where they were originally defined.
+
 Values are captured according to the normal python semantic, i.e. once the `Lmakefile` module is fully imported.
 Care must be taken for variables whose values change during the `import` process.
 This typically concerns loop indices.
@@ -491,11 +474,9 @@ There are mostly 2 practical possibilities:
 - Declare an argument with a default value. Such default value is saved when the function is defined.
 - Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.
 
-The job is deemed to be successful if no exception is raised.
-
 #### if it is a `f-str`
 
-In that case, this attribute is executed as a shell command to run the job.
+In that case, this attribute is executed as a shell command to run the job (cf [job execution](job_execution.html)).
 Combined inheritance is a special case for `cmd`.
 
 While walking the MRO, if for a base class `cmd` is defined as a function and it has a `shell` attribute, the value of this attribute is used instead.
@@ -507,8 +488,6 @@ If several definitions exist along the MRO, They must all be `str`'s and they ar
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.
 
 As for other attributes that may be dynamic, `cmd` is interpreted as an f-string.
-
-The job is deemed to be successful if the return code of the overall process is `0`.
 
 ### `cache`
 

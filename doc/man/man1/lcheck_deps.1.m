@@ -27,9 +27,19 @@ In that case, the first run will stop after preprocessing as B(lcheck_deps) will
 
 .SH OPTIONS
 .LP
-Item(B(-v),B(--verbose)) wait for server answer rather than letting job go speculatively while it is interrogated.
+Item(B(-s),B(--sync)) wait for server answer rather than letting job go speculatively while it is interrogated.
 return code will be 1 if at least one dep is in error.
 This is necessary, even without checking return code, to ensure that after this call, the directories of previous deps actually exist if such deps are not read (such as with B(lmake.depend)).
+
+.SH CAVEAT
+.LP
+If used in conjonction with the B(kill_sigs) attribute with a handler to manage the listed signal(s) (typically using B(trap ... SIG) and without the B(--sync) option,
+it may be that the command following the call to B(lcheck_deps) does not see the signal.
+This is due to a race condition in I(bash) when command is just starting.
+.LP
+This may be annoying if said command was supposed to do some clean up or if it is very long.
+The solution in this case is to pass the B(--sync) option to B(lcheck_deps).
+This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as B(lcheck_deps) will still be running when signal fires up.
 
 .SH NOTES
 .LP
