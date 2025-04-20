@@ -3,7 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-VERSION        := 25.04
+VERSION        := 25.05
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
@@ -841,7 +841,7 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@echo generate $(DEBIAN_DIR)
 	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
-	@echo LMAKE_FLAGS=tl > $(DEBIAN_DIR)/sys_config.env
+	@echo LMAKE_FLAGS=gtl > $(DEBIAN_DIR)/sys_config.env
 	@tar -cz -C$(DEBIAN_DIR) -f $@ .
 	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
 	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f       /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links
