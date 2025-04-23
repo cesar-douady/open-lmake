@@ -168,9 +168,9 @@ namespace Engine {
 		if (porcelaine) {
 			l <<"( "<< mk_py_str(+rule?rule->name:""s) <<" , "<< mk_py_str(job->name()) <<" , "<< mk_py_str(comment) <<" )" ;
 		} else {
-			if (+rule   ) l << mk_printable(rule->name) <<' ' ;
-			/**/          l << mk_file(job->name())           ;
-			if (+comment) l <<" ("<< comment <<')'            ;
+			if (+rule   ) l << rule->user_name() <<' ' ;
+			/**/          l << mk_file(job->name())    ;
+			if (+comment) l <<" ("<< comment <<')'     ;
 		}
 		if (+sfx) l <<' '<< sfx ;
 		audit( fd , ro , color , l , porcelaine/*as_is*/ , lvl ) ;
@@ -414,7 +414,7 @@ namespace Engine {
 			job = _job_from_target(fd,ro,ecr.targets()[0]) ;
 		}
 		if (!job                                  ) throw "no job found"s                        ;
-		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->full_name()+" jobs" ;
+		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->user_name()+" jobs" ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start) {
@@ -473,7 +473,7 @@ namespace Engine {
 				::uset<Rule> refreshed ;
 				for( RuleCrc rc : Persistent::rule_crc_lst() ) if ( RuleCrcData& rcd=rc.data() ; rcd.state==RuleCrcState::RsrcsOld) {
 					rcd.state = RuleCrcState::RsrcsForgotten ;
-					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->full_name() , true/*as_is*/ ) ;
+					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->user_name() , true/*as_is*/ ) ;
 				}
 			} break ;
 		DF}
@@ -568,12 +568,12 @@ namespace Engine {
 				case JobStep::Exec   : {
 					SWEAR( lvl>=backlog.size() , lvl , backlog.size() ) ;
 					DepDepth l = lvl - backlog.size() ;
-					if (porcelaine) { //!                                                                                                                                         as_is
-						for( Job j : backlog ) audit( fd , ro ,      cat(first(' ',','),' ',"( '",'W',"' , ",mk_py_str   (j  ->rule()->name)," , ",mk_py_str(j  ->name())," )") , true  , l++ ) ;
-						/**/                   audit( fd , ro ,      cat(first(' ',','),' ',"( '",hdr,"' , ",mk_py_str   (job->rule()->name)," , ",mk_py_str(job->name())," )") , true  , lvl ) ;
+					if (porcelaine) { //!                                                                                                                                            as_is
+						for( Job j : backlog ) audit( fd , ro ,      cat(first(' ',','),' ',"( '",'W',"' , ",mk_py_str(j  ->rule()->user_name())," , ",mk_py_str(j  ->name())," )") , true  , l++ ) ;
+						/**/                   audit( fd , ro ,      cat(first(' ',','),' ',"( '",hdr,"' , ",mk_py_str(job->rule()->user_name())," , ",mk_py_str(job->name())," )") , true  , lvl ) ;
 					} else {
-						for( Job j : backlog ) audit( fd , ro , HN , cat(                         'W',' '   ,mk_printable(j  ->rule()->name),' '  ,mk_file  (j  ->name())     ) , false , l++ ) ;
-						/**/                   audit( fd , ro , c  , cat(                         hdr,' '   ,mk_printable(job->rule()->name),' '  ,mk_file  (job->name())     ) , false , lvl ) ;
+						for( Job j : backlog ) audit( fd , ro , HN , cat(                         'W',' '   ,          j  ->rule()->user_name() ,' '  ,mk_file  (j  ->name())     ) , false , l++ ) ;
+						/**/                   audit( fd , ro , c  , cat(                         hdr,' '   ,          job->rule()->user_name() ,' '  ,mk_file  (job->name())     ) , false , lvl ) ;
 					}
 					backlog.clear() ;
 					return ;
@@ -1135,13 +1135,14 @@ namespace Engine {
 					size_t wj    = 0    ;
 					for( Job j : jobs ) {
 						Rule r = j->rule() ;
-						if (+r) wr = ::max( wr , (porcelaine?mk_py_str(r->name  ):mk_printable(r->name  )).size() ) ;
-						/**/    wj = ::max( wj , (porcelaine?mk_py_str(j->name()):mk_file     (j->name())).size() ) ;
+						if (+r) wr = ::max( wr , (porcelaine?mk_py_str(r->user_name()):r->user_name()    ).size() ) ;
+						/**/    wj = ::max( wj , (porcelaine?mk_py_str(j->name()     ):mk_file(j->name())).size() ) ;
 					}
 					for( Job j : jobs ) {
-						Rule r = j->rule() ;//!                                                                                                                                       as_is
-						if (porcelaine) audit( fd , ro ,                 cat(first('{',',')," ( ",widen(mk_py_str   (+r?r->name:""s),wr)," , ",widen(mk_py_str(j->name()),wj)," )") , true  , lvl ) ;
-						else            audit( fd , ro , _job_color(j) , cat(                     widen(mk_printable(+r?r->name:""s),wr),' '  ,widen(mk_file  (j->name()),wj)     ) , false , lvl ) ;
+						Rule r = j->rule() ;
+						::string run = +r ? r->user_name() : ""s ; //!                                                                                                 as_is
+						if (porcelaine) audit( fd , ro ,                 cat(first('{',',')," ( ",widen(mk_py_str(run),wr)," , ",widen(mk_py_str(j->name()),wj)," )") , true  , lvl ) ;
+						else            audit( fd , ro , _job_color(j) , cat(                     widen(          run ,wr),' '  ,widen(mk_file  (j->name()),wj)     ) , false , lvl ) ;
 					}
 					if (porcelaine) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
 				} break ;

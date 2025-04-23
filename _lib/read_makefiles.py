@@ -19,7 +19,7 @@ assert sys.path[0]==lmake_private_lib # normal python behavior : put script dir 
 sys.path[0:0] = [lmake_lib]
 
 if len(sys.argv)!=5 :
-	print('usage : python read_makefiles.py <out_file> <environ_file> /[config/][rules/][sources/][top/] sub_repos_s',file=sys.stderr)
+	print('usage : python read_makefiles.py <out_file> <environ_file> /[config/][rules/][sources/][top/] sub_repos_s sub_repo_s',file=sys.stderr)
 	sys.exit(1)
 
 out_file     =      sys.argv[1]
@@ -31,11 +31,15 @@ actions      = actions.replace('/top/','/')
 cwd          = os.getcwd()
 
 if is_top : os.environ['TOP_REPO_ROOT'] = cwd
+else      : top_cwd                     = os.environ['TOP_REPO_ROOT']
 if True   : os.environ['REPO_ROOT'    ] = cwd
 
 import lmake
 from   lmake import _maybe_lcl
 import fmt_rule
+
+if is_top : lmake.sub_repo = '.'
+else      : lmake.sub_repo = cwd[len(top_cwd)+1:]
 
 lmake.user_environ = eval(open(environ_file).read()) # make original user env available while reading config
 pdict              = lmake.pdict
@@ -58,12 +62,6 @@ if '/config/' in actions :
 		except ImportError as e :
 			if e.name!='Lmakefile.config' : raise
 	config = lmake.config
-	if 'backends' in config and 'sge' in config['backends'] : # XXX> : suppress when backward compatibility can be broken
-		sge = config['backends']['sge']
-		for old,new in (('bin_dir','bin'),('root_dir','root')) :
-			if old in sge and new not in sge :
-				sge[new] = sge[old]
-				del sge[old]
 	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
 	if is_top :
 		if lmake.manifest : actions += 'sources/'

@@ -9,6 +9,7 @@ items (also used in XXX comments) :
 	? idea      : unclear that it is desirable
 	> delayed   : to be implemented later (cannot be implemented today)
 	M museum    : most probably obsolete, kept in museum dir as long as not 100% sure
+	X abandoned
 
 ****************************************************************************************************
 * BUGS (implemented but does not work)
@@ -40,7 +41,6 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* gather stdout/stderr from running job_exec when lshow -o/-e
 ! add a warning when ids reach 15/16 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
@@ -52,6 +52,9 @@ items (also used in XXX comments) :
 ? if actual_job!=conform_job, show both with warning in lshow
 ? report resources even when job spawn process groups
 	- dont know how to do that
+X gather stdout/stderr from running job_exec when lshow -o/-e
+	- too complex for too low an added value
+	- lshow -o can be obtained by doing lmake -o, lshow -e is of lesser importance
 
 ****************************************************************************************************
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
@@ -61,8 +64,9 @@ items (also used in XXX comments) :
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
 	- or write such functions in C, so that malloc are necessary visible
-? use the Path struct instead of at/file
+? use a Path struct instead of at/file
 	- everywhere applicable
+	- possibly too expensive performance wise
 ? if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
@@ -104,10 +108,6 @@ items (also used in XXX comments) :
 	? rename allow_stderr to stderr
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
-? implement a ref/check mechanism
-	- record a map file:crc under git
-	- err if generated crc does not match recorded crc
-	- implement "lref file crc" to record/update map
 ? allow dynamic attribute functions to have inherited values (passing inherited value as argument)
 	- maybe not strictly necessary, but this is what is done for cmd
 ? implement a compilation rule py->pyc
@@ -162,10 +162,6 @@ M port to Darwin
 ? evaluate dynamic deps only if static deps match
 	- at least for those deps placed before
 	- is it worth ?
-? there can be 1 backend thread per backend
-	- with one master socket
-	- and everything replicated per backend (including mutexes, tables, etc.)
-	- allow several backends of same type to distribute load
 ? trap close in autodep
 	- so as to know when a dep was last accessed
 	- and avoid too many overwrites
@@ -175,7 +171,7 @@ M port to Darwin
 	- SubmitRsrcsAttrs + SubmitAncillaryAttrs
 	- StartCmdAttrs + Cmd + StartRsrcsAttrs + StartAncillaryAttrs
 ? launch deps as soon as they are discovered
-	- w/o waiting for dependent job to complete
+	- w/o waiting for depending job to complete
 	- for non-phony non-existent deps, else there is a risk that a steady target is modified while job is on going
 		- or record close & dup so as to know when a file is no longer needed
 		- gather crc before dep launch in case dep is steady
@@ -195,7 +191,7 @@ M port to Darwin
 ? improve rule updating
 	? when matching changes but command does not change, avoid to relaunch job
 	? compute cmd checksum on its code rather than on the source to resist to cosmetic changes such as comments modifs
-M manage HUGE pages in store
+X manage HUGE pages in store
 	- requires privileges
 
 ****************************************************************************************************

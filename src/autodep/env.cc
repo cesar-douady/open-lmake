@@ -7,7 +7,7 @@
 
 using namespace Disk ;
 
-::string& operator+=( ::string& os , AutodepEnv const& ade ) {
+::string& operator+=( ::string& os , AutodepEnv const& ade ) {                   // START_OF_NO_COV
 	/**/                       os << "AutodepEnv("                             ;
 	/**/                       os <<      static_cast<RealPathEnv const&>(ade) ;
 	if (+ade.fast_report_pipe) os <<','<< ade.fast_report_pipe                 ;
@@ -16,7 +16,7 @@ using namespace Disk ;
 	if ( ade.enable          ) os <<",enable"                                  ;
 	if (+ade.sub_repo_s      ) os <<','<< ade.sub_repo_s                       ;
 	return                     os <<')'                                        ;
-}
+}                                                                                // END_OF_NO_COV
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {

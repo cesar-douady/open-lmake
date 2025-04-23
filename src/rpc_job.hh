@@ -466,15 +466,15 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else              sig(dd.sig()) ;
 	}
 	// services
-	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                // assumes ddb has been accessed after us
+	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                      // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR(Base::operator==(ddb),self,ddb) ;
 		if (!accesses) {
 			crc_sig(ddb) ;
 			parallel = ddb.parallel ;
 		} else if (+ddb.accesses) {
-			if      (is_crc!=ddb.is_crc)                         crc({}) ;         // destroy info if digests disagree
-			else if (is_crc            ) { if (crc()!=ddb.crc()) crc({}) ; }       // .
-			else                         { if (sig()!=ddb.sig()) crc({}) ; }       // .
+			if      (is_crc!=ddb.is_crc)                         crc({}) ;               // destroy info if digests disagree
+			else if (is_crc            ) { if (crc()!=ddb.crc()) crc({}) ; }             // .
+			else                         { if (sig()!=ddb.sig()) crc({}) ; }             // .
 			// parallel is kept untouched as ddb follows us
 		}
 		dflags   |= ddb.dflags   ;
@@ -483,33 +483,33 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	constexpr void tag(Tag tag_) {
 		SWEAR(!is_crc,self) ;
-		if (!_sig) { crc(Crc::None) ; return ; }                                   // even if file appears, the whole job has been executed seeing the file as absent
+		if (!_sig) { crc(Crc::None) ; return ; }                                         // even if file appears, the whole job has been executed seeing the file as absent
 		switch (tag_) {
 			case Tag::Reg  :
 			case Tag::Exe  :
-			case Tag::Lnk  : if (!Crc::s_sense(accesses,tag_)) crc(tag_) ; break ; // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			case Tag::Lnk  : if (!Crc::s_sense(accesses,tag_)) crc(tag_) ; break ;       // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			case Tag::None :
 			case Tag::Dir  : if (+_sig                       ) crc({}  ) ; break ;
 		DF}
 	}
 	// data
 	// START_OF_VERSIONING
-	static constexpr uint8_t NSzBits = 5 ;                                         // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
-	Accesses accesses         ;                                                    // 3<8 bits
-	Dflags   dflags           = DflagsDflt ;                                       // 5<8 bits
-	bool     parallel:1       = false      ;                                       //   1 bit , dep is parallel with prev dep
-	bool     is_crc  :1       = true       ;                                       //   1 bit
-	uint8_t  sz      :NSzBits = 0          ;                                       //   6 bits, number of items in chunk following header (semantically before)
-	bool     hot     :1       = false      ;                                       //   1 bit , if true <= file date was very close from access date (within date granularity)
-	Accesses chunk_accesses   ;                                                    // 3<8 bits
+	static constexpr uint8_t NSzBits = 5 ;                                               // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
+	Accesses accesses         ;                                                          // 3<8 bits
+	Dflags   dflags           = DflagsDflt ;                                             // 5<8 bits
+	bool     parallel:1       = false      ;                                             //   1 bit , dep is parallel with prev dep
+	bool     is_crc  :1       = true       ;                                             //   1 bit
+	uint8_t  sz      :NSzBits = 0          ;                                             //   6 bits, number of items in chunk following header (semantically before)
+	bool     hot     :1       = false      ;                                             //   1 bit , if true <= file date was very close from access date (within date granularity)
+	Accesses chunk_accesses   ;                                                          // 3<8 bits
 private :
 	union {
-		Crc     _crc = {} ;                                                        // ~45<64 bits
-		FileSig _sig ;                                                             // ~40<64 bits
+		Crc     _crc = {} ;                                                              // ~45<64 bits
+		FileSig _sig ;                                                                   // ~40<64 bits
 	} ;
 	// END_OF_VERSIONING
 } ;
-template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {
+template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {    // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                                          os << "D("                           ;
 	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
@@ -520,7 +520,7 @@ template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& d
 	else if      ( +dd.accesses && +dd.crc()  ) { os <<sep<< dd.crc()                  ; sep = "," ; }
 	if           (  dd.hot                    )   os <<sep<< "hot"                     ;
 	return                                        os <<')'                             ;
-}
+}                                                                                        // END_OF_NO_COV
 
 using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
@@ -565,9 +565,9 @@ template<class Key=::string> struct JobDigest {             // Key may be ::stri
 	bool                     has_msg_stderr = false       ; // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
 	// END_OF_VERSIONING
 } ;
-template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {
+template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                                                            // START_OF_NO_COV
 	return os << "JobDigest(" << to_hex(jd.upload_key) <<','<< jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() <<')' ;
-}
+}                                                                                                                                                                // END_OF_NO_COV
 
 struct MatchFlags {
 	friend ::string& operator+=( ::string& , MatchFlags const& ) ;
@@ -717,12 +717,12 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobStartRpcReply {
+struct JobStartRpcReply {                                                // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// accesses
-	bool operator+() const { return +interpreter ; }            // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
+	bool operator+() const { return +interpreter ; }                     // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,addr          ) ;
@@ -775,27 +775,27 @@ struct JobStartRpcReply {
 	void exit() ;
 	// data
 	// START_OF_VERSIONING
-	in_addr_t            addr           = 0                   ; // the address at which server and subproccesses can contact job_exec
+	in_addr_t            addr           = 0                   ;          // the address at which server and subproccesses can contact job_exec
 	bool                 allow_stderr   = false               ;
 	AutodepEnv           autodep_env    ;
 	Caches::Cache*       cache          = nullptr             ;
-	CacheIdx             cache_idx      = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	CacheIdx             cache_idx      = 0                   ;          // value to be repeated in JobEndRpcReq to ensure it is available when processing
 	::string             cmd            ;
 	Time::Delay          ddate_prec     ;
-	::vmap_s<DepDigest>  deps           ;                       // deps already accessed (always includes static deps)
+	::vmap_s<DepDigest>  deps           ;                                // deps already accessed (always includes static deps)
 	::vmap_ss            env            ;
-	::vector_s           interpreter    ;                       // actual interpreter used to execute cmd
+	::vector_s           interpreter    ;                                // actual interpreter used to execute cmd
 	JobSpace             job_space      ;
 	bool                 keep_tmp       = false               ;
-	::string             key            ;                       // key used to uniquely identify repo
+	::string             key            ;                                // key used to uniquely identify repo
 	vector<uint8_t>      kill_sigs      ;
 	bool                 live_out       = false               ;
 	AutodepMethod        method         = AutodepMethod::Dflt ;
 	Time::Delay          network_delay  ;
 	::vmap_s<FileAction> pre_actions    ;
 	SmallId              small_id       = 0                   ;
-	::vmap_s<MatchFlags> star_matches   ;                       // maps regexprs to flags
-	::vmap_s<MatchFlags> static_matches ;                       // maps individual files to flags
+	::vmap_s<MatchFlags> star_matches   ;                                // maps regexprs to flags
+	::vmap_s<MatchFlags> static_matches ;                                // maps individual files to flags
 	::string             stdin          ;
 	::string             stdout         ;
 	Time::Delay          timeout        ;
@@ -803,7 +803,7 @@ struct JobStartRpcReply {
 	uint8_t              z_lvl          = 0                   ;
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                       // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                                // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct ExecTraceEntry {

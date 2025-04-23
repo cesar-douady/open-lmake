@@ -13,11 +13,11 @@ namespace Hash {
 	// Crc
 	//
 
-	::string& operator+=( ::string& os , Crc const crc ) {
+	::string& operator+=( ::string& os , Crc const crc ) {                        // START_OF_NO_COV
 		CrcSpecial special{crc} ;
 		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<')' ;
 		else                            return os << "Crc("<<special      <<')' ;
-	}
+	}                                                                             // END_OF_NO_COV
 
 	// START_OF_VERSIONING
 	Crc::Crc(::string const& file_name) {

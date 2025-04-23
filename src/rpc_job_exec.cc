@@ -15,7 +15,7 @@ using namespace Hash ;
 // AccessDigest
 //
 
-::string& operator+=( ::string& os , AccessDigest const& ad ) {
+::string& operator+=( ::string& os , AccessDigest const& ad ) {                         // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                               os << "AccessDigest("                          ;
 	if      (+ad.accesses          ) { os <<      ad.accesses                         ; sep = "," ; }
@@ -25,7 +25,7 @@ using namespace Hash ;
 	if      (+ad.extra_tflags      ) { os <<sep<< ad.extra_tflags                     ; sep = "," ; }
 	if      ( ad.write!=No         )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
 	return                             os <<')'                                       ;
-}
+}                                                                                       // END_OF_NO_COV
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	if (write!=Yes) accesses     |= ad.accesses     ;
@@ -41,7 +41,7 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 // JobExecRpcReq
 //
 
-::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {
+::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {                  // START_OF_NO_COV
 	/**/                                      os << "JobExecRpcReq(" << jerr.proc ;
 	if      (+jerr.date                     ) os <<','  << jerr.date              ;
 	if      ( jerr.sync!=No                 ) os <<",S:"<< jerr.sync              ;
@@ -52,13 +52,13 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	if      (+jerr.comment                  ) os <<','  << jerr.comment           ;
 	if      (+jerr.comment_exts             ) os <<','  << jerr.comment_exts      ;
 	return                                    os <<')'                            ;
-}
+}                                                                                   // END_OF_NO_COV
 
 //
 // JobExecRpcReply
 //
 
-::string& operator+=( ::string& os , JobExecRpcReply const& jerr ) {
+::string& operator+=( ::string& os , JobExecRpcReply const& jerr ) { // START_OF_NO_COV
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
 		case JobExecProc::None       :                                     ; break ;
@@ -68,4 +68,4 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 		case JobExecProc::Encode     : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
 	DF}
 	return os << ')' ;
-}
+}                                                                    // END_OF_NO_COV

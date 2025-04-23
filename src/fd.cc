@@ -19,10 +19,10 @@ using namespace Time ;
 
 StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
-::string& operator+=( ::string& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; }
-::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; }
-::string& operator+=( ::string& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; }
-::string& operator+=( ::string& os , ClientSockFd const& fd ) { return os << "ClientSockFd(" << fd.fd <<')' ; }
+::string& operator+=( ::string& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; } // NO_COV
+::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; } // NO_COV
+::string& operator+=( ::string& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; } // NO_COV
+::string& operator+=( ::string& os , ClientSockFd const& fd ) { return os << "ClientSockFd(" << fd.fd <<')' ; } // NO_COV
 
 ::string host() {
 	char buf[HOST_NAME_MAX+1] ;

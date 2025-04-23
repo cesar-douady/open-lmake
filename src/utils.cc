@@ -104,26 +104,6 @@ size_t Fd::read_to( ::span<char> dst , bool no_file_ok ) const {
 	return res ;
 }
 
-::string mk_json_str(::string_view s) {
-	::string res {'"'} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + initial and final quotes
-	for( char c : s ) {
-		switch (c) {
-			case '\b' : res += "\\b"  ; break ;                  // special case
-			case '\f' : res += "\\f"  ; break ;                  // .
-			case '\n' : res += "\\n"  ; break ;                  // .
-			case '\r' : res += "\\r"  ; break ;                  // .
-			case '\t' : res += "\\t"  ; break ;                  // .
-			case '\\' : res += "\\\\" ; break ;                  // .
-			case '"'  : res += "\\\"" ; break ;                  // .
-			default :
-				if (is_printable(c)) res << c                                               ;
-				else                 res << "\\x"<<('0'+uint8_t(c)/16)<<('0'+uint8_t(c)%16) ;
-		}
-	}
-	res += '"' ;
-	return res ;
-}
-
 ::string mk_shell_str(::string_view s) {
 	for( char c : s ) switch (c) {
 		case '+' : continue ;
@@ -191,39 +171,6 @@ Fail :
 	throw "bad format"s ;
 }
 
-template<> ::string mk_printable( ::vmap_ss const& m , bool empty_ok ) {
-	::string res   ;
-	First    first ;
-	res << '{' ;
-	for( auto const& [k,v] : m ) if ( empty_ok || +v ) res << first("",",") << '"'<<mk_printable<'"'>(k)<<'"' <<':'<< '"'<<mk_printable<'"'>(v)<<'"' ;
-	res << '}' ;
-	return res ;
-}
-
-template<> ::vmap_ss parse_printable( ::string const& txt , size_t& pos , bool empty_ok ) {
-	::vmap_ss res ;
-	if (txt[pos++]!='{') goto Fail ;
-	for ( First first ; txt[pos]!='}' ;) {
-		if (!first() && txt[pos++]!=',') goto Fail ;
-		//
-		if (txt[pos++]!='"') goto Fail ;
-		::string k = parse_printable<'"'>(txt,pos) ;
-		if (txt[pos++]!='"') goto Fail ;
-		//
-		if (txt[pos++]!=':') goto Fail ;
-		//
-		if (txt[pos++]!='"') goto Fail ;
-		::string v = parse_printable<'"'>(txt,pos) ;
-		if (txt[pos++]!='"') goto Fail ;
-		//
-		if ( empty_ok || +v ) res.emplace_back(k,v) ;
-	}
-	if (txt[pos++]!='}') goto Fail ;
-	return res ;
-Fail :
-	throw "bad format"s ;
-}
-
 template<> ::string mk_printable( ::vmap_s<::vector_s> const& m , bool empty_ok ) {
 	::string res    ;
 	bool     first1 = true ;
@@ -273,19 +220,6 @@ template<> ::vmap_s<::vector_s> parse_printable( ::string const& txt , size_t& p
 	return res ;
 Fail :
 	throw "bad format"s ;
-}
-
-::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) {
-	SWEAR(+sub) ;
-	size_t   pos = txt.find(sub)     ; if (pos==Npos) return ::move(txt) ;
-	::string res = txt.substr(0,pos) ; res.reserve(txt.size()+repl.size()-sub.size()) ; // assume single replacement, which is the common case when there is one
-	while (pos!=Npos) {
-		size_t p = pos+sub.size() ;
-		pos = txt.find(sub,p) ;
-		res.append(repl       ) ;
-		res.append(txt,p,pos-p) ;
-	}
-	return res ;
 }
 
 //

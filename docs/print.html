@@ -977,7 +977,7 @@ This is actually a form of dynamic value.</p>
 <p>If the value of an attribute (other than <code>cmd</code>) is dynamic, it is interpreted within open-lmake, not as a separate process as for the execution of cmd.
 This means:</p>
 <ul>
-<li>Such executions are not parallelized, this has performance impact.</li>
+<li>Such executions are not parallelized, this has a performance impact.</li>
 <li>They are executed within a single python interpreter, this implies restrictions.</li>
 </ul>
 <p>Overall, these functions must be kept as simple and fast as possible, in favor of <code>cmd</code> which is meant to carry out heavy computations.</p>
@@ -1002,6 +1002,12 @@ This means:</p>
 <li><code>sys.path</code> is sampled after having read <code>Lmakefile.py</code> (while reading rules) and local directories are filtered out. There are no means to import local modules.</li>
 <li>However, reading local files is ok, as long as <code>sys.modules</code> is not updated.</li>
 <li>There is no containers, as for <code>cmd</code> execution (e.g. no <code>repo_view</code>).</li>
+<li>execution is performed in the top-level root directory.
+<ul>
+<li>This means that to be used as a sub-repo, all local file accesses must be performed with the sub-repo prefix.</li>
+<li>This prefix can be found in <code>lmake.sub_repo</code>, which contains <code>.</code> for the top-level repo.</li>
+</ul>
+</li>
 </ul>
 <h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
 <h3 id="name"><a class="header" href="#name"><code>name</code></a></h3>

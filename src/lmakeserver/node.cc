@@ -13,7 +13,7 @@ namespace Engine {
 	// NodeReqInfo
 	//
 
-	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {
+	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {                   // START_OF_NO_COV
 		/**/                          os << "NRI(" << ri.req <<','<< ri.goal <<',' ;
 		if (ri.prio_idx==Node::NoIdx) os << "NoIdx"                                ;
 		else                          os <<                  ri.prio_idx           ;
@@ -22,7 +22,7 @@ namespace Engine {
 		if (+ri.overwritten         ) os <<",overwritten:"<<ri.overwritten         ;
 		if (+ri.manual              ) os <<','            <<ri.manual              ;
 		return                        os <<')'                                     ;
-	}
+	}                                                                                // END_OF_NO_COV
 
 	//
 	// Node
@@ -30,11 +30,11 @@ namespace Engine {
 
 	Hash::Crc Node::_s_src_dirs_crc ;
 
-	::string& operator+=( ::string& os , Node const n ) {
+	::string& operator+=( ::string& os , Node const n ) { // START_OF_NO_COV
 		/**/    os << "N(" ;
 		if (+n) os << +n   ;
 		return  os << ')'  ;
-	}
+	}                                                     // END_OF_NO_COV
 
 	Hash::Crc Node::s_src_dirs_crc() {
 		if (!_s_src_dirs_crc) {
@@ -52,7 +52,7 @@ namespace Engine {
 
 	Mutex<MutexLvl::NodeCrcDate> NodeData::s_crc_date_mutex ;
 
-	::string& operator+=( ::string& os , NodeData const& nd ) {
+	::string& operator+=( ::string& os , NodeData const& nd ) { // START_OF_NO_COV
 		/**/                    os <<'('<< nd.crc ;
 		if (nd.is_plain()) {
 			/**/                os <<',' << nd.date()       ;
@@ -65,7 +65,7 @@ namespace Engine {
 			else                os <<','<< nd.codec_val () ;
 		}
 		return                  os <<')' ;
-	}
+	}                                                           // END_OF_NO_COV
 
 	Manual NodeData::manual_wash( ReqInfo& ri , bool query , bool dangling ) {
 		if (ri.manual!=Manual::Unknown) return ri.manual ;
@@ -252,7 +252,7 @@ namespace Engine {
 			rule_tgts() = ::vector<RuleTgt>({rt}) ;                                                                          // ... check size, though, as pfx and sfx could overlap
 			if (r->special==Special::Anti      ) return Buildable::DynAnti ;
 			if (r->special==Special::GenericSrc) return Buildable::DynSrc  ;
-			FAIL("unexpected special rule",r->full_name(),r->special) ;
+			FAIL("unexpected special rule",r->user_name(),r->special) ;
 		}
 		rule_tgts().clear() ;
 		return Buildable::Maybe ;                                                                                            // node may be buildable from dir
@@ -519,12 +519,12 @@ namespace Engine {
 	}
 
 	static bool _may_need_regenerate( NodeData const& nd , NodeReqInfo& ri , NodeMakeAction make_action ) {
-		/**/                                if (make_action==NodeMakeAction::Wakeup               ) return false ;                 // do plain analysis
-		/**/                                if (!ri.done(NodeGoal::Status)                        ) return false ;                 // do plain analysis
+		/**/                                if (   make_action==NodeMakeAction::Wakeup            ) return false ;                 // do full analysis
+		/**/                                if (   !ri.done(NodeGoal::Status)                     ) return false ;                 // do full analysis
 		JobTgt cjt = nd.conform_job_tgt() ; if (!( +cjt && cjt.produces(nd.idx(),true/*actual*/) )) return false ;                 // no hope to regenerate, proceed normally
-		/**/                                if ( +nd.polluted || nd.busy                          ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted or is busy, ...
-		/**/                                if (ri.done()                                         ) return false ;                 // ... does not change conform_job_tgt()
-		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted) ;
+		/**/                                if (   +nd.polluted || nd.busy                        ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node is polluted or busy
+		/**/                                if (   ri.done()                                      ) return false ;                 // node is ok
+		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted,STR(nd.busy),make_action) ;
 		ri.prio_idx = nd.conform_idx() ;                                                                                           // ask to run only conform job
 		ri.single   = true             ;                                                                                           // .
 		return true ;
@@ -536,7 +536,7 @@ namespace Engine {
 		::array<RuleIdx,2> multi          = {NoIdx,NoIdx}                      ;
 		bool               stop_speculate = speculate<ri.speculate && +ri.goal ;
 		bool               query          = make_action==MakeAction::Query     ;
-		bool               first          = true                               ;                                                   // anti infinite loop : may only regenerate once
+		bool               chk_regenerate = false                              ;                                                   // anti infinite loop : may only regenerate once
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvv
@@ -575,22 +575,21 @@ namespace Engine {
 	Make :
 		g_kpi.n_node_make++ ;
 		SWEAR(prod_idx==NoIdx,prod_idx) ;
-		for(;; first=false ) {
+		for( chk_regenerate=true ;; chk_regenerate=false ) {                                 // only check regenerate once (e.g. in case of submit_loop, we would try forever)
 			for (;;) {
 				SWEAR(ri.prio_idx!=NoIdx) ;
-				if (ri.prio_idx>=job_tgts().size()) {                                        // gather new job_tgts from rule_tgts
-					SWEAR(!ri.single) ;                                                      // we only regenerate using an existing job
-					try {
-						//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
-						buildable = buildable | _gather_prio_job_tgts(req) ;
-						//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
-						if (ri.prio_idx>=job_tgts().size()) break ;                          // fast path
-					} catch (::pair<Special,::vector<Node>> const& e) {
-						set_infinite(e.first,e.second) ;
-						break ;
+				if (!ri.single) {                                                            // fast path : cannot have several jobs not gather new jobs if we consider only a single (existing) job
+					if (ri.prio_idx>=job_tgts().size()) {                                    // gather new job_tgts from rule_tgts
+						try {
+							//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
+							buildable = buildable | _gather_prio_job_tgts(req) ;
+							//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+							if (ri.prio_idx>=job_tgts().size()) goto DoWakeup ;              // fast path
+						} catch (::pair<Special,::vector<Node>> const& e) {
+							set_infinite(e.first,e.second) ;
+							goto DoWakeup ;
+						}
 					}
-				}
-				if (!ri.single) {                                                            // fast path : cannot have several jobs if we consider only a single job
 					for( JobTgtIter it{self,ri} ; it ; it++ ) {                              // check if we obviously have several jobs, in which case make nothing
 						JobTgt jt = *it ;
 						if      ( jt.sure()                 )   buildable = Buildable::Yes ; // buildable is data independent & pessimistic (may be Maybe instead of Yes)
@@ -648,27 +647,28 @@ namespace Engine {
 						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; } // jobs in error are deemed to produce all their potential targets
 					}
 				}
-				if (ri.waiting()   ) goto Wait ;
-				if (prod_idx!=NoIdx) break     ;
+				if (ri.waiting()   ) goto Wait     ;
+				if (prod_idx!=NoIdx) goto DoWakeup ;
 				ri.prio_idx = it.idx ;
 			}
 		DoWakeup :
 			if (prod_idx==NoIdx) {
-				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ; // no producing job, check for dangling if asked to do so
+				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;                          // no producing job, check for dangling if asked to do so
 				status(NodeStatus::None) ;
+				chk_regenerate = false ;                                                                                           // cannot regenerate from nothing
 			} else if (multi[0]!=NoIdx) {
-				SWEAR(multi[1]!=NoIdx) ;                                                                  // both must contain a valid index or none of them
+				SWEAR(multi[1]!=NoIdx) ;                                                                                           // both must contain a valid index or none of them
 				status(NodeStatus::Multi) ;
 				trace("multi",ri,multi) ;
 				/**/                     req->audit_node(Color::Err ,"multi",idx()                       ) ;
 				/**/                     req->audit_info(Color::Note,"at least 2 rules match :"        ,1) ;
-				for( RuleIdx i : multi ) req->audit_info(Color::Note,job_tgts()[i]->rule()->full_name(),2) ;
+				for( RuleIdx i : multi ) req->audit_info(Color::Note,job_tgts()[i]->rule()->user_name(),2) ;
+				chk_regenerate = false ;                                                                                           // cannot regenerate from multi
 			} else {
 				conform_idx(prod_idx) ;
 			}
 			ri.done_ = ri.goal ;
-			if (!_may_need_regenerate(self,ri,make_action)) break ;
-			SWEAR(first) ;                                                                                // avoid infinite loop : we should not need to regenerate more than once
+			if (!( chk_regenerate && _may_need_regenerate(self,ri,make_action) )) break ;
 			prod_idx = NoIdx ;
 		}
 	Wakeup :
@@ -786,33 +786,28 @@ namespace Engine {
 		if ( refreshed && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ;
 		return m ;
 	}
-	Manual NodeData::manual_refresh( JobData const& j , FileSig const& sig ) {
-		auto [m,refreshed] = _manual_refresh(self,sig) ;
-		if (refreshed) for( Req r : j.reqs() ) r->audit_node(Color::Note,"manual_steady",idx()) ;
-		return m ;
-	}
 
 	//
 	// Target
 	//
 
-	::string& operator+=( ::string& os , Target const t ) {
+	::string& operator+=( ::string& os , Target const t ) { // START_OF_NO_COV
 		/**/           os << "T("         ;
 		if (+t       ) os << +t           ;
 		if (+t.tflags) os <<','<<t.tflags ;
 		return         os << ')'          ;
-	}
+	}                                                       // END_OF_NO_COV
 
 
 	//
 	// Dep
 	//
 
-	::string& operator+=( ::string& os , Dep const& d ) {
+	::string& operator+=( ::string& os , Dep const& d ) {         // START_OF_NO_COV
 		return os << static_cast<DepDigestBase<Node> const&>(d) ;
-	}
+	}                                                             // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , GenericDep const& gd ) {
+	::string& operator+=( ::string& os , GenericDep const& gd ) { // START_OF_NO_COV
 		os << "GenericDep(" ;
 		if (gd.hdr.sz) {
 			os << gd.hdr.chunk_accesses            <<',' ;
@@ -820,7 +815,7 @@ namespace Engine {
 		}
 		os << gd.hdr ;
 		return os << ')' ;
-	}
+	}                                                             // END_OF_NO_COV
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
@@ -838,9 +833,9 @@ namespace Engine {
 	// Deps
 	//
 
-	::string& operator+=( ::string& os , DepsIter::Digest const& did ) {
+	::string& operator+=( ::string& os , DepsIter::Digest const& did ) { // START_OF_NO_COV
 		return os <<'('<< did.hdr <<','<< did.i_chunk <<')'  ;
-	}
+	}                                                                    // END_OF_NO_COV
 
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
 		bool can_compress = dep.is_crc && dep.crc()==Crc::None && dep.dflags==DflagsDfltDyn && !dep.parallel ;
@@ -894,14 +889,6 @@ namespace Engine {
 		if (is_tail) SWEAR(stored.size()>=deps.size(),stored.size(),deps.size()) ;
 		else         SWEAR(stored.size()==deps.size(),stored.size(),deps.size()) ;
 		for( size_t i : iota(deps.size())) SWEAR(deps[i]==stored[i+stored.size()-deps.size()],i,deps,stored) ;
-	}
-
-	Deps::Deps(::vmap<Node,Dflags> const& deps , Accesses accesses , bool parallel ) {
-		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ;                   // reserving deps.size() is comfortable and guarantees no reallocaiton
-		size_t               hole = Npos ;
-		for( auto const& [d,df] : deps ) _append_dep( ds , {d,accesses,df,parallel} , hole ) ;
-		_fill_hole(ds,hole) ;
-		self = {ds} ;
 	}
 
 	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {

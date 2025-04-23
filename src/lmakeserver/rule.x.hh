@@ -492,9 +492,9 @@ namespace Engine {
 		//
 		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
 		//
-		::string full_name() const {
+		::string user_name() const {
 			::string res = name ; if (+sub_repo_s) res <<':'<< no_slash(sub_repo_s) ;
-			return res ;
+			return mk_printable(res) ;
 		}
 		Disk::FileNameIdx job_sfx_len(                ) const ;
 		::string          job_sfx    (                ) const ;

@@ -60,9 +60,13 @@ CXX_DIR=$(dirname $CXX)
 cc() { PATH=$CXX_DIR:$PATH $CXX "$@" ; }
 
 case $(cc --version | head -1) in
-	*clang*) CXX_FLAVOR=clang ;;
+	*clang*) CXX_FLAVOR=clang ;; # gcov requires gcc
 	*      ) CXX_FLAVOR=gcc   ;; # there is no easy marker that can be recognized for gcc
 esac
+
+if [ $CXX_FLAVOR = gcc ] ; then
+	GCOV=$(type -p ${GCOV:-gcov})
+fi
 
 CXX_VERSION=$(cc -dumpversion)                                                                               # outputs either major version or full version, depending on flavors and versions
 CXX_VERSION=${CXX_VERSION%%.*}                                                                               # strip minor if present
@@ -441,6 +445,7 @@ cat >$MK_FILE <<-EOF
 	CXX_DIR                   := $CXX_DIR
 	CXX_FLAVOR                := $CXX_FLAVOR
 	CXX_STD                   := $CXX_STD
+	GCOV                      := $GCOV
 	GIT                       := $(type -p git)
 	HAS_32                    := ${HAS_32#0}
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}

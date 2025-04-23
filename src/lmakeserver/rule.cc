@@ -274,9 +274,9 @@ namespace Engine {
 	// Dyn
 	//
 
-	::string& operator+=( ::string& os , DepSpec const& ds ) {
+	::string& operator+=( ::string& os , DepSpec const& ds ) {                            // START_OF_NO_COV
 		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
-	}
+	}                                                                                     // END_OF_NO_COV
 
 	DynEntry::DynEntry( RulesBase const& rules , Bool3 is_python , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile_ ) {
 		switch (is_python) {
@@ -435,11 +435,11 @@ namespace Engine {
 	Job           Rule::s_last_dyn_job  ;
 	const char*   Rule::s_last_dyn_msg  = nullptr ;
 
-	::string& operator+=( ::string& os , Rule const r ) {
+	::string& operator+=( ::string& os , Rule const r ) { // START_OF_NO_COV
 		/**/    os << "R(" ;
 		if (+r) os << +r   ;
 		return  os << ')'  ;
-	}
+	}                                                     // END_OF_NO_COV
 
 	bool/*keep*/ Rule::s_qualify_dep( ::string const& key , ::string const& dep ) {
 		auto bad = [&] ( ::string const& msg , ::string const& consider={} )->void {
@@ -484,19 +484,19 @@ namespace Engine {
 	// RuleCrc
 	//
 
-	::string& operator+=( ::string& os , RuleCrc const r ) {
+	::string& operator+=( ::string& os , RuleCrc const r ) { // START_OF_NO_COV
 		/**/    os << "RC(" ;
 		if (+r) os << +r   ;
 		return  os << ')'  ;
-	}
+	}                                                        // END_OF_NO_COV
 
 	//
 	// RuleTgt
 	//
 
-	::string& operator+=( ::string& os , RuleTgt const rt ) {
+	::string& operator+=( ::string& os , RuleTgt const rt ) {              // START_OF_NO_COV
 		return os << "RT(" << RuleCrc(rt) <<':'<< int(rt.tgt_idx) << ')' ;
-	}
+	}                                                                      // END_OF_NO_COV
 
 	//
 	// Attrs
@@ -738,10 +738,10 @@ namespace Engine {
 		return res ;
 	}
 
-	::string& operator+=( ::string& os , DbgEntry const& de ) {
+	::string& operator+=( ::string& os , DbgEntry const& de ) {                                                         // START_OF_NO_COV
 		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.file_name<<" , "<<de.first_line_no1<<" )" ;
 		else     return os<<"()"                                                                                      ;
-	}
+	}                                                                                                                   // END_OF_NO_COV
 
 	//
 	// RuleData
@@ -785,9 +785,9 @@ namespace Engine {
 		_set_crcs({}) ;                                                                         // rules is not necessary for special rules
 	}
 
-	::string& operator+=( ::string& os , RuleData const& rd ) {
+	::string& operator+=( ::string& os , RuleData const& rd ) { // START_OF_NO_COV
 		return os << "RD(" << rd.name << ')' ;
-	}
+	}                                                           // END_OF_NO_COV
 
 	// 2 targets may conflict if it is possible to find a file name that matches both
 	// to do that, we analyze both the prefix and the suffix, knowing that the static stems are identical for both
@@ -1103,8 +1103,8 @@ namespace Engine {
 			}
 		}
 		catch(::string const& e) {
-			if (+field) throw "while processing "+full_name()+'.'+field+" :\n"+indent(e) ;
-			else        throw "while processing "+full_name()+          " :\n"+indent(e) ;
+			if (+field) throw "while processing "+user_name()+'.'+field+" :\n"+indent(e) ;
+			else        throw "while processing "+user_name()+          " :\n"+indent(e) ;
 		}
 	}
 
@@ -1165,7 +1165,7 @@ namespace Engine {
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
 			//
 		} catch (::string const& e) {
-			throw "while processing "+full_name()+" :\n"+indent(e) ;
+			throw "while processing "+user_name()+" :\n"+indent(e) ;
 		}
 		trace("done",patterns.size()) ;
 	}
@@ -1412,7 +1412,7 @@ namespace Engine {
 		::string  interpreter ;
 		::string  kill_sigs   ;
 		//
-		{	title = full_name() + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
+		{	title = user_name() + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
 			for( auto const& [k,me] : matches ) if (job_name_==me.pattern) { job_name_ = "<targets."+k+'>' ; break ; }
 		}
 		if (!is_special()) {
@@ -1553,9 +1553,9 @@ namespace Engine {
 	// RuleCrcData
 	//
 
-	::string& operator+=( ::string& os , RuleCrcData const& rcd ) {
+	::string& operator+=( ::string& os , RuleCrcData const& rcd ) {                                                    // START_OF_NO_COV
 		return os << "RCD(" << rcd.rule <<','<< rcd.state <<','<< rcd.match <<','<< rcd.cmd <<','<< rcd.rsrcs << ')' ;
-	}
+	}                                                                                                                  // END_OF_NO_COV
 
 	//
 	// Rule::RuleMatch
@@ -1594,10 +1594,10 @@ namespace Engine {
 		}
 	}
 
-	::string& operator+=( ::string& os , Rule::RuleMatch const& m ) {
+	::string& operator+=( ::string& os , Rule::RuleMatch const& m ) { // START_OF_NO_COV
 		os << "RSM(" << m.rule << ',' << m.stems << ')' ;
 		return os ;
-	}
+	}                                                                 // END_OF_NO_COV
 
 	::uset<Node> Rule::RuleMatch::target_dirs() const {
 		::uset<Node> dirs ;

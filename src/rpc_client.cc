@@ -5,7 +5,7 @@
 
 #include "rpc_client.hh"
 
-::string& operator+=( ::string& os , ReqOptions const& ro ) {
+::string& operator+=( ::string& os , ReqOptions const& ro ) {   // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                          os << "ReqOptions("         ;
 	if (+ro.startup_dir_s     ) { os <<      ro.startup_dir_s ; sep = "," ; }
@@ -14,15 +14,15 @@
 	if (+ro.key               ) { os <<sep<< ro.key           ; sep = "," ; }
 	if (+ro.flags             )   os <<sep<< ro.flags         ;
 	return                        os <<')'                    ;
-}
+}                                                               // END_OF_NO_COV
 
-::string& operator+=( ::string& os , ReqRpcReq const& rrr ) {
+::string& operator+=( ::string& os , ReqRpcReq const& rrr ) {                  // START_OF_NO_COV
 	/**/                            os << "ReqRpcReq(" << rrr.proc           ;
 	if (rrr.proc>=ReqProc::HasArgs) os <<','<< rrr.files <<','<< rrr.options ;
 	return                          os <<')'                                 ;
-}
+}                                                                              // END_OF_NO_COV
 
-::string& operator+=( ::string& os , ReqRpcReply const& rrr ) {
+::string& operator+=( ::string& os , ReqRpcReply const& rrr ) { // START_OF_NO_COV
 	using Proc = ReqRpcReplyProc ;
 	os << "ReqRpcReply("<<rrr.proc ;
 	switch (rrr.proc) {
@@ -33,4 +33,4 @@
 		case Proc::Stdout : os <<",T:"<< rrr.txt        ; break ;
 	DF}
 	return os << ')' ;
-}
+}                                                               // END_OF_NO_COV

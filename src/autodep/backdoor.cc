@@ -18,10 +18,13 @@ namespace Backdoor {
 	//
 	// Enable
 	//
-	::string& operator+=( ::string& os , Enable const& e ) {
+
+	::string& operator+=( ::string& os , Enable const& e ) { // START_OF_NO_COV
 		return os<<"Enable("<<e.enable<<')' ;
-	}
-	size_t Enable::reply_len() const { return 1 ; }  // just a bool
+	}                                                        // END_OF_NO_COV
+
+	size_t Enable::reply_len() const { return 1 ; } // just a bool
+
 	Enable::Reply Enable::process(Record& r) const {
 		bool res = r.enable ;
 		if (enable!=Maybe) r.enable = enable==Yes ;
@@ -31,7 +34,7 @@ namespace Backdoor {
 	//
 	// Solve
 	//
-	::string& operator+=( ::string& os , Solve const& s ) {
+	::string& operator+=( ::string& os , Solve const& s ) { // START_OF_NO_COV
 		/**/              os << "Solve(" << s.file ;
 		if ( s.no_follow) os << ",no_follow"       ;
 		if ( s.read     ) os << ",read"            ;
@@ -39,8 +42,10 @@ namespace Backdoor {
 		if ( s.create   ) os << ",create"          ;
 		if (+s.comment  ) os << ','<<s.comment     ;
 		return            os << ')'                ;
-	}
-	size_t Solve::reply_len() const { return JobExecRpcReq::MaxSz ; }         // 100 is plenty for overhead
+	}                                                       // END_OF_NO_COV
+
+	size_t Solve::reply_len() const { return JobExecRpcReq::MaxSz ; } // 100 is plenty for overhead
+
 	Solve::Reply Solve::process(Record& r) const {
 		Solve::Reply res { r , file , no_follow , read , create , comment } ;
 		res.file_info = FileInfo(r.s_repo_root_fd(),res.real) ;               // file info must be probed in process as we are protected against recording

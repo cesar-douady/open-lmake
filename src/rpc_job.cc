@@ -50,11 +50,11 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	return a.tv_sec==b.tv_sec && a.tv_nsec==b.tv_nsec ;
 }
 
-::string& operator+=( ::string& os , FileAction const& fa ) {
+::string& operator+=( ::string& os , FileAction const& fa ) {           // START_OF_NO_COV
 	/**/                                os << "FileAction(" << fa.tag ;
 	if (fa.tag<=FileActionTag::HasFile) os <<','<< fa.sig             ;
 	return                              os <<')'                      ;
-}
+}                                                                       // END_OF_NO_COV
 
 ::string do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
 	::uset_s                  keep_dirs       ;
@@ -159,31 +159,31 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 // JobReason
 //
 
-::string& operator+=( ::string& os , JobReason const& jr ) {
+::string& operator+=( ::string& os , JobReason const& jr ) { // START_OF_NO_COV
 	os << "JobReason(" << jr.tag ;
 	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
 	return os << ')' ;
-}
+}                                                            // END_OF_NO_COV
 
 //
 // MsgStderr
 //
 
-::string& operator+=( ::string& os , MsgStderr const& ms ) {
+::string& operator+=( ::string& os , MsgStderr const& ms ) { // START_OF_NO_COV
 	return os <<'('<< ms.msg <<','<< ms.stderr <<')' ;
-}
+}                                                            // END_OF_NO_COV
 
 //
 // DepInfo
 //
 
-::string& operator+=( ::string& os , DepInfo const& di ) {
+::string& operator+=( ::string& os , DepInfo const& di ) { // START_OF_NO_COV
 	switch (di.kind()) {
 		case DepInfoKind::Crc  : return os <<'('<< di.crc () <<')' ;
 		case DepInfoKind::Sig  : return os <<'('<< di.sig () <<')' ;
 		case DepInfoKind::Info : return os <<'('<< di.info() <<')' ;
 	DF}
-}
+}                                                          // END_OF_NO_COV
 
 //
 // Cache
@@ -615,13 +615,13 @@ namespace Caches {
 // JobSpace
 //
 
-::string& operator+=( ::string& os , JobSpace::ViewDescr const& vd ) {
+::string& operator+=( ::string& os , JobSpace::ViewDescr const& vd ) { // START_OF_NO_COV
 	/**/             os <<"ViewDescr("<< vd.phys ;
 	if (+vd.copy_up) os <<"CU:"<< vd.copy_up     ;
 	return           os <<')'                    ;
-}
+}                                                                      // END_OF_NO_COV
 
-::string& operator+=( ::string& os , JobSpace const& js ) {
+::string& operator+=( ::string& os , JobSpace const& js ) {            // START_OF_NO_COV
 	First first ;
 	/**/                  os <<"JobSpace("                           ;
 	if (+js.chroot_dir_s) os <<first("",",")<<"C:"<< js.chroot_dir_s ;
@@ -630,7 +630,7 @@ namespace Caches {
 	if (+js.tmp_view_s  ) os <<first("",",")<<"T:"<< js.tmp_view_s   ;
 	if (+js.views       ) os <<first("",",")<<"V:"<< js.views        ;
 	return                os <<')'                                   ;
-}
+}                                                                      // END_OF_NO_COV
 
 	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+::strerror(errno) ; }
 	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+::strerror(errno) ; }
@@ -979,19 +979,19 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 // JobStartRpcReq
 //
 
-::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {
+::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {                                           // START_OF_NO_COV
 	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.port <<','<< jsrr.msg <<')' ;
-}
+}                                                                                                             // END_OF_NO_COV
 
 //
 // JobEndRpcReq
 //
 
-::string& operator+=( ::string& os , ExecTraceEntry const& ete ) {
+::string& operator+=( ::string& os , ExecTraceEntry const& ete ) {                       // START_OF_NO_COV
 	return os <<"ExecTraceEntry("<< ete.date <<','<< ete.step() <<','<< ete.file <<')' ;
-}
+}                                                                                        // END_OF_NO_COV
 
-::string& operator+=( ::string& os , TargetDigest const& td ) {
+::string& operator+=( ::string& os , TargetDigest const& td ) { // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                    os << "TargetDigest("      ;
 	if ( td.pre_exist   ) { os <<      "pre_exist"     ; sep = "," ; }
@@ -1000,11 +1000,11 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	if (+td.crc         ) { os <<sep<< td.crc          ; sep = "," ; }
 	if (+td.sig         )   os <<sep<< td.sig          ;
 	return                  os <<')'                   ;
-}
+}                                                               // END_OF_NO_COV
 
-::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {
+::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {                                                                            // START_OF_NO_COV
 	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dyn_env <<')' ;
-}
+}                                                                                                                                            // END_OF_NO_COV
 
 void JobEndRpcReq::cache_cleanup() {
 	seq_id                     = SeqId(-1) ; // 0 is reserved to mean no info
@@ -1021,7 +1021,7 @@ void JobEndRpcReq::cache_cleanup() {
 // JobStartRpcReply
 //
 
-::string& operator+=( ::string& os , MatchFlags const& mf ) {
+::string& operator+=( ::string& os , MatchFlags const& mf ) { // START_OF_NO_COV
 	/**/             os << "MatchFlags(" ;
 	switch (mf.is_target) {
 		case Yes   : os << "target" ; if (+mf.tflags()           ) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
@@ -1029,9 +1029,9 @@ void JobEndRpcReq::cache_cleanup() {
 		case Maybe :                                                                                                                           break ;
 	DF}
 	return           os << ')' ;
-}
+}                                                             // END_OF_NO_COV
 
-::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {
+::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {         // START_OF_NO_COV
 	/**/                           os << "JobStartRpcReply("                ;
 	/**/                           os <<','  << to_hex(jsrr.addr)           ;
 	/**/                           os <<','  << jsrr.autodep_env            ;
@@ -1056,7 +1056,7 @@ void JobEndRpcReq::cache_cleanup() {
 	if (+jsrr.cache_idx          ) os <<','  << jsrr.cache_idx              ;
 	/**/                           os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
 	return                         os <<')'                                 ;
-}
+}                                                                             // END_OF_NO_COV
 
 bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>&/*out*/ actions
@@ -1145,7 +1145,7 @@ void JobStartRpcReply::exit() {
 // JobMngtRpcReq
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {
+::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {                                                                // START_OF_NO_COV
 	/**/                               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
 	switch (jmrr.proc) {
 		case JobMngtProc::LiveOut    : os <<','<< jmrr.txt.size() ;                             break ;
@@ -1156,13 +1156,13 @@ void JobStartRpcReply::exit() {
 		default                      :                                                          break ;
 	}
 	return                             os <<')' ;
-}
+}                                                                                                                                 // END_OF_NO_COV
 
 //
 // JobMngtRpcReply
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {
+::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {           // START_OF_NO_COV
 	/**/                               os << "JobMngtRpcReply(" << jmrr.proc ;
 	switch (jmrr.proc) {
 		case JobMngtProc::ChkDeps    : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<<                  jmrr.ok ; break ;
@@ -1171,13 +1171,13 @@ void JobStartRpcReply::exit() {
 		case JobMngtProc::Encode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
 	DN}
 	return                             os << ')' ;
-}
+}                                                                              // END_OF_NO_COV
 
 //
 // SubmitAttrs
 //
 
-::string& operator+=( ::string& os , SubmitAttrs const& sa ) {
+::string& operator+=( ::string& os , SubmitAttrs const& sa ) { // START_OF_NO_COV
 	First first ;
 	/**/              os << "SubmitAttrs("              ;
 	if (+sa.used_tag) os <<first("",",")<< sa.used_tag  ;
@@ -1186,15 +1186,15 @@ void JobStartRpcReply::exit() {
 	if (+sa.deps    ) os <<first("",",")<< sa.deps      ;
 	if (+sa.reason  ) os <<first("",",")<< sa.reason    ;
 	return            os <<')'                          ;
-}
+}                                                              // END_OF_NO_COV
 
 //
 // JobInfoStart
 //
 
-::string& operator+=( ::string& os , JobInfoStart const& jis ) {
+::string& operator+=( ::string& os , JobInfoStart const& jis ) {                                                       // START_OF_NO_COV
 	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
-}
+}                                                                                                                      // END_OF_NO_COV
 
 void JobInfoStart::cache_cleanup() {
 	eta                      = {}        ; // cache does not care

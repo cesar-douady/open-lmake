@@ -269,8 +269,7 @@ namespace Engine {
 	struct Deps : DepsBase {
 		// cxtors & casts
 		using DepsBase::DepsBase ;
-		Deps( ::vmap  <Node,Dflags> const& , Accesses ,          bool parallel ) ;
-		Deps( ::vector<Node       > const& , Accesses , Dflags , bool parallel ) ;
+		Deps( ::vector<Node> const& , Accesses , Dflags , bool parallel ) ;
 		// accesses
 		NodeIdx size() const = delete ; // deps are compressed
 		// services
@@ -391,12 +390,10 @@ namespace Engine {
 		bool has_actual_job(     ) const {                     return is_plain() && +actual_job() && +actual_job()->rule() ; }
 		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return is_plain() && actual_job()==j                        ; }
 		//
-		Manual manual        (                  FileSig const& ) const ;
-		Manual manual        (                                 ) const { return manual(FileSig(name())) ; }
-		Manual manual_refresh( Req            , FileSig const& ) ;                                                    // refresh date if file was updated but steady
-		Manual manual_refresh( JobData const& , FileSig const& ) ;                                                    // .
-		Manual manual_refresh( Req            r                )       { return manual_refresh(r,FileSig(name())) ; }
-		Manual manual_refresh( JobData const& j                )       { return manual_refresh(j,FileSig(name())) ; }
+		Manual manual        (         FileSig const& ) const ;
+		Manual manual        (                        ) const { return manual(FileSig(name())) ; }
+		Manual manual_refresh( Req   , FileSig const& ) ;                                                             // refresh date if file was updated but steady
+		Manual manual_refresh( Req r                  )       { return manual_refresh(r,FileSig(name())) ; }
 		//
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const&      , ::string const& name ) ; // Req's are for reporting only
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs                        ) { return refresh_src_anti(report_no_file,reqs,name()) ; }

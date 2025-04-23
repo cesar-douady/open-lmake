@@ -255,11 +255,10 @@ namespace Backends {
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
 	#define LCK(...) TraceLock lock{_s_mutex,BeChnl,"s_backend"} ; Trace trace(BeChnl,__VA_ARGS__)
-	inline void Backend::s_open_req (Req r,JobIdx nj) { LCK("s_open_req" ,r) ; _s_workload.open_req (r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->open_req (r,nj) ; }
-	inline void Backend::s_close_req(Req r          ) { LCK("s_close_req",r) ; _s_workload.close_req(r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->close_req(r   ) ; }
-	//
-	inline void Backend::s_new_req_etas() { LCK("s_new_req_etas") ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->new_req_etas() ; }
-	inline void Backend::s_launch      () { LCK("s_launch"      ) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->launch      () ; }
+	inline void Backend::s_open_req    (Req r,JobIdx nj) { LCK("s_open_req"    ,r) ; _s_workload.open_req (r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->open_req    (r,nj) ; }
+	inline void Backend::s_close_req   (Req r          ) { LCK("s_close_req"   ,r) ; _s_workload.close_req(r) ; for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->close_req   (r   ) ; }
+	inline void Backend::s_new_req_etas(               ) { LCK("s_new_req_etas"  ) ;                            for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->new_req_etas(    ) ; }
+	inline void Backend::s_launch      (               ) { LCK("s_launch"        ) ;                            for( Tag t : iota(All<Tag>) ) if (s_ready(t)) s_tab[+t]->launch      (    ) ; }
 	#undef LCK
 	//
 	inline ::string/*msg*/          Backend::s_start    ( Tag t , Job j            ) { _s_mutex.swear_locked() ; Trace trace(BeChnl,"s_start"    ,t,j) ; return s_tab[+t]->start    (j  ) ; }

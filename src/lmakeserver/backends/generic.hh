@@ -21,11 +21,11 @@ namespace Backends {
 
 	// share actual resources data as we typically have a lot of jobs with the same resources
 	template< class Data , ::unsigned_integral RefCnt > struct Shared {
-		friend string& operator+=( string& os , Shared const& s ) {
+		friend string& operator+=( string& os , Shared const& s ) {             // START_OF_NO_COV
 			/**/           os << "Shared" ;
 			if (+s) return os << *s       ;
 			else    return os << "()"     ;
-		}
+		}                                                                       // END_OF_NO_COV
 		// static data
 	private :
 		static ::umap<Data,RefCnt> _s_store ;                                   // map rsrcs to refcount, always >0 (erased when reaching 0)
@@ -113,14 +113,14 @@ namespace Backends {
 		// data
 		SubmitAttrs submit_attrs ;
 		Rsrcs       rsrcs        ;
-		ReqIdx      n_reqs       = 0     ; // number of reqs waiting for this job
+		ReqIdx      n_reqs       = 0     ;                                                         // number of reqs waiting for this job
 		bool        verbose      = false ;
 	} ;
-	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitEntry<Rsrcs> const& we ) {
+	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitEntry<Rsrcs> const& we ) {     // START_OF_NO_COV
 		/**/            os << "WaitEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_attrs ;
 		if (we.verbose) os << ",verbose"                                                         ;
 		return          os << ')'                                                                ;
-	}
+	}                                                                                              // END_OF_NO_COV
 
 	template<class Rsrcs> struct _SpawnedEntry {
 		// cxtors & casts
@@ -130,12 +130,12 @@ namespace Backends {
 		Rsrcs                               rsrcs         ;
 		Rsrcs                               rounded_rsrcs ;
 		Atomic<SpawnId,MutexLvl::BackendId> id            = NoId  ;
-		Atomic<bool                       > started       = false ; // if true <=> start() has been called for this job, for assert only
+		Atomic<bool                       > started       = false ;                                 // if true <=> start() has been called for this job, for assert only
 		Atomic<bool                       > verbose       = false ;
-		Atomic<bool                       > zombie        = false ; // if true <=> entry waiting for suppression
-		Atomic<bool                       > hold          = false ; // when held, entry cannot be destroyed
+		Atomic<bool                       > zombie        = false ;                                 // if true <=> entry waiting for suppression
+		Atomic<bool                       > hold          = false ;                                 // when held, entry cannot be destroyed
 	} ;
-	template< class Rsrcs > ::string& operator+=( ::string& os , _SpawnedEntry<Rsrcs> const& se ) {
+	template< class Rsrcs > ::string& operator+=( ::string& os , _SpawnedEntry<Rsrcs> const& se ) { // START_OF_NO_COV
 		os << "SpawnedEntry(" ;
 		if (!se.zombie) {
 			/**/             os <<      se.rsrcs ;
@@ -144,7 +144,7 @@ namespace Backends {
 			if (se.verbose ) os <<",verbose"     ;
 		}
 		return os <<')' ;
-	}
+	}                                                                                               // END_OF_NO_COV
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
@@ -178,7 +178,7 @@ namespace Backends {
 				be.start_rsrcs(it->second.rounded_rsrcs) ;
 				it->second.started = true ;
 				#ifndef NDEBUG
-					it = end() ; // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+					it = end() ;                                                         // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
 				#endif
 			}
 			void end( GenericBackend const& be , iterator&& it ) {
@@ -189,7 +189,7 @@ namespace Backends {
 				if (!se.hold    )   Base::erase(it)                  ;
 				else              { se.zombie = true ; _zombies.push_back(it->first) ; } // _launch may hold pointers with no lock, so dont physically erase entries
 				#ifndef NDEBUG
-					it = end() ; // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+					it = end() ;                                                         // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
 				#endif
 			} ;
 			void flush() {

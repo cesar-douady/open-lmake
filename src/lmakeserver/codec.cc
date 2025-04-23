@@ -29,11 +29,11 @@ namespace Codec {
 
 	void codec_thread_func(Closure const& cc) ;
 
-	::string& operator+=( ::string& os , Closure const& cc ) {
+	::string& operator+=( ::string& os , Closure const& cc ) {                                       // START_OF_NO_COV
 		/**/                              os << "Closure(" << cc.proc                              ;
 		if (cc.proc==JobMngtProc::Encode) os <<','<< cc.min_len()                                  ;
 		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<')' ;
-	}
+	}                                                                                                // END_OF_NO_COV
 
 	void Closure::s_init() {
 		g_codec_queue = new QueueThread<Closure>{'D',Codec::codec_thread_func} ;

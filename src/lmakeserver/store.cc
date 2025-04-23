@@ -192,8 +192,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _init_config() {
-		try         { g_config = new Config{deserialize<Config>(AcFd(PrivateAdminDirS+"config_store"s).read())} ; }
-		catch (...) { g_config = new Config                                                                     ; }
+		try         { g_config = new Config{deserialize<Config>(AcFd(PrivateAdminDirS+"config_store"s).read())} ; g_config->booted = true ; } // work around clang-tidy bug thinking booted is garbage
+		catch (...) { g_config = new Config                                                                     ;                           }
 	}
 
 	static void _init_srcs_rules(bool rescue) {
@@ -297,7 +297,7 @@ namespace Engine::Persistent {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
 		if ( !dyn                                         ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
 		if ( !dyn                                         ) _init_config() ;
-		else                                                SWEAR(+*g_config,*g_config) ; // we must update something
+		else                                                SWEAR(+*g_config,*g_config) ;   // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                diff(*g_config,config) ;
@@ -306,15 +306,15 @@ namespace Engine::Persistent {
 		if (          d>ConfigDiff::Static  && +*g_config ) throw "repo must be clean"s  ;
 		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw "repo must be steady"s ;
 		//
-		if (  dyn && !d                                   ) return ;                      // fast path, nothing to update
+		if (  dyn && !d                                   ) return ;                        // fast path, nothing to update
 		//
 		/**/                                                Config old_config = *g_config ;
 		if (         +d                                   ) *g_config = ::move(config) ;
 		if (                                   !*g_config ) throw "no config available"s ;
-		/**/                                                g_config->open( dyn , +config ) ;
-		if (         +d                                   ) _save_config()                  ;
-		if ( !dyn                                         ) _init_srcs_rules(rescue)        ;
-		if (         +d                                   ) _diff_config(old_config,dyn)    ;
+		/**/                                                g_config->open( dyn , true/*first_time*/ ) ;
+		if (         +d                                   ) _save_config()                             ;
+		if ( !dyn                                         ) _init_srcs_rules(rescue)                   ;
+		if (         +d                                   ) _diff_config(old_config,dyn)               ;
 		trace("done",Pdate(New)) ;
 	}
 
@@ -447,10 +447,10 @@ namespace Engine::Persistent {
 		for( RuleData& rd : new_rules_ ) {
 			if (rd.special<Special::NShared) continue ;
 			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)  ;
-			bool     new_name  = new_names.insert(rd.full_name()).second ;
-			if ( !new_crc && !new_name ) throw "rule "+rd.full_name()+" appears twice"                                                        ;
-			if ( !new_crc              ) throw "rules "+rd.full_name()+" and "+it->second->full_name()+" match identically and are redundant" ;
-			if (             !new_name ) throw "2 rules have the same name "+rd.full_name()                                                   ;
+			bool     new_name  = new_names.insert(rd.user_name()).second ;
+			if ( !new_crc && !new_name ) throw "rule "+rd.user_name()+" appears twice"                                                        ;
+			if ( !new_crc              ) throw "rules "+rd.user_name()+" and "+it->second->user_name()+" match identically and are redundant" ;
+			if (             !new_name ) throw "2 rules have the same name "+rd.user_name()                                                   ;
 		}
 		//
 		RuleIdx n_old_rules         = old_rds.size() ;
@@ -503,7 +503,7 @@ namespace Engine::Persistent {
 				else        {                   trace2( pfx+'*'+sfx           , ':' ) ; }
 				Trace trace3 ;
 				for( RuleTgt rt : rts.view() )
-					trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->full_name() , rt.key() ) ;
+					trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->user_name() , rt.key() ) ;
 			}
 		}
 		// user report

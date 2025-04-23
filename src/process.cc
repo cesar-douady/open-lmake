@@ -32,6 +32,7 @@ using namespace Disk ;
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 [[noreturn]] void Child::_do_child() {
+	SWEAR(_child_args[0]) ;
 	::execve( _child_args[0] , const_cast<char**>(_child_args) , const_cast<char**>(_child_env) ) ;
 	_exit(Rc::System,"cannot exec") ;                                                               // in case exec fails
 }
@@ -55,16 +56,16 @@ using namespace Disk ;
 	if      (stdout_fd==JoinFd) { SWEAR(stderr_fd!=JoinFd) ; ::dup2(Fd::Stderr,Fd::Stdout) ; }
 	else if (stderr_fd==JoinFd)                              ::dup2(Fd::Stdout,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;  // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;  // .
-	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;  // .
+	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;                          // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                          // .
+	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                          // .
 	//
 	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"    ) ; }
 	//
 	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ; // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                         // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
 	if (first_pid) {
@@ -79,7 +80,7 @@ using namespace Disk ;
 			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
 			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
 		}
-		pid_t pid = ::vfork() ;
+		pid_t pid = ::vfork() ;                                                                         // NOLINT(clang-analyzer-security.insecureAPI.vfork) faster than anything else
 		if (pid==0 ) _do_child() ;                                                                      // in child
 		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
 		//
@@ -143,12 +144,14 @@ void Child::spawn() {
 		void*              trampoline_stack_ptr = trampoline_stack.data()+(STACK_GROWS_DOWNWARD?trampoline_stack.size():0) ; // .
 		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
 	} else {
-		pid = pre_exec ? ::fork() : ::vfork() ;                                                                              // pre_exec may modify parent's memory
-		if (pid==0) _do_child_trampoline() ;                                                                                 // in child
+		// pre_exec may modify parent's memory
+		pid_t pid_ = pre_exec ? ::fork() : ::vfork() ;                        // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
+		if (pid_==0) _do_child_trampoline() ;                                 // in child
+		pid = pid_ ;                                                          // only parent can modify parent's memory
 	}
 	//
 	if (pid==-1) {
-		waited() ;                                                                                                           // ensure we can be destructed
+		waited() ;                                                            // ensure we can be destructed
 		throw cat("cannot spawn process ",cmd_line," : ",::strerror(errno)) ;
 	}
 	//

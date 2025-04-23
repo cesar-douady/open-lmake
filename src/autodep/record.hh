@@ -448,17 +448,17 @@ private :
 	mutable bool   _seen_tmp  = false ;           // record that tmp usage has been reported, no need to report any further
 } ;
 
-template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) {
+template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) { // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                       os << "Path("     ;
 	if ( p.at!=Fd::Cwd     ) { os <<      p.at   ; sep = "," ; }
 	if ( p.file && *p.file )   os <<sep<< p.file ;
 	return                     os <<')'          ;
-}
+}                                                                                                       // END_OF_NO_COV
 
-template<bool Writable=false,bool ChkSimple=false> ::string& operator+=( ::string& os , Record::_Solve<Writable,ChkSimple> const& s ) {
+template<bool Writable=false,bool ChkSimple=false> ::string& operator+=( ::string& os , Record::_Solve<Writable,ChkSimple> const& s ) { // START_OF_NO_COV
 	/**/            os << "Solve("<< s.real <<','<< s.file_loc <<','<< s.accesses ;
 	if (+s.real0  ) os <<','<< s.real0 <<','<< s.file_loc0                        ;
 	if (+s.confirm) os <<','<< s.confirm                                          ;
 	return          os <<')'                                                      ;
-}
+}                                                                                                                                       // END_OF_NO_COV

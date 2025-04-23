@@ -14,7 +14,7 @@
 
 struct MsgBuf {
 	friend ::string& operator+=( ::string& , MsgBuf const& ) ;
-	using Len = uint32_t ;                                     // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
+	using Len = uint32_t ;                                       // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
 	// statics
 	static Len s_sz(const char* str) {
 		Len len ; ::memcpy( &len , str , sizeof(Len) ) ;
@@ -22,11 +22,13 @@ struct MsgBuf {
 	}
 	// data
 protected :
-	::string _buf       ;                                      // reading : sized after expected size, but actually filled up only with len char's   // writing : contains len+data to be sent
-	Len      _len       = 0     ;                              // data sent/received so far, reading : may also apply to len accumulated in _buf
-	bool     _data_pass = false ;                              // reading : if true <=> _buf contains partial data, else it contains partial data len // writing : if true <=> _buf contains data
+	::string _buf       ;                                        // reading : sized after expected size, but actually filled up only with len char's   // writing : contains len+data to be sent
+	Len      _len       = 0     ;                                // data sent/received so far, reading : may also apply to len accumulated in _buf
+	bool     _data_pass = false ;                                // reading : if true <=> _buf contains partial data, else it contains partial data len // writing : if true <=> _buf contains data
 } ;
-inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ; }
+inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { // START_OF_NO_COV
+	return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ;
+}                                                                // END_OF_NO_COV
 
 struct IMsgBuf : MsgBuf {
 	// cxtors & casts

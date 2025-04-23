@@ -30,9 +30,6 @@ else :
 
 from .utils import *
 
-root_dir     = repo_root     # XXX> : until backward compatibility can be broken
-top_root_dir = top_repo_root # XXX> : until backward compatibility can be broken
-
 version = ('$VERSION',$TAG) # substituted at build time
 
 def check_version(major,minor=0) :

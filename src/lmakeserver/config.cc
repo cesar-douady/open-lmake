@@ -13,7 +13,7 @@ using namespace Time   ;
 
 namespace Engine {
 
-	::string& operator+=( ::string& os , Config::Backend const& be ) {
+	::string& operator+=( ::string& os , Config::Backend const& be ) { // START_OF_NO_COV
 		os << "Backend(" ;
 		if (be.configured) {
 			if (+be.ifce) os <<      be.ifce <<',' ;
@@ -21,13 +21,13 @@ namespace Engine {
 			if (+be.env ) os <<','<< be.env        ;
 		}
 		return os <<')' ;
-	}
+	}                                                                  // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , ConfigStatic::Cache const& c ) {
+	::string& operator+=( ::string& os , ConfigStatic::Cache const& c ) { // START_OF_NO_COV
 		return os << "Cache(" << c.tag <<','<< c.dct << ')' ;
-	}
+	}                                                                     // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Config const& sc ) {
+	::string& operator+=( ::string& os , Config const& sc ) {                                   // START_OF_NO_COV
 		/**/                                          os << "Config(" << sc.lnk_support       ;
 		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
 		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
@@ -36,7 +36,7 @@ namespace Engine {
 		if (+sc.sub_repos_s        )                  os <<','   << sc.sub_repos_s            ;
 		for( BackendTag t : iota(1,All<BackendTag>) ) os <<','   << t <<':'<< sc.backends[+t] ; // local backend is always present
 		return os<<')' ;
-	}
+	}                                                                                           // END_OF_NO_COV
 
 	ConfigStatic::Cache::Cache(Dict const& py_map) {
 		::string field     ;
@@ -110,11 +110,6 @@ namespace Engine {
 				if (py_console.contains(fields[1])) {
 					Object const& py_history_days = py_console[fields[1]] ;
 					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
-				}
-				fields[1] = "host_length" ;                                                                                            // XXX> : suppress when backward compatibility can be abandoned
-				if (py_console.contains(fields[1])) {
-					Object const& py_host_len = py_console[fields[1]] ;
-					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
 				}
 				fields[1] = "host_len" ;
 				if (py_console.contains(fields[1])) {

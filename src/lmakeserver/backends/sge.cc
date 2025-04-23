@@ -265,8 +265,9 @@ namespace Backends::Sge {
 				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
-			pid_t  pid = ::vfork() ;                                     // calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			SWEAR(pid>=0) ;                                              // ensure vfork works
+			// calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			pid_t  pid = ::vfork() ;                                     // NOLINT(clang-analyzer-security.insecureAPI.vfork)
+			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                  // in child
 				::close(Fd::Stdin ) ;                                    // ensure no stdin (defensive programming)
 				::close(Fd::Stdout) ;
@@ -274,6 +275,8 @@ namespace Backends::Sge {
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
 				::_exit(+Rc::System) ;                                   // in case exec fails
 			}
+			SWEAR(pid>0) ;
+			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			trace("done_pid",wstatus) ;
@@ -282,7 +285,7 @@ namespace Backends::Sge {
 		}
 
 		SgeId sge_exec_qsub(::vector_s&& cmd_line) const {
-			SWEAR(cmd_line[0]=="qsub" && cmd_line[1]=="-terse") ; // only meant to accept a short stdout
+			SWEAR(cmd_line[0]=="qsub" && cmd_line[1]=="-terse") ;                                               // only meant to accept a short stdout
 			Trace trace(BeChnl,"sge_exec_qsub",cmd_line) ;
 			TraceLock lock { _sge_mutex , BeChnl , "sge_qsub" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
@@ -293,11 +296,12 @@ namespace Backends::Sge {
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
 			AcPipe c2p { New , O_NONBLOCK , true/*no_std*/ } ;
-			pid_t  pid = ::vfork() ;                              // calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			SWEAR(pid>=0) ;                                       // ensure vfork works
-			if (!pid) {                                           // in child
-				SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;        // ensure we can safely close what needs to be closed
-				SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;        // .
+			// calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
+			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
+			if (!pid) {                                                                                         // in child
+				SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;                                                      // ensure we can safely close what needs to be closed
+				SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                                                      // .
 				::dup2(c2p.write,Fd::Stdout) ;
 				::close(Fd::Stdin) ;                                                                            // ensure no stdin (defensive programming)
 				::close(c2p.read ) ;                                                                            // dont touch c2p object as it is shared with parent
@@ -306,6 +310,8 @@ namespace Backends::Sge {
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
 				::_exit(+Rc::System) ;                                                                          // in case exec fails
 			}
+			SWEAR(pid>0) ;                                                                            // ensure vfork worked
+			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			// Normal code to get the content of stdout is to read the c2p pipe, and when we see eof, waitpid until sub-process has terminated.
 			// But it seems that if we do things this way, there are cases where c2p.read eof never occurs (or after a very long time, >300s).
 			// So we do things the other way around : we first waitpid for sub-process to terminate, then we read (non-blocking) c2p.read.
@@ -367,15 +373,15 @@ namespace Backends::Sge {
 	// Daemon
 	//
 
-	::string& operator+=( ::string& os , Daemon const& d ) {
+	::string& operator+=( ::string& os , Daemon const& d ) { // START_OF_NO_COV
 		return os << "Daemon(" << d.licenses <<')' ;
-	}
+	}                                                        // END_OF_NO_COV
 
 	//
 	// RsrcsData
 	//
 
-	::string& operator+=( ::string& os , RsrcsData const& rsd ) {
+	::string& operator+=( ::string& os , RsrcsData const& rsd ) {                  // START_OF_NO_COV
 		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
 		if (rsd.mem   )                       os <<",mem="<<       rsd.mem<<"MB" ;
 		if (rsd.tmp   )                       os <<",tmp="<<       rsd.tmp<<"MB" ;
@@ -383,10 +389,10 @@ namespace Backends::Sge {
 		if (+rsd.hard )                       os <<",H:"<<         rsd.hard      ;
 		if (+rsd.soft )                       os <<",S:"<<         rsd.soft      ;
 		return                                os <<')'                           ;
-	}
+	}                                                                              // END_OF_NO_COV
 
 	::vector_s _split_rsrcs(::string const& s) {
-		// validate syntax as violating it could lead really unexpected behavior, such as executing an unexpected command
+		// validate syntax as violating it could lead to unexpected behavior, such as executing an unexpected command
 		::vector_s res = split(s) ;
 		size_t     i   ;
 		for( i=0 ; i<res.size() ; i++ ) {

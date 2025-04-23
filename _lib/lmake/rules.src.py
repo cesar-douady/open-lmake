@@ -83,12 +83,10 @@ class Rule(_RuleBase) :
 #	ete                 = 0                            # Estimated Time Enroute, initial guess for job exec time (in s)
 #	force               = False                        # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
-	max_submit_count    = max_submits                  # XXX> : suppress when backward compatibility can be suppressed
 #	keep_tmp            = False                        # keep tmp dir after job execution
 	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 #	lmake_view          = '/lmake'                     # absolute path under which the open-lmake installation directory is seen (if None, empty, or absent, no bind mount is done)
 	max_retries_on_lost = 1                            # max number of retries in case of job lost. 1 is a reasonable value
-	n_retries           = max_retries_on_lost          # XXX> : suppress when backward compatibility can be suppressed
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
@@ -115,7 +113,6 @@ class Rule(_RuleBase) :
 		HOME = '$REPO_ROOT'                            # favor repeatability by hiding use home dir some tools use at start up time
 	,	PATH = ':'.join(('$LMAKE_ROOT/bin',_std_path))
 	)
-	environ_cmd       = environ                        # XXX> : suppress when backward compatibility can be suppressed
 	environ_resources = pdict()                        # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
 	environ_ancillary = pdict(                         # job execution environment, does not trigger rebuild upon modification
 		UID  = str(_os.getuid())                       # this may be necessary by some tools and usually does not lead to user specific configuration

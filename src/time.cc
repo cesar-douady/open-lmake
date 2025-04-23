@@ -36,13 +36,13 @@ namespace Time {
 	// Delay
 	//
 
-	::string& operator+=( ::string& os , Delay const d ) {
+	::string& operator+=( ::string& os , Delay const d ) {                                  // START_OF_NO_COV
 		int64_t  s  =       d.sec      ()  ;
 		uint32_t ns = ::abs(d.nsec_in_s()) ;
 		/**/                  os << "D:"                                                  ;
 		if ( !s && d._val<0 ) os << '-'                                                   ;
 		return                os << cat(s,'.',widen(cat(ns),9,true/*right*/,'0'/*fill*/)) ;
-	}
+	}                                                                                       // END_OF_NO_COV
 
 	::string Delay::str(uint8_t prec) const {
 		Tick     s   = sec      () ;
@@ -75,14 +75,16 @@ namespace Time {
 	// CoarseDelay
 	//
 
-	::string& operator+=( ::string& os , CoarseDelay const cd ) { return os<<Delay(cd) ; }
+	::string& operator+=( ::string& os , CoarseDelay const cd ) { // START_OF_NO_COV
+		return os<<Delay(cd) ;
+	}                                                             // END_OF_NO_COV
 
 	//
 	// Date
 	//
 
-	::string& operator+=( ::string& os , Ddate    const  d ) { return os <<"DD:" << d.str(9) <<':'<< d.tag() ; }
-	::string& operator+=( ::string& os , Pdate    const  d ) { return os <<"PD:" << d.str(9)                 ; }
+	::string& operator+=( ::string& os , Ddate    const  d ) { return os <<"DD:" << d.str(9) <<':'<< d.tag() ; } // NO_COV
+	::string& operator+=( ::string& os , Pdate    const  d ) { return os <<"PD:" << d.str(9)                 ; } // NO_COV
 
 	::string Date::str( uint8_t prec , bool in_day ) const {
 		if (!self) return "None" ;

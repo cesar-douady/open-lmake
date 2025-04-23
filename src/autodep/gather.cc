@@ -19,7 +19,7 @@ using namespace Time ;
 // Gather::AccessInfo
 //
 
-::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {
+::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {                                             // START_OF_NO_COV
 	bool  i  = false/*garbage*/ ;
 	Pdate rd = Pdate::Future    ;
 	for( Access a : iota(All<Access>) ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
@@ -31,7 +31,7 @@ using namespace Time ;
 	/**/                                            os << ai.digest                                             ;
 	if ( ai.seen!=Pdate::Future                   ) os <<",seen"                                                ;
 	return                                          os <<')'                                                    ;
-}
+}                                                                                                                 // END_OF_NO_COV
 
 void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	digest.tflags       |= ad.tflags       ;
@@ -57,11 +57,11 @@ NotFirst :
 // Gather
 //
 
-::string& operator+=( ::string& os , Gather const& gd ) {
+::string& operator+=( ::string& os , Gather const& gd ) { // START_OF_NO_COV
 	/**/             os << "Gather(" << gd.accesses ;
 	if (gd.seen_tmp) os <<",seen_tmp"               ;
 	return           os << ')'                      ;
-}
+}                                                         // END_OF_NO_COV
 
 void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Comment c , CommentExts ces ) {
 	SWEAR( +file , c , ces        ) ;
@@ -243,19 +243,19 @@ Fd Gather::_spawn_child() {
 struct JobSlaveEntry {
 	using Jerr = JobExecRpcReq ;
 	static constexpr size_t BufSz = 1<<16 ;
-	static_assert(BufSz>2*Jerr::MaxSz) ;             // buf must be able to hold at least 2 messages
+	static_assert(BufSz>2*Jerr::MaxSz) ;                          // buf must be able to hold at least 2 messages
 	// data
-	::umap<Jerr::Id,::vector<Jerr>> jerrs      ;     // jerrs are waiting for confirmation
-	size_t                          buf_sz     = 0 ; // part of buf actually filled
+	::umap<Jerr::Id,::vector<Jerr>> jerrs      ;                  // jerrs are waiting for confirmation
+	size_t                          buf_sz     = 0 ;              // part of buf actually filled
 	char                            buf[BufSz] ;
 } ;
-::string& operator+=( ::string& os , JobSlaveEntry const& jse ) {
+::string& operator+=( ::string& os , JobSlaveEntry const& jse ) { // START_OF_NO_COV
 	First first ;
 	/**/            os << "JobSlaveEntry("          ;
 	if (+jse.jerrs) os <<first("",",")<< jse.jerrs  ;
 	if (jse.buf_sz) os <<first("",",")<< jse.buf_sz ;
 	return          os <<')'                        ;
-}
+}                                                                 // END_OF_NO_COV
 
 
 Status Gather::exec_child() {

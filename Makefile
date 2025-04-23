@@ -3,9 +3,11 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+include sys_config.mk
+
 VERSION        := 25.05
 TAG            := 0
-# ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
+# ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
 
@@ -13,8 +15,13 @@ ifneq ($(shell uname),Linux)
     $(error can only compile under Linux)
 endif
 
-MAKEFLAGS := -r -R                       # mandatory
-MAKEFLAGS += -k -j$(shell nproc||echo 1) # user configurable
+# mandatory
+MAKEFLAGS := -r -R                                                      # dont use default rules
+# user configurable
+MAKEFLAGS       += -k                                                   # keep making independent jobs in case of error
+N_PARALLEL_JOBS := $(shell nproc||echo 1)
+#mandatory
+MAKEFLAGS += $(if $(findstring C,$(LMAKE_FLAGS)),,-j$(N_PARALLEL_JOBS)) # no parallel execution if using coverage
 
 .DEFAULT_GOAL := DFLT
 
@@ -27,6 +34,7 @@ sys_config.env : FORCE
 		echo new $@ ;                                                \
 		{	echo PATH=\'$$(   echo "$$PATH"   |sed "s:':'\\'':")\' ; \
 			echo CXX=\'$$(    echo "$$CXX"    |sed "s:':'\\'':")\' ; \
+			echo GCOV=\'$$(   echo "$$GCOV"   |sed "s:':'\\'':")\' ; \
 			echo PYTHON2=\'$$(echo "$$PYTHON2"|sed "s:':'\\'':")\' ; \
 			echo PYTHON3=\'$$(echo "$$PYTHON" |sed "s:':'\\'':")\' ; \
 			echo LMAKE_FLAGS=$$LMAKE_FLAGS                         ; \
@@ -36,10 +44,10 @@ sys_config.env : FORCE
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
-	@set -a                               ; \
-	PATH=$$(env -i bash -c 'echo $$PATH') ; \
-	unset CXX PYTHON2 PYTHON3 LMAKE_FLAGS ; \
-	. ./sys_config.env                    ; \
+	@set -a                                    ; \
+	PATH=$$(env -i bash -c 'echo $$PATH')      ; \
+	unset CXX GCOV PYTHON2 PYTHON3 LMAKE_FLAGS ; \
+	. ./sys_config.env                         ; \
 	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -58,9 +66,6 @@ sys_config.err : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1
 	@echo '* sys_config summary :'
 	@echo '*'
 	@cat sys_config.sum
-
-# defines HAS_SECCOMP
-include sys_config.mk
 
 ifeq ($(SYS_CONFIG_OK),0)
 $(shell echo '*********'        >&2 )
@@ -85,7 +90,7 @@ Manifest : .git/index
 	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
-include Manifest.inc_stamp # Manifest is used in this makefile
+include Manifest.inc_stamp                                 # Manifest is used in this makefile
 EXCLUDES := $(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc)
 SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 
@@ -105,15 +110,17 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # - P       : -pg
 # - C       : coverage (not operational yet)
 LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR) ),-flto=2     ,-flto                  )
-COVERAGE         :=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
-PROFILE          :=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
-EXTRA_LINK_FLAGS :=     $(if $(findstring P,  $(LMAKE_FLAGS)),            ,-O3                    )
+EXTRA_LINK_FLAGS :=
 EXTRA_LINK_FLAGS :=     $(if $(findstring O4, $(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_LINK_FLAGS)    )
 EXTRA_LINK_FLAGS :=     $(if $(findstring O3, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
 EXTRA_LINK_FLAGS :=     $(if $(findstring O2, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
 EXTRA_LINK_FLAGS :=     $(if $(findstring O1, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
 EXTRA_LINK_FLAGS :=     $(if $(findstring O0, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
-EXTRA_CC_FLAGS   :=     $(if $(findstring P,  $(LMAKE_FLAGS)),-O1         ,-O3                    )
+EXTRA_LINK_FLAGS +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
+EXTRA_LINK_FLAGS +=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
+EXTRA_CC_FLAGS   :=                                           -O3
+EXTRA_CC_FLAGS   :=     $(if $(findstring P,  $(LMAKE_FLAGS)),-O1         ,$(EXTRA_CC_FLAGS)      )
+EXTRA_CC_FLAGS   :=     $(if $(findstring C,  $(LMAKE_FLAGS)),-O0         ,$(EXTRA_CC_FLAGS)      )
 EXTRA_CC_FLAGS   :=     $(if $(findstring O4, $(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_CC_FLAGS)      )
 EXTRA_CC_FLAGS   :=     $(if $(findstring O3, $(LMAKE_FLAGS)),-O3         ,$(EXTRA_CC_FLAGS)      )
 EXTRA_CC_FLAGS   :=     $(if $(findstring O2, $(LMAKE_FLAGS)),-O2         ,$(EXTRA_CC_FLAGS)      )
@@ -122,6 +129,8 @@ EXTRA_CC_FLAGS   :=     $(if $(findstring O0, $(LMAKE_FLAGS)),-O0         ,$(EXT
 EXTRA_CC_FLAGS   +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-g                     )
 EXTRA_CC_FLAGS   +=     $(if $(findstring d,  $(LMAKE_FLAGS)),-DNDEBUG                            )
 EXTRA_CC_FLAGS   +=     $(if $(findstring t,  $(LMAKE_FLAGS)),-DNO_TRACE                          )
+EXTRA_CC_FLAGS   +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
+EXTRA_CC_FLAGS   +=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
 HIDDEN_CC_FLAGS  +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-fno-omit-frame-pointer)
 HIDDEN_CC_FLAGS  +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-DPROFILING                         )
 HIDDEN_CC_FLAGS  +=     $(if $(findstring O0, $(LMAKE_FLAGS)),-fno-inline                         )
@@ -135,7 +144,7 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
 LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath$(COMMA)%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath$(COMMA)%))
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
-LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) $(COVERAGE) $(PROFILE) -pthread $(LINK_FLAGS) $(EXTRA_LINK_FLAGS)
+LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) -pthread $(LINK_FLAGS) $(EXTRA_LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
@@ -144,12 +153,12 @@ ifeq ($(CXX_FLAVOR),clang)
 endif
 #
 # XXX : suppress -fno-strict-aliasing when proven correct
-USER_FLAGS := -std=$(CXX_STD) $(EXTRA_CC_FLAGS) $(COVERAGE) $(PROFILE)
+USER_FLAGS := -std=$(CXX_STD) $(EXTRA_CC_FLAGS)
 COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_CC_FLAGS) -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_CC_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
-LINT_CHKS  := -checks=-clang-analyzer-optin.core.EnumCastOutOfRange
-LINT_OPTS  := '-header-filter=.*' $(LINT_CHKS)
+LINT_CHKS  := --checks=-clang-analyzer-optin.core.EnumCastOutOfRange
+LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CC_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
@@ -279,7 +288,7 @@ DOCKER_FILES := $(filter docker/%.docker,$(SRCS))
 LMAKE_ALL_FILES     := $(LMAKE_FILES) $(LMAKE_DOC_FILES)
 LMAKE_ALL_FILES_DBG := $(LMAKE_ALL_FILES) $(LMAKE_BIN_FILES)
 
-LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter %.cc,$(SRCS))) )
+LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) )
 
 DFLT_TGT : LMAKE_TGT UNIT_TESTS LMAKE_TEST lmake.tar.gz
 DFLT     : DFLT_TGT.SUMMARY
@@ -365,18 +374,21 @@ src/store/unit_test : \
 	src/app$(SAN).o         \
 	src/trace$(SAN).o       \
 	src/store/unit_test$(SAN).o
-	$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
+	@echo link to $@
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 
 src/store/unit_test.dir/tok : src/store/unit_test
+	@echo store unit test to $@
 	@rm -rf   $(@D)
 	@mkdir -p $(@D)
-	./$<      $(@D)
-	@touch      $@
+	@./$<     $(@D)
+	@touch    $@
 
 src/store/big_test.dir/tok : src/store/big_test.py LMAKE
+	@echo big test "(2000000)" to $@
 	@mkdir -p $(@D)
 	@rm -rf   $(@D)/LMAKE
-	PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; $(PYTHON) ../big_test.py / 2000000 )
+	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; $(PYTHON) ../big_test.py / 2000000 )
 	@touch $@
 
 #
@@ -399,7 +411,10 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 %-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
 %-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O) $(SAN_FLAGS) -o $@ $<
 
-%.chk   : %.cc ; @echo $(LINT) $(USER_FLAGS) to $@ ; $(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CC_FLAGS) >$@ ; [ ! -s $@ ]
+%.chk   : %.cc
+	@echo $(LINT) $(USER_FLAGS) to $@
+	@$(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CC_FLAGS) >$@.err 2>$@.stderr
+	@if [ -s $@.err ] ; then echo errors in $@.err ; cat $@.stderr ; else >$@ ; fi
 
 %.d : %.cc
 	@$(COMPILE) \
@@ -414,7 +429,7 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 		$< 2>/dev/null || :
 
 SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmakeserver/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
-DEP_SRCS := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(patsubst %.cc,%.d,$(SLURM_SRCS))
+DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(patsubst %.cc,%.d,$(SLURM_SRCS))
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 #
@@ -880,3 +895,12 @@ $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	@# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
 	@cd $(DEBIAN_DIR)-bin ; MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
 	@touch $@
+
+#
+# coverage
+#
+
+GCOV : gcov/summary
+
+gcov/summary : FORCE
+	GCOV=$(GCOV) $(PYTHON) _bin/gen_gcov.py $@ $(DEP_SRCS)

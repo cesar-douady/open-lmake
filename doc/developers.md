@@ -296,3 +296,15 @@ By the way, the execution is lighter and code is not heavier.
 		- and `git add` it
 	- use `src/lshow.cc` as a template
 	- run `git grep PER_CMD` to see all parts that must be modified
+
+# Coverage
+In order to produce coverage results, do the following:
+	- `git clean -ffdx` or at least `rm -f sys_config.env ; find . -name '*.gcda' | xargs rm`
+	- `LMAKE_FLAGS=C make ALL`
+	- `make src/store/unit_test`
+	- `make GCOV`
+
+All data are generated in the `gcov` directory:
+	- `summary` : a file level summary showing a count of uncovered lines and total lines for each file
+	- `gcov_dir` : the directory that was used to generate coverage reports, it contains raw outputs from `gcov`
+	- a copy of the source tree where files are annotated with execution count on a line by line basis

@@ -78,14 +78,14 @@ namespace Engine {
 	// EngineClosure
 	//
 
-	::string& operator+=( ::string& os , EngineClosureGlobal const& ecg ) {
+	::string& operator+=( ::string& os , EngineClosureGlobal const& ecg ) { // START_OF_NO_COV
 		return os << "Glb(" << ecg.proc <<')' ;
-	}
+	}                                                                       // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {
+	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) { // START_OF_NO_COV
 		os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
-			case ReqProc::Debug  : // PER_CMD : format for tracing
+			case ReqProc::Debug  :                                       // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
 			case ReqProc::Show   : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
@@ -95,30 +95,30 @@ namespace Engine {
 			case ReqProc::Close  : os << ecr.req                                                                             ; break ;
 		DF}
 		return os <<')' ;
-	}
+	}                                                                    // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) {
+	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) { // START_OF_NO_COV
 		First first ;
 		/**/                     os << "Ecjs("                           ;
 		if (ecjs.report        ) os <<first("",",")<< "report"           ;
 		if (+ecjs.report_unlnks) os <<first("",",")<< ecjs.report_unlnks ;
 		if (+ecjs.msg_stderr   ) os <<first("",",")<< ecjs.msg_stderr    ;
 		return                   os <<')'                                ;
-	}
+	}                                                                          // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobReportStart const& ) {
+	::string& operator+=( ::string& os , EngineClosureJobReportStart const& ) { // START_OF_NO_COV
 		return os << "Ecjrs()" ;
-	}
+	}                                                                           // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobGiveUp const& ecjgu ) {
+	::string& operator+=( ::string& os , EngineClosureJobGiveUp const& ecjgu ) { // START_OF_NO_COV
 		First first ;
 		/**/               os << "Ecjgu("                 ;
 		if ( ecjgu.report) os <<first("",",")<< "report"  ;
 		if (+ecjgu.req   ) os <<first("",",")<< ecjgu.req ;
 		return             os <<')'                       ;
-	}
+	}                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJob const& ecj ) {
+	::string& operator+=( ::string& os , EngineClosureJob const& ecj ) {                  // START_OF_NO_COV
 		/**/                               os << "(" << ecj.proc() <<','<< ecj.job_exec ;
 		switch (ecj.proc()) {
 			case JobRpcProc::Start       : os << ecj.start       () ; break ;
@@ -127,9 +127,9 @@ namespace Engine {
 			case JobRpcProc::End         : os << ecj.end         () ; break ;
 		DF}
 		return                             os <<')' ;
-	}
+	}                                                                                     // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobMngt const& ecjm ) {
+	::string& operator+=( ::string& os , EngineClosureJobMngt const& ecjm ) {                    // START_OF_NO_COV
 		/**/                               os << "JobMngt(" << ecjm.proc <<','<< ecjm.job_exec ;
 		switch (ecjm.proc) {
 			case JobMngtProc::LiveOut    : os <<','<< ecjm.txt.size() ; break ;
@@ -137,9 +137,9 @@ namespace Engine {
 			case JobMngtProc::ChkDeps    : os <<','<< ecjm.deps       ; break ;
 		DF}
 		return                             os << ')' ;
-	}
+	}                                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosure const& ec ) {
+	::string& operator+=( ::string& os , EngineClosure const& ec ) {                        // START_OF_NO_COV
 		/**/                                    os << "EngineClosure(" << ec.kind() <<',' ;
 		switch (ec.kind()) {
 			case EngineClosure::Kind::Global  : os << ec.ecg () ; break ;
@@ -148,7 +148,7 @@ namespace Engine {
 			case EngineClosure::Kind::JobMngt : os << ec.ecjm() ; break ;
 		DF}
 		return                                  os << ')' ;
-	}
+	}                                                                                       // END_OF_NO_COV
 
 	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
 		SWEAR(!is_job()) ;
@@ -172,7 +172,7 @@ namespace Engine {
 		for( Rule r : Persistent::rule_lst() ) {
 			Job j { r , files[0] } ;
 			if ( !j                                                                                ) continue ;
-			if ( options.flags[ReqFlag::Rule] && r->full_name()!=options.flag_args[+ReqFlag::Rule] ) continue ;
+			if ( options.flags[ReqFlag::Rule] && r->user_name()!=options.flag_args[+ReqFlag::Rule] ) continue ;
 			candidates.push_back(j) ;
 		}
 		if      (candidates.size()==1) return candidates[0]                                    ;
@@ -180,7 +180,7 @@ namespace Engine {
 		else {
 			SWEAR(!options.flags[ReqFlag::Rule]) ;                   // impossible to have several candidates if the rule is specified
 			::string err_str = "several rules match, consider :\n" ;
-			for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->full_name())+" -J "+files[0] ,1) << '\n' ;
+			for( Job j : candidates ) err_str << _audit_indent( "lmake -R "+mk_shell_str(j->rule()->user_name())+" -J "+files[0] ,1) << '\n' ;
 			throw err_str ;
 		}
 	}
@@ -189,7 +189,7 @@ namespace Engine {
 	// Kpi
 	//
 
-	::string& operator+=( ::string& os , Kpi const& kpi ) {
+	::string& operator+=( ::string& os , Kpi const& kpi ) { // START_OF_NO_COV
 		os << "Kpi(" ;
 		if ( kpi.n_aborted_job_creation) os <<",AJC:" << kpi.n_aborted_job_creation ;
 		if ( kpi.n_job_make            ) os <<",JM:"  << kpi.n_job_make             ;
@@ -199,7 +199,7 @@ namespace Engine {
 		if (+kpi.py_exec_time          ) os <<",ET:"  << kpi.py_exec_time           ;
 		if (+kpi.reqs                  ) os <<",Reqs:"<< kpi.reqs.size()            ;
 		return os << ")" ;
-	}
+	}                                                       // END_OF_NO_COV
 
 	::string Kpi::pretty_str() const {
 		::string res ;

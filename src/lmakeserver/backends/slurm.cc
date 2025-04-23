@@ -287,15 +287,15 @@ namespace Backends::Slurm {
 	// Daemon
 	//
 
-	::string& operator+=( ::string& os , Daemon const& d ) {
+	::string& operator+=( ::string& os , Daemon const& d ) {                                                                           // START_OF_NO_COV
 		return os << "Daemon(" << d.time_origin <<','<< d.nice_factor <<','<< d.licenses <<','<< (d.manage_mem?"mem":"no_mem") <<')' ;
-	}
+	}                                                                                                                                  // END_OF_NO_COV
 
 	//
 	// RsrcsData
 	//
 
-	::string& operator+=( ::string& os , RsrcsDataSingle const& rsds ) {
+	::string& operator+=( ::string& os , RsrcsDataSingle const& rsds ) { // START_OF_NO_COV
 		/**/                 os <<'('<< rsds.cpu       ;
 		if ( rsds.mem      ) os <<','<< rsds.mem<<"MB" ;
 		if ( rsds.tmp      ) os <<','<< rsds.tmp<<"MB" ;
@@ -308,7 +308,7 @@ namespace Backends::Slurm {
 		if (+rsds.excludes ) os <<','<< rsds.excludes  ;
 		if (+rsds.nodes    ) os <<','<< rsds.nodes     ;
 		return              os <<')'                  ;
-	}
+	}                                                                    // END_OF_NO_COV
 
 	static void _sort(::string& s) {
 		if (s.find(',')==Npos) return ;
@@ -334,13 +334,11 @@ namespace Backends::Slurm {
 				case 'm' : if (k=="mem"      ) {                          rsds.mem       = from_string_with_unit<'M',uint32_t,true>(v) ; continue ; } break ; // no mem if not managed
 				case 't' : if (k=="tmp"      ) {                          rsds.tmp       = from_string_with_unit<'M',uint32_t,true>(v) ; continue ; } break ;
 				case 'e' : if (k=="excludes" ) {                          rsds.excludes  = ::move                                  (v) ; continue ; } break ;
-				case 'f' : if (k=="features" ) {                          rsds.features  = ::move                                  (v) ; continue ; }
-				/**/       if (k=="feature"  ) {                          rsds.features  = ::move                                  (v) ; continue ; } break ; // XXX> : for backward compatibility
+				case 'f' : if (k=="features" ) {                          rsds.features  = ::move                                  (v) ; continue ; } break ;
 				case 'g' : if (k=="gres"     ) {               _sort(v) ; rsds.gres      = ::move                                  (v) ; continue ; } break ; // normalize to favor resources sharing
 				case 'l' : if (k=="licenses" ) { chk_first() ; _sort(v) ; rsds.licenses  = ::move                                  (v) ; continue ; } break ; // .
 				case 'n' : if (k=="nodes"    ) {                          rsds.nodes     = ::move                                  (v) ; continue ; } break ;
-				case 'p' : if (k=="partition") {                          rsds.partition = ::move                                  (v) ; continue ; }
-				/**/       if (k=="part"     ) {                          rsds.partition = ::move                                  (v) ; continue ; } break ; // XXX> : for backward compatibility
+				case 'p' : if (k=="partition") {                          rsds.partition = ::move                                  (v) ; continue ; } break ;
 				case 'q' : if (k=="qos"      ) {                          rsds.qos       = ::move                                  (v) ; continue ; } break ;
 				case 'r' : if (k=="reserv"   ) {                          rsds.reserv    = ::move                                  (v) ; continue ; } break ;
 			DN}
@@ -351,8 +349,8 @@ namespace Backends::Slurm {
 		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ;                                  // licenses are only for first job step
 		//
 		for( RsrcsDataSingle const& rds : self ) {
-			if (                 !rds.cpu ) throw "must reserve cpu, consider : "s                                +Job(ji)->rule()->full_name()+".resources={'cpu':'1'}"  ;
-			if ( d.manage_mem && !rds.mem ) throw "must reserve memory when managed by slurm daemon, consider : "s+Job(ji)->rule()->full_name()+".resources={'mem':'1M'}" ;
+			if (                 !rds.cpu ) throw "must reserve cpu, consider : "s                                +Job(ji)->rule()->user_name()+".resources={'cpu':'1'}"  ;
+			if ( d.manage_mem && !rds.mem ) throw "must reserve memory when managed by slurm daemon, consider : "s+Job(ji)->rule()->user_name()+".resources={'mem':'1M'}" ;
 		}
 	}
 	::vmap_ss RsrcsData::mk_vmap() const {

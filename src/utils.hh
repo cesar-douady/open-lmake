@@ -411,7 +411,7 @@ namespace std {
 	inline ::string  operator+ ( ::string     && s , nullptr_t         ) { return ::move(s       ) +  "(null)" ; }
 	inline ::string  operator+ ( ::string const& s , nullptr_t         ) { return        s         +  "(null)" ; }
 	inline ::string  operator+ ( nullptr_t         , ::string const& s ) { return        "(null)"  +   s       ; }
-	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; }
+	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; } // NO_COV
 	//
 	template<_CanDoBool B> inline ::string  operator+ ( ::string     && s , B               b ) { return ::move(s               ) +  (b?"true":"false") ; }
 	template<_CanDoBool B> inline ::string  operator+ ( ::string const& s , B               b ) { return        s                 +  (b?"true":"false") ; }
@@ -425,7 +425,7 @@ namespace std {
 	template<_CanDoToHex T> inline ::string  operator+ ( ::string     && s , T*              p ) { return ::move     (s) +  _ptr_to_hex(p) ; }
 	template<_CanDoToHex T> inline ::string  operator+ ( ::string const& s , T*              p ) { return             s  +  _ptr_to_hex(p) ; }
 	template<_CanDoToHex T> inline ::string  operator+ ( T*              p , ::string const& s ) { return _ptr_to_hex(p) +              s  ; }
-	template<_CanDoToHex T> inline ::string& operator+=( ::string      & s , T*              p ) { return             s  += _ptr_to_hex(p) ; }
+	template<_CanDoToHex T> inline ::string& operator+=( ::string      & s , T*              p ) { return             s  += _ptr_to_hex(p) ; } // NO_COV
 	//
 	template<_CanDoToChars N> inline ::string _to_string_append(N n) {
 		::string res ( 30 , 0 ) ;
@@ -492,7 +492,6 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S 
 }
 template<::floating_point F> inline F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt) , empty_ok ) ; }
 
-/**/   ::string mk_json_str (::string_view  ) ;
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;
 inline ::string mk_py_str   (const char*   s) { return mk_py_str(::string_view(s)) ; }
@@ -527,8 +526,8 @@ template<char Delimiter=0> inline ::string mk_printable(::string     && txt) {
 }
 template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos=::ref(size_t()) ) ;
 
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&                               , bool empty_ok=true ) ;
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos=::ref(size_t()) , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&                               , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos=::ref(size_t()) , bool empty_ok=true ) ;
 
 inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
 inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
@@ -608,8 +607,6 @@ template<::integral I> inline I decode_int(const char* p) {
 template<::integral I> inline void encode_int( char* p , I x ) {
 	::memcpy( p , &x , sizeof(I) ) ;
 }
-
-::string glb_subst( ::string&& txt , ::string const& sub , ::string const& repl ) ;
 
 template<char U,::integral I=size_t,bool RndUp=false>        I        from_string_with_unit    (::string const& s) ; // if U is provided, return value is expressed in this unit
 template<char U,::integral I=size_t                 >        ::string to_string_with_unit      (I               x) ;
@@ -1030,9 +1027,9 @@ template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	// services
 	void wait(T const& old) requires(bool(+Lvl)) ;
 } ;
-template<class T,MutexLvl Lvl> ::string& operator+=( ::string& os , Atomic<T,Lvl> const& a ) {
+template<class T,MutexLvl Lvl> ::string& operator+=( ::string& os , Atomic<T,Lvl> const& a ) { // START_OF_NO_COV
 	return os <<"Atomic("<< a.load() <<')' ;
-}
+} // END_OF_NO_COV
 
 //
 // Save
@@ -1283,9 +1280,9 @@ template<class T,MutexLvl A> struct StaticUniqPtr {
 private :
 	::conditional_t<+A,Atomic<T*,A>,T*> _ptr = nullptr ;
 } ;
-template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) {
+template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) { // START_OF_NO_COV
 	return os << sup._ptr ;
-}
+} // END_OF_NO_COV
 
 ENUM( Rc
 ,	Ok

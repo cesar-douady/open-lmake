@@ -30,7 +30,7 @@ private :
 	// cxtors & casts
 public :
 	constexpr Idxed(     ) = default ;
-	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; } // ensure no index overflow
+	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; }                                     // ensure no index overflow
 	//
 	constexpr Idx operator+() const { return _idx&lsb_msk(NValBits) ; }
 	//
@@ -51,7 +51,7 @@ private :
 	Idx _idx = 0 ;
 } ;
 template<class T> concept IsIdxed = T::IsIdxed && sizeof(T)==sizeof(typename T::Idx) ;
-template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) { return os<<+i ; }
+template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) { return os<<+i ; } // NO_COV
 
 namespace std {
 	template<IsIdxed I> struct hash<I> { size_t operator()(I i) const { return +i ; } } ;
@@ -112,13 +112,13 @@ private :
 	SIdx _val = 0 ;
 } ;
 template<class T> concept IsIdxed2 = T::IsIdxed2 && sizeof(T)==sizeof(typename T::Idx) ;
-template<IsIdxed2 I2> ::string& operator+=( ::string& os , I2 const i2 ) {
+template<IsIdxed2 I2> ::string& operator+=( ::string& os , I2 const i2 ) {                                                    // START_OF_NO_COV
 	using A = typename I2::A ;
 	using B = typename I2::B ;
 	if      (!i2                  ) return os << '0'   ;
 	else if (i2.template is_a<A>()) return os << A(i2) ;
 	else                            return os << B(i2) ;
-}
+}                                                                                                                             // END_OF_NO_COV
 
 // must be outside Engine namespace as it specializes std::hash
 namespace std {
@@ -241,9 +241,9 @@ namespace Vector {
 		using Base           = V                   ;
 		using Idx            = typename Base::Idx  ;
 		using Item           = typename Base::Item ;
-		using value_type     = Item                ;                          // mimic vector
-		using iterator       = Item      *         ;                          // .
-		using const_iterator = Item const*         ;                          // .
+		using value_type     = Item                ;                                     // mimic vector
+		using iterator       = Item      *         ;                                     // .
+		using const_iterator = Item const*         ;                                     // .
 		static constexpr bool IsStr = IsChar<Item> ;
 		//
 		using Base::items ;
@@ -270,18 +270,18 @@ namespace Vector {
 		::span      <Item      > view    ()                       { return { items() , size() } ; }
 		::basic_string_view<Item      > str_view() const requires(IsStr) { return { items() , size() } ; }
 		//
-		Item const* begin     (        ) const { return items()           ; } // mimic vector
-		Item      * begin     (        )       { return items()           ; } // .
-		Item const* cbegin    (        ) const { return items()           ; } // .
-		Item const* end       (        ) const { return items()+size()    ; } // .
-		Item      * end       (        )       { return items()+size()    ; } // .
-		Item const* cend      (        ) const { return items()+size()    ; } // .
-		Item const& front     (        ) const { return items()[0       ] ; } // .
-		Item      & front     (        )       { return items()[0       ] ; } // .
-		Item const& back      (        ) const { return items()[size()-1] ; } // .
-		Item      & back      (        )       { return items()[size()-1] ; } // .
-		Item const& operator[](size_t i) const { return items()[i       ] ; } // .
-		Item      & operator[](size_t i)       { return items()[i       ] ; } // .
+		Item const* begin     (        ) const { return items()           ; }            // mimic vector
+		Item      * begin     (        )       { return items()           ; }            // .
+		Item const* cbegin    (        ) const { return items()           ; }            // .
+		Item const* end       (        ) const { return items()+size()    ; }            // .
+		Item      * end       (        )       { return items()+size()    ; }            // .
+		Item const* cend      (        ) const { return items()+size()    ; }            // .
+		Item const& front     (        ) const { return items()[0       ] ; }            // .
+		Item      & front     (        )       { return items()[0       ] ; }            // .
+		Item const& back      (        ) const { return items()[size()-1] ; }            // .
+		Item      & back      (        )       { return items()[size()-1] ; }            // .
+		Item const& operator[](size_t i) const { return items()[i       ] ; }            // .
+		Item      & operator[](size_t i)       { return items()[i       ] ; }            // .
 		//
 		::span             <Item const> const subvec( size_t start , size_t sz=Npos ) const { return ::span<Item const> ( begin()+start , ::min(sz,size()-start) ) ; }
 		::span             <Item      >       subvec( size_t start , size_t sz=Npos )       { return ::span<Item      > ( begin()+start , ::min(sz,size()-start) ) ; }
@@ -293,11 +293,11 @@ namespace Vector {
 		template<::convertible_to<Item> I> void append(::basic_string_view<I> const& s) {       append(::span<I const>(s)) ; }
 		template<::convertible_to<Item> I> void append(::basic_string     <I> const& s) {       append(::span<I const>(s)) ; }
 	} ;
-	template<class V> ::string& operator+=( ::string& os , Generic<V> const& gv ) {
+	template<class V> ::string& operator+=( ::string& os , Generic<V> const& gv ) {      // START_OF_NO_COV
 		bool first = true ;
 		/**/                                                                  os <<'[' ;
 		for( typename V::Item const& x : gv ) { if (first) first=false ; else os <<',' ; os << x ; }
 		return                                                                os <<']' ;
-	}
+	}                                                                                    // END_OF_NO_COV
 
 }

@@ -136,7 +136,6 @@ namespace Disk {
 				case FileDisplay::Printable : res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
 				case FileDisplay::Shell     : res += mk_shell_str(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
 				case FileDisplay::Py        : res += mk_py_str   (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
-				case FileDisplay::Json      : res += mk_json_str (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
 			DF}
 			pos += len ;
 			size_t new_pos = txt.find(FileMrkr,pos) ;
@@ -192,44 +191,6 @@ namespace Disk {
 		//
 		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)<0) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink dir "+file ; }
 		return true/*done*/ ;
-	}
-
-	Bool3 can_uniquify( Fd at , ::string const& file ) { // return Yes is file is a candidate to be uniquified (i.e. if it has several links to it), Maybe if its has a single link, No if no file
-		SWEAR(+file) ;                                   // cannot unlink at without file
-		struct ::stat st ;
-		int           rc = ::fstatat(at,file.c_str(),&st,AT_SYMLINK_NOFOLLOW) ;
-		if (rc!=0         ) return No ;
-		if (st.st_nlink<=1) return Maybe ;
-		/**/                return Yes   ;
-	}
-
-	Bool3/*done*/ uniquify( Fd at , ::string const& file ) {                                // uniquify file so as to ensure modifications do not alter other hard links
-		SWEAR(+file) ;                                                                      // cannot unlink without file
-		const char*   f   = file.c_str() ;
-		const char*   msg = nullptr      ;
-		{
-			struct ::stat st       ;
-			int           stat_rc  = ::fstatat(at,f,&st,AT_SYMLINK_NOFOLLOW)            ; if (stat_rc!=0    )                                     return No   /*done*/ ;
-			/**/                                                                          if (st.st_nlink<=1)                                     return Maybe/*done*/ ;
-			AcFd          rfd      = ::openat  (at,f,O_RDONLY|O_NOFOLLOW)               ; if (!rfd          ) { msg = "cannot open for reading" ; goto Bad             ; }
-			int           unlnk_rc = ::unlinkat(at,f,0)                                 ; if (unlnk_rc!=0   ) { msg = "cannot unlink"           ; goto Bad             ; }
-			AcFd          wfd      = ::openat  (at,f,O_WRONLY|O_CREAT,st.st_mode&07777) ; if (!wfd          ) { msg = "cannot open for writing" ; goto Bad             ; }
-			//
-			for(;;) {
-				char    buf[4096] ;
-				ssize_t cnt       = ::read( rfd , buf , sizeof(buf) ) ;
-				if (cnt==0) break ;
-				if (cnt<0 ) throw "cannot read "+file ;
-				wfd.write({buf,sizeof(buf)}) ;
-			}
-			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , st.st_mtim } ;
-			::futimens(wfd,times) ;                                                         // maintain original date
-			//
-			return Yes/*done*/ ;
-		}
-	Bad :
-		if (at==Fd::Cwd) throw ::string(msg)+' '           +file ;
-		else             throw ::string(msg)+" @"+at.fd+':'+file ;
 	}
 
 	void rmdir_s( Fd at , ::string const& dir_s ) {
@@ -323,11 +284,11 @@ namespace Disk {
 	// FileInfo
 	//
 
-	::string& operator+=( ::string& os , FileInfo const& fi ) {
+	::string& operator+=( ::string& os , FileInfo const& fi ) { // START_OF_NO_COV
 		/**/     os << "FileInfo("           ;
 		if (+fi) os << fi.sz <<','<< fi.date ;
 		return   os << ')'                   ;
-	}
+	}                                                           // END_OF_NO_COV
 
 	FileTag FileInfo::_s_tag(Stat const& st) {
 		if (S_ISREG(st.st_mode)) {
@@ -357,9 +318,9 @@ namespace Disk {
 	// FileSig
 	//
 
-	::string& operator+=( ::string& os , FileSig const& sig ) {
+	::string& operator+=( ::string& os , FileSig const& sig ) {                              // START_OF_NO_COV
 		return os<< "FileSig(" << to_hex(sig._val>>NBits<FileTag>) <<':'<< sig.tag() <<')' ;
-	}
+	}                                                                                        // END_OF_NO_COV
 
 	FileSig::FileSig( FileInfo const& fi ) : FileSig{fi.tag()} {
 		if (!fi.exists()) return ;
@@ -373,7 +334,9 @@ namespace Disk {
 	// SigDate
 	//
 
-	::string& operator+=( ::string& os , SigDate const& sd ) { return os <<'('<< sd.sig <<','<< sd.date <<')' ; }
+	::string& operator+=( ::string& os , SigDate const& sd ) { // START_OF_NO_COV
+		return os <<'('<< sd.sig <<','<< sd.date <<')' ;
+	}                                                          // END_OF_NO_COV
 
 	//
 	// FileMap
@@ -398,27 +361,27 @@ namespace Disk {
 	// RealPath
 	//
 
-	::string& operator+=( ::string& os , RealPathEnv const& rpe ) {
+	::string& operator+=( ::string& os , RealPathEnv const& rpe ) {       // START_OF_NO_COV
 		/**/                    os << "RealPathEnv(" << rpe.lnk_support ;
 		if ( rpe.reliable_dirs) os << ",reliable_dirs"                  ;
 		/**/                    os <<','<< rpe.repo_root_s              ;
 		if (+rpe.tmp_dir_s    ) os <<','<< rpe.tmp_dir_s                ;
 		if (+rpe.src_dirs_s   ) os <<','<< rpe.src_dirs_s               ;
 		return                  os <<')'                                ;
-	}
+	}                                                                     // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , RealPath::SolveReport const& sr ) {
+	::string& operator+=( ::string& os , RealPath::SolveReport const& sr ) {               // START_OF_NO_COV
 		return os << "SolveReport(" << sr.real <<','<< sr.file_loc <<','<< sr.lnks <<')' ;
-	}
+	}                                                                                      // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , RealPath const& rp ) {
+	::string& operator+=( ::string& os , RealPath const& rp ) {  // START_OF_NO_COV
 		/**/                     os << "RealPath("             ;
 		if (+rp.pid            ) os << rp.pid <<','            ;
 		/**/                     os <<      rp._cwd            ;
 		/**/                     os <<','<< rp._admin_dir_s    ;
 		if (+rp._abs_src_dirs_s) os <<','<< rp._abs_src_dirs_s ;
 		return                   os <<')'                      ;
-	}
+	}                                                            // END_OF_NO_COV
 
 	// /!\ : this code must be in sync with RealPath::solve
 	FileLoc RealPathEnv::file_loc(::string const& real) const {

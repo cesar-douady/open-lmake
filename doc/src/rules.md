@@ -32,7 +32,7 @@ This is actually a form of dynamic value.
 If the value of an attribute (other than `cmd`) is dynamic, it is interpreted within open-lmake, not as a separate process as for the execution of cmd.
 This means:
 
-- Such executions are not parallelized, this has performance impact.
+- Such executions are not parallelized, this has a performance impact.
 - They are executed within a single python interpreter, this implies restrictions.
 
 Overall, these functions must be kept as simple and fast as possible, in favor of `cmd` which is meant to carry out heavy computations.
@@ -52,6 +52,9 @@ The restrictions are the following:
 - `sys.path` is sampled after having read `Lmakefile.py` (while reading rules) and local directories are filtered out. There are no means to import local modules.
 - However, reading local files is ok, as long as `sys.modules` is not updated.
 - There is no containers, as for `cmd` execution (e.g. no `repo_view`).
+- execution is performed in the top-level root directory.
+  - This means that to be used as a sub-repo, all local file accesses must be performed with the sub-repo prefix.
+  - This prefix can be found in `lmake.sub_repo`, which contains `.` for the top-level repo.
 
 ## Attributes
 

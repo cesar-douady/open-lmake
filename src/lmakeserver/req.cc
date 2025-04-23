@@ -23,9 +23,9 @@ namespace Engine {
 	::vector<Req>                               Req::_s_reqs_by_eta  ;
 	::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> Req::_s_zombie_tab   = { true } ; // Req 0 is zombie, all other ones are not
 
-	::string& operator+=( ::string& os , Req const r ) {
+	::string& operator+=( ::string& os , Req const r ) { // START_OF_NO_COV
 		return os << "Rq(" << int(+r) << ')' ;
-	}
+	}                                                    // END_OF_NO_COV
 
 	void Req::make(EngineClosureReq const& ecr) {
 		SWEAR(s_store.size()>+self) ;             // ensure data exist
@@ -166,7 +166,7 @@ namespace Engine {
 				for( Node dd : j->deps ) {
 					if (dd->done(self)) continue ;
 					d  = dd                     ;
-					dr = j->rule()->full_name() ;
+					dr = j->rule()->user_name() ;
 					cycle_str << first("(",",")<< mk_py_str(d->name()) ;
 					goto Next ;
 				}
@@ -310,9 +310,9 @@ namespace Engine {
 	// ReqInfo
 	//
 
-	::string& operator+=( ::string& os , ReqInfo const& ri ) {
+	::string& operator+=( ::string& os , ReqInfo const& ri ) {                        // START_OF_NO_COV
 		return os<<"ReqInfo("<<ri.req<<",W:"<<ri.n_wait<<"->"<<ri.n_watchers()<<')' ;
-	}
+	}                                                                                 // END_OF_NO_COV
 
 	void ReqInfo::_add_watcher(Watcher watcher) {
 		switch (_n_watchers) {
@@ -491,7 +491,7 @@ namespace Engine {
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
 			if ( Rule r=job->rule() ; r->special!=Special::Req) {
-				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->full_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
+				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->user_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
 			} else {
 				::string dl ;
 				for( Dep const& d : job->deps ) dl<<' '<<mk_shell_str(d->name()) ;
@@ -522,7 +522,7 @@ namespace Engine {
 			::string_view shorten = first_lines(msg_stderr.stderr,max_stderr_len) ;
 			if (shorten.size()<msg_stderr.stderr.size()) {
 				audit_as_is(::string(shorten)) ;
-				audit_info( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->full_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
+				audit_info( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->user_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
 				return true ;
 			}
 		}
@@ -629,25 +629,25 @@ namespace Engine {
 					goto Report ;
 				}
 		Report :
-			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->full_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
-			else              audit_info( Color::Note , "rule "+rt->rule->full_name()+' '+reason      ,               lvl+1 ) ;
+			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->user_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
+			else              audit_info( Color::Note , "rule "+rt->rule->user_name()+' '+reason      ,               lvl+1 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}
 		//
-		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->full_name()+" matches" , lvl+1 ) ;
+		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->user_name()+" matches" , lvl+1 ) ;
 	}
 
 	//
 	// JobAudit
 	//
 
-	::string& operator+=( ::string& os , JobAudit const& ja ) {
+	::string& operator+=( ::string& os , JobAudit const& ja ) { // START_OF_NO_COV
 		/**/                os << "JobAudit(" << ja.report ;
 		if (+ja.msg       ) os <<','<< ja.msg              ;
 		if ( ja.has_stderr) os <<",has_stderr"             ;
 		return              os <<')'                       ;
 
-	}
+	} // END_OF_NO_COV
 
 }

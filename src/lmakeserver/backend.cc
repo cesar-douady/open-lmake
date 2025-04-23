@@ -38,7 +38,7 @@ namespace Backends {
 	// Backend::*
 	//
 
-	::string& operator+=( ::string& os , Backend::Workload const& wl ) {
+	::string& operator+=( ::string& os , Backend::Workload const& wl ) {         // START_OF_NO_COV
 		os << "Workload("                                                      ;
 		os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date          ;
 		os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
@@ -50,19 +50,19 @@ namespace Backends {
 		os <<']' ;
 		//
 		return os <<')' ;
-	}
+	}                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {
+	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {                                       // START_OF_NO_COV
 		return os << "StartEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_attrs << ')' ;
-	}
+	}                                                                                                             // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Backend::StartEntry::Conn const& c ) {
+	::string& operator+=( ::string& os , Backend::StartEntry::Conn const& c ) {                                        // START_OF_NO_COV
 		return os << "Conn(" << SockFd::s_addr_str(c.host) <<':'<< c.port <<','<< c.seq_id <<','<< c.small_id << ')' ;
-	}
+	}                                                                                                                  // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Backend::DeferredEntry const& de ) {
+	::string& operator+=( ::string& os , Backend::DeferredEntry const& de ) {   // START_OF_NO_COV
 		return os << "DeferredEntry(" << de.seq_id <<','<< de.job_exec << ')' ;
-	}
+	}                                                                           // END_OF_NO_COV
 
 	void Backend::Workload::_refresh() {
 		Pdate now = Pdate(New).round_msec() ;                                                   // avoid rounding errors

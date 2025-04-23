@@ -176,7 +176,7 @@ namespace Engine {
 			::serdes(s,static_cast<ConfigStatic&>(self)) ;
 			::serdes(s,static_cast<ConfigDyn   &>(self)) ;
 			// END_OF_VERSIONING
-			if (IsIStream<S>) booted = true ;     // is config comes from disk, it is booted
+			if (IsIStream<S>) booted = true ;     // if config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
 		void open( bool dyn , bool first_time ) ; // send warnings on first time only
