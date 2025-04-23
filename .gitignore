@@ -23,7 +23,7 @@ __pycache__
 /_lib/fmt_rule.py
 
 # doc
-/doc/man/man1/*.1
+/man/man1/*.1
 /doc/book.actual_manifest
 /doc/book.ref_manifest
 

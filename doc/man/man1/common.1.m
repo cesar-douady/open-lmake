@@ -54,11 +54,14 @@ define(`ClientOptions',`
 	.SH COMMON OPTIONS
 	.LP
 	These options are common to all tools of the OpenLmake set of utilities :
+	Item(B(--version))
+	Print version and exit.
+	Version is in the form "year.month.tag (key)" where "year.month" forms the major version, "tag" the minor version and "key" is indicates the format of the persistent information.
 	Item(B(-h),B(--help))
 	Print a short help and exit. It is composed of:
 	.RS
 	Bullet The command line synoptic.
-	Bullet Version in the form "year.month.tag (key)" where "year.month" forms the major version, "tag" the minor version and "key" is indicates the format of the persistent information.
+	Bullet Version as described above.
 	Bullet A line for each supported option with its short name, long name, whether it has an argument and a short explanation.
 	.RE
 	Item(B(-J),B(--job))

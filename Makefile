@@ -244,7 +244,7 @@ LMAKE_SERVER_BIN_FILES := \
 	bin/lshow                    \
 	bin/xxhsum
 
-MAN_FILES := $(patsubst %.m,%,$(filter-out %/common.1.m,$(filter doc/man/man1/%.1.m,$(SRCS))))
+MAN_FILES := $(patsubst doc/%.m,%,$(filter-out %/common.1.m,$(filter doc/man/man1/%.1.m,$(SRCS))))
 
 LMAKE_SERVER_FILES := \
 	$(LMAKE_SERVER_PY_FILES)  \
@@ -774,8 +774,9 @@ _bin/mdbook :
 	#wget -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz  | tar -xz -C_bin # requires recent libraries >=ubuntu22.04
 	wget  -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz | tar -xz -C_bin # static libc
 
-doc/man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
+man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
 	@echo generate man to $@
+	@mkdir -p $(@D)
 	@m4  doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
 
 # html doc is under git as _bin/mdbook cannot be downloaded in launchpad.net
@@ -785,7 +786,7 @@ BOOK : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(MAN_FILES)
 	@rm -rf docs doc/book
 	@cd doc ; ../_bin/mdbook build
 	@mkdir -p doc/book/man/man1
-	@cd doc ; for f in $(patsubst doc/man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man man/man1/$$f.1 > book/man/man1/$$f.html ; done
+	@cd doc ; for f in $(patsubst man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man ../man/man1/$$f.1 > book/man/man1/$$f.html ; done
 	@rm doc/grohtml-*.png
 	@rm -rf docs ; mv doc/book docs
 	@find docs -name '.*.swp' -exec rm {} \;

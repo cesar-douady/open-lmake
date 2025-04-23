@@ -38,7 +38,12 @@ struct FlagSpec {
 } ;
 
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
+private :
+	static ::string _s_version_str() {
+		return cat("version ",Version[0],'.',Version[1]," (",VersionMrkr,")") ;
+	}
 	// cxtors & casts
+public :
 	Syntax() = default ;
 	Syntax(                                 ::umap<Flag,FlagSpec> const& fs    ) : Syntax{{},fs} {}
 	Syntax( ::umap<Key,KeySpec> const& ks , ::umap<Flag,FlagSpec> const& fs={} ) {
@@ -50,7 +55,8 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 		for( auto const& [f,s] : fs ) { SWEAR(!flags[+f].short_name) ; flags[+f] = s ; } // .
 	}
 	//
-	[[noreturn]] void usage(::string const& msg={}) const ;
+	[[noreturn]] void version(                      ) const ;
+	[[noreturn]] void usage  (::string const& msg={}) const ;
 	// data
 	bool                      has_dflt_key = false ;
 	::array<KeySpec ,N<Key >> keys         ;
@@ -79,6 +85,10 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 	::vector_s         args      ;
 } ;
 
+template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::version() const {
+	exit( {} , _s_version_str() ) ;
+}
+
 template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
 	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
     static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
@@ -90,9 +100,10 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	//
 	::string err_msg = ensure_nl(msg) ;
 	/**/                 err_msg << exe_name <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	/**/                 err_msg << "version " << Version[0]<<'.'<<Version[1] <<" ("<< VersionMrkr <<")\n"                                        ;
+	/**/                 err_msg << _s_version_str() <<"\n"                                                                                       ;
 	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                      ;
-	/**/                 err_msg << "-h or --help : print this help\n"                                                                            ;
+	/**/                 err_msg << "-h or --help : print this help and exit\n"                                                                   ;
+	/**/                 err_msg << "--version    : print version and exit\n"                                                                     ;
 	//
 	if (wk) {
 		if (has_dflt_key) { err_msg << "keys (at most 1) :\n" ; wk = ::max(wk,NoKeySz) ; }
@@ -119,7 +130,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	err_msg << "  man "      <<exe_name                                       <<'\n' ;
 	err_msg << "  <browser> "<<Disk::dir_name_s(exe_path,2)<<"docs/index.html"<<'\n' ;
 
-	exit(Rc::Usage,err_msg) ;
+	exit( Rc::Usage , err_msg ) ;
 }
 
 template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {
@@ -152,7 +163,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 				if (can_mk_enum<Key>(option)) {
 					Key k = mk_enum<Key>(option) ;
 					if (syntax.keys[+k].short_name) {
-						throw_if( has_key , "cannot specify both --",option," and --",key ) ;
+						throw_if( has_key , "cannot specify both --",key," and --",option ) ;
 						throw_if( *p      , "unexpected value for option --",option       ) ;
 						key     = k    ;
 						has_key = true ;
@@ -168,15 +179,16 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 						continue ;
 					}
 				}
-				if (option=="help") throw ""s                           ;
-				else                throw "unexpected option --"+option ;
+				if      (option=="version") syntax.version()                    ;
+				else if (option=="help"   ) throw ""s                           ;
+				else                        throw "unexpected option --"+option ;
 			} else {
 				// short options
 				const char* p ;
 				for( p=arg+1 ; *p ; p++ ) {
 					if (key_map.contains(*p)) {
 						Key k = key_map.at(*p) ;
-						throw_if( has_key , "cannot specify both --",k," and --",key ) ;
+						throw_if( has_key , "cannot specify both --",key," and --",k ) ;
 						key     = k    ;
 						has_key = true ;
 					} else if (flag_map.contains(*p)) {
