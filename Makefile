@@ -843,6 +843,7 @@ clean :
 	@echo cleaning...
 	@rm -rf Manifest.inc_stamp sys_config.log sys_config.trial sys_config.mk sys_config.h sys_config.sum sys_config.err
 	@find . -name '*.d' -exec rm {} \;
+	@rm -f $(SLURM_SRCS)
 
 DEBIAN_SRC : $(patsubst %,$(DEBIAN_TAG)-$(DEBIAN_RELEASE)~%_source.changes , $(DISTROS) )
 DEBIAN_BIN : $(DEBIAN_TAG).bin_stamp
