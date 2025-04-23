@@ -904,7 +904,8 @@ namespace Engine {
 		} ;
 		// /!\ no_run_reason_tag and inc_submits must stay in sync
 		auto inc_submits = [&](JobReasonTag jrt)->void {                                        // inc counter associated with no_run_reason_tag (returning None)
-			SWEAR(no_run_reason_tag(jrt)==NoRunReason::None,jrt) ;
+			NoRunReason nrr = no_run_reason_tag(jrt) ;
+			SWEAR(!nrr,jrt,pre_reason,nrr) ;
 			switch (jrt) {
 				case JobReasonTag::Retry     :
 				case JobReasonTag::LostRetry : ri.n_retries++ ; return ;
@@ -1039,8 +1040,8 @@ namespace Engine {
 					report_reason    |= { JobReasonTag::BusyDep , +Node(dep) } ;
 				} else if (!dnd.done(*cdri,dep_goal)) {
 					SWEAR(query) ;                                                                                 // unless query, after having called make, dep must be either waiting or done
-					proto_seen_waiting = true ;                                                                    // if queried dep is not done, it would have been waiting if not queried
-					state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
+					proto_seen_waiting  = true                              ;                                      // if queried dep is not done, it would have been waiting if not queried
+					state.reason       |= {JobReasonTag::DepOutOfDate,+dep} ;
 				} else {
 					bool dep_missing_dsk = !query && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk                       ;                                   // job needs this dep if it must run
@@ -1111,21 +1112,19 @@ namespace Engine {
 				state.proto_modif  = state.proto_modif | dep_modif ;                     // .
 				critical_modif    |= dep_modif && is_critical      ;
 			}
-			if (ri.waiting()                      ) goto Wait ;
-			if (sure                              ) mk_sure() ;                          // improve sure (sure is pessimistic)
-			if (+(run_status=ri.state.stamped_err)) goto Done ;
-			NoRunReason nrr = no_run_reason(ri.state) ;
-			switch (nrr) {
-				case NoRunReason::None       :                                                                                                         break     ;
-				case NoRunReason::RetryLoop  : trace("fail_loop"  ) ; pre_reason = JobReasonTag::None                                                ; goto Done ;
-				case NoRunReason::LostLoop   : trace("lost_loop"  ) ; status     = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; goto Done ;
-				case NoRunReason::SubmitLoop : trace("submit_loop") ; status     = Status::SubmitLoop                                                ; goto Done ;
-				case NoRunReason::Dep        :                                                                                                         goto Done ;
-			}
+			if (ri.waiting()                             ) goto Wait ;
+			if (sure                                     ) mk_sure() ;                          // improve sure (sure is pessimistic)
+			if (+(run_status=ri.state.stamped_err)       ) goto Done ;
+			if (no_run_reason(ri.state)==NoRunReason::Dep) goto Done ;
 		}
 	Run :
+		switch (no_run_reason(ri.state)) {
+			case NoRunReason::RetryLoop  : trace("fail_loop"  ) ; pre_reason = JobReasonTag::None                                                ; goto Done ;
+			case NoRunReason::LostLoop   : trace("lost_loop"  ) ; status     = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; goto Done ;
+			case NoRunReason::SubmitLoop : trace("submit_loop") ; status     = Status::SubmitLoop                                                ; goto Done ;
+		DN}
 		report_reason = ri.reason = reason(ri.state) ;                                   // ensure we have a reason to report that we would have run if not queried
-		trace("run",ri,run_status) ;
+		trace("run",ri,pre_reason,run_status) ;
 		if (query) goto Return ;
 		if (ri.state.missing_dsk) {                                                      // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
 			SWEAR( !is_infinite(special) , special,idx() ) ;                             // Infinite do not process their deps
@@ -1147,6 +1146,7 @@ namespace Engine {
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
 		ri.step(Step::Done,idx()) ;
+		ri.reason = {} ;                                                                           // no more reason to run as analysis showed it is ok now
 	Wakeup :
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 			JobAudit const& ja = it->second ;

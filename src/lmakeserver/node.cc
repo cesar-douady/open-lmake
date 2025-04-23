@@ -524,7 +524,7 @@ namespace Engine {
 		JobTgt cjt = nd.conform_job_tgt() ; if (!( +cjt && cjt.produces(nd.idx(),true/*actual*/) )) return false ;                 // no hope to regenerate, proceed normally
 		/**/                                if ( +nd.polluted || nd.busy                          ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node was polluted or is busy, ...
 		/**/                                if (ri.done()                                         ) return false ;                 // ... does not change conform_job_tgt()
-		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted) ;
+		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted,STR(nd.busy),make_action) ;
 		ri.prio_idx = nd.conform_idx() ;                                                                                           // ask to run only conform job
 		ri.single   = true             ;                                                                                           // .
 		return true ;
