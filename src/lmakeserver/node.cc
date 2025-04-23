@@ -667,8 +667,7 @@ namespace Engine {
 				conform_idx(prod_idx) ;
 			}
 			ri.done_ = ri.goal ;
-			if (!_may_need_regenerate(self,ri,make_action)) break ;
-			SWEAR(first) ;                                                                                // avoid infinite loop : we should not need to regenerate more than once
+			if (!( first && _may_need_regenerate(self,ri,make_action) )) break ;                          // if regeneration does not work the first time, give up (e.g. in case of submit loop)
 			prod_idx = NoIdx ;
 		}
 	Wakeup :
