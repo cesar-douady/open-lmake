@@ -40,8 +40,8 @@ template< Serializable T               > void deserialize( ::string const& s  , 
 // however we must ensure not to redefine hash for already hashable types
 // /!\ : not ideal in terms of performances, but easy to use.
 // suppress calls to FAIL when necessary
-template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL() ; return serialize(a)== serialize(b) ; } // cannot define for Serializable as it creates conflicts
-template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL() ; return serialize(a)<=>serialize(b) ; } // .
+template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL() ; return serialize(a)== serialize(b) ; } // NO_COV cannot define for Serializable as it creates conflicts
+template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL() ; return serialize(a)<=>serialize(b) ; } // NO_COV .
 namespace std {
 	template<class T> requires( HasSerdes<T> || ::is_aggregate_v<T> ) struct hash<T> {
 		size_t operator()(T const& x) const {

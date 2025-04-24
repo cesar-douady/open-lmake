@@ -57,7 +57,7 @@ else :
 		os.makedirs(osp.dirname(fn),exist_ok=True)
 		git_run('submodule','add','--name',f'{osp.basename(path)}_name',osp.abspath(sm_repo),path,cwd=repo)
 
-	os.environ['HOME'] = os.getcwd()                                           # git requires some global configuration, make it local to this unit test
+	os.environ['HOME'] = os.getcwd()                  # git requires some global configuration, make it local to this unit test
 	git_glb_config('protocol.file.allow','always'   )
 	git_glb_config('user.name'          ,'test'     )
 	git_glb_config('user.email'         ,'test@test')

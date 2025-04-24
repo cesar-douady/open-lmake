@@ -256,10 +256,10 @@ def finalize_dyn_expr( dyn_expr , for_cmd ) :
 			if not set_w :
 				if for_cmd :
 					if lmake_root_var!='lmake_root' :
-						if has_lmake : prelude.append(f'{lmake_root_var} = lmake_root')                                               # lmake_root prepended at exec time
+						if has_lmake : prelude.append(f'{lmake_root_var} = lmake_root')                                                  # lmake_root prepended at exec time
 						if True      : prelude.append( 'del lmake_root'               )
 					if repo_root_var !='repo_root'  :
-						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                               # repo_root  prepended at exec time
+						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                                  # repo_root  prepended at exec time
 						if True      : prelude.append( 'del repo_root'                )
 				prelude.append('#')
 			for func , (module,qualname,file_name,firstlineno) in dyn_expr.dbg_info.items() :

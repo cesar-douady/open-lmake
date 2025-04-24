@@ -121,7 +121,7 @@ Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
 	Fd fd = fast ?  s_report_fd<true/*Fast*/>(::getpid()) : s_report_fd<false/*Fast*/>(::getpid()) ;
 	if (+fd) {
 		try                       { msg.send(fd) ;                                }
-		catch (::string const& e) { FAIL("cannot report",::getpid(),jerr,':',e) ; }                  // this justifies panic, but we cannot report panic !
+		catch (::string const& e) { FAIL("cannot report",::getpid(),jerr,':',e) ; }                  // NO_COV this justifies panic, but we cannot report panic !
 	}
 	Sent sent = !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 	return sent ;

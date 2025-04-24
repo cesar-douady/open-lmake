@@ -90,9 +90,9 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	return res ;
 }
 
-Digest analyze(Status status=Status::New) {                                                                                                 // status==New means job is not done
+Digest analyze(Status status=Status::New) {                               // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
-	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ;                                                                   // typically most of accesses are deps
+	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ; // typically most of accesses are deps
 	Pdate  prev_first_read ;
 	Pdate  relax           = Pdate(New)+g_start_info.network_delay ;
 	//
@@ -104,7 +104,7 @@ Digest analyze(Status status=Status::New) {                                     
 			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; if (flags.extra_tflags()[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.write = No ; } break ;
 			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; if (flags.extra_dflags()[ExtraDflag::Ignore])   ad.accesses = {} ;                   break ;
 			case Maybe :                                                                       ;                                                                                      break ;
-		DF}
+		DF}                                                                                                                                                                                   // NO_COV
 		//
 		if (ad.write==Yes)                                                                                                                  // ignore reads after earliest confirmed write
 			for( Access a : iota(All<Access>) )

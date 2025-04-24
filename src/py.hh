@@ -148,7 +148,7 @@ namespace Py {
 		static Callable* s_loads ;
 		// cxtors & casts
 		Ptr(               ) = default ;
-		Ptr(PyObject*     p) : ptr{from_py(p)            } {              }          // steal ownership from argument
+		Ptr(PyObject*     p) : ptr{from_py(p)            } {              } // steal ownership from argument
 		Ptr(Object const* o) : ptr{const_cast<Object*>(o)} { boost()    ; }
 		Ptr(Ptr    const& p) : ptr{p.ptr                 } { boost()    ; }
 		Ptr(Ptr        && p) : ptr{p.ptr                 } { p.detach() ; }
@@ -656,10 +656,10 @@ namespace Py {
 		WithGil& operator=(T           && p) { if (+self) { Gil gil ; T::operator=(::move(p)) ; } else { T::operator=(::move(p)) ; } return self ; }
 	} ;
 
-	struct WithBuiltins { // set __builtins__ in dict and remove it at the end
+	struct WithBuiltins {                              // set __builtins__ in dict and remove it at the end
 		// cxtors & casts
 		WithBuiltins (Dict& dct_) : dct{dct_} {
-			#ifndef NDEBUG                                          // avoid executing glb.contains if not debugging
+			#ifndef NDEBUG                             // avoid executing glb.contains if not debugging
 				SWEAR(!dct.contains("__builtins__")) ;
 			#endif
 			dct.set_item("__builtins__",*Dict::s_builtins) ;

@@ -95,11 +95,11 @@ int/*wstatus*/ AutodepPtrace::process() {
 	int   wstatus ;
 	pid_t pid     ;
 	while( (pid=::wait(&wstatus))>1 )
-		if (_changed(pid,wstatus)) {  // may update wstatus
+		if (_changed(pid,wstatus)) {                                 // may update wstatus
 			trace("done",wstatus) ;
 			return wstatus ;
 		}
-	fail_prod("process",child_pid,"did not exit nor was signaled") ;
+	fail_prod("process",child_pid,"did not exit nor was signaled") ; // NO_COV
 }
 
 bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
@@ -128,7 +128,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						case AUDIT_ARCH_ARM     : word_sz = 32 ; break ;
 						case AUDIT_ARCH_X86_64  :
 						case AUDIT_ARCH_AARCH64 : word_sz = 64 ; break ;
-						default                 : FAIL("unexpected arch",syscall_info.arch) ;
+						default                 : FAIL("unexpected arch",syscall_info.arch) ;     // NO_COV
 					}
 				#else                                                                             // XXX! : try to find a way to determine tracee word size
 					word_sz = NpWordSz ;                                                          // waiting for a way to determine tracee word size, assume it is the same as us

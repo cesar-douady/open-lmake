@@ -33,5 +33,5 @@ def gen_script(**kwds) :
 	return (
 		job.gen_init()
 	+	start_preamble
-	+	f'exec {start_line}\n'                                                     # exec so that SHLVL is incremented once only
+	+	f'exec {start_line}\n' # exec so that SHLVL is incremented once only
 	)

@@ -6,11 +6,13 @@
 #include "app.hh"
 #include "client.hh"
 #include "disk.hh"
+#include "trace.hh"
 
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
 	app_init(false/*read_only_ok*/) ;
+	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{
 		{ ReqKey::Add    , { .short_name='a' , .doc="mark args"              } }

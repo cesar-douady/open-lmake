@@ -107,7 +107,7 @@ namespace Engine {
 					}
 				}
 			} break ;
-		DF}
+		DF}                                           // NO_COV
 		if (!query) SWEAR(stamp) ;                    // so ri.manual is guaranteed up to date after manual_wash with !query
 		if (stamp) {
 			if ( +res && res!=ri.manual ) Trace trace("manual_wash",idx(),"stamp",res) ;
@@ -252,7 +252,7 @@ namespace Engine {
 			rule_tgts() = ::vector<RuleTgt>({rt}) ;                                                                          // ... check size, though, as pfx and sfx could overlap
 			if (r->special==Special::Anti      ) return Buildable::DynAnti ;
 			if (r->special==Special::GenericSrc) return Buildable::DynSrc  ;
-			FAIL("unexpected special rule",r->user_name(),r->special) ;
+			FAIL("unexpected special rule",r->user_name(),r->special) ;                                                      // NO_COV
 		}
 		rule_tgts().clear() ;
 		return Buildable::Maybe ;                                                                                            // node may be buildable from dir
@@ -341,7 +341,7 @@ namespace Engine {
 						case Buildable::SrcDir    :
 						case Buildable::SubSrcDir : buildable = Buildable::SubSrcDir ; goto Return ;
 						//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					DF}
+					DF}                                                              // NO_COV
 				}
 				//                    vvvvvvvvvvvvvvvvvvvvvvvvv
 				if (!is_lcl(name_)) { buildable = Buildable::No ; goto Return ; }
@@ -385,7 +385,7 @@ namespace Engine {
 			case Buildable::Src         : status(NodeStatus::Src ) ; goto Src   ;
 			case Buildable::Decode      :
 			case Buildable::Encode      : status(NodeStatus::Src ) ; goto Codec ;
-			case Buildable::Unknown     :                            FAIL()     ;
+			case Buildable::Unknown     :                            FAIL()     ;                       // NO_COV
 			default                     :                            break      ;
 		}
 		if (!dir()) goto NotDone ;
@@ -399,7 +399,7 @@ namespace Engine {
 			case Buildable::No          :                            goto NotDone ;
 			case Buildable::SrcDir      : status(NodeStatus::None) ; goto Src     ;                     // status is overwritten Src if node actually exists
 			case Buildable::PathTooLong :                                                               // path too long have been discovered above
-			case Buildable::Unknown     :                            FAIL()       ;
+			case Buildable::Unknown     :                            FAIL()       ;                     // NO_COV
 			default                     :                            break        ;
 		}
 		//
@@ -432,8 +432,8 @@ namespace Engine {
 			case Buildable::SubSrc    :
 			case Buildable::SubSrcDir :
 				switch (dir()->status()) {
-					case NodeStatus::Transient :                              goto Transient ;          // forward
-					case NodeStatus::Uphill    : status(NodeStatus::Uphill) ; goto NoSrc     ;          // .
+					case NodeStatus::Transient :                              goto Transient ;
+					case NodeStatus::Uphill    : status(NodeStatus::Uphill) ; goto NoSrc     ;
 				DN}
 			break ;
 		DN}
@@ -452,8 +452,8 @@ namespace Engine {
 				if (dir()->crc.is_lnk()) goto Transient ;                                               // our dir is a link, we are transient
 				status(NodeStatus::Uphill) ;                                                            // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
-		DF}
-		FAIL() ;
+		DF}                                                                                             // NO_COV
+		FAIL() ;                                                                                        // NO_COV
 	Codec :
 		{	SWEAR(crc.valid()) ;
 			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
@@ -461,7 +461,7 @@ namespace Engine {
 			trace("codec",ri.overwritten) ;
 			goto DoneDsk ;
 		}
-		FAIL() ;
+		FAIL() ;                                                                                        // NO_COV
 	Src :
 		{	bool modified = refresh_src_anti( status()!=NodeStatus::None , {req} , lazy_name() ) ;
 			if      (crc            !=Crc::None) status(NodeStatus::Src) ;                              // overwrite status if it was pre-set to None
@@ -469,14 +469,14 @@ namespace Engine {
 			if      (modified                  ) actual_job() = {} ;
 			/**/                                 goto DoneDsk ;                                         // sources are always done on disk, as it is by probing it that we are done
 		}
-		FAIL() ;
+		FAIL() ;                                                                                        // NO_COV
 	Transient :
 		{	refresh(Crc::Unknown) ;                                                                     // if depending on a transient node, a job must be rerun in all cases
 			status(NodeStatus::Transient) ;
 			actual_job() = {} ;
 			goto DoneDsk ;
 		}
-		FAIL() ;
+		FAIL() ;                                                                                        // NO_COV
 	NoSrc :
 		{	if (ri.goal>=NodeGoal::Dsk) {
 				Manual manual = manual_wash(ri,query,true/*dangling*/) ;                                // always check manual if asking for disk
@@ -505,11 +505,11 @@ namespace Engine {
 				goto Done ;
 			}
 		}
-		FAIL() ;
+		FAIL() ;                                                                                        // NO_COV
 	Done :
 		ri.done_ = ri.goal ;
 		goto NotDone ;
-		FAIL() ;
+		FAIL() ;                                                                                        // NO_COV
 	DoneDsk :
 		ri.done_ = NodeGoal::Dsk   ;                                                                    // disk is de facto updated
 		polluted = Polluted::Clean ;
@@ -616,7 +616,7 @@ namespace Engine {
 								case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
 								case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
 								case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                              // polluting job is already set
-							DF}
+							DF}                                                                                                                 // NO_COV
 						} else if (ri.goal!=NodeGoal::Status) {                                                                                 // dont check disk if asked for Status
 							if (jt->running(true/*with_zombies*/))
 								/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
@@ -625,7 +625,7 @@ namespace Engine {
 								case Manual::Unlnked    : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 								case Manual::Empty      :
 								case Manual::Modif      : reason = {JobReasonTag::ManualTarget  ,+idx()} ; break ;
-							DF}
+							DF}                                                                                                                 // NO_COV
 						}
 						if (+reason) {
 							if ( jri.done() && !jt.produces(idx()) ) reason = {} ;                                                              // job cannot do much if we know it does not produce us
@@ -884,12 +884,14 @@ namespace Engine {
 		if (d.hdr.sz%GenericDep::NodesPerDep==0) deps.pop_back() ;
 	}
 
+	// START_OF_NO_COV for debug only
 	void Deps::_chk( ::vector<Node> const& deps , size_t is_tail ) {
 		::vector<Node> stored ; for( Dep const& d : self ) stored.push_back(d) ;
 		if (is_tail) SWEAR(stored.size()>=deps.size(),stored.size(),deps.size()) ;
 		else         SWEAR(stored.size()==deps.size(),stored.size(),deps.size()) ;
 		for( size_t i : iota(deps.size())) SWEAR(deps[i]==stored[i+stored.size()-deps.size()],i,deps,stored) ;
 	}
+	// END_OF_NO_COV
 
 	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
 		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ;                               // reserving deps.size() is comfortable and guarantees no reallocaiton

@@ -252,17 +252,6 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	struct DbgEntry {
-		friend ::string& operator+=( ::string& , DbgEntry const& ) ;
-		bool operator +() const { return first_line_no1 ; }
-		// START_OF_VERSIONING
-		::string module         ;
-		::string qual_name      ;
-		::string file_name      ;
-		size_t   first_line_no1 = 0 ; // illegal value as lines start at 1
-		// END_OF_VERSIONING
-	} ;
-
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
@@ -314,9 +303,6 @@ namespace Engine {
 		// services
 		void init( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) {}
 	} ;
-	namespace Attrs {
-		bool/*updated*/ acquire( DbgEntry& dst , Py::Object const* py_src ) ;
-	}
 
 	//
 	// Dyn*
@@ -343,9 +329,9 @@ namespace Engine {
 				case Kind::ShellCmd     : return code_str==de.code_str                          ;
 				case Kind::PythonCmd    : return code_str==de.code_str && glbs_str==de.glbs_str ;
 				case Kind::Dyn          : return code_str==de.code_str && glbs_str==de.glbs_str ;
-				case Kind::Compiled     :
-				case Kind::CompiledGlbs : FAIL() ;     // too heavy to marshal code to compare, we'll see if necessary
-			DF}
+				case Kind::Compiled     :                                                         // NO_COV
+				case Kind::CompiledGlbs : FAIL() ;                                                // NO_COV too heavy to marshal code to compare, we'll see if necessary
+			DF}                                                                                   // NO_COV
 		}
 		// data
 		::vector<CmdIdx>  ctx        ;                 // a list of stems, targets & deps, accessed by code

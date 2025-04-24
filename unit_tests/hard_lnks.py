@@ -37,10 +37,10 @@ else :
 
 	print('hello',file=open('src','w'))
 
-	ut.lmake( 'chk' , done=3 , new=1 )                                         # check targets are out of date
-	ut.lmake( 'chk' , done=0 , new=0 )                                         # check targets are up to date
+	ut.lmake( 'chk' , done=3 , new=1 ) # check targets are out of date
+	ut.lmake( 'chk' , done=0 , new=0 ) # check targets are up to date
 
 	print('hello2',file=open('src','w'))
 
-	ut.lmake( 'chk' , done=2 , steady=1 , changed=1 )                          # check targets are out of date
-	ut.lmake( 'chk' , done=0                        )                          # check targets are up to date
+	ut.lmake( 'chk' , done=2 , steady=1 , changed=1 ) # check targets are out of date
+	ut.lmake( 'chk' , done=0                        ) # check targets are up to date

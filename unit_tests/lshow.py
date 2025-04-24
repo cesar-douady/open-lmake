@@ -64,6 +64,12 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
+	ut.lmake() # init repo
+
+	x,xp = lshow( ('-i','--info') , 'dut' )
+	assert 'consider' in x and 'dut' in x
+	assert xp['dut']==None
+
 	ut.lmake( 'dut' , done=3 , new=2 )
 
 	x      = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr

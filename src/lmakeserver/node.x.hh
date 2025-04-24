@@ -576,7 +576,7 @@ namespace Engine {
 			case NodeGoal::None   : return true                                   ;
 			case NodeGoal::Status : return match_ok() && buildable<=Buildable::No ;
 			case NodeGoal::Dsk    : return false                                  ;
-		DF}
+		DF}                                                                         // NO_COV
 	}
 	inline bool NodeData::done( ReqInfo const& cri               ) const { return done(cri          ,cri.goal) ; }
 	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
@@ -642,7 +642,7 @@ namespace Engine {
 			case Manual::Unlnked : refresh( Crc::None  , Pdate(New) ) ; break ;
 			case Manual::Empty   : refresh( Crc::Empty , sig        ) ; break ;
 			case Manual::Modif   : refresh( {}         , sig        ) ; break ;
-		DF}
+		DF}                                                                     // NO_COV
 	}
 
 	//

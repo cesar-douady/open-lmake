@@ -253,6 +253,8 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 	struct sigaction sav_sa = {} ;
 } ;
 
+// START_OF_NO_COV for debug only
+
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
 
 #if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
@@ -292,6 +294,8 @@ template<class... A> [[noreturn]] inline void fail_prod( A const&... args ) {
 template<class... A> constexpr inline void swear_prod( bool cond , A const&... args ) {
 	if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 }
+
+// END_OF_NO_COV
 
 #define _FAIL_STR2(x) #x
 #define _FAIL_STR(x) _FAIL_STR2(x)
@@ -380,7 +384,7 @@ struct First {
 			case 0 : return ::forward<T>(first ) ;
 			case 1 : return ::forward<T>(second) ;
 			case 2 : return ::forward<T>(other ) ;
-		DF}
+		DF}                                        // NO_COV
 	}
 	//
 	const char* operator()( const char* first ,                      const char* other="" ) { return operator()<const char*&>(first,       other) ; }
@@ -400,7 +404,7 @@ namespace std {
 	template<class T> concept _CanAdd       = requires(::string s,T  x) { s+=x ; }              ;
 	template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
 	template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
-	template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ;                // use a template to avoid having to high a priority when compiler selects an overload
+	template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having to high a priority when compiler selects an overload
 	#if __cplusplus<202600L
 		inline ::string  operator+ ( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
 		inline ::string  operator+ ( ::string_view   v , ::string     && s ) {                    s.insert(0,v.data(),v.size()) ; return ::move(s) ; }
@@ -411,7 +415,7 @@ namespace std {
 	inline ::string  operator+ ( ::string     && s , nullptr_t         ) { return ::move(s       ) +  "(null)" ; }
 	inline ::string  operator+ ( ::string const& s , nullptr_t         ) { return        s         +  "(null)" ; }
 	inline ::string  operator+ ( nullptr_t         , ::string const& s ) { return        "(null)"  +   s       ; }
-	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; } // NO_COV
+	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; }                             // NO_COV
 	//
 	template<_CanDoBool B> inline ::string  operator+ ( ::string     && s , B               b ) { return ::move(s               ) +  (b?"true":"false") ; }
 	template<_CanDoBool B> inline ::string  operator+ ( ::string const& s , B               b ) { return        s                 +  (b?"true":"false") ; }
@@ -440,7 +444,7 @@ namespace std {
 	//
 	template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
 	//
-	template<_CanAdd T> inline ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; } // work around += right associativity
+	template<_CanAdd T> inline ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; }                               // work around += right associativity
 
 	inline ::string const& operator| ( ::string const& a , ::string const& b ) { return +a ?        a  :        b  ; }
 	inline ::string      & operator| ( ::string      & a , ::string      & b ) { return +a ?        a  :        b  ; }
@@ -1029,7 +1033,7 @@ template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 } ;
 template<class T,MutexLvl Lvl> ::string& operator+=( ::string& os , Atomic<T,Lvl> const& a ) { // START_OF_NO_COV
 	return os <<"Atomic("<< a.load() <<')' ;
-} // END_OF_NO_COV
+}                                                                                              // END_OF_NO_COV
 
 //
 // Save
@@ -1282,7 +1286,7 @@ private :
 } ;
 template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) { // START_OF_NO_COV
 	return os << sup._ptr ;
-} // END_OF_NO_COV
+}                                                                                                   // END_OF_NO_COV
 
 ENUM( Rc
 ,	Ok
@@ -1341,6 +1345,7 @@ inline void Fd::no_std() {
 ::string get_exe       () ;
 ::string _crash_get_now() ;
 
+// START_OF_NO_COV for debug only
 extern bool _crash_busy ;
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) {
 	if (!_crash_busy) {                                                                     // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
@@ -1359,6 +1364,7 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	set_sig_handler<SIG_DFL>(SIGABRT) ;
 	::abort() ;
 }
+// END_OF_NO_COV
 
 //
 // string

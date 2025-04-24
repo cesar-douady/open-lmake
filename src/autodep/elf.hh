@@ -225,11 +225,11 @@ inline Record::ReadCS Elf::search_elf( ::string const& file , ::string const& ru
 inline void Elf::elf_deps( Record::SolveCS const& file , bool top , Comment c ) {
 	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
-		FileMap   file_map { Record::s_repo_root_fd() , file.real } ; if (!file_map) return ;                                                          // real may be a sym link in system dirs
+		FileMap   file_map { Record::s_repo_root_fd() , file.real } ; if (!file_map) return ;                                          // real may be a sym link in system dirs
 		DynDigest digest   { file_map }                             ;
-		if (top) rpath = digest.rpath ;                                                                                                                // rpath applies to the whole search
+		if (top) rpath = digest.rpath ;                                                                                                // rpath applies to the whole search
 		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,file.real) , s_expand(digest.runpath,file.real) , c ) ;
-	} catch (int) { return ; }                                                                                                                         // bad file format, ignore
+	} catch (int) { return ; }                                                                                                         // bad file format, ignore
 }
 
 // capture LD_LIBRARY_PATH when first called : man dlopen says it must be captured at program start, but we capture it before any environment modif, should be ok
@@ -242,7 +242,7 @@ inline Record::ReadCS search_elf( Record& r , const char* file , Comment c ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , c ) ; }
-	catch (::string const& e) { r.report_panic("while searching elf executable "s+file+" : "+e) ; return {} ;                                                  } // if we cannot report the dep, panic
+	catch (::string const& e) { r.report_panic("while searching elf executable "s+file+" : "+e) ; return {} ;                                    } // if we cannot report the dep, panic
 }
 
 inline void elf_deps( Record& r , Record::SolveCS const& file , const char* ld_library_path , Comment c ) {

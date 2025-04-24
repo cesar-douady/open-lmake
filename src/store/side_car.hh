@@ -45,7 +45,7 @@ namespace Store {
 		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::    init(name+".data"    ,writable,::forward<A>(hdr_args)...) ;
 			_side_car.init(name+".side_car",writable                          ) ;
-			_fix_side_car() ;                                                     // in case of crash between main and side_car expand
+			_fix_side_car() ;                                                                                              // in case of crash between main and side_car expand
 		}
 		void _fix_side_car() requires( !HasBoth           ) {                                                                                                                                  }
 		void _fix_side_car() requires(  HasBoth &&  Multi ) { Sz scs = _side_car.size() ; SWEAR(scs<=size()) ; if (scs<size()) {                        _side_car.emplace_back(size()-scs) ; } }

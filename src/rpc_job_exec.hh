@@ -64,7 +64,7 @@ struct JobExecRpcReq {
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
-		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ; // Encode uses file_info to store min_len
+		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                                    // Encode uses file_info to store min_len
 		switch (proc) {
 			case Proc::ChkDeps        :
 			case Proc::Tmp            : SWEAR(                 !digest && !id                       && +date , proc,        date,digest ) ; break ;
@@ -79,7 +79,7 @@ struct JobExecRpcReq {
 			case Proc::Decode         :
 			case Proc::Encode         : SWEAR( sync==Yes   &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
 			case Proc::Access         : SWEAR(                            (id||digest.write!=Maybe) && +date , proc,     id,date        ) ; break ;
-		DF}
+		DF}                                                                                                                                         // NO_COV
 	}
 	template<IsStream T> void serdes(T& s) {
 		/**/                         ::serdes(s,proc        ) ;
@@ -99,16 +99,16 @@ struct JobExecRpcReq {
 	}
 	// data
 	Proc        proc         = {}            ;
-	Bool3       sync         = No            ;                                   // Maybe means transport as sync (not using fast_report), but not actually sync
+	Bool3       sync         = No            ;                           // Maybe means transport as sync (not using fast_report), but not actually sync
 	Comment     comment      = Comment::None ;
 	CommentExts comment_exts = {}            ;
 	AD          digest       = {}            ;
-	Id          id           = 0             ;                                   // used to distinguish flows from different processes when muxed on fast report fd
-	Pdate       date         = {}            ;                                   // access date to reorder accesses during analysis
-	::string    file         = {}            ;                                   // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
+	Id          id           = 0             ;                           // used to distinguish flows from different processes when muxed on fast report fd
+	Pdate       date         = {}            ;                           // access date to reorder accesses during analysis
+	::string    file         = {}            ;                           // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
 	FI          file_info    = {}            ;
 } ;
-constexpr size_t JobExecRpcReq::MaxSz = PATH_MAX+sizeof(JobExecRpcReq) ;         // maximum size of a message : a file + overhead
+constexpr size_t JobExecRpcReq::MaxSz = PATH_MAX+sizeof(JobExecRpcReq) ; // maximum size of a message : a file + overhead
 
 struct JobExecRpcReply {
 	friend ::string& operator+=( ::string& , JobExecRpcReply const& ) ;
@@ -124,7 +124,7 @@ struct JobExecRpcReply {
 			case Proc::DepVerbose : SWEAR( ok==Maybe               && !txt ) ; break ;
 			case Proc::Decode     :
 			case Proc::Encode     : SWEAR(              !dep_infos         ) ; break ;
-		DF}
+		DF}                                                                            // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
@@ -137,7 +137,7 @@ struct JobExecRpcReply {
 	}
 	// data
 	Proc                            proc      = Proc::None ;
-	Bool3                           ok        = Maybe      ; // if proc==ChkDeps|Decode|Encode
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}         ; // if proc==DepVerbose            , same order as deps
-	::string                        txt       = {}         ; // if proc==        Decode|Encode , value for Decode, code for Encode
+	Bool3                           ok        = Maybe      ;                           // if proc==ChkDeps|Decode|Encode
+	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}         ;                           // if proc==DepVerbose            , same order as deps
+	::string                        txt       = {}         ;                           // if proc==        Decode|Encode , value for Decode, code for Encode
 } ;

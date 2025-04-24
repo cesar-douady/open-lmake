@@ -25,7 +25,7 @@ class NoComment(Base) :
 	dep    = '{File}'
 	cmd    = "sed -e 's: *#.*::' -e '/^$/ d' "
 
-flags = '-O0'                       # updated by run script to simulate a modification of cmd
+flags = '-O0'                            # updated by run script to simulate a modification of cmd
 for ext in ('c','cc') :
 	class Compile(Base,PyRule) :
 		name    = f'compile {ext}'
@@ -35,8 +35,8 @@ for ext in ('c','cc') :
 			tf = f"{os.environ['TMPDIR']}/lst"
 			lmake.run_cc( 'gcc' , '-MMD' , '-MF' , tf , flags , '-c' , '-o' , OBJ , SRC )
 			lst = open(tf).read()
-			lst = re.sub(r'\\\n','',lst)      # suppress multi-line
-			lst = lst.split(':',1)[1]         # suppress target: prefix
+			lst = re.sub(r'\\\n','',lst) # suppress multi-line
+			lst = lst.split(':',1)[1]    # suppress target: prefix
 			with open(LST,'w') as fd :
 				for f in lst.split() :
 					if   f.endswith('.h' ) : print(f[:-2],file=fd)

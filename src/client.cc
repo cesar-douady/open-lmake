@@ -215,7 +215,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool 
 				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
 				case Proc::Stderr :                                  Fd::Stderr.write(report.txt) ;                break       ;
 				case Proc::Stdout :                                  Fd::Stdout.write(report.txt) ;                break       ;
-			DF}
+			DF}                                                                                                                  // NO_COV
 		}
 	} catch(...) {
 		trace("disconnected") ;

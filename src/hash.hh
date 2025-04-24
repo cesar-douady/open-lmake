@@ -70,7 +70,7 @@ namespace Hash {
 				case FileTag::Reg   :
 				case FileTag::Exe   : self = Crc::Reg   ; break ;
 				case FileTag::Empty : self = Crc::Empty ; break ;
-			DF}
+			DF}                                                                       // NO_COV
 		}
 		Crc( ::string const& file_name                             ) ;
 		Crc( ::string const& file_name , Disk::FileInfo&/*out*/ fi ) {
@@ -146,7 +146,7 @@ namespace Hash {
 		// services
 		Crc digest() const ;
 		//
-		Xxh& operator+=(::string_view) ;                                    // low level interface compatible with serialization
+		Xxh& operator+=(::string_view) ;                                       // low level interface compatible with serialization
 		//
 		template<_SimpleUpdate T> Xxh& operator+=(T const& x) {
 			self += ::string_view( ::launder(reinterpret_cast<const char*>(&x)) , sizeof(x) ) ;

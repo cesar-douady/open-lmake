@@ -65,7 +65,7 @@ namespace Hash {
 			case CrcSpecial::None    : return "none"                     ;
 			case CrcSpecial::Empty   : return "empty-R"                  ;
 			case CrcSpecial::Plain   : return hex()+(is_lnk()?"-L":"-R") ;
-		DF}
+		DF}                                                                // NO_COV
 	}
 
 	::string Crc::hex() const {
@@ -118,7 +118,7 @@ namespace Hash {
 			case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
 			case FileTag::Lnk : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
 			case FileTag::Exe : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
-		DF}
+		DF}                                                                                                                                // NO_COV
 	}
 
 	Crc Xxh::digest() const {

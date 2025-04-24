@@ -37,5 +37,5 @@ else :
 	print('moon' ,file=open('world'    ,'w'))
 	print('world',file=open('world.ref','w'))
 
-	ut.lmake( 'hello'    , done=1 , new=0 )                                    # check rule is ok despite writing to source world
-	ut.lmake( 'world.ok' , done=1 , new=1 )                                    # check world has been updated
+	ut.lmake( 'hello'    , done=1 , new=0 ) # check rule is ok despite writing to source world
+	ut.lmake( 'world.ok' , done=1 , new=1 ) # check world has been updated

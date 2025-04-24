@@ -26,7 +26,7 @@ void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
 void print_submit_attrs(SubmitAttrs const& sa) {
 	g_out << "--submit attrs--\n" ;
 	//
-	g_out << "used_backend : "  << sa.used_tag             <<'\n' ;
+	g_out << "used_backend : "  << sa.used_backend         <<'\n' ;
 	g_out << "pressure     : "  << sa.pressure.short_str() <<'\n' ;
 	g_out << "live_out     : "  << sa.live_out             <<'\n' ;
 	g_out << "reason       : "  << sa.reason               <<'\n' ;

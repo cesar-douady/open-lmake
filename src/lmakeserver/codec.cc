@@ -50,7 +50,7 @@ namespace Codec {
 		switch (buildable) {
 			case Buildable::Decode : if (mk_new) node->codec_val () = txt ; else node->codec_val ().assign(txt) ; break ;
 			case Buildable::Encode : if (mk_new) node->codec_code() = txt ; else node->codec_code().assign(txt) ; break ;
-		DF}
+		DF}                                                                                                               // NO_COV
 		Trace trace("_create_node",node,crc,Closure::s_tab.at(file).log_date) ;
 		node->crc = crc ;
 	}
@@ -71,7 +71,7 @@ namespace Codec {
 			case Buildable::Unknown : return false                                              ;
 			case Buildable::Decode  :
 			case Buildable::Encode  : return node->log_date()==Closure::s_tab.at(file).log_date ;
-		DF}
+		DF}                                                                                       // NO_COV
 	}
 
 	static FileNameIdx _code_prio( ::string const& code , ::string const& crc ) {
@@ -94,7 +94,7 @@ namespace Codec {
 			res.push_back(c) ;
 			if (!codes.contains(res)) return res ;
 		}
-		FAIL("codec checksum clash for code",code,crc,val) ;
+		FAIL("codec checksum clash for code",code,crc,val) ;                                               // NO_COV
 	}
 
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
@@ -283,8 +283,8 @@ namespace Codec {
 		switch (cc.proc) {
 			case JobMngtProc::Decode : jmrr = cc.decode() ; break ;
 			case JobMngtProc::Encode : jmrr = cc.encode() ; break ;
-		DF}
-		jmrr.fd = cc.fd ;                               // seq_id will be filled in by send_reply
+		DF}                                                         // NO_COV
+		jmrr.fd = cc.fd ;                                           // seq_id will be filled in by send_reply
 		Backends::send_reply( cc.job , ::move(jmrr) ) ;
 	}
 

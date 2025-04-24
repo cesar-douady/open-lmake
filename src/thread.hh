@@ -185,7 +185,7 @@ private :
 				case WakeupState::Proceed : self_->_state = WakeupState::Wait ; func(stop) ; break     ;
 				case WakeupState::Last    : { if (Flush) func(stop) ; }                      goto Done ;
 				case WakeupState::Stop    :                                                  goto Done ;
-			DF}
+			DF}                                                                                          // NO_COV
 		}
 	Done :
 		trace("done") ;
@@ -199,7 +199,7 @@ public :
 		switch (_state) {
 			case WakeupState::Proceed : _state = WakeupState::Last ; _state.notify_one() ; break ;
 			case WakeupState::Wait    : _state = WakeupState::Stop ; _state.notify_one() ; break ;
-		DF}
+		DF}                                                                                              // NO_COV
 	}
 	void open( char key , ::function<void(            )> f ) { _thread = ::jthread( _s_thread_func , key , this , [=](::stop_token)->void {f();}) ; }
 	void open( char key , ::function<void(::stop_token)> f ) { _thread = ::jthread( _s_thread_func , key , this , f                             ) ; }
@@ -208,14 +208,14 @@ public :
 		switch (_state) {
 			case WakeupState::Proceed : return ;
 			case WakeupState::Wait    : break  ;
-		DF}
+		DF}                                                                                              // NO_COV
 		_state = WakeupState::Proceed ;
 		_state.notify_one() ;
 	}
 private :
 	// data
 	Atomic<WakeupState,MutexLvl::Thread> _state  = WakeupState::Wait ;
-	::jthread                            _thread ;                     // ensure _thread is last so other fields are constructed when it starts
+	::jthread                            _thread ;                                                       // ensure _thread is last so other fields are constructed when it starts
 } ;
 
 ENUM(ServerThreadEventKind
@@ -284,7 +284,7 @@ private :
 						if (keep) ssfd.detach() ;                      // dont close ssfd if requested to keep it
 						trace("called",STR(keep)) ;
 					} break ;
-				DF}
+				DF}                                                    // NO_COV
 			}
 		}
 		trace("done") ;

@@ -70,7 +70,7 @@ if __name__!='__main__' :
 				open('bad_dep')
 				return 'bad_dep' # open must fail as bad_dep must not be produced
 			except :
-				return None  # ok
+				return None      # ok
 
 else :
 

@@ -177,7 +177,7 @@ namespace Engine::Persistent {
 	{	using Base = Idxed<RuleIdx> ;
 		friend Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared) ;
 		static constexpr char   NoRuleName[] = "no_rule"            ;
-		static constexpr size_t NoRuleNameSz = sizeof(NoRuleName)-1 ;                // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
+		static constexpr size_t NoRuleNameSz = sizeof(NoRuleName)-1 ;     // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
 		// statics
 		static void s_from_disk       (       ) ;
 		static void s_from_vec_dyn    (Rules&&) ;
@@ -464,8 +464,8 @@ namespace Engine::Persistent {
 		else                return { 0                               , 0                             } ;
 	}
 	// accesses
-	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return (*s_rules)[+self-1] ; }    // 0 is reserved to mean no rule
-	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return (*s_rules)[+self-1] ; }    // .
+	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return (*s_rules)[+self-1] ; }   // 0 is reserved to mean no rule
+	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return (*s_rules)[+self-1] ; }   // .
 
 	//
 	// RuleCrcBase

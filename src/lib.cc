@@ -9,7 +9,7 @@
 
 using namespace Disk ;
 
-#pragma GCC visibility push(default)                                           // force visibility of functions defined hereinafter, until the corresponding pop
+#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
 extern "C" {
 	const char* __asan_default_options () { return "verify_asan_link_order=0,detect_leaks=0" ; }
 	const char* __ubsan_default_options() { return "halt_on_error=1"                         ; }

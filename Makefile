@@ -290,10 +290,48 @@ LMAKE_ALL_FILES_DBG := $(LMAKE_ALL_FILES) $(LMAKE_BIN_FILES)
 
 LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) )
 
+align.tok : _bin/align_comments $(filter-out lmake_env/ext_lnks,$(SRCS))
+	@echo check comments alignment
+	@set -e ;                                                               \
+	for f in $(SRCS) ; do                                                   \
+		c= ;                                                                \
+		case $$f in                                                         \
+			museum/*    )                                         ;;        \
+			ext/*       )                                         ;;        \
+			debian/*    )                                         ;;        \
+			.gitignore  )                                         ;;        \
+			TO_DO       )                                         ;;        \
+			LICENSE     )                                         ;;        \
+			*.md        )                                         ;;        \
+			doc/*       )                                         ;;        \
+			docs/*      )                                         ;;        \
+			docker/*    )                                         ;;        \
+			*.dir/*     )                                         ;;        \
+			lmake_env/* )                                         ;;        \
+			*.c         ) c=//                                    ;;        \
+			*.h         ) c=//                                    ;;        \
+			*.cc        ) c=//                                    ;;        \
+			*.hh        ) c=//                                    ;;        \
+			*.py        ) c='#'                                   ;;        \
+			*.script    ) c='#'                                   ;;        \
+			Makefile    ) c='#'                                   ;;        \
+			_bin/*      ) c='#'                                   ;;        \
+			unit_tests/*)                                         ;;        \
+			*           ) echo unrecognized file $$f >&2 ; exit 1 ;;        \
+		esac ;                                                              \
+		if [ "$$c" ] && ! align_comments 4 200 $$c <$$f | diff $$f - ; then \
+			echo bad comments alignment for $$f >&2 ;                       \
+			exit 1 ;                                                        \
+		fi ;                                                                \
+	done ;                                                                  \
+	>$@
+
+ALIGN : align.tok
+
 DFLT_TGT : LMAKE_TGT UNIT_TESTS LMAKE_TEST lmake.tar.gz
 DFLT     : DFLT_TGT.SUMMARY
 
-ALL_TGT : DFLT_TGT LINT STORE_TEST
+ALL_TGT : DFLT_TGT LINT STORE_TEST ALIGN
 ALL     : ALL_TGT.SUMMARY
 
 %.inc_stamp : % # prepare a stamp to be included, so as to force availability of a file w/o actually including it

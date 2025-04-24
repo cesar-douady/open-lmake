@@ -199,7 +199,7 @@ namespace Backends {
 			trace("local",rsrcs) ;
 		}
 		throw_unless( s_ready(tag) , "local backend is not available" ) ;
-		submit_attrs.used_tag = tag ;
+		submit_attrs.used_backend = tag ;
 		_s_workload.submit(r,j) ;
 		s_tab[+tag]->submit(j,r,submit_attrs,::move(rsrcs)) ;
 	}
@@ -355,7 +355,7 @@ namespace Backends {
 				case 1 : start_msg_err.msg <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
 				case 2 : start_msg_err.msg <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
 				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                                    ; break ;
-			DF}
+			DF}                                                                                                                                        // NO_COV
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
@@ -416,7 +416,7 @@ namespace Backends {
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
-		DF}
+		DF}                                                                                                                                                  // NO_COV
 		//
 		jis.stems     =                 ::move(match.stems)  ;
 		jis.pre_start =                 ::move(jsrr       )  ;
@@ -525,7 +525,7 @@ namespace Backends {
 			case JobMngtProc::Encode     : SWEAR(+fd,jmrr.proc) ; break                   ; // fd is needed to reply
 			case JobMngtProc::LiveOut    :
 			case JobMngtProc::AddLiveOut :                        break                   ; // no reply
-		DF}
+		DF}                                                                                 // NO_COV
 		Job job { jmrr.job } ;
 		Trace trace(BeChnl,"_s_handle_job_mngt",jmrr) ;
 		//
@@ -548,7 +548,7 @@ namespace Backends {
 					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , ::move(deps) ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				} break ;
-			DF}
+			DF}                                                                             // NO_COV
 		}
 		trace("done") ;
 		return false/*keep_fd*/ ;

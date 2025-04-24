@@ -42,7 +42,7 @@ static void _handle_int(bool start) {
 			unblock_sigs({SIGINT}) ;
 			kill_self(SIGINT) ;                       // appear as being interrupted : important for shell scripts to actually stop
 			kill_self(SIGHUP) ;                       // for some reason, the above kill_self does not work in some situations (e.g. if you type bash -c 'lmake&')
-			fail_prod("lmake does not want to die") ;
+			fail_prod("lmake does not want to die") ; // NO_COV
 		}
 	} ;
 	static ::jthread int_jt ;

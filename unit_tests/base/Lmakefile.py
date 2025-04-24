@@ -67,8 +67,8 @@ for to in (None,5) :
 	to_ = '' if to==None else str(to)
 	class Wait(BaseRule) :
 		name    = f'wait{to_}'
-		stems   = { 'Wait' : r'r?w\d+|r?\d+w?|\d+rw?' }
-		target  = f'{{File}}.{{Wait}}.wait{to_}'
+		stems   = { 'Wait' : r'r?w\d+|r?\d+w?|\d+rw?'       }
+		targets = { 'TGT'  : f'{{File}}.{{Wait}}.wait{to_}' }
 		deps    = { 'SRC' : '{File}' }
 		timeout = to
 		def cmd() :
@@ -76,11 +76,13 @@ for to in (None,5) :
 			read_before = 'r' not in Wait[span.end  ():            ]
 			write_after = 'w' not in Wait[            :span.start()]
 			cnt         = int(       Wait[span.start():span.end  ()])
+			print('before',flush=True)
 			if     read_before : text = open(SRC).read()
-			if not write_after : sys.stdout.write(text)
+			if not write_after : open(TGT,'w').write(text)
 			time.sleep(cnt)
 			if not read_before : text = open(SRC).read()
-			if     write_after : sys.stdout.write(text)
+			if     write_after : open(TGT,'w').write(text)
+			print('after',flush=True)
 
 class Cat(BaseRule) :
 	target = '{Expr1}+{Expr2}'

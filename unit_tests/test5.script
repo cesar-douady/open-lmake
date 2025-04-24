@@ -5,7 +5,10 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-ut_launch -killed 2 -done 1 -new 1 -rc -2 lmake src1.8.wait &
+ut_launch -killed 2 -done 1 -new 1 -rc -2 lmake    src1.8.wait src1.7.wait &
+sleep 1
+ut_launch           -done 2               lmake -o src1.8.wait             &
 sleep 4
-kill -2 $!
+kill -2 %1
 wait %1
+wait %2

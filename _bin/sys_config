@@ -60,8 +60,8 @@ CXX_DIR=$(dirname $CXX)
 cc() { PATH=$CXX_DIR:$PATH $CXX "$@" ; }
 
 case $(cc --version | head -1) in
-	*clang*) CXX_FLAVOR=clang ;; # gcov requires gcc
-	*      ) CXX_FLAVOR=gcc   ;; # there is no easy marker that can be recognized for gcc
+	*clang*) CXX_FLAVOR=clang ;;  # gcov requires gcc
+	*      ) CXX_FLAVOR=gcc   ;;  # there is no easy marker that can be recognized for gcc
 esac
 
 if [ $CXX_FLAVOR = gcc ] ; then
@@ -427,7 +427,7 @@ cat <<"EOF" >zlib.cc
 		deflate(&zs,0) ;
 	}
 EOF
-HAS_ZLIB=$(ok cc -std=$CXX_STD -o /dev/null zlib.cc -lz ) # check both include and lib
+HAS_ZLIB=$(ok cc -std=$CXX_STD -o /dev/null zlib.cc -lz )    # check both include and lib
 cat <<"EOF" >zstd.cc
 	#include <zstd.h>
 	int main() {

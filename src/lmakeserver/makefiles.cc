@@ -47,7 +47,7 @@ namespace Engine::Makefiles {
 				case '+' : if (!fi.exists()      ) return mk_rel(d,startup_dir_s)+" was removed"  ;
 				/**/       if (fi.date>deps_date ) return mk_rel(d,startup_dir_s)+" was modified" ; break ;          // in case of equality, be optimistic as deps may be modified during the ...
 				case '!' : if (fi.exists()       ) return mk_rel(d,startup_dir_s)+" was created"  ; break ;          // ... read process (typically .pyc files) and file resolution is such ...
-			DF}                                                                                                      // ... that such deps may very well end up with same date as deps_file
+			DF}                                                                                                      // NO_COV ... that such deps may very well end up with same date as deps_file
 		}
 		trace("ok") ;
 		return {} ;
@@ -145,7 +145,7 @@ namespace Engine::Makefiles {
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.push_back(d ) ; }
 		}
 		try                       { py_info = py_eval(content) ;                            }
-		catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; }
+		catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; } // NO_COV
 		trace("done",Pdate(New)) ;
 	}
 
@@ -271,7 +271,7 @@ namespace Engine::Makefiles {
 		// /!\ sources must be processed first as source dirs influence rules
 		//
 		Sources       srcs        ;
-		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;     // Maybe means not split
+		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false/*IsRules*/>( msg , srcs , srcs_deps , changed_srcs , py_info , startup_dir_s ) ;    // Maybe means not split
 		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                  ;
 		if (new_srcs) //!                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn ) ;       }

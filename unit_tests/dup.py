@@ -33,4 +33,4 @@ else :
 
 	print('hello',file=open('src','w'))
 
-	ut.lmake( 'test' , done=2 , new=1 )           # check we can duplicate file descriptors with dup2
+	ut.lmake( 'test' , done=2 , new=1 ) # check we can duplicate file descriptors with dup2

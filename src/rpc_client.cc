@@ -22,7 +22,7 @@
 	return                          os <<')'                                 ;
 }                                                                              // END_OF_NO_COV
 
-::string& operator+=( ::string& os , ReqRpcReply const& rrr ) { // START_OF_NO_COV
+::string& operator+=( ::string& os , ReqRpcReply const& rrr ) {   // START_OF_NO_COV
 	using Proc = ReqRpcReplyProc ;
 	os << "ReqRpcReply("<<rrr.proc ;
 	switch (rrr.proc) {
@@ -31,6 +31,6 @@
 		case Proc::File   :
 		case Proc::Stderr :
 		case Proc::Stdout : os <<",T:"<< rrr.txt        ; break ;
-	DF}
+	DF}                                                           // NO_COV
 	return os << ')' ;
-}                                                               // END_OF_NO_COV
+}                                                                 // END_OF_NO_COV

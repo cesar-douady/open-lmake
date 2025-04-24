@@ -54,7 +54,7 @@ sys_path = tuple(d for d in sys.path if not _maybe_lcl(d))
 
 config = pdict()
 if '/config/' in actions :
-	if callable(getattr(Lmakefile,'config',None)) :           # /!\ dont use try/except to ensure errors inside Lmakefile.config() are correctly caught
+	if callable(getattr(Lmakefile,'config',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.config() are correctly caught
 		Lmakefile.config()
 	else :
 		try :
@@ -92,7 +92,7 @@ if '/sources/' in actions :
 
 rules = []
 if '/rules/' in actions :
-	if callable(getattr(Lmakefile,'rules',None)) :                                                     # /!\ dont use try/except to ensure errors inside Lmakefile.rules() are correctly caught
+	if callable(getattr(Lmakefile,'rules',None)) :                                                       # /!\ dont use try/except to ensure errors inside Lmakefile.rules() are correctly caught
 		Lmakefile.rules()
 	else :
 		try :

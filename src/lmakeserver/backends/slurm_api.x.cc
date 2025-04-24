@@ -205,7 +205,7 @@ namespace Backends::Slurm::SlurmApi {
 					/**/                                      msg << ')'                                                                                                 ;
 					ok = No ;
 					goto Done ;
-				default : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ") ;
+				default : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ") ;                                                                               // NO_COV
 			}
 		}
 	Done :
@@ -231,7 +231,7 @@ namespace Backends::Slurm::SlurmApi {
 			}
 		}
 	Bad :
-		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",_strerror(errno)) ;
+		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",_strerror(errno)) ; // NO_COV
 	}
 
 	static sigjmp_buf _jmp_env ;

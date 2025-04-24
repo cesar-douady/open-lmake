@@ -66,7 +66,7 @@ int main( int argc , char* argv[]) {
 			case Yes   : out += "ok  " ;          break ;
 			case Maybe : out += "??? " ; rc = 1 ; break ;
 			case No    : out += "err " ; rc = 1 ; break ;
-		DF}
+		DF}                                                                                        // NO_COV
 		out << ::string(dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
 	}
 	Fd::Stdout.write(out) ;

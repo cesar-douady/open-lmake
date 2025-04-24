@@ -83,7 +83,7 @@ if __name__!='__main__' :
 				new_refs += f'{file} {dut_crc}\n'
 				known_refs.add(file)
 			for path,_,files in os.walk('.') :
-				path_s = (path+'/')[2:] # remove prefix './' (but removeprefix is not available in python3.6)
+				path_s = (path+'/')[2:]        # remove prefix './' (but removeprefix is not available in python3.6)
 				for name in files :
 					file_new = path_s+name
 					match    = new_re.fullmatch(file_new)

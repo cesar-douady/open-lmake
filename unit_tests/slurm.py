@@ -39,7 +39,7 @@ if __name__!='__main__' :
 		environ = { 'DUT':... }
 		cmd = '''
 			[ "$DUT" = dut ] || echo bad '$DUT :' "$DUT != dut" >&2
-			ldepend {FIRST} {SECOND} # check no crash when executed on different hosts
+			ldepend {FIRST} {SECOND}                                # check no crash when executed on different hosts
 			cat     {FIRST} {SECOND}
 		'''
 

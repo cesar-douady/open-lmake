@@ -230,7 +230,9 @@ thread_local char t_thread_key = '?'   ;
 bool              _crash_busy  = false ;
 
 ::string get_exe       () { return read_lnk("/proc/self/exe") ; }
-::string _crash_get_now() { return Pdate(New).str(3/*prec*/)  ; }
+::string _crash_get_now() { return Pdate(New).str(3/*prec*/)  ; } // NO_COV for debug only
+
+// START_OF_NO_COV for debug only
 
 #if HAS_STACKTRACE
 
@@ -262,7 +264,7 @@ bool              _crash_busy  = false ;
 	// - quite often, line number is off by 1 or 2, either direction
 	// however, this is better than nothing
 
-	static size_t/*len*/ _beautify(char* file_name) {                      // does not call malloc for use in src_point
+	static size_t/*len*/ _beautify(char* file_name) {                     // does not call malloc for use in src_point
 		enum State { Plain , Slash , Dot , DotDot } ;
 		char*       out = file_name ;
 		const char* min = file_name ;
@@ -276,7 +278,7 @@ bool              _crash_busy  = false ;
 					switch (s) {
 						case Plain : break ;
 						case Slash  :
-							if (in!=file_name) continue ;                  // 2 consecutive /, ignore 2nd if not first char
+							if (in!=file_name) continue ;                 // 2 consecutive /, ignore 2nd if not first char
 							min = file_name+1 ;
 						break ;
 						case Dot :                                        // after a ., suppress it
@@ -402,6 +404,8 @@ bool              _crash_busy  = false ;
 	void write_backtrace( Fd , int /*hide_cnt*/ ) {}
 
 #endif
+
+// END_OF_NO_COV
 
 //
 // mutexes

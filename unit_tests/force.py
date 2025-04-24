@@ -38,17 +38,17 @@ else :
 	print('world',file=open('world','w'))
 
 	print('force=False',file=open('step.py','w'))
-	ut.lmake( 'hello+world' , done=1   , new=2 )                               # check target is out of date
-	ut.lmake( 'hello+world' , steady=0 , new=0 )                               # check target is remade albeit up-to-date (force)
+	ut.lmake( 'hello+world' , done=1   , new=2 )  # check target is out of date
+	ut.lmake( 'hello+world' , steady=0 , new=0 )  # check target is remade albeit up-to-date (force)
 
 	print('force=True',file=open('step.py','w'))
-	ut.lmake( 'hello+world' , steady=1 , new=0 )                               # check target is out of date
-	ut.lmake( 'hello+world' , steady=1 , new=0 )                               # check target is remade albeit up-to-date (force)
+	ut.lmake( 'hello+world' , steady=1 , new=0 ) # check target is out of date
+	ut.lmake( 'hello+world' , steady=1 , new=0 ) # check target is remade albeit up-to-date (force)
 
 	print('force=False',file=open('step.py','w'))
-	ut.lmake( 'hello+world' , steady=1 , new=0 )                               # check target is out of date
-	ut.lmake( 'hello+world' , steady=0 , new=0 )                               # check target is remade albeit up-to-date (force)
+	ut.lmake( 'hello+world' , steady=1 , new=0 )  # check target is out of date
+	ut.lmake( 'hello+world' , steady=0 , new=0 )  # check target is remade albeit up-to-date (force)
 
 	ut.lmake(        'hello+world1' , failed=1 , new=0 , rc=1 )
 	ut.lmake(        'hello+world1' , failed=0 , new=0 , rc=1 )
-	ut.lmake( '-e' , 'hello+world1' , failed=1 , new=0 , rc=1 )                # check target is remade when in error
+	ut.lmake( '-e' , 'hello+world1' , failed=1 , new=0 , rc=1 ) # check target is remade when in error

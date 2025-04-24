@@ -22,7 +22,7 @@ if __name__!='__main__' :
 
 	class Bad(BaseRule) :
 		targets = { 'Bad' : r'bad1{*:}' }
-		cmd     = 'sleep 3'              # dont produce bad
+		cmd     = 'sleep 3'               # dont produce bad
 
 	class Ptr(BaseRule) :
 		target = 'ptr'

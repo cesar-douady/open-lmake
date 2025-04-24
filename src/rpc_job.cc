@@ -119,7 +119,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 							if (!keep_dirs.insert(no_slash(d_s)).second) break ;
 					}
 			break ;
-		DF}
+		DF}                                                                                                                // NO_COV
 	}
 	for( auto const& [_,e] : uniq_tab ) {
 		SWEAR(e.files.size()<=e.n_lnks,e.n_lnks,e.files) ;                                                                 // check consistency
@@ -177,13 +177,13 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 // DepInfo
 //
 
-::string& operator+=( ::string& os , DepInfo const& di ) { // START_OF_NO_COV
+::string& operator+=( ::string& os , DepInfo const& di ) {           // START_OF_NO_COV
 	switch (di.kind()) {
 		case DepInfoKind::Crc  : return os <<'('<< di.crc () <<')' ;
 		case DepInfoKind::Sig  : return os <<'('<< di.sig () <<')' ;
 		case DepInfoKind::Info : return os <<'('<< di.info() <<')' ;
-	DF}
-}                                                          // END_OF_NO_COV
+	DF}                                                              // NO_COV
+}                                                                    // END_OF_NO_COV
 
 //
 // Cache
@@ -479,7 +479,7 @@ namespace Caches {
 		switch (tag) {
 			case Tag::None : return nullptr      ; // base class Cache actually caches nothing
 			case Tag::Dir  : return new DirCache ; // PER_CACHE : add a case for each cache method
-		DF}
+		DF}                                        // NO_COV
 	}
 
 	void Cache::s_config( CacheIdx idx , Tag tag , ::vmap_ss const& dct ) {
@@ -1021,15 +1021,15 @@ void JobEndRpcReq::cache_cleanup() {
 // JobStartRpcReply
 //
 
-::string& operator+=( ::string& os , MatchFlags const& mf ) { // START_OF_NO_COV
+::string& operator+=( ::string& os , MatchFlags const& mf ) {                                                                                          // START_OF_NO_COV
 	/**/             os << "MatchFlags(" ;
 	switch (mf.is_target) {
 		case Yes   : os << "target" ; if (+mf.tflags()           ) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
 		case No    : os << "dep,"   ; if (mf.dflags()!=DflagsDflt) os<<','<<mf.dflags() ; if (+mf.extra_dflags()) os<<','<<mf.extra_dflags() ; break ;
 		case Maybe :                                                                                                                           break ;
-	DF}
+	DF}                                                                                                                                                // NO_COV
 	return           os << ')' ;
-}                                                             // END_OF_NO_COV
+}                                                                                                                                                      // END_OF_NO_COV
 
 ::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {         // START_OF_NO_COV
 	/**/                           os << "JobStartRpcReply("                ;
@@ -1177,16 +1177,16 @@ void JobStartRpcReply::exit() {
 // SubmitAttrs
 //
 
-::string& operator+=( ::string& os , SubmitAttrs const& sa ) { // START_OF_NO_COV
+::string& operator+=( ::string& os , SubmitAttrs const& sa ) {   // START_OF_NO_COV
 	First first ;
-	/**/              os << "SubmitAttrs("              ;
-	if (+sa.used_tag) os <<first("",",")<< sa.used_tag  ;
-	if ( sa.live_out) os <<first("",",")<< "live_out"   ;
-	if (+sa.pressure) os <<first("",",")<< sa.pressure  ;
-	if (+sa.deps    ) os <<first("",",")<< sa.deps      ;
-	if (+sa.reason  ) os <<first("",",")<< sa.reason    ;
-	return            os <<')'                          ;
-}                                                              // END_OF_NO_COV
+	/**/                  os << "SubmitAttrs("                 ;
+	if (+sa.used_backend) os <<first("",",")<< sa.used_backend ;
+	if ( sa.live_out    ) os <<first("",",")<< "live_out"      ;
+	if (+sa.pressure    ) os <<first("",",")<< sa.pressure     ;
+	if (+sa.deps        ) os <<first("",",")<< sa.deps         ;
+	if (+sa.reason      ) os <<first("",",")<< sa.reason       ;
+	return                os <<')'                             ;
+}                                                                // END_OF_NO_COV
 
 //
 // JobInfoStart

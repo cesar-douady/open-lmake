@@ -255,9 +255,9 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							in_tab.erase(it) ;
 						} break ;
-					DF}
+					DF}                                                                                      // NO_COV
 				} break ;
-			DF}
+			DF}                                                                                              // NO_COV
 		}
 		//
 		if ( !_g_is_daemon && !in_tab ) break ;                                                              // check end of loop after processing slave events and before master events
@@ -317,7 +317,7 @@ static bool/*interrupted*/ _engine_loop() {
 					case GlobalProc::Wakeup :
 						trace("wakeup") ;
 					break ;
-				DF}
+				DF}                        // NO_COV
 			} break ;
 			case EngineClosureKind::Req : {
 				EngineClosureReq& ecr           = closure.ecr()             ;
@@ -399,7 +399,7 @@ static bool/*interrupted*/ _engine_loop() {
 						if (+fde.out       )   fde.in = Fd() ;                                                // mark req is killed
 						else                 { fd_tab.erase(it) ; req.dealloc() ; }                           // dealloc when req can be reused, i.e. after Kill and Close
 					} break ;
-				DF}
+				DF}                                                                                           // NO_COV
 			} break ;
 			case EngineClosureKind::Job : {
 				EngineClosureJob& ecj = closure.ecj() ;
@@ -413,7 +413,7 @@ static bool/*interrupted*/ _engine_loop() {
 					case JobRpcProc::GiveUp      : je.give_up     ( ecj.give_up().req , ecj.give_up().report                                ) ; break ;
 					case JobRpcProc::End         : je.end         ( ::move(ecj.end())                                                       ) ; break ;
 					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				DF}
+				DF}                                                                                           // NO_COV
 			} break ;
 			case EngineClosureKind::JobMngt : {
 				EngineClosureJobMngt& ecjm = closure.ecjm() ;
@@ -432,9 +432,9 @@ static bool/*interrupted*/ _engine_loop() {
 						Backends::send_reply( +je , ::move(jmrr) ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					} break ;
-				DF}
+				DF}                                                                                           // NO_COV
 			} break ;
-		DF}
+		DF}                                                                                                   // NO_COV
 	}
 	trace("done") ;
 	return false ;
@@ -453,7 +453,7 @@ int main( int argc , char** argv ) {
 	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
-		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;
+		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;     // NO_COV
 	}
 	//
 	bool refresh_ = true       ;

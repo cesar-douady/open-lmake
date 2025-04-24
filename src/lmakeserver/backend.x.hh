@@ -136,7 +136,7 @@ namespace Backends {
 		static bool             s_ready     (Tag) ;
 		static ::string const&  s_config_err(Tag) ;
 		//
-		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) ; // send warnings on first time only
+		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) ;             // send warnings on first time only
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
@@ -218,7 +218,7 @@ namespace Backends {
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const { return {} ; } // map resources for this backend to local resources
 		//
-		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }
+		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }                                   // NO_COV
 	protected :
 		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx>&& , ::vmap_ss&& rsrcs , SubmitAttrs&& ) ; // must be called once before job is launched, SubmitAttrs must be the operator| of ...
 		/**/                                                                                                // ... the submit/add_pressure corresponding values for the job

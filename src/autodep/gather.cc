@@ -161,7 +161,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.txt  = ::move(jerr.file) ;
 			_codecs.erase(it) ;
 		} break ;
-	DF}
+	DF}                                                                                                                  // NO_COV
 	if (_send_to_server(jmrr)) { _n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ; }
 	else                         sync(fd,{}) ;                                                                           // send an empty reply, job will invent something reasonable
 }
@@ -188,13 +188,13 @@ Fd Gather::_spawn_child() {
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                    // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.stdin_fd   = child_stdin                           ;
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
-	if (is_ptrace) {                                                                // PER_AUTODEP_METHOD : handle case
+	if (is_ptrace) {                                                                               // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
@@ -202,13 +202,13 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read .detach() ;
 		report_fd = pipe.write.detach() ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                            // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                           // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                       // PER_AUTODEP_METHOD : handle case
+			switch (method) {                                                                      // PER_AUTODEP_METHOD : handle case
 				#if HAS_32
-					#define DOLLAR_LIB "$LIB"                                       // 32 bits is supported, use ld.so automatic detection feature
+					#define DOLLAR_LIB "$LIB"                                                      // 32 bits is supported, use ld.so automatic detection feature
 				#else
-					#define DOLLAR_LIB "lib"                                        // 32 bits is not supported, use standard name
+					#define DOLLAR_LIB "lib"                                                       // 32 bits is not supported, use standard name
 				#endif
 				#if HAS_LD_AUDIT
 					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_audit.so"            ; break ;
@@ -216,28 +216,28 @@ Fd Gather::_spawn_child() {
 					case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_preload.so"          ; break ;
 					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_preload_jemalloc.so" ; break ;
 				#undef DOLLAR_LIB
-			DF}
+			DF}                                                                                    // NO_COV
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
 		}
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 	}
-	start_date      = New                    ;                                      // record job start time as late as possible
+	start_date      = New                    ;                                                     // record job start time as late as possible
 	_child.cmd_line = cmd_line               ;
 	_child.env      = env                    ;
 	_child.add_env  = &_add_env              ;
 	_child.cwd_s    = autodep_env.sub_repo_s ;
 	if (is_ptrace) {
 		::latch ready{1} ;
-		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ; // /!\ _child must be spawned from tracing thread
-		ready.wait() ;                                                              // wait until _child.pid is available
+		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;                // /!\ _child must be spawned from tracing thread
+		ready.wait() ;                                                                             // wait until _child.pid is available
 	} else {
 		//vvvvvvvvvvvv
 		_child.spawn() ;
 		//^^^^^^^^^^^^
 	}
 	trace("child_pid",_child.pid) ;
-	return child_fd ;                                                               // child_fd is only used with ptrace
+	return child_fd ;                                                                              // child_fd is only used with ptrace
 }
 
 struct JobSlaveEntry {
@@ -350,7 +350,7 @@ Status Gather::exec_child() {
 			else if ( kill_step && kill_step< kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_step       +" times"                      ) ;
 			else if (              kill_step==kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_sigs.size()+" times followed by a SIGKILL") ;
 			else if ( timeout_fired                            ) set_status(Status::Err,"still alive after having timed out and been killed with SIGKILL"                       ) ;
-			else                                                 FAIL("dont know why still active") ;
+			else                                                 FAIL("dont know why still active") ;                                                                               // NO_COV
 			break ;
 		}
 		if (now>end_kill) {
@@ -524,7 +524,7 @@ Status Gather::exec_child() {
 									OMsgBuf().send( ClientSockFd(service_mngt) , JobMngtRpcReq({ .proc=JobMngtProc::AddLiveOut , .seq_id=seq_id , .job=job , .txt=stdout.substr(0,live_out_pos) }) ) ;
 									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							} break ;
-						DF}
+						DF}                                                                                                   // NO_COV
 						if (+rfd) {
 							JobExecRpcReply jerr ;
 							switch (jmrr.proc) {
@@ -533,7 +533,7 @@ Status Gather::exec_child() {
 								case JobMngtProc::DepVerbose :                         jerr = { .proc=Proc::DepVerbose ,               .dep_infos=::move(jmrr.dep_infos) } ; break ;
 								case JobMngtProc::Decode     :                         jerr = { .proc=Proc::Decode     , .ok=jmrr.ok , .txt      =::move(jmrr.txt      ) } ; break ;
 								case JobMngtProc::Encode     :                         jerr = { .proc=Proc::Encode     , .ok=jmrr.ok , .txt      =::move(jmrr.txt      ) } ; break ;
-							DF}
+							DF}                                                                                                                                                      // NO_COV
 							trace("reply",jerr) ;
 							//vvvvvvvvvvvvvvvvvvvvvvvv
 							sync( rfd , ::move(jerr) ) ;
@@ -638,14 +638,14 @@ Status Gather::exec_child() {
 									_exec_trace( jerr.date , Comment::trace , {} , jerr.file ) ;
 									trace(jerr.file) ;
 								break ;
-							DF}
+							DF}                                                                                                                  // NO_COV
 							if (sync_) sync( fd , {.proc=proc} ) ;
 						}
 						slave_entry.buf_sz -= pos ;
 						::memmove( slave_entry.buf , slave_entry.buf+pos , slave_entry.buf_sz ) ;
 					}
 				} break ;
-			DF}
+			DF}                                                                                                                                  // NO_COV
 		}
 	}
 Return :

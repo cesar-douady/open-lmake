@@ -1122,7 +1122,7 @@ namespace Store {
 					_append_lst( /*out*/idx_lst , item.nxt_if( zero_is_eq) ) ; // output in increasing order
 					_append_lst( /*out*/idx_lst , item.nxt_if(!zero_is_eq) ) ; // .
 				} break ;
-			DF}
+			DF}                                                                // NO_COV
 		}
 
 	// compute both name & suffix in a single pass
@@ -1405,7 +1405,7 @@ namespace Store {
 									throw_unless(prev_item.cmp_bit<item.cmp_bit,"item(",idx,").prev.cmp_bit (",prev_item.cmp_bit,") is not lower than .cmp_bit (",item.cmp_bit,')') ;
 							}
 						break ;
-					DF}
+					DF}                                                                                // NO_COV
 					if (prev_item.kind()==Kind::Split) {
 						if (item.prev_is_eq) throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;
 						else                 throw_unless(Item::s_cmp_bit(prev_item.cmp_val(),first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')') ;

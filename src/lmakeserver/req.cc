@@ -155,11 +155,11 @@ namespace Engine {
 			if ( dns!=NodeStatus::Unknown && dns>=NodeStatus::Uphill ) {
 				d  = d->dir()   ;
 				dr = "<uphill>" ;
-				goto Next ;                                                  // there is no rule for uphill
+				goto Next ;                                                     // there is no rule for uphill
 			}
-			for( Job j : d->conform_job_tgts(d->c_req_info(self)) )          // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
+			for( Job j : d->conform_job_tgts(d->c_req_info(self)) )             // 1st pass to find done rules which we suggest to raise the prio of to avoid the loop
 				if (j->c_req_info(self).done()) to_raise.insert(j->rule()) ;
-			for( Job j : d->conform_job_tgts(d->c_req_info(self)) ) {        // 2nd pass to find the loop
+			for( Job j : d->conform_job_tgts(d->c_req_info(self)) ) {           // 2nd pass to find the loop
 				JobReqInfo const& cjri = j->c_req_info(self) ;
 				if (cjri.done()          ) continue ;
 				if (cjri.speculative_wait) to_forget.push_back(d) ;
@@ -170,9 +170,9 @@ namespace Engine {
 					cycle_str << first("(",",")<< mk_py_str(d->name()) ;
 					goto Next ;
 				}
-				fail_prod("not done but all deps are done :",j->name()) ;
+				fail_prod("not done but all deps are done :",j->name()) ;       // NO_COV
 			}
-			fail_prod("not done but all pertinent jobs are done :",d->name()) ;
+			fail_prod("not done but all pertinent jobs are done :",d->name()) ; // NO_COV
 		Next :
 			cycle.emplace_back(dr,d) ;
 		}
@@ -228,13 +228,13 @@ namespace Engine {
 						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true/*overflow*/ ;
 					}
 				else
-					err = "not built" ; // if no better explanation found
+					err = "not built" ;                                                              // if no better explanation found
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual()>=Manual::Changed) err = "dangling" ;
 				else if (dep.dflags[Dflag::Required]   ) err = "missing"  ;
 			break ;
-		DF}
+		DF}                                                                                          // NO_COV
 		if (err) return self->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
 		else     return false/*overflow*/                                                          ;
 	}
@@ -282,7 +282,7 @@ namespace Engine {
 		if (!job->c_req_info(self).done()) {
 			for( Dep const& d : job->deps )
 				if (!d->done(self)) { _report_cycle(d) ; trace("cycle") ; goto Done ; }
-			fail_prod("job not done but all deps are done :",job->name()) ;
+			fail_prod("job not done but all deps are done :",job->name()) ;             // NO_COV
 		} else {
 			trace("err",job->rule()->special) ;
 			size_t       n_err       = g_config->max_err_lines ? g_config->max_err_lines : size_t(-1) ;
@@ -299,7 +299,7 @@ namespace Engine {
 		}
 	Done :
 		self->audit_status(!job_err) ;
-		self->audit_fd.detach() ;      // ensure we send nothing anymore
+		self->audit_fd.detach() ;                                                       // ensure we send nothing anymore
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,self) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -355,17 +355,6 @@ namespace Engine {
 			_n_watchers = 0 ;
 			go( watchers.data() , n ) ;
 		}
-	}
-
-	Job ReqInfo::asking() const {
-		::span<Watcher const> watchers{
-			_n_watchers==VectorMrkr ? _watchers_v->data() : _watchers_a.data()
-		,	_n_watchers==VectorMrkr ? _watchers_v->size() : _n_watchers
-		} ;
-		for( Watcher w : watchers )
-			if (w.is_a<Job>()) { Job j =      w                            ; if (!j->is_special()) return j ; }
-			else               { Job j = Node(w)->c_req_info(req).asking() ; if (+j              ) return j ; }
-		return {} ;
 	}
 
 	//

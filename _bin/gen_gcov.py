@@ -63,7 +63,7 @@ for f in file_tab.keys() :
 		seen_dashes = False
 		skip        = False
 		first       = True
-		no_cov      = False
+		no_cov      = 0
 		for l in gcov_fd :             # suppress lines refering to instantiated templates : lines starting with a label: surrounded by dashes
 			if first :
 				first = False
@@ -79,7 +79,7 @@ for f in file_tab.keys() :
 			assert m
 			cov  = m.group('cov' ).strip()
 			line = m.group('line')
-			no_cov |= bool(no_cov_start_re.match(l))
+			no_cov += bool(no_cov_start_re.match(l))
 			if   no_cov                     : cov = 'X'
 			elif not line or line.isspace() : cov = ''
 			elif cov :
@@ -93,7 +93,9 @@ for f in file_tab.keys() :
 					if len(cov)>7 : cov = '*******'
 				else : assert False,f'unexpected cov : {cov} ({c})'
 			print(f"{cov:>7}:{m.group('line')}",file=file_fd)
-			no_cov &= not no_cov_end_re.match(l)
+			no_cov -= bool(no_cov_end_re.match(l))
+			assert no_cov>=0 , f'orphan END_OF_NO_COV in {f}'
+		assert not no_cov , f'orphan START_OF_NO_COV in {f}'
 	file_tab[f] = (nuc,nc)
 
 nuc = sum( nuc for f,(nuc,nc) in file_tab.items() )

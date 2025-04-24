@@ -58,7 +58,7 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 // JobExecRpcReply
 //
 
-::string& operator+=( ::string& os , JobExecRpcReply const& jerr ) { // START_OF_NO_COV
+::string& operator+=( ::string& os , JobExecRpcReply const& jerr ) {                 // START_OF_NO_COV
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
 		case JobExecProc::None       :                                     ; break ;
@@ -66,6 +66,6 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 		case JobExecProc::DepVerbose : os <<','<< jerr.dep_infos           ; break ;
 		case JobExecProc::Decode     :
 		case JobExecProc::Encode     : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
-	DF}
+	DF}                                                                              // NO_COV
 	return os << ')' ;
-}                                                                    // END_OF_NO_COV
+}                                                                                    // END_OF_NO_COV

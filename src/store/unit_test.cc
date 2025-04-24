@@ -256,6 +256,10 @@ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 		Idx                idx4   = file.search ("abc"s) ; SWEAR( idx4==idx2                             , idx4   , idx2 ) ;
 		Idx                idx5   = file.search ("adc"s) ; SWEAR( !idx5                                  , idx5          ) ;
 		::pair<Idx,size_t> idx_sz = file.longest("adc"s) ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 , idx_sz , idx1 ) ;
+		Idx                idx6   = file.insert ("abe"s) ; SWEAR( idx6                                                   ) ; file.chk() ;
+		Idx                idx7   = file.search ("abe"s) ; SWEAR( idx7==idx6                             , idx7   , idx6 ) ;
+		/**/                        file.pop    (idx7  ) ;                                                                   file.chk() ;
+		Idx                idx8   = file.search ("abe"s) ; SWEAR( !idx8                                  , idx8          ) ;
 	}
 	void test_data() requires(!HasData) {}
 	void test_data() requires( HasData) {

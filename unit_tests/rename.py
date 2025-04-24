@@ -29,7 +29,7 @@ else :
 
 	for python in (False,True) :
 		print(f'step=1 ; python={python}',file=open('step.py','w'))
-		ut.lmake( 'test' , new=python , failed=1 , rc=1 )                      # python reads Lmakefile.py to display backtrace
+		ut.lmake( 'test' , new=python , failed=1 , rc=1 )           # python reads Lmakefile.py to display backtrace
 
 		print(f'step=2 ; python={python}',file=open('step.py','w'))
 		ut.lmake( 'test' , done=1 , rc=0 )

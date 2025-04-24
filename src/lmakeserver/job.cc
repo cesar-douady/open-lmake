@@ -82,7 +82,7 @@ namespace Engine {
 						}
 					}
 				break ;
-			DF}
+			DF}                                                                // NO_COV
 		NextTarget : ;
 		}
 		// make target dirs
@@ -275,7 +275,7 @@ namespace Engine {
 			case AncillaryTag::Data    : return g_config->local_admin_dir_s+"job_data/"+(+self) ;
 			case AncillaryTag::Dbg     : return AdminDirS                  +"debug/"s  +(+self) ;
 			case AncillaryTag::KeepTmp : return AdminDirS                  +"tmp/"s    +(+self) ;
-		DF}
+		DF}                                                                                       // NO_COV
 	}
 
 	JobInfo Job::job_info(BitMap<JobInfoKind> need) const {
@@ -296,7 +296,7 @@ namespace Engine {
 					case JobInfoKind::Start   : res.start    = ji.start   () ; break ;
 					case JobInfoKind::End     : res.end      = ji.end     () ; break ;
 					case JobInfoKind::DepCrcs : res.dep_crcs = ji.dep_crcs() ; break ;
-				DF}
+				DF}                                                                    // NO_COV
 		} ;
 		// first search queue
 		{	Lock lock { s_record_thread } ;                                            // lock for minimal time
@@ -318,7 +318,7 @@ namespace Engine {
 			case JobInfoKind::Start   : serialize( jaf , ji.start   () ) ; action = Fd::Write  ; break ; // start event write to file (new record)
 			case JobInfoKind::End     : serialize( jaf , ji.end     () ) ; action = Fd::Append ; break ; // other events append to it
 			case JobInfoKind::DepCrcs : serialize( jaf , ji.dep_crcs() ) ; action = Fd::Append ; break ; // .
-		DF}                                                                                              // ensure something to record
+		DF}                                                                                              // NO_COV ensure something to record
 		AcFd( ancillary_file() , action ).write(jaf) ;
 	}
 
@@ -397,7 +397,7 @@ namespace Engine {
 				}
 				trace("done") ;
 				return { .proc=proc , .ok=Yes } ;                                              // seq_id will be filled in later
-		DF}
+		DF}                                                                                    // NO_COV
 	}
 
 	void JobExec::live_out( ReqInfo& ri , ::string const& txt ) const {
@@ -568,7 +568,7 @@ namespace Engine {
 								case Buildable::DynSrc      :
 								case Buildable::Src         : msg << " source"         ; break ;
 								case Buildable::SubSrc      : msg << " sub-source"     ; break ;
-							DF}
+							DF}                                                                          // NO_COV
 							severe_msg << msg <<" : "<< mk_file(target->name(),No /*exists*/) <<'\n' ;
 						}
 						if (ok==Yes) status = Status::Err ;
@@ -1094,7 +1094,7 @@ namespace Engine {
 								goto RestartDep/*BACKWARD*/ ;
 							}
 						break ;
-					DF}
+					DF}                                                                  // NO_COV
 				}
 			Continue :
 				trace("dep",ri,dep,dep_goal,*cdri,STR(dnd.done(*cdri)),STR(dnd.ok()),dnd.crc,dep_err,STR(dep_modif),STR(critical_modif),STR(critical_waiting),state.reason) ;
@@ -1184,7 +1184,7 @@ namespace Engine {
 		for ( Dep const& dep : deps ) {
 			if (!dep.parallel) speculate |= proto_speculate ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			dep->propag_speculate( cri.req , cri.speculate | (speculate&(!dep.dflags[Dflag::Static])) ) ; // static deps are never speculative
+			dep->propag_speculate( cri.req , cri.speculate | (speculate&(!dep.dflags[Dflag::Static])) ) ;                                          // static deps are never speculative
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			NodeReqInfo const& cdri = dep->c_req_info(cri.req) ;
 			if ( !dep.is_crc || cdri.waiting() ) { proto_speculate = Yes ; continue ; }
@@ -1193,7 +1193,7 @@ namespace Engine {
 				case Yes   :                                                                                                               break ;
 				case Maybe : if (  dep.dflags[Dflag::Required   ] || dep.dflags[Dflag::Static] ) { proto_speculate |= Maybe ; continue ; } break ;
 				case No    : if ( !dep.dflags[Dflag::IgnoreError] || +cdri.overwritten         ) { proto_speculate |= Maybe ; continue ; } break ;
-				default : FAIL(dep_ok) ;
+				default : FAIL(dep_ok) ;                                                                                                           // NO_COV
 			}
 			if ( +dep.accesses && !dep.up_to_date() ) proto_speculate = Yes ;
 		}
@@ -1284,7 +1284,7 @@ namespace Engine {
 				status = Status::Err ;
 				audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ;
 			break ;
-		DF}
+		DF}                                                                                                    // NO_COV
 	}
 
 	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
@@ -1384,7 +1384,7 @@ namespace Engine {
 						return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter are still legal iterators
 					case No :
 					break ;
-				DF}
+				DF}                                                                                                           // NO_COV
 			}
 		}
 		//
@@ -1455,7 +1455,7 @@ namespace Engine {
 			case SpecialStep::Ok   : step_str = modified==Yes ? "changed" : modified==Maybe ? "new" : "steady" ; break ;
 			case SpecialStep::Err  : step_str = "failed"                                                       ; break ;
 			case SpecialStep::Loop : step_str = "loop"                                                         ; break ;
-		DF}
+		DF}                                                                                                              // NO_COV
 		Color color =
 			status==Status::Ok && !frozen_ ? Color::HiddenOk
 		:	status>=Status::Err            ? Color::Err

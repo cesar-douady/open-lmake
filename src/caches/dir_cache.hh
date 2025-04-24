@@ -9,7 +9,7 @@
 
 namespace Caches {
 
-	struct DirCache : Cache {     // PER_CACHE : inherit from Cache and provide implementation
+	struct DirCache : Cache {                                        // PER_CACHE : inherit from Cache and provide implementation
 		static constexpr char HeadS[] = ADMIN_DIR_S ;
 		// services
 		virtual void config(::vmap_ss const& ) ;
@@ -32,7 +32,7 @@ namespace Caches {
 		::string _reserved_file( uint64_t upload_key          , ::string const& sfx ) const ;
 		Sz       _reserved_sz  ( uint64_t upload_key          , Disk::NfsGuard&     ) const ;
 		void     _dismiss      ( uint64_t upload_key     , Sz , Disk::NfsGuard&     ) ;
-        //
+		//
 		template<IsStream T> void _serdes(T& s) {
 			::serdes(s,repo_s       ) ;
 			::serdes(s,dir_s        ) ;

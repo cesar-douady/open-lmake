@@ -237,7 +237,7 @@ namespace Engine {
 				case Step::Exec   : SWEAR(n_wait==1) ; break ;         // .
 				case Step::Done   :                                    // done, cannot wait anything anymore
 				case Step::Hit    : SWEAR(n_wait==0) ; break ;
-			DF}
+			DF}                                                        // NO_COV
 		}
 		// data
 		struct State {
@@ -340,7 +340,7 @@ namespace Engine {
 				case RunStatus::DepErr        : return true               ;
 				case RunStatus::MissingStatic : return false              ;
 				case RunStatus::Err           : return true               ;
-			DF}
+			DF}                                                                                                          // NO_COV
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }
 		// services

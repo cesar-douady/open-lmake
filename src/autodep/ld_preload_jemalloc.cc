@@ -27,7 +27,7 @@ void* get_orig(const char* libcall) {
 // else we define a static, which is somewhere before global constructors in main program, but unknown relative to other global contructors
 // the first solution may not be the best, but at least it has a clear and reproductible semantic
 #if USE_LIBC_START_MAIN
-	#pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
+	#pragma GCC visibility push(default)                                                                              // force visibility of functions defined hereinafter, until the corresponding pop
 	extern "C" {
 		int __libc_start_main( void* main , int argc , void* argv , void* auxvec , void* init , void* fini , void* rtld_fini , void* stack_end) {
 			static auto orig = reinterpret_cast<decltype(__libc_start_main)*>(dlsym(RTLD_NEXT,"__libc_start_main")) ;

@@ -126,7 +126,7 @@ namespace Engine {
 			case SeenStart :
 			case Key       :
 			case Re        :                                                            throw "spurious { in "+str ;
-		DF}
+		DF}                                                                                                          // NO_COV
 	}
 	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
 		_parse_py( str , unnamed_star_idx , [](::string const&,bool/*has_pfx*/,bool/*has_sfx*/)->void{} , cb_stem ) ;
@@ -148,7 +148,7 @@ namespace Engine {
 					case Escape::None :                                                   break ;
 					case Escape::Re   : if (Re::SpecialChars.find(c)!=Npos) res += '\\' ; break ; // escape specials
 					case Escape::Fstr : if (_g_fstr_specials.find(c)!=Npos) res += c    ; break ; // double specials
-				DF}
+				DF}                                                                               // NO_COV
 				res += c ;
 			}
 		}
@@ -294,7 +294,7 @@ namespace Engine {
 					SWEAR( !n_unnamed , n_unnamed ) ;
 					break ;
 				}
-			[[fallthrough]] ; // dynamic shell cmd, process as dynamic attributes
+			[[fallthrough]] ;           // dynamic shell cmd, process as dynamic attributes
 			case Maybe :
 				if (!py_src.contains("expr")) {
 					kind = Kind::None ;
@@ -309,14 +309,14 @@ namespace Engine {
 				kind = Kind::Dyn ;
 				if (compile_) compile(rules) ;
 			break ;
-		DF}
+		DF}                             // NO_COV
 		if (py_src.contains("names")) {
 			ctx.reserve(py_src["names"].as_a<Sequence>().size()) ;
 			for( Object const& py_item : py_src["names"].as_a<Sequence>() ) {
 				CmdIdx ci = var_idxs.at(py_item.as_a<Str>()) ;
 				ctx.push_back(ci) ;
 			}
-			::sort(ctx) ;     // stabilize crc's
+			::sort(ctx) ;               // stabilize crc's
 		}
 	}
 
@@ -400,7 +400,7 @@ namespace Engine {
 				case VarCmd::Targets : for( VarIdx j : iota(r->n_static_targets) ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
 				case VarCmd::Deps    : for( auto const& [k,d] : deps()           ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
 				case VarCmd::Rsrcs   :                                                                                                  cb_dct(vc,i,"resources",rsrcs_) ; break ;
-			DF}
+			DF}                                                                                                                                                                   // NO_COV
 		}
 	}
 
@@ -408,7 +408,7 @@ namespace Engine {
 		::vector<CmdIdx> ctx_  ;
 		::vector_s       fixed { 1 } ;
 		size_t           fi    = 0   ;
-		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
+		for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {                                                                              // /!\ not a iota
 			if (fstr[ci]==Rule::StemMrkr) {
 				VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
 				VarIdx i  = decode_int <VarIdx>(&fstr[ci+1]) ; ci += sizeof(VarIdx) ;
@@ -422,7 +422,7 @@ namespace Engine {
 		fi = 0 ;
 		::string res = ::move(fixed[fi++]) ;
 		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { res<<val<<fixed[fi++] ; } ;
-		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                ; } ;
+		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                ; } ; // NO_COV
 		DynBase::s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
 		return res ;
 	}
@@ -477,7 +477,7 @@ namespace Engine {
 		}
 		if ( key=="python" || key=="shell" ) return false/*keep*/ ;                                           // accept external dep for interpreter (but ignore it)
 		bad( "is outside repository and all source dirs" , "suppress dep" ) ;
-		return false/*garage*/ ;                                                                              // never reached
+		return false/*garbage*/ ;                                                                             // NO_COV, to please compiler
 	}
 
 	//
@@ -546,18 +546,6 @@ namespace Engine {
 			/**/                       dst.phys.push_back(::move(upper)) ;
 			for( ::string& l : lower ) dst.phys.push_back(::move(l    )) ;
 			/**/                       dst.copy_up = ::move(copy_up) ;
-			return true/*updated*/ ;
-		}
-
-		bool/*updated*/ acquire( DbgEntry& dst , Object const* py_src ) {
-			if (!py_src      ) {                          return false/*updated*/ ;                                     }
-			if (*py_src==None) { if (!dst.first_line_no1) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
-			//
-			Sequence const& py_seq = py_src->as_a<Sequence>() ;
-			acquire(dst.module        ,&py_seq[0].as_a<Str>()                 ) ;
-			acquire(dst.qual_name     ,&py_seq[1].as_a<Str>()                 ) ;
-			acquire(dst.file_name     ,&py_seq[2].as_a<Str>()                 ) ;
-			acquire(dst.first_line_no1,&py_seq[3].as_a<Int>(),size_t(1)/*min*/) ;
 			return true/*updated*/ ;
 		}
 
@@ -738,11 +726,6 @@ namespace Engine {
 		return res ;
 	}
 
-	::string& operator+=( ::string& os , DbgEntry const& de ) {                                                         // START_OF_NO_COV
-		if (+de) return os<<"( "<<de.module<<" , "<<de.qual_name<<" , "<<de.file_name<<" , "<<de.first_line_no1<<" )" ;
-		else     return os<<"()"                                                                                      ;
-	}                                                                                                                   // END_OF_NO_COV
-
 	//
 	// RuleData
 	//
@@ -781,7 +764,7 @@ namespace Engine {
 				stem_mark_cnts.push_back   (0                      ) ;
 				matches       .emplace_back("",MatchEntry{job_name}) ;
 			break ;
-		DF}
+		DF}                                                                                     // NO_COV
 		_set_crcs({}) ;                                                                         // rules is not necessary for special rules
 	}
 
@@ -1233,7 +1216,7 @@ namespace Engine {
 
 	::string RuleData::_pretty_fstr(::string const& fstr) const {
 			::string res ;
-			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) { // /!\ not a iota
+			for( size_t ci=0 ; ci<fstr.size() ; ci++ ) {                                                     // /!\ not a iota
 				switch (fstr[ci]) {
 					case Rule::StemMrkr : {
 						VarCmd vc = decode_enum<VarCmd>(&fstr[ci+1]) ; ci += sizeof(VarCmd) ;
@@ -1245,7 +1228,7 @@ namespace Engine {
 							case VarCmd::Match     : res += matches                      [i].first ; break ;
 							case VarCmd::Dep       : res += deps_attrs.spec.deps         [i].first ; break ;
 							case VarCmd::Rsrc      : res += submit_rsrcs_attrs.spec.rsrcs[i].first ; break ;
-						DF}
+						DF}                                                                                  // NO_COV
 						res += '}' ;
 					} break ;
 					case '{' : res += "{{"     ; break ;
@@ -1499,7 +1482,7 @@ namespace Engine {
 			case VarCmd::Targets   : res.push_back("targets"                             ) ; break ;
 			case VarCmd::Deps      : res.push_back("deps"                                ) ; break ;
 			case VarCmd::Rsrcs     : res.push_back("resources"                           ) ; break ;
-		DF}
+		DF}                                                                                          // NO_COV
 		return res ;
 	}
 

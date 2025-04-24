@@ -18,7 +18,7 @@ namespace Engine {
 			case ReqKey::List   : return true  ;
 			case ReqKey::Add    :
 			case ReqKey::Delete : return false ;
-		DF}
+		DF}                                      // NO_COV
 	}
 
 	static bool/*ok*/ _freeze(EngineClosureReq const& ecr) {
@@ -382,7 +382,7 @@ namespace Engine {
 		return res ;
 	}
 
-	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target ) {
+	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target , DepDepth lvl=0 ) {
 		JobTgt job = target->actual_job() ;
 		if (!job) goto NoJob ;
 		if (job->rule().is_shared()) {
@@ -392,10 +392,15 @@ namespace Engine {
 		Trace("target",target,job) ;
 		return job ;
 	NoJob :
-		target->set_buildable() ;
-		if (!target->is_src_anti()) {
-			audit( fd , ro , Color::Err  , "target not built"                                                                  ) ;
-			audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name(),FileDisplay::Shell) , false/*as_is*/ , 1 ) ;
+		bool porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		if (!porcelaine) {
+			target->set_buildable() ;
+			if (!target->is_src_anti()) { //!                                                                   as_is
+				audit( fd , ro , Color::Err  , "target not built"                                             , true  , lvl   ) ;
+				audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name(),FileDisplay::Shell) , false , lvl+1 ) ;
+			}
+		} else if (ro.key!=ReqKey::Info) {
+			audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
 		}
 		return {} ;
 	}
@@ -477,7 +482,7 @@ namespace Engine {
 					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->user_name() , true/*as_is*/ ) ;
 				}
 			} break ;
-		DF}
+		DF}           // NO_COV
 		return ok ;
 	}
 
@@ -579,7 +584,7 @@ namespace Engine {
 					backlog.clear() ;
 					return ;
 				}
-			DF}
+			DF}                                                                                 // NO_COV
 			lvl += verbose ;
 			for( Dep const& dep : job->deps ) show_node(dep) ;
 			lvl -= verbose ;
@@ -635,7 +640,7 @@ namespace Engine {
 							if (porcelaine) audit( fd , ro ,              "None"                     , true , lvl+1 ) ;
 							else            audit( fd , ro , Color::Err , "no "s+ro.key+" available" , true , lvl+1 ) ;
 						break ;
-					DF}
+					DF}                                                                                                               // NO_COV
 				} else {
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
@@ -779,9 +784,9 @@ namespace Engine {
 								if (+start.timeout                ) push_entry( "timeout"    , start.timeout.short_str()              ) ;
 								if ( start.use_script             ) push_entry( "use_script" , "true"                                 ) ;
 								//
-								if      (job->backend==BackendTag::Local) SWEAR(sa.used_tag==BackendTag::Local) ;
-								else if (sa.used_tag ==job->backend     ) push_entry( "backend" , snake_str(job->backend)                                     ) ;
-								else                                      push_entry( "backend" , snake_str(job->backend)+" -> "+sa.used_tag , Color::Warning ) ;
+								if      (job->backend==BackendTag::Local) SWEAR(sa.used_backend==BackendTag::Local) ;
+								else if (sa.used_backend ==job->backend ) push_entry( "backend" , snake_str(job->backend)                                         ) ;
+								else                                      push_entry( "backend" , snake_str(job->backend)+" -> "+sa.used_backend , Color::Warning ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
@@ -952,7 +957,7 @@ namespace Engine {
 								}
 							}
 						} break ;
-					DF}
+					DF}                                                                                                               // NO_COV
 				}
 			} break ;
 			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ; break ;
@@ -1050,7 +1055,7 @@ namespace Engine {
 			DN}
 			Job job ;
 			if (for_job) {
-				job = _job_from_target(fd,ro,target) ;
+				job = _job_from_target(fd,ro,target,lvl) ;
 				if ( !job && ro.key!=ReqKey::Info ) { ok = false ; continue ; }
 			}
 			switch (ro.key) {
@@ -1063,7 +1068,7 @@ namespace Engine {
 					_show_job( fd , ro , job , target , lvl ) ;
 				break ;
 				case ReqKey::Info :
-					if (target->status()==NodeStatus::Plain) {
+					if ( target->status()==NodeStatus::Plain && !porcelaine ) {
 						Job    cj             = target->conform_job_tgt() ;
 						size_t w              = 0                         ;
 						bool   seen_candidate = false                     ;
@@ -1082,8 +1087,15 @@ namespace Engine {
 						Node n = target ;
 						while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
 						if (n!=target) {
-							if (+n->asking) audit( fd , ro , "required by : "+mk_file(Job(n->asking)->name()) ) ;
-							else            audit( fd , ro , "required by : "+mk_file(    n         ->name()) ) ;
+							if (porcelaine) { //!                                                                        as_is
+								if (+n->asking) audit( fd , ro , "{ 'required by' : "+mk_py_str(Job(n->asking)->name()) , true , lvl ) ;
+								else            audit( fd , ro , "{ 'required by' : "+mk_py_str(    n         ->name()) , true , lvl ) ;
+							} else { //!                                                                            as_is
+								if (+n->asking) audit( fd , ro , "required by : "+mk_file(Job(n->asking)->name()) , false , lvl ) ;
+								else            audit( fd , ro , "required by : "+mk_file(    n         ->name()) , false , lvl ) ;
+							}
+						} else {
+							if (porcelaine) audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
 						}
 						continue ;
 					}
@@ -1147,9 +1159,12 @@ namespace Engine {
 					}
 					if (porcelaine) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
 				} break ;
-			DF}
+			DF}                                                                                                                                     // NO_COV
 		}
-		if (porcelaine) audit( fd , ro , "}" , true/*as_is*/ ) ;
+		if (porcelaine) { //!                    as_is
+			if (sep=='{') audit( fd , ro , "{}" , true ) ;                                                                                          // opening { has not been written, do it now
+			else          audit( fd , ro , "}"  , true ) ;
+		}
 	Return :
 		trace(STR(ok)) ;
 		return ok ;

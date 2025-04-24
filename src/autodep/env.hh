@@ -32,7 +32,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,views                          ) ;
 	}
 	Fd repo_root_fd() const {
-		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;      // avoid poluting standard descriptors
+		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;                                                                                    // avoid poluting standard descriptors
 		swear_prod(+res,"cannot open repo root dir",repo_root_s) ;
 		return res ;
 	}
@@ -42,7 +42,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 			if ( Fast && +fast_report_pipe && host()==fast_host )   res = { fast_report_pipe , Fd::Append , true/*no_std*/ } ;                   // append if writing to a file
 			else                                                  { res = ClientSockFd(service).detach()                     ; res.no_std()  ; } // establish connection with server
 		} catch (::string const& e) {
-			fail_prod("while trying to report deps :",e) ;
+			fail_prod("while trying to report deps :",e) ;                                                                                       // NO_COV
 		}
 		swear_prod( +res , "cannot open report fd" , Fast?"fast":"plain" , Fast?fast_report_pipe:service ) ;
 		return res ;

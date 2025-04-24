@@ -22,25 +22,25 @@ ENUM_1( ReqProc     // PER_CMD : add a value that represents your command, above
 ,	Show
 )
 
-ENUM( ReqKey   // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
-,	None       // must stay first
-,	Add        // if proc==Mark
-,	Bom        // if proc==Show
-,	Clear      // if proc==Mark
-,	Cmd        // if proc==Show
-,	Delete     // if proc==Mark
-,	Deps       // if proc==Show
-,	Env        // if proc==Show
-,	Info       // if proc==Show
-,	InvDeps    // if proc==Show
-,	InvTargets // if proc==Show
-,	List       // if proc==Mark
-,	Resources  // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
-,	Running    // if proc==Show
-,	Stderr     // if proc==Show
-,	Stdout     // if proc==Show
-,	Targets    // if proc==Show
-,	Trace      // if proc==Show
+ENUM( ReqKey                                 // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
+,	None                                     // must stay first
+,	Add                                      // if proc==Mark
+,	Bom                                      // if proc==Show
+,	Clear                                    // if proc==Mark
+,	Cmd                                      // if proc==Show
+,	Delete                                   // if proc==Mark
+,	Deps                                     // if proc==Show
+,	Env                                      // if proc==Show
+,	Info                                     // if proc==Show
+,	InvDeps                                  // if proc==Show
+,	InvTargets                               // if proc==Show
+,	List                                     // if proc==Mark
+,	Resources                                // if proc==Forget, redo everything that were not redone when resources changed, to ensure reproducibility
+,	Running                                  // if proc==Show
+,	Stderr                                   // if proc==Show
+,	Stdout                                   // if proc==Show
+,	Targets                                  // if proc==Show
+,	Trace                                    // if proc==Show
 )
 inline bool is_mark_glb(ReqKey key) {
 	switch (key) {
@@ -48,7 +48,7 @@ inline bool is_mark_glb(ReqKey key) {
 		case ReqKey::List   : return true  ;
 		case ReqKey::Add    :
 		case ReqKey::Delete : return false ;
-	DF}
+	DF}                                      // NO_COV
 }
 
 ENUM( ReqFlag       // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
@@ -191,7 +191,7 @@ struct ReqRpcReply {
 			case Proc::File   :
 			case Proc::Stderr :
 			case Proc::Stdout : ::serdes(s,txt) ; break ;
-		DF}
+		DF}                                               // NO_COV
 	}
 	// data
 	Proc     proc = Proc::None ;

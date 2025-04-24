@@ -94,10 +94,10 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 			size_t new_pos = _s_pos+buf_view.size() ;
 			if ( _s_cur_sz<s_sz && new_pos>_s_cur_sz ) {
 				size_t old_sz = _s_cur_sz ;
-				_s_cur_sz = new_pos + (_s_cur_sz>>2)       ; // ensure exponential growth to limit calls to ftruncate
-				_s_cur_sz = (_s_cur_sz+4095)&size_t(-4095) ; // round up to 4K
+				_s_cur_sz = new_pos + (_s_cur_sz>>2)       ;                                                 // ensure exponential growth to limit calls to ftruncate
+				_s_cur_sz = (_s_cur_sz+4095)&size_t(-4095) ;                                                 // round up to 4K
 				_s_cur_sz = ::min(_s_cur_sz,size_t(s_sz))  ;
-				if (::ftruncate(_s_fd,_s_cur_sz)!=0) FAIL(_s_fd,old_sz,_s_cur_sz) ;
+				if (::ftruncate(_s_fd,_s_cur_sz)!=0) FAIL(_s_fd,old_sz,_s_cur_sz) ;                          // NO_COV
 				_s_data = static_cast<uint8_t*>(::mremap( _s_data , old_sz , _s_cur_sz , MREMAP_MAYMOVE )) ;
 			}
 			if (new_pos>s_sz) {

@@ -77,6 +77,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* support spaces in stems for targets, deps, cmd, etc.
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size
@@ -205,9 +206,10 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* gcov
+* check static deps after critical
+	- ensure they stay as deps
 * ancillary commands to unit tests
-	- lshow, ...
+	- except lshow
 ! add a unit_test to validate max_retries_on_lost
 ! idx overflow
 	- check with 8-bits indexes

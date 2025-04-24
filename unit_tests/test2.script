@@ -11,4 +11,4 @@ sleep 2
 kill -2 %1
 echo 'Wait.stems["Wait"] = "("+Wait.stems["Wait"]+")"' >> Lmakefile.py
 wait %1 || :
-ut_launch -done 2 -steady 0 -manual 0 lmake $TARGET
+ut_launch -done 1 -steady 2 -manual 0 lmake $TARGET

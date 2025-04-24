@@ -27,7 +27,7 @@ namespace Time {
 			case 7 : sub1 /= 100         ; break ;
 			case 8 : sub1 /= 10          ; break ;
 			case 9 :                     ; break ;
-		DF}
+		DF}                                                               // NO_COV
 		res        += sub1 ;
 		res[point]  = '.'  ;                                              // replace inital 1 (to avoid formatting efforts) with the decimal point
 	}

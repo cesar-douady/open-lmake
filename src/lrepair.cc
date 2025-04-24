@@ -92,7 +92,7 @@ int main( int argc , char* /*argv*/[] ) {
 	Py::init(*g_lmake_root_s      ) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
-		FAIL("lrepair must be started from repo root, not from ",*g_startup_dir_s) ;
+		FAIL("lrepair must be started from repo root, not from ",*g_startup_dir_s) ; // NO_COV
 	}
 	if (is_target(ServerMrkr)) exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//

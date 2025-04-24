@@ -32,15 +32,13 @@ __pycache__
 /sys_config_env
 /version.hh
 /Manifest
+*.d
 
 # compiled files
 *.chk
 *.chk.err
 *.chk.stderr
-*.d
 *.dbg
-*.gcda
-*.gcno
 *.hh.gch
 *.i
 *.o
@@ -53,8 +51,14 @@ src/lmakeserver/backends/slurm_api-*.cc
 
 # tests
 tok
+*.tok
 /src/store/unit_test
 /core.*
+
+# coverage
+*.gcda
+*.gcno
+gcov/
 
 # IDE files
 /.idea/

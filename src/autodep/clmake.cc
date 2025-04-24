@@ -160,7 +160,7 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 		case 2 : ctx     =          *py_args[1].str()      ; has_ctx     = true ; [[fallthrough]] ;
 		case 1 : file    =          *py_args[0].str()      ; has_file    = true ; [[fallthrough]] ;
 		case 0 : break ;
-	DF}
+	DF}                                            // NO_COV
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;

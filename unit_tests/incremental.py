@@ -17,7 +17,7 @@ if __name__!='__main__' :
 
 	class Inc(Rule) :
 		targets = {
-			'MANIFEST' : ( 'manifest'      , 'incremental' ) # we need old value to compute old/new files
+			'MANIFEST' : ( 'manifest'      , 'incremental' )           # we need old value to compute old/new files
 		,	'TGT'      : ( 'dut.{Sfx*:.*}' , 'incremental' )
 		}
 		deps = { 'DEP' : 'dep' }

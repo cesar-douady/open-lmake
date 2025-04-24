@@ -297,7 +297,7 @@ namespace Engine::Persistent {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
 		if ( !dyn                                         ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
 		if ( !dyn                                         ) _init_config() ;
-		else                                                SWEAR(+*g_config,*g_config) ;   // we must update something
+		else                                                SWEAR(+*g_config,*g_config) ; // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                diff(*g_config,config) ;
@@ -306,7 +306,7 @@ namespace Engine::Persistent {
 		if (          d>ConfigDiff::Static  && +*g_config ) throw "repo must be clean"s  ;
 		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw "repo must be steady"s ;
 		//
-		if (  dyn && !d                                   ) return ;                        // fast path, nothing to update
+		if (  dyn && !d                                   ) return ;                      // fast path, nothing to update
 		//
 		/**/                                                Config old_config = *g_config ;
 		if (         +d                                   ) *g_config = ::move(config) ;
@@ -563,17 +563,17 @@ namespace Engine::Persistent {
 			srcs.emplace_back( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
 		}
 		// format old srcs
-		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ; // dont care whether we delete a regular file or a link
+		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                 // dont care whether we delete a regular file or a link
 		//
-		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;      // non-local nodes have no dir
-		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;      // .
+		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                      // non-local nodes have no dir
+		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                      // .
 		// further checks
 		for( auto [n,t] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
 			for( ::string const& sn : src_names ) throw_if( sn.starts_with(nn_s) , "source ",t==FileTag::Dir?"dir ":"",nn," is a dir of ",sn ) ;
-			FAIL(nn,"is a source dir of no source") ;
+			FAIL(nn,"is a source dir of no source") ;                                                                                            // NO_COV
 		}
 		// compute diff
 		bool fresh = !old_srcs ;
@@ -593,7 +593,7 @@ namespace Engine::Persistent {
 		if (dyn) {
 			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;
 			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;
-			FAIL() ;
+			FAIL() ;                                                                                                   // NO_COV
 		}
 		//
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs_.size()) ;

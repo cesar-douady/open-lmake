@@ -250,7 +250,7 @@ else :
 			:     ; time make            -j 16 all_{l} >/dev/null
 			:     ; time make            -j 16 all_{l} >/dev/null
 		'''))
-		if not use_cat : # bazel is not supported with cat
+		if not use_cat :                  # bazel is not supported with cat
 			bench.write(multi_strip(fr'''
 				# bazel
 				rm -rf ~/.cache/bazel

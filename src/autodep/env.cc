@@ -59,7 +59,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dir_name(src_dir_s)) goto Fail ;
 	return ;
 Fail :
-	fail_prod("bad autodep env format at pos",pos,":",env) ;
+	fail_prod("bad autodep env format at pos",pos,":",env) ; // NO_COV
 }
 
 AutodepEnv::operator ::string() const {
@@ -78,7 +78,7 @@ AutodepEnv::operator ::string() const {
 		case LnkSupport::None : res << 'n' ; break ;
 		case LnkSupport::File : res << 'f' ; break ;
 		case LnkSupport::Full : res << 'a' ; break ;
-	DF} //!                                       empty_ok
+	DF} //! NO_COV                                empty_ok
 	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s         )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s       )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(sub_repo_s        )<<'"' ;

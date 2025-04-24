@@ -82,10 +82,10 @@ namespace Engine {
 		return os << "Glb(" << ecg.proc <<')' ;
 	}                                                                       // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) { // START_OF_NO_COV
+	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {                                                               // START_OF_NO_COV
 		os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
-			case ReqProc::Debug  :                                       // PER_CMD : format for tracing
+			case ReqProc::Debug  :                                                                                                     // PER_CMD : format for tracing
 			case ReqProc::Forget :
 			case ReqProc::Mark   :
 			case ReqProc::Show   : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
@@ -93,9 +93,9 @@ namespace Engine {
 			case ReqProc::Kill   :
 			case ReqProc::None   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
 			case ReqProc::Close  : os << ecr.req                                                                             ; break ;
-		DF}
+		DF}                                                                                                                            // NO_COV
 		return os <<')' ;
-	}                                                                    // END_OF_NO_COV
+	}                                                                                                                                  // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) { // START_OF_NO_COV
 		First first ;
@@ -125,7 +125,7 @@ namespace Engine {
 			case JobRpcProc::ReportStart : os << ecj.report_start() ; break ;
 			case JobRpcProc::GiveUp      : os << ecj.give_up     () ; break ;
 			case JobRpcProc::End         : os << ecj.end         () ; break ;
-		DF}
+		DF}                                                                               // NO_COV
 		return                             os <<')' ;
 	}                                                                                     // END_OF_NO_COV
 
@@ -135,7 +135,7 @@ namespace Engine {
 			case JobMngtProc::LiveOut    : os <<','<< ecjm.txt.size() ; break ;
 			case JobMngtProc::DepVerbose : os <<','<< ecjm.deps       ; break ;
 			case JobMngtProc::ChkDeps    : os <<','<< ecjm.deps       ; break ;
-		DF}
+		DF}                                                                                      // NO_COV
 		return                             os << ')' ;
 	}                                                                                            // END_OF_NO_COV
 
@@ -146,7 +146,7 @@ namespace Engine {
 			case EngineClosure::Kind::Req     : os << ec.ecr () ; break ;
 			case EngineClosure::Kind::Job     : os << ec.ecj () ; break ;
 			case EngineClosure::Kind::JobMngt : os << ec.ecjm() ; break ;
-		DF}
+		DF}                                                                                 // NO_COV
 		return                                  os << ')' ;
 	}                                                                                       // END_OF_NO_COV
 

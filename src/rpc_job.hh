@@ -381,7 +381,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 			case Kind::Crc  : return crc() ==di.crc () ;
 			case Kind::Sig  : return sig() ==di.sig () ;
 			case Kind::Info : return info()==di.info() ;
-		DF}
+		DF}                                                                                 // NO_COV
 	}
 	bool operator+() const { return !is_a<Kind::Crc>() || +crc() ; }
 	//
@@ -393,7 +393,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	FileSig  sig () const {
 		if (is_a<Kind::Sig >()) return ::get<FileSig >(self)       ;
 		if (is_a<Kind::Info>()) return ::get<FileInfo>(self).sig() ;
-		FAIL(self) ;
+		FAIL(self) ;                                                                        // NO_COV
 	}
 	//
 	bool seen(Accesses a) const {                                                           // return true if accesses could perceive the existence of file
@@ -403,14 +403,14 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 			case Kind::Crc  : return !Crc::None.match( crc()             , a ) ;
 			case Kind::Sig  : return !Crc::None.match( Crc(sig ().tag()) , a ) ;
 			case Kind::Info : return !Crc::None.match( Crc(info().tag()) , a ) ;
-		DF}
+		DF}                                                                                 // NO_COV
 	}
 	Bool3 exists() const {
 		switch (kind()) {
 			case Kind::Crc  : return +crc() ? No|(crc()!=Crc::None) : Maybe ;
 			case Kind::Sig  : return          No|+sig()                     ;
 			case Kind::Info : return          No|info().exists()            ;
-		DF}
+		DF}                                                                                 // NO_COV
 	}
 } ;
 
@@ -490,7 +490,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 			case Tag::Lnk  : if (!Crc::s_sense(accesses,tag_)) crc(tag_) ; break ;       // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			case Tag::None :
 			case Tag::Dir  : if (+_sig                       ) crc({}  ) ; break ;
-		DF}
+		DF}                                                                              // NO_COV
 	}
 	// data
 	// START_OF_VERSIONING
@@ -880,18 +880,18 @@ struct JobMngtRpcReq {
 			case Proc::DepVerbose : ::serdes(s,fd) ; ::serdes(s,deps) ;                                                           break ;
 			case Proc::Decode     : ::serdes(s,fd) ; ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ;                       break ;
 			case Proc::Encode     : ::serdes(s,fd) ; ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ; ::serdes(s,min_len) ; break ;
-		DF}
+		DF}                                                                                                                               // NO_COV
 	}
 	// data
 	Proc                proc    = Proc::None ;
 	SI                  seq_id  = 0          ;
 	JI                  job     = 0          ;
-	Fd                  fd      = {}         ; // fd to which reply must be forwarded
-	::vmap_s<DepDigest> deps    = {}         ; // proc==ChkDeps|DepVerbose
-	::string            ctx     = {}         ; // proc==                           Decode|Encode
-	::string            file    = {}         ; // proc==                           Decode|Encode
-	::string            txt     = {}         ; // proc==                   LiveOut|Decode|Encode
-	uint8_t             min_len = 0          ; // proc==                                  Encode
+	Fd                  fd      = {}         ;                                                                                            // fd to which reply must be forwarded
+	::vmap_s<DepDigest> deps    = {}         ;                                                                                            // proc==ChkDeps|DepVerbose
+	::string            ctx     = {}         ;                                                                                            // proc==                           Decode|Encode
+	::string            file    = {}         ;                                                                                            // proc==                           Decode|Encode
+	::string            txt     = {}         ;                                                                                            // proc==                   LiveOut|Decode|Encode
+	uint8_t             min_len = 0          ;                                                                                            // proc==                                  Encode
 } ;
 
 struct JobMngtRpcReply {
@@ -911,7 +911,7 @@ struct JobMngtRpcReply {
 			case Proc::ChkDeps    : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ;                   break ;
 			case Proc::Decode     :
 			case Proc::Encode     : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ; ::serdes(s,crc) ; break ;
-		DF}
+		DF}                                                                                                        // NO_COV
 	}
 	// data
 	Proc                            proc      = {}    ;
@@ -928,13 +928,13 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// cache, deps and tag are independent of req but may not always be present
-		if (!cache_idx) cache_idx  =                other.cache_idx  ; else if (+other.cache_idx) SWEAR(cache_idx==other.cache_idx,cache_idx,other.cache_idx) ;
-		if (!deps     ) deps       =                other.deps       ; else if (+other.deps     ) SWEAR(deps     ==other.deps     ,deps     ,other.deps     ) ;
-		if (!used_tag ) used_tag   =                other.used_tag   ; else if (+other.used_tag ) SWEAR(used_tag ==other.used_tag ,used_tag ,other.used_tag ) ;
-		/**/            live_out  |=                other.live_out   ;
-		/**/            pressure   = ::max(pressure,other.pressure ) ;
-		/**/            reason    |=                other.reason     ;
-		/**/            tokens1    = ::max(tokens1 ,other.tokens1  ) ;
+		if (!cache_idx   ) cache_idx     =                other.cache_idx    ; else if (+other.cache_idx   ) SWEAR( cache_idx   ==other.cache_idx    , cache_idx   ,other.cache_idx    ) ;
+		if (!deps        ) deps          =                other.deps         ; else if (+other.deps        ) SWEAR( deps        ==other.deps         , deps        ,other.deps         ) ;
+		if (!used_backend) used_backend  =                other.used_backend ; else if (+other.used_backend) SWEAR( used_backend==other.used_backend , used_backend,other.used_backend ) ;
+		/**/               live_out     |=                other.live_out     ;
+		/**/               pressure      = ::max(pressure,other.pressure )   ;
+		/**/               reason       |=                other.reason       ;
+		/**/               tokens1       = ::max(tokens1 ,other.tokens1  )   ;
 		return self ;
 	}
 	SubmitAttrs operator|(SubmitAttrs const& other) const {
@@ -944,13 +944,13 @@ struct SubmitAttrs {
 	}
 	// data
 	// START_OF_VERSIONING
-	::vmap_s<DepDigest> deps      = {}    ;
-	JobReason           reason    = {}    ;
-	Time::CoarseDelay   pressure  = {}    ;
-	CacheIdx            cache_idx = {}    ;
-	Tokens1             tokens1   = 0     ;
-	BackendTag          used_tag  = {}    ; // tag actually used (possibly made local because asked tag is not available)
-	bool                live_out  = false ;
+	::vmap_s<DepDigest> deps         = {}    ;
+	JobReason           reason       = {}    ;
+	Time::CoarseDelay   pressure     = {}    ;
+	CacheIdx            cache_idx    = {}    ;
+	Tokens1             tokens1      = 0     ;
+	BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
+	bool                live_out     = false ;
 	// END_OF_VERSIONING
 } ;
 

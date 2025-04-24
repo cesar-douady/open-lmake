@@ -29,7 +29,7 @@ inline Rc mk_rc(Bool3 ok) {
 		case Yes   : return Rc::Ok     ;
 		case Maybe : return Rc::Format ;
 		case No    : return Rc::Fail   ;
-	DF}
+	DF}                                  // NO_COV
 }
 
 using OutProcCb = ::function<void(bool start)> ;
