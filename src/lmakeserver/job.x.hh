@@ -325,7 +325,7 @@ namespace Engine {
 		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
 		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                // fast implementation of +running_reqs(...)
 		//
-		bool cmd_ok    (   ) const { return                      rule_crc->state<RuleCrcState::CmdOld ; }
+		bool cmd_ok    (   ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
 		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }                // dont care about rsrcs if job went ok
 		bool is_special(   ) const { return rule()->is_special() || idx().frozen()                    ; }
 		bool has_req   (Req) const ;

@@ -11,24 +11,35 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'step.py'
 	,	'dep'
 	)
 
+	from step import step
+
 	class Dut(Rule) :
-		target = 'dut'
-		deps   = {'DEP':'dep'}
-		cmd    = 'cat no_file 2>/dev/null ; cat {DEP}'
+		target    = 'dut'
+		deps      = { 'DEP':'dep' }
+		resources = { 'cpu':step }
+		cmd       = 'cat no_file 2>/dev/null ; cat {DEP} ; [ {cpu} != 2 ]'
 
 else :
 
-	import os
+	import subprocess as sp
 
 	import ut
 
 	open('dep','w')
 
+	print('step=1',file=open('step.py','w'))
+
 	ut.lmake( 'dut' , done=1 , new=1 )
 
-	assert os.system('lforget -d dut')==0
+	sp.run(('lforget','-d',     'dut'),check=True) ; ut.lmake( 'dut' , steady=1 )
+	sp.run(('lforget','-d','-J','dut'),check=True) ; ut.lmake( 'dut' , steady=1 )
+	sp.run(('lforget','-r'           ),check=True) ; ut.lmake( 'dut'            )
 
-	ut.lmake( 'dut' , steady=1 )
+	print('step=2',file=open('step.py','w'))                                       # dont run lmake before lforget to ensure lforget forces a rule refresh
+	sp.run(('lforget','-r'),check=True)      ; ut.lmake( 'dut' , failed=1 , rc=1 ) # force taking into account resources modif, even for ok jobs
+	print('step=3',file=open('step.py','w')) ; ut.lmake( 'dut' , steady=1        ) # resources modif rerun ko jobs
+

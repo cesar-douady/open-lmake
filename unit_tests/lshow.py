@@ -42,6 +42,7 @@ if __name__!='__main__' :
 		,	'PY' : 'hello+world_py'
 		}
 		cmd = '''
+			ldepend {SH} {PY} # parallel deps
 			echo dut > {DUT}
 			echo stdout
 			echo stderr >&2
@@ -73,7 +74,7 @@ else :
 	x = sp.run(('lshow','--version'),stderr=sp.PIPE,universal_newlines=True).stderr
 	assert x.startswith('version ')
 
-	x,px = lshow( ('-b','--bom') , 'hello+world_sh' )
+	x,px = lshow( ('-b','--bom') , 'hello+world_sh' , 'hello+world_py' )
 	assert 'hello' in x and 'world' in x
 	assert px=={'hello','world'}
 
@@ -86,17 +87,23 @@ else :
 	assert all( w in x for w in ('cat','hello','world') )
 	assert all( w in e for w in ('cat','hello','world') )
 
-	x,px = lshow( ('-d','--deps') ,        'hello+world_py' )
-	_,e  = lshow( ('-d','--deps') , '-J' , 'hello+world_py' )
+	x,px = lshow( ('-d','--deps') ,        'hello+world_py' , 'hello+world_sh' )
+	_,e  = lshow( ('-d','--deps') , '-J' , 'hello+world_py'                    )
 	assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
-	assert all( w in x for w in ('FIRST','hello','SECOND','world') )
-	assert len(e)==2 and e[0][0][2:]==('FIRST','hello') and e[1][0][2:]==('SECOND','world')
+	assert all( w in x for w in ('hello+world_py','CatPy','hello+world_sh','CatSh','FIRST','hello','SECOND','world') )
+	assert len(e)==2 and tuple(e[0])[0][2:]==('FIRST','hello') and tuple(e[1])[0][2:]==('SECOND','world')
 
 	x,px = lshow( ('-d','--deps') , '-v' ,        'hello+world_py' )
 	_,e  = lshow( ('-d','--deps') , '-v' , '-J' , 'hello+world_py' )
 	assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
 	assert all( w in x for w in ('site-packages','FIRST','hello','SECOND','world') )
-	assert len(e)==3 and 'site-package' in e[0][0][3] and e[1][0][2:]==('FIRST','hello') and e[2][0][2:]==('SECOND','world')
+	assert len(e)==3 and 'site-package' in tuple(e[0])[0][3] and tuple(e[1])[0][2:]==('FIRST','hello') and tuple(e[2])[0][2:]==('SECOND','world')
+
+	x,px = lshow( ('-d','--deps') , 'dut' )
+	e    = px['dut'][('Dut','dut','generating')]
+	assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') )
+	print(px)
+	assert len(e)==1 and len(e[0])==2
 
 	x,px = lshow( ('-E','--env') ,        'hello+world_sh' )
 	_,e  = lshow( ('-E','--env') , '-J' , 'hello+world_sh' )

@@ -32,27 +32,32 @@ else :
 	print(0,file=open('src','w'))
 
 	# freeze
-	None                                              ; None                              ; ut.lmake( 'test.cpy' ,                                 rc=1 ) # check no rule
-	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' , missing=1 ,                     rc=1 ) # check missing dep
-	None                                              ; print(1,file=open('test','w'))    ; ut.lmake( 'test.cpy' , new    =1 , done=1 ,            rc=0 ) # check ok
-	sp.run(('lmark','-f','-d','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,                      unlink=1 , rc=1 ) # check no_rule unlink
-	sp.run(('lmark','-f','-a','test'    ),check=True) ; None                              ; ut.lmake( 'test.cpy' ,             done=1 ,            rc=0 ) # check test.cpy is regenerated
-	None                                              ; print(2,file=open('test','w'))    ; ut.lmake( 'test.cpy' , changed=1 , done=1 ,            rc=0 ) # check rebuild
-	sp.run(('lmark','-f','-a','test.cpy'),check=True) ; print(3,file=open('test','w'))    ; ut.lmake( 'test.cpy' , frozen =1 ,                     rc=0 ) # check frozen
+	None                                                             ; None                              ; ut.lmake( 'test.cpy' ,                      rc=1 ) # check no rule
+	sp.run(('lmark','-f','-a','test'    ),check=True)                ; None                              ; ut.lmake( 'test.cpy' , missing=1 ,          rc=1 ) # check missing dep
+	None                                                             ; print(1,file=open('test','w'))    ; ut.lmake( 'test.cpy' , new    =1 , done=1 , rc=0 ) # check ok
+	sp.run(('lmark','-f','-d','test'    ),check=True)                ; None                              ; ut.lmake( 'test.cpy' , unlink =1          , rc=1 ) # check no_rule unlink
+	sp.run(('lmark','-f','-a','test'    ),check=True)                ; None                              ; ut.lmake( 'test.cpy' ,             done=1 , rc=0 ) # check test.cpy is regenerated
+	None                                                             ; print(2,file=open('test','w'))    ; ut.lmake( 'test.cpy' , changed=1 , done=1 , rc=0 ) # check rebuild
+	sp.run(('lmark','-f','-a','test.cpy'),check=True)                ; print(3,file=open('test','w'))    ; ut.lmake( 'test.cpy' , frozen =1 ,          rc=0 ) # check frozen
+	x = sp.check_output(('lmark','-f','-l'),universal_newlines=True) ; assert 'test' in x and 'test.cpy' in x
 
 	None                                              ; None                              ; ut.lmake( 'src.cpy2' , new           =1 , done=2 , rc=0 )
 	sp.run(('lmark','-f','-a','src.cpy' ),check=True) ; print(4,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2' , changed_frozen=1 , done=1 , rc=0 )
 	sp.run(('lmark','-f','-c'           ),check=True) ; None                              ; ut.lmake( 'src.cpy2' ,                    done=2 , rc=0 )
 
 	# no-trigger
-	None                                         ; print(5,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out of date
-	None                                         ; print(6,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check up to date
-	sp.run(('lmark','-t','-a','src'),check=True) ; None                              ; ut.lmake( 'src.cpy'                      ) # check up to date
-	None                                         ; print(7,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
-	sp.run(('lmark','-t','-d','src'),check=True) ; None                              ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
+	None                                                             ; print(5,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out of date
+	None                                                             ; print(6,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check up to date
+	sp.run(('lmark','-t','-a','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy'                      ) # check up to date
+	None                                                             ; print(7,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
+	sp.run(('lmark','-t','-d','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
+	sp.run(('lmark','-t','-a','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy'                      ) # check up to date
+	x = sp.check_output(('lmark','-t','-l'),universal_newlines=True) ; assert 'src' in x
+	None                                                             ; print(8,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
+	sp.run(('lmark','-t','-c'      ),check=True)                     ; None                          ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
 
 	# manual
 	None                              ; ut.lmake( 'src.cpy2' ,             done=1        ) # check src.cpy up to date
 	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up to date, therefore no check
-	print(8,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , done=2 , rc=0 ) # check out of date, therefore manual (quarantined)
+	print(9,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , done=2 , rc=0 ) # check out of date, therefore manual (quarantined)
 	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up to date

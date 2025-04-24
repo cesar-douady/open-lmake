@@ -227,11 +227,11 @@ namespace Engine {
 			else                   for ( auto const& [k,e] : res ) if (+e.match(dep->name())) { dep_key = k          ; break ; }
 			if (porcelaine) {
 				::string dep_str = "( "+mk_py_str(dep.dflags_str())+" , "+mk_py_str(dep.accesses_str())+" , "+widen(mk_py_str(dep_key),wk)+" , "+widen(mk_py_str(dep->name()),wf)+" )" ;
-				//                                                                                                      as_is
-				if      (  start_group &&  end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," ( ",dep_str," ,)"  ) , true , lvl ) ;
-				else if (  start_group && !end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," ( ",dep_str        ) , true , lvl ) ;
+				//                                                                                                       as_is
+				if      (  start_group &&  end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str," }"   ) , true , lvl ) ;
+				else if (  start_group && !end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str        ) , true , lvl ) ;
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
-				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  )") , true , lvl ) ;
+				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
 				::string pfx = dep.dflags_str()+' '+dep.accesses_str()+' '+widen(dep_key,wk)+' ' ;
 				if      (  start_group &&  end_group ) pfx.push_back(' ' ) ;
@@ -470,6 +470,7 @@ namespace Engine {
 				}
 			break ;
 			case ReqKey::Resources : {
+				throw_if( Req::s_n_reqs() , "cannot forget resources while jobs are running" ) ;
 				::uset<Rule> refreshed ;
 				for( RuleCrc rc : Persistent::rule_crc_lst() ) if ( RuleCrcData& rcd=rc.data() ; rcd.state==RuleCrcState::RsrcsOld) {
 					rcd.state = RuleCrcState::RsrcsForgotten ;

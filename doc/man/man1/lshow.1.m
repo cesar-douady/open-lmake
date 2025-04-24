@@ -74,7 +74,7 @@ Jobs are represented as a tuple composed of the rule name, the job name and a co
 The keys are all jobs potentially producing given file.
 If arg is a job, the output is a mentioned below.
 
-The value is a B(tuple) of sequential deps groups, each deps group being a tuple of parallel deps.
+The value is a B(tuple) of sequential deps groups, each deps group being a B(set) of parallel deps.
 Each dep is represented as a B(tuple) composed of dep flags, access flags, key and name.
 
 Item(B(-D),B(--inv-deps))

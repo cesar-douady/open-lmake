@@ -42,21 +42,21 @@ namespace Engine::Persistent {
 		::umap<Crc,Rule> rule_map ; for( Rule r : rule_lst(true/*with_special*/) ) rule_map[r->crc->match] = r ;
 		for( RuleCrc rc : rule_crc_lst() ) {
 			RuleCrcData& rcd = rc.data()                ;
-			auto         it  = rule_map.find(rc->match) ;
+			auto         it  = rule_map.find(rcd.match) ;
 			if (it==rule_map.end()) {
 				rcd.rule  = {}                   ;
 				rcd.state = RuleCrcState::CmdOld ;
 			} else {
-				Rule            r  = rule_map.at(rc->match) ;
+				Rule            r  = rule_map.at(rcd.match) ;
 				RuleData const& rd = *r                     ;
 				/**/                                              rcd.rule  = r                      ;
-				if      (rc->rsrcs==rd.crc->rsrcs               ) rcd.state = RuleCrcState::Ok       ;
-				else if (rc->cmd  !=rd.crc->cmd                 ) rcd.state = RuleCrcState::CmdOld   ;
-				else if (rc->state!=RuleCrcState::RsrcsForgotten) rcd.state = RuleCrcState::RsrcsOld ;
+				if      (rcd.rsrcs==rd.crc->rsrcs               ) rcd.state = RuleCrcState::Ok       ;
+				else if (rcd.cmd  !=rd.crc->cmd                 ) rcd.state = RuleCrcState::CmdOld   ;
+				else if (rcd.state!=RuleCrcState::RsrcsForgotten) rcd.state = RuleCrcState::RsrcsOld ;
 				//
 				if (+r<+Special::NShared) SWEAR( rcd.state==RuleCrcState::Ok , r,rcd.state ) ;
 			}
-			trace(rc,*rc) ;
+			trace(rc,rcd) ;
 		}
 		#ifndef NDEBUG
 			for( Rule r : rule_lst(true/*with_special*/) ) SWEAR( r->crc->state==RuleCrcState::Ok && r->crc->rule==r , r,r->crc->rule ) ;
