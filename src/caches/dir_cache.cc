@@ -39,7 +39,7 @@ namespace Caches {
 		Pdate        last_access ;
 	} ;
 
-	void DirCache::chk(ssize_t delta_sz) const {
+	void DirCache::chk(ssize_t delta_sz) const {                          // START_OF_NO_COV debug only
 		AcFd     head_fd         { _lru_file(HeadS) } ;
 		Lru      head            ;                      if (+head_fd) deserialize(head_fd.read(),head) ;
 		::uset_s seen            ;
@@ -56,7 +56,7 @@ namespace Caches {
 		}
 		SWEAR(head.prev_s==expected_prev_s  ,HeadS                    ) ;
 		SWEAR(head.sz    ==total_sz+delta_sz,head.sz,total_sz,delta_sz) ;
-	}
+	}                                                                     // END_OF_NO_COV
 
 	// END_OF_VERSIONING
 

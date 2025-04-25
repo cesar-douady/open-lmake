@@ -167,8 +167,8 @@ template<> ::vector_s parse_printable( ::string const& txt , size_t& pos , bool 
 	}
 	if (txt[pos++]!=')') goto Fail ;
 	return res ;
-Fail :
-	throw "bad format"s ;
+Fail :                    // NO_COV defensive programming
+	throw "bad format"s ; // NO_COV .
 }
 
 template<> ::string mk_printable( ::vmap_s<::vector_s> const& m , bool empty_ok ) {
@@ -218,8 +218,8 @@ template<> ::vmap_s<::vector_s> parse_printable( ::string const& txt , size_t& p
 	}
 	if (txt[pos++]!='}') goto Fail ;
 	return res ;
-Fail :
-	throw "bad format"s ;
+Fail :                    // NO_COV defensive programming
+	throw "bad format"s ; // NO_COV .
 }
 
 //

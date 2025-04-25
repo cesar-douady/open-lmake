@@ -208,8 +208,6 @@ X manage HUGE pages in store
 
 * check static deps after critical
 	- ensure they stay as deps
-* ancillary commands to unit tests
-	- except lshow
 ! add a unit_test to validate max_retries_on_lost
 ! idx overflow
 	- check with 8-bits indexes

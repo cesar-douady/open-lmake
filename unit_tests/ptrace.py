@@ -18,9 +18,9 @@ if __name__!='__main__' :
 		}
 		cmd = '''
 			echo dut >{DUT}.tmp
-			ln {DUT}.tmp {DUT} # no ln with ptrace in other UT's
+			ln {DUT}.tmp {DUT}  # no ln with ptrace in other UT's
 			rm {DUT}.tmp
-			ln -s {DUT} {LNK} # no ln -s with ptrace in other UT's
+			ln -s {DUT} {LNK}   # no ln -s with ptrace in other UT's
 		'''
 
 	class Chk(Rule) :

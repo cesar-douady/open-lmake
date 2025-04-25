@@ -148,8 +148,8 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 			}
 		}
 		continue ;
-	Bad :
-		throw cat(err," while uniquifying ",e.files) ;
+	Bad :                                                                                                                  // NO_COV defensive programming
+		throw cat(err," while uniquifying ",e.files) ;                                                                     // NO_COV .
 	}
 	trace("done",localize(msg)) ;
 	return msg ;
@@ -635,20 +635,20 @@ namespace Caches {
 	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw "cannot chroot to "+no_slash(dir_s)+" : "+::strerror(errno) ; }
 	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw "cannot chdir to " +no_slash(dir_s)+" : "+::strerror(errno) ; }
 
-	static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
+	static void _mount_bind( ::string const& dst , ::string const& src ) {                                                    // src and dst may be files or dirs
 		Trace trace("_mount_bind",dst,src) ;
 		if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
-			throw "cannot bind mount "+src+" onto "+dst+" : "+::strerror(errno) ;
+			throw "cannot bind mount "+src+" onto "+dst+" : "+::strerror(errno) ;                                             // NO_COV defensive programming
 	}
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
 	SWEAR(+srcs_s) ;
-	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ; // use bind mount in that case
+	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ;                                                 // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	for( size_t i : iota(1,srcs_s.size()) )
 		if (srcs_s[i].find(':')!=Npos)
-			throw cat("cannot overlay mount ",dst_s," to ",srcs_s,"with embedded columns (:)") ;
+			throw cat("cannot overlay mount ",dst_s," to ",srcs_s,"with embedded columns (:)") ; // NO_COV defensive programming
 	mk_dir_s(work_s) ;
 	//
 	::string                                data  = "userxattr"                      ;
@@ -663,7 +663,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
 	AcFd fd { file , Fd::Write } ;
-	throw_unless( +fd , "cannot open ",file," for writing" ) ;
+	if (!fd) throw "cannot open "+file+" for writing : "+::strerror(errno) ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
 	if (cnt<0                  ) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : "+::strerror(errno)         ;
 	if (size_t(cnt)<data.size()) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : only "+cnt+" bytes written" ;
@@ -824,14 +824,14 @@ bool JobSpace::enter(
 		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
 	if ( must_create_lmake || must_create_repo || must_create_tmp ) {     // we cannot mount directly in chroot_dir
 		if (!work_dir_s)
-			throw
+			throw                                                         // START_OF_NO_COV defensive programming
 				"need a work dir to"s
 			+	(	must_create_lmake ? " create lmake view"
 				:	must_create_repo  ? " create repo view"
 				:	must_create_tmp   ? " create tmp view"
 				:	                    " ???"
 				)
-			;
+			;                                                             // END_OF_NO_COV
 		::vector_s top_lvls    = lst_dir_s(chroot_dir_s|"/") ;
 		::string   work_root   = work_dir_s+"root"           ;
 		::string   work_root_s = work_root+'/'               ;

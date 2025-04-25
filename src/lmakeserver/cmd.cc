@@ -574,7 +574,7 @@ namespace Engine {
 				case JobStep::Exec   : {
 					SWEAR( lvl>=backlog.size() , lvl , backlog.size() ) ;
 					DepDepth l = lvl - backlog.size() ;
-					if (porcelaine) { //!                                                                                                                                            as_is
+					if (porcelaine) { //!                                                                                                                                             as_is
 						for( Job j : backlog ) audit( fd , ro ,      cat(first(' ',','),' ',"( '",'W',"' , ",mk_py_str(j  ->rule()->user_name())," , ",mk_py_str(j  ->name())," )") , true  , l++ ) ;
 						/**/                   audit( fd , ro ,      cat(first(' ',','),' ',"( '",hdr,"' , ",mk_py_str(job->rule()->user_name())," , ",mk_py_str(job->name())," )") , true  , lvl ) ;
 					} else {
@@ -618,7 +618,7 @@ namespace Engine {
 			case ReqKey::Stdout :
 			case ReqKey::Trace  : {
 				if ( +rule && rule->is_special() ) {
-					switch (ro.key) {
+					switch (ro.key) {                // START_OF_NO_COV defensive programming : special jobs are not built and do not reach here
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
 							MsgStderr msg_stderr = job->special_msg_stderr() ;
@@ -628,9 +628,9 @@ namespace Engine {
 								if (verbose) audit( fd , ro , ","                          , true , lvl         ) ;
 								/**/         audit( fd , ro , mk_py_str(msg_stderr.stderr) , true               ) ;
 								if (verbose) audit( fd , ro , ")"                          , true , lvl         ) ;
-							} else {
-								audit( fd , ro , Color::Note , msg_stderr.msg    , false/*as_is*/ , lvl+1 ) ;
-								audit( fd , ro ,               msg_stderr.stderr , false/*as_is*/ , lvl+1 ) ;
+							} else { //!                                           as_is
+								audit( fd , ro , Color::Note , msg_stderr.msg    , false , lvl+1 ) ;
+								audit( fd , ro ,               msg_stderr.stderr , true  , lvl+1 ) ;
 							}
 						} break ;
 						case ReqKey::Cmd    :
@@ -640,7 +640,7 @@ namespace Engine {
 							if (porcelaine) audit( fd , ro ,              "None"                     , true , lvl+1 ) ;
 							else            audit( fd , ro , Color::Err , "no "s+ro.key+" available" , true , lvl+1 ) ;
 						break ;
-					DF}                                                                                                               // NO_COV
+					DF}                              // END_OF_NO_COV
 				} else {
 					//
 					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
@@ -785,7 +785,7 @@ namespace Engine {
 								if ( start.use_script             ) push_entry( "use_script" , "true"                                 ) ;
 								//
 								if      (job->backend==BackendTag::Local) SWEAR(sa.used_backend==BackendTag::Local) ;
-								else if (sa.used_backend ==job->backend ) push_entry( "backend" , snake_str(job->backend)                                         ) ;
+								else if (sa.used_backend==job->backend  ) push_entry( "backend" , snake_str(job->backend)                                         ) ;
 								else                                      push_entry( "backend" , snake_str(job->backend)+" -> "+sa.used_backend , Color::Warning ) ;
 							}
 							//
@@ -843,11 +843,11 @@ namespace Engine {
 							if (+end.msg_stderr.msg) push_entry( "message"       , localize(end.msg_stderr.msg,su) ) ;
 							// generate output
 							if (porcelaine) {
-								auto audit_map = [&]( ::string const& k , ::map_ss const& m , bool protect )->void {
+								auto audit_map = [&]( ::string const& key , ::map_ss const& m , bool protect )->void {
 									if (!m) return ;
 									size_t w   = 0   ; for( auto const& [k,_] : m  ) w = ::max(w,mk_py_str(k).size()) ;
 									char   sep = ' ' ;
-									audit( fd , ro , mk_py_str(k)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
+									audit( fd , ro , mk_py_str(key)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
 									for( auto const& [k,v] : m ) {
 										::string v_str ;
 										if      (!protect                    ) v_str = v                             ;
@@ -905,12 +905,12 @@ namespace Engine {
 									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
 										::string vd_str ;
 										if (vd.phys.size()==1) {
-											vd_str << mk_file(vd.phys[0]) ;
+											vd_str << vd.phys[0] ;
 										} else {
-											{	vd_str << "upper:" << mk_file(vd.phys[0]) ; }
-											{	vd_str <<" , "<< "lower" <<':' ;
+											{	vd_str <<        "upper:" << vd.phys[0] ; }
+											{	vd_str <<" , "<< "lower:"               ;
 												First first ;
-												for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << mk_file(vd.phys[i]) ;
+												for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << vd.phys[i] ;
 											}
 											if (+vd.copy_up) {
 												vd_str <<" , "<< "copy_up" <<':' ;
@@ -918,7 +918,7 @@ namespace Engine {
 												for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << cu ;
 											}
 										}
-										audit( fd , ro , widen(mk_file(v),w2)+" : "+vd_str , false/*as_is*/ , lvl+2 ) ;
+										audit( fd , ro , widen(v,w2)+" : "+vd_str , true/*as_is*/ , lvl+2 ) ;
 									}
 								}
 								if ( +required_rsrcs || +allocated_rsrcs ) {

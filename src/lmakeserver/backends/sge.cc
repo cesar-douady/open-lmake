@@ -266,21 +266,21 @@ namespace Backends::Sge {
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
 			// calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			pid_t  pid = ::vfork() ;                                     // NOLINT(clang-analyzer-security.insecureAPI.vfork)
+			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
-			if (!pid) {                                                  // in child
-				::close(Fd::Stdin ) ;                                    // ensure no stdin (defensive programming)
+			if (!pid) {                                                                                         // in child
+				::close(Fd::Stdin ) ;                                                                           // ensure no stdin (defensive programming)
 				::close(Fd::Stdout) ;
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(_sge_env.get()) ) ;
-				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
-				::_exit(+Rc::System) ;                                   // in case exec fails
+				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;                                        // NO_COV defensive programming
+				::_exit(+Rc::System) ;                                                                          // NO_COV in case exec fails
 			}
 			SWEAR(pid>0) ;
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			trace("done_pid",wstatus) ;
-			delete[] cmd_line_ ;                                         // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
+			delete[] cmd_line_ ;         // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
 			return wstatus_ok(wstatus) ;
 		}
 
@@ -307,8 +307,8 @@ namespace Backends::Sge {
 				::close(c2p.read ) ;                                                                            // dont touch c2p object as it is shared with parent
 				::close(c2p.write) ;                                                                            // .
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(_sge_env.get()) ) ;
-				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;
-				::_exit(+Rc::System) ;                                                                          // in case exec fails
+				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;                                        // NO_COV defensive programming
+				::_exit(+Rc::System) ;                                                                          // NO_COV in case exec fails
 			}
 			SWEAR(pid>0) ;                                                                            // ensure vfork worked
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
@@ -320,12 +320,12 @@ namespace Backends::Sge {
 			int wstatus ;
 			int rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			delete[] cmd_line_ ;                                                                      // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
-			if (!wstatus_ok(wstatus)){
+			if (!wstatus_ok(wstatus)){                                                                // START_OF_NO_COV defensive programming
 				trace("fail_pid") ;
 				::string msg = "cannot submit SGE job :" ;
 				for( ::string const& c : cmd_line ) msg <<' '<< c ;
 				throw msg ;
-			}
+			}                                                                                         // END_OF_NO_COV
 			::string cmd_out(100,0) ;                                                                 // 100 is plenty for a job id
 			c2p.write.close() ;
 			trace("wait_cmd_out",c2p.read) ;
@@ -445,7 +445,7 @@ namespace Backends::Sge {
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 't' : if (k=="tmp" ) { tmp  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
-				case '-' : throw "resource cannot start with - :"+k ;
+				case '-' : throw "resource cannot start with -:"+k ;
 			DN}
 			tokens.emplace_back( k , from_string_with_unit<uint64_t>(v) ) ;
 		}

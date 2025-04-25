@@ -91,3 +91,19 @@ Installing system-wide with Debian package will take care of placing both binari
 - put `/path/to/open-lmake/doc/man` in your `$MANPATH`
 
 This will simplify the user experience but is not required.
+
+# AppArmor
+
+In order to implement namespace related features (the `lmake_view`, `repo_view`, `tmp_view`, `views` and `chroot` rule attributes), and if your system is configured with AppArmor,
+adequate rights must be provided.
+
+In that case, do the following :
+- create a file `/etc/apparmor.d/open-lmake` with the following content :
+	```
+		abi <abit/4.0>
+		include <tunables/global>
+		profile open-lmake /**/{_bin/job_exec,bin/lautodep} flags=(unconfined) {
+			userns,
+		}
+	```
+- activate it with `sudo aa-apparamor_parser -r /etc/apparamor.d/open-lmake`

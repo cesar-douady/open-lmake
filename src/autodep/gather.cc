@@ -452,7 +452,7 @@ Status Gather::exec_child() {
 					_exec_trace( end_date , Comment::endJob , {}/*CommentExt*/ , to_hex(uint16_t(ws)) ) ;
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
-					else                           fail("unexpected wstatus : ",ws) ;
+					else                      FAIL("unexpected wstatus : ",ws) ;                                              // NO_COV defensive programming
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
 					_wait &= ~Kind::ChildEnd ;
@@ -626,18 +626,18 @@ Status Gather::exec_child() {
 										seen_tmp = true ;
 									}
 								break ;
-								case Proc::Panic :
+								case Proc::Panic :                                                                                               // START_OF_NO_COV defensive programming
 									if (!panic_seen) {                                                                                           // report only first panic
 										_exec_trace( jerr.date , Comment::panic , {} , jerr.file ) ;
 										set_status(Status::Err,jerr.file) ;
 										kill() ;
 										panic_seen = true ;
 									}
-								[[fallthrough]] ;
-								case Proc::Trace :
+								[[fallthrough]] ;                                                                                                // END_OF_NO_COV
+								case Proc::Trace :                                                                                               // START_OF_NO_COV debug only
 									_exec_trace( jerr.date , Comment::trace , {} , jerr.file ) ;
 									trace(jerr.file) ;
-								break ;
+								break ;                                                                                                          // END_OF_NO_COV
 							DF}                                                                                                                  // NO_COV
 							if (sync_) sync( fd , {.proc=proc} ) ;
 						}

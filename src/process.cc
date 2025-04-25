@@ -69,7 +69,7 @@ using namespace Disk ;
 	#endif
 	//
 	if (first_pid) {
-		SWEAR(first_pid>1,first_pid) ;
+		SWEAR(first_pid>1,first_pid) ;                                                                  // START_OF_NO_COV coverage recording does not work in isolated namespace
 		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
 		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
 			::perror("cannot mount /proc ") ;
@@ -92,7 +92,7 @@ using namespace Disk ;
 				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
 				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
 			}
-		}
+		}                                                                                               // END_OF_NO_COV
 	} else {
 		_do_child() ;
 	}
@@ -151,8 +151,8 @@ void Child::spawn() {
 	}
 	//
 	if (pid==-1) {
-		waited() ;                                                            // ensure we can be destructed
-		throw cat("cannot spawn process ",cmd_line," : ",::strerror(errno)) ;
+		waited() ;                                                            // NO_COV defensive programming, ensure we can be destructed
+		throw cat("cannot spawn process ",cmd_line," : ",::strerror(errno)) ; // NO_COV .
 	}
 	//
 	if (stdin_fd ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }

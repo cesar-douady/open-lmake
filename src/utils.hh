@@ -912,10 +912,10 @@ template<StdEnum E> inline ::string& operator+=( ::string& os , BitMap<E> const 
 }
 
 // used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def
-template<StdEnum E,class T> inline constexpr bool chk_enum_tab(::amap<E,T,N<E>> tab) {
+template<StdEnum E,class T> inline constexpr bool chk_enum_tab(::amap<E,T,N<E>> tab) { // START_OF_NO_COV meant for compile time
 	for( E e : iota(All<E>) ) if (tab[+e].first!=e) return false/*ok*/ ;
 	/**/                                            return true /*ok*/ ;
-}
+}                                                                                      // END_OF_NO_COV
 
 // used to disambiguate some calls
 ENUM( NewType , New )

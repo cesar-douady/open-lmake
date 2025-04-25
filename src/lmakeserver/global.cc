@@ -44,7 +44,7 @@ namespace Engine {
 		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                      } // ... can do about it (hoping that we can still trace)
 		if (+log)
 			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }         // .
-			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }
+			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }         // NO_COV defensive programming
 	}
 
 	void audit_file( Fd out , ::string&& file ) {
@@ -57,7 +57,7 @@ namespace Engine {
 		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                           } // ... can do about it (hoping that we can still trace)
 		if (+log)
 			try                       { log.write("status : "s+(ok?"ok":"failed")+'\n') ; }             // .
-			catch (::string const& e) { Trace("audit_status","lost_log",e) ;              }
+			catch (::string const& e) { Trace("audit_status","lost_log",e) ;              }             // NO_COV defensive programming
 	}
 
 	void audit_ctrl_c( Fd out, Fd log , ReqOptions const& ro ) {
@@ -71,7 +71,7 @@ namespace Engine {
 		catch (::string const& e) { Trace("audit_ctrl_c","lost_client",e) ;                                          } // ... can do about it (hoping that we can still trace)
 		if (+log)
 			try                       { log.write("^C\n"+msg+'\n') ;         }                                         // .
-			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }
+			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }                                         // NO_COV defensive programming
 	}
 
 	//

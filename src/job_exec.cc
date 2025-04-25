@@ -4,7 +4,6 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sched.h>
-#include <sys/mount.h>
 #include <sys/resource.h>
 #include <unistd.h>       // sysconf
 
@@ -293,7 +292,7 @@ static bool is_special( char c , int esc_lvl , bool first=false ) {
 	}
 }
 
-// replace calll to BASH by direct execution if a single command can be identified
+// replace call to BASH by direct execution if a single command can be identified
 bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_ss const& cmd_env ) {
 	if (res.size()!=1) return false/*done*/ ;                                                        // options passed to bash
 	if (res[0]!=BASH ) return false/*done*/ ;                                                        // not standard bash
@@ -418,7 +417,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	static Atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",targets->size(),crcs->size()) ;
-	NodeIdx cnt = 0 ;                                             // cnt is for trace only
+	NodeIdx cnt = 0 ;                                                      // cnt is for trace only
 	*sz = 0 ;
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 		NodeIdx                 ti     = (*crcs)[ci]    ;
@@ -429,10 +428,10 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 			//             vvvvvvvvvvvvvvvvvvvvvvvvvv
 			e.second.crc = Crc( e.first , /*out*/fi ) ;
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {
+		} catch (::string const& e) {                                      // START_OF_NO_COV defensive programming
 			Lock lock{*msg_mutex} ;
 			*msg <<set_nl<< "while computing checksum for "<<e<<" : "<<e ;
-		}
+		}                                                                  // END_OF_NO_COV
 		e.second.sig       = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
 		*sz               += fi.sz    ;
@@ -489,23 +488,23 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace        = &end_report.exec_trace     ;
 	g_exec_trace->push_back({ start_overhead , Comment::startOverhead }) ;
 	//
-	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {
-		get_start_info(server_fd) ;                                                                                          // getting start_info is useless, but necessary to be allowed to report end
+	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {                                          // START_OF_NO_COV defensive programming
+		get_start_info(server_fd) ;                                                                 // getting start_info is useless, but necessary to be allowed to report end
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;
-	}
-	Trace::s_sz = 10<<20 ;                                                                                                   // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                                                  // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                                     // dont cd, but check we are in a repo
+	}                                                                                               // END_OF_NO_COV
+	Trace::s_sz = 10<<20 ;                                                                          // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                         // necessary to capture it using signalfd
+	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                            // dont cd, but check we are in a repo
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
 		g_start_info = get_start_info(server_fd) ;
-		if (!g_start_info) return 0 ;                                                                                        // server ask us to give up
+		if (!g_start_info) return 0 ;                                                                                                     // server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;          }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;          }                                                // NO_COV defensive programming
 		//
 		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
 		//
@@ -517,19 +516,19 @@ int main( int argc , char* argv[] ) {
 		//
 		try {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard )) ;
-		} catch (::string const& e) {
+		} catch (::string const& e) {                                                                                                     // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += ensure_nl(e) ;
 			end_report.digest.status = Status::LateLostErr ;
 			goto End ;
-		}
+		}                                                                                                                                 // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_exec_trace->push_back({ washed , Comment::washed }) ;
 		//
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                                               // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                                                                            // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
@@ -591,8 +590,8 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_host        = host()                                                                 ; // host on which fast_report_pipe works
-		g_start_info.autodep_env.fast_report_pipe = top_repo_root_s+PrivateAdminDirS+"fast_reports/"+g_start_info.small_id ; // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.fast_host        = host()                                                                 ;              // host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = top_repo_root_s+PrivateAdminDirS+"fast_reports/"+g_start_info.small_id ;              // fast_report_pipe is a pipe and only works locally
 		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                     ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
@@ -640,7 +639,7 @@ int main( int argc , char* argv[] ) {
 		//                                   vvvvvvvvvvvvvvvvvvvvv
 		try                       { status = g_gather.exec_child() ;            }
 		//                                   ^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }           // NO_COV defensive programming
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                // XXX> : suppress when CentOS7 bug is fixed
@@ -704,7 +703,7 @@ End :
 		}
 	}
 	try                       { g_start_info.exit() ;                             }
-	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                             // NO_COV defensive programming
 	//
 	return 0 ;
 }

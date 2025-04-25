@@ -774,7 +774,7 @@ namespace Backends {
 				be->addr = addrs[0].second ;
 			} else if (be->is_local()) {
 				be->addr = SockFd::LoopBackAddr ;                                                               // dont bother user for local backend
-			} else if (addrs.size()==0) {
+			} else if (addrs.size()==0) {                                                                       // START_OF_NO_COV condition is system dependent
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
 				::string msg   = "multiple possible interfaces : " ;
@@ -791,7 +791,7 @@ namespace Backends {
 					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
 				}
 				throw msg ;
-			}
+			}                                                                                                   // END_OF_NO_COV
 			be->addr = addrs[0].second ;
 		}
 		trace(_s_job_exec) ;

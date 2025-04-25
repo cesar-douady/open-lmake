@@ -249,7 +249,7 @@ namespace Backends {
 		//
 		virtual SpawnId launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& ) const = 0 ;
 		//
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ) const { // transform remote resources into local resources
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ) const { // START_OF_NO_COV system dependent, transform remote resources into local resources
 			::umap_s<size_t> capa   = mk_umap(capacity) ;
 			::vmap_ss        res    ;
 			bool             single = false             ;
@@ -262,7 +262,7 @@ namespace Backends {
 			}
 			if (single) res.emplace_back( "<single>" , "1" ) ;
 			return res ;
-		}
+		}                                                                                                 // END_OF_NO_COV
 
 		// services
 		virtual void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) {

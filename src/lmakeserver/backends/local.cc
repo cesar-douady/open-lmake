@@ -125,9 +125,9 @@ namespace Backends::Local {
 		virtual ::vmap_s<size_t> const& capacity() const {
 			return public_capacity ;
 		}
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const {
+		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const {       // START_OF_NO_COV defensive programming (cannot make local local)
 			return ::move(rsrcs) ;
-		}
+		}                                                                                                           // END_OF_NO_COV
 		//
 		virtual ::vmap_ss  export_   ( RsrcsData const& rs             ) const { return rs.mk_vmap(rsrc_keys)           ; }
 		virtual RsrcsData  import_   ( ::vmap_ss     && rs , Req , Job ) const { return RsrcsData(::move(rs),rsrc_idxs) ; }
@@ -184,16 +184,16 @@ namespace Backends::Local {
 			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
 			/**/                                cmd_line_.push_back(nullptr  ) ;
 			// calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			pid_t pid = ::vfork() ;                                                                         // NOLINT(clang-analyzer-security.insecureAPI.vfork)
+			pid_t pid = ::vfork() ;                                                                                // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
-			if (!pid) {                                                                                     // in child
+			if (!pid) {                                                                                            // in child
 				if (se.verbose) {
-					AcFd stderr_fd { dir_guard(get_stderr_file(job)) , Fd::Write , true/*no_std*/ } ;       // close fd once it has been dup2'ed
-					::dup2(stderr_fd,Fd::Stderr) ;                                                          // we do *not* want the O_CLOEXEC flag as we are precisely preparing fd for child
+					AcFd stderr_fd { dir_guard(get_stderr_file(job)) , Fd::Write , true/*no_std*/ } ;              // close fd once it has been dup2'ed
+					::dup2(stderr_fd,Fd::Stderr) ;                                                                 // we do *not* want the O_CLOEXEC flag as we are precisely preparing fd for child
 				}
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_.data()) , const_cast<char**>(_env.get()) ) ;
-				Fd::Stderr.write("cannot exec job_exec\n") ;
-				::_exit(+Rc::System) ;                                                                      // in case exec fails
+				Fd::Stderr.write("cannot exec job_exec\n") ;                                                       // NO_COV defensive programming
+				::_exit(+Rc::System) ;                                                                             // NO_COV defensive programming, in case exec fails
 			}
 			SWEAR(pid>0) ;
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux

@@ -290,7 +290,7 @@ LMAKE_ALL_FILES_DBG := $(LMAKE_ALL_FILES) $(LMAKE_BIN_FILES)
 
 LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) )
 
-align.tok : _bin/align_comments $(filter-out lmake_env/ext_lnks,$(SRCS))
+align.tok : _bin/align_comments $(filter-out lmake_env/ext_lnk,$(SRCS))
 	@echo check comments alignment
 	@set -e ;                                                               \
 	for f in $(SRCS) ; do                                                   \

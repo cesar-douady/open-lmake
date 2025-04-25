@@ -36,6 +36,7 @@ if __name__!='__main__' :
 else :
 
 	import os
+	import subprocess as sp
 
 	import ut
 
@@ -52,3 +53,12 @@ else :
 	#
 	print('good',file=open('phy_dep','w'))
 	ut.lmake( 'test' , changed=1 , done=2 )                   # check deps are correctly recorded through file views
+
+	x = sp.check_output(('ldebug','-t','dut'),universal_newlines=True)
+	assert open('ref').read()==x
+
+	x = sp.check_output(('lshow','-i','dut'),universal_newlines=True)
+	assert 'views' in x and 'log_dep' in x and 'phy_dep' in x and 'log_dir/' in x and 'phy_dir/' in x
+
+	px = eval(sp.check_output(('lshow','-ip','-J','dut'),universal_newlines=True))
+	assert px['views'] == { 'log_dep':'phy_dep' , 'log_dir/':'phy_dir/' }

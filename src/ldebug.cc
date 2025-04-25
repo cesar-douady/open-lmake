@@ -55,13 +55,14 @@ int main( int argc , char* argv[] ) {
 	char* exec_args[] = { script_file.data() , nullptr } ;
 	//
 	if (cmd_line.flags[ReqFlag::NoExec]) {
-		Fd::Stdout.write("script file : "s+script_file+'\n') ;
+		Fd::Stderr.write("script file : "s+script_file+'\n') ;
 	} else {
+		// START_OF_NO_COV coverage info are gathered upon exit, hence they are not collected if calling ::execv()
 		Fd::Stderr.write("executing : "s+script_file+'\n') ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		::execv(script_file.c_str(),exec_args) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		//
 		exit(Rc::System,"could not run ",script_file) ;
+		// END_OF_NO_COV
 	}
 }

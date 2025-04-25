@@ -299,9 +299,9 @@ By the way, the execution is lighter and code is not heavier.
 
 # Coverage
 In order to produce coverage results, do the following:
-	- `git clean -ffdx` or at least `rm -f sys_config.env ; find . -name '*.gcda' | xargs rm`
-	- `LMAKE_FLAGS=C make ALL`
-	- `make src/store/unit_test`
+	- `git clean -ffdx` (or at least `find . -name '*.gcda' -o -name '*tok' | xargs rm ; git clean -ffdx lmake_env*` if C flag is already in use)
+	- `LMAKE_FLAGS=C make ALL` (or faster : `LMAKE_FLAGS=C make -j8 LMAKE LINT ALIGN lmake.tar.gz ; make ALL`)
+		- a few fails are ok (as of now, `unit_tests/namespaces.dir/tok` fails)
 	- `make GCOV`
 
 All data are generated in the `gcov` directory:

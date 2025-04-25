@@ -49,6 +49,7 @@ else :
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2           ) # check reconvergence
 	ut.lmake( 'hello+_sh'      , '+world_py'      , bad_dep=2 , rc=1 ) # check empty deps prevent job from matching
 
+	assert os.system('ldebug -tn hello+world_sh'                   )==0 # coverage is not collected if -n flag not present
 	assert os.system('ldebug -t hello+world_sh'                    )==0 # check no crash
 	assert os.system('ldump_job LMAKE/lmake/local_admin/job_data/2')==0 # check no crash
 	assert os.system('lkpi'                                        )==0 # check no crash
