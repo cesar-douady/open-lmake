@@ -874,6 +874,7 @@ DEBIAN_DEPS :
 install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
 	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	set -e ; for f in apparmor                                        ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
 	set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
 	set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
 
