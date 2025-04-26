@@ -9,9 +9,8 @@ if command -v py3clean >/dev/null 2>&1 ; then
 	py3clean /usr/lib/open-lmake/lib/
 fi
 
-if [ -e /etc/apparmor.d/usr.bin.lmake ] ; then
-	apparmor_parser --remove /etc/apparmor.d/usr.bin.lmake
-	rm -f /etc/apparmor.d/usr.bin.lmake
+if [ -e /etc/apparmor.d/open-lmake ] ; then
+	apparmor_parser --remove /etc/apparmor.d/open-lmake
 fi
 
 #DEBHELPER#

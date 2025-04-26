@@ -872,17 +872,19 @@ DEBIAN_DEPS :
 # /!\ these rules are necessary for debian packaging to work, they are not primarily made to be executed by user
 #
 install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
-	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	set -e ; for f in apparmor                                        ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
-	set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@echo -n installing ...
+	@set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	@set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	@set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@echo '' done
 
 clean :
-	@echo cleaning...
+	@echo -n cleaning ...
 	@rm -rf Manifest.inc_stamp sys_config.log sys_config.trial sys_config.mk sys_config.h sys_config.sum sys_config.err
-	@find . -name '*.d' -exec rm {} \;
+	@find . -name '*.d' -type f | xargs rm -f
 	@rm -f $(SLURM_SRCS)
+	@echo '' done
 
 DEBIAN_SRC : $(patsubst %,$(DEBIAN_TAG)-$(DEBIAN_RELEASE)~%_source.changes , $(DISTROS) )
 DEBIAN_BIN : $(DEBIAN_TAG).bin_stamp
@@ -894,7 +896,7 @@ DEBIAN_COPY   := $(filter-out %.src,$(DEBIAN_DEBIAN))
 
 # as of now, stacktrace is incompatible with split debug info
 $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
-	@echo generate $(DEBIAN_DIR)
+	@echo generate debian dir $(DEBIAN_DIR)
 	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
 	@echo LMAKE_FLAGS=gtl > $(DEBIAN_DIR)/sys_config.env

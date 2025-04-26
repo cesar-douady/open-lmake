@@ -9,9 +9,4 @@ if command -v py3compile >/dev/null 2>&1 ; then
 	py3compile /usr/lib/open-lmake/lib/
 fi
 
-if [ -d /etc/apparmor.d ] ; then
-	install -m 644 /usr/lib/open-lmake/apparmor /etc/apparmor.d/usr.bin.lmake
-	apparmor_parser --replace /etc/apparmor.d/usr.bin.lmake
-fi
-
 #DEBHELPER#

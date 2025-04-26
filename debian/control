@@ -9,6 +9,7 @@ Priority: optional
 Maintainer: Cesar Douady <cesar.douady@doliam.fr>
 Build-Depends:
  debhelper-compat (= 13),
+ dh-apparmor,
  ed,
  wget,
  m4,
