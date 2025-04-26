@@ -206,8 +206,6 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* check static deps after critical
-	- ensure they stay as deps
 ! add a unit_test to validate max_retries_on_lost
 ! idx overflow
 	- check with 8-bits indexes
