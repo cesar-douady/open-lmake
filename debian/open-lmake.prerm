@@ -5,4 +5,8 @@ if command -v py3clean >/dev/null 2>&1 ; then
 	py3clean /usr/lib/open-lmake/lib/
 fi
 
+if aa-enabled --quiet 2>/dev/null; then
+	apparmor_parser --remove /etc/apparmor.d/open-lmake || true
+fi
+
 #DEBHELPER#
