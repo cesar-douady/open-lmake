@@ -199,6 +199,9 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
+* improve lmake/depend/ldepend doc
+	- cf whatsapp exchange w/ Sylvain
+* kill -2 lmakeserver
 * add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 

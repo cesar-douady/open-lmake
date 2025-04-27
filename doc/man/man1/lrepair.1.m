@@ -5,7 +5,7 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(lrepair,repair a OpenLmake repository)
+Title(lrepair,repair a OpenLmake repo)
 .SH SYNOPSYS
 B(lrepair)
 
@@ -17,9 +17,9 @@ In such a case, OpenLmake will suggest the use of B(lrepair).
 .LP
 In case of incoherent behavior, the user may decide to run B(lrepair).
 .LP
-This process is pretty long, the goal being to avoid having to restart from a fresh repository, which may incur a severe cost in terms of compute power.
+This process is pretty long, the goal being to avoid having to restart from a fresh repo, which may incur a severe cost in terms of compute power.
 .LP
-Once B(lrepair) is done, it generates some suggestions about what to do with the freshly repaired repository, including step back and forget about the repairation.
+Once B(lrepair) is done, it generates some suggestions about what to do with the freshly repaired repo, including step back and forget about the repairation.
 
 ClientGeneralities()
 

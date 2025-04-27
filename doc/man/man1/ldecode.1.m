@@ -28,7 +28,7 @@ Item((2))
 	C(lencode) and B(ldecode) are useful tools when the flow implies file names whose names are impractical.
 	This is a way to transform long file names into much shorter ones by keeping an association file to retrieve long info from short codes.
 Item((3))
-	Using this functionality may imply C(git) conflicts on the association file when several users independently create associations in their repositories.
+	Using this functionality may imply C(git) conflicts on the association file when several users independently create associations in their repos.
 	This is fully dealt with and the only thing left to the user is to accept the resolution of the conflict B(without any action).
 
 Footer

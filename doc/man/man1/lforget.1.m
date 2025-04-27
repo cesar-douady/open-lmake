@@ -14,7 +14,7 @@ In its first form, subsequent C(lmake) commands will forget about the build hist
 As a consequence, these targets will appear out-of-date.
 
 This is exceptionally useful in situations where B(lmake)'s hypotheses are broken :
-Bullet A file outside the repository is modified. Because B(lmake) does not track modifications outside the repository, it canot rerun jobs that must be rerun, this must be done manually.
+Bullet A file outside the repo is modified. Because B(lmake) does not track modifications outside the repo, it canot rerun jobs that must be rerun, this must be done manually.
 Bullet An error is transient. Another option is to launch B(lmake -e) which asks to consider jobs in error as out-of-date.
 
 ClientGeneralities()
@@ -35,7 +35,7 @@ This is useful in scenarios such as the following one :
 	Bullet Then you have modified the allocated memory, increasing J2's memory and decreasing J1's memory because you think it is better balanced this way.
 	Bullet Then you remade both jobs. J2 reran because it was in error and now completes successfully. J1 did not rerun because it was ok and modifying some resources would not change the result.
 	Bullet However, it could be that now J1 does not have enough memory any more. It is not a problem in itself because its content is correct, but it may not be reproducible.
-	Bullet You want to make sure your repository is fully reproducible.
+	Bullet You want to make sure your repo is fully reproducible.
 	Bullet In that case, you run B(lforget -r). J1 will rerun because it was not run with the newer resources, as if its command was modified. J2 will not because it has already been run since then.
 .RE
 

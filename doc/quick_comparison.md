@@ -14,7 +14,7 @@
 | `unzip` like job support                 | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?            |
 | Multiple target                          | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                   |
 | Self-tracking                            | ❌          | ➖ commands only | ✅               | ➖ can detect    | ✅                | handle modifications of the config file ?                 |
-| Scalability                              | ➖ <100.000 | ✅ >100.000      | ✅ >1.000.000    | ❓ not a backend | ✅ >1.000.000     | c.f. [benchmarks](benchmark.md)                           |
+| Scalability                              | ➖ <100.000 | ✅ >100.000      | ✅ >1.000.000    | ❓ not a backend | ✅ >1.000.000     | cf. [benchmarks](benchmark.md)                            |
 | content based                            | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?             |
 | Matching                                 | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                           |
 | User friendly DSL                        | ❌ specific | ✅ very simple   | ➖ python subset | ❌ specific      | ✅ python         |                                                           |

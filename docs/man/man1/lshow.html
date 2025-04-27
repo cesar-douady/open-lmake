@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Apr 23 15:51:26 2025 -->
+<!-- CreationDate: Sun Apr 27 19:40:19 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -64,18 +64,17 @@ that actually produced the job (a.k.a the polluting job) are
 provided.</p>
 
 <p style="margin-left:9%; margin-top: 1em"><b>lshow</b>
-manages a fully coherent directory called a repository. When
-it starts, it first determines the root of the repository
-(cf. <b>FILES</b> below).</p>
+manages a fully coherent dir called a repo. When it starts,
+it first determines the root of the repo (cf. <b>FILES</b>
+below).</p>
 
 <p style="margin-left:9%; margin-top: 1em">Arguments and
 reports are systematically localized to the current working
-directory. For example, if you launch <b>lshow b</b> from
-directory <b>a</b> in your repository, the argument is file
-<i>a/b</i> from the root of the repository and reports
-containing file names (initially seen from the root of the
-repository) will be shown relative the the current working
-directory.</p>
+dir. For example, if you launch <b>lshow b</b> from dir
+<b>a</b> in your repo, the argument is file <i>a/b</i> from
+the root of the repo and reports containing file names
+(initially seen from the root of the repo) will be shown
+relative the the current working dir.</p>
 
 <p style="margin-left:9%; margin-top: 1em">If launched from
 a terminal, output is colored. Colors are different
@@ -179,7 +178,15 @@ provided to the <b>--video</b> option.</p>
 <p style="margin-left:9%; margin-top: 1em">These options
 are common to all tools of the <i>open-lmake</i> set of
 utilities : <b><br>
--h</b>,<b>--help</b></p>
+--version</b></p>
+
+<p style="margin-left:18%;">Print version and exit. Version
+is in the form &quot;year.month.tag (key)&quot; where
+&quot;year.month&quot; forms the major version,
+&quot;tag&quot; the minor version and &quot;key&quot; is
+indicates the format of the persistent information.</p>
+
+<p style="margin-left:9%;"><b>-h</b>,<b>--help</b></p>
 
 <p style="margin-left:18%;">Print a short help and exit. It
 is composed of:</p>
@@ -207,10 +214,7 @@ is composed of:</p>
 <td width="73%">
 
 
-<p>Version in the form &quot;year.month.tag (key)&quot;
-where &quot;year.month&quot; forms the major version,
-&quot;tag&quot; the minor version and &quot;key&quot; is
-indicates the format of the persistent information.</p></td></tr>
+<p>Version as described above.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -287,7 +291,7 @@ option is provided, intermediate files are shown in gray. If
 (if not <b>--verbose</b>) or as a <b>tuple</b> (if
 <b>--verbose</b>). In the latter case, it is guaranteed that
 deps are going downards, i.e. dependents appear before their
-dependencies. If arguments are files, the output is not a
+deps. If arguments are files, the output is not a
 <b>dict</b> and is the list necessary to generate all the
 arguments.</p>
 
@@ -493,9 +497,9 @@ composed of the rule name, the job name and a comment. The
 keys are all jobs potentially producing given file. If arg
 is a job, the output is a mentioned below. The value is a
 <b>tuple</b> of sequential deps groups, each deps group
-being a tuple of parallel deps. Each dep is represented as a
-<b>tuple</b> composed of dep flags, access flags, key and
-name.</p>
+being a <b>set</b> of parallel deps. Each dep is represented
+as a <b>tuple</b> composed of dep flags, access flags, key
+and name.</p>
 
 <p style="margin-left:9%;"><b>-D</b>,<b>--inv-deps</b></p>
 
@@ -739,12 +743,12 @@ are specific to <b>lshow</b> : <b><br>
 
 <p style="margin-left:18%;">In porcelaine mode, information
 is provided as an easy-to-parse python object. Also,reported
-files are relative to the root of the repository, not the
-current workind directory. If argument is a job, the output
-is as described for each sub-command. unless mentioned
-otherwise, if arguments are files, the output is a
-<b>dict</b> whose keys are the arguments and values are as
-described above.</p>
+files are relative to the root of the repo, not the current
+workind dir. If argument is a job, the output is as
+described for each sub-command. unless mentioned otherwise,
+if arguments are files, the output is a <b>dict</b> whose
+keys are the arguments and values are as described
+above.</p>
 
 <h2>ENVIRONMENT
 <a name="ENVIRONMENT"></a>
@@ -762,12 +766,12 @@ described above.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The files
 <i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
-searched in the current directory and in parent directories.
-If a single one is found, this determines the root of the
-repository. If several are found, the existence of an
-<i>LMAKE</i> directory is checked. If a single one is found,
-this determines the root of the repository. In other cases,
-<b>lshow</b> will not start.</p>
+searched in the current dir and in parent dirs. If a single
+one is found, this determines the root of the repo. If
+several are found, the existence of an <i>LMAKE</i> dir is
+checked. If a single one is found, this determines the root
+of the repo. In other cases, <b>lshow</b> will not
+start.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>

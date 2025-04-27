@@ -47,7 +47,7 @@ In doing so, you must account for:
 One way to deal with this case is to create a central database, with the following pros and cons:
 
 - robustness    : collisions can easily be dealt with.
-- repeatability : this is a probleme. When dealing with collisions, some codes change, which change old repository because the database is not itself versioned. This is a serious problem.
+- repeatability : this is a probleme. When dealing with collisions, some codes change, which change old repo because the database is not itself versioned. This is a serious problem.
 - merging       : no merging.
 - perfomance    : accessing the data in a performant way is easy. Detecting modifications so that open-lmake can take sound decisions may be more challenging.
 - communication : excellent, the database is shared

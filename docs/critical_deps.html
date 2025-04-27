@@ -159,11 +159,11 @@
 <h1 id="critical-deps"><a class="header" href="#critical-deps">Critical deps</a></h1>
 <p>The question of critical deps is a performance only question.
 Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.</p>
-<p>During dependency analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>
+<p>During dep analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>
 <ul>
 <li>One possibility is to anticipate that the modification of <code>dep1</code> has no impact on the list of following deps.
 With such an anticipation, open-lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, open-lmake will launch all necessary jobs to rebuild
-all dependencies in parallel, even if the deps have been explicitly declared parallel.</li>
+all deps in parallel, even if the deps have been explicitly declared parallel.</li>
 <li>Another possivility is to anticipate that such a modification of <code>dep1</code> will drastically change the list of following deps.
 With such an anticipation, as soone as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of <code>dep1</code> is meaningless.</li>
 </ul>
@@ -177,8 +177,8 @@ The second strategy is conservative: build only what is certain to be required.<
 <li>a test suite <code>test_suite.lst</code> listing these reports</li>
 <li>a rule that builds <code>test_suite.rpts</code> by collating reports listed in <code>test_suite.lst</code></li>
 </ul>
-<p>In such a situation, the rule building <code>test_suite.rpts</code> typically has <code>test_suite.lst</code> as a static dependency but the actual reports <code>test1.rpt</code> and <code>test2.rpt</code> are
-hidden dependencies, i.e. automatically discovered when building <code>test_suite.rpts</code>.</p>
+<p>In such a situation, the rule building <code>test_suite.rpts</code> typically has <code>test_suite.lst</code> as a static dep but the actual reports <code>test1.rpt</code> and <code>test2.rpt</code> are
+hidden deps, i.e. automatically discovered when building <code>test_suite.rpts</code>.</p>
 <p>Suppose now that you make a modification that makes <code>test2.rpt</code> very heavy to generate. Knowing that, you change your test suite so list a lighter <code>test3.rpt</code> instead.
 The succession of jobs would then be the following:</p>
 <ul>
@@ -194,7 +194,7 @@ The succession of jobs would then be the following:</p>
 <li><code>test1.rpt</code> and <code>test3.rpt</code> are rebuilt sequentially.</li>
 </ul>
 <p>The problem lies in the fact that <code>test1.rpt</code> and <code>test2.rpt</code> are rebuilt before open-lmake had a chance to re-analyze the test suite showing that the new tests are test1 and test3.
-Generally speaking, this is a good strategy : such modifications of the dependency graph happens rather rarely and speculating that it is pretty stable by building known dependencies before
+Generally speaking, this is a good strategy : such modifications of the dep graph happens rather rarely and speculating that it is pretty stable by building known deps before
 launching a job is the right option.
 But here, because collating is very light (something like just executing <code>cat</code> on the reports), it is better to check <code>tests_suilte.lst</code> first,
 and if it changed, rerun the collation before ensuring (old) tests have run.</p>
@@ -205,7 +205,7 @@ Such a flag can either be passed when declaring static deps in a rule, or dynami
 <li>Set the <code>critial</code> flag on <code>test_suite.lst</code> (before or after actually reading it, this has no impact).</li>
 <li>Read <code>test_suite.lst</code>.</li>
 <li>Call <code>ldepend</code> on the reports listed in <code>test_suite.lst</code>.
-This is optional, just to generate parallel dependencies instead of automatic sequential dependencies (but if done, it must be before actually reading the reports).</li>
+This is optional, just to generate parallel deps instead of automatic sequential deps (but if done, it must be before actually reading the reports).</li>
 <li>Collate reports listed in <code>test_suite.lst</code>.</li>
 </ul>
 <p>And the succession of job would be:</p>

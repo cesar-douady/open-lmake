@@ -19,11 +19,11 @@ The `tuple` of implemented autodep methods.
 
 ### `repo_root`
 
-The root directory of the (sub)-repository.
+The root dir of the (sub)-repo.
 
 ### `top_repo_root`
 
-The root directory of the top level repository.
+The root dir of the top-level repo.
 
 ### `version`
 
@@ -60,7 +60,7 @@ For example, some default values may be modified and if they are used before thi
 
 ### `run_cc( *cmd_line , marker='...' , stdin=None )`
 
-This functions ensures that all directories listed in arguments such as `-I` or `-L` exist reliably.
+This functions ensures that all dirs listed in arguments such as `-I` or `-L` exist reliably.
 
 `marker` is the name of a marker file which is created in include dirs to guarantee there existence.
 
@@ -69,6 +69,7 @@ This functions ensures that all directories listed in arguments such as `-I` or 
 ### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )`
 
 Declare `deps` as parallel deps (i.e. no order exist between them).
+Note that the default value for the `required` argument is `True`.
 
 If `follow_symlinks` and one of the `deps` is a symbolic link, follow it.
 
@@ -81,19 +82,60 @@ If `verbose`, return a dict with one entry par dep where:
   - ok = None is the dep was not built
   - checksum is computed after the dep
 
-If `read`, pretend `deps` were read.
+If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 
-For `critical`, `essential`, `ignore`, `ignore_error` and `required`, set the corresponding [flag](rules.html#deps) on all `deps`.
+For `critical`, `essential`, `ignore`, `ignore_error` and `required`, set the corresponding [flag](rules.html#deps) on all `deps`:
+
+- If `critical`,     create critical deps (cf. note (5)).
+- If `essential`,    passed deps will appear in the flow shown with a graphical tool.
+- If `ignore_error`, ignore the error status of the passed deps.
+- If `not required`, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).
+- If `ignore`,       deps are ignored altogether, even if further accessed (but previous accesses are kept).
 
 Flags accumulate and are never reset.
 
+Notes:
+
+- (1):
+	The same functionality is provided with the `ldepend` executable.
+- (2):
+	Flags can be associated to deps on a regexpr (matching on dep name) basis by using the `side_deps` rule attribute.
+- (3):
+	If `cat a b` is executed, open-lmake sees 2 `open` system calls, to `a` then to `b`, exactly the same sequence that if one did `cat $(cat a)` and `a` contained `b`.  
+	Suppose now that `b` is an error. This is a reason for your job to be in error.
+	But if `a` is modifed, in the former case, this cannot solve the error while in the later case, it may if the new content of `a` points to a file that may successfully be built.
+	Because open-lmake cannot distinguish between the 2 cases, upon a modification of `a`, the job will be rerun in the hope that `b` is not accessed any more.
+	Parallel deps prevents this trial.
+- (4):
+	If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
+	and if the series of file does not depend on the actual content of said files,
+	then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
+	The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.
+- (5):
+	If a series of dep is directly derived from the content of a file, it may be wise to declare it as critical.
+	When a critical dep is modified, open-lmake forgets about deps reported after it.  
+	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
+	and open-lmake anticipates this by building these deps speculatively.
+	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
+	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
+
 ### `target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )`
 
-Declare `targets` as targets.
+Declare `targets` as targets and alter associated flags.
+Note that the `allow` argument default value is `True`.
 
-If `write`, pretend `targets` were written.
+Also, calling this function does not make `targets` official targets of the job, i.e. `targets` are side targets.
+The official job of a target is the one selected if needing its content, it must be known before any job is run.
 
-For `allow`, `essential`, `ignore`, `incremental`, `no_warning` and `source_ok`, set the corresponding [flag](rules.html#targets) on all `targets`.
+If `write`, report that `targets` were written to.
+
+For `allow`, `essential`, `ignore`, `incremental`, `no_warning` and `source_ok`, set the corresponding [flag](rules.html#targets) on all `targets`:
+- If `essential`,   show when generating user oriented graphs.
+- If `incremental`, `targets` are not unlinked before job execution and read accesses to them are ignored.
+- If `no_warning`,  no warning is emitted if `targets` are either uniquified or unlinked while generated by another job.
+- If `ignore`,      from now on, ignore all reads and writes to `targets`.
+- If `not allow`,   do not make `targets` valid targets.
+- If `source_ok`,   accept that `targets` be sources. Else, writing to a source is an error.
 
 Flags accumulate and are never reset.
 
@@ -104,7 +146,7 @@ Job will be killed in case some deps are not up-to-date.
 
 If `sync`, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
-the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).
+the dirs of previous deps actually exist if such deps are not read (such as with lmake.depend).
 
 **CAVEAT**
 
@@ -162,7 +204,7 @@ Return a checksum of provided file.
 
 The checksum is :
 
-- none                                         if file does not exist, is a directory or a special file
+- none                                         if file does not exist, is a dir or a special file
 - empty-R                                      if file is empty
 - xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty
 - xxxxxxxxxxxxxxxx-L                           if file is a symbolic link

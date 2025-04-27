@@ -14,7 +14,7 @@ This is based in the historical I(make) program initially written by Stuart Feld
 Bullet
 B(lmake) is reliable.
 It ensures that necessary jobs are run in adequate order so that the asked files are in the same state as if all derived files were removed and all jobs were run.
-In particular, this includes automatic discovery of actual dependencies.
+In particular, this includes automatic discovery of actual deps.
 Bullet
 B(lmake) is scalable.
 Millions of files can be derived easily (job execution may require heavy resources, but B(lmake) will stay light).
@@ -25,7 +25,7 @@ Rule matching is based of regular expressions, not just a single wildcard (% wit
 Bullet
 Recipies can be written in C(bash) or C(python).
 Bullet
-Several B(lmake) commands can be run simultaneously in the same directory.
+Several B(lmake) commands can be run simultaneously in the same dir.
 Jobs needed by several of them will be shared.
 Simlarly sources files can be edited without risks while B(lmake) is running.
 Derived files will be generated according to the state of the source files at the time the command was launched.
@@ -35,7 +35,7 @@ Bullet
 File states are based on content (using a checksum) rather than dates.
 This makes it possible to avoid running a dependent job if a file has been reconstructed identically to its previous content.
 .LP
-To reach these goals, B(lmake) maintains a state in the I(LMAKE) directory, instrument jobs (to catch all file accesses) during their execution
+To reach these goals, B(lmake) maintains a state in the I(LMAKE) dir, instrument jobs (to catch all file accesses) during their execution
 and launches a daemon (called B(lmakeserver)) that can be shared between several concurrent invocations of B(lmake).
 .LP
 B(lmake) generates an output line for each significant event :
@@ -53,7 +53,7 @@ During execution, if launched from a terminal, B(lmake) also generates a progres
 This progression status line contains :
 Bullet The number of executed jobs (split between useful, rerun and hit)
 Bullet The number of queued jobs, i.e. jobs that are waiting for resources to be run
-Bullet The number of waiting jobs, i.e. jbos that are waiting for dependencies to be run
+Bullet The number of waiting jobs, i.e. jbos that are waiting for deps to be run
 .LP
 At the end of the execution, if the asked targets are not successfully generated, a summary is generated reminding the errors (with a configurable max, 20 by default)
 and the stderr of the first error. Intermediate targets are deemed of secondary importance.
@@ -69,7 +69,7 @@ ClientOptions(color)
 SpecificOptions
 Item(B(-a),B(--archive))
 Ensure all intermediate files are up to date, in addition to the asked targets.
-This is useful for example if you want to archive a fully built repository.
+This is useful for example if you want to archive a fully built repo.
 Item(B(-b) I(value),B(--backend)=I(value))
 Pass value to backend (cf. backend documentation for each backend).
 This is used for example to pass a partition or specificities to the slurm backend for a particular command.
@@ -101,9 +101,9 @@ Item(B(-s),B(--source-ok))
 Normally, B(lmake) refuses to launch a job that may overwrite a source.
 With this option, the user instructs B(lmake) that this is allowed.
 Item(B(-t),B(--keep-tmp))
-Normally, B(lmake) washes the temporary directory allocated to a job at the end of job execution.
-With this option, the user instructs B(lmake) to keep the temporary directories, as if the I(keep_tmp) attribute was set for all rules.
-The kept temporary directory can be retreived with B(lshow -i).
+Normally, B(lmake) washes the temporary dir allocated to a job at the end of job execution.
+With this option, the user instructs B(lmake) to keep the temporary dirs, as if the I(keep_tmp) attribute was set for all rules.
+The kept temporary dir can be retreived with B(lshow -i).
 Item(B(-v),B(--verbose))
 Enable the generation of some execution information from backend.
 This is not done systematicly as this may incur a performance hit.
@@ -119,7 +119,7 @@ Else it exits with a non-zero status.
 While B(lmake) runs, it outputs a log.
 This log is also recorded in I(LMAKE/outputs/<start date>) with the following differences:
 Bullet It is not colored.
-Bullet Reported files are relative to the root of the repository, not to the current working directory where the B(lmake) command has been launched.
+Bullet Reported files are relative to the root of the repo, not to the current working dir where the B(lmake) command has been launched.
 .LP
 The log contains a line, possibly followed by attached information when the following events occur :
 Bullet A job is started, if the job duration is longer than the I(start_delay) attribute of the rule.
@@ -142,22 +142,22 @@ Unless explicitly asked in I(Lmakefile.py), the environment is mostly ignored wh
 The goal is to improve repeatability by protecting jobs from the variability environment variables may cause.
 In particular :
 Bullet
-B($HOME) is redirected to the root of the repository.
-This protects the job from all specificities stored in I(.xxxrc) files in the home directory.
+B($HOME) is redirected to the root of the repo.
+This protects the job from all specificities stored in I(.xxxrc) files in the home dir.
 Bullet
 B($LMAKE_ARGS), although used by B(lmake), is not passed to jobs.
 Bullet
-B($PATH) is reset to the default path for the system, plus the OpenLmake bin directory.
+B($PATH) is reset to the default path for the system, plus the OpenLmake bin dir.
 Bullet
-B($PYTHONPATH) is set to the OpenLmake lib directory.
+B($PYTHONPATH) is set to the OpenLmake lib dir.
 Bullet
-Unless set to empty, B($TMPDIR) is redirected to an isolated, empty directory which is cleaned up at the end of each job execution.
-This way, the job can freely use this directory and need not take care of clean-up.
+Unless set to empty, B($TMPDIR) is redirected to an isolated, empty dir which is cleaned up at the end of each job execution.
+This way, the job can freely use this dir and need not take care of clean-up.
 .LP
 Moreover, a few variables are set during job execution :
 Bullet
 B($JOB_ID) is set to an integer specific of a job.
-It does not change between executions, but may be different in different repository, even if strictly identical.
+It does not change between executions, but may be different in different repo, even if strictly identical.
 Bullet
 B($SMALL_ID) is set to a as small as possible integer such that a different value is set for jobs running concurrently.
 Bullet

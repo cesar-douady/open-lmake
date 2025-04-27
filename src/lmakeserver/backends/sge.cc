@@ -465,7 +465,8 @@ namespace Backends::Sge {
 	//
 
 	Daemon sge_sense_daemon(SgeBackend const& be) {
-		if ( !be.sge_exec_client( { "qsub" , "-b" , "y" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ) ) throw "no SGE daemon"s ;
+		Trace trace("sge_sense_daemon") ;
+		if ( !be.sge_exec_client( { "qsub" , "-b" , "y" , "-N" , "<sense_daemon>" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ) ) throw "no SGE daemon"s ;
 		return {} ;
 	}
 

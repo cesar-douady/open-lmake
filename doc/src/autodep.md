@@ -6,7 +6,7 @@
 # Autodep
 
 Autodep is a mechanism through which jobs are spied to automatically detect disk accesses.
-From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all dependencies.
+From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all deps.
 
 ## Spying methods
 
@@ -74,7 +74,7 @@ There are 2 questions to solve :
   This requires to intercept `chdir` although no access is to be reported.
 - Symbolic link processing.
   Open-lmake lies in the physical world (and there is no way it can do anything else) and must be aware of any symbolic link traversal.
-  This includes the ones on the directory path.
+  This includes the ones on the dir path.
   So the spying code includes a functionality that resembles to `realpath`, listing all traversed links.
 
 Lying in the physical world means that symbolic links are handled like plain data files, except that there is a special bit that says it is a symbolic link.
@@ -86,13 +86,13 @@ cd a
 cat b
 ```
 
-where `b` is symbolic link to `c`, 2 dependencies are recorded:
+where `b` is symbolic link to `c`, 2 deps are recorded:
 
 - `a/b` (a symbolic link), as if it is modified, job must be rerun.
 - `a/c` (a plain data file), same reason.
 
-Generally speaking, read a file makes it a dependency, writing to it makes it a target.
-Of course, reading a file that has been written doe not make it a dependency any more.
+Generally speaking, read a file makes it a dep, writing to it makes it a target.
+Of course, reading a file that has been written doe not make it a dep any more.
 
 ## How to report accesses
 
@@ -102,19 +102,19 @@ When a job is run, a wrapper (called `job_exec`) is launched that launches the u
 
 - Prepare the user environment for the user code (environment variables, cwd, namespace if necessary, etc.).
 - Receive the accesses made by the user code (through a socket) and record them.
-- Determine what is a dependency, what is a target etc.
-- Report a job digest to the server (the central process managing the dependency DAG).
+- Determine what is a dep, what is a target etc.
+- Report a job digest to the server (the central process managing the dep DAG).
 
 The major idea is that when an access is reported by the user code (in the case of `libc` call spying), there is no reply from `job_exec` back to the user code, so no round trip delay is incurred.
 
-## Dependencies order is kept as well
+## Deps order is kept as well
 
-Remember that when a job is run, its dependencies list is **approximative**.
+Remember that when a job is run, its deps list is **approximative**.
 It is the one of the previous run, which had different file contents.
 For example, a `.c` may have changed, including a `#include` directive.
-In case there are 2 dependencies `d1` and `d2`, and `d1` was just discovered, it may be out-of date and the job ran with a bad content for `d1`.
+In case there are 2 deps `d1` and `d2`, and `d1` was just discovered, it may be out-of date and the job ran with a bad content for `d1`.
 
 Most of the time, this is harmless, but sometimes, it may happen that `d2` is not necessary any more (because old `d1` content had `#include "d2"` and new one does not).
-In that case, this job must be rerun with the new content od `d1`, even if `d2` is in error, as `d2` might disappaer as de dependency.
+In that case, this job must be rerun with the new content od `d1`, even if `d2` is in error, as `d2` might disappaer as de dep.
 
 This may only occurs if `d2` was accessed **after** `d1` was accessed. If `d2` was accessed before `d1`, it is safe to say the job cannot run because `d2` is in error: it will never disappear.

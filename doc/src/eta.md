@@ -9,17 +9,17 @@ An ETA estimation is made possible because the execution time for each job is re
 (if a job ends in error, it may very well have been much faster and the previous execution time is probably a better estimate than this one).
 When a job has never run successfully, an ETE is used instead of its actual execution time by taking a moving average of all the jobs of the same rule.
 
-This being given, a precise ETA would require a fake execution of the jobs yet to be run which can take all dependencies and resources into account.
+This being given, a precise ETA would require a fake execution of the jobs yet to be run which can take all deps and resources into account.
 But this is way too expensive, so a faster process must be done, even at the expense of precision.
 
-In all cases, the ETA assumes that no new hidden dependencies are discovered and that no file is steady so that all jobs currently remaining will actually be executed.
+In all cases, the ETA assumes that no new hidden deps are discovered and that no file is steady so that all jobs currently remaining will actually be executed.
 
 2 approaches can be considered to estimate the time necessary to carry out remaining jobs :
 
-- Resources limited : dependencies are ignored, only resources are considered.
+- Resources limited : deps are ignored, only resources are considered.
   Roughly, the time is the division of the quantity of resources necessary by the quantity of resources available.
   For example, if you need 10 minutes of processing and you have 2 cpus, this will last 10/2=5 minutes.
-- Dependencies limited : resources are ignored and only dependencies are considered. This means you only look at the critical path.
+- Deps limited : resources are ignored and only deps are considered. This means you only look at the critical path.
   For example if you need to run a 2 minutes job followed by a 3 minutes job, and in parallel you must run a 4 minutes job, this will last 2+3=5 minutes.
 
 Open-lmake uses the first approach.

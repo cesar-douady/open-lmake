@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Apr 23 15:51:25 2025 -->
+<!-- CreationDate: Sun Apr 27 19:40:18 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -55,7 +55,7 @@ a dep from a <i>open-lmake</i> job</p>
 <p style="margin-left:9%; margin-top: 1em"><b>ldepend</b>
 may be used to pass flags to <i>open-lmake</i>. Unless
 specified otherwise, passed deps are required to be
-buildable an produced without error.</p>
+buildable and produced without error.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Note that :</p>
 
@@ -193,7 +193,7 @@ flow shown with a graphical tool.</p>
 <p style="margin-left:9%;"><b>-e</b>,<b>--ignore-error</b></p>
 
 <p style="margin-left:18%;">Ignore the error status of the
-passed dependencies.</p>
+passed deps.</p>
 
 
 <p style="margin-left:9%;"><b>-r</b>,<b>--no-required</b></p>
@@ -206,8 +206,7 @@ read may fail, but <i>open-lmake</i> is ok).</p>
 
 <p style="margin-left:18%;">Deps are ignored altogether,
 even if further accessed (but previous accesses are kept).
-Default is to optimize dependency check as much as
-possible.</p>
+Default is to optimize dep check as much as possible.</p>
 
 <h2>NOTES
 <a name="NOTES"></a>
@@ -251,18 +250,18 @@ attribute.</p> </td></tr>
 <td width="82%">
 
 
-<p>If <b>cat a b</b> executed, <i>open-lmake</i> sees 2
+<p>If <b>cat a b</b> is executed, <i>open-lmake</i> sees 2
 <b>open</b>(2) system calls, to <i>a</i> then to <i>b</i>,
-exactly the same sequence that if you did <b>cat $(cat
+exactly the same sequence that if one did <b>cat $(cat
 a)</b> and <i>a</i> contained <i>b</i>.</p></td></tr>
 </table>
 
 <p style="margin-left:18%; margin-top: 1em">Suppose now
 that <i>b</i> is an error. This is a reason for your job to
-be in error. But if you modify <i>a</i>, in the former case,
-this cannot solve your error while in the later case, it may
-if the new content of <i>a</i> points to a file that may
-successfully be built. Because <i>open-lmake</i> cannot
+be in error. But if <i>a</i> is modified, in the former
+case, this cannot solve your error while in the later case,
+it may if the new content of <i>a</i> points to a file that
+may successfully be built. Because <i>open-lmake</i> cannot
 distinguish between the 2 cases, upon a modification of
 <i>a</i>, the job will be rerun in the hope that <i>b</i> is
 not accessed any more. Parallel deps prevents this
@@ -310,7 +309,7 @@ that are accessed after it, and <i>open-lmake</i>
 anticipates this by building these deps speculatively. But
 in some situations, it is almost certain that there will be
 an influence and it is preferable not to anticipate. this is
-what critical deps are made for : in case of modifications,
+what critical deps are made for: in case of modifications,
 following deps are not built speculatively.</p>
 
 <h2>SEE ALSO

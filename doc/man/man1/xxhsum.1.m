@@ -28,7 +28,7 @@ The generated checksums are put in different spaces whether they are regular fil
 Also, the execute permission bit is used to compute the checksum of regular files.
 OpenLmake does not handle permission bits (read and write permissions), but the execute bit is a semantic bit (possibly in addition to security) and thus is managed as file content.
 .LP
-Directories and other awkward files (i.e. neither a regular file or a symbolic link) are handled as if they did not exist.
+Dirs and other awkward files (i.e. neither a regular file or a symbolic link) are handled as if they did not exist.
 .LP
 A checksum is a 16-hex digit number followed by B(-R) for regular files or B(-L) for symbolic links (e.g. 1234567890123456-R).
 The following special cases produce dedicated outputs :

@@ -191,7 +191,7 @@ In that case, the file is deemed to be a source.</p>
 <h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><code>class Py2Rule(Rule)</code>, <code>class Py3Rule(Rule)</code> and <code>class PyRule(Rule)</code></a></h3>
 <p>These classes may be used as base class for rules that execute python code doing imports.</p>
 <p>It manages <code>.pyc</code> files.
-Also, it provides dependencies to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
+Also, it provides deps to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
 <p>If <code>cmd</code> is not a function, and python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
 <p>Py2Rule is used for python2, Py3Rule is used for python3. PyRule is an alias for Py3Rule.</p>
 <h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><code>class RustRule(Rule)</code></a></h3>
@@ -201,7 +201,7 @@ This base class merely sets the autodep method to <code>ld_preload</code> which 
 <h3 id="class-homelessrulerule"><a class="header" href="#class-homelessrulerule"><code>class HomelessRule(Rule)</code></a></h3>
 <p>This class sets <code>$HOME</code> to <code>$TMPDIR</code>.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
-By default <code>$HOME</code> points to the root of the repository, which permits to put various init code there.</p>
+By default <code>$HOME</code> points to the root of the repo, which permits to put various init code there.</p>
 <h3 id="class-tracerulerule"><a class="header" href="#class-tracerulerule"><code>class TraceRule(Rule)</code></a></h3>
 <p>This class sets the <code>-x</code> flag for shell rules and manage so that traces are sent to stdout rather than stderr.</p>
 <p>This allow to suppress the common idiom:</p>

@@ -8,11 +8,11 @@
 The question of critical deps is a performance only question.
 Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.
 
-During dependency analysis, when a dep (call it `dep1`) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:
+During dep analysis, when a dep (call it `dep1`) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:
 
 - One possibility is to anticipate that the modification of `dep1` has no impact on the list of following deps.
   With such an anticipation, open-lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, open-lmake will launch all necessary jobs to rebuild
-  all dependencies in parallel, even if the deps have been explicitly declared parallel.
+  all deps in parallel, even if the deps have been explicitly declared parallel.
 - Another possivility is to anticipate that such a modification of `dep1` will drastically change the list of following deps.
   With such an anticipation, as soone as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of `dep1` is meaningless.
 
@@ -29,8 +29,8 @@ For example, let's say you have:
 - a test suite `test_suite.lst` listing these reports
 - a rule that builds `test_suite.rpts` by collating reports listed in `test_suite.lst`
 
-In such a situation, the rule building `test_suite.rpts` typically has `test_suite.lst` as a static dependency but the actual reports `test1.rpt` and `test2.rpt` are
-hidden dependencies, i.e. automatically discovered when building `test_suite.rpts`.
+In such a situation, the rule building `test_suite.rpts` typically has `test_suite.lst` as a static dep but the actual reports `test1.rpt` and `test2.rpt` are
+hidden deps, i.e. automatically discovered when building `test_suite.rpts`.
 
 Suppose now that you make a modification that makes `test2.rpt` very heavy to generate. Knowing that, you change your test suite so list a lighter `test3.rpt` instead.
 The succession of jobs would then be the following:
@@ -47,7 +47,7 @@ There are 2 losses of performance here:
 - `test1.rpt` and `test3.rpt` are rebuilt sequentially.
 
 The problem lies in the fact that `test1.rpt` and `test2.rpt` are rebuilt before open-lmake had a chance to re-analyze the test suite showing that the new tests are test1 and test3.
-Generally speaking, this is a good strategy : such modifications of the dependency graph happens rather rarely and speculating that it is pretty stable by building known dependencies before
+Generally speaking, this is a good strategy : such modifications of the dep graph happens rather rarely and speculating that it is pretty stable by building known deps before
 launching a job is the right option.
 But here, because collating is very light (something like just executing `cat` on the reports), it is better to check `tests_suilte.lst` first,
 and if it changed, rerun the collation before ensuring (old) tests have run.
@@ -60,7 +60,7 @@ The collating rule would look like:
 - Set the `critial` flag on `test_suite.lst` (before or after actually reading it, this has no impact).
 - Read `test_suite.lst`.
 - Call `ldepend` on the reports listed in `test_suite.lst`.
-  This is optional, just to generate parallel dependencies instead of automatic sequential dependencies (but if done, it must be before actually reading the reports).
+  This is optional, just to generate parallel deps instead of automatic sequential deps (but if done, it must be before actually reading the reports).
 - Collate reports listed in `test_suite.lst`.
 
 And the succession of job would be:

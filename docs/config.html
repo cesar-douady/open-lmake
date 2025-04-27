@@ -193,12 +193,12 @@ If <code>None</code> (discouraged), it is equivalent to 0.</p>
 <li>If too high, reactivity in case of job loss will decrease</li>
 </ul>
 <h3 id="local_admin_dir--clean--"><a class="header" href="#local_admin_dir--clean--"><code>local_admin_dir</code> : Clean (-)</a></h3>
-<p>This variable contains a directory to be used for open-lmake administration in addition to the <code>LMAKE</code> directory.</p>
-<p>It is guaranteed that all such accesses are performed by the host, hence a directory in a locally mounted disk is fine.</p>
+<p>This variable contains a dir to be used for open-lmake administration in addition to the <code>LMAKE</code> dir.</p>
+<p>It is guaranteed that all such accesses are performed by the host, hence a dir in a locally mounted disk is fine.</p>
 <ul>
-<li>If unset, administration by user is simplified (no need to manage an external directory), but there may be a performance impact as network file systems are generally slower than local ones.</li>
-<li>If set to a local directory, user has to ensure that <code>lmake</code> and other commands are always launched from the host that has this locaol file system.</li>
-<li>If set to network directory, there is no performance gain and only added complexity.</li>
+<li>If unset, administration by user is simplified (no need to manage an external dir), but there may be a performance impact as network file systems are generally slower than local ones.</li>
+<li>If set to a local dir, user has to ensure that <code>lmake</code> and other commands are always launched from the host that has this locaol file system.</li>
+<li>If set to network dir, there is no performance gain and only added complexity.</li>
 </ul>
 <h3 id="link_support--clean-full"><a class="header" href="#link_support--clean-full"><code>link_support</code> : Clean (<code>'full'</code>)</a></h3>
 <p>Open-lmake fully handle symbolic links (cf <a href="data_model.html">data model</a>).</p>
@@ -233,7 +233,7 @@ The purpose is to ease reading.</p>
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
 <h3 id="reliable_dirs--static-false-if-non-local-backends-are-used"><a class="header" href="#reliable_dirs--static-false-if-non-local-backends-are-used"><code>reliable_dirs</code> : Static (<code>False</code> if non-local backends are used)</a></h3>
-<p>This attribute specifies whether directory coherence is enforced when a file is created/modified/unlinked.</p>
+<p>This attribute specifies whether dir coherence is enforced when a file is created/modified/unlinked.</p>
 <p>When not the case, open-lmake emit additional traffic to ensure the necessary coherency.</p>
 <p>Known file systems :</p>
 <div class="table-wrapper"><table><thead><tr><th>File system</th><th>reliable dirs</th></tr></thead><tbody>
@@ -247,16 +247,16 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 </ul>
 <p>So if in doubt, leave False.</p>
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
-<p>This attribute provide the list of sub-repositories.</p>
-<p>Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a <code>Lmakefile.py</code>.
-Inside such sub-repositories, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
+<p>This attribute provide the list of sub-repos.</p>
+<p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
+Inside such sub-repos, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
 <h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If <code>None</code>, no timestamp is generated.</p>
 <h3 id="consolehas_exec_time--dynamic-true"><a class="header" href="#consolehas_exec_time--dynamic-true"><code>console.has_exec_time</code> : Dynamic (<code>True</code>)</a></h3>
 <p>If this attribute is true, execution time is reported each time a job is completed.</p>
 <h3 id="consolehistory_days--dynamic-7"><a class="header" href="#consolehistory_days--dynamic-7"><code>console.history_days</code> : Dynamic (<code>7</code>)</a></h3>
-<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> directory.</p>
+<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> dir.</p>
 <h3 id="consolehost_len--dynamic-none"><a class="header" href="#consolehost_len--dynamic-none"><code>console.host_len</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the width of the field showing the host that executed or is about to execute the job.
 If <code>None</code>, the host is not shown.
@@ -304,7 +304,7 @@ This environment is accessed when the value mentioned in the rule is <code>...</
 It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
 Internally, the granularity is forced to MB.</p>
 <h3 id="backendslocaltmp--dynamic-0"><a class="header" href="#backendslocaltmp--dynamic-0"><code>backends.local.tmp</code> : Dynamic (<code>0</code>)</a></h3>
-<p>This is the disk size in the temporary directory necessary for jobs.
+<p>This is the disk size in the temporary dir necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
 Internally, the granularity is forced to MB.</p>
 <h3 id="caches--static"><a class="header" href="#caches--static"><code>caches</code> : Static</a></h3>
@@ -316,14 +316,14 @@ Internally, the granularity is forced to MB.</p>
 In the current version, only 2 tags may be used:</p>
 <ul>
 <li><code>none</code> is a fake cache that cache nothing.</li>
-<li><code>dir</code> is a cache working without daemon, data are stored in a directory.</li>
+<li><code>dir</code> is a cache working without daemon, data are stored in a dir.</li>
 </ul>
 <h3 id="cachesdirdir--static"><a class="header" href="#cachesdirdir--static"><code>caches.&lt;dir&gt;.dir</code> : Static</a></h3>
-<p>This attribute specifies the directory in which the cache puts its data.</p>
-<p>The directory must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
+<p>This attribute specifies the dir in which the cache puts its data.</p>
+<p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
 <h3 id="cachesdirreliable_dirs--static-false"><a class="header" href="#cachesdirreliable_dirs--static-false"><code>caches.&lt;dir&gt;.reliable_dirs</code> : Static (<code>False</code>)</a></h3>
-<p>Same meaning as <code>config.reliable_dirs</code> for the directory containing the cache.</p>
+<p>Same meaning as <code>config.reliable_dirs</code> for the dir containing the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
 <p>This attribute specifies the group used when creating entries.</p>
 <h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>

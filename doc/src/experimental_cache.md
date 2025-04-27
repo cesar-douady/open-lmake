@@ -9,7 +9,7 @@ Several cache mechanisms will be implemented but for now, ony one exists.
 
 ## DirCache
 
-This cache is based on a shared directory and requires no running daemon.
+This cache is based on a shared dir and requires no running daemon.
 
 It must be initialized with a file `LMAKE/size` containing the overall size the cache is allowed to occupy.
 The value may end with a unit suffix in `k`, `M`, `G`, `T` (powers of 1024).

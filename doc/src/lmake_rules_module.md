@@ -54,7 +54,7 @@ If such a file is required and does not exist, it is an error condition.
 These classes may be used as base class for rules that execute python code doing imports.
 
 It manages `.pyc` files.
-Also, it provides dependencies to module source files although python may optimize such accesses and miss deps on dynamically generated modules.
+Also, it provides deps to module source files although python may optimize such accesses and miss deps on dynamically generated modules.
 
 If `cmd` is not a function, and python is called, this last feature is provided if `lmake.import_machinery.fix_import` is called.
 
@@ -71,7 +71,7 @@ This base class merely sets the autodep method to `ld_preload` which works aroun
 
 This class sets `$HOME` to `$TMPDIR`.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
-By default `$HOME` points to the root of the repository, which permits to put various init code there.
+By default `$HOME` points to the root of the repo, which permits to put various init code there.
 
 ### `class TraceRule(Rule)`
 

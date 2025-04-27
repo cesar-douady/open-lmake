@@ -29,7 +29,7 @@ In that case, the first run will stop after preprocessing as B(lcheck_deps) will
 .LP
 Item(B(-s),B(--sync)) wait for server answer rather than letting job go speculatively while it is interrogated.
 return code will be 1 if at least one dep is in error.
-This is necessary, even without checking return code, to ensure that after this call, the directories of previous deps actually exist if such deps are not read (such as with B(lmake.depend)).
+This is necessary, even without checking return code, to ensure that after this call, the dirs of previous deps actually exist if such deps are not read (such as with B(lmake.depend)).
 
 .SH CAVEAT
 .LP
@@ -44,7 +44,7 @@ This has a small cost in the general case where deps are actually up-to-date, bu
 .SH NOTES
 .LP
 This is a (performance) problem only during the first run of I(heavy.o).
-On subsequent runs, in particular during a typical edit-compile-debug loop, OpenLmake will know the dependencies and will launch jobs in the proper order.
+On subsequent runs, in particular during a typical edit-compile-debug loop, OpenLmake will know the deps and will launch jobs in the proper order.
 But during the first run, it has no knowledge that I(heavy.c) actually includes I(generated.h).
 .LP
 Most often, when I(generated.h) is out-of-date, it is syntactically incorrect (for example it does not exist),

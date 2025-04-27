@@ -157,14 +157,14 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="meta-data"><a class="header" href="#meta-data">Meta data</a></h1>
-<p>The <code>LMAKE</code> directory at the root of the repo contains numerous information that may be handy for the user.</p>
-<p>It also contains a <code>lmake</code> directory containing private data for open-lmake's own usage.</p>
+<p>The <code>LMAKE</code> dir at the root of the repo contains numerous information that may be handy for the user.</p>
+<p>It also contains a <code>lmake</code> dir containing private data for open-lmake's own usage.</p>
 <h3 id="lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><a class="header" href="#lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><code>LMAKE/config_deps</code>, <code>LMAKE/rules_deps</code> and <code>LMAKE/sources_deps</code></a></h3>
 <p>These files contain a list of files that open-lmake has read to process <code>Lmakefile.py</code> when reading each section (config, rules and sources).</p>
 <p>They contain several types of lines, depending on the first char:</p>
 <ul>
 <li><code>#</code>: comment line</li>
-<li><code>*</code>: line contains the open-lmake installation directory</li>
+<li><code>*</code>: line contains the open-lmake installation dir</li>
 <li><code>+</code>: line contains an existing file that was read</li>
 <li><code>!</code>: line contains a non-existing file that was accessed</li>
 </ul>
@@ -186,15 +186,15 @@ Such logs are kept for a number of days given in <code>lmake.config.console.hist
 <p>This file contains a state-recording version of open-lmake.
 If the recorded version does not match the used version, none of the open-lmake commands can be used.</p>
 <h3 id="lmakedebug"><a class="header" href="#lmakedebug"><code>LMAKE/debug</code></a></h3>
-<p>This directory contains a sub-directory for each job <code>ldebug</code> was used for.
-These sub-directories are named after the job id as displayed by <code>lshow -i</code>.</p>
+<p>This dir contains a sub-dir for each job <code>ldebug</code> was used for.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
 <h3 id="lmaketmp"><a class="header" href="#lmaketmp"><code>LMAKE/tmp</code></a></h3>
-<p>This directory contains a sub-directory for each job which was run while keeping its tmp directory.
-These sub-directories are named after the job id as displayed by <code>lshow -i</code>.</p>
+<p>This dir contains a sub-dir for each job which was run while keeping its tmp dir.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
 <h3 id="lmakequarantine"><a class="header" href="#lmakequarantine"><code>LMAKE/quarantine</code></a></h3>
-<p>This directory contains all files that have been quarantined.
+<p>This dir contains all files that have been quarantined.
 A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
-In that case, in order to be sure that no user work is lost, the file is quarantined in this directory rather than unlinked.</p>
+In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.</p>
 
                     </main>
 

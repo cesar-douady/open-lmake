@@ -17,9 +17,9 @@ It can then be freely modified and executed without needing to run B(ldebug) aga
 The job must have been run with B(lmake) before (but may not have finished, it just needs to have started) because a lot of information is generated at that time.
 The precise way the job is launched is controled by the configuration B(lmake.config.debug[<key>]) which provides the name of a module to import.
 This module must contain a (gen_script) function taking a description of the job provided as keyword arguments and returning the script to execute.
-Several such scripts exist in I(lib/lmake_debug) in the installation directory and can serv as examples to start with.
+Several such scripts exist in I(lib/lmake_debug) in the installation dir and can serv as examples to start with.
 .LP
-When B(ldebug) is run, the debug script is generated in a file within the I(LMAKE) directory and, unless I(--no-exec), it is executed.
+When B(ldebug) is run, the debug script is generated in a file within the I(LMAKE) dir and, unless I(--no-exec), it is executed.
 
 ClientGeneralities()
 
@@ -80,11 +80,11 @@ Item(B($LMAKE_DEBUG_STDOUT)) The file connected as stdout to B(ldebug) when it w
 
 .SH FILES
 .LP
-Debug script files are generated in the I(LMAKE/debug) directory as I(LMAKE/debug/<job id>/script). Associated files are besides the the script files.
+Debug script files are generated in the I(LMAKE/debug) dir as I(LMAKE/debug/<job id>/script). Associated files are besides the the script files.
 
 CommonFiles
 .LP
-I(lib/lmake_debug/*.py) files in the installation directory are used by default to generate debug scripts.
+I(lib/lmake_debug/*.py) files in the installation dir are used by default to generate debug scripts.
 .LP
 I(~/.bashrc) is usually executed when entering in the job environment.
 

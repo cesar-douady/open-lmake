@@ -11,9 +11,8 @@ Our examples show how to build and test C/C++ programs, as they are very common,
 open-lmake with any programming language to run any phase of your CI/CD as long as these can be scripted.
 
 Indeed, open-lmake is not limited to building programs.
-You can use it to describe any task where some files must be (re)computed automatically
-from others whenever recomputing would lead to a different content.
-Such situations include dependency modifications, but also command modifications, dependency list modifications,
+You can use it to describe any task where some files must be (re)computed automatically from others whenever recomputing would lead to a different content.
+Such situations include dep modifications, but also command modifications, dep list modifications,
 apparition of an include file that was in the search path before an include file was actually accessed, symbolic link modifications, etc.
 
 Symbolic links and hard links are also supported.
@@ -27,7 +26,7 @@ By scalable, we mean that open-lmake can manage millions of files and tens of th
 so there is never any reason to have any kind of recursive invocation, open-lmake can handle the whole project flat.
 
 By robust, we mean that open-lmake guarantees that if a job is not rerun, then rerunning it would lead to the same content (or a content that is equally legal).
-This includes automatic capture of so called hidden dependencies (i.e. dependencies that are not explicitly stated in the rules, e.g. include files).
+This includes automatic capture of so called hidden deps (i.e. deps that are not explicitly stated in the rules, e.g. include files).
 
 We also mean that open-lmake, as any software, it may have bugs.
 Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while it was not necessary).
@@ -63,7 +62,7 @@ lmake <my_target>
 suffices to perform all necessary steps so that `<my_target>` is reproduced as if all steps leading to it were carried out although only necessary steps were actually carried out.
 The `lmake` program maintains an internal state in the `LMAKE` directory to decide which files need to be regenerated.
 For each one of those, it issues the recipes recorded in `Lmakefile.py`.
-During job execution, `lmake` instruments them in order to gather which files are read and written in order to determine hidden dependencies and whether such actions are legal.
+During job execution, `lmake` instruments them in order to gather which files are read and written in order to determine hidden deps and whether such actions are legal.
 These information are recorded in the `LMAKE` directory.
 
 You can provide command line arguments to `lmake` to somewhat control this process.

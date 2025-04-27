@@ -165,9 +165,9 @@
 <p>The <code>tuple</code> of implemented autodep methods.
 <code>'ld_preload'</code> is always present.</p>
 <h3 id="repo_root"><a class="header" href="#repo_root"><code>repo_root</code></a></h3>
-<p>The root directory of the (sub)-repository.</p>
+<p>The root dir of the (sub)-repo.</p>
 <h3 id="top_repo_root"><a class="header" href="#top_repo_root"><code>top_repo_root</code></a></h3>
-<p>The root directory of the top level repository.</p>
+<p>The root dir of the top-level repo.</p>
 <h3 id="version"><a class="header" href="#version"><code>version</code></a></h3>
 <p>This variable holds the native version of open-lmake.
 It is a tuple formed with a <code>str</code> (the major version) and a <code>int</code> (the minor version).</p>
@@ -188,11 +188,12 @@ It is very practical to handle configurations.</p>
 For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.</p>
 <h2 id="for-use-in-cmd"><a class="header" href="#for-use-in-cmd">For use in <code>cmd()</code></a></h2>
 <h3 id="run_cc-cmd_line--marker--stdinnone-"><a class="header" href="#run_cc-cmd_line--marker--stdinnone-"><code>run_cc( *cmd_line , marker='...' , stdin=None )</code></a></h3>
-<p>This functions ensures that all directories listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
+<p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
 <p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
 <h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )</code></a></h3>
-<p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
+<p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).
+Note that the default value for the <code>required</code> argument is <code>True</code>.</p>
 <p>If <code>follow_symlinks</code> and one of the <code>deps</code> is a symbolic link, follow it.</p>
 <p>If <code>verbose</code>, return a dict with one entry par dep where:</p>
 <ul>
@@ -206,20 +207,63 @@ For example, some default values may be modified and if they are used before thi
 </ul>
 </li>
 </ul>
-<p>If <code>read</code>, pretend <code>deps</code> were read.</p>
-<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>.</p>
+<p>If <code>read</code>, report an actual read of <code>deps</code>. Default is just to alter associated flags.</p>
+<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
+<ul>
+<li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
+<li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
+<li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
+<li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
+<li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
+</ul>
 <p>Flags accumulate and are never reset.</p>
+<p>Notes:</p>
+<ul>
+<li>(1):
+The same functionality is provided with the <code>ldepend</code> executable.</li>
+<li>(2):
+Flags can be associated to deps on a regexpr (matching on dep name) basis by using the <code>side_deps</code> rule attribute.</li>
+<li>(3):
+If <code>cat a b</code> is executed, open-lmake sees 2 <code>open</code> system calls, to <code>a</code> then to <code>b</code>, exactly the same sequence that if one did <code>cat $(cat a)</code> and <code>a</code> contained <code>b</code>.<br />
+Suppose now that <code>b</code> is an error. This is a reason for your job to be in error.
+But if <code>a</code> is modifed, in the former case, this cannot solve the error while in the later case, it may if the new content of <code>a</code> points to a file that may successfully be built.
+Because open-lmake cannot distinguish between the 2 cases, upon a modification of <code>a</code>, the job will be rerun in the hope that <code>b</code> is not accessed any more.
+Parallel deps prevents this trial.</li>
+<li>(4):
+If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
+and if the series of file does not depend on the actual content of said files,
+then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
+The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.</li>
+<li>(5):
+If a series of dep is directly derived from the content of a file, it may be wise to declare it as critical.
+When a critical dep is modified, open-lmake forgets about deps reported after it.<br />
+Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
+and open-lmake anticipates this by building these deps speculatively.
+But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
+this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</li>
+</ul>
 <h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )</code></a></h3>
-<p>Declare <code>targets</code> as targets.</p>
-<p>If <code>write</code>, pretend <code>targets</code> were written.</p>
-<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
+<p>Declare <code>targets</code> as targets and alter associated flags.
+Note that the <code>allow</code> argument default value is <code>True</code>.</p>
+<p>Also, calling this function does not make <code>targets</code> official targets of the job, i.e. <code>targets</code> are side targets.
+The official job of a target is the one selected if needing its content, it must be known before any job is run.</p>
+<p>If <code>write</code>, report that <code>targets</code> were written to.</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
+<ul>
+<li>If <code>essential</code>,   show when generating user oriented graphs.</li>
+<li>If <code>incremental</code>, <code>targets</code> are not unlinked before job execution and read accesses to them are ignored.</li>
+<li>If <code>no_warning</code>,  no warning is emitted if <code>targets</code> are either uniquified or unlinked while generated by another job.</li>
+<li>If <code>ignore</code>,      from now on, ignore all reads and writes to <code>targets</code>.</li>
+<li>If <code>not allow</code>,   do not make <code>targets</code> valid targets.</li>
+<li>If <code>source_ok</code>,   accept that <code>targets</code> be sources. Else, writing to a source is an error.</li>
+</ul>
 <p>Flags accumulate and are never reset.</p>
 <h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date.
 Job will be killed in case some deps are not up-to-date.</p>
 <p>If <code>sync</code>, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
-the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
+the dirs of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
 <p><strong>CAVEAT</strong></p>
 <p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
 and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
@@ -254,7 +298,7 @@ Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p>Return a checksum of provided file.</p>
 <p>The checksum is :</p>
 <ul>
-<li>none                                         if file does not exist, is a directory or a special file</li>
+<li>none                                         if file does not exist, is a dir or a special file</li>
 <li>empty-R                                      if file is empty</li>
 <li>xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty</li>
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>

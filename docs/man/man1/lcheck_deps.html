@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Apr 23 15:51:25 2025 -->
+<!-- CreationDate: Sun Apr 27 19:40:18 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -106,8 +106,8 @@ minutes 10 secondes instead of 20 minutes.</p>
 than letting job go speculatively while it is interrogated.
 return code will be 1 if at least one dep is in error. This
 is necessary, even without checking return code, to ensure
-that after this call, the directories of previous deps
-actually exist if such deps are not read (such as with
+that after this call, the dirs of previous deps actually
+exist if such deps are not read (such as with
 <b>lmake.depend</b>).</p>
 
 <h2>CAVEAT
@@ -142,8 +142,8 @@ up.</p>
 (performance) problem only during the first run of
 <i>heavy.o</i>. On subsequent runs, in particular during a
 typical edit-compile-debug loop, <i>open-lmake</i> will know
-the dependencies and will launch jobs in the proper order.
-But during the first run, it has no knowledge that
+the deps and will launch jobs in the proper order. But
+during the first run, it has no knowledge that
 <i>heavy.c</i> actually includes <i>generated.h</i>.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Most often, when

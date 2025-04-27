@@ -156,14 +156,14 @@
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="sub-repositories"><a class="header" href="#sub-repositories">Sub-repositories</a></h1>
-<p>Sub-repositories are repositories that contain repositories, i.e. some <code>Lmakefile.py</code> are present in sub-directories.</p>
+<h1 id="sub-repos"><a class="header" href="#sub-repos">Sub-repos</a></h1>
+<p>Sub-repos are repos that contain repos, i.e. some <code>Lmakefile.py</code> are present in sub-dirs.</p>
 <p>In that situation, it is reasonable to assume that the <code>Lmakefile.py</code> are made to handle building files underneath it.</p>
 <p>To support this situation, open-lmake allow you to simply mention such sub-repos, so that:</p>
 <ul>
 <li>Targets only match within the sub-repo (and escape is possibly by setting the <code>top</code> flag to the target to provide global rules).</li>
 <li>The same applies to deps.</li>
-<li><code>cmd</code> is run from this sub-repository, i.e. its cwd is set accordingly.</li>
+<li><code>cmd</code> is run from this sub-repo, i.e. its cwd is set accordingly.</li>
 <li>The priority of deeper rules are matched first, so that builds in a sub-repo is not pertubated by rules of englobing repo.</li>
 </ul>
 

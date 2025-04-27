@@ -163,7 +163,7 @@ Comments are supported as everything following a <code>#</code> itself at start 
 Leading and trailing white spaces are stripped after comment removal.</p>
 <h3 id="git_sources-recursetrue--ignore_missing_submodulesfalse-"><a class="header" href="#git_sources-recursetrue--ignore_missing_submodulesfalse-"><code>git_sources( recurse=True , ignore_missing_submodules=False )</code></a></h3>
 <p>This function lists files under <code>git</code> control, recursing to sub-modules if <code>recurse</code> is true and ignore missing such sub-modules if <code>ignore_missing_submodules</code> is true.</p>
-<p>The <code>git</code> repository can be an enclosing directory of the open-lmake repository.
+<p>The <code>git</code> repo can be an enclosing dir of the open-lmake repo.
 In that case, sources are adequately set to track <code>git</code> updates.</p>
 <h3 id="auto_sourceskwds"><a class="header" href="#auto_sourceskwds"><code>auto_sources(**kwds)</code></a></h3>
 <p>This function tries to find sources by calling <code>manifest_sources</code> and <code>git_sources</code> in turn, untill one succeeds.

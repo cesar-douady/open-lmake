@@ -20,7 +20,7 @@ However, this applies only if job was last run with success.
 
 .LP
 Jobs and files so marked and that have been used are repeated in the summary.
-This precaution is taken because such presence goes against repeatability and should be suppressed before commiting the repository.
+This precaution is taken because such presence goes against repeatability and should be suppressed before commiting the repo.
 
 .LP
 Frozen jobs are useful to run a flow from A to `B'.

@@ -650,7 +650,7 @@ namespace Engine {
 		//
 		jd.set_exec_ok() ;                                                  // effect of old cmd has gone away with job execution
 		fence() ;                                                           // only update status once every other info is set in case of crash and avoid transforming garbage into Err
-		if ( !lost && +target_reason && status> Status::Garbage ) status = Status::BadTarget ;
+		if ( !lost && +target_reason && status>Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvv
 		jd.status = status ;
 		//^^^^^^^^^^^^^^^^
@@ -1355,6 +1355,7 @@ namespace Engine {
 							JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
 							job_info.start.pre_start.job       = +idx()    ;                                                  // repo dependent
 							job_info.start.submit_attrs.reason = ri.reason ;                                                  // context dependent
+SWEAR(ri.reason.tag!=JobReasonTag::PollutedTargets) ;
 							job_info.end  .end_date            = New       ;                                                  // execution dependnt
 							//
 							JobDigest<Node> digest = job_info.end.digest ;                                                    // gather info before being moved
@@ -1380,8 +1381,8 @@ namespace Engine {
 						trace("hit_deps") ;
 					}
 					ResetReqInfo :
-						for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info are not reset spontaneously, ...
-						return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter are still legal iterators
+						for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
+						return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter is still a legal iterator
 					case No :
 					break ;
 				DF}                                                                                                           // NO_COV

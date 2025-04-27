@@ -173,7 +173,7 @@ git clean -ffdx
 lmake foo
 </code></pre>
 <p>This what stable state means : the content of <code>foo</code> is independent of the history and only depends on the rules and the content of sources, both being managed through <code>git</code> in this example.</p>
-<p>In this specification, directories are ignored (i.e. the presence or content of a directory has no impact) and symbolic links are similar to regular files whose content is the link itself.</p>
+<p>In this specification, dirs are ignored (i.e. the presence or content of a dir has no impact) and symbolic links are similar to regular files whose content is the link itself.</p>
 <h3 id="reading-and-writing-files"><a class="header" href="#reading-and-writing-files">Reading and writing files</a></h3>
 <p>The first point is to precisely know what reading and writing mean.</p>
 <p>Writing to file <code>foo</code> means:</p>
@@ -184,7 +184,7 @@ lmake foo
 <li>The execution of <code>ltarget foo</code> in which the <code>-W</code> option is not passed.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repository (i.e. under the directory containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-directory).</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir).</li>
 </ul>
 <p>Reading file <code>foo</code> means :</p>
 <ul>
@@ -193,14 +193,14 @@ assuming the <code>autodep</code> rule attribute is not set to <code>'none'</cod
 <li>Unless the <code>config.link_support</code> attribute is set to <code>'none'</code>,
 any access (reading or writing) to <code>foo</code> which follows symlinks is an implicit <code>readlink</code>.</li>
 <li>Unless the <code>config.link_support</code> attribute is set to <code>'file'</code> or <code>'none'</code>,
-any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all directories leading to it.</li>
+any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all dirs leading to it.</li>
 <li>Note that some system calls can be both a read and a write, e.g. <code>open("foo", O_RDWR)</code> but also <code>rename("foo",...)</code>.
 In that case, the read occurs before the write.</li>
 <li>A call to <code>lmake.depend('foo',read=True)</code>. Note that <code>True</code> is the default value for the <code>read</code> argument.</li>
 <li>The execution of <code>ldepend foo</code> in which the <code>-R</code> option is not passed.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.depend('foo',ignore=True)</code> or the execution of <code>ldepend -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> is not listed in <code>deps</code> or matches a <code>side_deps</code> entry, with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repository (i.e. under the directory containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-directory) or in a source directory.</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir) or in a source dir.</li>
 </ul>
 <h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
 <p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
@@ -239,22 +239,22 @@ In case a target is also a dep, it is automatically flagged as <code>incremental
 This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.</p>
 <p>In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
-In that case, open-lmake quarantines the file under the <code>LMAKE/quarantine</code> directory with its original name.
+In that case, open-lmake quarantines the file under the <code>LMAKE/quarantine</code> dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
 There are cases where open-lmake cannot anticipate such an overwrite.</p>
-<h2 id="tmp-directory"><a class="header" href="#tmp-directory">tmp directory</a></h2>
-<p>The physical directory is:</p>
+<h2 id="tmp-dir"><a class="header" href="#tmp-dir">tmp dir</a></h2>
+<p>The physical dir is:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to empty, there is no tmp directory.</li>
-<li>If open-lmake is supposed to keep this directory after job execution, it is a directory under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
-<li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.</li>
-<li>Else, a directory determined by open-lmake lying in the <code>LMAKE</code> directory.</li>
+<li>If <code>$TMPDIR</code> is set to empty, there is no tmp dir.</li>
+<li>If open-lmake is supposed to keep this dir after job execution, it is a dir under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
+<li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.</li>
+<li>Else, a dir determined by open-lmake lying in the <code>LMAKE</code> dir.</li>
 </ul>
-<p>Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.</p>
+<p>Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.</p>
 <p>At execution time:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually <code>/tmp</code>), an error is generated.</li>
-<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</li>
+<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp dir (usually <code>/tmp</code>), an error is generated.</li>
+<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp dir.</li>
 </ul>
 
                     </main>

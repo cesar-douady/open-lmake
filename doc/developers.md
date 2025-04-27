@@ -3,7 +3,7 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 
-# Directory layout
+# Dir layout
 - `_bin`       : contains scripts mostly used for building open-lmake
 - `debian`     : contains files necessary to build a debian package
 - `doc`        : contains documentation
@@ -57,7 +57,7 @@ Several prefixes can be used, for example a private static variable will start w
 	<tr> <th> abbrev   </th> <th> full-name              </td> </tr>
 	<tr> <td> crc      </td> <td> checksum               </td> </tr>
 	<tr> <td> ddate    </td> <td> disk date              </td> </tr>
-	<tr> <td> dflag    </td> <td> dependency flag        </td> </tr>
+	<tr> <td> dflag    </td> <td> dep flag               </td> </tr>
 	<tr> <td> lnk      </td> <td> symbolic link          </td> </tr>
 	<tr> <td> ongoing  </td> <td> on going               </td> </tr>
 	<tr> <td> pdate    </td> <td> process date           </td> </tr>
@@ -164,12 +164,12 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 	- i.e. a pattern to derive some target files from some source files
 - `Job` represents a job
 	- i.e. a script that may be executed by instantiating a Rule for a particular set of stems
-	- a Job has several targets and several dependencies
+	- a Job has several targets and several deps
 	- targets may be explicit in the Rule (it is said static), or it may be described as matching a regular expression (it is said star).
 		- this is not to be confused by regular expressions used to match a Rule. For example:
 			- `{File}.o`            in a compilation rule   : this is a static target (a job produces a single .o)
-			- `{Dir}.untar/{File*}` in a tar exapnsion rule : these are star targets  (a job produces a bunch of files in a single directory)
-	- dependencies may be expressed explicitly in the Rule (aka static), or discovered by spying job execution syscall's (aka hidden or dynamic)
+			- `{Dir}.untar/{File*}` in a tar exapnsion rule : these are star targets  (a job produces a bunch of files in a single dir)
+	- deps may be expressed explicitly in the Rule (aka static), or discovered by spying job execution syscall's (aka hidden or dynamic)
 		- typically in a compilation rule, .c files are static deps, .h files are hidden deps
 - `Node` represents a file
 	- a `Node` has a prioritized list of `Job`'s to try to generate it
@@ -304,7 +304,7 @@ In order to produce coverage results, do the following:
 		- a few fails are ok (as of now, `unit_tests/namespaces.dir/tok` fails)
 	- `make GCOV`
 
-All data are generated in the `gcov` directory:
+All data are generated in the `gcov` dir:
 	- `summary` : a file level summary showing a count of uncovered lines and total lines for each file
-	- `gcov_dir` : the directory that was used to generate coverage reports, it contains raw outputs from `gcov`
+	- `gcov_dir` : the dir that was used to generate coverage reports, it contains raw outputs from `gcov`
 	- a copy of the source tree where files are annotated with execution count on a line by line basis

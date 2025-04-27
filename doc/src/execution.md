@@ -30,7 +30,7 @@ lmake foo
 
 This what stable state means : the content of `foo` is independent of the history and only depends on the rules and the content of sources, both being managed through `git` in this example.
 
-In this specification, directories are ignored (i.e. the presence or content of a directory has no impact) and symbolic links are similar to regular files whose content is the link itself.
+In this specification, dirs are ignored (i.e. the presence or content of a dir has no impact) and symbolic links are similar to regular files whose content is the link itself.
 
 ### Reading and writing files
 
@@ -44,7 +44,7 @@ Writing to file `foo` means:
 - The execution of `ltarget foo` in which the `-W` option is not passed.
 - Under the condition that these actions are not preceded by a call to `lmake.target('foo',ignore=True)` or the execution of `ltarget -I foo`.
 - Also under the condition that `foo` does not match a `targets` or `side_targets` entry with the `Ignore` flag set.
-- Also under the condition that `foo` lies in the repository (i.e. under the directory containing `Lmakefile.py` but not in its `LMAKE` sub-directory).
+- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE` sub-dir).
 
 Reading file `foo` means :
 
@@ -53,14 +53,14 @@ Reading file `foo` means :
 - Unless the `config.link_support` attribute is set to `'none'`,
   any access (reading or writing) to `foo` which follows symlinks is an implicit `readlink`.
 - Unless the `config.link_support` attribute is set to `'file'` or `'none'`,
-  any access (reading or writing) to `foo`, whether it follows symlinks or not, is an implicit `readlink` of all directories leading to it.
+  any access (reading or writing) to `foo`, whether it follows symlinks or not, is an implicit `readlink` of all dirs leading to it.
 - Note that some system calls can be both a read and a write, e.g. `open("foo", O_RDWR)` but also `rename("foo",...)`.
   In that case, the read occurs before the write.
 - A call to `lmake.depend('foo',read=True)`. Note that `True` is the default value for the `read` argument.
 - The execution of `ldepend foo` in which the `-R` option is not passed.
 - Under the condition that these actions are not preceded by a call to `lmake.depend('foo',ignore=True)` or the execution of `ldepend -I foo`.
 - Also under the condition that `foo` is not listed in `deps` or matches a `side_deps` entry, with the `Ignore` flag set.
-- Also under the condition that `foo` lies in the repository (i.e. under the directory containing `Lmakefile.py` but not in its `LMAKE` sub-directory) or in a source directory.
+- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE` sub-dir) or in a source dir.
 
 ### Being a target
 
@@ -118,23 +118,23 @@ This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.
 
 In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
-In that case, open-lmake quarantines the file under the `LMAKE/quarantine` directory with its original name.
+In that case, open-lmake quarantines the file under the `LMAKE/quarantine` dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
 There are cases where open-lmake cannot anticipate such an overwrite.
 
-## tmp directory
+## tmp dir
 
-The physical directory is:
+The physical dir is:
 
-- If `$TMPDIR` is set to empty, there is no tmp directory.
-- If open-lmake is supposed to keep this directory after job execution, it is a directory under `LMAKE/tmp`, determined by open-lmake (its precise value is reported by `lshow -i`).
-- Else if `$TMPDIR` is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.
-- Else, a directory determined by open-lmake lying in the `LMAKE` directory.
+- If `$TMPDIR` is set to empty, there is no tmp dir.
+- If open-lmake is supposed to keep this dir after job execution, it is a dir under `LMAKE/tmp`, determined by open-lmake (its precise value is reported by `lshow -i`).
+- Else if `$TMPDIR` is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.
+- Else, a dir determined by open-lmake lying in the `LMAKE` dir.
 
 
-Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.
+Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.
 
 At execution time:
 
-- If `$TMPDIR` is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually `/tmp`), an error is generated.
-- Else `$TMPDIR` is set so that the job can use it to access the tmp directory.
+- If `$TMPDIR` is set to empty, it is suppressed from the environment and if the job uses the default tmp dir (usually `/tmp`), an error is generated.
+- Else `$TMPDIR` is set so that the job can use it to access the tmp dir.

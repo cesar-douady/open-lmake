@@ -51,13 +51,13 @@ The default value should suit the needs of most users.
 
 ### `local_admin_dir` : Clean (-)
 
-This variable contains a directory to be used for open-lmake administration in addition to the `LMAKE` directory.
+This variable contains a dir to be used for open-lmake administration in addition to the `LMAKE` dir.
 
-It is guaranteed that all such accesses are performed by the host, hence a directory in a locally mounted disk is fine.
+It is guaranteed that all such accesses are performed by the host, hence a dir in a locally mounted disk is fine.
 
-- If unset, administration by user is simplified (no need to manage an external directory), but there may be a performance impact as network file systems are generally slower than local ones.
-- If set to a local directory, user has to ensure that `lmake` and other commands are always launched from the host that has this locaol file system.
-- If set to network directory, there is no performance gain and only added complexity.
+- If unset, administration by user is simplified (no need to manage an external dir), but there may be a performance impact as network file systems are generally slower than local ones.
+- If set to a local dir, user has to ensure that `lmake` and other commands are always launched from the host that has this locaol file system.
+- If set to network dir, there is no performance gain and only added complexity.
 
 ### `link_support` : Clean (`'full'`)
 
@@ -105,7 +105,7 @@ The search stops if any file with a name longer than the value of this attribute
 
 ### `reliable_dirs` : Static (`False` if non-local backends are used)
 
-This attribute specifies whether directory coherence is enforced when a file is created/modified/unlinked.
+This attribute specifies whether dir coherence is enforced when a file is created/modified/unlinked.
 
 When not the case, open-lmake emit additional traffic to ensure the necessary coherency.
 
@@ -123,10 +123,10 @@ So if in doubt, leave False.
 
 ### `sub_repos` : Static (`()`)
 
-This attribute provide the list of sub-repositories.
+This attribute provide the list of sub-repos.
 
-Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a `Lmakefile.py`.
-Inside such sub-repositories, the applied flow is the one described in it (cf [Subrepos](experimental_subrepos.html)).
+Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a `Lmakefile.py`.
+Inside such sub-repos, the applied flow is the one described in it (cf [Subrepos](experimental_subrepos.html)).
 
 ### `console.date_precision` : Dynamic (`None`)
 
@@ -139,7 +139,7 @@ If this attribute is true, execution time is reported each time a job is complet
 
 ### `console.history_days` : Dynamic (`7`)
 
-This attribute specifies the number of days the output log history is kept in the `LMAKE/outputs` directory.
+This attribute specifies the number of days the output log history is kept in the `LMAKE/outputs` dir.
 
 ### `console.host_len` : Dynamic (`None`)
 
@@ -220,7 +220,7 @@ Internally, the granularity is forced to MB.
 
 ### `backends.local.tmp` : Dynamic (`0`)
 
-This is the disk size in the temporary directory necessary for jobs.
+This is the disk size in the temporary dir necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as `k`,  `M` or `G`.
 Internally, the granularity is forced to MB.
 
@@ -238,18 +238,18 @@ This attribute specifies the method used by open-lmake to cache values.
 In the current version, only 2 tags may be used:
 
 - `none` is a fake cache that cache nothing.
-- `dir` is a cache working without daemon, data are stored in a directory.
+- `dir` is a cache working without daemon, data are stored in a dir.
 
 ### `caches.<dir>.dir` : Static
 
-This attribute specifies the directory in which the cache puts its data.
+This attribute specifies the dir in which the cache puts its data.
 
-The directory must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
+The dir must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (`k`, `M`, `G`, `T`, `P` or `E`). These refer to base 1024.
 
 ### `caches.<dir>.reliable_dirs` : Static (`False`)
 
-Same meaning as `config.reliable_dirs` for the directory containing the cache.
+Same meaning as `config.reliable_dirs` for the dir containing the cache.
 
 ### `caches.<dir>.group` : Static (default group of user)
 

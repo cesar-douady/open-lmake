@@ -26,12 +26,12 @@ define(`Header',`
 
 define(`ClientGeneralities',`
 	.LP
-	B(Name) manages a fully coherent directory called a repository.
-	When it starts, it first determines the root of the repository (cf. B(FILES) below).
+	B(Name) manages a fully coherent dir called a repo.
+	When it starts, it first determines the root of the repo (cf. B(FILES) below).
 	.LP
-	Arguments and reports are systematically localized to the current working directory.
-	For example, if you launch B(Name b) from directory B(a) in your repository, the argument is file I(a/b) from the root of the repository
-	and reports containing file names (initially seen from the root of the repository) will be shown relative the the current working directory.
+	Arguments and reports are systematically localized to the current working dir.
+	For example, if you launch B(Name b) from dir B(a) in your repo, the argument is file I(a/b) from the root of the repo
+	and reports containing file names (initially seen from the root of the repo) will be shown relative the the current working dir.
 	ifelse(`$1',color,`
 		.LP
 		If launched from a terminal, output is colored.
@@ -102,10 +102,10 @@ define(`SubCommands',`
 ')
 define(`CommonFiles',`
 	.LP
-	The files I(Lmakefile.py) or I(Lmakefile/__init__.py) are searched in the current directory and in parent directories.
-	If a single one is found, this determines the root of the repository.
-	If several are found, the existence of an I(LMAKE) directory is checked.
-	If a single one is found, this determines the root of the repository.
+	The files I(Lmakefile.py) or I(Lmakefile/__init__.py) are searched in the current dir and in parent dirs.
+	If a single one is found, this determines the root of the repo.
+	If several are found, the existence of an I(LMAKE) dir is checked.
+	If a single one is found, this determines the root of the repo.
 	In other cases, B(Name) will not start.
 ')
 

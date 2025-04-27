@@ -21,7 +21,7 @@ They are:
 | [`lforget`](man/man1/lforget.html)   | forget history of a job                                            |
 | [`lmake`](man/man1/lmake.html)       | run necessary jobs to ensure a target is up-to-date                |
 | [`lmark`](man/man1/lmark.html)       | mark a job to alter its behavior w.r.t. `lmake`                    |
-| [`lrepair`](man/man1/lrepair.html)   | repair a broken repository                                         |
+| [`lrepair`](man/man1/lrepair.html)   | repair a broken repo                                               |
 | [`lshow`](man/man1/lshow.html)       | show various informations of a job                                 |
 | [`xxhsum`](man/man1/xxhsum.html)     | compute a checksum on a file                                       |
 
@@ -34,7 +34,7 @@ They are:
 |--------------------------------------------|---------------------------------------------------------------------------|
 | [`lcheck_deps`](man/man1/lcheck_deps.html) | check currently seen deps are all up-to-date and kill job if not the case |
 | [`ldecode`](man/man1/ldecode.html)         | retrieve value associated with a code                                     |
-| [`ldepend`](man/man1/ldepend.html)         | generate dependencies                                                     |
+| [`ldepend`](man/man1/ldepend.html)         | generate deps                                                             |
 | [`lencode`](man/man1/lencode.html)         | retrieve/generate a code associated with a value                          |
 | [`lrun_cc`](man/man1/lrun_cc.html)         | run a compilation, ensuring include dirs and lib dirs exist               |
 | [`ltarget`](man/man1/ltarget.html)         | generate targets                                                          |

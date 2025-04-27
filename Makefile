@@ -873,10 +873,11 @@ DEBIAN_DEPS :
 #
 install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
 	@echo -n installing ...
-	@set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	@set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	@set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
-	@set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f              $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	@set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f              $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	@set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f              $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f              $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@set -e ;                                                               install -D -m 644 apparmor-profile $(DESTDIR)/etc/apparmor.d/open-lmake
 	@echo '' done
 
 clean :
@@ -935,8 +936,10 @@ $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 		-e 's!\$$OS_CODENAME!'"$$VERSION_CODENAME"'!g' \
 		-e 's!\$$DATE!'"$$(date -R)"'!g'               \
 		debian/changelog.src >$(DEBIAN_DIR)-bin/debian/changelog
-	@# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
-	@cd $(DEBIAN_DIR)-bin ; MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
+	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
+	@cd $(DEBIAN_DIR)-bin                                                                                                                         ; \
+	{ MAKEFLAGS= MAKELEVEL= debuild -b -us -uc ; rc=$$? ; } | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]' ; \
+	exit $$rc
 	@touch $@
 
 #

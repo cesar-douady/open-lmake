@@ -15,7 +15,7 @@ Leading and trailing white spaces are stripped after comment removal.
 
 This function lists files under `git` control, recursing to sub-modules if `recurse` is true and ignore missing such sub-modules if `ignore_missing_submodules` is true.
 
-The `git` repository can be an enclosing directory of the open-lmake repository.
+The `git` repo can be an enclosing dir of the open-lmake repo.
 In that case, sources are adequately set to track `git` updates.
 
 ### `auto_sources(**kwds)`

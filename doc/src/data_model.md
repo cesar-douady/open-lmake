@@ -47,7 +47,7 @@ If `a` is a symbolic link to `b`, the code snippet `cat a` accesses 2 files:
 
 This is what is expected : if either `a` or `b` is modified, the stdout of `cat a` may be modified.
 
-### directories
+### Dirs
 
 Open-lmake manages a flat repo.
 This means that `/` is an ordinary character.
@@ -57,7 +57,7 @@ As far as open-lmake is concerned, there is no difference between `a` being a di
 However, because dirs do exist on disk, it is impossible for `a` and `a/b` to exist simultaneously (i.e. exist as regular or symbolic link).
 As a consequence, there is an implicit rule (Uphill) that prevents `a/b` from being buildable if `a` is buildable.
 
-Also, because directories cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
+Also, because dirs cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
 Such constructs are strongly discouraged:
 
 - use of `glob.glob` in python

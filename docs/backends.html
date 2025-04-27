@@ -167,7 +167,7 @@ It is also in charge of :</p>
 <p>A backend has to take decisions of 2 kinds:</p>
 <ul>
 <li>Is a job eligible for running ?
-From a dependency perspective, the open-lmake engine guarantees it is so.
+From a dep perspective, the open-lmake engine guarantees it is so.
 But the job needs some resources to run and these resources may already be busy because of some other jobs already running.</li>
 <li>If several jobs are eligible, which one(s) to actually launch.</li>
 </ul>
@@ -183,7 +183,7 @@ When launched, the required resources are subtracted from the pool and when term
 To do that, future job ETE have to be estimated.
 For jobs that have already run, last successful execution time is used.
 When this information is not available, i.e. when the job has never run successfully, a moving average of the execution times of the jobs sharing the same rule is used as a best guess.</p>
-<p>The backend also provides the current <a href="eta.html">ETA</a> of the final targets to allow the backends from different repository to take the best collective decision.</p>
+<p>The backend also provides the current <a href="eta.html">ETA</a> of the final targets to allow the backends from different repo to take the best collective decision.</p>
 <p>In addition to dedicated resources, all backends manage the following 3 resources:</p>
 <ul>
 <li><code>cpu</code> : The number of threads the job is expected to run in parallel. The backend is expected to reserve enough resources for such a number of threads to run smoothly.</li>
@@ -215,7 +215,7 @@ This is done by rounding these resources for grouping jobs into buckets.</p>
 </ul>
 <h2 id="local-backend"><a class="header" href="#local-backend">Local backend</a></h2>
 <p>The local backend launches jobs locally, on the host running the <code>lmake</code> command.
-There is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.</p>
+There is no cooperation between backends from different repos and the user has to ensure there is no global resource conflict.</p>
 <p>This backend is configured by providing entries in the <code>lmake.config.backends.local</code> <code>dict</code>.
 The key identifies the resource and the value is a <code>int</code> that identifies a quantity.</p>
 <p>The local backend is used when either:</p>
@@ -250,13 +250,13 @@ and if not possible (e.g. because a resource is not available locally or because
 <h2 id="sge-backend"><a class="header" href="#sge-backend">SGE backend</a></h2>
 <p>The SGE backend connects to a SGE daemon to schedule jobs, which allows:</p>
 <ul>
-<li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
+<li>a global scheduling policy (while the local backend only sees jobs in its own repo).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
 <h3 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h3>
 <p>The configuration is composed of:</p>
 <ul>
-<li><code>bin</code>  : The directory in which to find SGE executables such as <code>qsub</code>. This entry must be specified.</li>
+<li><code>bin</code>  : The dir in which to find SGE executables such as <code>qsub</code>. This entry must be specified.</li>
 <li><code>cell</code> : The cell used by the SGE daemon. This is translated into <code>$SGE_CELL</code> when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.</li>
 <li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
@@ -273,10 +273,10 @@ If too high, the schedule rate may decrase because of the slurm daemon being ove
 A reasonable value probably lies in the 10-100 range.
 Default is 10.</li>
 <li><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make SGE job names.
-This key is meant to be a short identifier of the repository.
-By default it is the base name of the repository followed by <code>:</code>.
+This key is meant to be a short identifier of the repo.
+By default it is the base name of the repo followed by <code>:</code>.
 Note that SGE precludes some characters and these are replaced by close looking characters (e.g. <code>;</code> instead of <code>:</code>).</li>
-<li><code>root</code>         : The root directory of the SGE daemon. This is translated into <code>$SGE_ROOT</code> when SGE commands are called. This entry must be specified.</li>
+<li><code>root</code>         : The root dir of the SGE daemon. This is translated into <code>$SGE_ROOT</code> when SGE commands are called. This entry must be specified.</li>
 <li><code>cpu_resource</code> : This is the name of a resource used to require cpu's.
 For example if specified as <code>cpu_r</code> and the rule of a job contains <code>resources={'cpu':2}</code>, this is translated into <code>-l cpu_r=2</code> on the <code>qsub</code> command line.</li>
 <li><code>mem_resource</code> : This is the name of a resource used to require memory in MB.
@@ -298,7 +298,7 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <h2 id="slurm-backend"><a class="header" href="#slurm-backend">Slurm backend</a></h2>
 <p>The slurm backend connects to a slurm daemon to schedule jobs, which allows :</p>
 <ul>
-<li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
+<li>a global scheduling policy (while the local backend only sees jobs in its own repo).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
 <h3 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h3>
@@ -324,22 +324,22 @@ Default is 10.</p>
 </li>
 <li>
 <p><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make slurm job names.
-This key is meant to be a short identifier of the repository.
-By default it is the base name of the repository followed by <code>:</code>.</p>
+This key is meant to be a short identifier of the repo.
+By default it is the base name of the repo followed by <code>:</code>.</p>
 </li>
 <li>
 <p><code>use_nice</code>:
-open-lmake has and advantage over slurm in terms of knowledge: it knows the dependencies, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
-This allows it to anticipate the needs and know, even globally when numerous <code>lmake</code> commands run, in the same repository or on several ones, which jobs should be given which priority.
-Note that open-lmake cannot leverage the dependency capability of slurm as dependencies are dynamic by nature:</p>
+open-lmake has and advantage over slurm in terms of knowledge: it knows the deps, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
+This allows it to anticipate the needs and know, even globally when numerous <code>lmake</code> commands run, in the same repo or on several ones, which jobs should be given which priority.
+Note that open-lmake cannot leverage the dep capability of slurm as deps are dynamic by nature:</p>
 <ul>
-<li>new dependencies can appear during job execution, adding new edges to the dependency graph,</li>
-<li>jobs can have to rerun, so a dependent job may not be able to start when its dependency is done,</li>
+<li>new deps can appear during job execution, adding new edges to the dep graph,</li>
+<li>jobs can have to rerun, so a dependent job may not be able to start when its dep is done,</li>
 <li>and a job can be steady, so a dependent job may not have to run at all.</li>
 </ul>
 <p>The way it works is th following:</p>
 <ul>
-<li>First open-lmake computes and <a href="eta.html">ETA</a> for each <code>lmake</code> command. This ETA is a date, it is absolute, and can be compared between commands running in different repositories.</li>
+<li>First open-lmake computes and <a href="eta.html">ETA</a> for each <code>lmake</code> command. This ETA is a date, it is absolute, and can be compared between commands running in different repos.</li>
 <li>Then it computes a pressure for each job. The pressure is the time necessary to reach the asked target of the <code>lmake</code> command given the run time for all intermediate jobs
 (including the considered job).</li>
 <li>The subtraction of the pressure from the ETA gives a reasonable and global estimate of when it is desirable to schedule a job, and hence can be used as a priority.</li>

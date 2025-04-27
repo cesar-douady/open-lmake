@@ -23,7 +23,7 @@ Output the list of all source files necessary to build the arguments.
 If I(--verbose) option is provided, intermediate files are shown in gray.
 
 If B(--porcelaine), the output is generated as B(set) (if not B(--verbose)) or as a B(tuple) (if B(--verbose)).
-In the latter case, it is guaranteed that deps are going downards, i.e. dependents appear before their dependencies.
+In the latter case, it is guaranteed that deps are going downards, i.e. dependents appear before their deps.
 If arguments are files, the output is not a B(dict) and is the list necessary to generate all the arguments.
 
 Item(B(-c),B(--cmd))
@@ -172,7 +172,7 @@ If B(--porcelaine), the output is generated as a B(tuple) of entries, each entry
 SpecificOptions
 Item(B(-p),B(--porcelaine))
 In porcelaine mode, information is provided as an easy-to-parse python object.
-Also,reported files are relative to the root of the repository, not the current workind directory.
+Also,reported files are relative to the root of the repo, not the current workind dir.
 
 If argument is a job, the output is as described for each sub-command.
 unless mentioned otherwise, if arguments are files, the output is a B(dict) whose keys are the arguments and values are as described above.

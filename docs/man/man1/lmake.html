@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Apr 23 15:51:25 2025 -->
+<!-- CreationDate: Sun Apr 27 19:40:18 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -78,7 +78,7 @@ Feldman in 1976 with notable differences :</p>
 are run in adequate order so that the asked files are in the
 same state as if all derived files were removed and all jobs
 were run. In particular, this includes automatic discovery
-of actual dependencies.</p></td></tr>
+of actual deps.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -139,9 +139,9 @@ a single wildcard (% with <i>make</i>).</p></td></tr>
 
 
 <p>Several <b>lmake</b> commands can be run simultaneously
-in the same directory. Jobs needed by several of them will
-be shared. Simlarly sources files can be edited without
-risks while <b>lmake</b> is running. Derived files will be
+in the same dir. Jobs needed by several of them will be
+shared. Simlarly sources files can be edited without risks
+while <b>lmake</b> is running. Derived files will be
 generated according to the state of the source files at the
 time the command was launched. If this is not possible
 because an old version of a source file need to be accessed
@@ -166,8 +166,8 @@ to its previous content.</p></td></tr>
 
 <p style="margin-left:9%; margin-top: 1em">To reach these
 goals, <b>lmake</b> maintains a state in the <i>LMAKE</i>
-directory, instrument jobs (to catch all file accesses)
-during their execution and launches a daemon (called
+dir, instrument jobs (to catch all file accesses) during
+their execution and launches a daemon (called
 <b>lmakeserver</b>) that can be shared between several
 concurrent invocations of <b>lmake</b>.</p>
 
@@ -263,7 +263,7 @@ for resources to be run</p></td></tr>
 
 
 <p>The number of waiting jobs, i.e. jbos that are waiting
-for dependencies to be run</p></td></tr>
+for deps to be run</p></td></tr>
 </table>
 
 <p style="margin-left:9%; margin-top: 1em">At the end of
@@ -282,18 +282,17 @@ to systematically pass the <i>--archive</i> and
 <b>LMAKE_ARGS</b>=<b>-a -t</b>.</p>
 
 <p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
-manages a fully coherent directory called a repository. When
-it starts, it first determines the root of the repository
-(cf. <b>FILES</b> below).</p>
+manages a fully coherent dir called a repo. When it starts,
+it first determines the root of the repo (cf. <b>FILES</b>
+below).</p>
 
 <p style="margin-left:9%; margin-top: 1em">Arguments and
 reports are systematically localized to the current working
-directory. For example, if you launch <b>lmake b</b> from
-directory <b>a</b> in your repository, the argument is file
-<i>a/b</i> from the root of the repository and reports
-containing file names (initially seen from the root of the
-repository) will be shown relative the the current working
-directory.</p>
+dir. For example, if you launch <b>lmake b</b> from dir
+<b>a</b> in your repo, the argument is file <i>a/b</i> from
+the root of the repo and reports containing file names
+(initially seen from the root of the repo) will be shown
+relative the the current working dir.</p>
 
 <p style="margin-left:9%; margin-top: 1em">If launched from
 a terminal, output is colored. Colors are different
@@ -397,7 +396,15 @@ provided to the <b>--video</b> option.</p>
 <p style="margin-left:9%; margin-top: 1em">These options
 are common to all tools of the <i>open-lmake</i> set of
 utilities : <b><br>
--h</b>,<b>--help</b></p>
+--version</b></p>
+
+<p style="margin-left:18%;">Print version and exit. Version
+is in the form &quot;year.month.tag (key)&quot; where
+&quot;year.month&quot; forms the major version,
+&quot;tag&quot; the minor version and &quot;key&quot; is
+indicates the format of the persistent information.</p>
+
+<p style="margin-left:9%;"><b>-h</b>,<b>--help</b></p>
 
 <p style="margin-left:18%;">Print a short help and exit. It
 is composed of:</p>
@@ -425,10 +432,7 @@ is composed of:</p>
 <td width="73%">
 
 
-<p>Version in the form &quot;year.month.tag (key)&quot;
-where &quot;year.month&quot; forms the major version,
-&quot;tag&quot; the minor version and &quot;key&quot; is
-indicates the format of the persistent information.</p></td></tr>
+<p>Version as described above.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -501,7 +505,7 @@ are specific to <b>lmake</b> : <b><br>
 <p style="margin-left:18%;">Ensure all intermediate files
 are up to date, in addition to the asked targets. This is
 useful for example if you want to archive a fully built
-repository.</p>
+repo.</p>
 
 <p style="margin-left:9%;"><b>-b</b>
 <i>value</i>,<b>--backend</b>=<i>value</i></p>
@@ -589,11 +593,11 @@ allowed.</p>
 <p style="margin-left:9%;"><b>-t</b>,<b>--keep-tmp</b></p>
 
 <p style="margin-left:18%;">Normally, <b>lmake</b> washes
-the temporary directory allocated to a job at the end of job
+the temporary dir allocated to a job at the end of job
 execution. With this option, the user instructs <b>lmake</b>
-to keep the temporary directories, as if the <i>keep_tmp</i>
-attribute was set for all rules. The kept temporary
-directory can be retreived with <b>lshow -i</b>.</p>
+to keep the temporary dirs, as if the <i>keep_tmp</i>
+attribute was set for all rules. The kept temporary dir can
+be retreived with <b>lshow -i</b>.</p>
 
 <p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
 
@@ -645,9 +649,9 @@ following differences:</p>
 <td width="82%">
 
 
-<p>Reported files are relative to the root of the
-repository, not to the current working directory where the
-<b>lmake</b> command has been launched.</p></td></tr>
+<p>Reported files are relative to the root of the repo, not
+to the current working dir where the <b>lmake</b> command
+has been launched.</p></td></tr>
 </table>
 
 <p style="margin-left:9%; margin-top: 1em">The log contains
@@ -780,9 +784,9 @@ may cause. In particular :</p>
 
 
 <p style="margin-top: 1em"><b>$HOME</b> is redirected to
-the root of the repository. This protects the job from all
+the root of the repo. This protects the job from all
 specificities stored in <i>.xxxrc</i> files in the home
-directory.</p> </td></tr>
+dir.</p> </td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -806,7 +810,7 @@ not passed to jobs.</p></td></tr>
 
 
 <p><b>$PATH</b> is reset to the default path for the
-system, plus the <i>open-lmake</i> bin directory.</p></td></tr>
+system, plus the <i>open-lmake</i> bin dir.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -818,7 +822,7 @@ system, plus the <i>open-lmake</i> bin directory.</p></td></tr>
 
 
 <p><b>$PYTHONPATH</b> is set to the <i>open-lmake</i> lib
-directory.</p> </td></tr>
+dir.</p> </td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -830,9 +834,9 @@ directory.</p> </td></tr>
 
 
 <p>Unless set to empty, <b>$TMPDIR</b> is redirected to an
-isolated, empty directory which is cleaned up at the end of
-each job execution. This way, the job can freely use this
-directory and need not take care of clean-up.</p></td></tr>
+isolated, empty dir which is cleaned up at the end of each
+job execution. This way, the job can freely use this dir and
+need not take care of clean-up.</p></td></tr>
 </table>
 
 <p style="margin-left:9%; margin-top: 1em">Moreover, a few
@@ -852,8 +856,8 @@ variables are set during job execution :</p>
 
 <p style="margin-top: 1em"><b>$JOB_ID</b> is set to an
 integer specific of a job. It does not change between
-executions, but may be different in different repository,
-even if strictly identical.</p></td></tr>
+executions, but may be different in different repo, even if
+strictly identical.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -888,12 +892,12 @@ time a job is run, they are never recycled.</p></td></tr>
 
 <p style="margin-left:9%; margin-top: 1em">The files
 <i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
-searched in the current directory and in parent directories.
-If a single one is found, this determines the root of the
-repository. If several are found, the existence of an
-<i>LMAKE</i> directory is checked. If a single one is found,
-this determines the root of the repository. In other cases,
-<b>lmake</b> will not start.</p>
+searched in the current dir and in parent dirs. If a single
+one is found, this determines the root of the repo. If
+several are found, the existence of an <i>LMAKE</i> dir is
+checked. If a single one is found, this determines the root
+of the repo. In other cases, <b>lmake</b> will not
+start.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Apr 23 15:51:26 2025 -->
+<!-- CreationDate: Sun Apr 27 19:40:19 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -36,7 +36,7 @@
 
 
 <p style="margin-left:9%; margin-top: 1em">lrepair - repair
-a <i>open-lmake</i> repository</p>
+a <i>open-lmake</i> repo</p>
 
 <h2>SYNOPSYS
 <a name="SYNOPSYS"></a>
@@ -67,27 +67,26 @@ incoherent behavior, the user may decide to run
 
 <p style="margin-left:9%; margin-top: 1em">This process is
 pretty long, the goal being to avoid having to restart from
-a fresh repository, which may incur a severe cost in terms
-of compute power.</p>
+a fresh repo, which may incur a severe cost in terms of
+compute power.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Once
 <b>lrepair</b> is done, it generates some suggestions about
-what to do with the freshly repaired repository, including
-step back and forget about the repairation.</p>
+what to do with the freshly repaired repo, including step
+back and forget about the repairation.</p>
 
 <p style="margin-left:9%; margin-top: 1em"><b>lrepair</b>
-manages a fully coherent directory called a repository. When
-it starts, it first determines the root of the repository
-(cf. <b>FILES</b> below).</p>
+manages a fully coherent dir called a repo. When it starts,
+it first determines the root of the repo (cf. <b>FILES</b>
+below).</p>
 
 <p style="margin-left:9%; margin-top: 1em">Arguments and
 reports are systematically localized to the current working
-directory. For example, if you launch <b>lrepair b</b> from
-directory <b>a</b> in your repository, the argument is file
-<i>a/b</i> from the root of the repository and reports
-containing file names (initially seen from the root of the
-repository) will be shown relative the the current working
-directory.</p>
+dir. For example, if you launch <b>lrepair b</b> from dir
+<b>a</b> in your repo, the argument is file <i>a/b</i> from
+the root of the repo and reports containing file names
+(initially seen from the root of the repo) will be shown
+relative the the current working dir.</p>
 
 <h2>FILES
 <a name="FILES"></a>
@@ -96,12 +95,12 @@ directory.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The files
 <i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
-searched in the current directory and in parent directories.
-If a single one is found, this determines the root of the
-repository. If several are found, the existence of an
-<i>LMAKE</i> directory is checked. If a single one is found,
-this determines the root of the repository. In other cases,
-<b>lrepair</b> will not start.</p>
+searched in the current dir and in parent dirs. If a single
+one is found, this determines the root of the repo. If
+several are found, the existence of an <i>LMAKE</i> dir is
+checked. If a single one is found, this determines the root
+of the repo. In other cases, <b>lrepair</b> will not
+start.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>

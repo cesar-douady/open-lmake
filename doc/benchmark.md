@@ -28,7 +28,7 @@ Because the data necessary to run the benchmark are not provided, I have approxi
 - a `all_10000` target depending on all 10k executables.
 - a `all_10` target depending on the first 10 executables.
 
-The directory is prepared by running the `unit_tests/bench` unit test.
+The dir is prepared by running the `unit_tests/bench` unit test.
 [unit\_tests/bench](../unit_tests/bench.py) can be inspected to have a detailed understanding.
 
 For each build-system:
@@ -54,20 +54,20 @@ In all cases output is redirected to `/dev/null` to avoid pertubation due to dis
 
 ## Notes on the benchmark
 
-Thanks to open-lmake [autodep mechanism](autodep.md), there is no dependencies information in the config file.
-Hence the fresh rebuild is longer as dependencies are discovered and this only pertinent for open-lmake.
+Thanks to open-lmake [autodep mechanism](autodep.md), there is no deps information in the config file.
+Hence the fresh rebuild is longer as deps are discovered and this only pertinent for open-lmake.
 For `make`, there is typically a `depend` target to build.
 For `ninja` this work would be done by meson or CMake.
 For `bazel`, this is done either by hand or by a generator.
 However, I have not measured these phases for other build systems.
 
 This flat organization is painless for `make`, `ninja` and open-lmake, but is contrary to `bazel`'s spirit.
-And to some extent, this is not unreasonnable: nobody puts 100k source files flat in a directory.
-As a consequence, the partial no-op rebuild would be typically much faster with `bazel` because it would only explore the necessary sub-directories.
+And to some extent, this is not unreasonnable: nobody puts 100k source files flat in a dir.
+As a consequence, the partial no-op rebuild would be typically much faster with `bazel` because it would only explore the necessary sub-dirs.
 This is key for `bazel`'s scalability.
 
 `bazel` can understand loops in its config file.
-Although this could have been done here, it would not be representative of a real situation where dependencies, names etc. are all different for each target, defeating any loop based approach.
+Although this could have been done here, it would not be representative of a real situation where deps, names etc. are all different for each target, defeating any loop based approach.
 As a consequence, all config files have a line for each target, except open-lmake where this information is stored in its dynamic state.  
 Also we use built-in rules that may not execute exactly the same compilation command.
 
@@ -90,7 +90,7 @@ I could not reproduce `make`'s catastrophic scalability results mentioned by Dav
 Full no-op rebuild takes about 7s where he mentioned around 70s.
 
 `bazel` manages a cache.
-Open-lmake manages dependencies (the cache is not turned on).
+Open-lmake manages deps (the cache is not turned on).
 Also, content based up-to-date analyzis requires frequent checksum computation.
 It is normal that such full builds go slightly slower than those without book-keeping (`bash`, `make` and `ninja`).  
 As long as these overheads stay reasonable in this extreme case, which they are, this is a pretty good trade-off in view of the value brought by such features.

@@ -158,7 +158,7 @@
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="autodep"><a class="header" href="#autodep">Autodep</a></h1>
 <p>Autodep is a mechanism through which jobs are spied to automatically detect disk accesses.
-From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all dependencies.</p>
+From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all deps.</p>
 <h2 id="spying-methods"><a class="header" href="#spying-methods">Spying methods</a></h2>
 <p>There exists two classes of spying methods.
 Not all methods are supported on all systems, though.</p>
@@ -203,7 +203,7 @@ Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>
 This requires to intercept <code>chdir</code> although no access is to be reported.</li>
 <li>Symbolic link processing.
 Open-lmake lies in the physical world (and there is no way it can do anything else) and must be aware of any symbolic link traversal.
-This includes the ones on the directory path.
+This includes the ones on the dir path.
 So the spying code includes a functionality that resembles to <code>realpath</code>, listing all traversed links.</li>
 </ul>
 <p>Lying in the physical world means that symbolic links are handled like plain data files, except that there is a special bit that says it is a symbolic link.
@@ -212,30 +212,30 @@ For example, after the code sequence:</p>
 <pre><code>cd a
 cat b
 </code></pre>
-<p>where <code>b</code> is symbolic link to <code>c</code>, 2 dependencies are recorded:</p>
+<p>where <code>b</code> is symbolic link to <code>c</code>, 2 deps are recorded:</p>
 <ul>
 <li><code>a/b</code> (a symbolic link), as if it is modified, job must be rerun.</li>
 <li><code>a/c</code> (a plain data file), same reason.</li>
 </ul>
-<p>Generally speaking, read a file makes it a dependency, writing to it makes it a target.
-Of course, reading a file that has been written doe not make it a dependency any more.</p>
+<p>Generally speaking, read a file makes it a dep, writing to it makes it a target.
+Of course, reading a file that has been written doe not make it a dep any more.</p>
 <h2 id="how-to-report-accesses"><a class="header" href="#how-to-report-accesses">How to report accesses</a></h2>
 <p>When a job is run, a wrapper (called <code>job_exec</code>) is launched that launches the user process.</p>
 <p><code>job_exec</code> has several responsibilities, among which :</p>
 <ul>
 <li>Prepare the user environment for the user code (environment variables, cwd, namespace if necessary, etc.).</li>
 <li>Receive the accesses made by the user code (through a socket) and record them.</li>
-<li>Determine what is a dependency, what is a target etc.</li>
-<li>Report a job digest to the server (the central process managing the dependency DAG).</li>
+<li>Determine what is a dep, what is a target etc.</li>
+<li>Report a job digest to the server (the central process managing the dep DAG).</li>
 </ul>
 <p>The major idea is that when an access is reported by the user code (in the case of <code>libc</code> call spying), there is no reply from <code>job_exec</code> back to the user code, so no round trip delay is incurred.</p>
-<h2 id="dependencies-order-is-kept-as-well"><a class="header" href="#dependencies-order-is-kept-as-well">Dependencies order is kept as well</a></h2>
-<p>Remember that when a job is run, its dependencies list is <strong>approximative</strong>.
+<h2 id="deps-order-is-kept-as-well"><a class="header" href="#deps-order-is-kept-as-well">Deps order is kept as well</a></h2>
+<p>Remember that when a job is run, its deps list is <strong>approximative</strong>.
 It is the one of the previous run, which had different file contents.
 For example, a <code>.c</code> may have changed, including a <code>#include</code> directive.
-In case there are 2 dependencies <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
+In case there are 2 deps <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
 <p>Most of the time, this is harmless, but sometimes, it may happen that <code>d2</code> is not necessary any more (because old <code>d1</code> content had <code>#include "d2"</code> and new one does not).
-In that case, this job must be rerun with the new content od <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dependency.</p>
+In that case, this job must be rerun with the new content od <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dep.</p>
 <p>This may only occurs if <code>d2</code> was accessed <strong>after</strong> <code>d1</code> was accessed. If <code>d2</code> was accessed before <code>d1</code>, it is safe to say the job cannot run because <code>d2</code> is in error: it will never disappear.</p>
 
                     </main>

@@ -13,8 +13,8 @@ They must remain untouched:
 - `$LD_AUDIT`          : A variable necessary for [autodep](autodep.html) when it is set to `'ld_audit'`
 - `$LD_PRELOAD`        : A variable necessary for [autodep](autodep.html) when it is set to `'ld_preload'` or `'ld_preload_jemalloc'`
 - `$LMAKE_AUTODEP_ENV` : A variable necessary for [autodep](autodep.html) in all cases
-- `$TMPDIR`            : The name of a directory which is empty at the start of the job.
-  If the temporary directory is not kept through the use of the `keep_tmp` attribute or the `-t` option, this directory is cleaned up at the end of the job execution.
+- `$TMPDIR`            : The name of a dir which is empty at the start of the job.
+  If the temporary dir is not kept through the use of the `keep_tmp` attribute or the `-t` option, this dir is cleaned up at the end of the job execution.
 
 After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the `ignore` attribute).
 

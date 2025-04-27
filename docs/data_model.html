@@ -188,13 +188,13 @@ This means if <code>a</code> is a symbolic link to <code>b</code>, the content o
 <li><code>b</code></li>
 </ul>
 <p>This is what is expected : if either <code>a</code> or <code>b</code> is modified, the stdout of <code>cat a</code> may be modified.</p>
-<h3 id="directories"><a class="header" href="#directories">directories</a></h3>
+<h3 id="dirs"><a class="header" href="#dirs">Dirs</a></h3>
 <p>Open-lmake manages a flat repo.
 This means that <code>/</code> is an ordinary character.</p>
 <p>As far as open-lmake is concerned, there is no difference between <code>a</code> being a dir and <code>a</code> not existing.</p>
 <p>However, because dirs do exist on disk, it is impossible for <code>a</code> and <code>a/b</code> to exist simultaneously (i.e. exist as regular or symbolic link).
 As a consequence, there is an implicit rule (Uphill) that prevents <code>a/b</code> from being buildable if <code>a</code> is buildable.</p>
-<p>Also, because directories cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
+<p>Also, because dirs cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
 Such constructs are strongly discouraged:</p>
 <ul>
 <li>use of <code>glob.glob</code> in python</li>

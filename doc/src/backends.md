@@ -15,7 +15,7 @@ It is also in charge of :
 A backend has to take decisions of 2 kinds:
 
 - Is a job eligible for running ?
-  From a dependency perspective, the open-lmake engine guarantees it is so.
+  From a dep perspective, the open-lmake engine guarantees it is so.
   But the job needs some resources to run and these resources may already be busy because of some other jobs already running.
 - If several jobs are eligible, which one(s) to actually launch.
 
@@ -33,7 +33,7 @@ To do that, future job ETE have to be estimated.
 For jobs that have already run, last successful execution time is used.
 When this information is not available, i.e. when the job has never run successfully, a moving average of the execution times of the jobs sharing the same rule is used as a best guess.
 
-The backend also provides the current [ETA](eta.html) of the final targets to allow the backends from different repository to take the best collective decision.
+The backend also provides the current [ETA](eta.html) of the final targets to allow the backends from different repo to take the best collective decision.
 
 In addition to dedicated resources, all backends manage the following 3 resources:
 
@@ -73,7 +73,7 @@ If a backend cannot be configured because the environment does not allow it (typ
 ## Local backend
 
 The local backend launches jobs locally, on the host running the `lmake` command.
-There is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.
+There is no cooperation between backends from different repos and the user has to ensure there is no global resource conflict.
 
 This backend is configured by providing entries in the `lmake.config.backends.local` `dict`.
 The key identifies the resource and the value is a `int` that identifies a quantity.
@@ -118,14 +118,14 @@ The command line option passed with `-b` or `--backend` is ignored.
 
 The SGE backend connects to a SGE daemon to schedule jobs, which allows:
 
-- a global scheduling policy (while the local backend only sees jobs in its own repository).
+- a global scheduling policy (while the local backend only sees jobs in its own repo).
 - the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
 
 ### Configuration
 
 The configuration is composed of:
 
-- `bin`  : The directory in which to find SGE executables such as `qsub`. This entry must be specified.
+- `bin`  : The dir in which to find SGE executables such as `qsub`. This entry must be specified.
 - `cell` : The cell used by the SGE daemon. This is translated into `$SGE_CELL` when SGE commands are called.
   By default, this is automatically determined by the SGE daemon.
 - `cluster` : The cluster used by the SGE daemon. This is translated into `$SGE_CLUSTER` when SGE commands are called.
@@ -142,10 +142,10 @@ The configuration is composed of:
   A reasonable value probably lies in the 10-100 range.
   Default is 10.
 - `repo_key` : This is a string which is add in front of open-lmake job names to make SGE job names.
-  This key is meant to be a short identifier of the repository.
-  By default it is the base name of the repository followed by `:`.
+  This key is meant to be a short identifier of the repo.
+  By default it is the base name of the repo followed by `:`.
   Note that SGE precludes some characters and these are replaced by close looking characters (e.g. `;` instead of `:`).
-- `root`         : The root directory of the SGE daemon. This is translated into `$SGE_ROOT` when SGE commands are called. This entry must be specified.
+- `root`         : The root dir of the SGE daemon. This is translated into `$SGE_ROOT` when SGE commands are called. This entry must be specified.
 - `cpu_resource` : This is the name of a resource used to require cpu's.
   For example if specified as `cpu_r` and the rule of a job contains `resources={'cpu':2}`, this is translated into `-l cpu_r=2` on the `qsub` command line.
 - `mem_resource` : This is the name of a resource used to require memory in MB.
@@ -172,7 +172,7 @@ Hence, the command line option must directly contain the priority to pass to `qs
 
 The slurm backend connects to a slurm daemon to schedule jobs, which allows :
 
-- a global scheduling policy (while the local backend only sees jobs in its own repository).
+- a global scheduling policy (while the local backend only sees jobs in its own repo).
 - the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
 
 ### Configuration
@@ -192,18 +192,18 @@ The configuration is composed of :
   A reasonable value probably lies in the 10-100 range.
   Default is 10.
 - `repo_key` : This is a string which is add in front of open-lmake job names to make slurm job names.
-  This key is meant to be a short identifier of the repository.
-  By default it is the base name of the repository followed by `:`.
+  This key is meant to be a short identifier of the repo.
+  By default it is the base name of the repo followed by `:`.
 - `use_nice`:
-  open-lmake has and advantage over slurm in terms of knowledge: it knows the dependencies, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
-  This allows it to anticipate the needs and know, even globally when numerous `lmake` commands run, in the same repository or on several ones, which jobs should be given which priority.
-  Note that open-lmake cannot leverage the dependency capability of slurm as dependencies are dynamic by nature:
-  - new dependencies can appear during job execution, adding new edges to the dependency graph,
-  - jobs can have to rerun, so a dependent job may not be able to start when its dependency is done,
+  open-lmake has and advantage over slurm in terms of knowledge: it knows the deps, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
+  This allows it to anticipate the needs and know, even globally when numerous `lmake` commands run, in the same repo or on several ones, which jobs should be given which priority.
+  Note that open-lmake cannot leverage the dep capability of slurm as deps are dynamic by nature:
+  - new deps can appear during job execution, adding new edges to the dep graph,
+  - jobs can have to rerun, so a dependent job may not be able to start when its dep is done,
   - and a job can be steady, so a dependent job may not have to run at all.
 
   The way it works is th following:
-  - First open-lmake computes and [ETA](eta.html) for each `lmake` command. This ETA is a date, it is absolute, and can be compared between commands running in different repositories.
+  - First open-lmake computes and [ETA](eta.html) for each `lmake` command. This ETA is a date, it is absolute, and can be compared between commands running in different repos.
   - Then it computes a pressure for each job. The pressure is the time necessary to reach the asked target of the `lmake` command given the run time for all intermediate jobs
     (including the considered job).
   - The subtraction of the pressure from the ETA gives a reasonable and global estimate of when it is desirable to schedule a job, and hence can be used as a priority.

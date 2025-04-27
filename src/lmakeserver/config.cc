@@ -315,6 +315,7 @@ namespace Engine {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
+		Trace trace("Config::open",STR(dyn),STR(first_time)) ;
 		SWEAR(+key) ;                                           // ensure no init problem
 		::string std_dir_s = PrivateAdminDirS+"local_admin/"s ;
 		if (!user_local_admin_dir_s) {

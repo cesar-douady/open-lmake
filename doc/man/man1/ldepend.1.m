@@ -10,7 +10,7 @@ Header(ldepend,report a dep from a OpenLmake job)
 .SH DESCRIPTION
 .LP
 B(ldepend) may be used to pass flags to OpenLmake.
-Unless specified otherwise, passed deps are required to be buildable an produced without error.
+Unless specified otherwise, passed deps are required to be buildable and produced without error.
 .LP
 Note that :
 Bullet
@@ -40,10 +40,10 @@ Item(B(-v),B(--verbose))
 Item(B(-R),B(--read))         Report an actual read. Default is to only alter flags.
 Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).
 Item(B(-E),B(--essential))    Passed deps will appear in the flow shown with a graphical tool.
-Item(B(-e),B(--ignore-error)) Ignore the error status of the passed dependencies.
+Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
 Item(B(-I),B(--ignore))       Deps are ignored altogether, even if further accessed (but previous accesses are kept).
-Default is to optimize dependency check as much as possible.
+Default is to optimize dep check as much as possible.
 
 .SH NOTES
 Item((1))
@@ -51,10 +51,10 @@ Item((1))
 Item((2))
 	Flags can be associated to deps on a regexpr (matching on dep name) basis by using the B(side_deps) rule attribute.
 Item((3))
-	If B(cat a b) executed, OpenLmake sees 2 C(open,2) system calls, to I(a) then to I(b), exactly the same sequence that if you did B(cat $(cat a)) and I(a) contained I(b).
+	If B(cat a b) is executed, OpenLmake sees 2 C(open,2) system calls, to I(a) then to I(b), exactly the same sequence that if one did B(cat $(cat a)) and I(a) contained I(b).
 	.IP
 	Suppose now that I(b) is an error. This is a reason for your job to be in error.
-	But if you modify I(a), in the former case, this cannot solve your error while in the later case, it may if the new content of I(a) points to a file that may successfully be built.
+	But if I(a) is modified, in the former case, this cannot solve your error while in the later case, it may if the new content of I(a) points to a file that may successfully be built.
 	Because OpenLmake cannot distinguish between the 2 cases, upon a modification of I(a), the job will be rerun in the hope that I(b) is not accessed any more.
 	Parallel deps prevents this trial.
 Item((4))
@@ -69,6 +69,6 @@ Item((5))
 	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
 	and OpenLmake anticipates this by building these deps speculatively.
 	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
-	this is what critical deps are made for : in case of modifications, following deps are not built speculatively.
+	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
 
 Footer

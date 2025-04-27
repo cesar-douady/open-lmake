@@ -162,9 +162,8 @@
 <p>Our examples show how to build and test C/C++ programs, as they are very common, but you can use
 open-lmake with any programming language to run any phase of your CI/CD as long as these can be scripted.</p>
 <p>Indeed, open-lmake is not limited to building programs.
-You can use it to describe any task where some files must be (re)computed automatically
-from others whenever recomputing would lead to a different content.
-Such situations include dependency modifications, but also command modifications, dependency list modifications,
+You can use it to describe any task where some files must be (re)computed automatically from others whenever recomputing would lead to a different content.
+Such situations include dep modifications, but also command modifications, dep list modifications,
 apparition of an include file that was in the search path before an include file was actually accessed, symbolic link modifications, etc.</p>
 <p>Symbolic links and hard links are also supported.</p>
 <p>As far as open-lmake is concerned, repositories can be moved, archived and restored.
@@ -173,7 +172,7 @@ Tools are provided to help user achieve the same level of flexibility.</p>
 <p>By scalable, we mean that open-lmake can manage millions of files and tens of thousands of CPU hours with no difficulties,
 so there is never any reason to have any kind of recursive invocation, open-lmake can handle the whole project flat.</p>
 <p>By robust, we mean that open-lmake guarantees that if a job is not rerun, then rerunning it would lead to the same content (or a content that is equally legal).
-This includes automatic capture of so called hidden dependencies (i.e. dependencies that are not explicitly stated in the rules, e.g. include files).</p>
+This includes automatic capture of so called hidden deps (i.e. deps that are not explicitly stated in the rules, e.g. include files).</p>
 <p>We also mean that open-lmake, as any software, it may have bugs.
 Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while it was not necessary).
 But special attention has been devoted in its design to ensure that it is never optimistic (a job not being rerun while it should have been).
@@ -199,7 +198,7 @@ Finally a test suite is a collection of such tests.</p>
 <p>suffices to perform all necessary steps so that <code>&lt;my_target&gt;</code> is reproduced as if all steps leading to it were carried out although only necessary steps were actually carried out.
 The <code>lmake</code> program maintains an internal state in the <code>LMAKE</code> directory to decide which files need to be regenerated.
 For each one of those, it issues the recipes recorded in <code>Lmakefile.py</code>.
-During job execution, <code>lmake</code> instruments them in order to gather which files are read and written in order to determine hidden dependencies and whether such actions are legal.
+During job execution, <code>lmake</code> instruments them in order to gather which files are read and written in order to determine hidden deps and whether such actions are legal.
 These information are recorded in the <code>LMAKE</code> directory.</p>
 <p>You can provide command line arguments to <code>lmake</code> to somewhat control this process.</p>
 <h2 id="problems-and-bugs"><a class="header" href="#problems-and-bugs">Problems and Bugs</a></h2>
@@ -442,9 +441,9 @@ In our example, we have <code>File</code> and <code>Test</code>.</p>
 <p>The <code>tuple</code> of implemented autodep methods.
 <code>'ld_preload'</code> is always present.</p>
 <h3 id="repo_root"><a class="header" href="#repo_root"><code>repo_root</code></a></h3>
-<p>The root directory of the (sub)-repository.</p>
+<p>The root dir of the (sub)-repo.</p>
 <h3 id="top_repo_root"><a class="header" href="#top_repo_root"><code>top_repo_root</code></a></h3>
-<p>The root directory of the top level repository.</p>
+<p>The root dir of the top-level repo.</p>
 <h3 id="version"><a class="header" href="#version"><code>version</code></a></h3>
 <p>This variable holds the native version of open-lmake.
 It is a tuple formed with a <code>str</code> (the major version) and a <code>int</code> (the minor version).</p>
@@ -465,11 +464,12 @@ It is very practical to handle configurations.</p>
 For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.</p>
 <h2 id="for-use-in-cmd"><a class="header" href="#for-use-in-cmd">For use in <code>cmd()</code></a></h2>
 <h3 id="run_cc-cmd_line--marker--stdinnone-"><a class="header" href="#run_cc-cmd_line--marker--stdinnone-"><code>run_cc( *cmd_line , marker='...' , stdin=None )</code></a></h3>
-<p>This functions ensures that all directories listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
+<p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
 <p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
 <h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )</code></a></h3>
-<p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
+<p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).
+Note that the default value for the <code>required</code> argument is <code>True</code>.</p>
 <p>If <code>follow_symlinks</code> and one of the <code>deps</code> is a symbolic link, follow it.</p>
 <p>If <code>verbose</code>, return a dict with one entry par dep where:</p>
 <ul>
@@ -483,20 +483,63 @@ For example, some default values may be modified and if they are used before thi
 </ul>
 </li>
 </ul>
-<p>If <code>read</code>, pretend <code>deps</code> were read.</p>
-<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>.</p>
+<p>If <code>read</code>, report an actual read of <code>deps</code>. Default is just to alter associated flags.</p>
+<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
+<ul>
+<li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
+<li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
+<li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
+<li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
+<li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
+</ul>
 <p>Flags accumulate and are never reset.</p>
+<p>Notes:</p>
+<ul>
+<li>(1):
+The same functionality is provided with the <code>ldepend</code> executable.</li>
+<li>(2):
+Flags can be associated to deps on a regexpr (matching on dep name) basis by using the <code>side_deps</code> rule attribute.</li>
+<li>(3):
+If <code>cat a b</code> is executed, open-lmake sees 2 <code>open</code> system calls, to <code>a</code> then to <code>b</code>, exactly the same sequence that if one did <code>cat $(cat a)</code> and <code>a</code> contained <code>b</code>.<br />
+Suppose now that <code>b</code> is an error. This is a reason for your job to be in error.
+But if <code>a</code> is modifed, in the former case, this cannot solve the error while in the later case, it may if the new content of <code>a</code> points to a file that may successfully be built.
+Because open-lmake cannot distinguish between the 2 cases, upon a modification of <code>a</code>, the job will be rerun in the hope that <code>b</code> is not accessed any more.
+Parallel deps prevents this trial.</li>
+<li>(4):
+If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
+and if the series of file does not depend on the actual content of said files,
+then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
+The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.</li>
+<li>(5):
+If a series of dep is directly derived from the content of a file, it may be wise to declare it as critical.
+When a critical dep is modified, open-lmake forgets about deps reported after it.<br />
+Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
+and open-lmake anticipates this by building these deps speculatively.
+But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
+this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</li>
+</ul>
 <h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )</code></a></h3>
-<p>Declare <code>targets</code> as targets.</p>
-<p>If <code>write</code>, pretend <code>targets</code> were written.</p>
-<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>.</p>
+<p>Declare <code>targets</code> as targets and alter associated flags.
+Note that the <code>allow</code> argument default value is <code>True</code>.</p>
+<p>Also, calling this function does not make <code>targets</code> official targets of the job, i.e. <code>targets</code> are side targets.
+The official job of a target is the one selected if needing its content, it must be known before any job is run.</p>
+<p>If <code>write</code>, report that <code>targets</code> were written to.</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
+<ul>
+<li>If <code>essential</code>,   show when generating user oriented graphs.</li>
+<li>If <code>incremental</code>, <code>targets</code> are not unlinked before job execution and read accesses to them are ignored.</li>
+<li>If <code>no_warning</code>,  no warning is emitted if <code>targets</code> are either uniquified or unlinked while generated by another job.</li>
+<li>If <code>ignore</code>,      from now on, ignore all reads and writes to <code>targets</code>.</li>
+<li>If <code>not allow</code>,   do not make <code>targets</code> valid targets.</li>
+<li>If <code>source_ok</code>,   accept that <code>targets</code> be sources. Else, writing to a source is an error.</li>
+</ul>
 <p>Flags accumulate and are never reset.</p>
 <h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date.
 Job will be killed in case some deps are not up-to-date.</p>
 <p>If <code>sync</code>, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
-the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
+the dirs of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
 <p><strong>CAVEAT</strong></p>
 <p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
 and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
@@ -531,7 +574,7 @@ Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p>Return a checksum of provided file.</p>
 <p>The checksum is :</p>
 <ul>
-<li>none                                         if file does not exist, is a directory or a special file</li>
+<li>none                                         if file does not exist, is a dir or a special file</li>
 <li>empty-R                                      if file is empty</li>
 <li>xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty</li>
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
@@ -556,7 +599,7 @@ Comments are supported as everything following a <code>#</code> itself at start 
 Leading and trailing white spaces are stripped after comment removal.</p>
 <h3 id="git_sources-recursetrue--ignore_missing_submodulesfalse-"><a class="header" href="#git_sources-recursetrue--ignore_missing_submodulesfalse-"><code>git_sources( recurse=True , ignore_missing_submodules=False )</code></a></h3>
 <p>This function lists files under <code>git</code> control, recursing to sub-modules if <code>recurse</code> is true and ignore missing such sub-modules if <code>ignore_missing_submodules</code> is true.</p>
-<p>The <code>git</code> repository can be an enclosing directory of the open-lmake repository.
+<p>The <code>git</code> repo can be an enclosing dir of the open-lmake repo.
 In that case, sources are adequately set to track <code>git</code> updates.</p>
 <h3 id="auto_sourceskwds"><a class="header" href="#auto_sourceskwds"><code>auto_sources(**kwds)</code></a></h3>
 <p>This function tries to find sources by calling <code>manifest_sources</code> and <code>git_sources</code> in turn, untill one succeeds.
@@ -601,7 +644,7 @@ In that case, the file is deemed to be a source.</p>
 <h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><code>class Py2Rule(Rule)</code>, <code>class Py3Rule(Rule)</code> and <code>class PyRule(Rule)</code></a></h3>
 <p>These classes may be used as base class for rules that execute python code doing imports.</p>
 <p>It manages <code>.pyc</code> files.
-Also, it provides dependencies to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
+Also, it provides deps to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
 <p>If <code>cmd</code> is not a function, and python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
 <p>Py2Rule is used for python2, Py3Rule is used for python3. PyRule is an alias for Py3Rule.</p>
 <h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><code>class RustRule(Rule)</code></a></h3>
@@ -611,7 +654,7 @@ This base class merely sets the autodep method to <code>ld_preload</code> which 
 <h3 id="class-homelessrulerule"><a class="header" href="#class-homelessrulerule"><code>class HomelessRule(Rule)</code></a></h3>
 <p>This class sets <code>$HOME</code> to <code>$TMPDIR</code>.
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
-By default <code>$HOME</code> points to the root of the repository, which permits to put various init code there.</p>
+By default <code>$HOME</code> points to the root of the repo, which permits to put various init code there.</p>
 <h3 id="class-tracerulerule"><a class="header" href="#class-tracerulerule"><code>class TraceRule(Rule)</code></a></h3>
 <p>This class sets the <code>-x</code> flag for shell rules and manage so that traces are sent to stdout rather than stderr.</p>
 <p>This allow to suppress the common idiom:</p>
@@ -679,16 +722,16 @@ In this latter case, it will be considered dangling and this is an error conditi
 The purpose of this restriction is to ensure repeatability : all buildable files can be (possibly indirectly) derived from sources using rules.</p>
 <p><code>lmake.manifest</code> can contain :</p>
 <ul>
-<li>Files located in the repository</li>
-<li>Directories (ending with <code>/</code>), in which case:
+<li>Files located in the repo</li>
+<li>Dirs (ending with <code>/</code>), in which case:
 <ul>
-<li>The whole subtree underneath the directory are considered sources.</li>
-<li>They may be inside the repository or outside, but cannot contain or lie within system directories such as <code>/usr</code>, <code>/proc</code>, <code>/etc</code>, etc.</li>
+<li>The whole subtree underneath the dir are considered sources.</li>
+<li>They may be inside the repo or outside, but cannot contain or lie within system dirs such as <code>/usr</code>, <code>/proc</code>, <code>/etc</code>, etc.</li>
 <li>If outside, they can be relative or absolute.</li>
 </ul>
 </li>
 </ul>
-<p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repository.</p>
+<p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repo.</p>
 <p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used and if nothing is said, <code>auto_sources()</code> is called.</p>
 <h2 id="the-rules"><a class="header" href="#the-rules">The rules</a></h2>
 <p>Rules are described as python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
@@ -700,7 +743,7 @@ For example you can define :</p>
 		cmd    = ''
 </code></pre>
 <p>Or the sub-module <code>Lmakefile.rules</code> containing such class definitions.</p>
-<p>Inheriting from <code>lmake.Rule</code> is used to define production rules that allows deriving targets from dependencies.</p>
+<p>Inheriting from <code>lmake.Rule</code> is used to define production rules that allows deriving targets from deps.</p>
 <p>Inheriting from <code>lmake.AntiRule</code> is (rarely) used to define rules that specify that matching targets <strong>cannot</strong> be built.
 Anti-rules only require the <code>targets</code> attribute (or those that translate into it, <code>target</code>) and may usefully have a <code>prio</code> attribute.
 Other ones are useless and ignored.</p>
@@ -709,13 +752,13 @@ Other ones are useless and ignored.</p>
 <p>In addition to user rules defined as described hereinafter, there are a few special rules:</p>
 <ul>
 <li>Uphill:
-Any file depends on its directory in a special way : if its directory is buildable, then the file is not.
+Any file depends on its dir in a special way : if its dir is buildable, then the file is not.
 This is logical : if file <code>foo</code> is buildable (i.e. produced as a regular file or a symbolic link), there is not way file <code>foo/bar</code> can be built.
 If <code>foo</code> is produced as a regular file, this is the end of the story.
 If it is produced as a symbolic link (say with <code>foo_real</code> as target), the dependent job will be rerun and it will then depend on <code>foo</code> and <code>foo_real/bar</code> when it opens <code>foo/bar</code>.
-Note that if the directory applies as the star-target of a rule, then the corresponding job must be run to determine if said directory is, indeed, produced.</li>
+Note that if the dir applies as the star-target of a rule, then the corresponding job must be run to determine if said dir is, indeed, produced.</li>
 <li>Infinite:
-If walking the dependencies leads to infinite recursion, when the depth reaches <code>lmake.config.max_dep_depth</code>, this special rule is triggered which generates an error.
+If walking the deps leads to infinite recursion, when the depth reaches <code>lmake.config.max_dep_depth</code>, this special rule is triggered which generates an error.
 Also, if a file whose name is longer that <code>lmake.config.path_max</code> considered, it is deemed to be generated by this rule and it is in error.
 This typically happens if you have a rule that, for example builds <code>{File}</code> from <code>{File}.x</code>.
 If you try to build <code>foo</code>, open-lmake will try to build <code>foo.x</code>, which needs <code>foo.x.x</code>, which needs <code>foo.x.x.x</code> etc.</li>
@@ -736,7 +779,7 @@ For dictionaries, if the value function returns <code>None</code>, there will be
 <ul>
 <li>provide environment variables</li>
 <li>provide some default actions for some files with given pattern</li>
-<li>provide some automatic dependencies</li>
+<li>provide some automatic deps</li>
 <li>...</li>
 </ul>
 <p>As these are described with <code>dict</code>, you would like to inherit <code>dict</code> entries from the base <code>class</code> and not only the <code>dict</code> as a whole.
@@ -761,7 +804,7 @@ Similarly, values inserted in a set prefixed with a <code>'-'</code> remove the 
 <p>When such an entry appears in a rule, its value is searched for occurrences of the special marker <code>...</code> surrounded by separators (the start and end of the strings are deemed to be separators)
 And each such occurrence is replaced by the inherited value.</p>
 <p>This makes it particularly useful to manage paths as it allows any intermediate base <code>class</code> to add its own entries, before or after the original ones.</p>
-<p>For example, to add the directory <code>/mypath</code> after the inherited path, one would define the attribute <code>environ</code> as <code>{'PATH':'...:/mypath'}</code>.
+<p>For example, to add the dir <code>/mypath</code> after the inherited path, one would define the attribute <code>environ</code> as <code>{'PATH':'...:/mypath'}</code>.
 To add it before, one would use <code>{'PATH':'/mypath:...'}</code>.</p>
 <p>Entries going through this step are provided by the attribute <code>paths</code>, which is a dict with <attribute>.<key> as keys and <separator> as values.
 The default value is <code>{ 'environ.PATH':':' , 'environ.LD_LIBRARY_PATH':':' , 'environ.MANPATH':':' , 'environ.PYTHONPATH':':' }</code></p>
@@ -806,12 +849,12 @@ If <code>None</code> (discouraged), it is equivalent to 0.</p>
 <li>If too high, reactivity in case of job loss will decrease</li>
 </ul>
 <h3 id="local_admin_dir--clean--"><a class="header" href="#local_admin_dir--clean--"><code>local_admin_dir</code> : Clean (-)</a></h3>
-<p>This variable contains a directory to be used for open-lmake administration in addition to the <code>LMAKE</code> directory.</p>
-<p>It is guaranteed that all such accesses are performed by the host, hence a directory in a locally mounted disk is fine.</p>
+<p>This variable contains a dir to be used for open-lmake administration in addition to the <code>LMAKE</code> dir.</p>
+<p>It is guaranteed that all such accesses are performed by the host, hence a dir in a locally mounted disk is fine.</p>
 <ul>
-<li>If unset, administration by user is simplified (no need to manage an external directory), but there may be a performance impact as network file systems are generally slower than local ones.</li>
-<li>If set to a local directory, user has to ensure that <code>lmake</code> and other commands are always launched from the host that has this locaol file system.</li>
-<li>If set to network directory, there is no performance gain and only added complexity.</li>
+<li>If unset, administration by user is simplified (no need to manage an external dir), but there may be a performance impact as network file systems are generally slower than local ones.</li>
+<li>If set to a local dir, user has to ensure that <code>lmake</code> and other commands are always launched from the host that has this locaol file system.</li>
+<li>If set to network dir, there is no performance gain and only added complexity.</li>
 </ul>
 <h3 id="link_support--clean-full"><a class="header" href="#link_support--clean-full"><code>link_support</code> : Clean (<code>'full'</code>)</a></h3>
 <p>Open-lmake fully handle symbolic links (cf <a href="data_model.html">data model</a>).</p>
@@ -846,7 +889,7 @@ The purpose is to ease reading.</p>
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
 <h3 id="reliable_dirs--static-false-if-non-local-backends-are-used"><a class="header" href="#reliable_dirs--static-false-if-non-local-backends-are-used"><code>reliable_dirs</code> : Static (<code>False</code> if non-local backends are used)</a></h3>
-<p>This attribute specifies whether directory coherence is enforced when a file is created/modified/unlinked.</p>
+<p>This attribute specifies whether dir coherence is enforced when a file is created/modified/unlinked.</p>
 <p>When not the case, open-lmake emit additional traffic to ensure the necessary coherency.</p>
 <p>Known file systems :</p>
 <div class="table-wrapper"><table><thead><tr><th>File system</th><th>reliable dirs</th></tr></thead><tbody>
@@ -860,16 +903,16 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 </ul>
 <p>So if in doubt, leave False.</p>
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
-<p>This attribute provide the list of sub-repositories.</p>
-<p>Sub repositories are sub-directories of the repository that are themselves repositories, i.e. they have a <code>Lmakefile.py</code>.
-Inside such sub-repositories, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
+<p>This attribute provide the list of sub-repos.</p>
+<p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
+Inside such sub-repos, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
 <h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If <code>None</code>, no timestamp is generated.</p>
 <h3 id="consolehas_exec_time--dynamic-true"><a class="header" href="#consolehas_exec_time--dynamic-true"><code>console.has_exec_time</code> : Dynamic (<code>True</code>)</a></h3>
 <p>If this attribute is true, execution time is reported each time a job is completed.</p>
 <h3 id="consolehistory_days--dynamic-7"><a class="header" href="#consolehistory_days--dynamic-7"><code>console.history_days</code> : Dynamic (<code>7</code>)</a></h3>
-<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> directory.</p>
+<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> dir.</p>
 <h3 id="consolehost_len--dynamic-none"><a class="header" href="#consolehost_len--dynamic-none"><code>console.host_len</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the width of the field showing the host that executed or is about to execute the job.
 If <code>None</code>, the host is not shown.
@@ -917,7 +960,7 @@ This environment is accessed when the value mentioned in the rule is <code>...</
 It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
 Internally, the granularity is forced to MB.</p>
 <h3 id="backendslocaltmp--dynamic-0"><a class="header" href="#backendslocaltmp--dynamic-0"><code>backends.local.tmp</code> : Dynamic (<code>0</code>)</a></h3>
-<p>This is the disk size in the temporary directory necessary for jobs.
+<p>This is the disk size in the temporary dir necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
 Internally, the granularity is forced to MB.</p>
 <h3 id="caches--static"><a class="header" href="#caches--static"><code>caches</code> : Static</a></h3>
@@ -929,14 +972,14 @@ Internally, the granularity is forced to MB.</p>
 In the current version, only 2 tags may be used:</p>
 <ul>
 <li><code>none</code> is a fake cache that cache nothing.</li>
-<li><code>dir</code> is a cache working without daemon, data are stored in a directory.</li>
+<li><code>dir</code> is a cache working without daemon, data are stored in a dir.</li>
 </ul>
 <h3 id="cachesdirdir--static"><a class="header" href="#cachesdirdir--static"><code>caches.&lt;dir&gt;.dir</code> : Static</a></h3>
-<p>This attribute specifies the directory in which the cache puts its data.</p>
-<p>The directory must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
+<p>This attribute specifies the dir in which the cache puts its data.</p>
+<p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
 <h3 id="cachesdirreliable_dirs--static-false"><a class="header" href="#cachesdirreliable_dirs--static-false"><code>caches.&lt;dir&gt;.reliable_dirs</code> : Static (<code>False</code>)</a></h3>
-<p>Same meaning as <code>config.reliable_dirs</code> for the directory containing the cache.</p>
+<p>Same meaning as <code>config.reliable_dirs</code> for the dir containing the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
 <p>This attribute specifies the group used when creating entries.</p>
 <h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>
@@ -985,7 +1028,7 @@ This means:</p>
 <ul>
 <li>The following system (or libc) calls are forbidden (trying to execute any of these results in an error):
 <ul>
-<li>changing directory (<code>chdir</code> and the like)</li>
+<li>changing dir (<code>chdir</code> and the like)</li>
 <li>spawning processes (fork and the like)</li>
 <li>exec (execve and the like)</li>
 <li>modifying the disk (open for writing and the like)</li>
@@ -999,10 +1042,10 @@ This means:</p>
 <li><code>sys.path</code> is made  <code>tuple</code> though, so that common calls such as <code>sys.path.append</code> will generate an error.</li>
 </ul>
 </li>
-<li><code>sys.path</code> is sampled after having read <code>Lmakefile.py</code> (while reading rules) and local directories are filtered out. There are no means to import local modules.</li>
+<li><code>sys.path</code> is sampled after having read <code>Lmakefile.py</code> (while reading rules) and local dirs are filtered out. There are no means to import local modules.</li>
 <li>However, reading local files is ok, as long as <code>sys.modules</code> is not updated.</li>
 <li>There is no containers, as for <code>cmd</code> execution (e.g. no <code>repo_view</code>).</li>
-<li>execution is performed in the top-level root directory.
+<li>execution is performed in the top-level root dir.
 <ul>
 <li>This means that to be used as a sub-repo, all local file accesses must be performed with the sub-repo prefix.</li>
 <li>This prefix can be found in <code>lmake.sub_repo</code>, which contains <code>.</code> for the top-level repo.</li>
@@ -1094,7 +1137,7 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>Phony</code></td><td><code>phony</code></td><td>No</td><td>Accept that this target is not generated, this target is deemed generated even not physically on disk. If a star target, do not search for an alternative rule to produce the file.</td></tr>
 <tr><td><code>SourceOk</code></td><td><code>source_ok</code></td><td>No</td><td>Do not generate an error if target is actually a source</td></tr>
 <tr><td><code>NoWarning</code></td><td><code>no_warning</code></td><td>No</td><td>Warning is not reported if a target is either uniquified or unlinked before job execution while generated by another job.</td></tr>
-<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>target pattern is interpreted relative to the root directory of the repository, else it is relative to the <code>cwd</code> of the rule.</td></tr>
+<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>target pattern is interpreted relative to the root dir of the repo, else it is relative to the <code>cwd</code> of the rule.</td></tr>
 </tbody></table>
 </div>
 <p>All targets must have the same set of static stems (i.e. stems with no <code>*</code> in its name).</p>
@@ -1126,10 +1169,10 @@ Its syntax is the same as any target entry except that it may not be <code>incre
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Simple</td><td><code>{ 'SRC' : '{File}.c' }</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines the static dependencies.
+<p>This attribute defines the static deps.
 It is a <code>dict</code> which associates python identifiers to files computed from the available environment.</p>
 <p>They are f-strings, i.e. their value follow the python f-string syntax and semantic
-but they are interpreted when open-lmake tries to match the rule (the rule only matches if static dependencies are buildable, cf <a href="rule_selection.html">rule selection</a>).
+but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf <a href="rule_selection.html">rule selection</a>).
 Hence they lack the initial <code>f</code> in front of the string.</p>
 <p>Alternatively, values can also be <code>list</code> or <code>tuple</code> whose first item is as described above, followed by flags.</p>
 <p>The flags may be any combination of the following flags, optionally preceded by - to turn it off.
@@ -1142,14 +1185,14 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>dep pattern is interpreted relative to the top-level repo, else to the local repo (cf <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
 </tbody></table>
 </div>
-<p>Flag order and dependency order are not significative.</p>
+<p>Flag order and dep order are not significative.</p>
 <h3 id="dep"><a class="header" href="#dep"><code>dep</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines an unnamed static dependency.</p>
-<p>During execution, <code>cmd</code> stdin will be redirected to this dependency, else it is <code>/dev/null</code>.</p>
+<p>This attribute defines an unnamed static dep.</p>
+<p>During execution, <code>cmd</code> stdin will be redirected to this dep, else it is <code>/dev/null</code>.</p>
 <h3 id="side_deps"><a class="header" href="#side_deps"><code>side_deps</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td></td></tr>
@@ -1167,9 +1210,9 @@ Syntactically, it follows the <code>side_targets</code> attribute except that:</
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/ubuntu22.04'</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines a directory in which jobs will <code>chroot</code> into before execution begins.
+<p>This attribute defines a dir in which jobs will <code>chroot</code> into before execution begins.
 It must be an absoluted path.</p>
-<p>Note that unless the <code>repo_view</code> is set, the repository must be visible under its original name in this chroot environment.</p>
+<p>Note that unless the <code>repo_view</code> is set, the repo must be visible under its original name in this chroot environment.</p>
 <p>If <code>None</code>, <code>''</code> or <code>'/'</code>, no <code>chroot</code> is performed unless required to manage the <code>tmp_view</code> and <code>repo_view</code> attributes (in which case it is transparent).
 However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used nonetheless.</p>
 <h3 id="repo_view"><a class="header" href="#repo_view"><code>repo_view</code></a></h3>
@@ -1177,35 +1220,35 @@ However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used 
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/repo'</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines a directory in which jobs will see the top-level directory of the repo (the root directory).
+<p>This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
 This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">namespaces</a>).</p>
-<p>It must be an absolute path not lying in the temporary directory.</p>
+<p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
-<p>As of now, this attribute must be a top level directory, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
+<p>As of now, this attribute must be a top level dir, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
 <h3 id="tmp_view"><a class="header" href="#tmp_view"><code>tmp_view</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines the name which the temporary directory available for job execution is mounted on (cf <a href="namespaces.html">namespaces</a>).</p>
-<p>If <code>None</code>, <code>''</code> or not specified, this directory is not mounted.
+<p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf <a href="namespaces.html">namespaces</a>).</p>
+<p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted.
 Else, it must be an absolute path.</p>
-<p>As of now, this attribute must be a top level directory, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
+<p>As of now, this attribute must be a top level dir, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
 <h3 id="views"><a class="header" href="#views"><code>views</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines a mapping from logical views to physical directories.</p>
+<p>This attribute defines a mapping from logical views to physical dirs.</p>
 <p>Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a <code>/</code> or not.
-Files must be mapped to files and directories to directories.</p>
-<p>Both logical views and physical locations may be inside or outside the repository, but it is not possible to map an external view to a local location (cf <a href="namespaces.html">namespaces</a>).</p>
+Files must be mapped to files and dirs to dirs.</p>
+<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf <a href="namespaces.html">namespaces</a>).</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
 <li>a <code>dict</code> with keys <code>upper</code> (a <code>str</code>) and <code>lower</code> (a single <code>str</code> or a list of <code>str</code>) in which case an overlay mount is performed.
-Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of directories to create in upper or files to copy from lower to upper.
-Directories are recognized when they end with <code>/</code>.
+Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of dirs to create in upper or files to copy from lower to upper.
+Dirs are recognized when they end with <code>/</code>.
 Such <code>copy_up</code> items are provided relative to the root of the view.</li>
 </ul>
 <h3 id="environ"><a class="header" href="#environ"><code>environ</code></a></h3>
@@ -1223,15 +1266,15 @@ Hence, it is quite simple to copy some variables from the user environment altho
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <p>If a value contains one of the following strings, they are replaced by their corresponding definitions:</p>
 <div class="table-wrapper"><table><thead><tr><th>Key</th><th>Replacement</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>$LMAKE_ROOT</code></td><td>The root directory of the open-lmake package</td><td>Dont store in targets as this may require cleaning repo if open-lmake installation changes</td></tr>
-<tr><td><code>$PHYSICAL_REPO_ROOT</code></td><td>The physical directory of the subrepo</td><td>Dont store in targets as this may interact with cached results</td></tr>
-<tr><td><code>$PHYSICAL_TMPDIR</code></td><td>The physical directory of the tmp directory</td><td>Dont store in targets as this may interact with cached results</td></tr>
-<tr><td><code>$PHYSICAL_TOP_REPO_ROOT</code></td><td>The physical directory of the top-level repo</td><td>Dont store in targets as this may interact with cached results</td></tr>
-<tr><td><code>$REPO_ROOT</code></td><td>The absolute directory of the subrepo as seen by job</td><td></td></tr>
+<tr><td><code>$LMAKE_ROOT</code></td><td>The root dir of the open-lmake package</td><td>Dont store in targets as this may require cleaning repo if open-lmake installation changes</td></tr>
+<tr><td><code>$PHYSICAL_REPO_ROOT</code></td><td>The physical dir of the subrepo</td><td>Dont store in targets as this may interact with cached results</td></tr>
+<tr><td><code>$PHYSICAL_TMPDIR</code></td><td>The physical dir of the tmp dir</td><td>Dont store in targets as this may interact with cached results</td></tr>
+<tr><td><code>$PHYSICAL_TOP_REPO_ROOT</code></td><td>The physical dir of the top-level repo</td><td>Dont store in targets as this may interact with cached results</td></tr>
+<tr><td><code>$REPO_ROOT</code></td><td>The absolute dir of the subrepo as seen by job</td><td></td></tr>
 <tr><td><code>$SEQUENCE_ID</code></td><td>A unique value for each job execution (at least 1)</td><td>This value must be semantically considered as a random value</td></tr>
 <tr><td><code>$SMALL_ID</code></td><td>A unique value among simultaneously running jobs (at least 1)</td><td>This value must be semantically considered as a random value</td></tr>
-<tr><td><code>$TMPDIR</code></td><td>The absolute directory of the tmp directory, as seen by the job</td><td></td></tr>
-<tr><td><code>$TOP_REPO_ROOT</code></td><td>The absolute directory of the top-level repo, as seen by the job</td><td></td></tr>
+<tr><td><code>$TMPDIR</code></td><td>The absolute dir of the tmp dir, as seen by the job</td><td></td></tr>
+<tr><td><code>$TOP_REPO_ROOT</code></td><td>The absolute dir of the top-level repo, as seen by the job</td><td></td></tr>
 </tbody></table>
 </div>
 <p>By default the following environment variables are defined :</p>
@@ -1372,7 +1415,7 @@ It is passed to the zlib library used to compress job targets.</p>
 <tr><td>python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden dependencies.</p>
+<p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden deps.</p>
 <h3 id="resources"><a class="header" href="#resources"><code>resources</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_RESOURCE' : '1' }</code></td></tr>
@@ -1402,25 +1445,25 @@ If it is <code>True</code>, writing to stderr is allowed and does not produce an
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
-<p>When this attribute has a true value, executing a <code>chdir</code> syscall (e.g. executing <code>cd</code> in bash) will create the target directory if it does not exist.</p>
+<p>When this attribute has a true value, executing a <code>chdir</code> syscall (e.g. executing <code>cd</code> in bash) will create the target dir if it does not exist.</p>
 <p>This is useful for scripts in situations such as:</p>
 <ul>
 <li>The script does <code>chdir a</code>.</li>
 <li>Then try to read file <code>b</code> from there.</li>
-<li>What is expected is to have a dependency on <code>a/b</code> which may not exist initially but will be created by some other job.</li>
-<li>However, if directory <code>a</code> does not exist, the <code>chdir</code> call fails and the file which is open for reading is <code>b</code> instead of <code>a/b</code>.</li>
-<li>As a consequence, no dependency is set for <code>a/b</code> and the problem will not be resolved by a further re-execution.</li>
-<li>Setting this attribute to true creates directory <code>a</code> on the fly when <code>chdir</code> is called so that it succeeds and the correct dependency is set.</li>
+<li>What is expected is to have a dep on <code>a/b</code> which may not exist initially but will be created by some other job.</li>
+<li>However, if dir <code>a</code> does not exist, the <code>chdir</code> call fails and the file which is open for reading is <code>b</code> instead of <code>a/b</code>.</li>
+<li>As a consequence, no dep is set for <code>a/b</code> and the problem will not be resolved by a further re-execution.</li>
+<li>Setting this attribute to true creates dir <code>a</code> on the fly when <code>chdir</code> is called so that it succeeds and the correct dep is set.</li>
 </ul>
 <h3 id="keep_tmp"><a class="header" href="#keep_tmp"><code>keep_tmp</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
-<p>When this attribute is set to a true value, the temporary directory is kept after job execution.
+<p>When this attribute is set to a true value, the temporary dir is kept after job execution.
 It can be retreived with <code>lshow -i</code>.</p>
-<p>Sucessive executions of the same job overwrite the temporary directory, though, so only the content corresponding to the last execution is available.
-When this attribute has a false value, the temporary directory is cleaned up at the end of the job execution.</p>
+<p>Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
+When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.</p>
 <h3 id="force"><a class="header" href="#force"><code>force</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
@@ -1458,7 +1501,7 @@ The consequence is only cosmetic, it has no other impact.</p>
 <ul>
 <li><code>^C</code> is hit if it is not necessary for another running <code>lmake</code> command that has not received a <code>^C</code>.</li>
 <li>When timeout is reached.</li>
-<li>When <code>check_deps</code> is called and some dependencies are out-of-date.</li>
+<li>When <code>check_deps</code> is called and some deps are out-of-date.</li>
 </ul>
 <p>The signals listed in this list are sent in turn, once every second.
 Longer interval can be obtained by inserting <code>0</code>'s. <code>0</code> signals are not sent and anyway, these would have no impact if they were.</p>
@@ -1505,7 +1548,7 @@ git clean -ffdx
 lmake foo
 </code></pre>
 <p>This what stable state means : the content of <code>foo</code> is independent of the history and only depends on the rules and the content of sources, both being managed through <code>git</code> in this example.</p>
-<p>In this specification, directories are ignored (i.e. the presence or content of a directory has no impact) and symbolic links are similar to regular files whose content is the link itself.</p>
+<p>In this specification, dirs are ignored (i.e. the presence or content of a dir has no impact) and symbolic links are similar to regular files whose content is the link itself.</p>
 <h3 id="reading-and-writing-files"><a class="header" href="#reading-and-writing-files">Reading and writing files</a></h3>
 <p>The first point is to precisely know what reading and writing mean.</p>
 <p>Writing to file <code>foo</code> means:</p>
@@ -1516,7 +1559,7 @@ lmake foo
 <li>The execution of <code>ltarget foo</code> in which the <code>-W</code> option is not passed.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repository (i.e. under the directory containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-directory).</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir).</li>
 </ul>
 <p>Reading file <code>foo</code> means :</p>
 <ul>
@@ -1525,14 +1568,14 @@ assuming the <code>autodep</code> rule attribute is not set to <code>'none'</cod
 <li>Unless the <code>config.link_support</code> attribute is set to <code>'none'</code>,
 any access (reading or writing) to <code>foo</code> which follows symlinks is an implicit <code>readlink</code>.</li>
 <li>Unless the <code>config.link_support</code> attribute is set to <code>'file'</code> or <code>'none'</code>,
-any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all directories leading to it.</li>
+any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all dirs leading to it.</li>
 <li>Note that some system calls can be both a read and a write, e.g. <code>open("foo", O_RDWR)</code> but also <code>rename("foo",...)</code>.
 In that case, the read occurs before the write.</li>
 <li>A call to <code>lmake.depend('foo',read=True)</code>. Note that <code>True</code> is the default value for the <code>read</code> argument.</li>
 <li>The execution of <code>ldepend foo</code> in which the <code>-R</code> option is not passed.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.depend('foo',ignore=True)</code> or the execution of <code>ldepend -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> is not listed in <code>deps</code> or matches a <code>side_deps</code> entry, with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repository (i.e. under the directory containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-directory) or in a source directory.</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir) or in a source dir.</li>
 </ul>
 <h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
 <p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
@@ -1571,22 +1614,22 @@ In case a target is also a dep, it is automatically flagged as <code>incremental
 This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.</p>
 <p>In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
-In that case, open-lmake quarantines the file under the <code>LMAKE/quarantine</code> directory with its original name.
+In that case, open-lmake quarantines the file under the <code>LMAKE/quarantine</code> dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
 There are cases where open-lmake cannot anticipate such an overwrite.</p>
-<h2 id="tmp-directory"><a class="header" href="#tmp-directory">tmp directory</a></h2>
-<p>The physical directory is:</p>
+<h2 id="tmp-dir"><a class="header" href="#tmp-dir">tmp dir</a></h2>
+<p>The physical dir is:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to empty, there is no tmp directory.</li>
-<li>If open-lmake is supposed to keep this directory after job execution, it is a directory under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
-<li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-directory within it.</li>
-<li>Else, a directory determined by open-lmake lying in the <code>LMAKE</code> directory.</li>
+<li>If <code>$TMPDIR</code> is set to empty, there is no tmp dir.</li>
+<li>If open-lmake is supposed to keep this dir after job execution, it is a dir under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
+<li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.</li>
+<li>Else, a dir determined by open-lmake lying in the <code>LMAKE</code> dir.</li>
 </ul>
-<p>Unless open-lmake is instructed to keep this directory, it is erased at the end of the job execution.</p>
+<p>Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.</p>
 <p>At execution time:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp directory (usually <code>/tmp</code>), an error is generated.</li>
-<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp directory.</li>
+<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp dir (usually <code>/tmp</code>), an error is generated.</li>
+<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp dir.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
@@ -1600,8 +1643,8 @@ They must remain untouched:</p>
 <li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
 <li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
 <li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
-<li><code>$TMPDIR</code>            : The name of a directory which is empty at the start of the job.
-If the temporary directory is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this directory is cleaned up at the end of the job execution.</li>
+<li><code>$TMPDIR</code>            : The name of a dir which is empty at the start of the job.
+If the temporary dir is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this dir is cleaned up at the end of the job execution.</li>
 </ul>
 <p>After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</p>
 <p>The job is reported ok if all of the following conditions are met:</p>
@@ -1669,13 +1712,13 @@ This means if <code>a</code> is a symbolic link to <code>b</code>, the content o
 <li><code>b</code></li>
 </ul>
 <p>This is what is expected : if either <code>a</code> or <code>b</code> is modified, the stdout of <code>cat a</code> may be modified.</p>
-<h3 id="directories"><a class="header" href="#directories">directories</a></h3>
+<h3 id="dirs"><a class="header" href="#dirs">Dirs</a></h3>
 <p>Open-lmake manages a flat repo.
 This means that <code>/</code> is an ordinary character.</p>
 <p>As far as open-lmake is concerned, there is no difference between <code>a</code> being a dir and <code>a</code> not existing.</p>
 <p>However, because dirs do exist on disk, it is impossible for <code>a</code> and <code>a/b</code> to exist simultaneously (i.e. exist as regular or symbolic link).
 As a consequence, there is an implicit rule (Uphill) that prevents <code>a/b</code> from being buildable if <code>a</code> is buildable.</p>
-<p>Also, because directories cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
+<p>Also, because dirs cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
 Such constructs are strongly discouraged:</p>
 <ul>
 <li>use of <code>glob.glob</code> in python</li>
@@ -1696,14 +1739,14 @@ This rule selection process works in several steps described below.</p>
 <p>First, the length of the target name is checked agains <code>lmake.config.path_max</code>.
 If the target name is longer, then the process stops here and the file is not buildable.</p>
 <h3 id="sources"><a class="header" href="#sources">Sources</a></h3>
-<p>The second step is to check target agains sources and source directories.</p>
+<p>The second step is to check target agains sources and source dirs.</p>
 <p>If the target is listed as a source it is deemed buildable.
 No execution is associated, though, the file modifications made by the user are tracked instead.</p>
-<p>If the target is within a directory listed as a source directory (i.e. appears ending with a <code>/</code> in the manifest), it is deemed buildable if it exists.
+<p>If the target is within a dir listed as a source dir (i.e. appears ending with a <code>/</code> in the manifest), it is deemed buildable if it exists.
 If it does not exist, it is not buildable.
 In both cases, the process stops here.</p>
-<h3 id="up-hill-directory"><a class="header" href="#up-hill-directory">Up-hill directory</a></h3>
-<p>The third step is to see if a up-hill directory (i.e. one of the directory along the directory path leading to the file) is (recursively) buildable.</p>
+<h3 id="up-hill-dir"><a class="header" href="#up-hill-dir">Up-hill dir</a></h3>
+<p>The third step is to see if a up-hill dir (i.e. one of the dir along the dir path leading to the file) is (recursively) buildable.</p>
 <p>If it is the case, the rule selection process stops here and the file is not buildable.</p>
 <h3 id="antirule-and-sourcerule"><a class="header" href="#antirule-and-sourcerule"><code>AntiRule</code> and <code>SourceRule</code></a></h3>
 <p>The following step is to match the target against <code>AntiRule</code>'s and <code>SourceRule</code>'s (ordered by their <code>prio</code> attribute, high values are considered first).
@@ -1720,13 +1763,13 @@ Static targets are tried first in user order, then star targets in user order, a
 Target order is made of <code>targets</code> and <code>target</code> entries in reversed MRO order (i.e. higher classes in the python class hierarchy are considered first),</p>
 <p>If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a <code>*</code>).
 Else, the rule does not apply.</p>
-<h4 id="check-static-dependencies"><a class="header" href="#check-static-dependencies">Check static dependencies</a></h4>
+<h4 id="check-static-deps"><a class="header" href="#check-static-deps">Check static deps</a></h4>
 <p>The definition of the static stems allow to compute :</p>
 <ul>
 <li>The other targets of the rule. Static targets become the associated file, star targets becomes regular expressions in which static stems are expanded.</li>
-<li>Static dependencies by interpreting them as f-strings in which static stems and targets are defined.</li>
+<li>Static deps by interpreting them as f-strings in which static stems and targets are defined.</li>
 </ul>
-<p>Static dependencies are then analyzed to see if the are (recursively) buildable, and if any is not buildable, the rule does not apply.</p>
+<p>Static deps are then analyzed to see if the are (recursively) buildable, and if any is not buildable, the rule does not apply.</p>
 <h4 id="group-recap"><a class="header" href="#group-recap">Group recap</a></h4>
 <p>After these 2 previous steps have been done for the rules of a group, the applicable rules are analyzed the following way:</p>
 <ul>
@@ -1752,7 +1795,7 @@ It is also in charge of :</p>
 <p>A backend has to take decisions of 2 kinds:</p>
 <ul>
 <li>Is a job eligible for running ?
-From a dependency perspective, the open-lmake engine guarantees it is so.
+From a dep perspective, the open-lmake engine guarantees it is so.
 But the job needs some resources to run and these resources may already be busy because of some other jobs already running.</li>
 <li>If several jobs are eligible, which one(s) to actually launch.</li>
 </ul>
@@ -1768,7 +1811,7 @@ When launched, the required resources are subtracted from the pool and when term
 To do that, future job ETE have to be estimated.
 For jobs that have already run, last successful execution time is used.
 When this information is not available, i.e. when the job has never run successfully, a moving average of the execution times of the jobs sharing the same rule is used as a best guess.</p>
-<p>The backend also provides the current <a href="eta.html">ETA</a> of the final targets to allow the backends from different repository to take the best collective decision.</p>
+<p>The backend also provides the current <a href="eta.html">ETA</a> of the final targets to allow the backends from different repo to take the best collective decision.</p>
 <p>In addition to dedicated resources, all backends manage the following 3 resources:</p>
 <ul>
 <li><code>cpu</code> : The number of threads the job is expected to run in parallel. The backend is expected to reserve enough resources for such a number of threads to run smoothly.</li>
@@ -1800,7 +1843,7 @@ This is done by rounding these resources for grouping jobs into buckets.</p>
 </ul>
 <h2 id="local-backend"><a class="header" href="#local-backend">Local backend</a></h2>
 <p>The local backend launches jobs locally, on the host running the <code>lmake</code> command.
-There is no cooperation between backends from different repositories and the user has to ensure there is no global resource conflict.</p>
+There is no cooperation between backends from different repos and the user has to ensure there is no global resource conflict.</p>
 <p>This backend is configured by providing entries in the <code>lmake.config.backends.local</code> <code>dict</code>.
 The key identifies the resource and the value is a <code>int</code> that identifies a quantity.</p>
 <p>The local backend is used when either:</p>
@@ -1835,13 +1878,13 @@ and if not possible (e.g. because a resource is not available locally or because
 <h2 id="sge-backend"><a class="header" href="#sge-backend">SGE backend</a></h2>
 <p>The SGE backend connects to a SGE daemon to schedule jobs, which allows:</p>
 <ul>
-<li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
+<li>a global scheduling policy (while the local backend only sees jobs in its own repo).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
 <h3 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h3>
 <p>The configuration is composed of:</p>
 <ul>
-<li><code>bin</code>  : The directory in which to find SGE executables such as <code>qsub</code>. This entry must be specified.</li>
+<li><code>bin</code>  : The dir in which to find SGE executables such as <code>qsub</code>. This entry must be specified.</li>
 <li><code>cell</code> : The cell used by the SGE daemon. This is translated into <code>$SGE_CELL</code> when SGE commands are called.
 By default, this is automatically determined by the SGE daemon.</li>
 <li><code>cluster</code> : The cluster used by the SGE daemon. This is translated into <code>$SGE_CLUSTER</code> when SGE commands are called.
@@ -1858,10 +1901,10 @@ If too high, the schedule rate may decrase because of the slurm daemon being ove
 A reasonable value probably lies in the 10-100 range.
 Default is 10.</li>
 <li><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make SGE job names.
-This key is meant to be a short identifier of the repository.
-By default it is the base name of the repository followed by <code>:</code>.
+This key is meant to be a short identifier of the repo.
+By default it is the base name of the repo followed by <code>:</code>.
 Note that SGE precludes some characters and these are replaced by close looking characters (e.g. <code>;</code> instead of <code>:</code>).</li>
-<li><code>root</code>         : The root directory of the SGE daemon. This is translated into <code>$SGE_ROOT</code> when SGE commands are called. This entry must be specified.</li>
+<li><code>root</code>         : The root dir of the SGE daemon. This is translated into <code>$SGE_ROOT</code> when SGE commands are called. This entry must be specified.</li>
 <li><code>cpu_resource</code> : This is the name of a resource used to require cpu's.
 For example if specified as <code>cpu_r</code> and the rule of a job contains <code>resources={'cpu':2}</code>, this is translated into <code>-l cpu_r=2</code> on the <code>qsub</code> command line.</li>
 <li><code>mem_resource</code> : This is the name of a resource used to require memory in MB.
@@ -1883,7 +1926,7 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <h2 id="slurm-backend"><a class="header" href="#slurm-backend">Slurm backend</a></h2>
 <p>The slurm backend connects to a slurm daemon to schedule jobs, which allows :</p>
 <ul>
-<li>a global scheduling policy (while the local backend only sees jobs in its own repository).</li>
+<li>a global scheduling policy (while the local backend only sees jobs in its own repo).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
 <h3 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h3>
@@ -1909,22 +1952,22 @@ Default is 10.</p>
 </li>
 <li>
 <p><code>repo_key</code> : This is a string which is add in front of open-lmake job names to make slurm job names.
-This key is meant to be a short identifier of the repository.
-By default it is the base name of the repository followed by <code>:</code>.</p>
+This key is meant to be a short identifier of the repo.
+By default it is the base name of the repo followed by <code>:</code>.</p>
 </li>
 <li>
 <p><code>use_nice</code>:
-open-lmake has and advantage over slurm in terms of knowledge: it knows the dependencies, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
-This allows it to anticipate the needs and know, even globally when numerous <code>lmake</code> commands run, in the same repository or on several ones, which jobs should be given which priority.
-Note that open-lmake cannot leverage the dependency capability of slurm as dependencies are dynamic by nature:</p>
+open-lmake has and advantage over slurm in terms of knowledge: it knows the deps, the overall jobs necessary to reach the asked target and the history of the time taken by each job.
+This allows it to anticipate the needs and know, even globally when numerous <code>lmake</code> commands run, in the same repo or on several ones, which jobs should be given which priority.
+Note that open-lmake cannot leverage the dep capability of slurm as deps are dynamic by nature:</p>
 <ul>
-<li>new dependencies can appear during job execution, adding new edges to the dependency graph,</li>
-<li>jobs can have to rerun, so a dependent job may not be able to start when its dependency is done,</li>
+<li>new deps can appear during job execution, adding new edges to the dep graph,</li>
+<li>jobs can have to rerun, so a dependent job may not be able to start when its dep is done,</li>
 <li>and a job can be steady, so a dependent job may not have to run at all.</li>
 </ul>
 <p>The way it works is th following:</p>
 <ul>
-<li>First open-lmake computes and <a href="eta.html">ETA</a> for each <code>lmake</code> command. This ETA is a date, it is absolute, and can be compared between commands running in different repositories.</li>
+<li>First open-lmake computes and <a href="eta.html">ETA</a> for each <code>lmake</code> command. This ETA is a date, it is absolute, and can be compared between commands running in different repos.</li>
 <li>Then it computes a pressure for each job. The pressure is the time necessary to reach the asked target of the <code>lmake</code> command given the run time for all intermediate jobs
 (including the considered job).</li>
 <li>The subtraction of the pressure from the ETA gives a reasonable and global estimate of when it is desirable to schedule a job, and hence can be used as a priority.</li>
@@ -1987,19 +2030,19 @@ This guarantees that no daemon is left behind, uncontrolled.</p>
 <p>Note that this is true even when <code>chroot_dir</code> is <code>'/'</code>, which otherwise provides no other effect by itself.</p>
 <p>Namespaces can be used in the following situations :</p>
 <ul>
-<li>Open-lmake provides a cache mechanism allowing to prevent executing a job which was already executed in the same or another repository.
+<li>Open-lmake provides a cache mechanism allowing to prevent executing a job which was already executed in the same or another repo.
 However, some jobs may use and record absolute paths.
-In that case, the cache will be inefficient as the result in a repository is not identical to the one in another repository.
+In that case, the cache will be inefficient as the result in a repo is not identical to the one in another repo.
 This is current practice, in particular in the EDA tools community (which may be rather heavy and where caching is mostly desirable).
 Using the <code>repo_view</code> attribute is a good way to work around this obstacle.</li>
-<li>Open-lmake tracks all dependencies inside the reposity and listed source directories. But it does not track external dependencies, typically the system (e.g.the <code>/usr</code> directory).
+<li>Open-lmake tracks all deps inside the reposity and listed source dirs. But it does not track external deps, typically the system (e.g.the <code>/usr</code> dir).
 However, the <code>chroot_dir</code> attribute is part of the command definition and a job will be considered out of date if its value is modified.
 Hence, this can be used as a marker representing the whole system to ensure jobs are rerun upon system updates.</li>
-<li>some softwares (e.g. EDA tools) are designed to operate on a directory rather than dealing with input files/directories and output files/directories.
+<li>some softwares (e.g. EDA tools) are designed to operate on a dir rather than dealing with input files/dirs and output files/dirs.
 This goes against reentrancy and thus reliability, repeatability, parallelism etc.
 This problem can be solved with symbolic links if they are allowed.
-In all cases, it can be solved by using the <code>tmp_view</code> and copying data back and forth between the repository and the tmp directory.
-Or, more efficient, it can be solved by adequately mapping a logical steady file or directory to a per job physical file or directory (respectively).</li>
+In all cases, it can be solved by using the <code>tmp_view</code> and copying data back and forth between the repo and the tmp dir.
+Or, more efficient, it can be solved by adequately mapping a logical steady file or dir to a per job physical file or dir (respectively).</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
@@ -2007,7 +2050,7 @@ Or, more efficient, it can be solved by adequately mapping a logical steady file
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="autodep-1"><a class="header" href="#autodep-1">Autodep</a></h1>
 <p>Autodep is a mechanism through which jobs are spied to automatically detect disk accesses.
-From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all dependencies.</p>
+From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all deps.</p>
 <h2 id="spying-methods"><a class="header" href="#spying-methods">Spying methods</a></h2>
 <p>There exists two classes of spying methods.
 Not all methods are supported on all systems, though.</p>
@@ -2052,7 +2095,7 @@ Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>
 This requires to intercept <code>chdir</code> although no access is to be reported.</li>
 <li>Symbolic link processing.
 Open-lmake lies in the physical world (and there is no way it can do anything else) and must be aware of any symbolic link traversal.
-This includes the ones on the directory path.
+This includes the ones on the dir path.
 So the spying code includes a functionality that resembles to <code>realpath</code>, listing all traversed links.</li>
 </ul>
 <p>Lying in the physical world means that symbolic links are handled like plain data files, except that there is a special bit that says it is a symbolic link.
@@ -2061,30 +2104,30 @@ For example, after the code sequence:</p>
 <pre><code>cd a
 cat b
 </code></pre>
-<p>where <code>b</code> is symbolic link to <code>c</code>, 2 dependencies are recorded:</p>
+<p>where <code>b</code> is symbolic link to <code>c</code>, 2 deps are recorded:</p>
 <ul>
 <li><code>a/b</code> (a symbolic link), as if it is modified, job must be rerun.</li>
 <li><code>a/c</code> (a plain data file), same reason.</li>
 </ul>
-<p>Generally speaking, read a file makes it a dependency, writing to it makes it a target.
-Of course, reading a file that has been written doe not make it a dependency any more.</p>
+<p>Generally speaking, read a file makes it a dep, writing to it makes it a target.
+Of course, reading a file that has been written doe not make it a dep any more.</p>
 <h2 id="how-to-report-accesses"><a class="header" href="#how-to-report-accesses">How to report accesses</a></h2>
 <p>When a job is run, a wrapper (called <code>job_exec</code>) is launched that launches the user process.</p>
 <p><code>job_exec</code> has several responsibilities, among which :</p>
 <ul>
 <li>Prepare the user environment for the user code (environment variables, cwd, namespace if necessary, etc.).</li>
 <li>Receive the accesses made by the user code (through a socket) and record them.</li>
-<li>Determine what is a dependency, what is a target etc.</li>
-<li>Report a job digest to the server (the central process managing the dependency DAG).</li>
+<li>Determine what is a dep, what is a target etc.</li>
+<li>Report a job digest to the server (the central process managing the dep DAG).</li>
 </ul>
 <p>The major idea is that when an access is reported by the user code (in the case of <code>libc</code> call spying), there is no reply from <code>job_exec</code> back to the user code, so no round trip delay is incurred.</p>
-<h2 id="dependencies-order-is-kept-as-well"><a class="header" href="#dependencies-order-is-kept-as-well">Dependencies order is kept as well</a></h2>
-<p>Remember that when a job is run, its dependencies list is <strong>approximative</strong>.
+<h2 id="deps-order-is-kept-as-well"><a class="header" href="#deps-order-is-kept-as-well">Deps order is kept as well</a></h2>
+<p>Remember that when a job is run, its deps list is <strong>approximative</strong>.
 It is the one of the previous run, which had different file contents.
 For example, a <code>.c</code> may have changed, including a <code>#include</code> directive.
-In case there are 2 dependencies <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
+In case there are 2 deps <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
 <p>Most of the time, this is harmless, but sometimes, it may happen that <code>d2</code> is not necessary any more (because old <code>d1</code> content had <code>#include "d2"</code> and new one does not).
-In that case, this job must be rerun with the new content od <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dependency.</p>
+In that case, this job must be rerun with the new content od <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dep.</p>
 <p>This may only occurs if <code>d2</code> was accessed <strong>after</strong> <code>d1</code> was accessed. If <code>d2</code> was accessed before <code>d1</code>, it is safe to say the job cannot run because <code>d2</code> is in error: it will never disappear.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
@@ -2093,11 +2136,11 @@ In that case, this job must be rerun with the new content od <code>d1</code>, ev
 <h1 id="critical-deps"><a class="header" href="#critical-deps">Critical deps</a></h1>
 <p>The question of critical deps is a performance only question.
 Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.</p>
-<p>During dependency analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>
+<p>During dep analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>
 <ul>
 <li>One possibility is to anticipate that the modification of <code>dep1</code> has no impact on the list of following deps.
 With such an anticipation, open-lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, open-lmake will launch all necessary jobs to rebuild
-all dependencies in parallel, even if the deps have been explicitly declared parallel.</li>
+all deps in parallel, even if the deps have been explicitly declared parallel.</li>
 <li>Another possivility is to anticipate that such a modification of <code>dep1</code> will drastically change the list of following deps.
 With such an anticipation, as soone as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of <code>dep1</code> is meaningless.</li>
 </ul>
@@ -2111,8 +2154,8 @@ The second strategy is conservative: build only what is certain to be required.<
 <li>a test suite <code>test_suite.lst</code> listing these reports</li>
 <li>a rule that builds <code>test_suite.rpts</code> by collating reports listed in <code>test_suite.lst</code></li>
 </ul>
-<p>In such a situation, the rule building <code>test_suite.rpts</code> typically has <code>test_suite.lst</code> as a static dependency but the actual reports <code>test1.rpt</code> and <code>test2.rpt</code> are
-hidden dependencies, i.e. automatically discovered when building <code>test_suite.rpts</code>.</p>
+<p>In such a situation, the rule building <code>test_suite.rpts</code> typically has <code>test_suite.lst</code> as a static dep but the actual reports <code>test1.rpt</code> and <code>test2.rpt</code> are
+hidden deps, i.e. automatically discovered when building <code>test_suite.rpts</code>.</p>
 <p>Suppose now that you make a modification that makes <code>test2.rpt</code> very heavy to generate. Knowing that, you change your test suite so list a lighter <code>test3.rpt</code> instead.
 The succession of jobs would then be the following:</p>
 <ul>
@@ -2128,7 +2171,7 @@ The succession of jobs would then be the following:</p>
 <li><code>test1.rpt</code> and <code>test3.rpt</code> are rebuilt sequentially.</li>
 </ul>
 <p>The problem lies in the fact that <code>test1.rpt</code> and <code>test2.rpt</code> are rebuilt before open-lmake had a chance to re-analyze the test suite showing that the new tests are test1 and test3.
-Generally speaking, this is a good strategy : such modifications of the dependency graph happens rather rarely and speculating that it is pretty stable by building known dependencies before
+Generally speaking, this is a good strategy : such modifications of the dep graph happens rather rarely and speculating that it is pretty stable by building known deps before
 launching a job is the right option.
 But here, because collating is very light (something like just executing <code>cat</code> on the reports), it is better to check <code>tests_suilte.lst</code> first,
 and if it changed, rerun the collation before ensuring (old) tests have run.</p>
@@ -2139,7 +2182,7 @@ Such a flag can either be passed when declaring static deps in a rule, or dynami
 <li>Set the <code>critial</code> flag on <code>test_suite.lst</code> (before or after actually reading it, this has no impact).</li>
 <li>Read <code>test_suite.lst</code>.</li>
 <li>Call <code>ldepend</code> on the reports listed in <code>test_suite.lst</code>.
-This is optional, just to generate parallel dependencies instead of automatic sequential dependencies (but if done, it must be before actually reading the reports).</li>
+This is optional, just to generate parallel deps instead of automatic sequential deps (but if done, it must be before actually reading the reports).</li>
 <li>Collate reports listed in <code>test_suite.lst</code>.</li>
 </ul>
 <p>And the succession of job would be:</p>
@@ -2157,15 +2200,15 @@ This is optional, just to generate parallel dependencies instead of automatic se
 <p>An ETA estimation is made possible because the execution time for each job is recorded in open-lmake book-keeping after all successful runs
 (if a job ends in error, it may very well have been much faster and the previous execution time is probably a better estimate than this one).
 When a job has never run successfully, an ETE is used instead of its actual execution time by taking a moving average of all the jobs of the same rule.</p>
-<p>This being given, a precise ETA would require a fake execution of the jobs yet to be run which can take all dependencies and resources into account.
+<p>This being given, a precise ETA would require a fake execution of the jobs yet to be run which can take all deps and resources into account.
 But this is way too expensive, so a faster process must be done, even at the expense of precision.</p>
-<p>In all cases, the ETA assumes that no new hidden dependencies are discovered and that no file is steady so that all jobs currently remaining will actually be executed.</p>
+<p>In all cases, the ETA assumes that no new hidden deps are discovered and that no file is steady so that all jobs currently remaining will actually be executed.</p>
 <p>2 approaches can be considered to estimate the time necessary to carry out remaining jobs :</p>
 <ul>
-<li>Resources limited : dependencies are ignored, only resources are considered.
+<li>Resources limited : deps are ignored, only resources are considered.
 Roughly, the time is the division of the quantity of resources necessary by the quantity of resources available.
 For example, if you need 10 minutes of processing and you have 2 cpus, this will last 10/2=5 minutes.</li>
-<li>Dependencies limited : resources are ignored and only dependencies are considered. This means you only look at the critical path.
+<li>Deps limited : resources are ignored and only deps are considered. This means you only look at the critical path.
 For example if you need to run a 2 minutes job followed by a 3 minutes job, and in parallel you must run a 4 minutes job, this will last 2+3=5 minutes.</li>
 </ul>
 <p>Open-lmake uses the first approach.
@@ -2185,14 +2228,14 @@ video mode is set to normal, else it is set to reverse.</p>
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="meta-data"><a class="header" href="#meta-data">Meta data</a></h1>
-<p>The <code>LMAKE</code> directory at the root of the repo contains numerous information that may be handy for the user.</p>
-<p>It also contains a <code>lmake</code> directory containing private data for open-lmake's own usage.</p>
+<p>The <code>LMAKE</code> dir at the root of the repo contains numerous information that may be handy for the user.</p>
+<p>It also contains a <code>lmake</code> dir containing private data for open-lmake's own usage.</p>
 <h3 id="lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><a class="header" href="#lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><code>LMAKE/config_deps</code>, <code>LMAKE/rules_deps</code> and <code>LMAKE/sources_deps</code></a></h3>
 <p>These files contain a list of files that open-lmake has read to process <code>Lmakefile.py</code> when reading each section (config, rules and sources).</p>
 <p>They contain several types of lines, depending on the first char:</p>
 <ul>
 <li><code>#</code>: comment line</li>
-<li><code>*</code>: line contains the open-lmake installation directory</li>
+<li><code>*</code>: line contains the open-lmake installation dir</li>
 <li><code>+</code>: line contains an existing file that was read</li>
 <li><code>!</code>: line contains a non-existing file that was accessed</li>
 </ul>
@@ -2214,15 +2257,15 @@ Such logs are kept for a number of days given in <code>lmake.config.console.hist
 <p>This file contains a state-recording version of open-lmake.
 If the recorded version does not match the used version, none of the open-lmake commands can be used.</p>
 <h3 id="lmakedebug"><a class="header" href="#lmakedebug"><code>LMAKE/debug</code></a></h3>
-<p>This directory contains a sub-directory for each job <code>ldebug</code> was used for.
-These sub-directories are named after the job id as displayed by <code>lshow -i</code>.</p>
+<p>This dir contains a sub-dir for each job <code>ldebug</code> was used for.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
 <h3 id="lmaketmp"><a class="header" href="#lmaketmp"><code>LMAKE/tmp</code></a></h3>
-<p>This directory contains a sub-directory for each job which was run while keeping its tmp directory.
-These sub-directories are named after the job id as displayed by <code>lshow -i</code>.</p>
+<p>This dir contains a sub-dir for each job which was run while keeping its tmp dir.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
 <h3 id="lmakequarantine"><a class="header" href="#lmakequarantine"><code>LMAKE/quarantine</code></a></h3>
-<p>This directory contains all files that have been quarantined.
+<p>This dir contains all files that have been quarantined.
 A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
-In that case, in order to be sure that no user work is lost, the file is quarantined in this directory rather than unlinked.</p>
+In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -2239,7 +2282,7 @@ They are:</p>
 <tr><td><a href="man/man1/lforget.html"><code>lforget</code></a></td><td>forget history of a job</td></tr>
 <tr><td><a href="man/man1/lmake.html"><code>lmake</code></a></td><td>run necessary jobs to ensure a target is up-to-date</td></tr>
 <tr><td><a href="man/man1/lmark.html"><code>lmark</code></a></td><td>mark a job to alter its behavior w.r.t. <code>lmake</code></td></tr>
-<tr><td><a href="man/man1/lrepair.html"><code>lrepair</code></a></td><td>repair a broken repository</td></tr>
+<tr><td><a href="man/man1/lrepair.html"><code>lrepair</code></a></td><td>repair a broken repo</td></tr>
 <tr><td><a href="man/man1/lshow.html"><code>lshow</code></a></td><td>show various informations of a job</td></tr>
 <tr><td><a href="man/man1/xxhsum.html"><code>xxhsum</code></a></td><td>compute a checksum on a file</td></tr>
 </tbody></table>
@@ -2250,7 +2293,7 @@ They are:</p>
 <div class="table-wrapper"><table><thead><tr><th>Command</th><th>Short description</th></tr></thead><tbody>
 <tr><td><a href="man/man1/lcheck_deps.html"><code>lcheck_deps</code></a></td><td>check currently seen deps are all up-to-date and kill job if not the case</td></tr>
 <tr><td><a href="man/man1/ldecode.html"><code>ldecode</code></a></td><td>retrieve value associated with a code</td></tr>
-<tr><td><a href="man/man1/ldepend.html"><code>ldepend</code></a></td><td>generate dependencies</td></tr>
+<tr><td><a href="man/man1/ldepend.html"><code>ldepend</code></a></td><td>generate deps</td></tr>
 <tr><td><a href="man/man1/lencode.html"><code>lencode</code></a></td><td>retrieve/generate a code associated with a value</td></tr>
 <tr><td><a href="man/man1/lrun_cc.html"><code>lrun_cc</code></a></td><td>run a compilation, ensuring include dirs and lib dirs exist</td></tr>
 <tr><td><a href="man/man1/ltarget.html"><code>ltarget</code></a></td><td>generate targets</td></tr>
@@ -2274,7 +2317,7 @@ They are:</p>
 <h1 id="cache-1"><a class="header" href="#cache-1">Cache</a></h1>
 <p>Several cache mechanisms will be implemented but for now, ony one exists.</p>
 <h2 id="dircache"><a class="header" href="#dircache">DirCache</a></h2>
-<p>This cache is based on a shared directory and requires no running daemon.</p>
+<p>This cache is based on a shared dir and requires no running daemon.</p>
 <p>It must be initialized with a file <code>LMAKE/size</code> containing the overall size the cache is allowed to occupy.
 The value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
 For example <code>LMAKE/size</code> can contain <code>1.5T</code>.</p>
@@ -2321,7 +2364,7 @@ If the target refers to a code, he may need some further steps to create the cod
 <p>One way to deal with this case is to create a central database, with the following pros and cons:</p>
 <ul>
 <li>robustness    : collisions can easily be dealt with.</li>
-<li>repeatability : this is a probleme. When dealing with collisions, some codes change, which change old repository because the database is not itself versioned. This is a serious problem.</li>
+<li>repeatability : this is a probleme. When dealing with collisions, some codes change, which change old repo because the database is not itself versioned. This is a serious problem.</li>
 <li>merging       : no merging.</li>
 <li>perfomance    : accessing the data in a performant way is easy. Detecting modifications so that open-lmake can take sound decisions may be more challenging.</li>
 <li>communication : excellent, the database is shared</li>
@@ -2363,14 +2406,14 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="sub-repositories"><a class="header" href="#sub-repositories">Sub-repositories</a></h1>
-<p>Sub-repositories are repositories that contain repositories, i.e. some <code>Lmakefile.py</code> are present in sub-directories.</p>
+<h1 id="sub-repos"><a class="header" href="#sub-repos">Sub-repos</a></h1>
+<p>Sub-repos are repos that contain repos, i.e. some <code>Lmakefile.py</code> are present in sub-dirs.</p>
 <p>In that situation, it is reasonable to assume that the <code>Lmakefile.py</code> are made to handle building files underneath it.</p>
 <p>To support this situation, open-lmake allow you to simply mention such sub-repos, so that:</p>
 <ul>
 <li>Targets only match within the sub-repo (and escape is possibly by setting the <code>top</code> flag to the target to provide global rules).</li>
 <li>The same applies to deps.</li>
-<li><code>cmd</code> is run from this sub-repository, i.e. its cwd is set accordingly.</li>
+<li><code>cmd</code> is run from this sub-repo, i.e. its cwd is set accordingly.</li>
 <li>The priority of deeper rules are matched first, so that builds in a sub-repo is not pertubated by rules of englobing repo.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
@@ -2395,6 +2438,55 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 <tr><td>repo</td><td>repository</td></tr>
 </tbody></table>
 </div>
+<h2 id="vocabulary-in-messages"><a class="header" href="#vocabulary-in-messages">Vocabulary in messages</a></h2>
+<p>Regularly, open-lmake generate some messages.
+In order to keep such messages reasonably terse, a dedicated vocabulary is used.
+This vocabulary is meant to be intuitive, but a full explanation is given here.</p>
+<h3 id="consider"><a class="header" href="#consider">Consider</a></h3>
+<p>When open-lmake finds an error and has a reasonable suggestion to fix it, it also generates an action likely to be done by the user.
+Wuch action are generated in a form that can be as directly copy-pasted as possible.</p>
+<p>When such action is linked to the source versioning system, <code>git</code> is assumed (which is by far the most commonly used system).
+In case another source versioning system is used, the user must adapt the suggested action.</p>
+<h3 id="dangling"><a class="header" href="#dangling">Dangling</a></h3>
+<p>A dangling file refers to an existing file with no way to generate it (i.e. no rules apply) but which is not controlled by the source versioning system.</p>
+<p>Open-lmake considers depending on such a file an error as such dep would go against repeatability, i.e. a <code>git push</code> followed by a <code>git pull</code> in another repo would not transport said file.</p>
+<h3 id="manual"><a class="header" href="#manual">Manual</a></h3>
+<p>A manual file refers to a file that has been modified outside open-lmake control (i.e. it is not the result of the execution of a job).</p>
+<h3 id="official-job"><a class="header" href="#official-job">Official job</a></h3>
+<p>The official job of a target is the one that would be selected to generate it upon execution of the command <code>lmake &lt;target&gt;</code>.
+If no such job exists, the official state of such target is to not exist.</p>
+<p>When open-lmake needs a dep for a job, it ensures its content is its official content (i.e. it is generated by its official job) for the job to be up-to-date.</p>
+<p>A target may be generated by other means, such as written by a job as a <code>side_target</code> or allowed to be written by a call to <code>lmake.target</code> or <code>ltarget</code>.
+This does not make such target officially generated, but actually generated : open-lmake has no means to find out the right job to execute should it need to (re)generate it.</p>
+<h3 id="polluted"><a class="header" href="#polluted">Polluted</a></h3>
+<p>A polluted file refers to a file that has been actually generated by a non-official job.</p>
+<h3 id="quarantine"><a class="header" href="#quarantine">Quarantine</a></h3>
+<p>Before executing a job, open-lmake ensures its targets do not exist (unless they are <code>incremental</code>) to ensure repeatable executions.
+This may lead it to unlink such files if they have been previously generated.</p>
+<p>However, if a target is determined to be manual (cf. above), it might contain valuable information that the user would be upset to lose.</p>
+<p>In such cases, unless open-lmake can determine that no valuable information is present, instead of unlinking the file, it moves it to the <code>LMAKE/quaranntine</code> dir where it can be retrieved by the user.
+Open-lmake considers that there is no valuable information in 2 cases:</p>
+<ul>
+<li>the file is empty</li>
+<li>the file is identical to its previous content (typically, it has been edited, saved, but not modified)</li>
+</ul>
+<h3 id="steady"><a class="header" href="#steady">Steady</a></h3>
+<p>A job is steady when it has been run, but all targets have been generated identically to the previous run, i.e. the job could have not ben run with no semantic consequences.</p>
+<p>This may be an indication that the flow is suboptimal.
+Consider 2 cases:</p>
+<ul>
+<li>a source file is modified, but only comments have been touched. Compilation is run as the source is modified, but the result is identical to its previous content.</li>
+<li>a source file includes an include file (e.g. in C) or import a module (e.g. in Python), but does not actually use such include file/module.</li>
+</ul>
+<p>In the first case, it is very difficult to devise a flow to avoid such compilation.
+A possibility would be to split the compilation process into 2 parts, the first one filtering out comments,
+this has generally adverse consequences (such as line numbers being altered or source file name being difficult to trace).</p>
+<p>In the second case, the solution is probably pretty trivial : just suppress the contemplated include/import line.</p>
+<h3 id="uniquify"><a class="header" href="#uniquify">Uniquify</a></h3>
+<p>When hard links are used and open-lmake decides that one of the link must be regenerated, sharing is no more possible.</p>
+<p>If such a target is not incremental, it will be unlinked, regenerated and the other link will not be modified.
+But if such a target is incremental, it is not unlinked but a copy must be done to split the links between those that must be updated by the job execution and those the must not.</p>
+<p>This process is called "uniquify".</p>
 <h2 id="concepts"><a class="header" href="#concepts">Concepts</a></h2>
 <h3 id="birthday-paradox"><a class="header" href="#birthday-paradox">Birthday paradox</a></h3>
 <p>This is a wellknown counter intuitive problem linked to checksum collision.</p>

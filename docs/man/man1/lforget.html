@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Apr 23 15:51:25 2025 -->
+<!-- CreationDate: Sun Apr 27 19:40:18 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -74,10 +74,10 @@ exceptionally useful in situations where
 <td width="82%">
 
 
-<p>A file outside the repository is modified. Because
-<b>lmake</b> does not track modifications outside the
-repository, it canot rerun jobs that must be rerun, this
-must be done manually.</p></td></tr>
+<p>A file outside the repo is modified. Because
+<b>lmake</b> does not track modifications outside the repo,
+it canot rerun jobs that must be rerun, this must be done
+manually.</p> </td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -94,18 +94,17 @@ out-of-date.</p> </td></tr>
 </table>
 
 <p style="margin-left:9%; margin-top: 1em"><b>lforget</b>
-manages a fully coherent directory called a repository. When
-it starts, it first determines the root of the repository
-(cf. <b>FILES</b> below).</p>
+manages a fully coherent dir called a repo. When it starts,
+it first determines the root of the repo (cf. <b>FILES</b>
+below).</p>
 
 <p style="margin-left:9%; margin-top: 1em">Arguments and
 reports are systematically localized to the current working
-directory. For example, if you launch <b>lforget b</b> from
-directory <b>a</b> in your repository, the argument is file
-<i>a/b</i> from the root of the repository and reports
-containing file names (initially seen from the root of the
-repository) will be shown relative the the current working
-directory.</p>
+dir. For example, if you launch <b>lforget b</b> from dir
+<b>a</b> in your repo, the argument is file <i>a/b</i> from
+the root of the repo and reports containing file names
+(initially seen from the root of the repo) will be shown
+relative the the current working dir.</p>
 
 <h2>COMMON OPTIONS
 <a name="COMMON OPTIONS"></a>
@@ -115,7 +114,15 @@ directory.</p>
 <p style="margin-left:9%; margin-top: 1em">These options
 are common to all tools of the <i>open-lmake</i> set of
 utilities : <b><br>
--h</b>,<b>--help</b></p>
+--version</b></p>
+
+<p style="margin-left:18%;">Print version and exit. Version
+is in the form &quot;year.month.tag (key)&quot; where
+&quot;year.month&quot; forms the major version,
+&quot;tag&quot; the minor version and &quot;key&quot; is
+indicates the format of the persistent information.</p>
+
+<p style="margin-left:9%;"><b>-h</b>,<b>--help</b></p>
 
 <p style="margin-left:18%;">Print a short help and exit. It
 is composed of:</p>
@@ -143,10 +150,7 @@ is composed of:</p>
 <td width="73%">
 
 
-<p>Version in the form &quot;year.month.tag (key)&quot;
-where &quot;year.month&quot; forms the major version,
-&quot;tag&quot; the minor version and &quot;key&quot; is
-indicates the format of the persistent information.</p></td></tr>
+<p>Version as described above.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -280,7 +284,7 @@ content is correct, but it may not be reproducible.</p></td></tr>
 <td width="73%">
 
 
-<p>You want to make sure your repository is fully
+<p>You want to make sure your repo is fully
 reproducible.</p> </td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
@@ -310,12 +314,12 @@ out-of-date, job will forget about star targets.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The files
 <i>Lmakefile.py</i> or <i>Lmakefile/__init__.py</i> are
-searched in the current directory and in parent directories.
-If a single one is found, this determines the root of the
-repository. If several are found, the existence of an
-<i>LMAKE</i> directory is checked. If a single one is found,
-this determines the root of the repository. In other cases,
-<b>lforget</b> will not start.</p>
+searched in the current dir and in parent dirs. If a single
+one is found, this determines the root of the repo. If
+several are found, the existence of an <i>LMAKE</i> dir is
+checked. If a single one is found, this determines the root
+of the repo. In other cases, <b>lforget</b> will not
+start.</p>
 
 <h2>NOTES
 <a name="NOTES"></a>

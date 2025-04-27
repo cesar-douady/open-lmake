@@ -5,9 +5,9 @@
 
 # Meta data
 
-The `LMAKE` directory at the root of the repo contains numerous information that may be handy for the user.
+The `LMAKE` dir at the root of the repo contains numerous information that may be handy for the user.
 
-It also contains a `lmake` directory containing private data for open-lmake's own usage.
+It also contains a `lmake` dir containing private data for open-lmake's own usage.
 
 ### `LMAKE/config_deps`, `LMAKE/rules_deps` and `LMAKE/sources_deps`
 
@@ -16,7 +16,7 @@ These files contain a list of files that open-lmake has read to process `Lmakefi
 They contain several types of lines, depending on the first char:
 
 - `#`: comment line
-- `*`: line contains the open-lmake installation directory
+- `*`: line contains the open-lmake installation dir
 - `+`: line contains an existing file that was read
 - `!`: line contains a non-existing file that was accessed
 
@@ -54,17 +54,17 @@ If the recorded version does not match the used version, none of the open-lmake 
 
 ### `LMAKE/debug`
 
-This directory contains a sub-directory for each job `ldebug` was used for.
-These sub-directories are named after the job id as displayed by `lshow -i`.
+This dir contains a sub-dir for each job `ldebug` was used for.
+These sub-dirs are named after the job id as displayed by `lshow -i`.
 
 ### `LMAKE/tmp`
 
-This directory contains a sub-directory for each job which was run while keeping its tmp directory.
-These sub-directories are named after the job id as displayed by `lshow -i`.
+This dir contains a sub-dir for each job which was run while keeping its tmp dir.
+These sub-dirs are named after the job id as displayed by `lshow -i`.
 
 ### `LMAKE/quarantine`
 
-This directory contains all files that have been quarantined.
+This dir contains all files that have been quarantined.
 A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
-In that case, in order to be sure that no user work is lost, the file is quarantined in this directory rather than unlinked.
+In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.
 

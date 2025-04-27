@@ -17,18 +17,18 @@ If the target name is longer, then the process stops here and the file is not bu
 
 ### Sources
 
-The second step is to check target agains sources and source directories.
+The second step is to check target agains sources and source dirs.
 
 If the target is listed as a source it is deemed buildable.
 No execution is associated, though, the file modifications made by the user are tracked instead.
 
-If the target is within a directory listed as a source directory (i.e. appears ending with a `/` in the manifest), it is deemed buildable if it exists.
+If the target is within a dir listed as a source dir (i.e. appears ending with a `/` in the manifest), it is deemed buildable if it exists.
 If it does not exist, it is not buildable.
 In both cases, the process stops here.
 
-### Up-hill directory
+### Up-hill dir
 
-The third step is to see if a up-hill directory (i.e. one of the directory along the directory path leading to the file) is (recursively) buildable.
+The third step is to see if a up-hill dir (i.e. one of the dir along the dir path leading to the file) is (recursively) buildable.
 
 If it is the case, the rule selection process stops here and the file is not buildable.
 
@@ -57,14 +57,14 @@ Target order is made of `targets` and `target` entries in reversed MRO order (i.
 If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a `*`).
 Else, the rule does not apply.
 
-#### Check static dependencies
+#### Check static deps
 
 The definition of the static stems allow to compute :
 
 - The other targets of the rule. Static targets become the associated file, star targets becomes regular expressions in which static stems are expanded.
-- Static dependencies by interpreting them as f-strings in which static stems and targets are defined.
+- Static deps by interpreting them as f-strings in which static stems and targets are defined.
 
-Static dependencies are then analyzed to see if the are (recursively) buildable, and if any is not buildable, the rule does not apply.
+Static deps are then analyzed to see if the are (recursively) buildable, and if any is not buildable, the rule does not apply.
 
 #### Group recap
 
