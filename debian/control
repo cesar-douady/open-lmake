@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Cesar Douady <cesar.douady@doliam.fr>
 Build-Depends:
  debhelper-compat (= 13),
+ dh-apparmor,
  ed,
  wget,
  m4,
@@ -18,7 +19,8 @@ Build-Depends:
  libpcre2-dev,
  libpcre2-8-0,
  zlib1g,
- zlib1g-dev
+ zlib1g-dev,
+ libzstd-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/cesar-douady/open-lmake
 
@@ -34,9 +36,10 @@ Depends:
  libseccomp-dev,
  libpcre2-8-0,
  zlib1g,
- zlib1g-dev
+ zlib1g-dev,
+ libzstd-dev
 Recommends:
- libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64
+ libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64 | libslurm41t64 | libslurm42t64
 Description: pythonic workflow management system
  Build systems like GNU Make are frequently used to create complicated
  workflows. This project aims to reduce the complexity of creating workflows

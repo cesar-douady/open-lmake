@@ -14,6 +14,7 @@ override_dh_auto_build :
 
 override_dh_auto_install :
 	dh_auto_install
+	if apparmor_parser --version | grep -q 'version  *4\.' ; then dh_apparmor --profile-name=open-lmake -popen-lmake ; fi
 
 override_dh_strip :
 	dh_strip --no-automatic-dbgsym

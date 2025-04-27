@@ -4,7 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 VERSION        := 25.02
-TAG            := 21
+TAG            := 22
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -801,15 +801,19 @@ DEBIAN_DEPS :
 # /!\ these rules are necessary for debian packaging to work, they are not primarily made to be executed by user
 #
 install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
-	set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
-	set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
-	set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@echo -n installing ...
+	@set -e ; for f in $(LMAKE_SERVER_BIN_FILES) $(LMAKE_REMOTE_FILES) ; do install -D        $$f              $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	@set -e ; for f in $(LMAKE_DBG_FILES_ALL) $(LMAKE_SERVER_PY_FILES) ; do install -D -m 644 $$f              $(DESTDIR)/usr/lib/open-lmake/$$f       ; done
+	@set -e ; for f in $(EXAMPLE_FILES)                                ; do install -D -m 644 $$f              $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@set -e ; for f in $$(find docs -type f)                           ; do install -D -m 644 $$f              $(DESTDIR)/usr/share/doc/open-lmake/$$f ; done
+	@set -e ;                                                               install -D -m 644 apparmor-profile $(DESTDIR)/etc/apparmor.d/open-lmake
+	@echo '' done
 
 clean :
-	@echo cleaning...
+	@echo -n cleaning ...
 	@rm -rf Manifest.inc_stamp sys_config.log sys_config.trial sys_config.mk sys_config.h sys_config.sum sys_config.err
-	@find . -name '*.d' -exec rm {} \;
+	@find . -name '*.d' -type f | xargs rm -f
+	@echo '' done
 
 DEBIAN_SRC : $(patsubst %,$(DEBIAN_TAG)-$(DEBIAN_RELEASE)~%_source.changes , $(DISTROS) )
 DEBIAN_BIN : $(DEBIAN_TAG).bin_stamp
@@ -821,7 +825,7 @@ DEBIAN_COPY   := $(filter-out %.src,$(DEBIAN_DEBIAN))
 
 # as of now, stacktrace is incompatible with split debug info
 $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
-	@echo generate $(DEBIAN_DIR)
+	@echo generate debian dir $(DEBIAN_DIR)
 	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
 	@echo LMAKE_FLAGS=O3Gtl > $(DEBIAN_DIR)/sys_config.env
@@ -860,6 +864,8 @@ $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 		-e 's!\$$OS_CODENAME!'"$$VERSION_CODENAME"'!g' \
 		-e 's!\$$DATE!'"$$(date -R)"'!g'               \
 		debian/changelog.src >$(DEBIAN_DIR)-bin/debian/changelog
-	@# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
-	@cd $(DEBIAN_DIR)-bin ; MAKEFLAGS= MAKELEVEL= debuild -b -us -uc | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]'
+	# work around a lintian bug that reports elf-error warnings for debug symbol files # XXX! : find a way to filter out these lines more cleanly
+	@cd $(DEBIAN_DIR)-bin                                                                                                                         ; \
+	{ MAKEFLAGS= MAKELEVEL= debuild -b -us -uc ; rc=$$? ; } | grep -vx 'W:.*\<elf-error\>.* Unable to find program interpreter name .*\[.*.dbg\]' ; \
+	exit $$rc
 	@touch $@
