@@ -306,8 +306,8 @@ struct JobReason {
 	using Tag = JobReasonTag ;
 	// cxtors & casts
 	JobReason(                   ) = default ;
-	JobReason( Tag t             ) :           tag{t} { SWEAR( t< Tag::HasNode       , t     ) ; }
-	JobReason( Tag t , NodeIdx n ) : node{n} , tag{t} { SWEAR( t>=Tag::HasNode && +n , t , n ) ; }
+	JobReason( Tag t             ) :           tag{t} { SWEAR( t< Tag::HasNode          , t        ) ; }
+	JobReason( Tag t , NodeIdx n ) : node{n} , tag{t} { SWEAR( t>=Tag::HasNode && +node , t , node ) ; }
 	// accesses
 	bool operator+() const { return +tag                           ; }
 	bool need_run () const { return +tag and tag<JobReasonTag::Err ; }
@@ -318,7 +318,7 @@ struct JobReason {
 	}
 	JobReason& operator|=(JobReason jr) { self = self | jr ; return self ; }
 	::string msg() const {
-		if (tag<Tag::HasNode) SWEAR(node==0,tag,node) ;
+		if (tag<Tag::HasNode) SWEAR(!node,tag,node) ;
 		return JobReasonTagStrs[+tag].second ;
 	}
 	// data

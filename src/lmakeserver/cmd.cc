@@ -766,8 +766,8 @@ namespace Engine {
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;
 								::string            pressure = sa.pressure.short_str() ;
 								//
-								if ( +sa.reason                                           ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
-								if ( rs.start.addr && rs.start.addr!=SockFd::LoopBackAddr ) push_entry( "host"   , SockFd::s_host(rs.start.addr)      ) ;
+								if ( +sa.reason                                     ) push_entry( "reason" , localize(reason_str(sa.reason),su) ) ;
+								if ( start.addr && start.addr!=SockFd::LoopBackAddr ) push_entry( "host"   , SockFd::s_host(start.addr)         ) ;
 								//
 								if (+rs.eta) {
 									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;
@@ -784,9 +784,10 @@ namespace Engine {
 								if (+start.timeout                ) push_entry( "timeout"    , start.timeout.short_str()              ) ;
 								if ( start.use_script             ) push_entry( "use_script" , "true"                                 ) ;
 								//
-								if      (job->backend==BackendTag::Local) SWEAR(sa.used_backend==BackendTag::Local) ;
-								else if (sa.used_backend==job->backend  ) push_entry( "backend" , snake_str(job->backend)                                         ) ;
-								else                                      push_entry( "backend" , snake_str(job->backend)+" -> "+sa.used_backend , Color::Warning ) ;
+								if      (job->backend==BackendTag::Local  ) SWEAR(sa.used_backend==BackendTag::Local) ;
+								else if (job->backend==BackendTag::Unknown) push_entry( "backend" , snake_str(sa.used_backend)                                         ) ;
+								else if (sa.used_backend==job->backend    ) push_entry( "backend" , snake_str(job->backend   )                                         ) ;
+								else                                        push_entry( "backend" , snake_str(job->backend   )+" -> "+sa.used_backend , Color::Warning ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

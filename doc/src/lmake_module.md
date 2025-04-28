@@ -117,7 +117,7 @@ Notes:
 - (3):
 	If `cat a b` is executed, open-lmake sees 2 `open` system calls, to `a` then to `b`, exactly the same sequence that if one did `cat $(cat a)` and `a` contained `b`.  
 	Suppose now that `b` is an error. This is a reason for your job to be in error.
-	But if `a` is modifed, in the former case, this cannot solve the error while in the later case, it may if the new content of `a` points to a file that may successfully be built.
+	But if `a` is modifed, in the former case, this cannot solve the error while in the latter case, it may if the new content of `a` points to a file that may successfully be built.
 	Because open-lmake cannot distinguish between the 2 cases, upon a modification of `a`, the job will be rerun in the hope that `b` is not accessed any more.
 	Parallel deps prevents this trial.
 - (4):

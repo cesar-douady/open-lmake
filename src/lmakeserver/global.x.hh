@@ -315,8 +315,8 @@ namespace Engine {
 	inline ::string reason_str(JobReason const& reason) {
 		::string res = reason.msg() ;
 		if ( Node n{reason.node} ; +n ) {
-			/**/                                          res <<" : "               << Disk::mk_file(n->name()               )        ;
-			if (reason.tag==JobReasonTag::PollutedTarget) res <<" (polluting job : "<< Disk::mk_file(n->polluting_job->name()) <<" )" ;
+			/**/                                                                 res <<" : "               << Disk::mk_file(n->name()               )        ;
+			if ( reason.tag==JobReasonTag::PollutedTarget && +n->polluting_job ) res <<" (polluting job : "<< Disk::mk_file(n->polluting_job->name()) <<" )" ;
 		}
 		return res ;
 	}

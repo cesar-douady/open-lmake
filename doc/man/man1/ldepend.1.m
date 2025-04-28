@@ -70,7 +70,7 @@ Item((3))
 	If B(cat a b) is executed, OpenLmake sees 2 C(open,2) system calls, to I(a) then to I(b), exactly the same sequence that if one did B(cat $(cat a)) and I(a) contained I(b).
 	.IP
 	Suppose now that I(b) is an error. This is a reason for your job to be in error.
-	But if I(a) is modified, in the former case, this cannot solve your error while in the later case, it may if the new content of I(a) points to a file that may successfully be built.
+	But if I(a) is modified, in the former case, this cannot solve your error while in the latter case, it may if the new content of I(a) points to a file that may successfully be built.
 	Because OpenLmake cannot distinguish between the 2 cases, upon a modification of I(a), the job will be rerun in the hope that I(b) is not accessed any more.
 	Parallel deps prevents this trial.
 Item((4))

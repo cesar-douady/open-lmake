@@ -71,6 +71,9 @@ RepairDigest repair(::string const& from_dir) {
 				t->actual_job   () = job      ;
 				t->actual_tflags() = t.tflags ;
 			}
+			// adjust job_info
+			job_info.start.pre_start.job            = +job ;
+			job_info.start.submit_attrs.reason.node = 0    ;                                               // reason node is stored as a idx, not a name, cannot restore it
 			// restore job_data
 			job.record(job_info) ;
 			trace("restored",jd,job->name()) ;
@@ -156,6 +159,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	chk_version(true/*may_init*/) ;                                                                             // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

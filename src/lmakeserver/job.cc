@@ -1355,7 +1355,6 @@ namespace Engine {
 							JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
 							job_info.start.pre_start.job       = +idx()    ;                                                  // repo dependent
 							job_info.start.submit_attrs.reason = ri.reason ;                                                  // context dependent
-SWEAR(ri.reason.tag!=JobReasonTag::PollutedTargets) ;
 							job_info.end  .end_date            = New       ;                                                  // execution dependnt
 							//
 							JobDigest<Node> digest = job_info.end.digest ;                                                    // gather info before being moved
