@@ -17,7 +17,7 @@ extern "C" {
 }
 #pragma GCC visibility pop
 
-SearchRootResult search_root_s(::string const& cwd_s_) {
+SearchRootResult search_root(::string const& cwd_s_) {
 	::string   from_dir_s  = cwd_s_[0]=='/' ? cwd_s_ : cwd_s()+cwd_s_ ;
 	::string   repo_root_s = from_dir_s                               ;
 	::vector_s candidates  ;

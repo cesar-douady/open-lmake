@@ -152,8 +152,8 @@ void optimize( ::vector<Line>& lines) {
 
 int main( int argc , char* argv[] ) {
 	#if PROFILING
-		::string gmon_dir_s ; try { gmon_dir_s = search_root_s().top_s+GMON_DIR_S ; } catch(...) {}
-		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"align_comment") ) ;                      // in case profiling is used, ensure unique gmon.out
+		::string gmon_dir_s ; try { gmon_dir_s = search_root().top_s+AdminDirS+"gmon.out/" ; } catch(...) {}
+		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"align_comment") ) ;                               // in case profiling is used, ensure unique gmon.out
 	#endif
 	if ( argc<4 || argc>5 ) exit(Rc::Usage,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
 	g_tab_width    = from_string<size_t>(argv[1]) ;

@@ -1509,10 +1509,10 @@ namespace Engine {
 			h += job_name ;
 			deps_attrs.update_hash( h , rules ) ;                                                // no deps for source & anti
 		}
-		Crc match = h.digest() ;
+		Crc match_crc = h.digest() ;
 		//
 		if (is_special()) {
-			crc = {match} ;
+			crc = {match_crc} ;
 		} else {
 			h += sub_repo_s             ;
 			h += Node::s_src_dirs_crc() ;                                                        // src_dirs influences deps recording
@@ -1521,13 +1521,13 @@ namespace Engine {
 			h += is_python              ;
 			start_cmd_attrs.update_hash( h , rules ) ;
 			cmd            .update_hash( h , rules ) ;
-			Crc cmd = h.digest() ;
+			Crc cmd_crc = h.digest() ;
 			//
 			submit_rsrcs_attrs.update_hash( h , rules ) ;
 			start_rsrcs_attrs .update_hash( h , rules ) ;
-			Crc rsrcs = h.digest() ;
+			Crc rsrcs_crc = h.digest() ;
 			//
-			crc = { match , cmd , rsrcs } ;
+			crc = { match_crc , cmd_crc , rsrcs_crc } ;
 		}
 		// END_OF_VERSIONING
 	}

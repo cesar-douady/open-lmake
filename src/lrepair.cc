@@ -18,17 +18,17 @@ struct RepairDigest {
 	JobIdx n_processed = 0 ;
 } ;
 
-RepairDigest repair(::string const& from_dir_s) {
-	Trace trace("repair",from_dir_s) ;
+RepairDigest repair(::string const& from_dir) {
+	Trace trace("repair",from_dir) ;
 	RepairDigest     res      ;
 	::umap<Crc,Rule> rule_tab ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
-	for( ::string const& jd : walk(no_slash(from_dir_s),no_slash(from_dir_s)) ) {
+	for( ::string const& jd : walk(from_dir,from_dir) ) {
 		{	JobInfo job_info { jd } ;
 			// qualify report
 			if (job_info.end.digest.status!=Status::Ok) { trace("not_ok",jd) ; goto NextJob ; }                         // repairing jobs in error is useless
 			// find rule
-			auto it = rule_tab.find(job_info.start.rule_cmd_crc) ;
-			if (it==rule_tab.end()) { trace("no_rule",jd) ; goto NextJob ; }                                            // no rule
+			auto it = rule_tab.find(job_info.start.rule_crc_cmd) ;
+			if (it==rule_tab.end()) { trace("no_rule",jd,job_info.start.rule_crc_cmd) ; goto NextJob ; }                // no rule
 			Rule rule = it->second ;
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
@@ -83,60 +83,87 @@ RepairDigest repair(::string const& from_dir_s) {
 }
 
 int main( int argc , char* /*argv*/[] ) {
-	::string admin_dir_s = AdminDirS ;
+	::string admin_dir_s      = AdminDirS                                                 ;
+	::string admin_dir        = no_slash(admin_dir_s)                                     ;
+	::string bck_admin_dir    = admin_dir+".bck"                                          ;
+	::string bck_admin_dir_s  = with_slash(bck_admin_dir)                                 ;
+	::string std_lad          = cat(admin_dir_s    ,PRIVATE_ADMIN_SUBDIR_S,"local_admin") ;
+	::string bck_std_lad      = cat(bck_admin_dir_s,PRIVATE_ADMIN_SUBDIR_S,"local_admin") ;
+	::string repair_mrkr      = admin_dir_s+"repairing"                                   ;
+	::string phy_lad          ;
+	::string bck_phy_lad      ;
+	::string rm_admin_dir     ;
+	::string rm_bck_admin_dir ;
+	::string startup_s        ;
 	//
-	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
+	auto mk_lad = [&]()->void {
+		phy_lad          = {}                     ; if (FileInfo(std_lad    ).tag()==FileTag::Lnk) phy_lad           = mk_glb(read_lnk(std_lad    ),dir_name_s(std_lad    )) ;
+		bck_phy_lad      = {}                     ; if (FileInfo(bck_std_lad).tag()==FileTag::Lnk) bck_phy_lad       = mk_glb(read_lnk(bck_std_lad),dir_name_s(bck_std_lad)) ;
+		rm_admin_dir     = "rm -r "+admin_dir     ; if (+phy_lad                                 ) rm_admin_dir     << ' '<<phy_lad                                          ;
+		rm_bck_admin_dir = "rm -r "+bck_admin_dir ; if (+bck_phy_lad                             ) rm_bck_admin_dir << ' '<<bck_phy_lad                                      ;
+		//
+		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
+	} ;
+	//
+	if (argc!=1)                                                              exit(Rc::Usage ,"must be called without arg"                                               ) ;
+	try { startup_s = search_root().startup_s ; } catch (::string const& e) { exit(Rc::Usage ,e                                                                          ) ; }
+	if (+startup_s)                                                           exit(Rc::Usage ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
+	if (is_target(ServerMrkr))                                                exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
+	//
+	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,true/*dir_ok*/) ;                            // if last lrepair was interrupted, admin_dir contains no useful information
+	if (is_dir(bck_admin_dir)) {
+		if (is_dir(admin_dir)) {
+			mk_lad() ;
+			exit(Rc::Format,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
+		}
+		if (::rename(bck_admin_dir.c_str(),admin_dir.c_str())!=0) FAIL("cannot rename",bck_admin_dir,"to",admin_dir) ;
+	}
+	if (!is_dir(cat(PrivateAdminDirS,"local_admin/job_data"))) exit(Rc::Fail,"nothing to repair") ;
+	//
 	g_trace_file = New ;
 	block_sigs({SIGCHLD}) ;
 	app_init(false/*read_only_ok*/) ;
-	Py::init(*g_lmake_root_s      ) ;
-	if (+*g_startup_dir_s) {
-		g_startup_dir_s->pop_back() ;
-		FAIL("lrepair must be started from repo root, not from ",*g_startup_dir_s) ; // NO_COV
-	}
-	if (is_target(ServerMrkr)) exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
+	Py::init(*g_lmake_root_s) ;
+	AutodepEnv ade ;
+	ade.repo_root_s         = *g_repo_root_s ;
+	Record::s_static_report = true           ;
+	Record::s_autodep_env(ade) ;
 	//
-	::string backup_admin_dir_s = no_slash(admin_dir_s)+".bck/"s ; // rename in same dir to be sure not to break sym links that can be inside (e.g. lmake/local_admin_dir and lmake/remote_admin_dir)
-	::string repair_mrkr      = admin_dir_s+"repairing"          ;
-	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(no_slash(admin_dir_s),true/*dir_ok*/) ;                // if last lrepair was interrupted, admin_dir_s contains no useful information
-	if (is_dir(no_slash(backup_admin_dir_s))) {
-		if      (is_dir(no_slash(admin_dir_s))                                                  ) exit(Rc::Format,"backup already exists, consider : rm -r ",no_slash(backup_admin_dir_s)) ;
-	} else {
-		if      (!is_dir(PrivateAdminDirS+"local_admin/job_data"s)                              ) exit(Rc::Fail  ,"nothing to repair"                                                    ) ;
-		else if (::rename(no_slash(admin_dir_s).c_str(),no_slash(backup_admin_dir_s).c_str())!=0) exit(Rc::System,"backup failed to ",no_slash(backup_admin_dir_s)                       ) ;
-	}
+	if (::rename(admin_dir.c_str(),bck_admin_dir.c_str())!=0) FAIL("cannot rename",admin_dir,"to",bck_admin_dir) ;
+	//
 	if ( AcFd fd { dir_guard(repair_mrkr) , Fd::Write } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
-	{	::string msg ;
-		msg << "the repair process is starting, if something goes wrong :"                                                                                             << '\n' ;
-		msg << "to restore old state,                    consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
-		msg << "to restart the repair process,           consider : lrepair"                                                                                           << '\n' ;
-		msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; rm -r "<<no_slash(backup_admin_dir_s)                                       << '\n' ;
-		Fd::Stdout.write(msg) ;
-	}
-	try                       { chk_version( false/*may_init*/ , backup_admin_dir_s ) ; }
-	catch (::string const& e) { exit(Rc::Format,e) ;                                    }
 	//
 	mk_dir_s(PrivateAdminDirS) ;
+	g_trace_file = new ::string{cat(PrivateAdminDirS,"trace/",*g_exe_name)} ;
+	Trace::s_start() ;
 	//
 	{	::string msg ;
 		try                       { Makefiles::refresh( msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
 		catch (::string const& e) {                                                                  if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
 	}
 	//
-	Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
+	mk_lad() ;
 	//
-	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	RepairDigest digest = repair(backup_admin_dir_s+PRIVATE_ADMIN_SUBDIR_S+"local_admin/job_data") ;
-	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	chk_version(true/*may_init*/) ;
+	{	::string msg ;
+		msg << "the repair process is starting, if something goes wrong :"                                                  <<'\n' ;
+		msg << "to restore old state,                    consider : "<<rm_admin_dir<<" ; mv "<<bck_admin_dir<<' '<<admin_dir<<'\n' ;
+		msg << "to restart the repair process,           consider : lrepair"                                                <<'\n' ;
+		msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; "<<rm_bck_admin_dir              <<'\n' ;
+		Fd::Stdout.write(msg) ;
+	}
+	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
+	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
-		msg << "repo has been satisfactorily repaired "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                                                             << '\n' ;
-		msg << "to clean up after having ensured everything runs smoothly, consider : rm -r "<<no_slash(backup_admin_dir_s)                                                              << '\n' ;
-		msg << "to restore old state,                                      consider : rm -r "<<no_slash(admin_dir_s)<<" ; mv "<<no_slash(backup_admin_dir_s)<<' '<<no_slash(admin_dir_s) << '\n' ;
-		msg << "to restart the repair process,                             consider : rm -r "<<no_slash(admin_dir_s)<<" ; lrepair"                                                       << '\n' ;
+		msg <<                                                                                                                                  '\n' ;
+		msg << "repo has been satisfactorily repaired : "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                <<'\n' ;
+		msg <<                                                                                                                                  '\n' ;
+		msg << "to restore old state,                                      consider : "<<rm_admin_dir<<" ; mv "<<bck_admin_dir<<' '<<admin_dir<<'\n' ;
+		msg << "to restart the repair process,                             consider : "<<rm_admin_dir<<" ; lrepair"                           <<'\n' ;
+		msg << "to clean up after having ensured everything runs smoothly, consider : "<<rm_bck_admin_dir                                     <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}
 	return 0 ;

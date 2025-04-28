@@ -311,7 +311,7 @@ namespace Backends {
 		StartAncillaryAttrs      start_ancillary_attrs ;
 		MsgStderr                start_msg_err         ;
 		::vector<ReqIdx>         reqs                  ;
-		JobInfoStart             jis                   { .rule_cmd_crc=rule->crc->cmd } ;
+		JobInfoStart             jis                   { .rule_crc_cmd=rule->crc->cmd } ;
 		JobStartRpcReply&        reply                 = jis.start                      ;
 		::string        &        cmd                   = reply.cmd                      ;
 		SubmitAttrs     &        submit_attrs          = jis.submit_attrs               ;
@@ -752,10 +752,14 @@ namespace Backends {
 				be->config(cfg.dct,cfg.env,dyn) ;
 				be->config_err.clear() ; trace("ready",t) ;                                                     // empty config_err means ready
 			} catch (::string const& e) {
-				SWEAR(+e) ;                                                                                     // .
-				be->config_err = e ;
-				if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings they are already aware of
-				trace("err"  ,t,e) ;
+				if (+e) {
+					be->config_err = e ;
+					if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings they are already aware of
+					trace("err"  ,t,e) ;
+				} else {
+					be->config_err = "no backend" ;
+					trace("no_backend",t) ;
+				}
 				continue ;
 			}
 			//

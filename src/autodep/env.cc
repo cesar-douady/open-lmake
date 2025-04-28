@@ -21,7 +21,7 @@ using namespace Disk ;
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
 		try {
-			SearchRootResult srr = search_root_s() ;
+			SearchRootResult srr = search_root() ;
 			repo_root_s = srr.top_s ;
 			sub_repo_s  = srr.sub_s ;
 		} catch (::string const&) {

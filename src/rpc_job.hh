@@ -962,7 +962,7 @@ struct JobInfoStart {
 	void cache_cleanup() ; // clean up info before uploading to cache
 	// data
 	// START_OF_VERSIONING
-	Hash::Crc        rule_cmd_crc = {} ;
+	Hash::Crc        rule_crc_cmd = {} ;
 	::vector_s       stems        = {} ;
 	Time::Pdate      eta          = {} ;
 	SubmitAttrs      submit_attrs = {} ;

@@ -19,4 +19,4 @@ struct SearchRootResult {
 	::string startup_s ;
 } ;
 
-SearchRootResult search_root_s(::string const& cwd_s={}) ; // use cwd_s() by default
+SearchRootResult search_root(::string const& cwd_s={}) ; // use cwd_s() by default

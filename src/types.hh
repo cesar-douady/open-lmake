@@ -77,7 +77,6 @@ using MatchGen = uint8_t ;
 // can be tailored to fit neeeds
 #define ADMIN_DIR_S            "LMAKE/"
 #define PRIVATE_ADMIN_SUBDIR_S "lmake/"
-#define GMON_SUBDIR_S          "gmon.out/"
 
 // END_OF_VERSIONING
 
@@ -103,8 +102,7 @@ static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/
 //
 
 // must not be touched to fit needs
-#define PRIVATE_ADMIN_DIR_S    ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
-#define GMON_DIR_S             ADMIN_DIR_S GMON_SUBDIR_S
+#define PRIVATE_ADMIN_DIR_S ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
 static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
 static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 

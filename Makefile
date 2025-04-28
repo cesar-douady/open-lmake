@@ -780,14 +780,17 @@ lmake_env/stamp : $(LMAKE_ALL_FILES) lmake_env/Manifest $(patsubst %,lmake_env/%
 	@touch $@
 	@echo init lmake_env-cache
 lmake_env/tok : lmake_env/stamp lmake_env/Lmakefile.py
-	@set -e ;                                                                \
-	cd lmake_env ;                                                           \
-	export CXX=$(CXX) ;                                                      \
-	rc=0 ;                                                                   \
-	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1 ;                      \
-	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F) || { rm -f $(@F) ; rc=1 ; } ; \
-	wait $$!                                   || { rm -f $(@F) ; rc=1 ; } ; \
-	exit $$rc
+	@set -e                                                                                        ; \
+	cd lmake_env                                                                                   ; \
+	export CXX=$(CXX)                                                                              ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1                                              ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp                                                 ; \
+	wait $$!                                                                                       ; \
+	rm -rf LMAKE.bck                                                                               ; \
+	$(REPO_ROOT)/bin/lrepair >>$(@F).tmp                                                           ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp2                                                ; \
+	grep -q 'was already up to date' $(@F).tmp2 && { cat $(@F).tmp2 >$(@F).tmp ; rm $(@F).tmp2 ; } ; \
+	mv $(@F).tmp $(@F)
 
 #
 # dockers
