@@ -51,7 +51,7 @@ Or refer to [full installation instructions](doc/install.md).
 
 # First steps
 
-You have man pages for all commands directly accessible if installed with the debian package or if `$MANPATH` is set as explained above.
+You have man pages for all commands directly accessible.
 
 However, the simplest way is to give it a try:
 

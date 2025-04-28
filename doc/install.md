@@ -41,7 +41,7 @@ It has been tested with the dockers listed in the docker directory
 	- you can type `make LMAKE` to just build all necessary files
 	- you can type `make lmake.tar.gz.SUMMARY` (built by default) to make a tar ball of the compiled files that you can easily deploy
 - install
-	- untar `lmake.tar.gz` wherever you want and have your `$PATH` point to the `bin` directory and `$MANPATH` point to the `doc/man` directory.
+	- untar `lmake.tar.gz` wherever you want.
 		- the `bin` sub-dir contains the executables meant to be executed by the user
 		- the `_bin` sub-dir contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
 			- it also contains some executables to help debugging open-lmake itself.
@@ -87,7 +87,6 @@ Alternatively, you can untar `lmake.tar.gz` at any place.
 
 Installing system-wide with Debian package will take care of placing both binaries and man pages in the standard directories. Alternatively, you can:
 
-- put `/path/to/open-lmake/bin`     in your `$PATH`
-- put `/path/to/open-lmake/doc/man` in your `$MANPATH`
+- put `/path/to/open-lmake/bin` in your `$PATH`
 
 This will simplify the user experience but is not required.
