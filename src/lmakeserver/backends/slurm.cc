@@ -391,6 +391,7 @@ namespace Backends::Slurm {
 		::_exit(1) ;
 	}
 	Daemon slurm_sense_daemon( ::string const& lib_slurm , ::string const& config_file ) {
+		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                        // if nothing to try, no backend but no error
 		Trace trace(BeChnl,"slurm_sense_daemon",lib_slurm,config_file) ;
 		//
 		SlurmApi::g_lib_handler = ::dlopen(lib_slurm.c_str(),RTLD_NOW|RTLD_GLOBAL) ; throw_unless( SlurmApi::g_lib_handler , "cannot find ",lib_slurm ) ;

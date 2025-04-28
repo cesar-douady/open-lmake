@@ -750,12 +750,16 @@ namespace Backends {
 			Config::Backend const& cfg = config[+t]       ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
 			try {
 				be->config(cfg.dct,cfg.env,dyn) ;
-				be->config_err.clear() ; trace("ready",t) ;                                                     // empty config_err means ready
+				be->config_err.clear() ; trace("ready",t) ;                                                         // empty config_err means ready
 			} catch (::string const& e) {
-				SWEAR(+e) ;                                                                                     // .
-				be->config_err = e ;
-				if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings they are already aware of
-				trace("err"  ,t,e) ;
+				if (+e) {
+					be->config_err = e ;
+					if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings they are already aware of
+					trace("err",t,e) ;
+				} else {
+					be->config_err = "no backend" ;
+					trace("no_backend",t) ;
+				}
 				continue ;
 			}
 			//
@@ -773,7 +777,7 @@ namespace Backends {
 			if (addrs.size()==1) {
 				be->addr = addrs[0].second ;
 			} else if (be->is_local()) {
-				be->addr = SockFd::LoopBackAddr ;                                                               // dont bother user for local backend
+				be->addr = SockFd::LoopBackAddr ;                                                                   // dont bother user for local backend
 			} else if (addrs.size()==0) {
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
