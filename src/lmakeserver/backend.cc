@@ -745,17 +745,17 @@ namespace Backends {
 		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                                                                          // local backend is always available
-			Backend*               be  = s_tab [+t].get() ; if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
-			Config::Backend const& cfg = config[+t]       ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
+		for( Tag t : iota(1,All<Tag>) ) {                                                                                                                        // local backend is always available
+			Backend*               be  = s_tab [+t].get() ; if (!be            ) {                                     trace("not_implemented",t) ; continue ; }
+			Config::Backend const& cfg = config[+t]       ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t) ; continue ; } // empty config_err means ready
 			try {
 				be->config(cfg.dct,cfg.env,dyn) ;
-				be->config_err.clear() ; trace("ready",t) ;                                                     // empty config_err means ready
+				be->config_err.clear() ; trace("ready",t) ;                                                         // empty config_err means ready
 			} catch (::string const& e) {
 				if (+e) {
 					be->config_err = e ;
 					if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings they are already aware of
-					trace("err"  ,t,e) ;
+					trace("err",t,e) ;
 				} else {
 					be->config_err = "no backend" ;
 					trace("no_backend",t) ;
@@ -777,8 +777,8 @@ namespace Backends {
 			if (addrs.size()==1) {
 				be->addr = addrs[0].second ;
 			} else if (be->is_local()) {
-				be->addr = SockFd::LoopBackAddr ;                                                               // dont bother user for local backend
-			} else if (addrs.size()==0) {                                                                       // START_OF_NO_COV condition is system dependent
+				be->addr = SockFd::LoopBackAddr ;                                                                   // dont bother user for local backend
+			} else if (addrs.size()==0) {                                                                           // START_OF_NO_COV condition is system dependent
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
 				::string msg   = "multiple possible interfaces : " ;
@@ -795,7 +795,7 @@ namespace Backends {
 					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
 				}
 				throw msg ;
-			}                                                                                                   // END_OF_NO_COV
+			}                                                                                                       // END_OF_NO_COV
 			be->addr = addrs[0].second ;
 		}
 		trace(_s_job_exec) ;

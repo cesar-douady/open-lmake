@@ -29,6 +29,7 @@ RUN yum install -y git
 RUN yum install -y wget
 RUN yum install -y m4 groff
 # optional
+RUN yum install -y man
 #RUN yum install -y strace                                                  # try a docker without strace
 #RUN yum install -y libseccomp
 #RUN yum install -y glibc-devel.i686 libgcc.i686 gcc-toolset-11-libstdc++-devel.i686

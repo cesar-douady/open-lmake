@@ -10,7 +10,23 @@ Header(ldepend,report a dep from a OpenLmake job)
 .SH DESCRIPTION
 .LP
 B(ldepend) may be used to pass flags to OpenLmake.
-Unless specified otherwise, passed deps are required to be buildable and produced without error.
+.LP
+Each dep is associated with an access pattern.
+Accesses are of 3 kinds, regular, link and stat:
+Bullet
+	Regular means that the file was accessed using C(open,2) or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.
+Bullet
+	Link means that the file was accessed using C(readlink,2) or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.
+Bullet
+	Stat means that the file meta-data were accessed, i.e. the job is sensitive to file existence and type, but not to the content or its target.
+.LP
+If a file have none of these accesses, changing it will not trigger a rebuild, but it is still a dep as in case it is in error, this will prevent the job from being run.
+Making such dinstinctions is most useful for the automatic processing of symbolic links.
+For example, if file I(a/b) is opened for reading, and it turns out to be a symbolic link to I(c), OpenLmake will set a dep to I(a/b) as a link, and to I(a/c)
+as a link (in case it is itself a link) and regular (as it is opened).
+.LP
+By default, passed deps are associated with no access, but are required to be buildable and produced without error.
+To simulate a plain access, you need to pass the B(--read) option to associate accesses and the B(--no-required) to allow it not to exist.
 .LP
 Note that :
 Bullet
@@ -63,7 +79,7 @@ Item((4))
 	then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
 	The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.
 Item((5))
-	If a series of dep is directly derived from the content of a file, it may be wise to declare it as critical.
+	If a series of dep is directly derived from the content of a file, it may be wise to declare it as B(critical).
 	When a critical dep is modified, OpenLmake forgets about deps reported after it.
 	.IP
 	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,

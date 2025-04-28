@@ -69,9 +69,23 @@ This functions ensures that all dirs listed in arguments such as `-I` or `-L` ex
 ### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )`
 
 Declare `deps` as parallel deps (i.e. no order exist between them).
-Note that the default value for the `required` argument is `True`.
 
-If `follow_symlinks` and one of the `deps` is a symbolic link, follow it.
+If `follow_symlinks`, `deps` that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).
+
+Each dep is associated with an access pattern.
+Accesses are of 3 kinds, regular, link and stat:
+
+- Regular means that the file was accessed using C(open,2) or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.
+- Link means that the file was accessed using C(readlink,2) or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.
+- Stat means that the file meta-data were accessed, i.e. the job is sensitive to file existence and type, but not to the content or its target.
+
+If a file have none of these accesses, changing it will not trigger a rebuild, but it is still a dep as in case it is in error, this will prevent the job from being run.
+Making such dinstinctions is most useful for the automatic processing of symbolic links.
+For example, if file `a/b` is opened for reading, and it turns out to be a symbolic link to `c`, open-lmake will set a dep to `a/b` as a link, and to `a/c`
+as a link (in case it is itself a link) and regular (as it is opened).
+
+By default, passed deps are associated with no access, but are required to be buildable and produced without error.
+To simulate a plain access, you need to pass `read=True` to associate accesses and `required=False` to allow it not to exist.
 
 If `verbose`, return a dict with one entry par dep where:
 
@@ -112,7 +126,7 @@ Notes:
 	then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
 	The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.
 - (5):
-	If a series of dep is directly derived from the content of a file, it may be wise to declare it as critical.
+	If a series of dep is directly derived from the content of a file, it may be wise to declare it as `critical`.
 	When a critical dep is modified, open-lmake forgets about deps reported after it.  
 	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
 	and open-lmake anticipates this by building these deps speculatively.
