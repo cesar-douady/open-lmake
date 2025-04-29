@@ -399,7 +399,7 @@ namespace Backends {
 		// kill all if req==0
 		virtual ::vector<Job> kill_waiting_jobs(Req req={}) {
 			::vector<Job> res ;
-			Trace trace(BeChnl,"kill_req",T,req,reqs.size()) ;
+			Trace trace(BeChnl,"kill_waiting_jobs",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
 				if (+req) SWEAR( reqs.size()==1 && req==reqs.begin()->first , req , reqs.size() ) ;            // ensure the last req is the right one
 				// kill waiting jobs
