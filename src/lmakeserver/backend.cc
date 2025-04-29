@@ -745,16 +745,23 @@ namespace Backends {
 		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                                                                          // local backend is always available
-			Backend*               be  = s_tab [+t].get() ; if (!be            ) {                                     trace("not_implemented",t  ) ; continue ; }
-			Config::Backend const& cfg = config[+t]       ; if (!cfg.configured) { be->config_err = "not configured" ; trace("not_configured" ,t  ) ; continue ; } // empty config_err means ready
+		for( Tag t : iota(1,All<Tag>) ) {                                                                              // local backend is always available
+			Backend*               be        = s_tab [+t].get() ; if (!be) { trace("not_implemented",t) ; continue ; }
+			bool                   was_ready = s_ready(t)       ;
+			Config::Backend const& cfg       = config[+t]       ;
+			if (!cfg.configured) {
+				throw_if( dyn && was_ready , "cannot dynamically suppress backend ",t ) ;
+				be->config_err = "not configured" ;                                                                    // empty config_err means ready
+				trace("not_configured" ,t) ;
+				continue ;
+			}
 			try {
 				be->config(cfg.dct,cfg.env,dyn) ;
-				be->config_err.clear() ; trace("ready",t) ;                                                         // empty config_err means ready
 			} catch (::string const& e) {
+				throw_if( dyn && was_ready , "cannot dynamically suppress backend : ",e ) ;
 				if (+e) {
 					be->config_err = e ;
-					if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ; // avoid annoying user with warnings they are already aware of
+					if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ;    // avoid annoying user with warnings they are already aware of
 					trace("err",t,e) ;
 				} else {
 					be->config_err = "no backend" ;
@@ -762,6 +769,11 @@ namespace Backends {
 				}
 				continue ;
 			}
+			if ( dyn && !was_ready ) {
+				SWEAR(+be->config_err) ;                                                                               // empty config_err means ready
+				throw cat("cannot dynamically add backend ",t) ;
+			}
+			be->config_err = {} ;                                                                                      // empty config_err means ready
 			//
 			::string ifce ;
 			if (+cfg.ifce) {
