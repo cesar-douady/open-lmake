@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Apr 28 18:31:32 2025 -->
+<!-- CreationDate: Thu May  1 00:21:58 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -186,7 +186,7 @@ is in the form &quot;year.month.tag (key)&quot; where
 &quot;tag&quot; the minor version and &quot;key&quot; is
 indicates the format of the persistent information.</p>
 
-<p style="margin-left:9%;"><b>-h</b>,<b>--help</b></p>
+<p style="margin-left:9%;"><b>-h</b>, <b>--help</b></p>
 
 <p style="margin-left:18%;">Print a short help and exit. It
 is composed of:</p>
@@ -230,15 +230,15 @@ long name, whether it has an argument and a short
 explanation.</p> </td></tr>
 </table>
 
-<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+<p style="margin-left:9%;"><b>-J</b>, <b>--job</b></p>
 
 <p style="margin-left:18%;">Passed arguments are
 interpreted as job names rather than as file names. Job
 names are the names that appear, for example, on start and
 done lines when <b>lmake</b> executes a job.</p>
 
-<p style="margin-left:9%;"><b>-R</b>
-<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+<p style="margin-left:9%;"><b>-R</b> <i>rule</i>,
+<b>--rule</b>=<i>rule</i></p>
 
 <p style="margin-left:18%;">When the <i>--job</i> option is
 used, this options allows the specification of a rule, given
@@ -246,26 +246,26 @@ by its name. This is necessary when the job name is
 ambiguous as several rules may lead to the same job
 name.</p>
 
-<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+<p style="margin-left:9%;"><b>-q</b>, <b>--quiet</b></p>
 
 <p style="margin-left:18%;">Do not generate user oriented
 messages. Strictly generate what is asked. This is practical
 if output is meant for automatic processing.</p>
 
-<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+<p style="margin-left:9%;"><b>-S</b>, <b>--sync</b></p>
 
 <p style="margin-left:18%;">Ensure server is launched (i.e.
 do not connect to an existing server) and wait for its
 termination. This is exceptionally useful in scripts that
 modify <i>Lmakefile.py</i>.</p>
 
-<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+<p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
 <p style="margin-left:18%;">Generate more prolix
 output.</p>
 
-<p style="margin-left:9%;"><b>-V</b>
-<i>mode</i>,<b>--video</b>=<i>mode</i></p>
+<p style="margin-left:9%;"><b>-V</b> <i>mode</i>,
+<b>--video</b>=<i>mode</i></p>
 
 <p style="margin-left:18%;">Explicitly ask for a video mode
 instead of interrogating connected terminal. If mode starts
@@ -282,29 +282,35 @@ nice looking colors are not the same in each case.</p>
 
 <p style="margin-left:9%; margin-top: 1em">A single
 sub-command must be provided : <b><br>
--b</b>,<b>--bom</b></p>
+-b</b>, <b>--bom</b></p>
 
 <p style="margin-left:18%;">Output the list of all source
 files necessary to build the arguments. If <i>--verbose</i>
-option is provided, intermediate files are shown in gray. If
-<b>--porcelaine</b>, the output is generated as <b>set</b>
-(if not <b>--verbose</b>) or as a <b>tuple</b> (if
-<b>--verbose</b>). In the latter case, it is guaranteed that
+option is provided, intermediate files are shown in
+gray.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as <b>set</b>
+(if not <i>--verbose</i>) or as a <b>tuple</b> (if
+<i>--verbose</i>). In the latter case, it is guaranteed that
 deps are going downards, i.e. dependents appear before their
 deps. If arguments are files, the output is not a
 <b>dict</b> and is the list necessary to generate all the
 arguments.</p>
 
-<p style="margin-left:9%;"><b>-c</b>,<b>--cmd</b></p>
+<p style="margin-left:9%;"><b>-c</b>, <b>--cmd</b></p>
 
 <p style="margin-left:18%;">Output the <b>cmd</b> used to
 execute the job. If dynamic, it shows it as specialized for
 this job. Output is always generated with a single tab
-prefix for each line, so as to maintain internal alignment.
-If <b>--porcelaine</b>, the output is generated as a
-<b>str</b> (not indented).</p>
+prefix for each line, so as to maintain internal
+alignment.</p>
 
-<p style="margin-left:9%;"><b>-d</b>,<b>--deps</b></p>
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as a <b>str</b>
+(not indented).</p>
+
+<p style="margin-left:9%;"><b>-d</b>, <b>--deps</b></p>
 
 <p style="margin-left:18%;">Output the list of all the deps
 of the jobs. Unless <i>--verbose</i>, only existing deps are
@@ -473,7 +479,7 @@ if the dep is static, else blank.</p>
 
 
 <p style="margin-top: 1em">Ascii art showing parallel deps
-(deps coming from a single call to <b>ldepend</b> (1) or
+(deps coming from a single call to <b>ldepend</b>(1) or
 <b>lmake.depend</b> are considered parallel).</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
@@ -490,76 +496,736 @@ if the dep is static, else blank.</p>
 
 <p style="margin-left:18%; margin-top: 1em">If a dep does
 not exist, it is deemed secondary information and is shown
-in gray. If <b>--porcelaine</b> and args are files, the
-output is, for each file, a <b>dict</b> indexed by jobs and
-whose values are as follows. Jobs are represented as a tuple
-composed of the rule name, the job name and a comment. The
-keys are all jobs potentially producing given file. If arg
-is a job, the output is a mentioned below. The value is a
+in gray.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i> and args are files, the output is, for
+each file, a <b>dict</b> indexed by jobs and whose values
+are as follows. Jobs are represented as a tuple composed of
+the rule name, the job name and a comment. The keys are all
+jobs potentially producing given file. If arg is a job, the
+output is a mentioned below.</p>
+
+<p style="margin-left:18%; margin-top: 1em">The value is a
 <b>tuple</b> of sequential deps groups, each deps group
 being a <b>set</b> of parallel deps. Each dep is represented
 as a <b>tuple</b> composed of dep flags, access flags, key
 and name.</p>
 
-<p style="margin-left:9%;"><b>-D</b>,<b>--inv-deps</b></p>
+<p style="margin-left:9%;"><b>-D</b>, <b>--inv-deps</b></p>
 
 <p style="margin-left:18%;">Show jobs that depend on args.
-This sub-command is only valid for file args. If
-<b>--verbose</b>, obsolete jobs are also listed in gray. If
-<b>--porcelaine</b>, the output is a <b>set</b> of jobs,
+This sub-command is only valid for file args.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--verbose</i>, obsolete jobs are also listed in gray.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is a <b>set</b> of jobs,
 each job being represented as a <b>tuple</b> composed of the
 rule name and the job name.</p>
 
-<p style="margin-left:9%;"><b>-E</b>,<b>--env</b></p>
+<p style="margin-left:9%;"><b>-E</b>, <b>--env</b></p>
 
 <p style="margin-left:18%;">Show the environment used to
-run the script If <b>--porcelaine</b>, the output is
-generated as as <b>dict</b>, much like
-<b>os.environ</b>.</p>
+run the script</p>
 
-<p style="margin-left:9%;"><b>-i</b>,<b>--info</b></p>
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as as
+<b>dict</b>, much like <b>os.environ</b>.</p>
 
-<p style="margin-left:18%;">Show various self-reading info
-about jobs, such as reason to be launched, why it was
-needed, execution time, host that executed it, ... If
-<b>--porcelaine</b>, the output contains the same
+<p style="margin-left:9%;"><b>-i</b>, <b>--info</b></p>
+
+<p style="margin-left:18%;">Show various info about a job,
+as it last ran (unless stated otherwise):</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>rule</b> : the rule name.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>job</b> : the job name.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>ids</b> : the job-id (unique for each job), the
+small-id (unique among jobs running simultaneously) and the
+seq-id (unique in a repo).</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>required by</b> : the job that last necessitated job
+to run.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>reason</b> : the reason why job ran.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>host</b> : the host on which job ran.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>scheduling</b> : the ETA of the lmake command, a
+<b>-</b>, the duration from start-of-job to end-of-lmake
+command along the longest dep path as estimated at run time
+(known as the pressure). Jobs are scheduled by giving higher
+priority to nearer ETA, then to higher pressure.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>chroot_dir</b> : the chroot dir in which job ran.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>lmake_view</b> : the name under which the lmake
+installation dir was seen by job.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>repo_view</b> : the name under which the repo root
+dir was seen by job.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>tmp_view</b> : the name under which the tmp dir was
+seen by job.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>sub_repo</b> : the sub-repo in which rule was
+defined.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>auto_mkdir</b> : true if <b>chdir</b>(2) to a
+non-existent triggered an automatic <b>mkdir</b>(2) for the
+<b>chdir</b>(2) to succeed.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>autodep</b> : the autodep method used.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>timeout</b> : the timeout after which job would
+have/has been killed.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>use_script</b> : true if a script was used to launch
+job (rather than directly using the <i>-c</i> option to the
+interpreter). bullet <b>backend</b> : the backend used to
+launch job.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>run status</b> : whether job could be run last time
+the need arose (note: if not ok it is later than when job
+last ran). Possible values are:</p></td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>ok</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="36%"></td>
+<td width="18%">
+
+
+<p style="margin-top: 1em">job could run.</p></td>
+<td width="46%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>dep_err</i></p>
+
+<p style="margin-left:36%;">job could not run because a dep
+was in error.</p>
+
+<p style="margin-left:27%;"><i>missing_static</i></p>
+
+<p style="margin-left:36%;">job could not run because a
+static dep was missing.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="13%">
+
+
+<p><i>err</i></p></td>
+<td width="5%"></td>
+<td width="64%">
+
+
+<p>job could not run because an error was detected before
+it started.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="13%">
+
+
+<p>&bull;</p></td>
+<td width="5%"></td>
+<td width="64%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%; margin-top: 1em"><b>end date</b>
+: the date at which job ended.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p style="margin-top: 1em"><b>status</b> : job status, as
+used by <i>open-lmake</i>. Possible values are:</p></td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>new</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="36%"></td>
+<td width="22%">
+
+
+<p style="margin-top: 1em">job was never run</p></td>
+<td width="42%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>early_chk_deps</i></p>
+
+<p style="margin-left:36%;">dep check failed before job
+actually started</p>
+
+<p style="margin-left:27%;"><i>early_err</i></p>
+
+<p style="margin-left:36%;">job was not started because of
+error</p>
+
+<p style="margin-left:27%;"><i>early_lost</i></p>
+
+<p style="margin-left:36%;">job was lost before starting,
+retry</p>
+
+<p style="margin-left:27%;"><i>early_lost_err</i></p>
+
+<p style="margin-left:36%;">job was lost before starting,
+do not retry</p>
+
+<p style="margin-left:27%;"><i>late_lost</i></p>
+
+<p style="margin-left:36%;">job was lost after having
+started, retry</p>
+
+<p style="margin-left:27%;"><i>late_lost_err</i></p>
+
+<p style="margin-left:36%;">job was lost after having
+started, do not retry</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="27%"></td>
+<td width="8%">
+
+
+<p><i>killed</i></p></td>
+<td width="1%"></td>
+<td width="18%">
+
+
+<p>job was killed</p></td>
+<td width="46%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>chk_deps</i></p>
+
+<p style="margin-left:36%;">dep check failed</p>
+
+<p style="margin-left:27%;"><i>cache_match</i></p>
+
+<p style="margin-left:36%;">cache just reported deps, not
+result</p>
+
+<p style="margin-left:27%;"><i>bad_target</i></p>
+
+<p style="margin-left:36%;">target was not correctly
+initialized or simultaneously written by another job</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="27%"></td>
+<td width="2%">
+
+
+<p><i>ok</i></p></td>
+<td width="7%"></td>
+<td width="41%">
+
+
+<p>job execution ended successfully</p></td>
+<td width="23%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>submit_loop</i></p>
+
+<p style="margin-left:36%;">job needs to rerun but was
+already submitted too many times</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="13%">
+
+
+<p><i>err</i></p></td>
+<td width="5%"></td>
+<td width="36%">
+
+
+<p>job execution ended in error</p></td>
+<td width="28%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="13%">
+
+
+<p>&bull;</p></td>
+<td width="5%"></td>
+<td width="36%"></td>
+<td width="28%">
+</td></tr>
+</table>
+
+<p style="margin-left:27%; margin-top: 1em"><b>physical tmp
+dir</b> : the tmp dir on disk when viewed by job under
+another name.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p style="margin-top: 1em"><b>tmp dir</b> : the tmp dir on
+disk when viewed by job under the same name.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>rc</b> : the return code of the job. Possible values
+are:</p> </td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>ok</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="36%"></td>
+<td width="64%">
+
+
+<p style="margin-top: 1em">exited with code 0 and stderr
+was empty or allowed to be non-empty.</p></td></tr>
+</table>
+
+<p style="margin-left:27%;"><i>ok (with non-empty
+stderr)</i></p>
+
+<p style="margin-left:36%;">exited with code 0 and stderr
+was non-empty nor allowed to be non-empty.</p>
+
+<p style="margin-left:27%;"><i>exit &lt;n&gt;</i></p>
+
+<p style="margin-left:36%;">exited with code &lt;n&gt;
+(non-zero).</p>
+
+<p style="margin-left:27%;"><i>exit &lt;n&gt; (could be
+signal&lt;s&gt;)</i></p>
+
+<p style="margin-left:36%;">exited with code &lt;n&gt;
+which is possibly generated by the shell in response to a
+process killed by signal &lt;s&gt;.</p>
+
+<p style="margin-left:27%;"><i>signal &lt;s&gt;</i></p>
+
+<p style="margin-left:36%;">killed with signal
+&lt;s&gt;.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>cpu time</b> : user+system cpu time of job, as
+reported by <b>getrusage</b>(2) with children.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>elapsed in job</b> : elapsed time in job, excluding
+overhead.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>elapsed total</b> : elapsed time in job, including
+overhead. bullet <b>used mem</b> : max RSS, as reported by
+<b>getrusage</b>(2) with children.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>cost</b> : elapsed time in job divided by the average
+number of jobs running in parallel. This value is used to
+compute the ETA of the lmake command.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>total size</b> : the sum of the sizes of all
+targets.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>compressed size</b> : the sum of the sizes of all
+targets after compression as stored in cache.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>start message</b> : a message emitted at job start
+time.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>message</b> : a message emitted at job end time.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>views</b> : the view map as specified in the
+<i>views</i> rule attribute.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>resources</b> : the job resources. In some cases, the
+atual allocated resources is different from the required
+resources, in which case both values are shown.</p></td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">All information
+are not necessarily shown:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p style="margin-top: 1em">If the job is running,
+information that are only available after job end are not
+shown.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Non-pertinent information (e.g. compressed size when
+targets have not been compressed) are not shown.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>0, false or other values carrying no information are not
+shown.</p> </td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output contains the same
 information generated as a <b>dict</b>.</p>
 
-<p style="margin-left:9%;"><b>-r</b>,<b>--running</b></p>
+<p style="margin-left:9%;"><b>-r</b>, <b>--running</b></p>
 
 <p style="margin-left:18%;">Show the list of jobs currently
 running to build the arguments. If <i>--verbose</i>, some
 waiting jobs are shown in gray, prefixed by key <b>W</b>,
 enough to justify why all running jobs are running. Queued
 jobs are shown in blue, prefixed with key <b>Q</b>, actively
-running jobs are uncolored, prefixed with key <b>R</b>. If
-<b>--porcelaine</b>, whether args are a job or files, the
-output is a <b>set</b> (if not <b>--verbose</b>) or a
-<b>tuple</b> (if <b>--verbose</b>) of jobs. Each job is
+running jobs are uncolored, prefixed with key <b>R</b>.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, whether args are a job or files, the
+output is a <b>set</b> (if not <i>--verbose</i>) or a
+<b>tuple</b> (if <i>--verbose</i>) of jobs. Each job is
 represented as a <b>tuple</b> composed of the key
 (<b>W&rsquo;&rsquo;</b>, <b>Q&rsquo;&rsquo;</b> or
 <b>R&rsquo;&rsquo;</b>), the rule name and the job name.</p>
 
-<p style="margin-left:9%;"><b>-e</b>,<b>--stderr</b></p>
+<p style="margin-left:9%;"><b>-e</b>, <b>--stderr</b></p>
 
 <p style="margin-left:18%;">Show the stderr of the jobs.
 Unless <i>--quiet</i>, output is preceded by a description
 of the job which it relates to. Output is always generated
 with a single tab prefix for each line, so as to maintain
-internal alignment. If <b>--porcelaine</b>, the output is
-generated as a <b>tuple</b> composed of a message generated
-by lmake at start time, a message generated by lmake at en
-time and the stderr of the job. All three items are
-<b>str</b> (not indented).</p>
+internal alignment.</p>
 
-<p style="margin-left:9%;"><b>-o</b>,<b>--stdout</b></p>
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as a
+<b>tuple</b> composed of a message generated by lmake at
+start time, a message generated by lmake at en time and the
+stderr of the job. All three items are <b>str</b> (not
+indented).</p>
+
+<p style="margin-left:9%;"><b>-o</b>, <b>--stdout</b></p>
 
 <p style="margin-left:18%;">Show the stdout of the jobs.
 Unless <i>--quiet</i>, output is preceded by a description
-of the job which it relates to. If <b>--porcelaine</b>, the
-output is generated as a <b>str</b>.</p>
+of the job which it relates to.</p>
 
-<p style="margin-left:9%;"><b>-t</b>,<b>--targets</b></p>
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as a
+<b>str</b>.</p>
+
+<p style="margin-left:9%;"><b>-t</b>, <b>--targets</b></p>
 
 <p style="margin-left:18%;">Show the targets of the jobs.
 Unless <i>--verbose</i>, only existing targets are
@@ -702,32 +1368,44 @@ target.</p>
 
 <p style="margin-left:18%; margin-top: 1em">If a target
 does not exist, it is deemed secondary information and is
-shown in gray. If <b>--porcelaine</b>, the output is
-generated as a <b>set</b> of targets, each target being
-represented as a <b>tuple</b> composed the info
-(<b>W&rsquo;&rsquo;</b>, <b>U&rsquo;&rsquo;</b> or
-<b>-&rsquo;&rsquo;</b>), the target flags, the key and the
-target name.</p>
+shown in gray.</p>
 
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as a <b>set</b>
+of targets, each target being represented as a <b>tuple</b>
+composed the info (<b>W&rsquo;&rsquo;</b>,
+<b>U&rsquo;&rsquo;</b> or <b>-&rsquo;&rsquo;</b>), the
+target flags, the key and the target name.</p>
 
-<p style="margin-left:9%;"><b>-T</b>,<b>--inv-targets</b></p>
+<p style="margin-left:9%;"><b>-T</b>,
+<b>--inv-targets</b></p>
 
 <p style="margin-left:18%;">Show jobs that have given file
 as a target (either official or not). This sub-command is
-only valid for file args. If <b>--verbose</b>, obsolete jobs
-are also listed in gray. If <b>--porcelaine</b>, the output
-is a <b>set</b> of jobs, each job being represented as a
-<b>tuple</b> composed of the rule name and the job name.</p>
+only valid for file args.</p>
 
-<p style="margin-left:9%;"><b>-u</b>,<b>--trace</b></p>
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--verbose</i>, obsolete jobs are also listed in gray.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is a <b>set</b> of jobs,
+each job being represented as a <b>tuple</b> composed of the
+rule name and the job name.</p>
+
+<p style="margin-left:9%;"><b>-u</b>, <b>--trace</b></p>
 
 <p style="margin-left:18%;">Show an execution trace of the
 jobs. Each entry is compose of a date, a tag and a file (or
 other info, depending on tag). The tag is either a keyword,
 of a keyword with various attributes in (). Accesses
-generating no new dep are not shown. The main purpose is to
-provide an explanation for each dep and target. If
-<b>--porcelaine</b>, the output is generated as a
+generating no new dep are not shown.</p>
+
+<p style="margin-left:18%; margin-top: 1em">The main
+purpose is to provide an explanation for each dep and
+target.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If
+<i>--porcelaine</i>, the output is generated as a
 <b>tuple</b> of entries, each entry being represented as a
 tuple composed of a date, a tag and a file (as described
 above), each being a <b>str</b>.</p>
@@ -739,16 +1417,18 @@ above), each being a <b>str</b>.</p>
 
 <p style="margin-left:9%; margin-top: 1em">These options
 are specific to <b>lshow</b> : <b><br>
--p</b>,<b>--porcelaine</b></p>
+-p</b>, <b>--porcelaine</b></p>
 
 <p style="margin-left:18%;">In porcelaine mode, information
 is provided as an easy-to-parse python object. Also,reported
 files are relative to the root of the repo, not the current
-workind dir. If argument is a job, the output is as
-described for each sub-command. unless mentioned otherwise,
-if arguments are files, the output is a <b>dict</b> whose
-keys are the arguments and values are as described
-above.</p>
+workind dir.</p>
+
+<p style="margin-left:18%; margin-top: 1em">If argument is
+a job, the output is as described for each sub-command.
+unless mentioned otherwise, if arguments are files, the
+output is a <b>dict</b> whose keys are the arguments and
+values are as described above.</p>
 
 <h2>ENVIRONMENT
 <a name="ENVIRONMENT"></a>
@@ -757,7 +1437,7 @@ above.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The content of
 <b>$LMAKE_VIDEO</b> is processed as if provided with the
-<b>--video</b> option.</p>
+<i>--video</i> option.</p>
 
 <h2>FILES
 <a name="FILES"></a>

@@ -159,6 +159,20 @@
 <h1 id="commands"><a class="header" href="#commands">Commands</a></h1>
 <p>Open-lmake is a package containing several commands.</p>
 <p>The full documentation of these commands can also be obtained by running <code>man &lt;command&gt;</code>.</p>
+<h2 id="command-execution"><a class="header" href="#command-execution">command execution</a></h2>
+<p>Most commands (<code>ldebug</code>, <code>lforget</code>, <code>lmake</code>, <code>lmark</code> and <code>lshow</code>) do not execute directly but instead connect to a server, or launch one if none already run.</p>
+<p>The reason is that although several of these commands can run at the same time (including several times the same one, in particular several <code>lmake</code>), they all must run in the same process to
+stay coherent.</p>
+<p>Among these commands, all of them except <code>lmake</code> run mostly instantaneously. So the serverr mostly exist to be able to run any of these commands while one or several instances of <code>lmake</code> are
+already running.</p>
+<p>The (unique) server is created automatically when necessary and dies as soon as no more needed.
+So under normal situations, one does not have to even be aware of the existence of such a server.</p>
+<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/_bin/lmakeserver</code>)
+leads to improved performances by avoiding to relaunch a server for each command.
+In such cases, the server must be run with no argument.</p>
+<p>However, if, under a particular cicumstance, the server must be killed, best is to use signal 1 (SIGHUP) or 2 (SIGINT) as this will force the server to smoothly kill all running jobs.
+Other signals are not managed and will lead to the server dying abruptly, potentially leaving a lot of running jobs.
+This has no semantic impact as these jobs will be considered out-of-date and will rerun, but may incur a waste of resources.</p>
 <h2 id="commands-to-control-build-execution"><a class="header" href="#commands-to-control-build-execution">commands to control build execution</a></h2>
 <p>These commands are meant to be run by the user outside jobs.
 They are:</p>

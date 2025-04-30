@@ -21,16 +21,16 @@ SubCommands
 Item(B(-b),B(--bom))
 Output the list of all source files necessary to build the arguments.
 If I(--verbose) option is provided, intermediate files are shown in gray.
-
-If B(--porcelaine), the output is generated as B(set) (if not B(--verbose)) or as a B(tuple) (if B(--verbose)).
+.IP
+If I(--porcelaine), the output is generated as B(set) (if not I(--verbose)) or as a B(tuple) (if I(--verbose)).
 In the latter case, it is guaranteed that deps are going downards, i.e. dependents appear before their deps.
 If arguments are files, the output is not a B(dict) and is the list necessary to generate all the arguments.
 
 Item(B(-c),B(--cmd))
 Output the B(cmd) used to execute the job. If dynamic, it shows it as specialized for this job.
 Output is always generated with a single tab prefix for each line, so as to maintain internal alignment.
-
-If B(--porcelaine), the output is generated as a B(str) (not indented).
+.IP
+If I(--porcelaine), the output is generated as a B(str) (not indented).
 
 Item(B(-d),B(--deps))
 Output the list of all the deps of the jobs.
@@ -63,59 +63,139 @@ Unless I(--quiet), each line is composed of 5 fields separated by spaces :
 		dep has been accessed with a stat-like system call (i.e. its inode has been accessed).
 		.RE
 	Bullet Key : the key if the dep is static, else blank.
-	Bullet Ascii art showing parallel deps (deps coming from a single call to B(ldepend) (1) or B(lmake.depend) are considered parallel).
+	Bullet Ascii art showing parallel deps (deps coming from a single call to C(ldepend) or B(lmake.depend) are considered parallel).
 	Bullet Name of the dep.
 	.RE
 .IP
 If a dep does not exist, it is deemed secondary information and is shown in gray.
-
-If B(--porcelaine) and args are files, the output is, for each file, a B(dict) indexed by jobs and whose values are as follows.
+.IP
+If I(--porcelaine) and args are files, the output is, for each file, a B(dict) indexed by jobs and whose values are as follows.
 Jobs are represented as a tuple composed of the rule name, the job name and a comment.
 The keys are all jobs potentially producing given file.
 If arg is a job, the output is a mentioned below.
-
+.IP
 The value is a B(tuple) of sequential deps groups, each deps group being a B(set) of parallel deps.
 Each dep is represented as a B(tuple) composed of dep flags, access flags, key and name.
 
 Item(B(-D),B(--inv-deps))
 Show jobs that depend on args.
 This sub-command is only valid for file args.
-
-If B(--verbose), obsolete jobs are also listed in gray.
-
-If B(--porcelaine), the output is a B(set) of jobs, each job being represented as a B(tuple) composed of the rule name and the job name.
+.IP
+If I(--verbose), obsolete jobs are also listed in gray.
+.IP
+If I(--porcelaine), the output is a B(set) of jobs, each job being represented as a B(tuple) composed of the rule name and the job name.
 
 Item(B(-E),B(--env))
 Show the environment used to run the script
-
-If B(--porcelaine), the output is generated as as B(dict), much like B(os.environ).
+.IP
+If I(--porcelaine), the output is generated as as B(dict), much like B(os.environ).
 
 Item(B(-i),B(--info))
-Show various self-reading info about jobs, such as reason to be launched, why it was needed, execution time, host that executed it, ...
+Show various info about a job, as it last ran (unless stated otherwise):
+	.RS
+	Bullet B(rule)        : the rule name.
+	Bullet B(job)         : the job name.
+	Bullet B(ids)         : the job-id (unique for each job), the small-id (unique among jobs running simultaneously) and the seq-id (unique in a repo).
+	Bullet B(required by) : the job that last necessitated job to run.
+	Bullet B(reason)      : the reason why job ran.
+	Bullet B(host)        : the host on which job ran.
+	Bullet B(scheduling)  : the ETA of the lmake command, a B(-), the duration from start-of-job to end-of-lmake command along the longest dep path as estimated at run time (known as the pressure).
+		Jobs are scheduled by giving higher priority to nearer ETA, then to higher pressure.
+	Bullet B(chroot_dir)  : the chroot dir in which job ran.
+	Bullet B(lmake_view)  : the name under which the lmake installation dir was seen by job.
+	Bullet B(repo_view)   : the name under which the repo root dir was seen by job.
+	Bullet B(tmp_view)    : the name under which the tmp dir was seen by job.
+	Bullet B(sub_repo)    : the sub-repo in which rule was defined.
+	Bullet B(auto_mkdir)  : true if C(chdir,2) to a non-existent triggered an automatic C(mkdir,2) for the C(chdir,2) to succeed.
+	Bullet B(autodep)     : the autodep method used.
+	Bullet B(timeout)     : the timeout after which job would have/has been killed.
+	Bullet B(use_script)  : true if a script was used to launch job (rather than directly using the I(-c) option to the interpreter).
+	bullet B(backend)     : the backend used to launch job.
+	Bullet B(run status)  : whether job could be run last time the need arose (note: if not ok it is later than when job last ran).
+		Possible values are:
+		.RS
+		Item(I(ok))             job could run.
+		Item(I(dep_err))        job could not run because a dep was in error.
+		Item(I(missing_static)) job could not run because a static dep was missing.
+		Item(I(err))            job could not run because an error was detected before it started.
+		.RE
+	Bullet B(end date) : the date at which job ended.
+	Bullet B(status)   : job status, as used by OpenLmake.
+		Possible values are:
+		.RS
+		Item(I(new))            job was never run
+		Item(I(early_chk_deps)) dep check failed before job actually started
+		Item(I(early_err))      job was not started because of error
+		Item(I(early_lost))     job was lost before starting, retry
+		Item(I(early_lost_err)) job was lost before starting, do not retry
+		Item(I(late_lost))      job was lost after having started, retry
+		Item(I(late_lost_err))  job was lost after having started, do not retry
+		Item(I(killed))         job was killed
+		Item(I(chk_deps))       dep check failed
+		Item(I(cache_match))    cache just reported deps, not result
+		Item(I(bad_target))     target was not correctly initialized or simultaneously written by another job
+		Item(I(ok))             job execution ended successfully
+		Item(I(submit_loop))    job needs to rerun but was already submitted too many times
+		Item(I(err))            job execution ended in error
+		.RE
+	Bullet B(physical tmp dir) : the tmp dir on disk when viewed by job under another name.
+	Bullet B(tmp dir)          : the tmp dir on disk when viewed by job under the same name.
+	Bullet B(rc)               : the return code of the job.
+		Possible values are:
+		.RS
+		Item(I(ok))                            exited with code 0 and stderr was empty or allowed to be non-empty.
+		Item(I(ok (with non-empty stderr)))    exited with code 0 and stderr was non-empty nor allowed to be non-empty.
+		Item(I(exit <n>))                      exited with code <n> (non-zero).
+		Item(I(exit <n> (could be signal<s>))) exited with code <n> which is possibly generated by the shell in response to a process killed by signal <s>.
+		Item(I(signal <s>))                    killed with signal <s>.
+		.RE
+	Bullet B(cpu time)        : user+system cpu time of job, as reported by C(getrusage,2) with children.
+	Bullet B(elapsed in job)  : elapsed time in job, excluding overhead.
+	Bullet B(elapsed total)   : elapsed time in job, including overhead.
+	bullet B(used mem)        : max RSS, as reported by C(getrusage,2) with children.
+	Bullet B(cost)            : elapsed time in job divided by the average number of jobs running in parallel.
+		This value is used to compute the ETA of the lmake command.
+	Bullet B(total size)      : the sum of the sizes of all targets.
+	Bullet B(compressed size) : the sum of the sizes of all targets after compression as stored in cache.
+	Bullet B(start message)   : a message emitted at job start time.
+	Bullet B(message)         : a message emitted at job end time.
+	Bullet B(views)           : the view map as specified in the I(views) rule attribute.
+	Bullet B(resources)       : the job resources.
+		In some cases, the atual allocated resources is different from the required resources, in which case both values are shown.
+	.RE
 
-If B(--porcelaine), the output contains the same information generated as a B(dict).
+	.IP
+	All information are not necessarily shown:
+	.RS
+	Bullet If the job is running, information that are only available after job end are not shown.
+	Bullet Non-pertinent information (e.g. compressed size when targets have not been compressed) are not shown.
+	Bullet 0, false or other values carrying no information are not shown.
+	.RE
+
+	.IP
+	If I(--porcelaine), the output contains the same information generated as a B(dict).
 
 Item(B(-r),B(--running))
 Show the list of jobs currently running to build the arguments.
 If I(--verbose), some waiting jobs are shown in gray, prefixed by key B(W), enough to justify why all running jobs are running.
 Queued jobs are shown in blue, prefixed with key B(Q), actively running jobs are uncolored, prefixed with key B(R).
-
-If B(--porcelaine), whether args are a job or files, the output is a B(set) (if not B(--verbose)) or a B(tuple) (if B(--verbose)) of jobs.
+.IP
+If I(--porcelaine), whether args are a job or files, the output is a B(set) (if not I(--verbose)) or a B(tuple) (if I(--verbose)) of jobs.
 Each job is represented as a B(tuple) composed of the key (B('W'), B('Q') or B('R')), the rule name and the job name.
 
 Item(B(-e),B(--stderr))
 Show the stderr of the jobs.
 Unless I(--quiet), output is preceded by a description of the job which it relates to.
 Output is always generated with a single tab prefix for each line, so as to maintain internal alignment.
-
-If B(--porcelaine), the output is generated as a B(tuple) composed of a message generated by lmake at start time, a message generated by lmake at en time and the stderr of the job.
+.IP
+If I(--porcelaine), the output is generated as a B(tuple) composed of a message generated by lmake at start time, a message generated by lmake at en time and the stderr of the job.
 All three items are B(str) (not indented).
 
 Item(B(-o),B(--stdout))
 Show the stdout of the jobs.
 Unless I(--quiet), output is preceded by a description of the job which it relates to.
-
-If B(--porcelaine), the output is generated as a B(str).
+.IP
+If I(--porcelaine), the output is generated as a B(str).
 
 Item(B(-t),B(--targets))
 Show the targets of the jobs.
@@ -147,39 +227,39 @@ Unless I(--quiet), each line is composed of 3 fields  separated by spaces :
 	.RE
 .IP
 If a target does not exist, it is deemed secondary information and is shown in gray.
-
-If B(--porcelaine), the output is generated as a B(set) of targets,
+.IP
+If I(--porcelaine), the output is generated as a B(set) of targets,
 each target being represented as a B(tuple) composed the info (B('W'), B('U') or B('-')), the target flags, the key and the target name.
 
 Item(B(-T),B(--inv-targets))
 Show jobs that have given file as a target (either official or not).
 This sub-command is only valid for file args.
-
-If B(--verbose), obsolete jobs are also listed in gray.
-
-If B(--porcelaine), the output is a B(set) of jobs, each job being represented as a B(tuple) composed of the rule name and the job name.
+.IP
+If I(--verbose), obsolete jobs are also listed in gray.
+.IP
+If I(--porcelaine), the output is a B(set) of jobs, each job being represented as a B(tuple) composed of the rule name and the job name.
 
 Item(B(-u),B(--trace))
 Show an execution trace of the jobs.
 Each entry is compose of a date, a tag and a file (or other info, depending on tag).
 The tag is either a keyword, of a keyword with various attributes in ().
 Accesses generating no new dep are not shown.
-
+.IP
 The main purpose is to provide an explanation for each dep and target.
-
-If B(--porcelaine), the output is generated as a B(tuple) of entries, each entry being represented as a tuple composed of a date, a tag and a file (as described above), each being a B(str).
+.IP
+If I(--porcelaine), the output is generated as a B(tuple) of entries, each entry being represented as a tuple composed of a date, a tag and a file (as described above), each being a B(str).
 
 SpecificOptions
 Item(B(-p),B(--porcelaine))
 In porcelaine mode, information is provided as an easy-to-parse python object.
 Also,reported files are relative to the root of the repo, not the current workind dir.
-
+.IP
 If argument is a job, the output is as described for each sub-command.
 unless mentioned otherwise, if arguments are files, the output is a B(dict) whose keys are the arguments and values are as described above.
 
 .SH ENVIRONMENT
 .LP
-The content of B($LMAKE_VIDEO) is processed as if provided with the B(--video) option.
+The content of B($LMAKE_VIDEO) is processed as if provided with the I(--video) option.
 
 .SH FILES
 CommonFiles

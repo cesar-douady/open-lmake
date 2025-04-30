@@ -9,6 +9,27 @@ Open-lmake is a package containing several commands.
 
 The full documentation of these commands can also be obtained by running `man <command>`.
 
+## command execution
+
+Most commands (`ldebug`, `lforget`, `lmake`, `lmark` and `lshow`) do not execute directly but instead connect to a server, or launch one if none already run.
+
+The reason is that although several of these commands can run at the same time (including several times the same one, in particular several `lmake`), they all must run in the same process to
+stay coherent.
+
+Among these commands, all of them except `lmake` run mostly instantaneously. So the serverr mostly exist to be able to run any of these commands while one or several instances of `lmake` are
+already running.
+
+The (unique) server is created automatically when necessary and dies as soon as no more needed.
+So under normal situations, one does not have to even be aware of the existence of such a server.
+
+Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (`<installation dir>/_bin/lmakeserver`)
+leads to improved performances by avoiding to relaunch a server for each command.
+In such cases, the server must be run with no argument.
+
+However, if, under a particular cicumstance, the server must be killed, best is to use signal 1 (SIGHUP) or 2 (SIGINT) as this will force the server to smoothly kill all running jobs.
+Other signals are not managed and will lead to the server dying abruptly, potentially leaving a lot of running jobs.
+This has no semantic impact as these jobs will be considered out-of-date and will rerun, but may incur a waste of resources.
+
 ## commands to control build execution
 
 These commands are meant to be run by the user outside jobs.

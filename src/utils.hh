@@ -1159,26 +1159,23 @@ struct Fd {
 	static constexpr FdAction CreateReadOnly = FdAction::CreateReadOnly ;
 	static constexpr FdAction Dir            = FdAction::Dir            ;
 	// cxtors & casts
+private :
+	static int _s_mk_fd( Fd at , ::string const& file , FdAction action=Read ) {
+		switch (action) {
+			case Read           : return ::openat( at ,          file .c_str() , O_RDONLY                      | O_CLOEXEC        ) ;
+			case Write          : return ::openat( at ,          file .c_str() , O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC , 0666 ) ;
+			case Append         : return ::openat( at ,          file .c_str() , O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC , 0666 ) ;
+			case CreateReadOnly : return ::openat( at ,          file .c_str() , O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC , 0444 ) ;
+			case Dir            : return ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY        | O_CLOEXEC , 0666 ) ;
+		DF}
+	}
+public :
 	constexpr Fd(                        ) = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ Cwd , file , action , no_std_ } {}
-	Fd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) :
-		Fd{
-			::openat(
-				at , action==Dir&&file!="/" ? no_slash(file).c_str() : file.c_str()
-			,		action==Read           ? O_RDONLY                      | O_CLOEXEC
-				:	action==Write          ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
-				:	action==Append         ? O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC
-				:	action==CreateReadOnly ? O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC
-				:	action==Dir            ? O_RDONLY | O_DIRECTORY        | O_CLOEXEC
-				:	0                                                                                     // force error
-			,	action==CreateReadOnly ? 0444 : 0666
-			)
-		,	no_std_
-		}
-	{}
+	Fd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,action) , no_std_ } {}
+	Fd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ Cwd , file , action      , no_std_ } {}
 	//
 	constexpr operator int  () const { return fd    ; }
 	constexpr bool operator+() const { return fd>=0 ; }

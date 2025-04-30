@@ -14,6 +14,6 @@ define(`I',`\fI`$1'\fR')
 define(`Bullet',`.IP \[bu]
 ')
 define(`Item',`.TP
-`$*'
+patsubst(``$*'',`,',`, ')
 ')
 define(`System',`syscmd(echo -n $(`$1'))')

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Apr 28 18:31:31 2025 -->
+<!-- CreationDate: Thu May  1 00:21:57 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -185,13 +185,13 @@ reporting deps in such a case (usually with
 </h2>
 
 
-
-<p style="margin-left:9%; margin-top: 1em"><b>-L</b>,<b>--follow-symlinks</b></p>
+<p style="margin-left:9%; margin-top: 1em"><b>-L</b>,
+<b>--follow-symlinks</b></p>
 
 <p style="margin-left:18%;">Follow the last level symbolic
 link, default is not to follow.</p>
 
-<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+<p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
 <p style="margin-left:18%;">Write lines composed of the
 checksum and the name separated by a space for each required
@@ -238,36 +238,36 @@ when computing checksum)</p>
 &lt;checksum&gt; is 16-digit hexadecimal number computed on
 the link (not the content of the target of the link)</p>
 
-<p style="margin-left:9%;"><b>-R</b>,<b>--read</b></p>
+<p style="margin-left:9%;"><b>-R</b>, <b>--read</b></p>
 
 <p style="margin-left:18%;">Report an actual read. Default
 is to only alter flags.</p>
 
-<p style="margin-left:9%;"><b>-c</b>,<b>--critical</b></p>
+<p style="margin-left:9%;"><b>-c</b>, <b>--critical</b></p>
 
 <p style="margin-left:18%;">Create critical deps (cf. note
 (5)).</p>
 
-
-<p style="margin-left:9%;"><b>-E</b>,<b>--essential</b></p>
+<p style="margin-left:9%;"><b>-E</b>,
+<b>--essential</b></p>
 
 <p style="margin-left:18%;">Passed deps will appear in the
 flow shown with a graphical tool.</p>
 
-
-<p style="margin-left:9%;"><b>-e</b>,<b>--ignore-error</b></p>
+<p style="margin-left:9%;"><b>-e</b>,
+<b>--ignore-error</b></p>
 
 <p style="margin-left:18%;">Ignore the error status of the
 passed deps.</p>
 
-
-<p style="margin-left:9%;"><b>-r</b>,<b>--no-required</b></p>
+<p style="margin-left:9%;"><b>-r</b>,
+<b>--no-required</b></p>
 
 <p style="margin-left:18%;">Accept that deps be not
 buildable, as for a normal read access (in such a case, the
 read may fail, but <i>open-lmake</i> is ok).</p>
 
-<p style="margin-left:9%;"><b>-</b>,<b>--ignore</b></p>
+<p style="margin-left:9%;"><b>-I</b>, <b>--ignore</b></p>
 
 <p style="margin-left:18%;">Deps are ignored altogether,
 even if further accessed (but previous accesses are kept).
@@ -324,7 +324,7 @@ a)</b> and <i>a</i> contained <i>b</i>.</p></td></tr>
 <p style="margin-left:18%; margin-top: 1em">Suppose now
 that <i>b</i> is an error. This is a reason for your job to
 be in error. But if <i>a</i> is modified, in the former
-case, this cannot solve your error while in the later case,
+case, this cannot solve your error while in the latter case,
 it may if the new content of <i>a</i> points to a file that
 may successfully be built. Because <i>open-lmake</i> cannot
 distinguish between the 2 cases, upon a modification of

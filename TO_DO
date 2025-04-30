@@ -60,6 +60,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* use : https://github.com/ZXShady/enchantum
+	- much cleaner than the ugly ENUM macro
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -78,6 +80,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * support spaces in stems for targets, deps, cmd, etc.
+* support regexprs in lmake.depend/lmake.target (and ldepend/ltarget)
+	- just pass a regexpr (result of re.compile()) for lmake.depend/target (and a --regexpr for ldepend/ltarget)
+	- dont support read/verbose/follow_symlinks for lmake.depend/ldepend nor write for lmake.target/ltarget
+	- implement a matching dict with dates to apply only to future deps/targets
+	- add an ExtraDflag/ExtraTflag to signal regexprs
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size
@@ -199,7 +206,6 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* kill -2 lmakeserver
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 

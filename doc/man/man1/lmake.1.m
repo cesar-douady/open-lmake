@@ -67,43 +67,54 @@ ClientGeneralities(color)
 ClientOptions(color)
 
 SpecificOptions
+
 Item(B(-a),B(--archive))
 Ensure all intermediate files are up to date, in addition to the asked targets.
 This is useful for example if you want to archive a fully built repo.
+
 Item(B(-b) I(value),B(--backend)=I(value))
 Pass value to backend (cf. backend documentation for each backend).
 This is used for example to pass a partition or specificities to the slurm backend for a particular command.
 Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
+
 Item(B(-e),B(--forget-old-errors))
 Assume encountered errors (before this command) are transicent.
 Contrarily to the B(lforget -e) command, this only concerns this execution, not subsequent ones.
+
 Item(B(-j) jobs,B(--jobs)=I(jobs))
 When this option is used, B(lmake) will limit the overall number of simultaneous jobs to I(jobs) per backend.
 If several B(lmake) commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated I(jobs).
+
 Item(B(-o),B(--live-out))
 Normally, B(lmake) does not output the stdout of jobs (such stdout is accessible with the B(lshow -o) command).
 However, sometimes it is practical to have the output while jobs are running.
 Generating such output for all jobs would produce an intermixed flow of characters of all jobs running in parallel making such an output unreadable.
 When this option is used, only the jobs directly producing the asked targets have their output generated on the output of B(lmake).
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
+
 Item(B(-m) I(count),B(--max-submits)=I(count))
 Ask B(lmake) to limit number of submits for any job to this number.
 This constraint must be enforced together with the B(max_submits) rule attribute, i.e. the min of these 2 constraints is used.
 This is useful to observe a job while it is supposed to rerun.
+
 Item(B(-r) I(count),B(--retry-on-error)=I(count))
 Ask B(lmake) to retry jobs in case of error.
 This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.
+
 Item(B(-l),B(--local))
 With this option, jobs are launched locally (i.e. using the I(local) backend) instead of the backend mentioned in the rule.
 Note that if 2 B(lmake) commands with different values for this option are running simultaneously, in case a job is necessary for both, it may be launched locally or remotely.
 The originally targetted backend is in charge of mapping required resources mentioned in the rule to local resources understandable by the local backend.
+
 Item(B(-s),B(--source-ok))
 Normally, B(lmake) refuses to launch a job that may overwrite a source.
 With this option, the user instructs B(lmake) that this is allowed.
+
 Item(B(-t),B(--keep-tmp))
 Normally, B(lmake) washes the temporary dir allocated to a job at the end of job execution.
 With this option, the user instructs B(lmake) to keep the temporary dirs, as if the I(keep_tmp) attribute was set for all rules.
 The kept temporary dir can be retreived with B(lshow -i).
+
 Item(B(-v),B(--verbose))
 Enable the generation of some execution information from backend.
 This is not done systematicly as this may incur a performance hit.
@@ -141,27 +152,19 @@ The content of B($LMAKE_VIDEO) is processed as if provided with the B(--video) o
 Unless explicitly asked in I(Lmakefile.py), the environment is mostly ignored when B(lmake) is run, i.e. it is not passed to the jobs.
 The goal is to improve repeatability by protecting jobs from the variability environment variables may cause.
 In particular :
-Bullet
-B($HOME) is redirected to the root of the repo.
-This protects the job from all specificities stored in I(.xxxrc) files in the home dir.
-Bullet
-B($LMAKE_ARGS), although used by B(lmake), is not passed to jobs.
-Bullet
-B($PATH) is reset to the default path for the system, plus the OpenLmake bin dir.
-Bullet
-B($PYTHONPATH) is set to the OpenLmake lib dir.
-Bullet
-Unless set to empty, B($TMPDIR) is redirected to an isolated, empty dir which is cleaned up at the end of each job execution.
-This way, the job can freely use this dir and need not take care of clean-up.
+Bullet B($HOME) is redirected to the root of the repo.
+	This protects the job from all specificities stored in I(.xxxrc) files in the home dir.
+Bullet B($LMAKE_ARGS), although used by B(lmake), is not passed to jobs.
+Bullet B($PATH) is reset to the default path for the system, plus the OpenLmake bin dir.
+Bullet B($PYTHONPATH) is set to the OpenLmake lib dir.
+Bullet Unless set to empty, B($TMPDIR) is redirected to an isolated, empty dir which is cleaned up at the end of each job execution.
+	This way, the job can freely use this dir and need not take care of clean-up.
 .LP
 Moreover, a few variables are set during job execution :
-Bullet
-B($JOB_ID) is set to an integer specific of a job.
-It does not change between executions, but may be different in different repo, even if strictly identical.
-Bullet
-B($SMALL_ID) is set to a as small as possible integer such that a different value is set for jobs running concurrently.
-Bullet
-B($SEQUENCE_ID) is set to a different value each time a job is run, they are never recycled.
+Bullet B($JOB_ID) is set to an integer specific of a job.
+	It does not change between executions, but may be different in different repo, even if strictly identical.
+Bullet B($SMALL_ID) is set to a as small as possible integer such that a different value is set for jobs running concurrently.
+Bullet B($SEQUENCE_ID) is set to a different value each time a job is run, they are never recycled.
 
 .SH FILES
 CommonFiles

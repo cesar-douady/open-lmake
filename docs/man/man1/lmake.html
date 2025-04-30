@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Apr 28 18:31:32 2025 -->
+<!-- CreationDate: Thu May  1 00:21:58 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -404,7 +404,7 @@ is in the form &quot;year.month.tag (key)&quot; where
 &quot;tag&quot; the minor version and &quot;key&quot; is
 indicates the format of the persistent information.</p>
 
-<p style="margin-left:9%;"><b>-h</b>,<b>--help</b></p>
+<p style="margin-left:9%;"><b>-h</b>, <b>--help</b></p>
 
 <p style="margin-left:18%;">Print a short help and exit. It
 is composed of:</p>
@@ -448,15 +448,15 @@ long name, whether it has an argument and a short
 explanation.</p> </td></tr>
 </table>
 
-<p style="margin-left:9%;"><b>-J</b>,<b>--job</b></p>
+<p style="margin-left:9%;"><b>-J</b>, <b>--job</b></p>
 
 <p style="margin-left:18%;">Passed arguments are
 interpreted as job names rather than as file names. Job
 names are the names that appear, for example, on start and
 done lines when <b>lmake</b> executes a job.</p>
 
-<p style="margin-left:9%;"><b>-R</b>
-<i>rule</i>,<b>--rule</b>=<i>rule</i></p>
+<p style="margin-left:9%;"><b>-R</b> <i>rule</i>,
+<b>--rule</b>=<i>rule</i></p>
 
 <p style="margin-left:18%;">When the <i>--job</i> option is
 used, this options allows the specification of a rule, given
@@ -464,26 +464,26 @@ by its name. This is necessary when the job name is
 ambiguous as several rules may lead to the same job
 name.</p>
 
-<p style="margin-left:9%;"><b>-q</b>,<b>--quiet</b></p>
+<p style="margin-left:9%;"><b>-q</b>, <b>--quiet</b></p>
 
 <p style="margin-left:18%;">Do not generate user oriented
 messages. Strictly generate what is asked. This is practical
 if output is meant for automatic processing.</p>
 
-<p style="margin-left:9%;"><b>-S</b>,<b>--sync</b></p>
+<p style="margin-left:9%;"><b>-S</b>, <b>--sync</b></p>
 
 <p style="margin-left:18%;">Ensure server is launched (i.e.
 do not connect to an existing server) and wait for its
 termination. This is exceptionally useful in scripts that
 modify <i>Lmakefile.py</i>.</p>
 
-<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+<p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
 <p style="margin-left:18%;">Generate more prolix
 output.</p>
 
-<p style="margin-left:9%;"><b>-V</b>
-<i>mode</i>,<b>--video</b>=<i>mode</i></p>
+<p style="margin-left:9%;"><b>-V</b> <i>mode</i>,
+<b>--video</b>=<i>mode</i></p>
 
 <p style="margin-left:18%;">Explicitly ask for a video mode
 instead of interrogating connected terminal. If mode starts
@@ -500,15 +500,15 @@ nice looking colors are not the same in each case.</p>
 
 <p style="margin-left:9%; margin-top: 1em">These options
 are specific to <b>lmake</b> : <b><br>
--a</b>,<b>--archive</b></p>
+-a</b>, <b>--archive</b></p>
 
 <p style="margin-left:18%;">Ensure all intermediate files
 are up to date, in addition to the asked targets. This is
 useful for example if you want to archive a fully built
 repo.</p>
 
-<p style="margin-left:9%;"><b>-b</b>
-<i>value</i>,<b>--backend</b>=<i>value</i></p>
+<p style="margin-left:9%;"><b>-b</b> <i>value</i>,
+<b>--backend</b>=<i>value</i></p>
 
 <p style="margin-left:18%;">Pass value to backend (cf.
 backend documentation for each backend). This is used for
@@ -518,16 +518,16 @@ impacts resources and scheduling, not the content of the
 targets, so specifying such an option does not hurt
 repeatability.</p>
 
-
-<p style="margin-left:9%;"><b>-e</b>,<b>--forget-old-errors</b></p>
+<p style="margin-left:9%;"><b>-e</b>,
+<b>--forget-old-errors</b></p>
 
 <p style="margin-left:18%;">Assume encountered errors
 (before this command) are transicent. Contrarily to the
 <b>lforget -e</b> command, this only concerns this
 execution, not subsequent ones.</p>
 
-<p style="margin-left:9%;"><b>-j</b>
-jobs,<b>--jobs</b>=<i>jobs</i></p>
+<p style="margin-left:9%;"><b>-j</b> jobs,
+<b>--jobs</b>=<i>jobs</i></p>
 
 <p style="margin-left:18%;">When this option is used,
 <b>lmake</b> will limit the overall number of simultaneous
@@ -536,7 +536,7 @@ commands run simultaneously, a job cannot be launched on
 behalf of a given command if the number of running jobs is
 not less than its associated <i>jobs</i>.</p>
 
-<p style="margin-left:9%;"><b>-o</b>,<b>--live-out</b></p>
+<p style="margin-left:9%;"><b>-o</b>, <b>--live-out</b></p>
 
 <p style="margin-left:18%;">Normally, <b>lmake</b> does not
 output the stdout of jobs (such stdout is accessible with
@@ -551,8 +551,8 @@ Because most of the time there is a single target, this
 ensures that there is a single job generating its output,
 avoiding the intermixing problem.</p>
 
-<p style="margin-left:9%;"><b>-m</b>
-<i>count</i>,<b>--max-submits</b>=<i>count</i></p>
+<p style="margin-left:9%;"><b>-m</b> <i>count</i>,
+<b>--max-submits</b>=<i>count</i></p>
 
 <p style="margin-left:18%;">Ask <b>lmake</b> to limit
 number of submits for any job to this number. This
@@ -561,8 +561,8 @@ constraint must be enforced together with the
 constraints is used. This is useful to observe a job while
 it is supposed to rerun.</p>
 
-<p style="margin-left:9%;"><b>-r</b>
-<i>count</i>,<b>--retry-on-error</b>=<i>count</i></p>
+<p style="margin-left:9%;"><b>-r</b> <i>count</i>,
+<b>--retry-on-error</b>=<i>count</i></p>
 
 <p style="margin-left:18%;">Ask <b>lmake</b> to retry jobs
 in case of error. This is useful for unattended execution
@@ -570,7 +570,7 @@ in case of error. This is useful for unattended execution
 enough to guarantee correct execution at the desired
 level.</p>
 
-<p style="margin-left:9%;"><b>-l</b>,<b>--local</b></p>
+<p style="margin-left:9%;"><b>-l</b>, <b>--local</b></p>
 
 <p style="margin-left:18%;">With this option, jobs are
 launched locally (i.e. using the <i>local</i> backend)
@@ -582,15 +582,15 @@ targetted backend is in charge of mapping required resources
 mentioned in the rule to local resources understandable by
 the local backend.</p>
 
-
-<p style="margin-left:9%;"><b>-s</b>,<b>--source-ok</b></p>
+<p style="margin-left:9%;"><b>-s</b>,
+<b>--source-ok</b></p>
 
 <p style="margin-left:18%;">Normally, <b>lmake</b> refuses
 to launch a job that may overwrite a source. With this
 option, the user instructs <b>lmake</b> that this is
 allowed.</p>
 
-<p style="margin-left:9%;"><b>-t</b>,<b>--keep-tmp</b></p>
+<p style="margin-left:9%;"><b>-t</b>, <b>--keep-tmp</b></p>
 
 <p style="margin-left:18%;">Normally, <b>lmake</b> washes
 the temporary dir allocated to a job at the end of job
@@ -599,7 +599,7 @@ to keep the temporary dirs, as if the <i>keep_tmp</i>
 attribute was set for all rules. The kept temporary dir can
 be retreived with <b>lshow -i</b>.</p>
 
-<p style="margin-left:9%;"><b>-v</b>,<b>--verbose</b></p>
+<p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
 <p style="margin-left:18%;">Enable the generation of some
 execution information from backend. This is not done

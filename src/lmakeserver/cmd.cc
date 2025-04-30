@@ -134,7 +134,7 @@ namespace Engine {
 		if      (  hide==Yes                                                  ) color = Color::HiddenNote ;
 		else if (  n->ok()==No                                                ) color = Color::Err        ;
 		else if (  n->crc==Crc::None                                          ) color = Color::HiddenNote ;
-		else if (  n->is_plain() && n->has_file()==No                         ) color = Color::Warning    ;
+		else if (  n->is_plain() && n->has_file(true/*permissive*/)==No       ) color = Color::Warning    ;
 		else if ( !n->is_src_anti(true/*permissive*/) && !n->has_actual_job() ) color = Color::Warning    ;
 		if      (  hide==No && color==Color::HiddenNote                       ) color = Color::None       ;
 		return color ;
@@ -735,23 +735,30 @@ namespace Engine {
 								tab.emplace_back( k , Entry{v,c,protect} ) ;
 							} ;
 							//
-							push_entry( "job" , job->name() ) ;
+							push_entry( "rule" , rule->user_name() ) ;
+							push_entry( "job"  , job->name()       ) ;
 							//
 							::string ids ;
 							if (porcelaine) {
 								ids = "{ 'job':"s+(+job) ;
 								if (+start) {
-									if      (start.small_id             ) ids<<" , 'small':"<<start.small_id     ;
-									if      (pre_start.seq_id==SeqId(-1)) ids<<" , 'downloaded_from_cache':True" ;
-									else if (pre_start.seq_id!=0        ) ids<<" , 'seq':"  <<pre_start.seq_id   ;
+									if (pre_start.seq_id==SeqId(-1)) {
+										ids << " , 'downloaded_from_cache':True" ;
+									} else {
+										if (start.small_id  ) ids << " , 'small':"<<start.small_id   ;
+										if (pre_start.seq_id) ids << " , 'seq':"  <<pre_start.seq_id ;
+									}
 								}
 								ids += " }" ;
 							} else {
 								ids = "job="s+(+job) ;
 								if (+start) {
-									if      (start.small_id             ) ids<<" , small:"<<start.small_id   ;
-									if      (pre_start.seq_id==SeqId(-1)) ids<<" , downloaded_from_cache"    ;
-									else if (pre_start.seq_id!=0        ) ids<<" , seq:"  <<pre_start.seq_id ;
+									if (pre_start.seq_id==SeqId(-1)) {
+										ids << " , downloaded_from_cache" ;
+									} else {
+										if (start.small_id  ) ids << " , small:"<<start.small_id   ;
+										if (pre_start.seq_id) ids << " , seq:"  <<pre_start.seq_id ;
+									}
 								}
 							}
 							//
@@ -797,6 +804,7 @@ namespace Engine {
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(MsgStderr const&) {}
 							//
+							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , cat(RunStatus(job->run_status)) , Color::Err ) ;
 							if (+end) {
 								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
 								Color status_color =

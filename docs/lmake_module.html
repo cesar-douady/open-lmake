@@ -238,7 +238,7 @@ Flags can be associated to deps on a regexpr (matching on dep name) basis by usi
 <li>(3):
 If <code>cat a b</code> is executed, open-lmake sees 2 <code>open</code> system calls, to <code>a</code> then to <code>b</code>, exactly the same sequence that if one did <code>cat $(cat a)</code> and <code>a</code> contained <code>b</code>.<br />
 Suppose now that <code>b</code> is an error. This is a reason for your job to be in error.
-But if <code>a</code> is modifed, in the former case, this cannot solve the error while in the later case, it may if the new content of <code>a</code> points to a file that may successfully be built.
+But if <code>a</code> is modifed, in the former case, this cannot solve the error while in the latter case, it may if the new content of <code>a</code> points to a file that may successfully be built.
 Because open-lmake cannot distinguish between the 2 cases, upon a modification of <code>a</code>, the job will be rerun in the hope that <code>b</code> is not accessed any more.
 Parallel deps prevents this trial.</li>
 <li>(4):

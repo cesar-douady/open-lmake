@@ -58,7 +58,7 @@ Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).
 Item(B(-E),B(--essential))    Passed deps will appear in the flow shown with a graphical tool.
 Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
-Item(B(-I),B(--ignore))       Deps are ignored altogether, even if further accessed (but previous accesses are kept).
+Item(B(-`I'),B(--ignore))     Deps are ignored altogether, even if further accessed (but previous accesses are kept).
 Default is to optimize dep check as much as possible.
 
 .SH NOTES
