@@ -401,8 +401,9 @@ namespace Engine {
 			return false ;
 		}
 		//
-		Bool3 has_file() const {
-			SWEAR(match_ok()) ;
+		Bool3 has_file(bool permissive=false) const {
+			if      (!permissive) SWEAR(match_ok()) ;
+			else if (!match_ok()) return Maybe ;                                               // if not match_ok(), do as if buildable==Unknown
 			switch (buildable) {
 				case Buildable::Maybe     :
 				case Buildable::SubSrcDir :
@@ -414,7 +415,7 @@ namespace Engine {
 			}
 		}
 		bool is_src_anti(bool permissive=false) const {
-			if (!permissive) SWEAR(match_ok()) ;
+			if (!permissive) SWEAR(match_ok()) ;                                               // if permissive, old buildable value is probably accurate for what we have to recognize
 			switch (buildable) {
 				case Buildable::DynAnti   :
 				case Buildable::Anti      :

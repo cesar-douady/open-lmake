@@ -134,7 +134,7 @@ namespace Engine {
 		if      (  hide==Yes                                                        ) color = Color::HiddenNote ;
 		else if (  node->ok()==No                                                   ) color = Color::Err        ;
 		else if (  node->crc==Crc::None                                             ) color = Color::HiddenNote ;
-		else if (  node->is_plain() && node->has_file()==No                         ) color = Color::Warning    ;
+		else if (  node->is_plain() && node->has_file(true/*permissive*/)==No       ) color = Color::Warning    ;
 		else if ( !node->is_src_anti(true/*permissive*/) && !node->has_actual_job() ) color = Color::Warning    ;
 		if      (  hide==No && color==Color::HiddenNote                             ) color = Color::None       ;
 		//
