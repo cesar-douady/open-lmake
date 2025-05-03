@@ -75,6 +75,13 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(__lxstat64            ) \
 	ENUMERATE_PATH_STATS
 
+#if HAS_CLOSE_RANGE
+	#define ENUMERATE_CLOSE_RANGE_LIBCALLS \
+	,	LIBCALL_ENTRY(close_range)
+#else
+	#define ENUMERATE_CLOSE_RANGE_LIBCALLS
+#endif
+
 #define ENUMERATE_LIBCALLS \
 	LIBCALL_ENTRY(chdir            ) \
 ,	LIBCALL_ENTRY(chmod            ) \
@@ -151,4 +158,5 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(truncate64       ) \
 \
 	ENUMERATE_LD_PRELOAD_LIBCALLS    \
-	ENUMERATE_PATH_LIBCALLS
+	ENUMERATE_PATH_LIBCALLS          \
+	ENUMERATE_CLOSE_RANGE_LIBCALLS

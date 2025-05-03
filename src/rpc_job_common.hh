@@ -204,9 +204,12 @@ ENUM( CommentExt
 ,	Err
 ,	File
 ,	Last
+,	Lib
 ,	Killed
 ,	Lnk
 ,	NoFollow
+,	Orig
+,	Path
 ,	Read
 ,	Reply
 ,	Stat

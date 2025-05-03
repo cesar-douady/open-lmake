@@ -388,9 +388,9 @@ public :
 		using Base::file_loc ;
 		using Base::accesses ;
 		_Read() = default ;
-		_Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+		_Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c , CommentExts ces={} ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c,ces} {
 			if ( ChkSimple && !real ) return ;
-			r.report_access( file_loc , { .comment=c , .digest={.accesses=accesses|Access::Reg} , .file=keep_real?(::copy(real)):(::move(real)) } ) ;
+			r.report_access( file_loc , { .comment=c , .comment_exts=ces, .digest={.accesses=accesses|Access::Reg} , .file=keep_real?(::copy(real)):(::move(real)) } ) ;
 		}
 	} ; //!             ChkSimple
 	using Read   = _Read<false  > ;
