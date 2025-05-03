@@ -5,7 +5,7 @@
 
 # Why open-lmake
 
-Open-lmake is a generic and [fearless](doc/fearless.md) build system.
+Open-lmake is a generic and [fearless](doc/fearless.md) build system running on Linux.
 It is like `make`, except that it is practical, versatile, scalable and reliable.
 
 It is reliable : never type `make clean` ever again.  
@@ -25,7 +25,7 @@ Also:
 
 For a quick comparison with well-known tools (`make`, `ninja`, `bazel`, `CMake`) , visit [quick comparison](doc/quick_comparison.md).
 
-According to [Build Systems à la carte](https://dl.acm.org/doi/pdf/10.1145/3236774),
+Using the vocabulary defined in [Build Systems à la carte](https://dl.acm.org/doi/pdf/10.1145/3236774),
 open-lmake is correct, monadic, restarting, self-tracking, keeps verifying traces, implements parallel execution, does early cutoff and implements dynamically allocated keys.
 Optionally, it can keep constructive traces and be a cloud build system.
 

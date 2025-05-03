@@ -15,6 +15,9 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* .so accessed with LD_LIBRARY_PATH are not seen with ld_preload
+	- in basics.py, add LD_LIBRARY_PATH=toto
+	- toto/xxx.so are accessed (and visible with ld_audit), but are not seen with ld_preload (while they should)
 ? exceptionnally, server blocks
 	- seems to be while taking GIL
 

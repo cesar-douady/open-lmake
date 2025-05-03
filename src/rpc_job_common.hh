@@ -102,6 +102,7 @@ static constexpr ::amap<ExtraTflag,char,N<ExtraTflag>> ExtraTflagChars {{
 using ExtraTflags = BitMap<ExtraTflag> ;
 static_assert(chk_enum_tab(ExtraTflagChars)) ;
 
+// START_OF_VERSIONING
 ENUM( Comment
 ,	None
 // syscalls
@@ -199,7 +200,9 @@ ENUM( Comment
 ,	uploadedToCache
 ,	washed
 )
+// END_OF_VERSIONING
 
+// START_OF_VERSIONING
 ENUM( CommentExt
 ,	Err
 ,	File
@@ -217,3 +220,4 @@ ENUM( CommentExt
 ,	Write
 )
 using CommentExts = BitMap<CommentExt> ;
+// END_OF_VERSIONING
