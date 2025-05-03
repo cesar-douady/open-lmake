@@ -20,7 +20,7 @@ if __name__!='__main__' :
 		name = f'expand{step}'
 		targets = {
 			'TARGET'  : r'{File:.*}.tgzdir/{*:.*}'
-		,	'TRIGGER' :  '{File}.tgzdir.trigger'
+		,	'TRIGGER' :  '{File   }.tgzdir.trigger'
 		}
 		deps = { 'TGZ' : '{File}.tgz' }
 		cmd  = 'tar -xvf {TGZ} -C {File}.tgzdir >{TRIGGER}'

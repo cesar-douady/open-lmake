@@ -70,6 +70,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                       ;
 	bool         verbose   = false                      ;
+	bool         regexpr   = false                      ;
 	AccessDigest ad        { .dflags=DflagsDfltDepend } ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
@@ -77,7 +78,8 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 		bool     val = +py_val                     ;
 		switch (key[0]) {
 			case 'f' : if (key=="follow_symlinks") {          no_follow   = !val         ; continue ; } break ;
-			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  ~Accesses() ; continue ; } break ;
+			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  ~Accesses() ; continue ; }
+			/**/       if (key=="regexpr"        ) {          regexpr     =  val         ; continue ; } break ;
 			case 'v' : if (key=="verbose"        ) {          verbose     =  val         ; continue ; } break ;
 		DN}
 		if      (can_mk_enum<Dflag     >(key)) { if ( Dflag      df =mk_enum<Dflag     >(key) ; df<Dflag::NDyn ) { ad.dflags      .set(df ,val) ; continue ; } }
@@ -88,8 +90,8 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	::vector_s files = _get_files(py_args) ;
 	//
 	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                  }
+	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                            }
 	//
 	if (!verbose) return &None ;
 	//
@@ -109,19 +111,24 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 static void target( Tuple const& py_args , Dict const& py_kwds ) {
-	AccessDigest ad { .extra_tflags=ExtraTflag::Allow } ;
+	bool         regexpr = false                             ;
+	AccessDigest ad      { .extra_tflags=ExtraTflag::Allow } ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
 		bool     val = +py_val                     ;
-		if      (key=="write"                ) {                                                                   ad.write = No|val ;            continue ;   }
+		switch (key[0]) {
+			case 'w' : if (key=="write"  ) { ad.write = No|val ; continue ; } break ;
+			case 'r' : if (key=="regexpr") { regexpr  = val    ; continue ; } break ;
+		DN}
 		if      (can_mk_enum<Tflag     >(key)) { if ( Tflag      tf =mk_enum<Tflag     >(key) ; tf<Tflag::NDyn ) { ad.tflags      .set(tf ,val) ; continue ; } }
 		else if (can_mk_enum<ExtraTflag>(key)) {      ExtraTflag etf=mk_enum<ExtraTflag>(key) ;                    ad.extra_tflags.set(etf,val) ; continue ;   }
 		throw "unexpected keyword arg "+key ;
 	}
+	//
 	::vector_s files = _get_files(py_args) ;
-	try                       { JobSupport::target( _g_record , ::move(files) , ad ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                }
+	try                       { JobSupport::target( _g_record , ::move(files) , ad , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                          }
 }
 
 static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
@@ -248,14 +255,15 @@ PyMODINIT_FUNC
 			"depend(\n"
 			"\t*deps\n"
 			",\tfollow_symlinks=False\n"
-			",\tverbose        =False    # return a report as a dict  dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
-			",\tread           =False    # pretend deps are read in addition to setting flags\n"
+			",\tread           =False # pretend deps are read in addition to setting flags\n"
+			",\tregexpr        =False # deps are regexprs\n"
+			",\tverbose        =False # return a report as a dict  dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
 			"# flags :\n"
-			",\tcritical       =False    # if modified, ignore following deps\n"
-			",\tessential      =False    # show when generating user oriented graphs\n"
-			",\tignore         =False    # ignore deps, used to mask out further accesses\n"
-			",\tignore_error   =False    # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
-			",\trequired       =True     # dep must be buildable\n"
+			",\tcritical       =False # if modified, ignore following deps\n"
+			",\tessential      =False # show when generating user oriented graphs\n"
+			",\tignore         =False # ignore deps, used to mask out further accesses\n"
+			",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
+			",\trequired       =True  # dep must be buildable\n"
 			")\n"
 			"Pretend parallel read of deps (if read==True) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"
@@ -263,15 +271,16 @@ PyMODINIT_FUNC
 	,	F( "target" , py_func<target> ,
 			"target(\n"
 			"\t*targets\n"
-			",\twrite      =False        # pretend targets are written in addition to setting flags\n"
+			",\tregexpr    =False # targets are regexprs\n"
+			",\twrite      =False # pretend targets are written in addition to setting flags\n"
 			"# flags :\n"
-			",\tallow      =True         # writing to this target is allowed\n"
-			",\tessential  =False        # show when generating user oriented graphs\n"
-			",\tignore     =False        # ignore targets, used to mask out further accesses\n"
-			",\tincremental=False        # reads are allowed (before earliest write if any)\n"
-			",\tno_uniquify=False        # target is uniquified if it has several links and is incremental\n"
-			",\tno_warning =False        # warn if target is either uniquified or unlinked and generated by another rule\n"
-			",\tsource_ok  =False        # ok to overwrite source files\n"
+			",\tallow      =True  # writing to this target is allowed\n"
+			",\tessential  =False # show when generating user oriented graphs\n"
+			",\tignore     =False # ignore targets, used to mask out further accesses\n"
+			",\tincremental=False # reads are allowed (before earliest write if any)\n"
+			",\tno_uniquify=False # target is uniquified if it has several links and is incremental\n"
+			",\tno_warning =False # warn if target is either uniquified or unlinked and generated by another rule\n"
+			",\tsource_ok  =False # ok to overwrite source files\n"
 			")\n"
 			"Pretend write to targets (if write==True) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"

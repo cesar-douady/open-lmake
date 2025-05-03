@@ -467,7 +467,7 @@ For example, some default values may be modified and if they are used before thi
 <p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
 <p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
-<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )</code></a></h3>
+<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue--regexprfalse-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue--regexprfalse-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True , regexpr=False )</code></a></h3>
 <p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
 <p>If <code>follow_symlinks</code>, <code>deps</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
 <p>Each dep is associated with an access pattern.
@@ -496,6 +496,8 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 </li>
 </ul>
 <p>If <code>read</code>, report an actual read of <code>deps</code>. Default is just to alter associated flags.</p>
+<p>If <code>regexpr</code>, pass flags to all deps matching <code>deps</code> interpreted as regexprs, much like the <code>side_deps</code> rule attribute.
+However, the <code>ignore</code> flag only applies to deps following this call.</p>
 <p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
 <ul>
 <li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
@@ -530,12 +532,14 @@ and open-lmake anticipates this by building these deps speculatively.
 But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</li>
 </ul>
-<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )</code></a></h3>
+<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--regexprfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--regexprfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , regexpr=False )</code></a></h3>
 <p>Declare <code>targets</code> as targets and alter associated flags.
 Note that the <code>allow</code> argument default value is <code>True</code>.</p>
 <p>Also, calling this function does not make <code>targets</code> official targets of the job, i.e. <code>targets</code> are side targets.
 The official job of a target is the one selected if needing its content, it must be known before any job is run.</p>
 <p>If <code>write</code>, report that <code>targets</code> were written to.</p>
+<p>If <code>regexpr</code>, pass flags to all targets matching <code>targets</code> interpreted as regexprs, much like the <code>side_targets</code> rule attribute.
+However, the <code>ignore</code> flag only applies to targets following this call.</p>
 <p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
 <ul>
 <li>If <code>essential</code>,   show when generating user oriented graphs.</li>

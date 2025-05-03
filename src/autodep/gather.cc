@@ -13,6 +13,7 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Re   ;
 using namespace Time ;
 
 //
@@ -33,7 +34,7 @@ using namespace Time ;
 	return                                          os <<')'                                                    ;
 }                                                                                                                 // END_OF_NO_COV
 
-void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di={} ) {
 	digest.tflags       |= ad.tflags       ;
 	digest.extra_tflags |= ad.extra_tflags ;
 	digest.dflags       |= ad.dflags       ;
@@ -614,6 +615,13 @@ Status Gather::exec_child() {
 									if (jerr.digest.write==Maybe) { trace("maybe",jerr) ; slave_entry.jerrs[jerr.id].push_back(::move(jerr)) ; } // delay until confirmed/infirmed
 									else                          _new_access(fd,::move(jerr))                                               ;
 								break ;
+								case Proc::AccessPattern :
+									trace("access_pattern",kind,fd,jerr.date,jerr.digest,jerr.file) ;
+									switch (jerr.digest.write) { //!             pattern
+										case Yes : access_patterns.emplace_back( jerr.file , ::pair<PD,MatchFlags>{ jerr.date , {jerr.digest.tflags,jerr.digest.extra_tflags} } ) ; break ;
+										case No  : access_patterns.emplace_back( jerr.file , ::pair<PD,MatchFlags>{ jerr.date , {jerr.digest.dflags,jerr.digest.extra_dflags} } ) ; break ;
+									DF}
+								break ;
 								case Proc::Tmp :
 									if (!seen_tmp) {
 										if (no_tmp) {
@@ -666,6 +674,18 @@ Return :
 void Gather::reorder(bool at_end) {
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
+	// update accesses to take access_patterns into account
+	for ( auto const& [re,date_flags] : access_patterns ) {
+		trace("pattern",date_flags) ;
+		auto [date,flags] = date_flags ;
+		SWEAR( flags.is_target!=Maybe , date,flags ) ;
+		for ( auto& [file,ai] : accesses ) {
+			if (!re.match(file)     ) continue ;
+			if (flags.is_target==Yes) ai.update( date , { .write=Yes , .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags() } ) ;
+			else                      ai.update( date , { .write=No  , .dflags=flags.dflags() , .extra_dflags=flags.extra_dflags() } ) ;
+		}
+	}
+	//
 	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {

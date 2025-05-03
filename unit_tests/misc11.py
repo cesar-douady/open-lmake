@@ -19,8 +19,8 @@ if __name__!='__main__' :
 
 	class Dep(Rule) :
 		target = r'dep{D:\d+}'
-		dep    = 'src{D}'
-		cmd    = 'sleep 2 ; echo dep_content {D}'
+		dep    =  'src{D    }'
+		cmd    =  'sleep 2 ; echo dep_content {D}'
 
 	class Dut(Rule) :
 		target = 'dut'

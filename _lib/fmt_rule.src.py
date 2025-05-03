@@ -66,9 +66,9 @@ StdAttrs = { #!               type   dynamic
 
 Keywords     = {'dep','deps','python','resources','shell','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
-SimpleStemRe = re.compile(r'{\w+}|{{|}}')                      # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
-SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\w+})*$')           # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
-SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'      )           # this means string has no variable parts
+SimpleStemRe = re.compile(r'{\s*\w+\s*}|{{|}}'           )     # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
+SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\s*\w+\s*})*$')     # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
+SimpleStrRe  = re.compile(r'^([^{}]|{{|}})*$'            )     # this means string has no variable parts
 
 def update_dct(acc,new,paths=None,prefix=None) :
 	sav = acc.copy()
@@ -331,7 +331,7 @@ class Handle :
 		self.dyn_val    = {}
 
 	def _is_simple_fstr(self,fstr) :
-		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1] in self.per_job for k in SimpleStemRe.findall(fstr) )
+		return SimpleFstrRe.match(fstr) and all( k in ('{{','}}') or k[1:-1].strip() in self.per_job for k in SimpleStemRe.findall(fstr) )
 
 	def _fstring(self,x,mk_fstring=True,for_deps=False) :
 		if callable(x) : return True,x

@@ -25,6 +25,7 @@ ENUM_2( JobExecProc
 ,	Panic                  // ensure job is in error
 ,	Trace                  // no algorithmic info, just for tracing purpose
 ,	Access
+,	AccessPattern          // pass flags on a regexpr basis
 ,	DepVerbosePush
 ,	Encode                 // file_info is used to transport min_len
 )
@@ -64,37 +65,38 @@ struct JobExecRpcReq {
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
-		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                                    // Encode uses file_info to store min_len
+		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                         // Encode uses file_info to store min_len
 		switch (proc) {
 			case Proc::ChkDeps        :
-			case Proc::Tmp            : SWEAR(                 !digest && !id                       && +date , proc,        date,digest ) ; break ;
-			case Proc::DepVerbose     : SWEAR( sync==Yes   &&             !id                       && +date , proc,sync,   date        ) ; break ;
+			case Proc::Tmp            : SWEAR(                !digest          &&  !id                       && +date , self ) ; break ;
+			case Proc::DepVerbose     : SWEAR( sync==Yes   &&                      !id                       && +date , self ) ; break ;
 			case Proc::Trace          :
-			case Proc::Panic          : SWEAR( sync==No    &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
+			case Proc::Panic          : SWEAR( sync==No    && !digest          &&  !id                       && !date , self ) ; break ;
 			case Proc::CodecFile      :
 			case Proc::CodecCtx       :
-			case Proc::DepVerbosePush : SWEAR( sync==Maybe &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
-			case Proc::Confirm        : SWEAR(                             id                       && !date , proc,     id,date        ) ; break ;
-			case Proc::Guard          : SWEAR(                 !digest && !id                       && !date , proc,        date,digest ) ; break ;
+			case Proc::DepVerbosePush : SWEAR( sync==Maybe && !digest          &&  !id                       && !date , self ) ; break ;
+			case Proc::Confirm        : SWEAR(                !digest.accesses && ( id&&digest.write!=Maybe) && !date , self ) ; break ;
+			case Proc::Guard          : SWEAR(                !digest          &&  !id                       && !date , self ) ; break ;
 			case Proc::Decode         :
-			case Proc::Encode         : SWEAR( sync==Yes   &&  !digest && !id                       && !date , proc,sync,   date,digest ) ; break ;
-			case Proc::Access         : SWEAR(                            (id||digest.write!=Maybe) && +date , proc,     id,date        ) ; break ;
-		DF}                                                                                                                                         // NO_COV
+			case Proc::Encode         : SWEAR( sync==Yes   && !digest          &&  !id                       && !date , self ) ; break ;
+			case Proc::Access         : SWEAR(                                    ( id||digest.write!=Maybe) && +date , self ) ; break ;
+			case Proc::AccessPattern  : SWEAR( sync!=Yes   && !digest.accesses && (!id&&digest.write!=Maybe) && +date , self ) ; break ;
+		DF}                                                                                                                              // NO_COV
 	}
 	template<IsStream T> void serdes(T& s) {
 		/**/                         ::serdes(s,proc        ) ;
 		/**/                         ::serdes(s,sync        ) ;
 		/**/                         ::serdes(s,comment     ) ;
 		/**/                         ::serdes(s,comment_exts) ;
-		/**/                         ::serdes(s,id          ) ;
 		if (proc>=Proc::HasFile    ) ::serdes(s,file        ) ;
 		if (proc>=Proc::HasFileInfo) ::serdes(s,file_info   ) ;
 		switch (proc) {
-			case Proc::ChkDeps    :
-			case Proc::Tmp        :                            ::serdes(s,date) ; break ;
-			case Proc::Confirm    : ::serdes(s,digest.write) ;                    break ;
-			case Proc::DepVerbose : ::serdes(s,digest      ) ; ::serdes(s,date) ; break ;
-			case Proc::Access     : ::serdes(s,digest      ) ; ::serdes(s,date) ; break ;
+			case Proc::ChkDeps       :
+			case Proc::Tmp           :                                             ::serdes(s,date) ; break ;
+			case Proc::Confirm       : ::serdes(s,digest.write) ; ::serdes(s,id) ;                    break ;
+			case Proc::DepVerbose    : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
+			case Proc::Access        : ::serdes(s,digest      ) ; ::serdes(s,id) ; ::serdes(s,date) ; break ;
+			case Proc::AccessPattern : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
 		DN}
 	}
 	// data

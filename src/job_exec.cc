@@ -36,8 +36,8 @@ struct PatternDict {
 		/**/                                                 return NotFound   ;
 	}
 	void add( bool star , ::string const& key , MatchFlags const& val ) {
-		if (star) patterns.emplace_back( key , val ) ;
-		else      knowns  .emplace     ( key , val ) ;
+		if (star) patterns.emplace_back( RegExpr(key,false/*cache*/,true/*with_paren*/) , val ) ;
+		else      knowns  .emplace     (         key                                    , val ) ;
 	}
 	// data
 	::umap_s<MatchFlags>       knowns   = {} ;

@@ -79,7 +79,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* support spaces in stems for targets, deps, cmd, etc.
 * support regexprs in lmake.depend/lmake.target (and ldepend/ltarget)
 	- just pass a regexpr (result of re.compile()) for lmake.depend/target (and a --regexpr for ldepend/ltarget)
 	- dont support read/verbose/follow_symlinks for lmake.depend/ldepend nor write for lmake.target/ltarget

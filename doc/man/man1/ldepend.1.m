@@ -59,6 +59,7 @@ Item(B(-E),B(--essential))    Passed deps will appear in the flow shown with a g
 Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
 Item(B(-`I'),B(--ignore))     Deps are ignored altogether, even if further accessed (but previous accesses are kept).
+Item(B(-X),B(--regexpr))      Pass flags to all deps matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 Default is to optimize dep check as much as possible.
 
 .SH NOTES

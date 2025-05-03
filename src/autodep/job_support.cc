@@ -21,13 +21,23 @@ namespace JobSupport {
 		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
 	}
 
-	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose ) {
-		::vmap_s<FileInfo> deps ;
+	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose , bool regexpr ) {
+		if (regexpr) {
+			SWEAR(ad.write==No) ;
+			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
+			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
+			throw_if( verbose      , "regexpr and verbose are exclusive"         ) ;
+		}
 		_chk_files(files) ;
-		Pdate             pd        { New } ;                                        // all dates must be identical to be recognized as parallel deps
-		NodeIdx           di        = 0     ;
-		::vector<NodeIdx> dep_idxs1 ;
+		::vmap_s<FileInfo> deps      ;
+		Pdate              now       { New } ;                                       // all dates must be identical to be recognized as parallel deps
+		NodeIdx            di        = 0     ;
+		::vector<NodeIdx>  dep_idxs1 ;
 		for( ::string const& f : files ) {
+			if (regexpr) {
+				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
+				continue ;
+			}
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
 				.file      = ::copy(f)                                               // keep a copy in case there is no server and we must invent a reply
 			,	.no_follow = no_follow
@@ -36,7 +46,7 @@ namespace JobSupport {
 			,	.comment  = Comment::depend
 			}) ;
 			if (!verbose) {
-				r.report_access( sr.file_loc , { .comment=Comment::depend , .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+				r.report_access( sr.file_loc , { .comment=Comment::depend , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
 			} else if (sr.file_loc<=FileLoc::Dep) {
 				ad |= sr.accesses ;                                                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 				// not actually sync, but transport as sync to use the same fd as DepVerbose
@@ -49,7 +59,7 @@ namespace JobSupport {
 		if (!verbose) return {} ;
 		// if verbose, we de facto fully access files, dont send request if nothing to ask
 		JobExecRpcReply reply { .proc=Proc::DepVerbose } ;
-		if (di) reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .comment=Comment::depend , .digest=ad|~Accesses() , .date=pd } , true/*force*/ ) ;
+		if (di) reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .comment=Comment::depend , .digest=ad|~Accesses() , .date=now } , true/*force*/ ) ;
 		// fill holes for external deps
 		::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
 		for( size_t i : iota(files.size()) ) {
@@ -61,11 +71,19 @@ namespace JobSupport {
 		return dep_infos ;
 	}
 
-	void target( Record const& r , ::vector_s&& files , AccessDigest ad ) {
-		::vmap_s<FileInfo> targets ;
+	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool regexpr ) {
+		if (regexpr) {
+			throw_if( ad.write!=No , "regexpr and write are exclusive" ) ;
+			ad.write = Yes ;
+		}
 		_chk_files(files) ;
-		Pdate pd { New } ;                                                                                                         // for perf and in trace, we will see all targets with same date
+		::vmap_s<FileInfo> targets ;
+		Pdate              now     { New } ;                                                                                        // for perf and in trace, we will see all targets with same date
 		for( ::string& f : files ) {
+			if (regexpr) {
+				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::target , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
+				continue ;
+			}
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
 				.file      = ::move(f)
 			,	.no_follow = true
@@ -76,7 +94,7 @@ namespace JobSupport {
 			}) ;
 			r.report_access(
 				sr.file_loc
-			,	{ .comment=Comment::target , .digest=ad|sr.accesses , .date=pd , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
+			,	{ .comment=Comment::target , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
 			,	sr.file_loc0
 			,	::move(sr.real0)
 			,	true/*force*/

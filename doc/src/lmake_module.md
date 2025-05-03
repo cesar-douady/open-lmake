@@ -66,7 +66,7 @@ This functions ensures that all dirs listed in arguments such as `-I` or `-L` ex
 
 `stdin` is the text ot send as the stdin of `cmd_line`.
 
-### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True )`
+### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True , regexpr=False )`
 
 Declare `deps` as parallel deps (i.e. no order exist between them).
 
@@ -97,6 +97,9 @@ If `verbose`, return a dict with one entry par dep where:
   - checksum is computed after the dep
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
+
+If `regexpr`, pass flags to all deps matching `deps` interpreted as regexprs, much like the `side_deps` rule attribute.
+However, the `ignore` flag only applies to deps following this call.
 
 For `critical`, `essential`, `ignore`, `ignore_error` and `required`, set the corresponding [flag](rules.html#deps) on all `deps`:
 
@@ -133,7 +136,7 @@ Notes:
 	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
 
-### `target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False )`
+### `target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , regexpr=False )`
 
 Declare `targets` as targets and alter associated flags.
 Note that the `allow` argument default value is `True`.
@@ -142,6 +145,9 @@ Also, calling this function does not make `targets` official targets of the job,
 The official job of a target is the one selected if needing its content, it must be known before any job is run.
 
 If `write`, report that `targets` were written to.
+
+If `regexpr`, pass flags to all targets matching `targets` interpreted as regexprs, much like the `side_targets` rule attribute.
+However, the `ignore` flag only applies to targets following this call.
 
 For `allow`, `essential`, `ignore`, `incremental`, `no_warning` and `source_ok`, set the corresponding [flag](rules.html#targets) on all `targets`:
 - If `essential`,   show when generating user oriented graphs.

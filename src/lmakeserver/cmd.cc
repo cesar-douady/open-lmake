@@ -9,6 +9,7 @@
 
 using namespace Disk ;
 using namespace Py   ;
+using namespace Re   ;
 
 namespace Engine {
 
@@ -176,16 +177,16 @@ namespace Engine {
 		audit( fd , ro , color , l , porcelaine/*as_is*/ , lvl ) ;
 	}
 	static void _audit_deps( Fd fd , ReqOptions const& ro , bool hide , Job job , DepDepth lvl=0 ) {
-		Rule                  rule       = job->rule()                   ;
-		bool                  porcelaine = ro.flags[ReqFlag::Porcelaine] ;
-		bool                  verbose    = ro.flags[ReqFlag::Verbose   ] ;
-		size_t                wk         = 0                             ;
-		size_t                wf         = 0                             ;
-		::umap_ss             rev_map    ;
-		::vector<Color  >     dep_colors ;                                 // indexed before filtering
-		::vector<NodeIdx>     dep_groups ;                                 // indexed after  filtering, deps in given group are parallel
-		NodeIdx               dep_group  = 0                             ;
-		::vmap_s<Re::RegExpr> res        ;
+		Rule              rule       = job->rule()                   ;
+		bool              porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		bool              verbose    = ro.flags[ReqFlag::Verbose   ] ;
+		size_t            wk         = 0                             ;
+		size_t            wf         = 0                             ;
+		::umap_ss         rev_map    ;
+		::vector<Color  > dep_colors ;                                 // indexed before filtering
+		::vector<NodeIdx> dep_groups ;                                 // indexed after  filtering, deps in given group are parallel
+		NodeIdx           dep_group  = 0                             ;
+		::vmap_s<RegExpr> res        ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
 			VarIdx          i = rule->n_statics   ;
@@ -199,7 +200,7 @@ namespace Engine {
 				if (me.second.flags.is_target!=No) continue ;
 				if (porcelaine) wk = ::max( wk , mk_py_str(me.first).size() ) ;
 				else            wk = ::max( wk ,           me.first .size() ) ;
-				res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
+				res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
 			}
 		}
 		for( Dep const& d : job->deps ) {
@@ -975,12 +976,12 @@ namespace Engine {
 				_audit_deps( fd , ro , false/*hide*/ , job , lvl ) ;
 			break ;
 			case ReqKey::Targets : {
-				size_t                wk      = 0 ;
-				size_t                wt      = 0 ;
-				::umap_ss             rev_map ;
-				::vmap_s<Re::RegExpr> res     ;
-				::vector_s            keys    ;
-				First                 first   ;
+				size_t            wk      = 0 ;
+				size_t            wt      = 0 ;
+				::umap_ss         rev_map ;
+				::vmap_s<RegExpr> res     ;
+				::vector_s        keys    ;
+				First             first   ;
 				if (+rule) {
 					Rule::RuleMatch m = job->rule_match() ;
 					VarIdx          i = 0                 ;
@@ -989,7 +990,7 @@ namespace Engine {
 					for( ::string const& p : m.star_patterns() ) {
 						::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
 						if (me.second.flags.is_target!=Yes) continue ;
-						res.emplace_back( me.first , Re::RegExpr(p,false/*cache*/) ) ;
+						res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
 					}
 				}
 				for( Target t : job->targets ) {

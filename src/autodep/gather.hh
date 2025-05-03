@@ -14,6 +14,7 @@
 #include "hash.hh"
 #include "msg.hh"
 #include "process.hh"
+#include "re.hh"
 #include "time.hh"
 #include "trace.hh"
 
@@ -49,12 +50,12 @@ ENUM( KillStep
 
 struct Gather {                                                                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , Gather const& ) ;
-	using Kind = GatherKind    ;
-	using Proc = JobExecProc   ;
-	using Jerr = JobExecRpcReq ;
-	using Crc  = Hash::Crc     ;
-	using PD   = Time::Pdate   ;
-	using DI   = DepInfo       ;
+	using Kind = GatherKind            ;
+	using Proc = JobExecProc           ;
+	using Jerr = JobExecRpcReq         ;
+	using Crc  = Hash::Crc             ;
+	using PD   = Time::Pdate           ;
+	using DI   = DepInfo               ;
 	static constexpr Time::Delay HeartbeatTick { 10 } ;                                                         // heartbeat to probe server when waiting for it ...
 	struct AccessInfo {                                                                                         // ... dont bother server too much as there may be 1000's job_exec's waiting for it, ...
 		friend ::string& operator+=( ::string& , AccessInfo const& ) ;                                          // ... 100s seems a good compromize
@@ -121,12 +122,12 @@ public : //!                                                                    
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;
 		try                     { OMsgBuf().send(fd,jerr) ; }
-		catch (::string const&) {                           }                                           // dont care if we cannot report the reply to job
+		catch (::string const&) {                           }                                                 // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child() ;
 	//
-	void reorder(bool at_end) ;                                                                         // reorder accesses by first read access and suppress superfluous accesses
+	void reorder(bool at_end) ;                                                                               // reorder accesses by first read access and suppress superfluous accesses
 private :
 	Fd   _spawn_child (                               ) ;
 	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
@@ -136,46 +137,47 @@ private :
 	}
 	// data
 public :
-	::vector_s                        cmd_line           ;
-	Fd                                child_stdin        = Fd::Stdin                                  ;
-	Fd                                child_stdout       = Fd::Stdout                                 ;
-	Fd                                child_stderr       = Fd::Stderr                                 ;
-	umap_s<NodeIdx   >                access_map         ;
-	vmap_s<AccessInfo>                accesses           ;
-	in_addr_t                         addr               = 0                                          ; // local addr to which we can be contacted by running job
-	Atomic<bool>                      as_session         = false                                      ; // if true <=> process is launched in its own group
-	AutodepEnv                        autodep_env        ;
-	::function<::vmap_s<DepDigest>()> cur_deps_cb        = [&]()->::vmap_s<DepDigest> { return {} ; } ;
-	PD                                end_date           ;
-	::map_ss const*                   env                = nullptr                                    ;
-	::vector<ExecTraceEntry>*         exec_trace         = nullptr                                    ;
-	pid_t                             first_pid          = 0                                          ;
-	uset_s                            guards             ;                                              // dir creation/deletion that must be guarded against NFS
-	JobIdx                            job                = 0                                          ;
-	::vector<uint8_t>                 kill_sigs          ;                                              // signals used to kill job
-	bool                              live_out           = false                                      ;
-	AutodepMethod                     method             = AutodepMethod::Dflt                        ;
-	::string                          msg                ;                                              // contains error messages not from job
-	Time::Delay                       network_delay      = Time::Delay(1)                             ; // 1s is reasonable when nothing is said
-	bool                              no_tmp             = false                                      ; // if true <=> no tmp access is allowed
-	pid_t                             pid                = -1                                         ; // pid to kill
-	bool                              seen_tmp           = false                                      ;
-	SeqId                             seq_id             = 0                                          ;
-	ServerSockFd                      server_master_fd   ;
-	::string                          service_mngt       ;
-	PD                                start_date         ;
-	::string                          stdout             ;                                              // contains child stdout if child_stdout==Pipe
-	::string                          stderr             ;                                              // contains child stderr if child_stderr==Pipe
-	Time::Delay                       timeout            ;
-	Atomic<int>                       wstatus            = 0                                          ;
+	::vector_s                              cmd_line           ;
+	Fd                                      child_stdin        = Fd::Stdin                                  ;
+	Fd                                      child_stdout       = Fd::Stdout                                 ;
+	Fd                                      child_stderr       = Fd::Stderr                                 ;
+	umap_s<NodeIdx   >                      access_map         ;
+	vmap_s<AccessInfo>                      accesses           ;
+	vmap<Re::RegExpr,::pair<PD,MatchFlags>> access_patterns    ;                                              // apply flags to matching accesses, ignore only to posterior accesses
+	in_addr_t                               addr               = 0                                          ; // local addr to which we can be contacted by running job
+	Atomic<bool>                            as_session         = false                                      ; // if true <=> process is launched in its own group
+	AutodepEnv                              autodep_env        ;
+	::function<::vmap_s<DepDigest>()>       cur_deps_cb        = [&]()->::vmap_s<DepDigest> { return {} ; } ;
+	PD                                      end_date           ;
+	::map_ss const*                         env                = nullptr                                    ;
+	::vector<ExecTraceEntry>*               exec_trace         = nullptr                                    ;
+	pid_t                                   first_pid          = 0                                          ;
+	uset_s                                  guards             ;                                              // dir creation/deletion that must be guarded against NFS
+	JobIdx                                  job                = 0                                          ;
+	::vector<uint8_t>                       kill_sigs          ;                                              // signals used to kill job
+	bool                                    live_out           = false                                      ;
+	AutodepMethod                           method             = AutodepMethod::Dflt                        ;
+	::string                                msg                ;                                              // contains error messages not from job
+	Time::Delay                             network_delay      = Time::Delay(1)                             ; // 1s is reasonable when nothing is said
+	bool                                    no_tmp             = false                                      ; // if true <=> no tmp access is allowed
+	pid_t                                   pid                = -1                                         ; // pid to kill
+	bool                                    seen_tmp           = false                                      ;
+	SeqId                                   seq_id             = 0                                          ;
+	ServerSockFd                            server_master_fd   ;
+	::string                                service_mngt       ;
+	PD                                      start_date         ;
+	::string                                stdout             ;                                              // contains child stdout if child_stdout==Pipe
+	::string                                stderr             ;                                              // contains child stderr if child_stderr==Pipe
+	Time::Delay                             timeout            ;
+	Atomic<int>                             wstatus            = 0                                          ;
 private :
 	::map_ss                            _add_env              ;
 	Child                               _child                ;
-	::umap<Fd,::pair_ss/*file,ctx*/>    _codecs               ;                                         // pushed info waiting for Encode/Decode
-	::umap<Fd,::string>                 _codec_files          ;                                         // used to generate codec reply
-	::umap<Fd,::vmap_s<Disk::FileInfo>> _dep_verboses         ;                                         // pushed deps waiting for DepVerbose
+	::umap<Fd,::pair_ss/*file,ctx*/>    _codecs               ;                                               // pushed info waiting for Encode/Decode
+	::umap<Fd,::string>                 _codec_files          ;                                               // used to generate codec reply
+	::umap<Fd,::vmap_s<Disk::FileInfo>> _dep_verboses         ;                                               // pushed deps waiting for DepVerbose
 	size_t                              _n_server_req_pending = 0 ;
-	NodeIdx                             _parallel_id          = 0 ;                                     // id to identify parallel deps
-	BitMap<Kind>                        _wait                 ;                                         // events we are waiting for
+	NodeIdx                             _parallel_id          = 0 ;                                           // id to identify parallel deps
+	BitMap<Kind>                        _wait                 ;                                               // events we are waiting for
 	::jthread                           _ptrace_thread        ;
 } ;

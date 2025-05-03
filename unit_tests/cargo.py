@@ -39,8 +39,8 @@ if __name__!='__main__' :
 		cmd          = 'cd  {Dir}{Module} ; cargo build'
 
 	class RunRust(RustRule) :
-		targets = { 'OUT' : r'{Dir:.+/|}{Module:[^/]+}.out'        }
-		deps    = { 'EXE' : r'{Dir}{Module}/target/debug/{Module}' }
+		targets = { 'OUT' : r'{Dir:.+/|}{Module:[^/]+}.out'                   }
+		deps    = { 'EXE' : r'{Dir     }{Module      }/target/debug/{Module}' }
 		cmd     = './{EXE}'
 
 	class Cmp(Rule) :

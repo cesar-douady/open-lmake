@@ -19,7 +19,7 @@ if __name__!='__main__' :
 		class Cat(Rule) :
 			name    = f'cat {ad}'
 			target  = fr'{{File:.*}}.{ad}'
-			dep     = '{File}'
+			dep     =   '{ File    }'
 			autodep = ad
 			cmd = multi_strip('''
 				echo tmp > scratch.$$

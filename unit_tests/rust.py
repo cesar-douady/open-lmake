@@ -22,16 +22,16 @@ if __name__!='__main__' :
 	)
 
 	class CompileRust(RustRule) :
-		targets = { 'EXE' : r'{File:.*}' }
-		deps    = { 'SRC' :  '{File}.rs' }
-		cmd     = 'rustc -g -o {EXE} {SRC}' # adequate path is set up by RustRule from $RUSTUP_HOME
+		targets = { 'EXE' : r'{File:.*}'    }
+		deps    = { 'SRC' :  '{File   }.rs' }
+		cmd     = 'rustc -g -o {EXE} {SRC}'   # adequate path is set up by RustRule from $RUSTUP_HOME
 
 	class AntiRustRust(AntiRule) :
 		target = r'{:.*}.rs.rs'
 
 	class RunRust(RustRule) :
 		targets = { 'OUT' : r'{File:.*}.out' }
-		deps    = { 'EXE' :  '{File}'        }
+		deps    = { 'EXE' :  '{File   }'     }
 		cmd     = './{EXE} {File}.in {OUT}'
 
 	class Cmp(Rule) :

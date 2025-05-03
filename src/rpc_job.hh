@@ -581,14 +581,28 @@ struct MatchFlags {
 	Dflags      dflags      () const { SWEAR(is_target==No ,self) ; return _dflags          ; }
 	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes,self) ; return _extra_tflags    ; }
 	ExtraDflags extra_dflags() const { SWEAR(is_target==No ,self) ; return _extra_dflags    ; }
+	// services
+	MatchFlags& operator|=(MatchFlags mfs) {
+		if (mfs.is_target!=Maybe)
+			switch (is_target) {
+				case Maybe :                                          self = mfs ;                                                  break ;
+				case Yes   : SWEAR( mfs.is_target==Yes , self,mfs ) ; _tflags |= mfs._tflags ; _extra_tflags |= mfs._extra_tflags ; break ;
+				case No    : SWEAR( mfs.is_target==No  , self,mfs ) ; _dflags |= mfs._dflags ; _extra_dflags |= mfs._extra_dflags ; break ;
+			}
+		return self ;
+	}
+	MatchFlags operator|(MatchFlags mfs) {
+		MatchFlags res = self ; res |= mfs ;
+		return res ;
+	}
 	// data
 	// START_OF_VERSIONING
 	Bool3 is_target = Maybe ;
 private :
-	Tflags      _tflags       ; // if  is_target
-	Dflags      _dflags       ; // if !is_target
-	ExtraTflags _extra_tflags ; // if  is_target
-	ExtraDflags _extra_dflags ; // if !is_target
+	Tflags      _tflags       ; // if is_target==Yes
+	Dflags      _dflags       ; // if is_target==No
+	ExtraTflags _extra_tflags ; // if is_target==Yes
+	ExtraDflags _extra_dflags ; // if is_target==No
 	// END_OF_VERSIONING
 } ;
 

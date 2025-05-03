@@ -98,7 +98,7 @@ if __name__!='__main__' :
 
 	class Chk(Rule) :
 		target = r'{File:.*}.{Val:\d+}'
-		dep    =  '{File}'
+		dep    =  '{File   }'
 		cmd    = '[ $(cat) = {Val} ]'
 
 else :

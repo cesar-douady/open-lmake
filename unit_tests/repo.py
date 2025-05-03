@@ -19,8 +19,8 @@ if __name__!='__main__' :
 	class Clone(TraceRule) :
 		force = True
 		targets = {
-			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'                      )
-		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' ) # let git manage hard links : it does not support unification
+			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger'    , 'phony'                      )
+		,	'TGT'  : ( 'src/{Dir   }.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' ) # let git manage hard links : it does not support unification
 		}
 		cmd = '''
 			if [ -f {TGT('.git/index')} ]
@@ -31,8 +31,8 @@ if __name__!='__main__' :
 
 	class Unzip(Rule) :
 		targets = {
-			'MRKR' : ( '{Dir:.*}.zip_dir.trigger', 'phony' )
-		,	'TGT'  :   '{Dir}.zip_dir/{File*:.*}'
+			'MRKR' : ( '{Dir:.*}.zip_dir.trigger'    , 'phony' )
+		,	'TGT'  :   '{Dir   }.zip_dir/{File*:.*}'
 		}
 		deps = { 'ZIP' : '{Dir}.zip' }
 		cmd = '''
@@ -40,8 +40,8 @@ if __name__!='__main__' :
 		'''
 
 	class Cc(Rule) :
-		targets = { 'EXE' : 'exe/{File:.*}' }
-		deps    = { 'SRC' : 'src/{File}.c'  }
+		targets = { 'EXE' : 'exe/{File:.*}'   }
+		deps    = { 'SRC' : 'src/{File   }.c' }
 		cmd = f'''
 			{gxx.gxx} -I . -o {{EXE}} {{SRC}}
 		'''

@@ -67,7 +67,7 @@ if __name__!='__main__' :
 
 	class UpdateDir(Base) :
 		targets  = { 'DST' : r'{File:.*}.dir2/{*:.*}' }
-		deps     = { 'SRC' :  '{File}.dir/d/a'        }
+		deps     = { 'SRC' :  '{File   }.dir/d/a'     }
 		tmp_view = '/tmp'
 		environ  = { 'REPO_ROOT' : '$REPO_ROOT' }
 		cmd      = '''

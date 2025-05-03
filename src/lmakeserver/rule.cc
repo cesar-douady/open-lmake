@@ -988,8 +988,8 @@ namespace Engine {
 					::string const& s = stem_defs.at(k) ;
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
 					stems    .emplace_back( k            , s                    ) ;
-					try         { stem_mark_cnts.push_back(Re::RegExpr(s).mark_count()) ; }
-					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;               }
+					try         { stem_mark_cnts.push_back(Re::RegExpr(s,true/*cache*/,true/*with_paren*/).mark_count()) ; }
+					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                                                }
 				}
 				if (!star) n_static_stems = stems.size() ;
 			}
@@ -1117,7 +1117,7 @@ namespace Engine {
 			}
 		,	Escape::Re
 		) ;
-		res.re = res.txt ;                                                              // stem regexprs have been validated, normally there is no error here
+		res.re = {res.txt,true/*cache*/,true/*with_paren*/} ;                           // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 

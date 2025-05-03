@@ -166,14 +166,14 @@ namespace Re {
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( ::string const& pattern , bool cache=true ) ;
+			RegExpr( ::string const& pattern , bool cache=false , bool with_paren=false ) ; // if with_paren, caller guarantees that variable parts are within ()
 			//
 			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
 			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
 			//
 			~RegExpr() { if (_own) ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; }
 			// services
-			Match match( ::string const& subject , Bool3 chk_psfx=Yes ) const { // chk_psfx=Maybe means check size only
+			Match match( ::string const& subject , Bool3 chk_psfx=Yes ) const {             // chk_psfx=Maybe means check size only
 				return { self , subject , chk_psfx } ;
 			}
 			size_t mark_count() const {
@@ -182,11 +182,11 @@ namespace Re {
 				return cnt ;
 			}
 			// data
-			::string pfx ;                                                      // fixed prefix
-			::string sfx ;                                                      // fixed suffix
+			::string pfx ;                                                                  // fixed prefix
+			::string sfx ;                                                                  // fixed suffix
 		private :
-			pcre2_code const* _code = nullptr ;                                 // only contains code for infix part, shared and stored in s_store
-			bool              _own  = false   ;                                 // if true <=> _code is private and must be freed in dxtor
+			pcre2_code const* _code = nullptr ;                                             // only contains code for infix part, shared and stored in s_store
+			bool              _own  = false   ;                                             // if true <=> _code is private and must be freed in dxtor
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b ) {
 			::swap( a.pfx   , b.pfx   ) ;
@@ -214,16 +214,16 @@ namespace Re {
 		struct RegExpr : private ::regex {
 			friend Match ;
 			static constexpr flag_type Flags = ECMAScript|optimize ;
-			struct Cache {                                                                       // there is no serialization facility and cache is not implemented, fake it
+			struct Cache {                                           // there is no serialization facility and cache is not implemented, fake it
 				static constexpr bool steady() { return true ; }
 			} ;
 			// static data
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( ::string const& pattern , bool /*cache*/=true ) : ::regex{pattern,Flags} {} // cache is ignored as no cache is implemented
+			RegExpr( ::string const& pattern , bool /*cache*/=false , bool /*with_paren*/=false ) : ::regex{pattern,Flags} {} // cache is ignored as no cache is implemented
 			// services
-			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {              // chk_psfx=Maybe means check size only
+			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                                           // chk_psfx=Maybe means check size only
 				Match res ;
 				::regex_match(subject,res,self) ;
 				return res ;

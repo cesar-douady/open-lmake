@@ -16,8 +16,8 @@ if __name__!='__main__' :
 	class Clone(TraceRule) :
 		force = True
 		targets = {
-			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger' , 'phony'       )
-		,	'TGT'  : ( 'src/{Dir}.repo_dir/{File*:.*}' , 'incremental' )
+			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger'    , 'phony'       )
+		,	'TGT'  : ( 'src/{Dir   }.repo_dir/{File*:.*}' , 'incremental' )
 		}
 		cmd = '''
 			[ "$(cat {TGT('a')} 2>/dev/null)" = a ] && exit
@@ -28,7 +28,7 @@ if __name__!='__main__' :
 
 	class Unzip(Rule) :
 		targets = {
-			'MRKR' : ( '{Dir:.*}.zip_dir.trigger', 'phony' )
+			'MRKR' : ( '{Dir:.*}.zip_dir.trigger'    , 'phony' )
 		,	'TGT'  :   '{Dir:.*}.zip_dir/{File*:.*}'
 		}
 		dep = '{Dir}.zip'

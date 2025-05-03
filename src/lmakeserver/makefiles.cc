@@ -300,22 +300,22 @@ namespace Engine::Makefiles {
 		if (rules_digest==Yes) _stamp_deps("rules"  ) ;                                                       // .
 	}
 
-	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                       // msg may be updated even if throwing
+	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                                                // msg may be updated even if throwing
 		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexpr_cache" ;
-		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }         // load from persistent cache
-		catch (...) {                                                                                }         // perf only, dont care of errors (e.g. first time)
+		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                                  // load from persistent cache
+		catch (...) {                                                                                }                                  // perf only, dont care of errors (e.g. first time)
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		pyc_re = new RegExpr{R"(((?:.*/)?)(?:__pycache__/)?(\w+)(?:(?:\.\w+-\d+)?)\.pyc)"s} ;                  // dir_s is \1, module is \2, matches both python 2 & 3
+		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ , true/*with_paren*/ } ; // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		_refresh( msg , rescue , refresh_ , false/*dyn*/ , *g_startup_dir_s ) ;
 		//
 		if (!RegExpr::s_cache.steady()) {
-			try         { AcFd( dir_guard(reg_exprs_file) , Fd::Write ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
-			catch (...) {                                                                                    } // perf only, dont care of errors (e.g. we are read-only)
+			try         { AcFd( dir_guard(reg_exprs_file) , Fd::Write ).write(serialize(RegExpr::s_cache)) ; }                          // update persistent cache
+			catch (...) {                                                                                    }                          // perf only, dont care of errors (e.g. we are read-only)
 		}
 	}
-	void dyn_refresh( ::string&/*out*/ msg , ::string const& startup_dir_s ) {                                 // msg may be updated even if throwing
+	void dyn_refresh( ::string&/*out*/ msg , ::string const& startup_dir_s ) {                                                          // msg may be updated even if throwing
 		_refresh( msg , false/*rescue*/  , true/*refresh*/ , true/*dyn*/ , startup_dir_s ) ;
 	}
 

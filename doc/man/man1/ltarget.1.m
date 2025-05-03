@@ -32,6 +32,7 @@ Item(B(-`I'),B(--ignore))    From now on, ignore all reads and writes to targets
 Item(B(-a),B(--no-allow))    Unless this option is passed, B(ltarget) makes its arguments valid targets (cf @pxref{targets-deps}).
 Item(B(-s),B(--source-ok))   Unless this option is passed, B(ltarget) writing to a source is an error.
 Item(B(-W),B(--write))       Report an actual write, not only target flags. Default is to only alter flags.
+Item(B(-X),B(--regexpr))     Pass flags to all targets matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 
 .SH NOTES
 

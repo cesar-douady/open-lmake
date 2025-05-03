@@ -18,6 +18,7 @@ ENUM(Flag
 ,	FollowSymlinks
 ,	Verbose
 ,	Read
+,	Regexpr
 ,	Essential
 ,	Critical
 ,	IgnoreError
@@ -30,6 +31,7 @@ int main( int argc , char* argv[]) {
 		{ Flag::FollowSymlinks , { .short_name='L' , .has_arg=false , .doc="Logical view, follow symolic links" } }
 	,	{ Flag::Verbose        , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"           } }
 	,	{ Flag::Read           , { .short_name='R' , .has_arg=false , .doc="report a read"                      } }
+	,	{ Flag::Regexpr        , { .short_name='X' , .has_arg=false , .doc="args are regexprs"                  } }
 	//
 	,	{ Flag::Critical    , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .has_arg=false , .doc="report critical deps"                    } }
 	,	{ Flag::Essential   , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
@@ -53,8 +55,8 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::Read       ]) ad.accesses      = ~Accesses()              ;
 	//
 	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose ) ; }
-	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                         }
+	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose , cmd_line.flags[Flag::Regexpr] ) ; }
+	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                         }
 	//
 	if (!verbose) return 0 ;
 	//

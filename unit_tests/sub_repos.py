@@ -20,8 +20,8 @@ if __name__!='__main__' :
 		cmd    = f'echo {depth}'
 
 	class Test(Rule) :
-		target = '{File:.*}.ok'
-		dep    = '{File}'
+		target = r'{File:.*}.ok'
+		dep    =  '{File   }'
 		cmd    = f'[ $(cat) = {depth} ]'
 
 else :

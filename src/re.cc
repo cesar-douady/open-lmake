@@ -78,23 +78,22 @@ namespace Re {
 			return entry.first ;
 		}
 
-		RegExpr::RegExpr( ::string const& pattern , bool cache ) : _own{!cache} {
-			const char* start_pat = pattern.c_str()          ;
-			const char* end_pat   = start_pat+pattern.size() ;
-			const char* start     = nullptr/*garbage*/       ;
-			size_t      sz        = 0      /*garbage*/       ;
-			// find prefix and suffix
-			const char* p = start_pat ;
-			for(; p<end_pat ; p++ ) {
-				if      (*p=='\\') { SWEAR(p+1<end_pat) ; p++ ; }
-				else if (*p=='(' )   break ;                                     // /!\ variable parts are assumed to be enclosed within ()
-				pfx += *p ;
-			}
-			start = p ;
-			for(; p<end_pat ; p++ ) {
-				if      (*p=='\\') { SWEAR(p+1<end_pat) ; p++ ;                }
-				else if (*p==')' ) { sfx.clear() ; sz = p+1-start ; continue ; } // /!\ variable parts are assumed to be enclosed within ()
-				sfx += *p ;
+		RegExpr::RegExpr( ::string const& pattern , bool cache , bool with_paren ) : _own{!cache} {
+			size_t      sz    = pattern.size()  ;
+			const char* start = pattern.c_str() ;
+			const char* end   = start+sz        ;
+			if (with_paren) {                         // find fixed prefix and suffix, variable parts are assumed to be enclosed within ()
+				for(; start<end ; start++ ) {
+					if      (*start=='\\') { SWEAR(start+1<end) ; start++ ; }
+					else if (*start=='(' )   break ;
+					pfx += *start ;
+				}
+				sz = 0 ;
+				for( const char* p=start ; p<end ; p++ ) {
+					if      (*p=='\\') { SWEAR(p+1<end) ; p++ ;                    }
+					else if (*p==')' ) { sfx.clear() ; sz = p+1-start ; continue ; }
+					sfx += *p ;
+				}
 			}
 			if (cache) _code = s_cache.insert({start,sz}) ;
 			else       _code = _s_compile    ({start,sz}) ;

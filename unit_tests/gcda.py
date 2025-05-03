@@ -27,7 +27,7 @@ if __name__!='__main__' :
 
 	class Compile(Rule) :
 		targets = { 'OBJ' : r'{File:.*}.o' }
-		deps    = { 'SRC' :  '{File}.c'    }
+		deps    = { 'SRC' :  '{File   }.c' }
 		autodep = 'ld_preload'                                                                             # clang seems to be hostile to ld_audit
 		cmd     = f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -fprofile-arcs -c -O0 -fPIC -o {{OBJ}} -xc {{SRC}}'
 

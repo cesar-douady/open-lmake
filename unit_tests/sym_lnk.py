@@ -16,7 +16,7 @@ if __name__!='__main__' :
 
 	class Lnk(Rule) :
 		targets = { 'LNK' : r'{File:.*}.lnk' }
-		deps    = { 'SRC' :  '{File}'        }
+		deps    = { 'SRC' :  '{File   }'     }
 		cmd     = 'ln -s {SRC} {LNK}'
 
 	class Cat(Rule) :
