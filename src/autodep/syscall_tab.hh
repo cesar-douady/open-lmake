@@ -37,6 +37,14 @@ struct SyscallDescr {
 	#define ENUMERATE_LD_PRELOAD_LIBCALLS
 #endif
 
+#if HAS_CLOSE_RANGE
+	#define ENUMERATE_CLOSE_RANGE_LIBCALLS \
+	/**/                       /*is_stat*/ \
+	,	LIBCALL_ENTRY(close_range,false)
+#else
+	#define ENUMERATE_CLOSE_RANGE_LIBCALLS
+#endif
+
 //
 // mere path accesses, no actual accesses to file data */
 //
@@ -143,4 +151,5 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(truncate64       ,false) \
 \
 	ENUMERATE_LD_PRELOAD_LIBCALLS          \
-	ENUMERATE_PATH_LIBCALLS
+	ENUMERATE_PATH_LIBCALLS                \
+	ENUMERATE_CLOSE_RANGE_LIBCALLS
