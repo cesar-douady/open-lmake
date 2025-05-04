@@ -155,11 +155,10 @@ using WSolve   = AuditAction<Record::WSolve        > ;
 	// Dlopen
 	//
 
-	struct _Dlopen : Record::ReadCS {
-		using Base = Record::ReadCS ;
+	struct _Dlopen : Record::Read {
 		// cxtors & casts
 		_Dlopen() = default ;
-		_Dlopen( Record& r , const char* file , Comment c ) : Base{search_elf(r,file,c)} {}
+		_Dlopen( Record& r , const char* file , Comment c ) : Record::Read{search_elf(r,file,c)} {}
 		// services
 	} ;
 	using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
@@ -170,12 +169,10 @@ using WSolve   = AuditAction<Record::WSolve        > ;
 // Exec
 //
 
-struct _Exec : Record::Exec {
-	using Base = Record::Exec ;
-	//
-	_Exec() = default ;
-	_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Base{r,::move(path),no_follow,c} {
-		#if NEED_ELF
+#if NEED_ELF
+	struct _Exec : Record::Exec {                                                          // even if path is simple, it may load non-simple libraries, so dont use ExecCS
+		_Exec() = default ;
+		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Record::Exec{r,::move(path),no_follow,c} {
 			static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
 			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                          // -1 to account of terminating null
 			//
@@ -183,27 +180,29 @@ struct _Exec : Record::Exec {
 			for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
 			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                    // pass value after the LD_LIBRARY_PATH= prefix
 			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                    // /!\ dont add LlpeSz to nullptr
-		#else
-			(void)envp ;
-		#endif
-	}
-} ;
+		}
+	} ;
+#else
+	struct _Exec : Record::ExecCS {
+		_Exec() = default ;
+		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Record::ExecCS{r,::move(path),no_follow,c} {}
+	} ;
+#endif
 using Exec = AuditAction<_Exec> ;
 
 struct _Execp : _Exec {
-	using Base = _Exec ;
 	// search executable file in PATH
 	_Execp() = default ;
 	_Execp( Record& r , const char* file , bool /*no_follow*/ , const char* const envp[] , Comment c ) {
 		if (!file) return ;
 		//
-		if (::strchr(file,'/')) {                                               // if file contains a /, no search is performed
-			static_cast<Base&>(self) = Base(r,file,false/*no_follow*/,envp,c) ;
+		if (::strchr(file,'/')) {                                                 // if file contains a /, no search is performed
+			static_cast<_Exec&>(self) = _Exec(r,file,false/*no_follow*/,envp,c) ;
 			return ;
 		}
 		//
 		::string p = get_env("PATH") ;
-		if (!p) {                                                               // gather standard path if path not provided
+		if (!p) {                                                                 // gather standard path if path not provided
 			size_t n = ::confstr(_CS_PATH,nullptr,0) ;
 			p.resize(n) ;
 			::confstr(_CS_PATH,p.data(),n) ;
@@ -217,7 +216,7 @@ struct _Execp : _Exec {
 			::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
 			Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,c) ;
 			if (is_exe(full_file,false/*no_follow*/)) {
-				static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,c) ;
+				static_cast<_Exec&>(self) = _Exec(r,full_file,false/*no_follow*/,envp,c) ;
 				return ;
 			}
 			if (end==Npos) return ;

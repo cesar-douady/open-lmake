@@ -109,7 +109,7 @@ In that case, do the following :
 
 # Rationale
 
-Because of its unique features, open-lmake is necessarily tighly coupled to the underlying OS.
+Because of its unique features (auto-dep, views, ...), open-lmake is necessarily tighly coupled to the underlying OS.
 In particular, it was not possible to write it solely on top of Posix.
 
 There are no known road blocks to port it to other OSes (such as Darwin or Windows) although this would require an in depth knowledge of these systems.

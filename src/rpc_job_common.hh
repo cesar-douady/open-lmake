@@ -207,12 +207,12 @@ ENUM( CommentExt
 ,	Err
 ,	File
 ,	Last
-,	Lib
+,	LdLibraryPath
 ,	Killed
 ,	Lnk
 ,	NoFollow
 ,	Orig
-,	Path
+,	RunPath
 ,	Read
 ,	Reply
 ,	Stat

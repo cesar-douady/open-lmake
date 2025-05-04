@@ -81,7 +81,7 @@ struct Record {
 		if ( _s_report_fd[0].fd>=0 &&  uint(_s_report_fd[0].fd)>=min && uint(_s_report_fd[0].fd)<=max ) _s_report_fd[0].detach() ;
 		if ( _s_report_fd[1].fd>=0 &&  uint(_s_report_fd[1].fd)>=min && uint(_s_report_fd[1].fd)<=max ) _s_report_fd[1].detach() ;
 	}
-	// private
+private :
 	static void _s_mk_autodep_env(AutodepEnv* ade) {
 		_s_autodep_env = ade                                                       ;
 		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
@@ -217,8 +217,8 @@ public :
 		Fd    at        = Fd::Cwd ;                                                                                  // ... except in the case of mkstemp (& al.) that modifies its arg in place
 		bool  allocated = false   ;                                                                                  // if true <=> file has been allocated and must be freed upon destruction
 	} ; //!            Writable
-	using Path  = _Path<false> ;
-	using WPath = _Path<true > ;
+	using Path  = _Path<false > ;
+	using WPath = _Path<true  > ;
 	template<bool Writable=false,bool ChkSimple=false> struct _Solve : _Path<Writable> {
 		using Base = _Path<Writable> ;
 		using Base::at   ;
@@ -350,11 +350,24 @@ public :
 		#endif
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 	} ;
-	struct Exec : SolveCS {
+	template<bool ChkSimple> struct _Exec : _Solve<false/*Writable*/,ChkSimple> {
+		using Base = _Solve<false/*Writable*/,ChkSimple> ;
+		using Base::file_loc ;
+		using Base::real     ;
 		// cxtors & casts
-		Exec() = default ;
-		Exec( Record& , Path&& , bool no_follow , Comment ) ;
+		_Exec() = default ;
+		_Exec( Record& r , Path&& path , bool no_follow , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+			if ( ChkSimple && !real ) return ;
+			SolveReport sr {.real=real,.file_loc=file_loc} ;
+			try {
+				for( auto&& [file,a] : r._real_path.exec(sr) )
+					r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .file=::move(file) } ) ;
+			} catch (::string& e) { r.report_panic(::move(e)) ; }
+		}
 	} ;
+	//                  ChkSimple
+	using Exec   = _Exec<false  > ;
+	using ExecCS = _Exec<true   > ;
 	struct Lnk {
 		// cxtors & casts
 		Lnk() = default ;

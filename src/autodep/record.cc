@@ -199,14 +199,6 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comm
 		report_update( r , Access::Reg , c ) ;
 }
 
-Record::Exec::Exec( Record& r , Path&& path , bool no_follow , Comment c ) : SolveCS{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
-	if (!real) return ;
-	SolveReport sr {.real=real,.file_loc=file_loc} ;
-	try {
-		for( auto&& [file,a] : r._real_path.exec(sr) ) r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .file=::move(file) } ) ;
-	} catch (::string& e) { r.report_panic(::move(e)) ; }
-}
-
 Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comment c ) :
 	//                       no_follow   read   create
 	src { r , ::move(src_) , no_follow , true  , false , c , CommentExt::Read  }

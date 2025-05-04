@@ -93,9 +93,9 @@ extern "C" {
 
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , uint flag ) {
 		switch (flag) { //!                                                          no_follow keep_real
-			case LA_SER_ORIG    : if (strchr(name,'/')) Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::Orig) ; break ;
-			case LA_SER_LIBPATH :                       Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::Lib ) ; break ;
-			case LA_SER_RUNPATH :                       Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::Path) ; break ;
+			case LA_SER_ORIG    : if (strchr(name,'/')) Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::Orig         ) ; break ;
+			case LA_SER_LIBPATH :                       Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::LdLibraryPath) ; break ;
+			case LA_SER_RUNPATH :                       Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::RunPath      ) ; break ;
 		DN}
 		return const_cast<char*>(name) ;
 	}

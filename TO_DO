@@ -15,9 +15,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* .so accessed with LD_LIBRARY_PATH are not seen with ld_preload
-	- in basics.py, add LD_LIBRARY_PATH=toto
-	- toto/xxx.so are accessed (and visible with ld_audit), but are not seen with ld_preload (while they should)
 ? exceptionnally, server blocks
 	- seems to be while taking GIL
 
@@ -82,11 +79,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* support regexprs in lmake.depend/lmake.target (and ldepend/ltarget)
-	- just pass a regexpr (result of re.compile()) for lmake.depend/target (and a --regexpr for ldepend/ltarget)
-	- dont support read/verbose/follow_symlinks for lmake.depend/ldepend nor write for lmake.target/ltarget
-	- implement a matching dict with dates to apply only to future deps/targets
-	- add an ExtraDflag/ExtraTflag to signal regexprs
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size
