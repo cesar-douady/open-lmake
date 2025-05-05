@@ -79,6 +79,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* generate compile_commands.json
+	- used by IDE's
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size

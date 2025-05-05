@@ -219,7 +219,8 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 								r = New ;
 							} catch (::string const& e) {
 								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
-								OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ;
+								try                       { OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ; }
+								catch (::string const& e) { trace("lost_client",e) ;                                                   } // there is nothing much we can do if we cant communicate
 								if (ofd!=fd) ::close   (ofd        ) ;
 								else         ::shutdown(ofd,SHUT_WR) ;
 								break ;
@@ -227,7 +228,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ; // urgent to ensure in order Kill/None
+							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;                         // urgent to ensure in order Kill/None
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							trace("make",r) ;
 						} break ;
@@ -334,9 +335,10 @@ static bool/*interrupted*/ _engine_loop() {
 							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+no_slash(startup_dir_s) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
-						OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                       // close out_fd before in_fd as closing clears out_fd, defeating the equality test
-						/**/                       ecr.in_fd .close() ;
+						try                       { OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; }
+						catch (::string const& e) { trace("lost_client",e) ;                                                 } // there is nothing we can do if we cant communicate
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                                        // close out_fd before in_fd as closing clears out_fd, ...
+						/**/                       ecr.in_fd .close() ;                                                        // ... defeating the equality test
 					} break ;
 					// 2 possible orders : Make-Kill-Close or Make-Close-Kill
 					// None counts as Kill
