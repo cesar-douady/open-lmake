@@ -219,7 +219,8 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 								r = New ;
 							} catch (::string const& e) {
 								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
-								OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ;
+								try                       { OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ; }
+								catch (::string const& e) { trace("lost_client",e) ;                                                   } // cant do much without communication
 								if (ofd!=fd) ::close   (ofd        ) ;
 								else         ::shutdown(ofd,SHUT_WR) ;
 								break ;
@@ -334,7 +335,8 @@ static bool/*interrupted*/ _engine_loop() {
 							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+no_slash(startup_dir_s) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
-						OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ;
+						try                       { OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; }
+						catch (::string const& e) { trace("lost_client",e) ;                                                 } // cant do much without communication
 						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                       // close out_fd before in_fd as closing clears out_fd, defeating the equality test
 						/**/                       ecr.in_fd .close() ;
 					} break ;
