@@ -3,6 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import json
 import os
 import re
 import sys
@@ -10,6 +11,8 @@ import sys
 import lmake
 
 from lmake.rules import Rule,DirRule,PyRule,TraceRule
+
+exe_lst = ('hello_world',) # executables for generation of compile_commands.json (for IDE integration)
 
 class Dir(DirRule) : pass # create file '...' in any directory
 
@@ -20,6 +23,22 @@ class Base(Rule) :
 	,	'Test' : r'[^-]+'
 	}
 
+# for IDE integration
+class CompCmds(Base,PyRule) :
+	target = 'compile_commands.json'
+	def cmd() :
+		first = True
+		print('[')
+		for i,exe in enumerate(exe_lst) :
+			if first : first = False
+			else     : print(',')
+			cmds = open(f'{exe}.compile_commands.json').read()
+			assert cmds[:2]=='[\n' and cmds[-2:]==']\n'        # suppress leading and trailing []
+			cmds = cmds[2:-2]                                  # .
+			print(cmds,end='')
+		print(']')
+
+# suppress comments, so that editing source files is more comfortable
 class NoComment(Base) :
 	target = '{File}.nc'
 	dep    = '{File}'
@@ -29,7 +48,10 @@ flags = '-O0'                            # updated by run script to simulate a m
 for ext in ('c','cc') :
 	class Compile(Base,PyRule) :
 		name    = f'compile {ext}'
-		targets = { 'OBJ':'{File}.o' , 'LST': '{File}.d' }
+		targets = {
+			'OBJ' : '{File}.o'
+		,	'LST' : '{File}.d'           # contains actually included .h files
+		}
 		deps    = { 'SRC':f'{{File}}.{ext}' }
 		def cmd() :
 			tf = f"{os.environ['TMPDIR']}/lst"
@@ -42,6 +64,22 @@ for ext in ('c','cc') :
 					if   f.endswith('.h' ) : print(f[:-2],file=fd)
 					elif f.endswith('.hh') : print(f[:-3],file=fd)
 
+	# generate fragment of compile_commands.json for IDE integration
+	class CompCmdObj(Base,PyRule) :
+		name   = f'gen compile_command {ext}'
+		target = '{File}.compile_command.json'
+		deps   = { 'SRC':f'{{File}}.{ext}' }
+		def cmd() :
+			print(json.dumps(
+				{	'directory' : '.'
+				,	'arguments' : ('gcc','-c','-o',f'{File}.o',SRC)
+				,	'output'    : f'{File}.o'
+				,	'file'      : SRC
+				}
+			,	indent = 4
+			))
+
+# generate transitive closure of included .h files
 class ObjLst(Base,PyRule) :
 	target = '{File}.lst'
 	deps   = { 'LST':'{File}.d' }
@@ -58,12 +96,25 @@ class ObjLst(Base,PyRule) :
 		print(f'{File}')
 		for o in lst : print(o)
 
-class Link(Base,TraceRule) :
+class Link(Base,PyRule) :
 	targets = { 'EXE' :  '{Exe}.exe'                }
 	deps    = { 'LST' : ('{Exe}.lst.nc','critical') }
-	cmd     = r'''
-		lrun_cc gcc -o{EXE} $(sed 's:.*:\0.o:' {LST})
-	'''
+	def cmd() :
+		lmake.run_cc('gcc',f'-o{EXE}',*(f'{obj.strip()}.o' for obj in open(LST)))
+
+# generate fragment of compile_commands.json for IDE integration
+class CompCmdLnk(Base,PyRule) :
+	target = '{Exe}.compile_commands.json'
+	deps   = { 'LST' : ('{Exe}.lst.nc','critical') }
+	def cmd() :
+		first = True
+		print('[')
+		for obj in open(LST) :
+			if first : first = False
+			else     : print(',')
+			obj = obj.strip()
+			print(lmake.indent(open(f'{obj}.compile_command.json').read(),'\t'),end='')
+		print(']')
 
 class Run(Base) :
 	target = r'{Exe}-{Test}.out'

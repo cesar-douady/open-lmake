@@ -110,6 +110,9 @@ lmake( 'hello_world.tok' , changed=1 , done=7 , may_rerun=1 , was_steady=1 )
 os.truncate('hello_world.regr',sz)                                  # roll back
 lmake( 'hello_world.tok' , changed=1 , done=3 , steady=1 )          # the test list is rebuilt and nothing new needs to be done
 
+# generate compile_commands.json for IDE integration
+lmake( 'compile_commands.json' , done=5 , may_rerun=4 , new=1 )
+
 print('\n* lshow')
 # lshow can show you a lot of information
 sp.run(('lshow','-h'))                     # see what is available, all commands have a -h or --help flag

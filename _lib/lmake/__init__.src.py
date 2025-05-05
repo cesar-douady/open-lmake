@@ -70,9 +70,9 @@ def run_cc(*cmd_line,**kwds) :
 		You can pass keyword argument marker (defaults to '...') to specify the marker (a file inside dirs) that guarantees dir existences.
 		You can exceptionnally pass stdin as the stdin argument.
 	'''
-	marker = '...'                                                           # XXX> : suppress kwds analysis when python2 is no more supported
+	marker = '...'
 	stdin  = None
-	for k,v in kwds.items() :
+	for k,v in kwds.items() :                                                # XXX> : suppress kwds analysis when python2 is no more supported
 		if   k=='marker' : marker = v
 		elif k=='stdin'  : stdin  = v
 		else             : raise TypeError('unexpected keyword argument '+k)
