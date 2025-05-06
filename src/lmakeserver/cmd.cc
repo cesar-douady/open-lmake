@@ -1097,11 +1097,11 @@ namespace Engine {
 							if ( verbose || _node_color(target->dir())!=Color::HiddenNote ) { //!                              as_is
 								audit( fd , ro , "( '' , "+mk_py_str(target->name())+" , 'up_hill' ) : "                      , true , lvl+1 ) ;
 								audit( fd , ro , "( ( ( '----SF' , 'L-T' , '' , "+mk_py_str(target->dir()->name())+" ) ,) ,)" , true , lvl+1 ) ;
+								first() ;
 							}
 						} else {
 							_audit_node( fd , ro , verbose , Maybe/*hide*/ , "UP_HILL" , target->dir() , lvl ) ;
 						}
-						first() ;
 					}
 					for( JobTgt jt : target->conform_job_tgts() ) {
 						bool     hide      = !jt.produces(target)          ; if ( hide && !verbose ) continue ;
