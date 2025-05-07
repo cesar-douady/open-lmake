@@ -1,0 +1,15 @@
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023-2025 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+# in a real world, repository is managed by source version control tool such as git and this file is not necessary
+
+Manifest     # Manifest itself is a source
+Lmakefile.py # as well as Lmakefile.py
+
+Lmakefile.py
+another.mpp
+duplicate.mpp
+run
+use.mpp

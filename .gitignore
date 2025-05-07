@@ -53,6 +53,7 @@ src/lmakeserver/backends/slurm_api-*.cc
 tok
 tok.out
 tok.err
+skipped
 *.tok
 /src/store/unit_test
 /core.*
