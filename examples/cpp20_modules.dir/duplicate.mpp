@@ -1,0 +1,5 @@
+export module duplicate_m;
+
+export int m() {
+    return 0;
+}

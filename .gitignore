@@ -5,8 +5,8 @@
 __pycache__
 
 # directories
-*.dir
-*.trial
+/unit_tests/*.dir
+/examples/*.trial
 /bin/
 /lib/
 
@@ -51,6 +51,8 @@ src/lmakeserver/backends/slurm_api-*.cc
 
 # tests
 tok
+tok.out
+tok.err
 *.tok
 /src/store/unit_test
 /core.*

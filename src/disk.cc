@@ -23,20 +23,22 @@ namespace Disk {
 		const char* p = path.data() ;
 		//
 		auto handle_slash = [&]()->bool {
-			size_t sz = p - path.data() ;                            // if test ok, else, [path:p) is (x is single wildcard, y is not /, z is not / nor .) :
-			if (sz==0     ) return true    ;                         //                *x
-			if (p[-1]=='/') return false   ;                         //   */           *y
-			if (p[-1]!='.') return true    ;                         //   *z           *.
-			if (sz==1     ) return has_pfx ;                         //    .          *x.
-			if (p[-2]=='/') return false   ;                         //  */.          *y.
-			if (p[-2]!='.') return true    ;                         //  *z.          *..
-			if (sz==2     ) return true    ;                         //   ..         *x.. leading .. is relative (!is_fragment) or could be the end of a dir (is_fragment)
-			if (p[-3]!='/') return true    ;                         // *y..         */..
-			/**/            return false   ;                         //  /..        *x/..
+			size_t sz = p - path.data() ;                                     // if test ok, else, [path:p) is (x is single wildcard, y is not /, z is not / nor .) :
+			if (sz==0     ) return true    ;                                  //                *x
+			if (p[-1]=='/') return false   ;                                  //   */           *y
+			if (p[-1]!='.') return true    ;                                  //   *z           *.
+			if (sz==1     ) return has_pfx ;                                  //    .          *x.
+			if (p[-2]=='/') return false   ;                                  //  */.          *y.
+			if (p[-2]!='.') return true    ;                                  //  *z.          *..
+			if (sz==2     ) return true    ;                                  //   ..         *x..
+			if (p[-3]!='/') return true    ;                                  // *y..         */..
+			if (sz==3     ) return false   ;                                  //  /..        *x/.. absolute .. is not canon
+			//
+			return sz>=5 && (sz==5||p[-6]=='/') && p[-4]=='.' && p[-5]=='.' ; // .. after .. is canon
 		} ;
 		for(; p!=path.data()+path.size() ; p++ ) {
 			char c = *p ;
-			throw_if( c=='\0' , "file contains nul char : ",path ) ; // file names are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c=='\0' , "file contains nul char : ",path ) ;          // file names are not supposed to contain any nul char, cannot canonicalize
 			if ( c=='/' && !handle_slash() ) return false ;
 		}
 		return path.back()=='/' || has_sfx || handle_slash() ;
@@ -55,7 +57,7 @@ namespace Disk {
 			size_t      sz  = res.size()-1    ;
 			const char* end = res.data() + sz ;
 			//                                                             // if test ok, else, res[:-1] is (x is single wildcard, y is not /, z is not / nor .) :
-			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return ; } //                *x if not abs, it must have been preceded by ./ which have been suppressed, it is an empty component
+			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return ; } //                *x if not abs, it must have been preceded by ./ which has been suppressed, it is an empty component
 			if (end[-1]=='/') {              res.resize(sz  ) ; return ; } //   */           *y suppress empty component
 			if (end[-1]!='.')                                   return ;   //   *z           *.
 			if (sz==1       ) {              res.resize(sz-1) ; return ; } //    .          *x. suppress leading ., if fragment => could be preceded by z, hence . must be kept
@@ -65,14 +67,12 @@ namespace Disk {
 			if (end[-3]!='/')                                   return ;   // *y..         */..
 			if (sz==3       ) {              res.resize(sz-2) ; return ; } //  /..        *x/.. suppress absolute ..
 			//
-			size_t pos = res.rfind('/',sz-4) ;
-			if (pos==Npos) pos = 0 ; else pos += 1 ;                       // pos is char after / (or 0 if not found)
-			//
-			if (!( pos==sz-6 && end[-4]=='.' && end[-5]=='.' ))
-				res.resize(pos) ;                                          // parent dir is plain (not ..), suppress it
+			if ( sz>=5 && (sz==5||end[-6]=='/') && end[-4]=='.' && end[-5]=='.' ) return ; // .. after .. is canon
+			size_t pos = res.rfind('/',sz-4) ; if (pos==Npos) pos = 0 ; else pos += 1 ;    // pos is char after / (or 0 if not found)
+			res.resize(pos) ;                                                              // parent dir is plain (not ..), suppress it
 		} ;
 		for( char c : path ) {
-			throw_if( c=='\0' , "file contains nul char : ",path ) ;       // file names are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c=='\0' , "file contains nul char : ",path ) ;                       // file names are not supposed to contain any nul char, cannot canonicalize
 			handle(c) ;
 		}
 		if (res.back()!='/') {

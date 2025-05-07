@@ -7,6 +7,7 @@
 
 [Overview](overview.md)
 [Introduction](intro.md)
+[Installation](install.md)
 
 - [The lmake module](lmake_module.md)
 	- [lmake.sources](lmake_sources_module.md)

@@ -88,12 +88,12 @@ namespace Store {
 		static constexpr bool Multi     = Mantissa && HasData      ;
 		//
 		template<class... A> Idx emplace_back( Idx n , A&&... args ) = delete ;
-		using Base::clear         ;
-		using Base::name          ;
-		using Base::size          ;
-		using Base::writable      ;
-		using Base::_mutex        ;
-		using Base::_chk_writable ;
+		using Base::chk_writable ;
+		using Base::clear        ;
+		using Base::name         ;
+		using Base::size         ;
+		using Base::writable     ;
+		using Base::_mutex       ;
 
 		struct Lst {
 			struct Iterator {
@@ -192,7 +192,6 @@ namespace Store {
 		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ;  }
 		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx)),sz,_n_items(idx)) ; }
 		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
-			_chk_writable("allocate item") ;
 			ULock lock   { _mutex }          ;
 			Sz    bucket = _s_bucket(sz    ) ;
 			Idx&  free   = _free    (bucket) ;
@@ -210,8 +209,8 @@ namespace Store {
 		void _shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(Multi) {
 			if (!new_sz       ) { _pop(idx,old_sz) ; return ; }
 			if (new_sz==old_sz)                      return ;
-			_chk_writable("shorten item") ;
 			SWEAR( new_sz<=old_sz , new_sz , old_sz ) ;
+			chk_writable() ;
 			ULock lock{_mutex} ;
 			Sz old_bucket = _s_bucket(old_sz) ;
 			Sz new_bucket = _s_bucket(new_sz) ;
@@ -231,12 +230,13 @@ namespace Store {
 		}
 		void _pop( Idx idx , Sz sz ) requires( HasData) {
 			if (!idx) return ;
-			_chk_writable("pop item") ;
+			chk_writable() ;
 			ULock lock{_mutex} ;
 			Base::pop(idx) ;
 			_dealloc(idx,_s_bucket(sz)) ;
 		}
 		void _dealloc( Idx idx , Sz bucket ) requires( HasData) {
+			chk_writable() ;
 			Idx& free = _free(bucket) ;
 			Base::at(idx).nxt = free ;
 			fence() ;                                                                                                          // ensure free list is always consistent

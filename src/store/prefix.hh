@@ -500,9 +500,10 @@ namespace Store {
 		//
 		template<class... A> Idx emplace(A&&...) = delete ;
 		//
-		using Base::clear  ;
-		using Base::size   ;
-		using Base::_mutex ;
+		using Base::chk_writable ;
+		using Base::clear        ;
+		using Base::size         ;
+		using Base::_mutex       ;
 
 		struct Lst {
 			using value_type = Idx ;
@@ -630,7 +631,10 @@ namespace Store {
 		uint8_t                     _n_saved() const { return Base::hdr().n_saved ; }
 		::pair<Idx,SaveItem> const* _save   () const { return Base::hdr().save    ; }
 		template<bool Bu> void _backup(Idx idx) {
-			if (Bu) Base::hdr().backup(idx,_at(idx)) ;
+			if (Bu) {
+				chk_writable() ;
+				Base::hdr().backup(idx,_at(idx)) ;
+			}
 		}
 		void _commit() {
 			Base::hdr().commit() ;
@@ -1028,6 +1032,7 @@ namespace Store {
 			static constexpr ChunkIdx MaxPrefixChunkSz   = Item::s_max_chunk_sz(                   Kind::Prefix   , false/*used*/ ) ;
 			static constexpr ChunkIdx MaxTerminalChunkSz = Item::s_max_chunk_sz(                   Kind::Terminal , true /*used*/ ) ;
 			static constexpr ChunkIdx MinTerminalChunkSz = Item::s_max_chunk_sz( Item::MinUsedSz , Kind::Terminal , true /*used*/ ) ;
+			chk_writable() ;
 			size_t total_sz = Prefix::size(name,psfx) ;
 			SWEAR( pos<=total_sz , pos , total_sz ) ;
 			//                        vvvvvvvvvvvvvvvvvvv
@@ -1068,6 +1073,7 @@ namespace Store {
 		}
 
 		void _pop(Idx idx) {
+			chk_writable() ;
 			Item* item = &_at(idx) ;
 			SWEAR(item->used) ;
 			if ( item->kind()==Kind::Terminal && +item->prev ) {                      // root must remain as a Terminal even if unused
@@ -1335,14 +1341,14 @@ namespace Store {
 				Item const& item = _at(idx) ;
 				ChunkIdx chunk_sz = item.chunk_sz ;
 				if (by) {
-					if (by<chunk_sz) return _cut(idx,chunk_sz-by) ;
+					if (by<chunk_sz) { chk_writable() ; return _cut(idx,chunk_sz-by) ; }
 					by -= chunk_sz ;
 				} else {
-					if (item.used) return idx       ;
-					if (chunk_sz)  return _use(idx) ;
+					if (item.used)                    return idx       ;
+					if (chunk_sz)  { chk_writable() ; return _use(idx) ; }
 				}
 			}
-			return Idx() ;
+			return {} ;
 		}
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>

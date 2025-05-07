@@ -47,7 +47,7 @@ sudo apt update
 sudo apt install open-lmake
 ```
 
-Or refer to [full installation instructions](doc/install.md).
+Or refer to [full installation instructions](doc/src/install.md).
 
 # First steps
 

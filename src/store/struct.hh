@@ -57,10 +57,11 @@ namespace Store {
 		using StructHdr = Struct::Hdr<Hdr,Idx,Data> ;
 		void expand(size_t) = delete ;
 		//
-		using Base::base     ;
-		using Base::name     ;
-		using Base::writable ;
-		using Base::_mutex   ;
+		using Base::chk_writable ;
+		using Base::base         ;
+		using Base::name         ;
+		using Base::writable     ;
+		using Base::_mutex       ;
 		// statics
 	private :
 		static constexpr size_t _Offset0 = Struct::_offset<Hdr,Idx,Data>(0) ;
@@ -87,26 +88,26 @@ namespace Store {
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
 		// accesses
-		bool          operator+(                 ) const                   {           return size()>1                                                        ; }
-		Sz            size     (                 ) const requires(HasFile) {           return _struct_hdr().sz                                                ; }
-		HdrNv  const& hdr      (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                               ; }
-		HdrNv       & hdr      (                 )       requires(HasHdr ) {           return _struct_hdr().hdr                                               ; }
-		HdrNv  const& c_hdr    (                 ) const requires(HasHdr ) {           return _struct_hdr().hdr                                               ; }
-		DataNv const& at       (Idx           idx) const requires(HasData) {           return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		DataNv      & at       (Idx           idx)       requires(HasData) {           return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
-		DataNv const& c_at     (Idx           idx) const requires(HasData) {           return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Idx           idx      (DataNv const& at ) const requires(HasData) {           return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0))           ; }
-		void          clear    (Idx           idx)       requires(HasData) { if (!idx) return ; at(idx) = {}                                                  ; }
+		bool          operator+(                 ) const                   { return size()>1                                                        ; }
+		Sz            size     (                 ) const requires(HasFile) { return _struct_hdr().sz                                                ; }
+		HdrNv  const& hdr      (                 ) const requires(HasHdr ) { return _struct_hdr().hdr                                               ; }
+		HdrNv       & hdr      (                 )       requires(HasHdr ) { return _struct_hdr().hdr                                               ; }
+		HdrNv  const& c_hdr    (                 ) const requires(HasHdr ) { return _struct_hdr().hdr                                               ; }
+		DataNv const& at       (Idx           idx) const requires(HasData) { return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		DataNv      & at       (Idx           idx)       requires(HasData) { return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
+		DataNv const& c_at     (Idx           idx) const requires(HasData) { return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Idx           idx      (DataNv const& at ) const requires(HasData) { return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0))           ; }
+		void          clear    (Idx           idx)       requires(HasData) { if (!idx) return ; else at(idx) = {} ;                                   }
 	private :
 		StructHdr const& _struct_hdr() const requires(HasFile) { return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
 		StructHdr      & _struct_hdr()       requires(HasFile) { return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
 		Sz             & _size      ()       requires(HasFile) { return _struct_hdr().sz                                     ; }
 		// services
 	public :
-		/**/                 void pop         ( Idx idx               ) requires(           HasData ) { _chk_writable("pop item"   ) ; if (+idx) at(idx).~Data() ;                 }
-		template<class... A> void emplace     ( Idx idx , A&&... args ) requires(           HasData ) { _chk_writable("insert item") ; new(&at(idx)) Data{::forward<A>(args)...} ; }
-		template<class... A> Idx  emplace_back( Sz  sz  , A&&... args ) requires(  Multi            ) { return _emplace_back(sz,::forward<A>(args)...) ;                           }
-		template<class... A> Idx  emplace_back(           A&&... args ) requires( !Multi && HasData ) { return _emplace_back(1 ,::forward<A>(args)...) ;                           }
+		/**/                 void pop         ( Idx idx               ) requires(           HasData ) { chk_writable() ; if (+idx) at(idx).~Data() ;                      }
+		template<class... A> void emplace     ( Idx idx , A&&... args ) requires(           HasData ) { chk_writable() ; new(&at(idx)) Data{::forward<A>(args)...} ;      }
+		template<class... A> Idx  emplace_back( Sz  sz  , A&&... args ) requires(  Multi            ) { chk_writable() ; return _emplace_back(sz,::forward<A>(args)...) ; }
+		template<class... A> Idx  emplace_back(           A&&... args ) requires( !Multi && HasData ) { chk_writable() ; return _emplace_back(1 ,::forward<A>(args)...) ; }
 		void clear() {
 			ULock lock{_mutex} ;
 			_clear() ;
@@ -120,15 +121,11 @@ namespace Store {
 			Base::_clear(sizeof(StructHdr)) ;
 			_size() = 1 ;
 		}
-		void _chk_writable(const char* msg) requires(HasData) {
-			throw_unless( writable , "cannot ",msg," in read-only file ",name ) ;
-		}
 	private :
 		void _chk_sz( Idx   idx   , Sz   sz   ) requires(   HasDataSz && Multi  ) { SWEAR( sz==Idx(_at(idx).n_items()) , sz , _at(idx).n_items() ) ; }
 		void _chk_sz( Idx /*idx*/ , Sz /*sz*/ ) requires(!( HasDataSz && Multi )) {                                                                  }
 		//
 		template<class... A> Idx _emplace_back( Sz sz , A&&... args ) requires(HasData) {
-			_chk_writable("append item") ;
 			Sz old_sz ;
 			Sz new_sz ;
 			{	ULock lock{_mutex} ;

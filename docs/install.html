@@ -1,0 +1,346 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Installation - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- Why open-lmake-->
+<h1 id="binary-packages"><a class="header" href="#binary-packages">Binary packages</a></h1>
+<p>Open-lmake binary packages are available on launchpad.net for the following systems :</p>
+<ul>
+<li>ubuntu22.04 (jammy)</li>
+<li>ubuntu24.04 (noble)</li>
+</ul>
+<p>To install these, execute:</p>
+<ul>
+<li><code>sudo add-apt-repository ppa:cdouady/open-lmake</code></li>
+<li><code>sudo apt update</code></li>
+<li><code>sudo apt install open-lmake</code></li>
+</ul>
+<h1 id="compilation"><a class="header" href="#compilation">Compilation</a></h1>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<p>To compile open-lmake, you will need:</p>
+<ul>
+<li>c++20</li>
+<li>python3.6 or later with developer support (i.e. access to the <code>libpython*.so</code> file)</li>
+</ul>
+<p>The following compilers are known to compile open-lmake:</p>
+<ul>
+<li>gcc version 11 and above</li>
+<li>clang version 14 and above</li>
+</ul>
+<p>The following compilers are known <strong>not</strong> to compile open-lmake:</p>
+<ul>
+<li>gcc version 10 and below</li>
+</ul>
+<p>It has been tested with the dockers listed in the docker directory.</p>
+<h2 id="procedure"><a class="header" href="#procedure">Procedure</a></h2>
+<ul>
+<li>type <code>make</code>
+<ul>
+<li>this builds all necessary files and some unit tests</li>
+<li>you must invoke <code>git clean -fdx</code> if you modified the Makefile or otherwise if you want a reliable build (<code>make</code> is not open-lmake)</li>
+<li>you may have to invoke <code>git clean -fdx lmake_env*</code> or even <code>git clean -fdx</code> after a <code>git pull</code>
+<ul>
+<li><code>lmake_env</code> is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now</li>
+<li><code>lmake_env-cache</code> is a directory containing cached results from jobs in <code>lmake_env</code></li>
+<li>they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail</li>
+<li>and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build</li>
+</ul>
+</li>
+<li>you can type <code>make LMAKE</code> to just build all necessary files</li>
+<li>you can type <code>make lmake.tar.gz.SUMMARY</code> (built by default) to make a tar ball of the compiled files that you can easily deploy</li>
+</ul>
+</li>
+<li>install
+<ul>
+<li>untar <code>lmake.tar.gz</code> wherever you want and have your <code>$PATH</code> point to the <code>bin</code> directory.
+<ul>
+<li>the <code>bin</code> sub-directory contains the executables meant to be executed by the user</li>
+<li>the <code>_bin</code> sub-directory contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
+<ul>
+<li>it also contains some executables to help debugging open-lmake itself.</li>
+</ul>
+</li>
+<li>the <code>lib</code> sub-directory contains binary and python files for use by the user</li>
+<li>the <code>_lib</code> sub-directory contains the binary and python files necessary for open-lmake to run, but not meant for direct use by the user</li>
+<li>the relative positions of these 4 directories must remain the same, i.e. they must stay in the same directory with the same names.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>specialization
+<ul>
+<li>you can specialize the build process to better suit your needs:</li>
+<li>this can be done by setting variables
+<ul>
+<li>for example, you can run: <code>CXX=/my/g++ make</code></li>
+<li><code>$PYTHON2</code> can be set to your preferred python2 (defaults to <code>python2</code> as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
+<li><code>$PYTHON</code> can be set to your preferred python3  (defaults to <code>python3</code> as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
+<li><code>$CXX</code> can be set to your preferred C++ compiler (defaults to <code>g++</code>     as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
+<li><code>$SLURM_ROOT</code> can be set to the root directory of the slurm installation (by default, <code>slurm/slurm.h</code> will be searched in the standard include path).
+For example, <code>slurm.h</code> will be found as <code>$SLURM_ROOT/include/slurm/slurm.h</code></li>
+<li><code>$LMAKE_FLAGS</code> can be defined as O[0123]g?d?t?S[AB]P?
+<ul>
+<li>O[0123] controls the <code>-O option</code>                                      (default: 1 if profiling else 3            )</li>
+<li>g       controls the absence of <code>-g option</code>                           (default: debug                            )</li>
+<li>d       controls     <code>-DNDEBUG</code>                                       (default: asserts are enabled              )</li>
+<li>t       controls     <code>-DNO_TRACE</code>                                     (default: traces are enabled               )</li>
+<li>SA      controls the <code>-fsantize=address -fsanitize=undefined</code> options (exclusive with ST                         )</li>
+<li>ST      controls the <code>-fsantize=thread</code>                       option  (exclusive with SA                         )</li>
+<li>P       controls the <code>-pg</code>                                    option  (profiling info is in gmon.out.<tool>.<pid>)</li>
+</ul>
+</li>
+<li>the <code>-j</code> flag of make is automatically set to the number of processors, you may want to override this, though</li>
+</ul>
+</li>
+<li>this is true the first time you run make. After that, these values are remembered in the file <code>sys_config.env</code>.</li>
+<li>you can freely modify this file <code>sys_config.env</code>, though. It will be taken into account.</li>
+<li>it is up to you to provide a suitable <code>$LD_LIBRARY_PATH</code> value.
+it will be transferred as a default value for rules, to the extent it is necessary to provide the lmake semantic</li>
+</ul>
+</li>
+</ul>
+<h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
+<p>Open-lmake does not require to be installed.
+You can run it directly from the build directory.
+This is the simplest way unless you seek a system-wide installation.</p>
+<p>If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry <code>DEBIAN_DEPS</code>),
+you can make a Debian package:</p>
+<ul>
+<li>type <code>make DEBIAN</code></li>
+<li>the package is <code>open-lmake_v25.02.7-1_&lt;arch&gt;.deb</code></li>
+<li>you can install it with <code>sudo apt install ./open-lmake_v25.02.7-1_&lt;arch&gt;.deb</code></li>
+</ul>
+<p>Alternatively, you can untar <code>lmake.tar.gz</code> at any place.</p>
+<p>Installing system-wide with Debian package will take care of placing both binaries and man pages in the standard directories. Alternatively, you can:</p>
+<ul>
+<li>put <code>/path/to/open-lmake/bin</code> in your <code>$PATH</code></li>
+</ul>
+<p>This will simplify the user experience but is not required.</p>
+<h1 id="apparmor"><a class="header" href="#apparmor">AppArmor</a></h1>
+<blockquote>
+<p>AppArmor is known to need tuning on Ubuntu24.04 only.</p>
+</blockquote>
+<p>In order to implement namespace related features (the <code>lmake_view</code>, <code>repo_view</code>, <code>tmp_view</code>, <code>views</code> and <code>chroot</code> rule attributes), and if your system is configured with AppArmor,
+adequate rights must be provided.</p>
+<p>In that case, do the following :</p>
+<ul>
+<li>create a file <code>/etc/apparmor.d/open-lmake</code> with the following content :
+<pre><code>	abi &lt;abit/4.0&gt;
+	include &lt;tunables/global&gt;
+	profile open-lmake /**/{_bin/job_exec,bin/lautodep} flags=(unconfined) {
+		userns,
+	}
+</code></pre>
+</li>
+<li>activate it with <code>sudo aa-apparamor_parser -r /etc/apparamor.d/open-lmake</code></li>
+</ul>
+<h1 id="rationale"><a class="header" href="#rationale">Rationale</a></h1>
+<p>Because of its unique features (auto-dep, views, ...), open-lmake is necessarily tighly coupled to the underlying OS.
+In particular, it was not possible to write it solely on top of Posix.</p>
+<p>There are no known road blocks to port it to other OSes (such as Darwin or Windows) although this would require an in depth knowledge of these systems.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="intro.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="lmake_module.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="intro.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="lmake_module.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

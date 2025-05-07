@@ -1,0 +1,6 @@
+import duplicate_m;
+import another_m;
+
+int lib() {
+    return m() + i();
+}

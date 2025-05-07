@@ -17,16 +17,6 @@ namespace Backends::Sge {
 	struct SgeBackend ;
 
 	//
-	// daemon info
-	//
-
-	struct Daemon {
-		friend ::string& operator+=( ::string& , Daemon const& ) ;
-		// data
-		::map_s<size_t> licenses ; // licenses sampled from daemon
-	} ;
-
-	//
 	// resources
 	//
 
@@ -89,7 +79,7 @@ namespace Backends::Sge {
 	using SgeId = uint32_t ;
 
 	void     sge_cancel      (::pair<SgeBackend const*,SgeId> const&) ;
-	Daemon   sge_sense_daemon(SgeBackend const&                     ) ;
+	void     sge_sense_daemon(SgeBackend const&                     ) ;
 	::string sge_mk_name     (::string&&                            ) ;
 
 	constexpr Tag MyTag = Tag::Sge ;
@@ -164,7 +154,7 @@ namespace Backends::Sge {
 				/**/                                     _sge_env[i  ] = nullptr    ;
 			}
 			if (!dyn) {
-				daemon = sge_sense_daemon(self) ;
+				sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ;
 			}
 			trace("done") ;
@@ -266,7 +256,7 @@ namespace Backends::Sge {
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
 			// calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
-			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
+			pid_t pid = ::vfork() ;                                                                             // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child
 				::close(Fd::Stdin ) ;                                                                           // ensure no stdin (defensive programming)
@@ -285,9 +275,9 @@ namespace Backends::Sge {
 		}
 
 		SgeId sge_exec_qsub(::vector_s&& cmd_line) const {
-			SWEAR(cmd_line[0]=="qsub" && cmd_line[1]=="-terse") ;                                               // only meant to accept a short stdout
+			SWEAR( cmd_line[0]=="qsub" && cmd_line[1]=="-terse" ) ;                                             // only meant to accept a short stdout
 			Trace trace(BeChnl,"sge_exec_qsub",cmd_line) ;
-			TraceLock lock { _sge_mutex , BeChnl , "sge_qsub" } ;
+			TraceLock lock { _sge_mutex , BeChnl , "sge_exec_qsub" } ;
 			cmd_line[0] = sge_bin_s+cmd_line[0] ;
 			//
 			const char** cmd_line_ = new const char*[cmd_line.size()+1] ;
@@ -352,7 +342,6 @@ namespace Backends::Sge {
 		::string           sge_cell          ;
 		::string           sge_cluster       ;
 		::string           sge_root_s        ;
-		Daemon             daemon            ;      // info sensed from sge daemon
 		::vmap_ss          env               ;
 	private :
 		::unique_ptr<const char*[]>  _sge_env     ;
@@ -368,14 +357,6 @@ namespace Backends::Sge {
 	//
 
 	bool _inited = (SgeBackend::s_init(),true) ;
-
-	//
-	// Daemon
-	//
-
-	::string& operator+=( ::string& os , Daemon const& d ) { // START_OF_NO_COV
-		return os << "Daemon(" << d.licenses <<')' ;
-	}                                                        // END_OF_NO_COV
 
 	//
 	// RsrcsData
@@ -464,10 +445,15 @@ namespace Backends::Sge {
 	// sge API
 	//
 
-	Daemon sge_sense_daemon(SgeBackend const& be) {
+	void sge_sense_daemon(SgeBackend const& be) {
 		Trace trace("sge_sense_daemon") ;
-		if ( !be.sge_exec_client( { "qsub" , "-b" , "y" , "-N" , "<sense_daemon>" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ) ) throw "no SGE daemon"s ;
-		return {} ;
+		try {
+			SgeId id = be.sge_exec_qsub( { "qsub" , "-terse" , "-b" , "y" , "-N" , "<sense_daemon>" , "-o" , "/dev/null" , "-e" , "/dev/null" , "/dev/null" } ) ;
+			trace("sense_id",id) ;
+		} catch (::string const& e) {
+			trace("no_sge_daemon",e) ;
+			throw "no SGE daemon"s ;
+		}
 	}
 
 

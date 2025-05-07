@@ -526,9 +526,9 @@ namespace Py {
 		Object      & get_item(::string const& k)       { Gil::s_swear_locked() ; return *from_py(PyDict_GetItemString(to_py(),k.c_str())) ; }
 		Object const& get_item(::string const& k) const { Gil::s_swear_locked() ; return *from_py(PyDict_GetItemString(to_py(),k.c_str())) ; }
 		//
-		void set_item  ( ::string const& k , Object& v ) { Gil::s_swear_locked() ; int rc = PyDict_SetItemString( to_py() , k.c_str() , v.to_py() ) ; if (rc) throw "cannot set "+k       ; }
-		void del_item  ( ::string const& k             ) { Gil::s_swear_locked() ; int rc = PyDict_DelItemString( to_py() , k.c_str()             ) ; if (rc) throw "key "+k+" not found" ; }
-		void erase_item( ::string const& k             ) { Gil::s_swear_locked() ;          PyDict_DelItemString( to_py() , k.c_str()             ) ;                                       }
+		void set_item  ( ::string const& k , Object& v ) { Gil::s_swear_locked() ; int rc = PyDict_SetItemString( to_py() , k.c_str() , v.to_py() ) ; throw_if( rc , "cannot set ",k       ) ; }
+		void del_item  ( ::string const& k             ) { Gil::s_swear_locked() ; int rc = PyDict_DelItemString( to_py() , k.c_str()             ) ; throw_if( rc , "key ",k," not found" ) ; }
+		void erase_item( ::string const& k             ) { Gil::s_swear_locked() ;          PyDict_DelItemString( to_py() , k.c_str()             ) ;                                          }
 		//
 		Object      & operator[](::string const& key)       { return get_item(key) ; }
 		Object const& operator[](::string const& key) const { return get_item(key) ; }
@@ -545,6 +545,13 @@ namespace Py {
 		using Base = PtrBase<Dict> ;
 		using Base::Base ;
 		Ptr(NewType) : Base{ ( Gil::s_swear_locked() , PyDict_New() ) } {}
+		//
+		template<IsStream T> void serdes(T& s) {
+			// marshal seems very slow to fail, so avoid calling it on most common cases known to fail
+			if (!IsIStream<T>)
+				for( auto const& [py_k,py_v] : *self ) throw_if( py_v.template is_a<Callable>() , "cannot serialize callables" ) ; // XXX? : why is template necessary with gcc11 ?
+			Base::serdes(s) ;
+		}
 	} ;
 
 	//
@@ -597,9 +604,12 @@ namespace Py {
 		// services
 		bool qualify() const { return PyCallable_Check(to_py()) ; }
 		//
-		/**/                 Ptr<> operator()(           ) const { Gil::s_swear_locked() ; return PyObject_CallObject( to_py() , nullptr ) ; } // fast path : no empty tuple
+		Ptr<> operator()() const { // fast path : no empty tuple
+			Gil::s_swear_locked() ;
+			return PyObject_CallObject( to_py() , nullptr ) ;
+		}
 		template<class... A> Ptr<> operator()(A&&... args) const {
-			/**/             Gil::s_swear_locked() ;
+			Gil::s_swear_locked() ;
 			/**/             Ptr<Tuple> t               { sizeof...(A) }                       ;
 			/**/             size_t     i               = 0                                    ;
 			[[maybe_unused]] bool       _[sizeof...(A)] = { (t->set_item(i++,args),false)... } ;

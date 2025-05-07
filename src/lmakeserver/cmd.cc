@@ -161,9 +161,9 @@ namespace Engine {
 	}
 
 	static void _audit_job( Fd fd , ReqOptions const& ro , bool hide , Job job , ::string pfx={} , ::string const& comment={} , ::string const& sfx={} , DepDepth lvl=0 ) {
-		Color    color      = _job_color( job , hide )      ;
-		Rule     rule       = job->rule()                   ;
-		bool     porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		Color color      = _job_color( job , hide )      ;
+		Rule  rule       = job->rule()                   ;
+		bool  porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		::string l          ;
 		if (+pfx) l << pfx <<' ' ;
 		if (porcelaine) {
@@ -183,14 +183,14 @@ namespace Engine {
 		size_t            wk         = 0                             ;
 		size_t            wf         = 0                             ;
 		::umap_ss         rev_map    ;
-		::vector<Color  > dep_colors ;                                 // indexed before filtering
-		::vector<NodeIdx> dep_groups ;                                 // indexed after  filtering, deps in given group are parallel
+		::vector<Color  > dep_colors ;                                   // indexed before filtering
+		::vector<NodeIdx> dep_groups ;                                   // indexed after  filtering, deps in given group are parallel
 		NodeIdx           dep_group  = 0                             ;
 		::vmap_s<RegExpr> res        ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
 			VarIdx          i = rule->n_statics   ;
-			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {     // this cannot fail as we already have the job
+			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {   // this cannot fail as we already have the job
 				if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
 				else            wk = ::max( wk ,           k .size() ) ;
 				rev_map[d.txt] = k ;
@@ -211,8 +211,8 @@ namespace Engine {
 			dep_groups.push_back(dep_group) ;
 			wf = ::max( wf , mk_py_str(d->name()).size() ) ;
 		}
-		NodeIdx di1          = 0 ;                                         // before filtering
-		NodeIdx di2          = 0 ;                                         // after  filtering
+		NodeIdx di1          = 0 ;                                       // before filtering
+		NodeIdx di2          = 0 ;                                       // after  filtering
 		NodeIdx n_dep_groups = 0 ;
 		if (porcelaine) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
 		for( Dep const& dep : job->deps ) {
@@ -384,19 +384,19 @@ namespace Engine {
 	}
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target , DepDepth lvl=0 ) {
-		JobTgt job = target->actual_job() ;
-		if (!job) goto NoJob ;
-		if (job->rule().is_shared()) {
-			/**/                              if (target->status()>NodeStatus::Makable) goto NoJob ;
-			job = target->conform_job_tgt() ; if (job->rule().is_shared()             ) goto NoJob ;
+		{	JobTgt aj = target->actual_job() ;
+			if (!aj                                 ) goto NoJob ;
+			if (!aj->rule().is_shared()             ) return aj  ;
+			if (target->status()>NodeStatus::Makable) goto NoJob ;
+			//
+			JobTgt cj = target->conform_job_tgt() ;
+			if (cj->rule().is_shared()              ) goto NoJob ;
+			/**/                                      return cj  ;
 		}
-		Trace("target",target,job) ;
-		return job ;
 	NoJob :
 		bool porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		if (!porcelaine) {
-			target->set_buildable() ;
-			if (!target->is_src_anti()) { //!                                                                   as_is
+			if (!target->is_src_anti(true/*permissive*/)) { //!                                                 as_is
 				audit( fd , ro , Color::Err  , "target not built"                                             , true  , lvl   ) ;
 				audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name(),FileDisplay::Shell) , false , lvl+1 ) ;
 			}
@@ -417,7 +417,7 @@ namespace Engine {
 		} else {
 			::vector<Node> targets = ecr.targets() ;
 			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
-			job = _job_from_target(fd,ro,ecr.targets()[0]) ;
+			job = _job_from_target(fd,ro,targets[0]) ;
 		}
 		if (!job                                  ) throw "no job found"s                        ;
 		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->user_name()+" jobs" ;
@@ -503,15 +503,15 @@ namespace Engine {
 			if (porcelaine) audit( fd , ro , verbose?first(")",",)",")"):"}" , true/*as_is*/ , lvl ) ; // beware of singletons
 		}
 		// data
-		Fd                fd         ;
-		ReqOptions const& ro         ;
-		DepDepth          lvl        = 0                ;
-		::uset<Job >      job_seen   = {}               ;
-		::uset<Node>      node_seen  = {}               ;
-		::vector<T>       backlog    = {}               ;
-		bool              verbose    = false/*garbage*/ ;
-		bool              porcelaine = false/*garbage*/ ;
-		First             first      ;
+		Fd                 fd         ;
+		ReqOptions const&  ro         ;
+		DepDepth           lvl        = 0                ;
+		::uset<Job >       job_seen   = {}               ;
+		::uset<Node>       node_seen  = {}               ;
+		::vector<T>        backlog    = {}               ;
+		bool               verbose    = false/*garbage*/ ;
+		bool               porcelaine = false/*garbage*/ ;
+		First              first      ;
 	} ;
 
 	struct ShowBom : Show<Node> {
@@ -523,7 +523,6 @@ namespace Engine {
 		}
 		void show_node(Node node) {
 			if (!node_seen.insert(node).second) return ;
-			node->set_buildable() ;
 			//
 			if (!node->is_src_anti()) {
 				if (verbose) backlog.push_back(node) ;
@@ -1038,9 +1037,23 @@ namespace Engine {
 			return true ;
 		}
 		bool           ok         = true                          ;
-		::vector<Node> targets    = ecr.targets()                 ;
 		bool           porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		char           sep        = '{'                           ;                                                                                 // used with porcelaine
+		::vector<Node> targets    ;
+		try {
+			targets = ecr.targets() ;
+		} catch (::string const&) {
+			if (g_writable) throw ;                                                                                                                 // dont know this case : propagate
+			switch (ecr.files.size()) {
+				case 0  : throw                                                              ;                                                      // unknown case : propagate
+				case 1  : throw cat("repo is read-only and file is unknown : ",ecr.files[0]) ;
+				default : {
+					::string msg = "repo is read-only and some files are unknown among: " ;
+					for( ::string const& f : ecr.files ) msg <<"\n  "<< f ;
+					throw msg ;
+				}
+			}
+		}
 		switch (ro.key) {
 			case ReqKey::Bom     : { ShowBom     sb {fd,ro} ; for( Node t : targets ) sb.show_node(t) ; goto Return ; }
 			case ReqKey::Running : { ShowRunning sr {fd,ro} ; for( Node t : targets ) sr.show_node(t) ; goto Return ; }
@@ -1097,12 +1110,12 @@ namespace Engine {
 						Node n = target ;
 						while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
 						if (n!=target) {
-							if (porcelaine) { //!                                                                        as_is
-								if (+n->asking) audit( fd , ro , "{ 'required by' : "+mk_py_str(Job(n->asking)->name()) , true , lvl ) ;
-								else            audit( fd , ro , "{ 'required by' : "+mk_py_str(    n         ->name()) , true , lvl ) ;
-							} else { //!                                                                            as_is
-								if (+n->asking) audit( fd , ro , "required by : "+mk_file(Job(n->asking)->name()) , false , lvl ) ;
-								else            audit( fd , ro , "required by : "+mk_file(    n         ->name()) , false , lvl ) ;
+							if (porcelaine) { //!                                                                         as_is
+								if (+n->asking) audit( fd , ro , "{ 'required by' : "+mk_py_str(Job(n->asking)->name()) , true  , lvl ) ;
+								else            audit( fd , ro , "{ 'required by' : "+mk_py_str(    n         ->name()) , true  , lvl ) ;
+							} else {
+								if (+n->asking) audit( fd , ro , "required by : "    +mk_file  (Job(n->asking)->name()) , false , lvl ) ;
+								else            audit( fd , ro , "required by : "    +mk_file  (    n         ->name()) , false , lvl ) ;
 							}
 						} else {
 							if (porcelaine) audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
@@ -1120,11 +1133,11 @@ namespace Engine {
 							if ( verbose || _node_color(target->dir())!=Color::HiddenNote ) { //!                              as_is
 								audit( fd , ro , "( '' , "+mk_py_str(target->name())+" , 'up_hill' ) : "                      , true , lvl+1 ) ;
 								audit( fd , ro , "( ( ( '----SF' , 'L-T' , '' , "+mk_py_str(target->dir()->name())+" ) ,) ,)" , true , lvl+1 ) ;
+								first() ;
 							}
 						} else {
 							_audit_node( fd , ro , verbose , Maybe/*hide*/ , "UP_HILL" , target->dir() , lvl ) ;
 						}
-						first() ;
 					}
 					for( JobTgt jt : target->conform_job_tgts() ) {
 						bool     hide      = !jt.produces(target)          ; if ( hide && !verbose ) continue ;

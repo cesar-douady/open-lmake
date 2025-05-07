@@ -1,0 +1,6 @@
+export module another_m;
+import duplicate_m;
+
+export int i() {
+    return m();
+}

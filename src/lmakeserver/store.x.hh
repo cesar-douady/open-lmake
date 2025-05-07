@@ -489,8 +489,8 @@ namespace Engine::Persistent {
 		}
 	}
 	// accesses
-	inline RuleCrcData      & RuleCrcBase::data     ()       { return _g_rule_crc_file.at(+self) ; }
-	inline RuleCrcData const& RuleCrcBase::operator*() const { return _g_rule_crc_file.at(+self) ; }
+	inline RuleCrcData const& RuleCrcBase::operator*() const { return _g_rule_crc_file.c_at(+self) ; }
+	inline RuleCrcData      & RuleCrcBase::data     ()       { return _g_rule_crc_file.at  (+self) ; }
 
 	//
 	// RuleTgts

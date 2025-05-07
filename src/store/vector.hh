@@ -92,8 +92,9 @@ namespace Store {
 		void at     (Idx   ) = delete ;
 		void shorten(Idx,Sz) = delete ;
 		//
-		using Base::size   ;
-		using Base::_mutex ;
+		using Base::chk_writable ;
+		using Base::size         ;
+		using Base::_mutex       ;
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
@@ -150,6 +151,7 @@ namespace Store {
 				//           ^^^^^^^^^^^^^^^^
 			}
 			// in place
+			chk_writable() ;
 			Item* items = chunk.items() ;
 			for( size_t i : iota(::min(v.size(),size_t(chunk.sz))) ) items[i] = v[i] ;
 			if (v.size()<chunk.sz) for( size_t i : iota( v.size() , chunk.sz ) ) items[i].~Item()        ;

@@ -31,11 +31,11 @@ private :
 public :
 	constexpr Idxed(     ) = default ;
 	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; }                                     // ensure no index overflow
-	//
+	// accesses
 	constexpr Idx operator+() const { return _idx&lsb_msk(NValBits) ; }
 	//
 	void clear() { self = Idxed{} ; }
-	// accesses
+	//
 	constexpr bool              operator== (Idxed other) const { return +self== +other ; }
 	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other ; }
 	//

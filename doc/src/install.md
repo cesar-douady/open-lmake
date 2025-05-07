@@ -25,8 +25,18 @@ To compile open-lmake, you will need:
 
 - c++20
 - python3.6 or later with developer support (i.e. access to the `libpython*.so` file)
+- if using python2, it must be python2.7
 
-It has been tested with the dockers listed in the docker directory
+The following compilers are known to compile open-lmake:
+
+- gcc version 11 and above
+- clang version 14 and above
+
+The following compilers are known **not** to compile open-lmake:
+
+- gcc version 10 and below
+
+It has been tested with the dockers listed in the docker directory.
 
 ## Procedure
 
@@ -52,7 +62,7 @@ It has been tested with the dockers listed in the docker directory
 	- you can specialize the build process to better suit your needs:
 	- this can be done by setting variables
 		- for example, you can run: `CXX=/my/g++ make`
-		- `$PYTHON2. can be set to your preferred python2 (defaults to `python2` as found in your `$PATH`). You will be told if it is not supported.
+		- `$PYTHON2` can be set to your preferred python2 (defaults to `python2` as found in your `$PATH`). You will be told if it is not supported.
 		- `$PYTHON` can be set to your preferred python3  (defaults to `python3` as found in your `$PATH`). You will be told if it is not supported.
 		- `$CXX` can be set to your preferred C++ compiler (defaults to `g++`     as found in your `$PATH`). You will be told if it is not supported.
 		- `$SLURM_ROOT` can be set to the root directory of the slurm installation (by default, `slurm/slurm.h` will be searched in the standard include path).
@@ -92,6 +102,8 @@ Installing system-wide with Debian package will take care of placing both binari
 This will simplify the user experience but is not required.
 
 # AppArmor
+
+> AppArmor is known to need tuning on Ubuntu24.04 only.
 
 In order to implement namespace related features (the `lmake_view`, `repo_view`, `tmp_view`, `views` and `chroot` rule attributes), and if your system is configured with AppArmor,
 adequate rights must be provided.

@@ -23,7 +23,7 @@ class Base(Rule) :
 	,	'Test' : r'[^-]+'
 	}
 
-# for IDE integration
+# for IDE integration as per : https://clang.llvm.org/docs/JSONCompilationDatabase.html
 class CompCmds(Base,PyRule) :
 	target = 'compile_commands.json'
 	def cmd() :

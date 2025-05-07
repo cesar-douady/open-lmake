@@ -45,6 +45,9 @@ namespace Store {
 		// accesses
 		bool operator+() const { return size ; }
 		// services
+		void chk_writable() const {
+			throw_unless( writable , name," is read-only" ) ;
+		}
 		void expand(size_t sz) {
 			if (sz<=size) return ;                         // fast path
 			ULock lock{_mutex} ;
@@ -144,13 +147,13 @@ namespace Store {
 
 	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_resize_file(size_t sz) {
 		static size_t s_page = ::sysconf(_SC_PAGESIZE) ;
-		swear_prod( writable , name , "is read-only" ) ;
 		if (sz>Capacity) {
 			::string err_msg ;
 			err_msg<<"file "<<name<<" capacity has been under-dimensioned at "<<Capacity<<" bytes\n"             ;
 			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/types.hh\n" ;
 			exit(Rc::Param,err_msg) ;
 		}
+		chk_writable() ;
 		sz += s_page-1 ; sz = sz-sz%s_page ;   // round up
 		if (+_fd) {
 			//         vvvvvvvvvvvvvvvvvvvvv

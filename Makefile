@@ -743,9 +743,10 @@ TEST_POSTLUDE = \
 	@echo run example to $@
 	@$(TEST_PRELUDE)
 	@(                                                                                      \
-		trial=$(@:%.dir/tok=%.trial) ;                                                      \
-		mkdir -p $$trial ;                                                                  \
-		rm -rf $$trial/* ;                                                                  \
+		trial=$(@:%.dir/tok=%.trial)                                                      ; \
+		mkdir -p $$trial ; rm -rf $$trial/*                                               ; \
+		( cd $(@:%.dir/tok=%.dir) ; git ls-files ; echo Manifest ) > $$trial/Manifest     ; \
+		ln -s $$PWD/$(@:%.dir/tok=%.dir/skipped) $(@:%.dir/tok=%.trial/skipped)           ; \
 		tar -c -C$(@D) $(patsubst $(@D)/%,%,$(filter $(@D)/%,$(SRCS))) | tar -x -C$$trial ; \
 		$(TEST_ENV) ; cd $(@:%.dir/tok=%.trial) ; ./run                                     \
 	) ; $(TEST_POSTLUDE)

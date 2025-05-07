@@ -50,6 +50,7 @@ if __name__!='__main__' :
 
 else :
 
+	import os
 	import subprocess as sp
 
 	import ut
@@ -72,133 +73,140 @@ else :
 
 	ut.lmake( 'dut' , done=3 , new=2 )
 
-	x      = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr
-	long_x = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr
-	assert x==long_x
-	assert x.startswith('lshow ') and '--porcelaine' in x and 'man lshow' in x
+	assert os.system('chmod -w -R .')==0 # check we can interrogate a read-only repo
 
-	x = sp.run(('lshow','--version'),stderr=sp.PIPE,universal_newlines=True).stderr
-	assert x.startswith('version ')
+	try :
 
-	x,px = lshow( ('-b','--bom') , 'hello+world_sh' , 'hello+world_py' )
-	assert 'hello' in x and 'world' in x
-	assert px=={'hello','world'}
+		x      = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr
+		long_x = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr
+		assert x==long_x
+		assert x.startswith('lshow ') and '--porcelaine' in x and 'man lshow' in x
 
-	x,px = lshow( ('-b','--bom') , '--verbose' , 'hello+world_sh' )
-	assert 'hello' in x and 'world' in x and 'hello+world_sh' in x
-	assert set(px)=={'hello+world_sh','hello','world'} and px[0]=='hello+world_sh'
+		x = sp.run(('lshow','--version'),stderr=sp.PIPE,universal_newlines=True).stderr
+		assert x.startswith('version ')
 
-	x,px = lshow( ('-c','--cmd') , 'hello+world_sh' )
-	e    = px['hello+world_sh']
-	assert all( w in x for w in ('cat','hello','world') )
-	assert all( w in e for w in ('cat','hello','world') )
+		x,px = lshow( ('-b','--bom') , 'hello+world_sh' , 'hello+world_py' )
+		assert 'hello' in x and 'world' in x
+		assert px=={'hello','world'}
 
-	x,px = lshow( ('-d','--deps') ,        'hello+world_py' , 'hello+world_sh' )
-	_,e  = lshow( ('-d','--deps') , '-J' , 'hello+world_py'                    )
-	assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
-	assert all( w in x for w in ('hello+world_py','CatPy','hello+world_sh','CatSh','FIRST','hello','SECOND','world') )
-	assert len(e)==2 and tuple(e[0])[0][2:]==('FIRST','hello') and tuple(e[1])[0][2:]==('SECOND','world')
+		x,px = lshow( ('-b','--bom') , '--verbose' , 'hello+world_sh' )
+		assert 'hello' in x and 'world' in x and 'hello+world_sh' in x
+		assert set(px)=={'hello+world_sh','hello','world'} and px[0]=='hello+world_sh'
 
-	x,px = lshow( ('-d','--deps') , '-v' ,        'hello+world_py' )
-	_,e  = lshow( ('-d','--deps') , '-v' , '-J' , 'hello+world_py' )
-	assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
-	assert all( w in x for w in ('site-packages','FIRST','hello','SECOND','world') )
-	assert len(e)==3 and 'site-package' in tuple(e[0])[0][3] and tuple(e[1])[0][2:]==('FIRST','hello') and tuple(e[2])[0][2:]==('SECOND','world')
+		x,px = lshow( ('-c','--cmd') , 'hello+world_sh' )
+		e    = px['hello+world_sh']
+		assert all( w in x for w in ('cat','hello','world') )
+		assert all( w in e for w in ('cat','hello','world') )
 
-	x,px = lshow( ('-d','--deps') , 'dut' )
-	e    = px['dut'][('Dut','dut','generating')]
-	assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') )
-	print(px)
-	assert len(e)==1 and len(e[0])==2
+		x,px = lshow( ('-d','--deps') ,        'hello+world_py' , 'hello+world_sh' )
+		_,e  = lshow( ('-d','--deps') , '-J' , 'hello+world_py'                    )
+		assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
+		assert all( w in x for w in ('hello+world_py','CatPy','hello+world_sh','CatSh','FIRST','hello','SECOND','world') )
+		assert len(e)==2 and tuple(e[0])[0][2:]==('FIRST','hello') and tuple(e[1])[0][2:]==('SECOND','world')
 
-	x,px = lshow( ('-E','--env') ,        'hello+world_sh' )
-	_,e  = lshow( ('-E','--env') , '-J' , 'hello+world_sh' )
-	assert e == px['hello+world_sh']
-	assert all( w in x for w in ('HOME','$REPO_ROOT') )
-	assert len(e)>=4 and all( k in e for k in ('HOME','PATH','UID','USER')) and e['HOME']=='$REPO_ROOT'
+		x,px = lshow( ('-d','--deps') , '-v' ,        'hello+world_py' )
+		_,e  = lshow( ('-d','--deps') , '-v' , '-J' , 'hello+world_py' )
+		assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
+		assert all( w in x for w in ('site-packages','FIRST','hello','SECOND','world') )
+		assert len(e)==3 and 'site-package' in tuple(e[0])[0][3] and tuple(e[1])[0][2:]==('FIRST','hello') and tuple(e[2])[0][2:]==('SECOND','world')
 
-	x,px = lshow( ('-i','--info') ,        'hello+world_sh' )
-	_,e  = lshow( ('-i','--info') , '-J' , 'hello+world_sh' )
-	assert e == px['hello+world_sh']
-	assert all(
-		w in x for w in (
-			'job'         , 'hello+world_sh'
-		,	'ids'
-		,	'required by' , 'dut'
-		,	'reason'      , 'job was never run'
-		,	'host'
-		,	'scheduling'
-		,	'autodep'
-		,	'end date'
-		,	'status'      , 'ok'
-		,	'tmp dir'
-		,	'rc'          , 'ok'
-		,	'cpu time'
-		,	'elapsed in job'
-		,	'elapsed total'
-		,	'used mem'
-		,	'cost'
-		,	'total size'
+		x,px = lshow( ('-d','--deps') , 'dut' )
+		e    = px['dut'][('Dut','dut','generating')]
+		assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') )
+		print(px)
+		assert len(e)==1 and len(e[0])==2
+
+		x,px = lshow( ('-E','--env') ,        'hello+world_sh' )
+		_,e  = lshow( ('-E','--env') , '-J' , 'hello+world_sh' )
+		assert e == px['hello+world_sh']
+		assert all( w in x for w in ('HOME','$REPO_ROOT') )
+		assert len(e)>=4 and all( k in e for k in ('HOME','PATH','UID','USER')) and e['HOME']=='$REPO_ROOT'
+
+		x,px = lshow( ('-i','--info') ,        'hello+world_sh' )
+		_,e  = lshow( ('-i','--info') , '-J' , 'hello+world_sh' )
+		assert e == px['hello+world_sh']
+		assert all(
+			w in x for w in (
+				'job'         , 'hello+world_sh'
+			,	'ids'
+			,	'required by' , 'dut'
+			,	'reason'      , 'job was never run'
+			,	'host'
+			,	'scheduling'
+			,	'autodep'
+			,	'end date'
+			,	'status'      , 'ok'
+			,	'tmp dir'
+			,	'rc'          , 'ok'
+			,	'cpu time'
+			,	'elapsed in job'
+			,	'elapsed total'
+			,	'used mem'
+			,	'cost'
+			,	'total size'
+			)
 		)
-	)
-	assert e['job']=='hello+world_sh' and len(e['ids'])==3 and e['required by']=='dut' and e['reason']=='job was never run' and e['status']=='ok' and e['rc']=='ok'
-	assert e['required resources']=={'cpu':1} and e['allocated resources']=={'cpu':1}
+		assert e['job']=='hello+world_sh' and len(e['ids'])==3 and e['required by']=='dut' and e['reason']=='job was never run' and e['status']=='ok' and e['rc']=='ok'
+		assert e['required resources']=={'cpu':1} and e['allocated resources']=={'cpu':1}
 
-	x,px = lshow( ('-D','--inv-deps') , 'hello' )
-	assert 'hello+world_sh' in x and 'hello+world_py' in x
-	assert px['hello']=={ ('CatSh','hello+world_sh') , ('CatPy','hello+world_py') }
+		x,px = lshow( ('-D','--inv-deps') , 'hello' )
+		assert 'hello+world_sh' in x and 'hello+world_py' in x
+		assert px['hello']=={ ('CatSh','hello+world_sh') , ('CatPy','hello+world_py') }
 
-	x,px = lshow( ('-T','--inv-targets') , 'hello+world_sh' )
-	assert 'CatSh' in x and 'hello+world_sh' in x
-	assert px['hello+world_sh']=={ ('CatSh','hello+world_sh') }
+		x,px = lshow( ('-T','--inv-targets') , 'hello+world_sh' )
+		assert 'CatSh' in x and 'hello+world_sh' in x
+		assert px['hello+world_sh']=={ ('CatSh','hello+world_sh') }
 
-	x,px = lshow( ('-r','--running') , 'hello+world_sh' )
-	assert not x
-	assert not px
+		x,px = lshow( ('-r','--running') , 'hello+world_sh' )
+		assert not x
+		assert not px
 
-	x,px = lshow( ('-e','--stderr') , 'dut' )
-	assert x.strip()=='stderr'
-	assert px['dut']=='stderr\n'
+		x,px = lshow( ('-e','--stderr') , 'dut' )
+		assert x.strip()=='stderr'
+		assert px['dut']=='stderr\n'
 
-	x,px = lshow( ('-o','--stdout') , 'dut' )
-	assert x.strip()=='stdout'
-	assert px['dut']=='stdout\n'
+		x,px = lshow( ('-o','--stdout') , 'dut' )
+		assert x.strip()=='stdout'
+		assert px['dut']=='stdout\n'
 
-	x,px = lshow( ('-t','--targets') , '-J' , 'dut' )
-	assert 'DUT' in x and 'dut' in x
-	assert all( e[2:]==('DUT','dut') for e in px )
+		x,px = lshow( ('-t','--targets') , '-J' , 'dut' )
+		assert 'DUT' in x and 'dut' in x
+		assert all( e[2:]==('DUT','dut') for e in px )
 
-	x,px = lshow( ('-u','--trace') , '-J' , 'hello+world_sh' )
-	assert all(
-		w in x for w in (
-			'start_overhead' , 'start_info(reply)'
-		,	'washed'
-		,	'static_unlnk'   , 'hello+world_sh'
-		,	'static_dep'     , 'hello' , 'world'
-		,	'start_job'
-		,	'open(read)'     , 'hello' , 'world'
-		,	'end_job'        , '0000'
-		,	'analyzed'
-		,	'computed_crcs'
-		,	'end_overhead'   , 'ok'
+		x,px = lshow( ('-u','--trace') , '-J' , 'hello+world_sh' )
+		assert all(
+			w in x for w in (
+				'start_overhead' , 'start_info(reply)'
+			,	'washed'
+			,	'static_unlnk'   , 'hello+world_sh'
+			,	'static_dep'     , 'hello' , 'world'
+			,	'start_job'
+			,	'open(read)'     , 'hello' , 'world'
+			,	'end_job'        , '0000'
+			,	'analyzed'
+			,	'computed_crcs'
+			,	'end_overhead'   , 'ok'
+			)
 		)
-	)
-	y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk') )
-	z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk') }
-	assert y==(
-		( 'start_overhead'    , ''      )
-	,	( 'start_info(reply)' , ''      )
-	,	( 'washed'            , ''      )
-	,	( 'start_job'         , ''      )
-	,	( 'open(read)'        , 'hello' )
-	,	( 'open(read)'        , 'world' )
-	,	( 'end_job'           , '0000'  )
-	,	( 'analyzed'          , ''      )
-	,	( 'computed_crcs'     , ''      )
-	,	( 'end_overhead'      , 'ok'    )
-	)
-	assert all( e in z for e in (
-		( 'static_unlnk' , 'hello+world_sh' )
-	,	( 'static_dep'   , 'hello'          )
-	,	( 'static_dep'   , 'world'          )
-	) )
+		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk') )
+		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk') }
+		assert y==(
+			( 'start_overhead'    , ''      )
+		,	( 'start_info(reply)' , ''      )
+		,	( 'washed'            , ''      )
+		,	( 'start_job'         , ''      )
+		,	( 'open(read)'        , 'hello' )
+		,	( 'open(read)'        , 'world' )
+		,	( 'end_job'           , '0000'  )
+		,	( 'analyzed'          , ''      )
+		,	( 'computed_crcs'     , ''      )
+		,	( 'end_overhead'      , 'ok'    )
+		)
+		assert all( e in z for e in (
+			( 'static_unlnk' , 'hello+world_sh' )
+		,	( 'static_dep'   , 'hello'          )
+		,	( 'static_dep'   , 'world'          )
+		) )
+
+	except  : raise
+	finally : assert os.system('chmod u+w -R .')==0 # restore state
