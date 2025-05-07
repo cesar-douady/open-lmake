@@ -31,7 +31,7 @@ gxx = 'g++'
 # map_dir/logical_name.gcm -> physical_name.gcm
 class GenGcms(PyRule) :
 	targets = { 'GCM' : r'map_dir/{File*:.*}.gcm' }
-	deps    = { 'LST' :  'Manifest'               }                                 # XXX : use LMAKE/manifest when available as this would be version control agnostic
+	deps    = { 'LST' :  'Manifest'               }                                    # XXX : use LMAKE/manifest when available as this would be version control agnostic
 	def cmd() :
 		#
 		# gather list of all source file
@@ -40,17 +40,18 @@ class GenGcms(PyRule) :
 		#
 		# generate mapping
 		#
-		lmake.depend( *( f'{m}.deps' for m in modules ) , read=True )               # for perf only : avoid serial dep discovery by creating eps all at once
 		for phys_name in modules :
-			deps = json.load(open(f'{phys_name}.deps'))
-			if 'provides' in deps :
-				log_name = deps['provides'][0]['logical-name']
-				os.symlink(f'../{phys_name}.gcm',GCM(log_name))                     # note that we do not need the target to be up-to-date (not even existing) to create the link
+			try                      : log_name = open(f'{phys_name}.log_name').read().strip()
+			except FileNotFoundError : pass
+			else                     : os.symlink(f'../{phys_name}.gcm',GCM(log_name)) # note that we do not need the target to be up-to-date (not even existing) to create the link
 
 # mimic a dep-scanning tool based on gcc -M to extract module imports/exports
 # replace by a conformant tool when one is identified
 class GenDeps(PyRule) :
-	targets = { 'DEPS' : r'{File:.*}.deps' } # contains the deps as specified in https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1689r5.html
+	targets = {
+		'DEPS' :   r'{File:.*}.deps'
+	,	'LOG'  : (  '{File   }.log_name' , 'optional' ) # only contains the export info (if any), so that full map is only reconstructed when export module changes
+	}                                                   # contains the deps as specified in https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1689r5.html
 	deps    = { 'SRC'  :  '{File   }.mpp'  }
 	def cmd() :
 		#
@@ -65,7 +66,7 @@ class GenDeps(PyRule) :
 		#
 		# generate a conformant description (https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1689r5.html)
 		#
-		deps  = {}
+		deps = {}
 		for i,l in enumerate(lines) :
 			if 'provides' not in deps :
 				if '.c++m:' in l :
@@ -79,6 +80,8 @@ class GenDeps(PyRule) :
 								deps['imports'].append({'logical-name':w[:-5]})
 						if w!='\\' : break
 		json.dump(deps,fp=open(DEPS,'w'))
+		if 'provides' in deps :
+			print(deps['provides'][0]['logical-name'],file=open(LOG,'w'))
 
 class Compile(PyRule) :
 	targets = {
@@ -106,7 +109,7 @@ class Compile(PyRule) :
 					gcm_name = f'map_dir/{log_name}.gcm'
 					print( log_name , gcm_name , file=fd )
 					gcm_names.append(gcm_name)
-				lmake.depend( gcm_names , follow_symlinks=True , read=True ) # for perf only : avoid serial dep discovery by creating deps all at once
+				lmake.depend( gcm_names , follow_symlinks=True , read=True )                                 # for perf only : avoid serial dep discovery by creating deps all at once
 			if 'provides' in deps :
 				print( deps['provides'][0]['logical-name'] , GCM , file=fd )
 		print('map file:')
@@ -115,6 +118,7 @@ class Compile(PyRule) :
 		#
 		# call gcc
 		#
+		lmake.check_deps()                                                                                   # for perf only : ensure known deps are available before potentially long processing
 		cmd_line = (gxx,'-c','-xc++','-std=c++20','-fmodules-ts',f'-fmodule-mapper={map_file}','-o',OBJ,SRC)
 		print('cmd line:')
 		print(' '.join(cmd_line))

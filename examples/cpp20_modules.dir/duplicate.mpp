@@ -1,3 +1,6 @@
+// derived from https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1689r5.html
+// only difference is the addition of _m to module names to show they are independent from file names
+
 export module duplicate_m;
 
 export int m() {

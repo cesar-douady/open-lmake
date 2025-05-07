@@ -7,7 +7,7 @@
 case $(g++ --version | awk 'NR==1 {print $NF}') in
 	13*) ;;
 	14*) ;;
-	*  ) echo gcc version must be version 13 or 14 >skipped ; exit 0 ;;
+	*  ) echo gcc version is neither version 13 nor 14 >skipped ; exit 0 ;;
 esac
 
 lmake use.o
