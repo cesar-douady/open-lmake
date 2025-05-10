@@ -60,7 +60,8 @@ namespace Backends {
 		Data const* operator->() const { return &*self ; }
 		bool        operator+ () const { return data   ; }
 		// services
-		Shared round(Backend const& be) const { return {New,self->round(be)} ; }
+		Shared round(Backend const& be) const { return {New,self->round(be)}       ; }
+		size_t hash (                 ) const { return ::hash<Data const*>()(data) ; }
 		// data
 		Data const* data = nullptr ;
 	} ;
@@ -69,14 +70,6 @@ namespace Backends {
 		::swap(s1.data,s2.data) ;
 	}
 
-}
-
-namespace std {
-	template< class Data , ::unsigned_integral RefCnt > struct hash<Backends::Shared<Data,RefCnt>> {
-		size_t operator()(Backends::Shared<Data,RefCnt> const& s) const {
-			return hash<Data const*>()(s.data) ;
-		}
-	} ;
 }
 
 namespace Backends {

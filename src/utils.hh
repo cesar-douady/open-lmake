@@ -48,8 +48,6 @@ using std::getline  ; // special case getline which also has a C version that hi
 #define LIKELY(  x) __builtin_expect(bool(x),1)
 #define UNLIKELY(x) __builtin_expect(bool(x),0)
 
-template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
-
 static constexpr size_t Npos = ::string::npos ;
 
 //
@@ -128,15 +126,19 @@ template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>   
 template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
 /**/                               using vmap_ss  = ::vmap_s       <       string  > ;
 
-namespace std {                                                                                                          // must be defined in std or operator! does not recognize it
-	template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
-	template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-	template<class K,class  V> inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-	template<class K,class  V> inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-	template<class K         > inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-	template<class K         > inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
-	template<class T         > inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
-}
+template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
+template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
+template<class K,class  V> inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
+template<class K         > inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
+template<class K         > inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
+template<class T         > inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
+//
+inline                   bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
+inline                   bool operator+(::string_view   s) { return !s.empty() ; } // .
+template<class T> inline bool operator+(::span<T>       v) { return !v.empty() ; } // .
+
+template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 
 #define VT(T) typename T::value_type
 
@@ -193,6 +195,14 @@ template<class T> inline typename T::const_iterator lower_bound  ( T const& x , 
 #undef CMP
 
 #undef TVT
+
+namespace std {                                                             // cannot specialize std::hash from global namespace with gcc-11
+	template<class T> requires( requires(T t){t.hash();} ) struct hash<T> {
+		size_t operator()(T const& x) const {
+			return x.hash() ;
+		}
+	} ;
+}
 
 template<class T> inline T& grow( ::vector<T>& v , size_t i ) {
 	if (i>=v.capacity()) {
@@ -393,28 +403,30 @@ private :
 	uint8_t _val=0 ;
 } ;
 
-namespace std {                                                                        // must be defined in std or operator! does not recognize it
-	inline                   bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
-	inline                   bool operator+(::string_view   s) { return !s.empty() ; } // .
-	template<class T> inline bool operator+(::span<T>       v) { return !v.empty() ; } // .
-}
+//
+// string formatting
+//
+
+template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
+template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
+template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
+template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having too high a priority when compiler selects an overload
 
 namespace std {
-	template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
-	template<class T> concept _CanAdd       = requires(::string s,T  x) { s+=x ; }              ;
-	template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
-	template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
-	template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having to high a priority when compiler selects an overload
+
+	template<class T> ::string& operator<<( ::string& s , T&& x ) ;
+
 	#if __cplusplus<202600L
 		inline ::string  operator+ ( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
 		inline ::string  operator+ ( ::string_view   v , ::string     && s ) {                    s.insert(0,v.data(),v.size()) ; return ::move(s) ; }
 		inline ::string  operator+ ( ::string const& s , ::string_view   v ) { ::string r = s   ; r.append(  v.data(),v.size()) ; return        r  ; }
 		inline ::string  operator+ ( ::string_view   v , ::string const& s ) { ::string r { v } ; r.append(  s.data(),s.size()) ; return        r  ; }
-		inline ::string& operator+=( ::string      & s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return        s  ; }
+		inline ::string& operator+=( ::string      & s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return        s  ; } // NO_COV
 	#endif
+
 	inline ::string  operator+ ( ::string     && s , nullptr_t         ) { return ::move(s       ) +  "(null)" ; }
 	inline ::string  operator+ ( ::string const& s , nullptr_t         ) { return        s         +  "(null)" ; }
-	inline ::string  operator+ ( nullptr_t         , ::string const& s ) { return        "(null)"  +   s       ; }
+	inline ::string  operator+ ( nullptr_t         , ::string const& s ) { return        "(null)"  +  s        ; }
 	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; }                             // NO_COV
 	//
 	template<_CanDoBool B> inline ::string  operator+ ( ::string     && s , B               b ) { return ::move(s               ) +  (b?"true":"false") ; }
@@ -443,15 +455,27 @@ namespace std {
 	template<_CanDoToChars N> inline ::string& operator+=( ::string      & s , N               n ) { return                   s  += _to_string_append(n) ; }
 	//
 	template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
-	//
-	template<_CanAdd T> inline ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; }                               // work around += right associativity
 
-	inline ::string const& operator| ( ::string const& a , ::string const& b ) { return +a ?        a  :        b  ; }
-	inline ::string      & operator| ( ::string      & a , ::string      & b ) { return +a ?        a  :        b  ; }
-	inline ::string        operator| ( ::string     && a , ::string     && b ) { return +a ? ::move(a) : ::move(b) ; }
-	inline ::string      & operator|=( ::string      & a , ::string const& b ) { if (!a) a =        b  ; return a ;  }
-	inline ::string      & operator|=( ::string      & a , ::string     && b ) { if (!a) a = ::move(b) ; return a ;  }
+	template<class T,size_t N> ::string& operator+=( ::string& os ,          T           a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T,size_t N> ::string& operator+=( ::string& os , ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T         > ::string& operator+=( ::string& os , ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class T         > ::string& operator+=( ::string& os , ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+	template<class K         > ::string& operator+=( ::string& os , ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+	template<class K         > ::string& operator+=( ::string& os , ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+	template<class K,class V > ::string& operator+=( ::string& os , ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+	template<class K,class V > ::string& operator+=( ::string& os , ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+	//
+	template<class A,class B > ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
+
 }
+inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
+inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .
+
+inline ::string const& operator| ( ::string const& a , ::string const& b ) { return +a ?        a  :        b  ; }
+inline ::string      & operator| ( ::string      & a , ::string      & b ) { return +a ?        a  :        b  ; }
+inline ::string        operator| ( ::string     && a , ::string     && b ) { return +a ? ::move(a) : ::move(b) ; }
+inline ::string      & operator|=( ::string      & a , ::string const& b ) { if (!a) a =        b  ; return a ;  }
+inline ::string      & operator|=( ::string      & a , ::string     && b ) { if (!a) a = ::move(b) ; return a ;  }
 
 inline ::string widen( ::string && s , size_t sz , bool right=false , char fill=' ' ) {
 	if (s.size()>=sz) return ::move(s)   ;
@@ -645,29 +669,6 @@ static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
 //
-// string formatting
-//
-
-namespace std {
-
-	#define IOP(...) inline ::string& operator+=( ::string& os , __VA_ARGS__ )
-	template<class T,size_t N> IOP(          T    const  a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T,size_t N> IOP( ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T         > IOP( ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T         > IOP( ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class K         > IOP( ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-	template<class K         > IOP( ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-	template<class K,class V > IOP( ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-	template<class K,class V > IOP( ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-	//
-	template<class A,class B > IOP( ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
-	/**/                       IOP( uint8_t     const  i ) { return os << uint32_t(i)                         ; } // avoid output a char when actually a int
-	/**/                       IOP( int8_t      const  i ) { return os << int32_t (i)                         ; } // .
-	#undef IOP
-
-}
-
-//
 // enum management
 //
 
@@ -739,12 +740,10 @@ template<StdEnum E> inline ::string      snake_str (E e) { return ::string(EnumS
 template<StdEnum E> inline const char*   camel_cstr(E e) { return          EnumCamels<E>[+e].data() ; } // string_view's in this table have a terminating null
 template<StdEnum E> inline const char*   snake_cstr(E e) { return          EnumSnakes<E>[+e].data() ; } // .
 
-namespace std {
-	template<StdEnum E> inline ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
-	template<StdEnum E> inline ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
-	template<StdEnum E> inline ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
-	template<StdEnum E> inline ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
-}
+template<StdEnum E> inline ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
+template<StdEnum E> inline ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
+template<StdEnum E> inline ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
+template<StdEnum E> inline ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
 
 template<StdEnum E> ::umap_s<E> _mk_enum_tab() {
 	::umap_s<E> res ;
@@ -970,6 +969,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Autodep1    // must follow Gil
 ,	Gather      // must follow Gil
 ,	Node        // must follow NodeCrcDate
+,	ReqInfo     // must follow Req
 ,	Time        // must follow BackendId
 // level 5
 ,	Autodep2    // must follow Autodep1
@@ -1016,6 +1016,10 @@ template<class M,bool S=false> struct Lock {
 	// data
 	M*       _mutex = nullptr            ; // must be !=nullptr to lock
 	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
+} ;
+
+struct NoLock {
+	NoLock(Void) {}
 } ;
 
 template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
@@ -1067,17 +1071,10 @@ template<class T> using FenceSave = Save<T,true> ;
 //
 
 template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
-	struct NoMutex {
-		void lock  () {}
-		void unlock() {}
-	} ;
-	struct NoLock {
-		NoLock(NoMutex) {}
-	} ;
 private :
-	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
-	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
-	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T       > ;
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , Void   > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T      > ;
 	// services
 public :
 	T acquire() {
@@ -1193,6 +1190,7 @@ public :
 	constexpr void              close      (                                          ) ;
 	/**/      void              no_std     (                                          ) ;
 	/**/      void              cloexec    (bool set=true                             ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
+	/**/      size_t            hash       (                                          ) const { return fd ;                            }
 	// data
 	int fd = -1 ;
 } ;
@@ -1316,6 +1314,10 @@ template<::integral I> I random() {
 //
 // Implementation
 //
+
+namespace std {
+	template<class T> ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; }
+}
 
 //
 // Fd

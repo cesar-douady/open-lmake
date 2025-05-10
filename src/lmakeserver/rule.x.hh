@@ -629,6 +629,12 @@ namespace Engine {
 			MatchFlags mf = matches().flags ;
 			return ( tgt_idx<r->n_static_targets && !mf.extra_tflags()[ExtraTflag::Optional] ) || mf.tflags()[Tflag::Phony] ;
 		}
+		size_t hash() const {         // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
+			size_t res = 0x811c9dc5 ;
+			res = (res^+RuleCrc(self)) * 0x01000193 ;
+			res = (res^ tgt_idx      ) * 0x01000193 ;
+			return res ;
+		}
 		// data
 		VarIdx tgt_idx = 0 ;
 	} ;
@@ -904,17 +910,6 @@ namespace Engine {
 		SWEAR( crc_==crc->match , name , sub_repo_s , crc_ , crc->match ) ;
 	}
 
-}
-
-namespace std {
-	template<> struct hash<Engine::RuleTgt> {
-		size_t operator()(Engine::RuleTgt const& rt) const { // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
-			size_t res = 0x811c9dc5 ;
-			res = (res^+Engine::RuleCrc(rt)) * 0x01000193 ;
-			res = (res^ rt.tgt_idx         ) * 0x01000193 ;
-			return res ;
-		}
-	} ;
 }
 
 #endif

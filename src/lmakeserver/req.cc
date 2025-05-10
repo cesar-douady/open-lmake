@@ -36,10 +36,10 @@ namespace Engine {
 		data.eta          = data.start_pdate  ;
 		data.idx_by_start = s_n_reqs()        ;
 		data.idx_by_eta   = s_n_reqs()        ;   // initially, eta is far future
-		data.jobs .dflt   = JobReqInfo (self) ;
-		data.nodes.dflt   = NodeReqInfo(self) ;
 		data.options      = ecr.options       ;
 		data.audit_fd     = ecr.out_fd        ;
+		data.jobs .set_dflt(self) ;
+		data.nodes.set_dflt(self) ;
 		//
 		s_reqs_by_start.push_back(self) ;
 		_adjust_eta( {}/*eta*/ , true/*push_self*/ ) ;

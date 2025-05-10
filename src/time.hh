@@ -72,6 +72,8 @@ namespace Time {
 		constexpr Tick32 nsec_in_s() const { static_assert(IsNs) ; return _val%TicksPerSecond        ; }
 		//
 		void clear() { _val = 0 ; }
+		// services
+		size_t hash() const { return _val ; }
 		// data
 	protected :
 		T _val = 0 ;
@@ -123,7 +125,6 @@ namespace Time {
 		//
 		::string str      (uint8_t prec=0) const ;
 		::string short_str(              ) const ;
-		size_t   hash     (              ) const { return _val ; }
 	} ;
 	constexpr Delay Delay::Lowest  { New , Min<Tick> } ;
 	constexpr Delay Delay::Highest { New , Max<Tick> } ;
@@ -210,7 +211,6 @@ namespace Time {
 		//
 		::string str    ( uint8_t prec=0 , bool in_day=false ) const ;
 		::string day_str(                                    ) const ;
-		size_t   hash   (                                    ) const { return _val ; }
 	} ;
 
 	//
@@ -355,11 +355,4 @@ namespace Time {
 
 	constexpr Ddate Ddate::Future { New , Ddate::Tick(-1) } ;
 
-}
-
-// must be outside Engine namespace as it specializes ::hash
-namespace std {
-	template<> struct hash<Time::Date       > { size_t operator()(Time::Date        d) const { return d.hash() ; } } ;
-	template<> struct hash<Time::Delay      > { size_t operator()(Time::Delay       d) const { return d.hash() ; } } ;
-	template<> struct hash<Time::CoarseDelay> { size_t operator()(Time::CoarseDelay d) const { return d.hash() ; } } ;
 }

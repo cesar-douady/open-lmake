@@ -146,15 +146,6 @@ struct ClientSockFd : SockFd {
 	}
 } ;
 
-namespace std {
-	template<> struct hash<Fd          > { size_t operator()(Fd           const& fd) const { return fd ; } } ;
-	template<> struct hash<AcFd        > { size_t operator()(AcFd         const& fd) const { return fd ; } } ;
-	template<> struct hash<SockFd      > { size_t operator()(SockFd       const& fd) const { return fd ; } } ;
-	template<> struct hash<SlaveSockFd > { size_t operator()(SlaveSockFd  const& fd) const { return fd ; } } ;
-	template<> struct hash<ServerSockFd> { size_t operator()(ServerSockFd const& fd) const { return fd ; } } ;
-	template<> struct hash<ClientSockFd> { size_t operator()(ClientSockFd const& fd) const { return fd ; } } ;
-}
-
 //
 // sigs
 //

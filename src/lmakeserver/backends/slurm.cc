@@ -45,14 +45,6 @@ namespace Backends::Slurm {
 
 }
 
-namespace std {
-	template<> struct hash<Backends::Slurm::RsrcsData> {
-		size_t operator()(Backends::Slurm::RsrcsData const& rs) const {
-			return +Hash::Xxh(static_cast<::vector<Backends::Slurm::RsrcsDataSingle> const&>(rs)).digest() ;
-		}
-	} ;
-}
-
 //
 // SlurmBackend
 //

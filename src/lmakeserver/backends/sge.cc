@@ -50,24 +50,19 @@ namespace Backends::Sge {
 		::vmap_s<uint64_t> tokens ;     // generic resources     : qsub -l<key>=<val> (for each entry            , always hard)
 		// services
 		::vmap_ss mk_vmap() const ;
-	} ;
-
-}
-
-namespace std {
-	template<> struct hash<Backends::Sge::RsrcsData> {
-		size_t operator()(Backends::Sge::RsrcsData const& rd) const {
+		size_t hash() const {
 			Hash::Xxh h ;
-			h += rd.prio   ;
-			h += rd.cpu    ;
-			h += rd.mem    ;
-			h += rd.tmp    ;
-			h += rd.tokens ;
-			h += rd.hard   ;
-			h += rd.soft   ;
+			h += prio   ;
+			h += cpu    ;
+			h += mem    ;
+			h += tmp    ;
+			h += tokens ;
+			h += hard   ;
+			h += soft   ;
 			return +h.digest() ;
 		}
 	} ;
+
 }
 
 //

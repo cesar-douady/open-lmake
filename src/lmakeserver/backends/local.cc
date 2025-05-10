@@ -31,17 +31,12 @@ namespace Backends::Local {
 		// services
 		RsrcsData& operator+=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] += rsrcs[i] ; return self ; }
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] -= rsrcs[i] ; return self ; }
-		RsrcsData round(Backend const& be) const ;
-	} ;
-
-}
-
-namespace std {
-	template<> struct hash<Backends::Local::RsrcsData> {
-		size_t operator()(Backends::Local::RsrcsData const& rd) const {
-			return +Hash::Xxh(static_cast<::vector<Backends::Local::Rsrc> const&>(rd)).digest() ;
+		RsrcsData round(Backend const&) const ;
+		size_t    hash (              ) const {
+			return +Hash::Xxh(static_cast<::vector<Backends::Local::Rsrc> const&>(self)).digest() ;
 		}
 	} ;
+
 }
 
 //

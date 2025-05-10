@@ -82,8 +82,9 @@ if __name__!='__main__' :
 				except : dut_crc = None
 				new_refs += f'{file} {dut_crc}\n'
 				known_refs.add(file)
-			for path,_,files in os.walk('.') :
-				path_s = (path+'/')[2:]        # remove prefix './' (but removeprefix is not available in python3.6)
+			for path,dirs,files in os.walk('.') :
+				if path=='.' : dirs.remove('LMAKE') # dont look into admin dir, /!\ dirs must be modified in place for it to be seen by os.walk
+				path_s = (path+'/')[2:]             # remove prefix './' (but removeprefix is not available in python3.6)
 				for name in files :
 					file_new = path_s+name
 					match    = new_re.fullmatch(file_new)

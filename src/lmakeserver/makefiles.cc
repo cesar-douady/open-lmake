@@ -81,26 +81,28 @@ namespace Engine::Makefiles {
 		for( ::string const& sd_s : *g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_repo_root_s),is_abs_s(sd_s)) ;
 		//
-		{	::string content =
-				"# * : lmake root\n"
-				"# ! : file does not exist\n"
-				"# + : file exists and date is compared with last read date\n"
-				"*"+*g_lmake_root_s+'\n'
-			;
-			for( ::string d : deps ) {
-				SWEAR(+d) ;
-				FileInfo fi{d} ;
-				if (is_abs(d)) {
-					for( auto const& [sd_s,a] : glb_sds_s ) {
-						if (!(d+'/').starts_with(sd_s)) continue ;
-						if (!a                        ) d = mk_rel(d,*g_repo_root_s) ;
-						break ;
-					}
+		::string content =
+			"# * : lmake root\n"
+			"# ! : file does not exist\n"
+			"# + : file exists and date is compared with last read date\n"
+			"*"+*g_lmake_root_s+'\n'
+		;
+		for( ::string const& d : deps ) {
+			SWEAR(+d) ;
+			if (d==EnvironFile) continue ; // EnvironFile is generated before reading makefile
+			char pfx = FileInfo(d).exists() ? '+' : '!' ;
+			if (is_abs(d)) {
+				for( auto const& [sd_s,a] : glb_sds_s ) {
+					if (!(d+'/').starts_with(sd_s))                                                       continue     ;
+					if (!a                        ) { content << pfx << mk_rel(d,*g_repo_root_s) <<'\n' ; goto NextDep ; }
+					break ;
 				}
-				content << (fi.exists()?'+':'!') << d <<'\n' ;
 			}
-			AcFd(new_deps_file,Fd::Write).write(content) ;
+			content << pfx << d <<'\n' ;
+		NextDep : ;
 		}
+		AcFd(new_deps_file,Fd::Write).write(content) ;
+		//
 		_chk_dangling(action,true/*new*/,startup_dir_s) ;
 	}
 

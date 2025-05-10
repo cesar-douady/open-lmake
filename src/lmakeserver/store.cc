@@ -340,17 +340,13 @@ namespace Engine::Persistent {
 		// cxtors & casts
 		Rt() = default  ;
 		Rt( RuleCrc rc , VarIdx ti ) : RuleTgt{rc,ti} , pfx{_parse_pfx(target())} , sfx{_parse_sfx(target())} {}
+		// services
+		size_t hash() const { return ::hash<Engine::RuleTgt>()(self) ; } // there is no more info in a Rt than in a RuleTgt
 		// data (cache)
 		::string pfx ;
 		::string sfx ;
 	} ;
 
-}
-
-namespace std {
-	template<> struct hash<Engine::Persistent::Rt> {
-		size_t operator()(Engine::Persistent::Rt const& rt) const { return hash<Engine::RuleTgt>()(rt) ; } // there is no more info in a Rt than in a RuleTgt
-	} ;
 }
 
 namespace Engine::Persistent {

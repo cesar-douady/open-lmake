@@ -56,6 +56,9 @@ namespace Backends::Slurm {
 			for( RsrcsDataSingle rds : self ) res.push_back(rds.round()) ;
 			return res ;
 		}
+		size_t hash() const {
+			return +Hash::Xxh(static_cast<::vector<Backends::Slurm::RsrcsDataSingle> const&>(self)).digest() ;
+		}
 	} ;
 
 	extern Mutex<MutexLvl::Slurm> slurm_mutex ; // ensure no more than a single outstanding request to daemon

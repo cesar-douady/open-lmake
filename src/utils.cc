@@ -401,7 +401,9 @@ bool              _crash_busy  = false ;
 
 #else
 
-	void write_backtrace( Fd , int /*hide_cnt*/ ) {}
+	void write_backtrace( Fd , int /*hide_cnt*/ ) {
+		::string s ; SWEAR(!s) ;
+	}
 
 #endif
 

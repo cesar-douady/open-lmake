@@ -20,6 +20,7 @@
 
 template<class I,uint8_t NGuardBits_=0> struct Idxed {
 	static constexpr bool IsIdxed = true ;
+	static constexpr bool HasHash = true ;
 	//
 	using Idx = I ;
 	static constexpr uint8_t NGuardBits = NGuardBits_             ;
@@ -46,16 +47,15 @@ public :
 		|	Idx(          (val&lsb_msk<Idx>(W))<<(LSB+NValBits)  )
 		;
 	}
+	//services
+	size_t hash() const { return +self ; }
 	// data
 private :
 	Idx _idx = 0 ;
 } ;
 template<class T> concept IsIdxed = T::IsIdxed && sizeof(T)==sizeof(typename T::Idx) ;
+//
 template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) { return os<<+i ; } // NO_COV
-
-namespace std {
-	template<IsIdxed I> struct hash<I> { size_t operator()(I i) const { return +i ; } } ;
-}
 
 //
 // Idxed2
@@ -63,6 +63,7 @@ namespace std {
 
 template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	static constexpr bool IsIdxed2 = true ;
+	static constexpr bool HasHash  = true ;
 	//
 	using A    = A_                                           ;
 	using B    = B_                                           ;
@@ -107,11 +108,14 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 		|	          SIdx((val&lsb_msk<Idx>(W))<<(LSB+NValBits))
 		;
 	}
+	//services
+	size_t hash() const { return +self ; }
 private :
 	// data
 	SIdx _val = 0 ;
 } ;
 template<class T> concept IsIdxed2 = T::IsIdxed2 && sizeof(T)==sizeof(typename T::Idx) ;
+//
 template<IsIdxed2 I2> ::string& operator+=( ::string& os , I2 const i2 ) {                                                    // START_OF_NO_COV
 	using A = typename I2::A ;
 	using B = typename I2::B ;
@@ -119,11 +123,6 @@ template<IsIdxed2 I2> ::string& operator+=( ::string& os , I2 const i2 ) {      
 	else if (i2.template is_a<A>()) return os << A(i2) ;
 	else                            return os << B(i2) ;
 }                                                                                                                             // END_OF_NO_COV
-
-// must be outside Engine namespace as it specializes std::hash
-namespace std {
-	template<IsIdxed2 TU> struct hash<TU> { size_t operator()(TU tu) const { return +tu ; } } ;
-}
 
 //
 // vectors

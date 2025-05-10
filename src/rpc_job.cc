@@ -29,13 +29,14 @@ using namespace Hash ;
 //
 
 struct UniqKey {
+	// accesses
 	bool operator==(UniqKey const&) const = default ;
+	// services
+	size_t hash() const { return dev+ino ; }
+	// data
 	dev_t dev = 0 ;
 	ino_t ino = 0 ;
 } ;
-namespace std {
-	template<> struct hash<UniqKey> { size_t operator()(UniqKey const& uk) const { return uk.dev+uk.ino ; } } ;
-}
 
 struct UniqEntry {
 	size_t          n_lnks     = 0/*garbage*/ ;

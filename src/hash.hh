@@ -109,9 +109,10 @@ namespace Hash {
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		// services
 	public :
-		bool     match        ( Crc other , Accesses a=~Accesses() ) const { return !( diff_accesses(other) & a ) ; } ;
+		bool     match        ( Crc other , Accesses a=~Accesses() ) const { return !( diff_accesses(other) & a ) ; }
 		Accesses diff_accesses( Crc other                          ) const ;
 		bool     never_match  (             Accesses a=~Accesses() ) const ;
+		size_t   hash         (                                    ) const { return _val                          ; }
 	private :
 		Val _val = +CrcSpecial::Unknown ;
 	} ;
@@ -184,8 +185,4 @@ namespace Hash {
 		}
 	}
 
-}
-// must be outside Engine namespace as it specializes std::hash
-namespace std {
-	template<> struct hash<Hash::Crc> { size_t operator()(Hash::Crc c) const { return +c ; } } ;
 }

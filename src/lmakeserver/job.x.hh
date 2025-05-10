@@ -182,6 +182,15 @@ namespace Engine {
 		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& stderr={}  , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const {
 			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , max_stderr_len , exec_time , retry ) ;
 		}
+		size_t hash() const {                                                            // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
+			size_t res = 0x811c9dc5 ;
+			res = (res^+Job(self)       ) * 0x01000193 ;
+			res = (res^ host            ) * 0x01000193 ;
+			res = (res^ cost.hash()     ) * 0x01000193 ;
+			res = (res^ start_date.val()) * 0x01000193 ;
+			res = (res^ end_date  .val()) * 0x01000193 ;
+			return res ;
+		}
 		// data
 		in_addr_t   host       = 0 ;
 		CoarseDelay cost       ;                                                         // exec time / average number of running job during execution

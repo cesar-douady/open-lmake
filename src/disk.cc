@@ -378,20 +378,27 @@ namespace Disk {
 		/**/                     os << "RealPath("             ;
 		if (+rp.pid            ) os << rp.pid <<','            ;
 		/**/                     os <<      rp._cwd            ;
-		/**/                     os <<','<< rp._admin_dir_s    ;
 		if (+rp._abs_src_dirs_s) os <<','<< rp._abs_src_dirs_s ;
 		return                   os <<')'                      ;
 	}                                                            // END_OF_NO_COV
 
+	static FileLoc _lcl_file_loc(::string_view file) {
+		static ::string_view s_private_admin_dir { PrivateAdminDirS , strlen(PrivateAdminDirS)-1 } ; // get rid of final /
+		if (!file.starts_with(s_private_admin_dir)) return FileLoc::Repo ;
+		switch (file[s_private_admin_dir.size()]) {
+			case '/' :
+			case 0   : return FileLoc::Admin ;
+			default  : return FileLoc::Repo  ;
+		}
+	}
+
 	// /!\ : this code must be in sync with RealPath::solve
 	FileLoc RealPathEnv::file_loc(::string const& real) const {
 		::string abs_real = mk_abs(real,repo_root_s) ;
-		if (abs_real.starts_with(tmp_dir_s  )) return FileLoc::Tmp  ;
-		if (abs_real.starts_with("/proc/"   )) return FileLoc::Proc ;
-		if (abs_real.starts_with(repo_root_s)) {
-			if ((mk_lcl(abs_real,repo_root_s)+'/').starts_with(AdminDirS)) return FileLoc::Admin ;
-			else                                                           return FileLoc::Repo  ;
-		} else {
+		if (abs_real.starts_with(tmp_dir_s  )) return FileLoc::Tmp                                                      ;
+		if (abs_real.starts_with("/proc/"   )) return FileLoc::Proc                                                     ;
+		if (abs_real.starts_with(repo_root_s)) return _lcl_file_loc(::string_view(abs_real.substr(repo_root_s.size()))) ;
+		else {
 			::string lcl_real = mk_lcl(real,repo_root_s) ;
 			for( ::string const& sd_s : src_dirs_s )
 				if ((is_abs_s(sd_s)?abs_real:lcl_real).starts_with(sd_s)) return FileLoc::SrcDir ;
@@ -416,7 +423,7 @@ namespace Disk {
 		if (ds<chk.size()) ok = chk[ds]=='/' ;
 	}
 
-	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _admin_dir_s{rpe.repo_root_s+AdminDirS} , _repo_root_sz{_env->repo_root_s.size()} {
+	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _repo_root_sz{_env->repo_root_s.size()} {
 		SWEAR( is_abs(rpe.repo_root_s) , rpe.repo_root_s ) ;
 		SWEAR( is_abs(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
 		//
@@ -457,10 +464,9 @@ namespace Disk {
 			if (real.size()==1) real.clear() ;                                              // if '/', we must substitute the empty string to enforce invariant
 		}
 		real.reserve(real.size()+1+file.size()) ;                                           // anticipate no link
-		_Dvg in_repo  { _env->repo_root_s , real } ;                                        // keep track of where we are w.r.t. repo       , track symlinks according to lnk_support policy
-		_Dvg in_tmp   { tmp_dir_s         , real } ;                                        // keep track of where we are w.r.t. tmp        , always track symlinks
-		_Dvg in_admin { _admin_dir_s      , real } ;                                        // keep track of where we are w.r.t. repo/LMAKE , never track symlinks, like files in no domain
-		_Dvg in_proc  { ProcS             , real } ;                                        // keep track of where we are w.r.t. /proc      , always track symlinks
+		_Dvg in_repo  { _env->repo_root_s , real } ;                                        // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
+		_Dvg in_tmp   { tmp_dir_s         , real } ;                                        // keep track of where we are w.r.t. tmp  , always track symlinks
+		_Dvg in_proc  { ProcS             , real } ;                                        // keep track of where we are w.r.t. /proc, always track symlinks
 		// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
 		// when pos>file.size(), we are done and result is real
 		size_t   end      ;
@@ -469,7 +475,7 @@ namespace Disk {
 		for (
 		;	pos <= file.size()
 		;		pos = end + 1
-			,	in_repo.update( _env->repo_root_s , real )                                  // for all domains except admin, they start only when inside, i.e. the domain root is not part of the domain
+			,	in_repo.update( _env->repo_root_s , real )                                  // all domains start only when inside, i.e. the domain root is not part of the domain
 			,	in_tmp .update( tmp_dir_s         , real )                                  // .
 			,	in_proc.update( ProcS             , real )                                  // .
 		) {
@@ -484,17 +490,14 @@ namespace Disk {
 					continue ;
 				}
 			}
-			size_t prev_real_size = real.size() ;
-			real.push_back('/')                ;
-			real.append(file,pos,end-pos)      ;
-			in_admin.update(_admin_dir_s,real) ;                                            // for the admin domain, it starts at itself, i.e. the admin dir is part of the domain
-			if ( !exists           ) continue       ;                                       // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-			if ( no_follow && last ) continue       ;                                       // dont care about last component if no_follow
-			size_t src_idx = Npos/*garbage*/ ;
-			if ( +in_tmp           ) goto HandleLnk ;                                       // note that tmp can lie within repo or admin
-			if ( +in_admin         ) continue       ;
-			if ( +in_proc          ) goto HandleLnk ;
-			if ( +in_repo          ) {
+			size_t prev_real_size = real.size()     ;
+			size_t src_idx        = Npos/*garbage*/ ;
+			real.push_back('/')           ;
+			real.append(file,pos,end-pos) ;
+			if ( !exists             ) continue       ;                                     // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+			if ( no_follow && last   ) continue       ;                                     // dont care about last component if no_follow
+			if ( +in_tmp || +in_proc ) goto HandleLnk ;                                     // note that tmp can lie within repo
+			if ( +in_repo            ) {
 				if (real.size()<_repo_root_sz) continue ;                                   // at repo root, no sym link to handle
 			} else {
 				src_idx = _find_src_idx(real) ;
@@ -532,21 +535,21 @@ namespace Disk {
 			ping = !ping ;
 			file = nxt   ;
 		}
-		// admin is in repo, tmp might be, repo root is in_repo
-		SWEAR( +in_admin <= +in_repo ) ;
-		if      (+in_tmp ) res.file_loc = FileLoc::Tmp  ;
-		else if (+in_proc) res.file_loc = FileLoc::Proc ;
+		// tmp may be in_repo, repo root is in_repo
+		if      ( +in_tmp                                ) res.file_loc = FileLoc::Tmp  ;
+		else if ( +in_proc                               ) res.file_loc = FileLoc::Proc ;
 		else if ( +in_repo && real.size()>=_repo_root_sz ) {
 			real.erase(0,_repo_root_sz) ;
-			/**/                                                                    res.file_loc      = FileLoc::Repo  ;
-			if      ( +in_admin                                                   ) res.file_loc      = FileLoc::Admin ;
-			else if ( _env->lnk_support>=LnkSupport::File && !no_follow           ) res.file_accessed = Yes            ;
-			else if ( _env->lnk_support>=LnkSupport::Full && real.find('/')!=Npos ) res.file_accessed = Maybe          ;
+			res.file_loc = _lcl_file_loc(real) ;
+			if (res.file_loc==FileLoc::Repo) {
+				if      ( _env->lnk_support>=LnkSupport::File && !no_follow           ) res.file_accessed = Yes   ;
+				else if ( _env->lnk_support>=LnkSupport::Full && real.find('/')!=Npos ) res.file_accessed = Maybe ;
+			}
 		} else if ( size_t i=_find_src_idx(real) ; i!=Npos ) {
-			real = _env->src_dirs_s[i] + ::string_view(real).substr(_abs_src_dirs_s[i].size()) ;
-			/**/                                                                                               res.file_loc      = FileLoc::SrcDir ;
-			if      ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) res.file_accessed = Yes             ;
-			else if ( _env->lnk_support>=LnkSupport::Full && real.find('/',_env->src_dirs_s[i].size())!=Npos ) res.file_accessed = Maybe           ;
+			real         = _env->src_dirs_s[i] + ::string_view(real).substr(_abs_src_dirs_s[i].size()) ;
+			res.file_loc = FileLoc::SrcDir                                                             ;
+			if      ( _env->lnk_support>=LnkSupport::File && !no_follow                                      ) res.file_accessed = Yes   ;
+			else if ( _env->lnk_support>=LnkSupport::Full && real.find('/',_env->src_dirs_s[i].size())!=Npos ) res.file_accessed = Maybe ;
 		}
 		return res ;
 	}

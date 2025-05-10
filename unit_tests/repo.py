@@ -20,12 +20,13 @@ if __name__!='__main__' :
 		force = True
 		targets = {
 			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger'    , 'phony'                      )
-		,	'TGT'  : ( 'src/{Dir   }.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' ) # let git manage hard links : it does not support unification
+		,	'TGT'  : ( 'src/{Dir   }.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' )
 		}
+		side_deps = { 'REPO' : ('{Dir}.repo/{File*}','ignore') }
 		cmd = '''
 			if [ -f {TGT('.git/index')} ]
 			then ( cd {TGT('')} ; git pull 2>&1 )
-			else   git clone LMAKE/{Dir}.repo {TGT('')} 2>&1
+			else   git clone {Dir}.repo {TGT('')} 2>&1
 			fi
 		'''
 
@@ -69,9 +70,9 @@ else :
 	''',file=open('c.c','w'))
 
 	os.system('''
-		mkdir -p LMAKE/a.repo
-		zip LMAKE/a.repo/b.zip c.c ; rm c.c
-		cd LMAKE/a.repo
+		mkdir -p a.repo
+		zip a.repo/b.zip c.c ; rm c.c
+		cd a.repo
 		git init .      # -b main is not supported on older git's
 		git add b.zip
 		git commit -minit

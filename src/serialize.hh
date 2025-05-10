@@ -42,8 +42,9 @@ template< Serializable T               > void deserialize( ::string const& s  , 
 // suppress calls to FAIL when necessary
 template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { FAIL() ; return serialize(a)== serialize(b) ; } // NO_COV cannot define for Serializable as it creates conflicts
 template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { FAIL() ; return serialize(a)<=>serialize(b) ; } // NO_COV .
-namespace std {
-	template<class T> requires( HasSerdes<T> || ::is_aggregate_v<T> ) struct hash<T> {
+
+namespace std {                                                                                                              // cannot specialize std::hash from global namespace with gcc-11
+	template<class T> requires( !requires(T t){t.hash();} && ( HasSerdes<T> || ::is_aggregate_v<T> ) ) struct hash<T> {
 		size_t operator()(T const& x) const {
 			return hash<::string>()(serialize(x)) ;
 		}

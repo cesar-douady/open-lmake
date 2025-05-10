@@ -398,7 +398,6 @@ namespace Disk {
 		pid_t pid = 0 ;
 	private :
 		RealPathEnv const* _env            ;
-		::string           _admin_dir_s    ;
 		::vector_s         _abs_src_dirs_s ;                              // this is an absolute version of src_dirs
 		size_t             _repo_root_sz   ;
 		::string           _cwd            ;

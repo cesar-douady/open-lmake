@@ -64,6 +64,13 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* avoid using namespace std
+	- use dedicated using instead, such as using std::vector
+	- this protects the code from unexpected identifiers being abusively brought in
+* suppress operator+() for string
+	- use cat instead
+* try to avoid injecting operator+() in std
+	- or any other code besides hash
 * use : https://github.com/ZXShady/enchantum
 	- much cleaner than the ugly ENUM macro
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
@@ -206,6 +213,7 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
+* document cases where code is injected in std namespace
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 
