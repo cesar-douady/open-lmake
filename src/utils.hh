@@ -969,6 +969,7 @@ ENUM( MutexLvl  // identify who is owning the current level to ease debugging
 ,	Autodep1    // must follow Gil
 ,	Gather      // must follow Gil
 ,	Node        // must follow NodeCrcDate
+,	ReqInfo     // must follow Req
 ,	Time        // must follow BackendId
 // level 5
 ,	Autodep2    // must follow Autodep1
