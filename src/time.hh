@@ -8,6 +8,8 @@
 #include <sys/stat.h> // struct stat
 
 #include <chrono>
+namespace chrono = std::chrono ;
+
 #include <ctime>
 
 #include "utils.hh"

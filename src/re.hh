@@ -12,6 +12,10 @@
 	#include <pcre2.h>
 #else
 	#include <regex>
+	using std::regex       ;
+	using std::regex_match ;
+	using std::smatch      ;
+	using std::sub_match   ;
 #endif
 
 // /!\ this interface assumes that all variable parts are enclosed within () : this simpliies a lot prefix and suffix identification

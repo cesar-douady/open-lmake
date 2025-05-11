@@ -67,11 +67,11 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		} ;
 		Pipe client_to_server{New,0/*flags*/,true/*no_std*/} ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
 		Pipe server_to_client{New,0/*flags*/,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
-		/**/           cmd_line.push_back("-i"s+client_to_server.read .fd) ;
-		/**/           cmd_line.push_back("-o"s+server_to_client.write.fd) ;
-		if (!refresh ) cmd_line.push_back("-r"                           ) ; // -r means no refresh
-		if (read_only) cmd_line.push_back("-R"                           ) ; // -R means read-only
-		/**/           cmd_line.push_back("--"                           ) ; // ensure no further option processing in case a file starts with a -
+		/**/           cmd_line.push_back(cat("-i",client_to_server.read .fd)) ;
+		/**/           cmd_line.push_back(cat("-o",server_to_client.write.fd)) ;
+		if (!refresh ) cmd_line.push_back(    "-r"                           ) ; // -r means no refresh
+		if (read_only) cmd_line.push_back(    "-R"                           ) ; // -R means read-only
+		/**/           cmd_line.push_back(    "--"                           ) ; // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
 			Child server { .as_session=true , .cmd_line=cmd_line } ;
@@ -82,12 +82,12 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			if (_server_ok(server_to_client.read,"new")) {
 				g_server_fds = ClientFdPair{ server_to_client.read , client_to_server.write } ;
 				pid_t pid = server.pid ;
-				server.mk_daemon() ;                                         // let process survive to server dxtor
+				server.mk_daemon() ;                                             // let process survive to server dxtor
 				return pid ;
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
-			server.wait() ;                                                  // dont care about return code, we are going to relauch/reconnect anyway
+			server.wait() ;                                                      // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
 			exit(Rc::System,e) ;
 		}

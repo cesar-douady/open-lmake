@@ -62,7 +62,7 @@ struct SockFd : AcFd {
 	static in_addr_t           s_addr      (::string const& server ) ;
 	static ::vmap_s<in_addr_t> s_addrs_self(::string const& ifce={}) ;
 	//
-	static ::string s_service( ::string const& host , in_port_t port ) { return host+':'+port                    ; }
+	static ::string s_service( ::string const& host , in_port_t port ) { return cat(host,':',port)               ; }
 	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }
 	static ::string s_service(                        in_port_t port ) { return s_service(host()          ,port) ; }
 private :

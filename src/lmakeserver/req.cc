@@ -395,7 +395,7 @@ namespace Engine {
 				::vector_s entries       = lst_dir_s(outputs_dir_s) ;
 				trace(hd,entries.size()) ;
 				if (entries.size()>hd) {
-					sort(entries) ;
+					::sort(entries) ;
 					for( ::string const& e : ::span_s(entries.data(),entries.size()-hd) ) {
 						SWEAR(e!=day,e,day) ;                                                    // day is supposed to be the most recent and we keep at least 1 entry
 						::string f = outputs_dir_s+e ;
@@ -523,17 +523,17 @@ namespace Engine {
 		try {
 			ReqRpcReply rrr{
 				ReqRpcReplyProc::Stdout
-			,	title(options,
-					( stats.ended[+JobReport::Failed]                   ? "failed:"s   +  stats.ended[+JobReport::Failed]              +' '        : ""s )
-				+	                                                      "done:"s     + (stats.done()-stats.ended[+JobReport::Failed])
-				+	( +g_config->caches && stats.ended[+JobReport::Hit] ? " hit:"s     +  stats.ended[+JobReport::Hit   ]                          : ""s )
-				+	( stats.ended[+JobReport::Rerun ]                   ? " rerun:"s   +  stats.ended[+JobReport::Rerun ]                          : ""s )
-				+	                                                      " running:"s +  stats.cur(JobStep::Exec  )
-				+	( stats.cur(JobStep::Queued)                        ? " queued:"s  +  stats.cur(JobStep::Queued)                               : ""s )
-				+	( stats.cur(JobStep::Dep   )>1                      ? " waiting:"s + (stats.cur(JobStep::Dep   )-!options.flags[ReqFlag::Job]) : ""s ) // suppress job representing Req itself
-				+	( g_config->console.show_ete                        ? " - ETE:"s   +  ete.short_str()                                          : ""s )
-				+	( g_config->console.show_eta                        ? " - ETA:"s   +  eta.str(0/*prec*/,true/*in_day*/)                        : ""s )
-				)
+			,	title(options,cat(
+					stats.ended[+JobReport::Failed]                   ? cat( "failed:"   ,  stats.ended[+JobReport::Failed]              ,' '        ) : ""s
+				,	                                                    cat( "done:"     , (stats.done()-stats.ended[+JobReport::Failed])            )
+				,	+g_config->caches && stats.ended[+JobReport::Hit] ? cat( " hit:"     ,  stats.ended[+JobReport::Hit   ]                          ) : ""s
+				,	stats.ended[+JobReport::Rerun ]                   ? cat( " rerun:"   ,  stats.ended[+JobReport::Rerun ]                          ) : ""s
+				,	                                                    cat( " running:" ,  stats.cur(JobStep::Exec  )                               )
+				,	stats.cur(JobStep::Queued)                        ? cat( " queued:"  ,  stats.cur(JobStep::Queued)                               ) : ""s
+				,	stats.cur(JobStep::Dep   )>1                      ? cat( " waiting:" , (stats.cur(JobStep::Dep   )-!options.flags[ReqFlag::Job]) ) : ""s // suppress job representing Req itself
+				,	g_config->console.show_ete                        ? cat( " - ETE:"   ,  ete.short_str()                                          ) : ""s
+				,	g_config->console.show_eta                        ? cat( " - ETA:"   ,  eta.str(0/*prec*/,true/*in_day*/)                        ) : ""s
+				))
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;
 		} catch (::string const&) {}           // if client has disappeared, well, we cannot do much

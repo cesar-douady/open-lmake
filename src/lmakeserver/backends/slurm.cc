@@ -206,7 +206,7 @@ namespace Backends::Slurm {
 		}
 		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;
-			return "slurm_id:"s+se.id.load() ;
+			return cat("slurm_id:",se.id.load()) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const {
 			if ( !se.verbose && s==Status::Ok ) return {{}/*msg*/,true/*retry*/} ;                   // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
@@ -306,12 +306,12 @@ namespace Backends::Slurm {
 		if (s.find(',')==Npos) return ;
 		::vector_s v = split(s,',') ;
 		SWEAR(v.size()>1) ;
-		sort(v) ;
+		::sort(v) ;
 		s = v[0] ;
 		for( size_t i=1 ; i<v.size() ; i++ ) s<<','<<v[i] ;
 	}
 	inline RsrcsData::RsrcsData( ::vmap_ss&& m , Daemon d , JobIdx ji ) : Base{1} { // ensure we have at least 1 entry as we sometimes access element 0
-		sort(m) ;
+		::sort(m) ;
 		for( auto& [kn,v] : m ) {
 			size_t           p    = kn.find(':')                                                   ;
 			::string         k    = p==Npos ? ::move(kn) :                       kn.substr(0  ,p)  ;

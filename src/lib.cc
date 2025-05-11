@@ -39,7 +39,7 @@ SearchRootResult search_root(::string const& cwd_s_) {
 				}
 				case 1 : repo_root_s = ::move(candidates2[0]) ; break ;
 				default : {
-					::string msg = "ambiguous root dir, to disambiguate, consider "s+(candidates2.size()-1)+" of :\n" ;
+					::string msg = cat("ambiguous root dir, to disambiguate, consider ",candidates2.size()-1," of :\n") ;
 					for( ::string const& c : candidates2 ) msg << "\trm -r " << no_slash(c+AdminDirS) <<'\n' ;
 					throw msg ;
 				}

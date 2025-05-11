@@ -271,11 +271,11 @@ namespace Engine {
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
 		switch (tag) {
-			case AncillaryTag::Backend : return PrivateAdminDirS           +"backend/"s+(+self) ;
-			case AncillaryTag::Data    : return g_config->local_admin_dir_s+"job_data/"+(+self) ;
-			case AncillaryTag::Dbg     : return AdminDirS                  +"debug/"s  +(+self) ;
-			case AncillaryTag::KeepTmp : return AdminDirS                  +"tmp/"s    +(+self) ;
-		DF}                                                                                       // NO_COV
+			case AncillaryTag::Backend : return cat(PrivateAdminDirS           ,"backend/" ,+self) ;
+			case AncillaryTag::Data    : return cat(g_config->local_admin_dir_s,"job_data/",+self) ;
+			case AncillaryTag::Dbg     : return cat(AdminDirS                  ,"debug/"   ,+self) ;
+			case AncillaryTag::KeepTmp : return cat(AdminDirS                  ,"tmp/"     ,+self) ;
+		DF}                                                                                          // NO_COV
 	}
 
 	JobInfo Job::job_info(BitMap<JobInfoKind> need) const {

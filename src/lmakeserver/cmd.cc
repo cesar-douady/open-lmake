@@ -700,7 +700,7 @@ namespace Engine {
 						break ;
 						case ReqKey::Trace : {
 							if (!end) { audit( fd , ro , Color::Note , "no info available" , true/*as_is*/ , lvl ) ; break ; }
-							sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return ::pair(a.date,a.file)<::pair(b.date,b.file) ; } ) ;
+							::sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return ::pair(a.date,a.file)<::pair(b.date,b.file) ; } ) ;
 							if (porcelaine) {
 								size_t wk = 0 ;
 								size_t wf = 0 ;
@@ -740,7 +740,7 @@ namespace Engine {
 							//
 							::string ids ;
 							if (porcelaine) {
-								ids = "{ 'job':"s+(+job) ;
+								ids = cat("{ 'job':",+job) ;
 								if (+start) {
 									if (pre_start.seq_id==SeqId(-1)) {
 										ids << " , 'downloaded_from_cache':True" ;
@@ -751,7 +751,7 @@ namespace Engine {
 								}
 								ids += " }" ;
 							} else {
-								ids = "job="s+(+job) ;
+								ids = cat("job=",+job) ;
 								if (+start) {
 									if (pre_start.seq_id==SeqId(-1)) {
 										ids << " , downloaded_from_cache" ;

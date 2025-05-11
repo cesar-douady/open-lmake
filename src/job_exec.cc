@@ -389,22 +389,22 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	return true/*done*/ ;
 }
 
-::string g_to_unlnk ;                                                          // XXX> : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                             // XXX> : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line(::map_ss const& cmd_env) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
-	::vector_s res = ::move(g_start_info.interpreter) ;                        // avoid copying as interpreter is used only here
+	::vector_s res = ::move(g_start_info.interpreter) ;                           // avoid copying as interpreter is used only here
 	if (g_start_info.use_script) {
 		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-	//	::string cmd_file = PrivateAdminDirS+"cmds/"s+g_start_info.small_id ;  // correct code
-		::string cmd_file = PrivateAdminDirS+"cmds/"s+g_seq_id ;
+	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ; // correct code
+		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( dir_guard(cmd_file) , Fd::Write ).write(g_start_info.cmd) ;
 		res.reserve(res.size()+1) ;
-		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                       // provide absolute script so as to support cwd
+		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
 		// large commands are forced use_script=true in server
-		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ; // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                  // res is set if simple
+		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;    // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                     // res is set if simple
 			res.reserve(res.size()+2) ;
 			res.push_back("-c"                    ) ;
 			res.push_back(::move(g_start_info.cmd)) ;
@@ -480,7 +480,7 @@ int main( int argc , char* argv[] ) {
 	//
 	g_repo_root_s = new ::string{g_phy_repo_root_s} ;  // no need to search for it
 	//
-	g_trace_file = new ::string{g_phy_repo_root_s+PrivateAdminDirS+"trace/job_exec/"+g_trace_id} ;
+	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",g_trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
 	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
@@ -590,9 +590,9 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_host        = host()                                                                 ;              // host on which fast_report_pipe works
-		g_start_info.autodep_env.fast_report_pipe = top_repo_root_s+PrivateAdminDirS+"fast_reports/"+g_start_info.small_id ;              // fast_report_pipe is a pipe and only works locally
-		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                     ;
+		g_start_info.autodep_env.fast_host        = host()                                                                      ;         // host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = cat(top_repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;         // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                          ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
 		g_gather.addr             =        g_start_info.addr           ;

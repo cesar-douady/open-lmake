@@ -89,23 +89,23 @@ void ClientSockFd::connect( in_addr_t server , in_port_t port , Delay timeout ) 
 	}
 	int en = errno ;                                                                           // catch errno before any other syscall
 	close() ;
-	if      (too_late ) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+timeout.short_str() ;
-	else if (NTrials>1) throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)+" after "+NTrials+" trials"   ;
-	else                throw "cannot connect to "s+s_addr_str(server)+':'+port+" : "+::strerror(en)                               ;
+	if      (too_late ) throw cat("cannot connect to ",s_addr_str(server),':',port," : ",::strerror(en)," after ",timeout.short_str() ) ;
+	else if (NTrials>1) throw cat("cannot connect to ",s_addr_str(server),':',port," : ",::strerror(en)," after ",NTrials," trials"   ) ;
+	else                throw cat("cannot connect to ",s_addr_str(server),':',port," : ",::strerror(en)                               ) ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;                                                                    // address being decoded
-		int       byte   = 0     ;                                                                    // ensure component is less than 256
-		int       n      = 0     ;                                                                    // ensure there are 4 components
-		bool      first  = true  ;                                                                    // prevent empty components
-		bool      first0 = false ;                                                                    // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;                                                                           // address being decoded
+		int       byte   = 0     ;                                                                           // ensure component is less than 256
+		int       n      = 0     ;                                                                           // ensure there are 4 components
+		bool      first  = true  ;                                                                           // prevent empty components
+		bool      first0 = false ;                                                                           // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
 				if (first) goto ByName ;
-				addr  = (addr<<8) | byte ;                                                            // dot notation is big endian
+				addr  = (addr<<8) | byte ;                                                                   // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
 				n++ ;
@@ -125,11 +125,10 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		return addr ;
 	}
 ByName :
-	{	struct addrinfo  hint = {}                                                      ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
+	{	struct addrinfo  hint = {}                                                                         ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
 		struct addrinfo* ai   ;
-		int              rc   = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai ) ;
-		if (rc!=0) throw "cannot get addr of "+server+" ("+rc+')' ;
-		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
+		int              rc   = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai )                    ; throw_unless( rc==0 , "cannot get addr of ",server," (",rc,')' ) ;
+		in_addr_t        addr = ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
 		freeaddrinfo(ai) ;
 		return addr ;
 	}

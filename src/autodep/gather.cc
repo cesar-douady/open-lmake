@@ -348,10 +348,10 @@ Status Gather::exec_child() {
 				msg_ << "still open after job having been dead for " << network_delay.short_str() ;
 				set_status(Status::Err,msg_) ;
 			}
-			else if ( kill_step && kill_step< kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_step       +" times"                      ) ;
-			else if (              kill_step==kill_sigs.size() ) set_status(Status::Err,"still alive after having been killed "s+kill_sigs.size()+" times followed by a SIGKILL") ;
-			else if ( timeout_fired                            ) set_status(Status::Err,"still alive after having timed out and been killed with SIGKILL"                       ) ;
-			else                                                 FAIL("dont know why still active") ;                                                                               // NO_COV
+			else if ( kill_step && kill_step< kill_sigs.size() ) set_status(Status::Err,cat("still alive after having been killed ",kill_step       ," times"                      )) ;
+			else if (              kill_step==kill_sigs.size() ) set_status(Status::Err,cat("still alive after having been killed ",kill_sigs.size()," times followed by a SIGKILL")) ;
+			else if ( timeout_fired                            ) set_status(Status::Err,cat("still alive after having timed out and been killed with SIGKILL"                      )) ;
+			else                                                 FAIL("dont know why still active") ;                                                                                   // NO_COV
 			break ;
 		}
 		if (now>end_kill) {

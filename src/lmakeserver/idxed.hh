@@ -164,15 +164,15 @@ namespace Vector {
 		void clear () { pop() ;                         }
 		void forget() { Base::clear() ;                 }
 		// accesses
-		Sz          size () const { return ::constify(F::file).size (+self) ; }
-		Item const* items() const { return ::constify(F::file).items(+self) ; }
+		Sz          size () const { return ::as_const(F::file).size (+self) ; }
+		Item const* items() const { return ::as_const(F::file).items(+self) ; }
 		Item      * items()       { return            F::file .items(+self) ; }
 		// services
 		void shorten_by(Sz by) { self = F::file.shorten_by(+self,by) ; }
 		//
 		template<::convertible_to<Item> I> void append(::span<I> const& v) { self = F::file.append(+self,v ) ; }
 	} ;
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = ::constify(F::file).EmptyIdx ;
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = ::as_const(F::file).EmptyIdx ;
 
 	//
 	// CrunchBase
@@ -210,7 +210,7 @@ namespace Vector {
 		void forget() {                                   Base::clear() ; }
 		// accesses
 		auto        size () const -> Sz { if (_single()) return 1                               ; else return            F::file .size (self) ; }
-		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::constify(F::file).items(self) ; }
+		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::as_const(F::file).items(self) ; }
 		Item      * items()             { if (_single()) return &static_cast<Item      &>(self) ; else return            F::file .items(self) ; }
 	private :
 		bool _multi () const { return !self.template is_a<Item  >() ; } // 0 is both a Vector and an Item, so this way 0 is !_multi ()

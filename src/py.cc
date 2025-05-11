@@ -9,6 +9,7 @@
 	#include <sys/mman.h>
 #else
 	#include <thread>
+	using std::jthread ;
 #endif
 
 #include "process.hh"

@@ -67,16 +67,16 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
 			/**/                                                            if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
-		::string trace_dir_s    = dir_name_s(*g_trace_file)                                    ;
-		::string tmp_trace_file = trace_dir_s+::to_string(Pdate(New).nsec_in_s())+'-'+getpid() ;
+		::string trace_dir_s    = dir_name_s(*g_trace_file)                                         ;
+		::string tmp_trace_file = cat(trace_dir_s,::to_string(Pdate(New).nsec_in_s()),'-',getpid()) ;
 		mk_dir_s(trace_dir_s) ;
 		//
 		_s_cur_sz = 4096                                                                                                       ;
 		_s_fd     = { ::open( tmp_trace_file.c_str() , O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0644 ) , true/*no_std*/ } ;
 		//
-		if ( !_s_fd                                                        ) throw "cannot create temporary trace file "+tmp_trace_file+" : "+::strerror(errno)           ;
-		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw "cannot create trace file "          +*g_trace_file +" : "+::strerror(errno)           ;
-		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) throw "cannot truncate trace file "        +*g_trace_file +" to its initial size "+_s_cur_sz ;
+		if ( !_s_fd                                                        ) throw cat("cannot create temporary trace file ",tmp_trace_file," : ",::strerror(errno)          ) ;
+		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw cat("cannot create trace file "          ,*g_trace_file ," : ",::strerror(errno)          ) ;
+		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) throw cat("cannot truncate trace file "        ,*g_trace_file ," to its initial size ",_s_cur_sz) ;
 		//
 		_s_pos  = 0                                                                                                    ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;

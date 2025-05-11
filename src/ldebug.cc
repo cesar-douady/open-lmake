@@ -41,8 +41,8 @@ int main( int argc , char* argv[] ) {
 	syntax.flags[+ReqFlag::Key].doc <<' '<< keys() ; // add available keys to usage
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	if ( cmd_line.args.size()<1 ) syntax.usage("need a target to debug"                                ) ;
-	if ( cmd_line.args.size()>1 ) syntax.usage("cannot debug "s+cmd_line.args.size()+" targets at once") ;
+	if ( cmd_line.args.size()<1 ) syntax.usage(    "need a target to debug"                                ) ;
+	if ( cmd_line.args.size()>1 ) syntax.usage(cat("cannot debug ",cmd_line.args.size()," targets at once")) ;
 	//
 	::vector_s script_files ;
 	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

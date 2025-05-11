@@ -11,6 +11,7 @@
 
 #if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE and HAS_ADDR2LINE are defined
 	#include <stacktrace>
+	using std::stacktrace ;
 #elif HAS_ADDR2LINE
 	#include <execinfo.h> // backtrace
 	#include <link.h>     // struct link_map
@@ -33,8 +34,7 @@ using namespace Time ;
 
 void Fd::write(::string_view data) const {
 	for( size_t cnt=0 ; cnt<data.size() ;) {
-		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ;
-		if (c<=0) throw "cannot write to fd "s+fd ;
+		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ; throw_unless( c>0 , "cannot write to fd ",fd ) ;
 		cnt += c ;
 	}
 }
@@ -49,12 +49,11 @@ void Fd::write(::string_view data) const {
 		size_t goal_sz = 4096 ;
 		for( size_t cnt=0 ;;) {
 			res.resize(goal_sz) ;
-			ssize_t c = ::read( fd , &res[cnt] , goal_sz-cnt ) ;
-			if (c<0) throw "cannot read from fd "s+fd ;
+			ssize_t c = ::read( fd , &res[cnt] , goal_sz-cnt ) ; throw_unless( c>=0 , "cannot read from fd ",fd ) ;
+			if (c==0) { res.resize(cnt) ; break ; }
 			cnt += c ;
-			if (c==0        ) { res.resize(cnt) ; break ; }
-			if (cnt==goal_sz)   goal_sz += goal_sz ;        // increase buf size as long as it is filled up
-			else                goal_sz += c       ;        // we reach system limit, no interest to read more
+			if (cnt==goal_sz) goal_sz += goal_sz ; // increase buf size as long as it is filled up
+			else              goal_sz += c       ; // we reach system limit, no interest to read more
 		}
 	}
 	return res ;
@@ -63,9 +62,8 @@ void Fd::write(::string_view data) const {
 size_t Fd::read_to( ::span<char> dst , bool no_file_ok ) const {
 	if ( no_file_ok && !self ) return 0 ;
 	for( size_t cnt=0 ; cnt<dst.size() ;) {
-		ssize_t c = ::read( fd , &dst[cnt] , dst.size()-cnt ) ;
-		if (c< 0) throw "cannot read "s+dst.size()+" bytes from fd "+fd ;
-		if (c==0) return cnt                                            ;
+		ssize_t c = ::read( fd , &dst[cnt] , dst.size()-cnt ) ; throw_unless( c>=0 , "cannot read ",dst.size()," bytes from fd ",fd ) ;
+		if (c==0) return cnt ;
 		cnt += c ;
 	}
 	return dst.size() ;
@@ -249,7 +247,7 @@ bool              _crash_busy  = false ;
 		::string bt ;
 		for( auto it=begin_frame ; it!=end_frame ; it++ ) {
 			try                               { bt <<         widen(mk_canon(it->source_file()),wf              ) ; } catch (::string const&) { bt << widen("",wf) ; }
-			if ( size_t l=it->source_line() )   bt <<':'   << widen(""s+l                      ,wl,true/*right*/) ;
+			if ( size_t l=it->source_line() )   bt <<':'   << widen(cat(l)                     ,wl,true/*right*/) ;
 			else                                bt <<' '   << widen(""                         ,wl              ) ;
 			/**/                                bt <<" : " <<       it->description()                             ;
 			/**/                                bt <<'\n'                                                         ;

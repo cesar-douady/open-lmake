@@ -160,7 +160,7 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	::string ctx     ;     bool has_ctx     = false ;
 	::string cv      ;     bool has_cv      = false ;
 	uint8_t  min_len = 1 ; bool has_min_len = false ;
-	if (n_args>(Encode?4:3)) throw "too many args : "s+n_args+'>'+(Encode?4:3) ;
+	if (n_args>(Encode?4:3)) throw cat("too many args : ",n_args,'>',Encode?4:3) ;
 	switch (n_args) {
 		case 4 : min_len = _mk_uint8(py_args[3],"min_len") ; has_min_len = true ; [[fallthrough]] ;
 		case 3 : cv      =          *py_args[2].str()      ; has_cv      = true ; [[fallthrough]] ;
@@ -198,7 +198,7 @@ template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const&
 	size_t n_args = py_args.size() ;
 	::string ft ;
 	bool has_ft = false ;
-	if (n_args>1) throw "too many args : "s+n_args+'>'+1 ;
+	if (n_args>1) throw cat("too many args : ",n_args,'>',1) ;
 	if (n_args) {
 		ft     = *py_args[0].str() ;
 		has_ft = true              ;

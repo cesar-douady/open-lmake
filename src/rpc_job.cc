@@ -666,8 +666,8 @@ static void _atomic_write( ::string const& file , ::string const& data ) {
 	AcFd fd { file , Fd::Write } ;
 	if (!fd) throw "cannot open "+file+" for writing : "+::strerror(errno) ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
-	if (cnt<0                  ) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : "+::strerror(errno)         ;
-	if (size_t(cnt)<data.size()) throw "cannot write atomically "s+data.size()+" bytes to "+file+" : only "+cnt+" bytes written" ;
+	if (cnt<0                  ) throw cat("cannot write atomically ",data.size()," bytes to ",file," : ",::strerror(errno)        ) ;
+	if (size_t(cnt)<data.size()) throw cat("cannot write atomically ",data.size()," bytes to ",file," : only ",cnt," bytes written") ;
 }
 
 bool JobSpace::_is_lcl_tmp(::string const& f) const {
@@ -706,8 +706,8 @@ template<bool IsFile,class... A> static bool/*match*/ _handle( ::string& v/*inou
 		IsFile ? v.substr(0,d) + no_slash(cat(args...))
 		:        v.substr(0,d) +          cat(args...)
 	;
-	d = pfx.size()                                             ;
-	v = ::move(pfx) + ::string_view(v).substr(start+len+brace) ;
+	d = pfx.size()                                                    ;
+	v = cat( ::move(pfx) , ::string_view(v).substr(start+len+brace) ) ;
 	return true/*match*/ ;
 }
 void JobSpace::update_env(
@@ -801,11 +801,11 @@ bool JobSpace::enter(
 			+	"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s))
 			;
 		if (substr_view(repo_view_s,super_repo_view_s.size())!=substr_view(phy_repo_root_s,phy_super_repo_root_s.size()))
-			throw
-				"last "s+uphill_lvl+" components do not match between physical root dir and root view"
-			+	", "
-			+	"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s))
-			;
+			throw cat(
+				"last ",uphill_lvl," components do not match between physical root dir and root view"
+			,	", "
+			,	"consider setting <rule>.repo_view=",mk_py_str(cat("/repo/",no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s)))
+			) ;
 		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
 	}
 	// XXX! : handle cases where dir is not top level
@@ -856,9 +856,9 @@ bool JobSpace::enter(
 		chroot_dir = ::move(work_root) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                 ) ;                                                         // necessary to be allowed to write the gid_map (if desirable)
-	_atomic_write( "/proc/self/uid_map"   , ""s+uid+' '+uid+" 1\n" ) ;
-	_atomic_write( "/proc/self/gid_map"   , ""s+gid+' '+gid+" 1\n" ) ;
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                                        // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;
+	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;
 	//
 	top_repo_root_s = top_repo_view_s | phy_repo_root_s ;
 	if (+lmake_view_s) _mount_bind( chroot_dir+lmake_view_s      , phy_lmake_root_s      ) ;
@@ -892,7 +892,7 @@ bool JobSpace::enter(
 		if (sz==1) {
 			_mount_bind( abs_view , abs_phys[0] ) ;
 		} else {
-			work_s = is_lcl(upper) ? work_dir_s+"work_"+(work_idx++)+'/' : no_slash(upper)+".work/" ;                          // if not in the repo, it must be in tmp
+			work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ;                  // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,top_repo_root_s) ) ;
 		}
@@ -916,12 +916,12 @@ bool JobSpace::enter(
 void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	auto do_top = [&]( ::string& dir_s , bool slash_ok , ::string const& key )->void {
 		if ( !dir_s                                       ) return ;
-		if ( !is_canon(dir_s)                             ) dir_s = ::mk_canon(dir_s) ;
+		if ( !is_canon(dir_s)                             ) dir_s = Disk::mk_canon(dir_s) ;
 		if ( slash_ok && dir_s=="/"                       ) return ;
-		if (             dir_s=="/"                       ) throw key+" cannot be /"                                           ;
-		if ( !is_abs(dir_s)                               ) throw key+" must be absolute : "+no_slash(dir_s)                   ;
-		if ( phy_repo_root_s.starts_with(dir_s          ) ) throw "repository cannot lie within "+key+' '+no_slash(dir_s)      ;
-		if ( dir_s          .starts_with(phy_repo_root_s) ) throw key+' '+no_slash(dir_s)+" cannot be local to the repository" ;
+		if (             dir_s=="/"                       ) throw cat(key," cannot be /"                                          ) ;
+		if ( !is_abs(dir_s)                               ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
+		if ( phy_repo_root_s.starts_with(dir_s          ) ) throw cat("repository cannot lie within ",key,' ',no_slash(dir_s)     ) ;
+		if ( dir_s          .starts_with(phy_repo_root_s) ) throw cat(key,' ',no_slash(dir_s)," cannot be local to the repository") ;
 	} ;
 	//                   slash_ok
 	do_top( chroot_dir_s , true  , "chroot dir" ) ;
@@ -943,7 +943,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	//
 	::string const& job_repo_root_s = repo_view_s | phy_repo_root_s ;
 	auto do_path = [&](::string& path)->void {
-		if      (!is_canon(path)                  ) path = ::mk_canon(path)             ;
+		if      (!is_canon(path)                  ) path = Disk::mk_canon(path)         ;
 		if      (path.starts_with("../")          ) path = mk_abs(path,job_repo_root_s) ;
 		else if (path.starts_with(job_repo_root_s)) path.erase(0,job_repo_root_s.size()) ;
 	} ;

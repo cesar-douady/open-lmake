@@ -5,45 +5,9 @@
 
 #pragma once
 
-#include <netinet/ip.h> // in_addr_t, in_port_t
-#include <signal.h>     // SIG*, kill
-#include <sys/file.h>   // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
-#include <sys/types.h>  // ushort, uint, ulong, ...
-
-#include <cmath>   // ldexp
-#include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
-
-#include <algorithm>
-#include <atomic>
-#include <array>
-#include <bit>
-#include <charconv> // from_chars_result
-#include <concepts>
-#include <condition_variable>
-#include <functional>
-#include <ios>
-#include <limits>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <set>
-#include <shared_mutex>
-#include <span>
-#include <string>
-#include <string_view>
-#include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
-#include <utility>
-#include <variant>
-#include <vector>
+#include "std.hh"
 
 #include "sys_config.h"
-
-using namespace std ; // use std at top level so one write ::stuff instead of std::stuff
-using std::getline  ; // special case getline which also has a C version that hides std::getline
-
-#define self (*this)
 
 #define LIKELY(  x) __builtin_expect(bool(x),1)
 #define UNLIKELY(x) __builtin_expect(bool(x),0)
@@ -81,64 +45,10 @@ template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;            
 template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
 template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
 
-template<class T> constexpr T        copy    (T const& x) { return   x ; }
-template<class T> constexpr T      & ref     (T     && x) { return *&x ; }
-template<class T> constexpr T const& constify(T const& x) { return   x ; }
-
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
 template<class T> static constexpr T Max = ::numeric_limits<T>::max() ;
 template<class T> static constexpr T Min = ::numeric_limits<T>::min() ;
-
-//
-// std lib name simplification
-//
-
-// array
-template<                size_t N> using array_s  = ::array        <       string,N> ;
-template<class K,class V,size_t N> using amap     = ::array<pair   <K     ,V>    ,N> ;
-template<        class V,size_t N> using amap_s   = ::amap         <string,V     ,N> ;
-template<                size_t N> using amap_ss  = ::amap_s       <       string,N> ;
-
-// pair
-template<class V                 > using pair_s   = ::pair         <string,V       > ;
-/**/                               using pair_ss  = ::pair_s       <       string  > ;
-
-// map
-template<        class V         > using map_s    = ::map          <string,V       > ;
-/**/                               using map_ss   = ::map_s        <       string  > ;
-
-// set
-/**/                               using set_s    = ::set          <       string  > ;
-
-// umap
-template<class K,class  V         > using umap    = ::unordered_map<K     ,V       > ;
-template<        class  V         > using umap_s  = ::umap         <string,V       > ;
-/**/                               using umap_ss  = ::umap_s       <       string  > ;
-
-// uset
-template<class K                 > using uset     = ::unordered_set<K              > ;
-/**/                               using uset_s   = ::uset         <string         > ;
-
-// vector
-/**/                               using vector_s = ::vector       <       string  > ;
-template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>      > ;
-template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
-/**/                               using vmap_ss  = ::vmap_s       <       string  > ;
-
-template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
-template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-template<class K,class  V> inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-template<class K         > inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-template<class K         > inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
-template<class T         > inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
-//
-inline                   bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
-inline                   bool operator+(::string_view   s) { return !s.empty() ; } // .
-template<class T> inline bool operator+(::span<T>       v) { return !v.empty() ; } // .
-
-template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 
 #define VT(T) typename T::value_type
 
@@ -176,25 +86,7 @@ template<class M> inline ::set   <               VT(M)::second_type >       mk_v
 template<class M> inline ::uset  <               VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <               VT(M)::second_type >(m) ; }
 template<class M> inline ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
 
-// support container arg to standard utility functions
-using std::sort          ;                              // keep std definitions
-using std::stable_sort   ;                              // .
-using std::binary_search ;                              // .
-using std::lower_bound   ;                              // .
-using std::min           ;                              // .
-using std::max           ;                              // .
-#define CMP ::function<bool(VT(T) const&,VT(T) const&)>
-template<class T> inline          void              sort         ( T      & x ,                  CMP cmp ) {         ::sort         ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> inline          void              stable_sort  ( T      & x ,                  CMP cmp ) {         ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> inline          bool              binary_search( T const& x , VT(T) const& v , CMP cmp ) { return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
-template<class T> inline typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v , CMP cmp ) { return  ::lower_bound  ( x.begin() , x.end() , v , cmp ) ; }
-template<class T> inline          void              sort         ( T      & x                            ) {         ::sort         ( x.begin() , x.end()           ) ; }
-template<class T> inline          void              stable_sort  ( T      & x                            ) {         ::stable_sort  ( x.begin() , x.end()           ) ; }
-template<class T> inline          bool              binary_search( T const& x , VT(T) const& v           ) { return  ::binary_search( x.begin() , x.end() , v       ) ; }
-template<class T> inline typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v           ) { return  ::lower_bound  ( x.begin() , x.end() , v       ) ; }
-#undef CMP
-
-#undef TVT
+#undef VT
 
 namespace std {                                                             // cannot specialize std::hash from global namespace with gcc-11
 	template<class T> requires( requires(T t){t.hash();} ) struct hash<T> {
@@ -266,20 +158,6 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 // START_OF_NO_COV for debug only
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
-
-#if !HAS_UNREACHABLE                         // defined in <utility> in c++23, use 202100 as g++-12 generates 202100 when -std=c++23
-	[[noreturn]] inline void unreachable() {
-		#ifdef __has_builtin
-			#if __has_builtin(__builtin_unreachable)
-				__builtin_unreachable() ;
-			#else
-				::abort() ;
-			#endif
-		#else
-			::abort() ;
-		#endif
-	}
-#endif
 
 template<class... A> [[noreturn]] inline void fail( A const&... args [[maybe_unused]] ) {
 	#ifndef NDEBUG
@@ -407,69 +285,54 @@ private :
 // string formatting
 //
 
+// START_OF_NO_COV for debug/trace only
+
 template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
 template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
 template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
 template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having too high a priority when compiler selects an overload
 
-namespace std {
+#if __cplusplus<202600L
+	inline ::string operator+( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
+	inline ::string operator+( ::string_view   v , ::string     && s ) {                    s.insert(0,v.data(),v.size()) ; return ::move(s) ; }
+	inline ::string operator+( ::string const& s , ::string_view   v ) { ::string r = s   ; r.append(  v.data(),v.size()) ; return        r  ; }
+	inline ::string operator+( ::string_view   v , ::string const& s ) { ::string r { v } ; r.append(  s.data(),s.size()) ; return        r  ; }
+#endif
 
-	template<class T> ::string& operator<<( ::string& s , T&& x ) ;
+template<class T> ::string& operator<<( ::string& s , T&& x ) ;
 
-	#if __cplusplus<202600L
-		inline ::string  operator+ ( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
-		inline ::string  operator+ ( ::string_view   v , ::string     && s ) {                    s.insert(0,v.data(),v.size()) ; return ::move(s) ; }
-		inline ::string  operator+ ( ::string const& s , ::string_view   v ) { ::string r = s   ; r.append(  v.data(),v.size()) ; return        r  ; }
-		inline ::string  operator+ ( ::string_view   v , ::string const& s ) { ::string r { v } ; r.append(  s.data(),s.size()) ; return        r  ; }
-		inline ::string& operator+=( ::string      & s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return        s  ; } // NO_COV
-	#endif
-
-	inline ::string  operator+ ( ::string     && s , nullptr_t         ) { return ::move(s       ) +  "(null)" ; }
-	inline ::string  operator+ ( ::string const& s , nullptr_t         ) { return        s         +  "(null)" ; }
-	inline ::string  operator+ ( nullptr_t         , ::string const& s ) { return        "(null)"  +  s        ; }
-	inline ::string& operator+=( ::string      & s , nullptr_t         ) { return        s         += "(null)" ; }                             // NO_COV
-	//
-	template<_CanDoBool B> inline ::string  operator+ ( ::string     && s , B               b ) { return ::move(s               ) +  (b?"true":"false") ; }
-	template<_CanDoBool B> inline ::string  operator+ ( ::string const& s , B               b ) { return        s                 +  (b?"true":"false") ; }
-	template<_CanDoBool B> inline ::string  operator+ ( B               b , ::string const& s ) { return       (b?"true":"false") +   s                 ; }
-	template<_CanDoBool B> inline ::string& operator+=( ::string      & s , B               b ) { return        s                 +=  b?"true":"false"  ; }
-	//
-	template<_CanDoToHex T> ::string _ptr_to_hex(T* p) {
-		if (p) return "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) ;
-		else   return "(null)"                                    ;
-	}
-	template<_CanDoToHex T> inline ::string  operator+ ( ::string     && s , T*              p ) { return ::move     (s) +  _ptr_to_hex(p) ; }
-	template<_CanDoToHex T> inline ::string  operator+ ( ::string const& s , T*              p ) { return             s  +  _ptr_to_hex(p) ; }
-	template<_CanDoToHex T> inline ::string  operator+ ( T*              p , ::string const& s ) { return _ptr_to_hex(p) +              s  ; }
-	template<_CanDoToHex T> inline ::string& operator+=( ::string      & s , T*              p ) { return             s  += _ptr_to_hex(p) ; } // NO_COV
-	//
-	template<_CanDoToChars N> inline ::string _to_string_append(N n) {
-		::string res ( 30 , 0 ) ;
-		::to_chars_result rc = ::to_chars( res.data() , res.data()+res.size() , n ) ; SWEAR(rc.ec==::errc()) ;
-		res.resize(rc.ptr-res.data()) ;
-		return res ;
-	}
-	template<_CanDoToChars N> inline ::string  operator+ ( ::string     && s , N               n ) { return ::move           (s) +  _to_string_append(n) ; }
-	template<_CanDoToChars N> inline ::string  operator+ ( ::string const& s , N               n ) { return                   s  +  _to_string_append(n) ; }
-	template<_CanDoToChars N> inline ::string  operator+ ( N               n , ::string const& s ) { return _to_string_append(n) +                    s  ; }
-	template<_CanDoToChars N> inline ::string& operator+=( ::string      & s , N               n ) { return                   s  += _to_string_append(n) ; }
-	//
-	template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
-
-	template<class T,size_t N> ::string& operator+=( ::string& os ,          T           a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T,size_t N> ::string& operator+=( ::string& os , ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T         > ::string& operator+=( ::string& os , ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class T         > ::string& operator+=( ::string& os , ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-	template<class K         > ::string& operator+=( ::string& os , ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-	template<class K         > ::string& operator+=( ::string& os , ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-	template<class K,class V > ::string& operator+=( ::string& os , ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-	template<class K,class V > ::string& operator+=( ::string& os , ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-	//
-	template<class A,class B > ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
-
+#if __cplusplus<202600L
+	inline ::string& operator+=( ::string& s , ::string_view v ) { s.append(  v.data(),v.size()) ; return s ; }
+#endif
+/**/                      inline ::string& operator+=( ::string& s , nullptr_t   ) { return s += "(null)"                                                    ; }
+template<_CanDoBool    B> inline ::string& operator+=( ::string& s , B         b ) { return s +=  b?"true":"false"                                           ; }
+template<_CanDoToHex   T> inline ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
+template<_CanDoToChars N> inline ::string& operator+=( ::string& s , N         n ) {
+	size_t sz = s.size() ;
+	s.resize(sz+30) ;
+	::string res ( 30 , 0 ) ;
+	::to_chars_result rc = ::to_chars( s.data()+sz , s.data()+s.size() , n ) ; SWEAR(rc.ec==::errc()) ;
+	s.resize(rc.ptr-s.data()) ;
+	return s ;
 }
+//
+template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
+//
+template<class T,size_t N> ::string& operator+=( ::string& os ,          T           a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class T,size_t N> ::string& operator+=( ::string& os , ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class T         > ::string& operator+=( ::string& os , ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class T         > ::string& operator+=( ::string& os , ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class K         > ::string& operator+=( ::string& os , ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+template<class K         > ::string& operator+=( ::string& os , ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+template<class K,class V > ::string& operator+=( ::string& os , ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+template<class K,class V > ::string& operator+=( ::string& os , ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+//
+template<class A,class B > ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
+//
 inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
 inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .
+
+// END_OF_NO_COV
 
 inline ::string const& operator| ( ::string const& a , ::string const& b ) { return +a ?        a  :        b  ; }
 inline ::string      & operator| ( ::string      & a , ::string      & b ) { return +a ?        a  :        b  ; }
@@ -831,7 +694,7 @@ template<StdEnum E> inline E mk_enum(::string const& x) {
 		template<> [[maybe_unused]] constexpr const char _EnumCamelsComma<E>[] = #__VA_ARGS__         ; \
 	}
 
-template<StdEnum E> using EnumUint = underlying_type_t<E>         ;
+template<StdEnum E> using EnumUint = ::underlying_type_t<E>       ;
 template<StdEnum E> using EnumInt  = ::make_signed_t<EnumUint<E>> ;
 
 template<StdEnum E> inline constexpr EnumUint<E> operator+(E e) { return EnumUint<E>(e) ; }
@@ -1315,9 +1178,7 @@ template<::integral I> I random() {
 // Implementation
 //
 
-namespace std {
-	template<class T> ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; }
-}
+template<class T> ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; }
 
 //
 // Fd
@@ -1325,7 +1186,7 @@ namespace std {
 
 inline constexpr void Fd::close() {
 	if (!self        ) return ;
-	if (::close(fd)<0) throw "cannot close fd "s+fd+" : "+::strerror(errno) ;
+	if (::close(fd)<0) throw cat("cannot close fd ",fd," : ",::strerror(errno)) ;
 	self = {} ;
 }
 

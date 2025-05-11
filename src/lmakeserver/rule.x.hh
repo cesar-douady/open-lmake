@@ -693,7 +693,7 @@ namespace Engine {
 					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & repo roots by markers ...
 					else               updated |= acquire     (grow(dst,i++),&py_item) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
-					throw "for item "s+i+" : "+e ;
+					throw cat("for item ",i," : ",e) ;
 				}
 			} ;
 			if (py_src->is_a<Py::Sequence>()) {

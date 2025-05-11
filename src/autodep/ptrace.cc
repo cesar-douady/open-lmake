@@ -122,7 +122,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 				uint32_t word_sz = 0/*garbage*/ ;
 				#if HAS_PTRACE_GET_SYSCALL_INFO                                                   // use portable calls if implemented
 					struct ptrace_syscall_info syscall_info ;
-					if ( ::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info )<=0 ) throw "cannot get syscall info from "s+pid ;
+					if ( ::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info )<=0 ) throw cat("cannot get syscall info from ",pid) ;
 					switch (syscall_info.arch) {
 						case AUDIT_ARCH_I386    :
 						case AUDIT_ARCH_ARM     : word_sz = 32 ; break ;
@@ -138,7 +138,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						// XXX! : support 32 bits exe's (beware of 32 bits syscall numbers)
 						if (word_sz!=NpWordSz) {
 							Trace trace("AutodepPtrace::_changed","panic","word width") ;
-							info.record.report_direct({ .proc=JobExecProc::Panic , .file=word_sz+" bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
+							info.record.report_direct({ .proc=JobExecProc::Panic , .file=cat(word_sz," bits processes on ",NpWordSz," host not supported yet with ptrace") }) ;
 							info.has_exit_proc = false ;
 							info.on_going      = false ;
 							goto NextSyscall ;
@@ -194,10 +194,10 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 				}
 			}
 		NextSyscall :
-			if ( ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , sig )<0 ) throw "cannot set trace for next syscall for "s+pid ;
+			if ( ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , sig )<0 ) throw cat("cannot set trace for next syscall for ",pid) ;
 			return false/*done*/ ;
 		SyscallExit :
-			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )<0 ) throw "cannot set trace for syscall exit for "s+pid ;
+			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )<0 ) throw cat("cannot set trace for syscall exit for ",pid) ;
 			return false/*done*/ ;
 		} catch (::string const& e) {
 			SWEAR(errno==ESRCH,errno) ;               // if we cant find pid, it means we were not informed it terminated
@@ -215,7 +215,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 			// with seccomp, this is how we get a bad architecture as the filter is now
 			if ( (wstatus&0xff) == (0x80|SIGSYS) ) {
 				Trace trace("AutodepPtrace::_changed","panic","arch","seccomp") ;
-				info.record.report_direct({ .proc=JobExecProc::Panic , .file="32 bits processes on "s+NpWordSz+" host not supported yet with ptrace" }) ;
+				info.record.report_direct({ .proc=JobExecProc::Panic , .file=cat("32 bits processes on ",NpWordSz," host not supported yet with ptrace") }) ;
 			}
 		#endif
 	} else {

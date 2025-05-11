@@ -106,8 +106,8 @@ namespace Engine {
 					bool unnamed = !key ;
 					if (unnamed) {
 						throw_unless( unnamed_star_idx , "no auto-stem allowed in ",str ) ;
-						if (star) { throw_unless( with_re , "unnamed star stems must be defined in ",str ) ; key = "<star_stem"s+((*unnamed_star_idx)++)+'>' ; }
-						else                                                                                 key = "<stem"s     +(  unnamed_idx      ++)+'>' ;
+						if (star) { throw_unless( with_re , "unnamed star stems must be defined in ",str ) ; key = cat("<star_stem",(*unnamed_star_idx)++,'>') ; }
+						else                                                                                 key = cat("<stem"     ,  unnamed_idx      ++,'>') ;
 					} else {
 						throw_unless( is_identifier(key) , "bad key ",key," must be empty or an identifier" ) ;
 					}
@@ -1109,7 +1109,7 @@ namespace Engine {
 					if (k.front()=='<'&&k.back()=='>' ) return Re::escape("{*}"     ) ; // when matching on job name, star stems are matched as they are reported to user
 					else                                return Re::escape('{'+k+"*}") ; // .
 				}
-				if (res.groups[s]) return "(?:\\"s+res.groups[s]+')' ;                  // already seen, we must protect against following text potentially containing numbers
+				if (res.groups[s]) return cat("(?:\\",res.groups[s],')') ;              // already seen, we must protect against following text potentially containing numbers
 				bool capture = s<n_static_stems || me.ref_cnts[s]>1 ;                   // star stems are only captured if back referenced
 				if (capture) res.groups[s] = cur_group ;
 				cur_group += capture+stem_mark_cnts[s] ;
@@ -1604,13 +1604,13 @@ namespace Engine {
 		::vector_s res ; res.reserve(rule->matches.size()-rule->n_statics) ;
 		for( VarIdx t : iota<VarIdx>( rule->n_statics , rule->matches.size() ) ) {
 			size_t                      cur_group = 1                       ;
-			::vector<uint32_t>          groups    ( rule->stems.size() )    ;   // used to set back references
+			::vector<uint32_t>          groups    ( rule->stems.size() )    ;       // used to set back references
 			RuleData::MatchEntry const& me        = rule->matches[t].second ;
 			res.push_back(_subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return Re::escape(stems[s])   ;
-					if (groups[s]             ) return "(?:\\"s+groups[s]+')' ; // enclose in () to protect against following text potentially containing numbers
+					if (s<rule->n_static_stems) return Re::escape(stems[s])       ;
+					if (groups[s]             ) return cat("(?:\\",groups[s],')') ; // enclose in () to protect against following text potentially containing numbers
 					bool capture = me.ref_cnts[s]>1 ;
 					if (capture) groups[s] = cur_group ;
 					cur_group += capture+rule->stem_mark_cnts[s] ;

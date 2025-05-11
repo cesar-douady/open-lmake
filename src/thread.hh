@@ -5,10 +5,14 @@
 
 #pragma once
 
-#include <condition_variable>
 #include <deque>
+using std::deque ;
+
 #include <latch>
+using std::latch ;
+
 #include <thread>
+using std::jthread ;
 
 #include "msg.hh"
 #include "time.hh"

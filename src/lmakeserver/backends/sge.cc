@@ -181,7 +181,7 @@ namespace Backends::Sge {
 		}
 		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
 			SWEAR(+se.rsrcs) ;
-			return "sge_id:"s+se.id.load() ;
+			return cat("sge_id:",se.id.load()) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const {
 			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                    // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
@@ -413,7 +413,7 @@ namespace Backends::Sge {
 		return res ;
 	}
 	inline RsrcsData::RsrcsData(::vmap_ss&& m) {
-		sort(m) ;
+		::sort(m) ;
 		for( auto&& [k,v] : ::move(m) ) {
 			switch (k[0]) {
 				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;

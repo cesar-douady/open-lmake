@@ -85,11 +85,11 @@ static bool/*crashed*/ _start_server() {
 		_g_server_running = true ;
 	} else {
 		_g_server_fd.listen() ;
-		::string tmp = ""s+ServerMrkr+'.'+_g_host+'.'+pid ;
-		AcFd(tmp,Fd::Write).write(
-			_g_server_fd.service() + '\n'
-		+	getpid()               + '\n'
-		) ;
+		::string tmp = cat(ServerMrkr,'.',_g_host,'.',pid) ;
+		AcFd(tmp,Fd::Write).write(cat(
+			_g_server_fd.service() , '\n'
+		,	getpid()               , '\n'
+		)) ;
 		//vvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^

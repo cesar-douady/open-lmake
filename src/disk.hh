@@ -79,7 +79,7 @@ namespace Disk {
 		throw_unless( path!="/" , "no dir for /"          ) ;
 		size_t sep = path.size()-(path.back()=='/') ;
 		for(; n ; n-- ) {
-			throw_unless( sep!=Npos , "cannot walk uphill "s+n+" dirs from "+path ) ;
+			throw_unless( sep!=Npos , "cannot walk uphill ",n," dirs from ",path ) ;
 			sep = path.rfind('/',sep-1) ;
 		}
 		if (sep==Npos) return {}                   ;
@@ -264,8 +264,8 @@ namespace Disk {
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
-			::string at_str = at==Fd::Cwd ? ""s : "<"s+at.fd+">/" ;
-			throw "cannot create symlink from "+at_str+file+" to "+target ;
+			::string at_str = at==Fd::Cwd ? ""s : cat('<',at.fd,">/") ;
+			throw cat("cannot create symlink from ",at_str,file," to ",target) ;
 		}
 	}
 

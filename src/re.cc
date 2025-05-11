@@ -62,7 +62,7 @@ namespace Re {
 			,	&err_code , &err_pos
 			,	nullptr/*context*/
 			) ;
-			if (!code) throw _s_err_msg(err_code)+" at position "+err_pos ;
+			if (!code) throw cat(_s_err_msg(err_code)," at position ",err_pos) ;
 			return code ;
 		}
 		::pcre2_code const* RegExpr::Cache::insert(::string const& infix) {

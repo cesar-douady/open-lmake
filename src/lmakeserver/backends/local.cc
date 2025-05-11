@@ -76,8 +76,8 @@ namespace Backends::Local {
 			rsrc_keys.reserve(dct.size()+1/*<single>*/) ;
 			bool seen_single = false ;
 			if (dyn) {
-				::set_s old_names = ::mk_set    (rsrc_keys) ;                                                       // use ordered set for reporting
-				::set_s new_names = ::mk_key_set(dct      ) ;
+				::set_s old_names = mk_set    (rsrc_keys) ;                                                         // use ordered set for reporting
+				::set_s new_names = mk_key_set(dct      ) ;
 				seen_single = !new_names.insert("<single>").second ;
 				if (new_names!=old_names) throw cat("cannot change resource names from ",old_names," to ",new_names," while lmake is running") ;
 			} else {
@@ -127,7 +127,7 @@ namespace Backends::Local {
 		virtual ::vmap_ss  export_   ( RsrcsData const& rs             ) const { return rs.mk_vmap(rsrc_keys)           ; }
 		virtual RsrcsData  import_   ( ::vmap_ss     && rs , Req , Job ) const { return RsrcsData(::move(rs),rsrc_idxs) ; }
 		virtual ::string lacking_rsrc( RsrcsData const& rs             ) const {
-			for( size_t i : iota(rs.size()) ) if (rs[i]>capacity_[i]) return "not enough resource "+rsrc_keys[i]+" (asked "+rs[i]+" but only "+capacity_[i]+" available)" ;
+			for( size_t i : iota(rs.size()) ) if (rs[i]>capacity_[i]) return cat("not enough resource ",rsrc_keys[i]," (asked ",rs[i]," but only ",capacity_[i]," available)") ;
 			return {} ;
 		}
 		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
@@ -147,7 +147,7 @@ namespace Backends::Local {
 		}
 		//
 		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
-			return "pid:"s+se.id.load() ;
+			return cat("pid:",se.id.load()) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job job , SpawnedEntry const& se , Status status ) const {
 			_wait_queue.push(se.id) ;                                                                       // defer wait in case job_exec process does some time consuming book-keeping
