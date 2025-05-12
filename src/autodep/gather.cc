@@ -372,8 +372,9 @@ Status Gather::exec_child() {
 				else                                                                         kill() ;
 			}
 		}
-		Delay wait_for ;
-		if ( (+epoll||+_wait) && !delayed_check_deps && !_wait[Kind::ChildStart] ) {
+		bool  must_wait = +epoll || +_wait ;
+		Delay wait_for  ;
+		if ( must_wait && !delayed_check_deps && !_wait[Kind::ChildStart] ) {
 			Pdate event_date =                     end_child       ;
 			/**/  event_date = ::min( event_date , end_kill      ) ;
 			/**/  event_date = ::min( event_date , end_timeout   ) ;
@@ -404,7 +405,7 @@ Status Gather::exec_child() {
 				if (+child_fd                  ) { epoll.add_read( child_fd       , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_child     ",child_fd      ,"wait",_wait,+epoll) ; }
 				else                             { epoll.add_pid ( _child.pid     , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
 				/**/                               epoll.add_read( job_master_fd  , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
-			} else if (!wait_for) {
+			} else if (!must_wait) {
 				break ;                           // if we wait for nothing and no events come, we are done
 			}
 		}
