@@ -163,7 +163,7 @@ template<class... A> [[noreturn]] inline void fail( A const&... args [[maybe_unu
 	#ifndef NDEBUG
 		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
-		unreachable() ;
+		::unreachable() ;
 	#endif
 }
 
@@ -171,7 +171,7 @@ template<class... A> inline constexpr void swear( bool cond , A const&... args [
 	#ifndef NDEBUG
 		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 	#else
-		if (!cond) unreachable() ;
+		if (!cond) ::unreachable() ;
 	#endif
 }
 

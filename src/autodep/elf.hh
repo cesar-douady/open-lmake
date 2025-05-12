@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <dlfcn.h>    // dl related stuff
-#include <link.h>     // elf related stuff
 #include <sys/auxv.h> // getauxval
 
 #include "disk.hh"

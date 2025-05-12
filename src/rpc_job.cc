@@ -4,8 +4,6 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sched.h>        // unshare
-#include <sys/mount.h>    // mount
-#include <sys/sendfile.h>
 
 #include "disk.hh"
 #include "hash.hh"

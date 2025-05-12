@@ -6,8 +6,6 @@
 #define IN_SERVER  1
 #define LD_PRELOAD 1
 
-#include <dlfcn.h>
-
 #include "ld_server.hh"
 #include "syscall_tab.hh"
 

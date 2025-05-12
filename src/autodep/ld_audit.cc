@@ -5,8 +5,6 @@
 
 #define LD_AUDIT 1
 
-#include <link.h> // all dynamic link related
-
 #include "record.hh"
 
 bool g_force_orig = false ;

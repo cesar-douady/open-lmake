@@ -6,8 +6,6 @@
 #define LD_PRELOAD_JEMALLOC 1
 #define LD_PRELOAD          1
 
-#include <dlfcn.h>
-
 #include "utils.hh"
 
 // ensure malloc has been initialized (at least at first call to malloc) in case jemalloc is used with ld_preload to avoid malloc_init->open->malloc->malloc_init loop

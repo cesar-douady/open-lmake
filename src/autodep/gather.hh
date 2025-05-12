@@ -5,14 +5,6 @@
 
 #pragma once
 
-#include <sys/wait.h>
-
-#include <latch>
-using std::latch ;
-
-#include <thread>
-using std::jthread ;
-
 #include "disk.hh"
 #include "hash.hh"
 #include "msg.hh"

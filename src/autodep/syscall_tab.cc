@@ -4,7 +4,6 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <syscall.h>   // for SYS_* macros
-#include <sys/mount.h>
 
 #include "ptrace.hh"
 #include "record.hh"

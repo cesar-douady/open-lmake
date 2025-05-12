@@ -5,6 +5,7 @@
 
 #include <elf.h>        // NT_PRSTATUS definition on ARM
 #include <sys/ptrace.h>
+#include <sys/user.h>
 
 #include "utils.hh"
 

@@ -7,7 +7,6 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <sys/stat.h> // fstatat, fchmodat
 
 #include "types.hh"
 #include "fd.hh"

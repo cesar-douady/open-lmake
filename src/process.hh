@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <sys/wait.h>
-
 #include <csignal>
 
 #include "fd.hh"

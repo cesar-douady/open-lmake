@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <sys/mman.h> // mmap, munmap
-
 #include "disk.hh"
 #include "trace.hh"
 

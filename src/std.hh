@@ -5,10 +5,19 @@
 
 #pragma once
 
-#include <netinet/ip.h> // in_addr_t, in_port_t
-#include <signal.h>     // SIG*, kill
-#include <sys/file.h>   // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
-#include <sys/types.h>  // ushort, uint, ulong, ...
+#include <dlfcn.h>        // dlopen
+#include <link.h>         // struct link_map
+#include <netinet/ip.h>   // in_addr_t, in_port_t
+#include <signal.h>       // SIG*, kill
+#include <sys/file.h>     // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
+#include <sys/mman.h>     // mmap, munmap
+#include <sys/mount.h>    // mount
+#include <sys/resource.h> // getrlimit
+#include <sys/sendfile.h>
+#include <sys/stat.h>     // struct stat
+#include <sys/types.h>    // ushort, uint, ulong, ...
+#include <sys/wait.h>
+#include <unistd.h>       // sysconf
 
 #include <cmath>   // ldexp
 #include <cstddef> // nullptr_t
@@ -18,11 +27,11 @@
 #include <atomic>
 #include <array>
 #include <bit>
-#include <charconv> // from_chars_result
+#include <charconv> // from_chars, to_chars
 #include <concepts>
 #include <condition_variable>
 #include <functional>
-#include <ios>
+#include <latch>
 #include <limits>
 #include <map>
 #include <memory>
@@ -33,6 +42,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -84,6 +94,8 @@ using std::is_trivial_v                        ;
 using std::is_trivially_copyable_v             ;
 using std::is_unsigned_v                       ;
 using std::is_void_v                           ;
+using std::jthread                             ;
+using std::latch                               ;
 using std::launder                             ;
 using std::make_error_code                     ;
 using std::make_signed_t                       ;
@@ -99,6 +111,7 @@ using std::pair                                ;
 using std::partial_ordering                    ;
 using std::popcount                            ;
 using std::remove_const_t                      ;
+using std::remove_reference_t                  ;
 using std::rethrow_exception                   ;
 using std::set                                 ;
 using std::set_terminate                       ;

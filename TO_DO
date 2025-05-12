@@ -6,7 +6,7 @@
 items (also used in XXX comments) :
 	* normal    : ordered by implementation priority in each section
 	! difficult : unclear how to implement it
-	? idea      : unclear that it is desirable
+	? idea      : unclear whether desirable
 	> delayed   : to be implemented later (cannot be implemented today)
 	M museum    : most probably obsolete, kept in museum dir as long as not 100% sure
 	X abandoned
@@ -15,17 +15,21 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? exceptionnally, server blocks
+? exceptionnally, server has been seen to block
 	- seems to be while taking GIL
+? exceptionnally, job_exec has been seen to crash
+	- exit exec_child loop while +_child
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* suppress FileLoc::Admin
-	- no special processing inside AdminDir
-	- review Lmakefile.py reading code
-	- rest is ok
+* explictly allow readdir
+	- with a allow_readdir rule attribute
+	- libc : fdopendir+glob+glob64+globfree+globfree64+opendir+scandir+scandir64+scandirat+scandirat64
+	- or     getdents+getdents64+getdirentries+getdirentries64+glob+glob64+globfree+globfree64+readdir+readdir64+readdir_r+readdir64_r+scandir
+	- syscall : getdents+getdents64
+
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary
@@ -83,8 +87,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* dig into https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p1689r5.html
-	- support C++20 modules
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size
@@ -206,7 +208,6 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* document cases where code is injected in std namespace
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 

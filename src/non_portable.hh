@@ -5,12 +5,7 @@
 
 #pragma once
 
-#include <sys/user.h>
-#include <unistd.h>
-
-#include <array>
-
-using namespace std ;
+#include "std.hh"
 
 static constexpr char NpErrnoSymbolName[] = "__errno_location" ; // XXX! : find a way to stick to documented interfaces
 

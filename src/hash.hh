@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <ranges>
-
 #define XXH_INLINE_ALL
 #ifdef NDEBUG
 	#define XXH_DEBUGLEVEL 0

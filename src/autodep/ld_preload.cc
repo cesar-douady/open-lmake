@@ -5,8 +5,6 @@
 
 #define LD_PRELOAD 1
 
-#include <dlfcn.h>
-
 #include "utils.hh"
 
 inline bool started() { return true ; }

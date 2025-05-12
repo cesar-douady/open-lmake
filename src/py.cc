@@ -5,13 +5,6 @@
 
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
-#if HAS_MEMFD
-	#include <sys/mman.h>
-#else
-	#include <thread>
-	using std::jthread ;
-#endif
-
 #include "process.hh"
 
 static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{

@@ -337,7 +337,7 @@ Status Gather::exec_child() {
 	trace("start","wait",_wait,+epoll) ;
 	for(;;) {
 		Pdate now = New ;
-		if (now>end_child) {
+		if (now>=end_child) {
 			_exec_trace(now,Comment::stillAlive) ;
 			if (!_wait[Kind::ChildEnd]) {
 				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;      // else we should already have exited
@@ -354,10 +354,10 @@ Status Gather::exec_child() {
 			else                                                 FAIL("dont know why still active") ;                                                                                   // NO_COV
 			break ;
 		}
-		if (now>end_kill) {
+		if (now>=end_kill) {
 			kill(true/*next*/) ;
 		}
-		if ( now>end_timeout && !timeout_fired ) {
+		if ( now>=end_timeout && !timeout_fired ) {
 			_exec_trace(now,Comment::timeout) ;
 			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
 			kill() ;
@@ -367,14 +367,15 @@ Status Gather::exec_child() {
 		if (!kill_step) {
 			if (end_heartbeat==Pdate::Future) { if ( _n_server_req_pending) end_heartbeat = now + HeartbeatTick ; }
 			else                              { if (!_n_server_req_pending) end_heartbeat = Pdate::Future       ; }
-			if (now>end_heartbeat) {
+			if (now>=end_heartbeat) {
 				trace("server_heartbeat") ;
 				if (_send_to_server({.proc=JobMngtProc::Heartbeat,.seq_id=seq_id,.job=job})) end_heartbeat += HeartbeatTick ;
 				else                                                                         kill() ;
 			}
 		}
-		Delay wait_for ;
-		if ( (+epoll||+_wait) && !delayed_check_deps && !_wait[Kind::ChildStart] ) {
+		bool  must_wait = +epoll || +_wait ;
+		Delay wait_for  ;
+		if ( must_wait && !delayed_check_deps && !_wait[Kind::ChildStart] ) {
 			Pdate event_date =                     end_child       ;
 			/**/  event_date = ::min( event_date , end_kill      ) ;
 			/**/  event_date = ::min( event_date , end_timeout   ) ;
@@ -389,24 +390,26 @@ Status Gather::exec_child() {
 				delayed_check_deps.clear() ;
 			} else if (_wait[Kind::ChildStart]) { // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
-					/**/          child_fd     = _spawn_child()       ;
-					/**/          _wait       &= ~Kind::ChildStart    ;
-					if (+timeout) end_timeout  = start_date + timeout ;
-					_exec_trace( start_date , Comment::startJob ) ;
-					trace("started","wait",_wait,+epoll) ;
+					child_fd = _spawn_child() ;
 				} catch(::string const& e) {
+					trace("spawn_failed",e) ;
 					if (child_stderr==Child::PipeFd) stderr = ensure_nl(e) ;
 					else                             child_stderr.write(ensure_nl(e)) ;
 					status = Status::EarlyErr ;
-					goto Return ;
+					break ; // cannot start, exit loop
 				}
+				if (+timeout) end_timeout = start_date + timeout ;
+				_exec_trace( start_date , Comment::startJob ) ;
+				trace("started","wait",_wait,+epoll) ;
+				//
 				if (child_stdout==Child::PipeFd) { epoll.add_read( _child.stdout  , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
 				if (child_stderr==Child::PipeFd) { epoll.add_read( _child.stderr  , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
 				if (+child_fd                  ) { epoll.add_read( child_fd       , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_child     ",child_fd      ,"wait",_wait,+epoll) ; }
 				else                             { epoll.add_pid ( _child.pid     , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
 				/**/                               epoll.add_read( job_master_fd  , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
-			} else if (!wait_for) {
-				break ;                           // if we wait for nothing and no events come, we are done
+				_wait &= ~Kind::ChildStart ;
+			} else if (!must_wait) {
+				break ; // we are done, exit loop
 			}
 		}
 		for( Event const& event : events ) {
@@ -456,11 +459,11 @@ Status Gather::exec_child() {
 					else                      FAIL("unexpected wstatus : ",ws) ;                                              // NO_COV defensive programming
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
+					_child.waited() ;                                                                                         // _child has been waited without calling _child.wait()
 					_wait &= ~Kind::ChildEnd ;
 					/**/                   epoll.dec() ;                                                                      // dont wait for new connections from job (but process those that come)
 					if (+server_master_fd) epoll.dec() ;                                                                      // idem for connections from server
 					trace("close",kind,status,"wait",_wait,+epoll) ;
-					_child.waited() ;                                                                                         // _child has been waited without calling _child.wait()
 				} break ;
 				case Kind::JobMaster    :
 				case Kind::ServerMaster : {
@@ -656,8 +659,6 @@ Status Gather::exec_child() {
 			DF}                                                                                                                                  // NO_COV
 		}
 	}
-Return :
-	//
 	SWEAR(!_child) ;                                                                                                                             // _child must have been waited by now
 	trace("done",status) ;
 	SWEAR(status!=Status::New) ;

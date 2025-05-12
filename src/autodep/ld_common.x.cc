@@ -4,13 +4,10 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <errno.h>
-#include <sched.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/mount.h>
 #include <sys/time.h>
-#include <unistd.h>
 #include <utime.h>
 
 #include "disk.hh"
@@ -42,7 +39,6 @@
 #define NEED_ELF (!LD_AUDIT) // else elf dependencies are captured by auditing code or unavailable
 
 #if NEED_ELF
-	#include <dlfcn.h> // dlopen
 	#include "elf.hh"
 #endif
 

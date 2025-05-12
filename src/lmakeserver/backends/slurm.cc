@@ -5,8 +5,6 @@
 
 #include "slurm_api.hh" // /!\ must be first because Python.h must be first
 
-#include <dlfcn.h>
-
 #include <filesystem>
 
 #pragma GCC diagnostic push

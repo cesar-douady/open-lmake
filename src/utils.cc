@@ -14,7 +14,6 @@
 	using std::stacktrace ;
 #elif HAS_ADDR2LINE
 	#include <execinfo.h> // backtrace
-	#include <link.h>     // struct link_map
 	#include "process.hh"
 #endif
 
