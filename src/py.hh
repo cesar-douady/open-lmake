@@ -11,9 +11,9 @@
 #include "trace.hh"
 
 #if PY_MAJOR_VERSION>=3
-	ENUM( PyException , OsErr , RuntimeErr , TypeErr , ValueErr , FileNotFoundErr )
+	enum class PyException : uint8_t { OsErr , RuntimeErr , TypeErr , ValueErr , FileNotFoundErr } ;
 #else
-	ENUM( PyException , OsErr , RuntimeErr , TypeErr , ValueErr                   )
+	enum class PyException : uint8_t { OsErr , RuntimeErr , TypeErr , ValueErr                   } ;
 #endif
 
 namespace Py {
@@ -271,8 +271,8 @@ namespace Py {
 			if (::is_signed_v<T>) {
 				long v = PyLong_AsLong( to_py() ) ;
 				from_py() ;
-				throw_unless( v>=Min<T> , "underflow" ) ;
-				throw_unless( v<=Max<T> , "overflow"  ) ;
+				throw_unless( v>=int64_t(Min<T>) , "underflow" ) ;
+				throw_unless( v<=int64_t(Max<T>) , "overflow"  ) ;
 				return T(v) ;
 			} else {
 				ulong v = PyLong_AsUnsignedLong( to_py() ) ;

@@ -17,7 +17,7 @@ Atomic<bool    > Trace::s_backup_trace = false        ;
 Atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
 Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channel
 
-#ifndef NO_TRACE
+#ifdef TRACE
 
 	size_t                 Trace::_s_pos       =  0      ;
 	bool                   Trace::_s_ping      = false   ;

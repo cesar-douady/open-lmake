@@ -17,13 +17,11 @@
 	#define O_NOATIME 0 // this is just for perf, if not possible, no big deal
 #endif
 
-// ENUM macro does not work inside namespace's
-
-ENUM(Access                                                            // in all cases, dirs are deemed non-existing
-,	Lnk                                                                // file is accessed with readlink              , regular files are deemed non-existing
+enum class Access : uint8_t {                                                            // in all cases, dirs are deemed non-existing
+	Lnk                                                                // file is accessed with readlink              , regular files are deemed non-existing
 ,	Reg                                                                // file is accessed with open                  , symlinks      are deemed non-existing
 ,	Stat                                                               // file is accessed with stat like (read inode), only distinguish tag
-)
+} ;
 static constexpr ::amap<Access,char,N<Access>> AccessChars = {{
 	{ Access::Lnk  , 'L' }
 ,	{ Access::Reg  , 'R' }
@@ -33,23 +31,25 @@ static_assert(chk_enum_tab(AccessChars)) ;
 using Accesses = BitMap<Access> ;                                      // distinguish files as soon as they can be distinguished by one of the liste Access'es
 static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
 
-ENUM_1(FileLoc
-,	Dep = SrcDir // <=Dep means that file must be reported as a dep
-,	Repo
+enum class FileLoc : uint8_t {
+	Repo
 ,	SrcDir       // file has been found in source dirs
 ,	Tmp
 ,	Proc         // file is in /proc
 ,	Admin
 ,	Ext          // all other cases
 ,	Unknown
-)
+//
+// aliases
+,	Dep = SrcDir // <=Dep means that file must be reported as a dep
+} ;
 
-ENUM(FileDisplay
-,	None
+enum class FileDisplay : uint8_t {
+	None
 ,	Printable
 ,	Shell
 ,	Py
-)
+} ;
 
 namespace Disk {
 	using Ddate       = Time::Ddate              ;

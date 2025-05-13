@@ -7,11 +7,11 @@
 
 #include "utils.hh"
 
-ENUM( LnkSupport
-,	None
+enum class LnkSupport : uint8_t {
+	None
 ,	File
 ,	Full
-)
+} ;
 
 struct SearchRootResult {
 	::string top_s     ;

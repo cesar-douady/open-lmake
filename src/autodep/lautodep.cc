@@ -15,9 +15,10 @@ using namespace Disk ;
 using namespace Py   ;
 using namespace Time ;
 
-ENUM( CmdKey , None )
-ENUM( CmdFlag
-,	AutodepMethod
+enum class CmdKey : uint8_t { None } ;
+
+enum class CmdFlag : uint8_t {
+	AutodepMethod
 ,	AutoMkdir
 ,	ChrootDir
 ,	Cwd
@@ -32,7 +33,7 @@ ENUM( CmdFlag
 ,	TmpView
 ,   Views
 ,	WorkDir
-)
+} ;
 
 static ::vmap_s<JobSpace::ViewDescr> _mk_views(::string const& views) {
 	::vmap_s<JobSpace::ViewDescr> res ;

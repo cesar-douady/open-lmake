@@ -10,9 +10,10 @@
 #include "job_support.hh"
 #include "record.hh"
 
-ENUM(Key,None)
-ENUM(Flag
-,	Write
+enum class Key : uint8_t { None } ;
+
+enum class Flag : uint8_t {
+	Write
 ,	Regexpr
 ,	Essential
 ,	Incremental
@@ -21,7 +22,7 @@ ENUM(Flag
 ,	Ignore
 ,	NoAllow
 ,	SourceOk
-)
+} ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{

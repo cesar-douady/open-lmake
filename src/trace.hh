@@ -13,14 +13,14 @@
 
 extern StaticUniqPtr<::string> g_trace_file ;
 
-ENUM( Channel
-,	Default
+enum class Channel : uint8_t {
+	Default
 ,	Backend
-)
+} ;
 using Channels = BitMap<Channel> ;
 static constexpr Channels DfltChannels = ~Channels() ;
 
-#ifdef NO_TRACE
+#ifndef TRACE
 
 	struct Trace {
 		// statics

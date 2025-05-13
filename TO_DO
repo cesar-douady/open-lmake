@@ -17,8 +17,6 @@ items (also used in XXX comments) :
 
 ? exceptionnally, server has been seen to block
 	- seems to be while taking GIL
-? exceptionnally, job_exec has been seen to crash
-	- exit exec_child loop while +_child
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
@@ -68,8 +66,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* use : https://github.com/ZXShady/enchantum
-	- much cleaner than the ugly ENUM macro
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm

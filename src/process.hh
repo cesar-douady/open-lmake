@@ -37,7 +37,17 @@ inline ::string wstatus_str(int wstatus) {
 		int sig = WTERMSIG(wstatus) ;
 		return cat("signal ",sig,'-',::strsignal(sig)) ;
 	}
-	return "??"                                                            ;
+	return "??" ;
+}
+
+inline bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) {
+	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	//
+	if (!as_group          ) return ::kill(pid,sig)==0 ;
+	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
+	bool proc_killed  = ::kill( pid,sig)==0 ;                                   // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
+	bool group_killed = ::kill(-pid,sig)==0 ;                                   // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
+	return proc_killed || group_killed ;
 }
 
 struct Child {
@@ -76,7 +86,7 @@ struct Child {
 	}
 	bool         wait_ok (       )       { return wstatus_ok(wait())                           ; }
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
-	bool         is_alive(       ) const { return kill_process(pid,0                         ) ; }
+	bool         is_alive(       ) const { return ::kill(pid,0)==0                             ; }
 private :
 	[[noreturn]] void _do_child           (                      ) ;
 	[[noreturn]] void _do_child_trampoline(                      ) ; // used when creating a new pid namespace : we need an intermediate process as the init process

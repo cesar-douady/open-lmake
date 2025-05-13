@@ -14,36 +14,37 @@
 
 #include "rpc_job_common.hh"
 
-ENUM( CacheTag // PER_CACHE : add a tag for each cache method
-,	None
+enum class CacheTag : uint8_t { // PER_CACHE : add a tag for each cache method
+	None
 ,	Dir
-)
+} ;
 
 // START_OF_VERSIONING
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 // by default, use a compromize between speed an reliability
 #if HAS_LD_AUDIT
-	ENUM_2( AutodepMethod , Ld=LdAudit   , Dflt=LdAudit   , None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc )
+	enum class AutodepMethod : uint8_t { None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc , Ld=LdAudit   , Dflt=LdAudit   } ;
 #else
-	ENUM_2( AutodepMethod , Ld=LdPreload , Dflt=LdPreload , None , Ptrace ,           LdPreload , LdPreloadJemalloc )
+	enum class AutodepMethod : uint8_t { None , Ptrace ,           LdPreload , LdPreloadJemalloc , Ld=LdPreload , Dflt=LdPreload } ;
 #endif
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM_1( BackendTag // PER_BACKEND : add a tag for each backend
-,	Dflt = Local
-,	Unknown        // must be first
+enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
+	Unknown        // must be first
 ,	Local
 ,	Sge
 ,	Slurm
-)
+//
+// aliases
+,	Dflt = Local
+} ;
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM_1( FileActionTag
-,	HasFile = Uniquify // <=HasFile means action acts on file
-,	Src                // file is src, no action
+enum class FileActionTag : uint8_t {
+	Src                // file is src, no action
 ,	Unlink             // used in ldebug, so it cannot be Unlnk
 ,	UnlinkWarning      // .
 ,	UnlinkPolluted     // .
@@ -51,22 +52,25 @@ ENUM_1( FileActionTag
 ,	Uniquify
 ,	Mkdir
 ,	Rmdir
-)
+//
+// aliases
+,	HasFile = Uniquify // <=HasFile means action acts on file
+} ;
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM( JobInfoKind
-,	None
+enum class JobInfoKind : uint8_t {
+	None
 ,	Start
 ,	End
 ,	DepCrcs
-)
+} ;
 // END_OF_VERSIONING
 using JobInfoKinds = BitMap<JobInfoKind> ;
 
 // START_OF_VERSIONING
-ENUM( JobMngtProc
-,	None
+enum class JobMngtProc : uint8_t {
+	None
 ,	ChkDeps
 ,	DepVerbose
 ,	LiveOut
@@ -75,27 +79,22 @@ ENUM( JobMngtProc
 ,	Encode
 ,	Heartbeat
 ,	Kill
-)
+} ;
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM( JobRpcProc
-,	None
+enum class JobRpcProc : uint8_t {
+	None
 ,	Start
 ,	ReportStart
 ,	GiveUp      // Req (all if 0) was killed and job was not (either because of other Req's or it did not start yet)
 ,	End
-)
+} ;
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
-ENUM_4( JobReasonTag                           // see explanations in table below
-,	HasNode = BusyTarget                       // if >=HasNode, a node is associated
-,	HasDep  = BusyDep                          // if >=HasDep , a dep  is associated
-,	Err     = DepOverwritten
-,	Missing = DepMissingStatic
-	//
-,	None
+enum class JobReasonTag : uint8_t {            // see explanations in table below
+	None
 ,	Retry                                      // job is retried in case of error      if asked so by user
 ,	LostRetry                                  // job is retried in case of lost_error if asked so by user
 //	with reason
@@ -130,7 +129,13 @@ ENUM_4( JobReasonTag                           // see explanations in table belo
 ,	DepMissingRequired                         // this is actually an error
 // with missing
 ,	DepMissingStatic                           // this prevents the job from being selected
-)
+//
+// aliases
+,	HasNode = BusyTarget                       // if >=HasNode, a node is associated
+,	HasDep  = BusyDep                          // if >=HasDep , a dep  is associated
+,	Err     = DepOverwritten
+,	Missing = DepMissingStatic
+} ;
 // END_OF_VERSIONING
 static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagStrs = {{
 	{ JobReasonTag::None               , "no reason"                                  }
@@ -212,39 +217,41 @@ static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 inline bool is_retry(JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry ; }
 
 // START_OF_VERSIONING
-ENUM( MatchKind
-,	Target
+enum class MatchKind : uint8_t {
+	Target
 ,	SideTarget
 ,	SideDep
-)
+} ;
 // END_OF_VERSIONING
 
-ENUM( MountAction
-,	Access
+enum class MountAction : uint8_t {
+	Access
 ,	Read
 ,	Write
-)
+} ;
 
 // START_OF_VERSIONING
-ENUM_3( Status             // result of job execution
-,	Early   = EarlyLostErr // <=Early means output has not been modified
-,	Async   = Killed       // <=Async means job was interrupted asynchronously
-,	Garbage = BadTarget    // <=Garbage means job has not run reliably
-,	New                    // job was never run
-,	EarlyChkDeps           // dep check failed before job actually started
-,	EarlyErr               // job was not started because of error
-,	EarlyLost              // job was lost before starting     , retry
-,	EarlyLostErr           // job was lost before starting     , do not retry
-,	LateLost               // job was lost after having started, retry
-,	LateLostErr            // job was lost after having started, do not retry
-,	Killed                 // job was killed
-,	ChkDeps                // dep check failed
-,	CacheMatch             // cache just reported deps, not result
-,	BadTarget              // target was not correctly initialized or simultaneously written by another job
-,	Ok                     // job execution ended successfully
-,	SubmitLoop             // job needs to be rerun but we have already submitted it too many times
-,	Err                    // job execution ended in error
-)
+enum class Status : uint8_t { // result of job execution
+	New                       // job was never run
+,	EarlyChkDeps              // dep check failed before job actually started
+,	EarlyErr                  // job was not started because of error
+,	EarlyLost                 // job was lost before starting     , retry
+,	EarlyLostErr              // job was lost before starting     , do not retry
+,	LateLost                  // job was lost after having started, retry
+,	LateLostErr               // job was lost after having started, do not retry
+,	Killed                    // job was killed
+,	ChkDeps                   // dep check failed
+,	CacheMatch                // cache just reported deps, not result
+,	BadTarget                 // target was not correctly initialized or simultaneously written by another job
+,	Ok                        // job execution ended successfully
+,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
+,	Err                       // job execution ended in error
+//
+// aliases
+,	Early   = EarlyLostErr    // <=Early means output has not been modified
+,	Async   = Killed          // <=Async means job was interrupted asynchronously
+,	Garbage = BadTarget       // <=Garbage means job has not run reliably
+} ;
 // END_OF_VERSIONING
 static constexpr ::amap<Status,::pair<Bool3/*ok*/,bool/*lost*/>,N<Status>> StatusAttrs = {{
 	//                        ok    lost
@@ -347,11 +354,11 @@ struct MsgStderr {
 
 template<class B> struct DepDigestBase ;
 
-ENUM( DepInfoKind
-,	Crc
+enum class DepInfoKind : uint8_t {
+	Crc
 ,	Sig
 ,	Info
-)
+} ;
 struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	// START_OF_VERSIONING
 	using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;

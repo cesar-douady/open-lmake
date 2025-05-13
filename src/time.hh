@@ -14,16 +14,18 @@ namespace chrono = std::chrono ;
 
 // START_OF_VERSIONING
 // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
-ENUM_1( FileTag
-,	Target = Lnk // >=Target means file can be generated as a target
-,	None
+enum class FileTag : uint8_t {
+	None
 ,	Unknown
 ,	Dir
 ,	Lnk
 ,	Reg          // >=Reg means file is a regular file
 ,	Empty        // empty and not executable
 ,	Exe          // a regular file with exec permission
-)
+//
+// aliases
+,	Target = Lnk // >=Target means file can be generated as a target
+} ;
 // END_OF_VERSIONING
 
 namespace Time {

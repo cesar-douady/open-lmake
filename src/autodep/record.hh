@@ -10,12 +10,12 @@
 #include "rpc_job_exec.hh"
 #include "time.hh"
 
-ENUM( Sent
-,	NotSent
+enum class Sent : uint8_t {
+	NotSent
 ,	Fast
 ,	Slow
 ,	Static
-)
+} ;
 
 struct Record ;
 

@@ -13,9 +13,10 @@
 
 using namespace Disk ;
 
-ENUM(Key,None)
-ENUM(Flag
-,	FollowSymlinks
+enum class Key : uint8_t { None } ;
+
+enum class Flag : uint8_t {
+	FollowSymlinks
 ,	Verbose
 ,	Read
 ,	Regexpr
@@ -24,7 +25,7 @@ ENUM(Flag
 ,	IgnoreError
 ,	NoRequired
 ,	Ignore
-)
+} ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{

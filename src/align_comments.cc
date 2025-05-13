@@ -8,11 +8,11 @@
 
 using namespace Disk ;
 
-ENUM(LineKind
-,	Blank
+enum class LineKind : uint8_t {
+	Blank
 ,	Comment
 ,	Plain
-)
+} ;
 
 struct Line {                                // by default, construct a blank line
 	size_t   lvl         = 0               ;

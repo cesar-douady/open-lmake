@@ -197,15 +197,15 @@ template<        class V         > using vmap_s   = ::vmap         <string,V    
 
 template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
 template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-template<class K,class  V> inline constexpr bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> inline constexpr bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-template<class K         > inline constexpr bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-template<class K         > inline constexpr bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
+template<class K,class  V> inline           bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> inline           bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
+template<class K         > inline           bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
+template<class K         > inline           bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
 template<class T         > inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
 //
-inline                   bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
-inline                   bool operator+(::string_view   s) { return !s.empty() ; } // .
-template<class T> inline bool operator+(::span<T>       v) { return !v.empty() ; } // .
+inline                             bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
+inline                   constexpr bool operator+(::string_view   s) { return !s.empty() ; } // .
+template<class T> inline constexpr bool operator+(::span<T>       v) { return !v.empty() ; } // .
 
 template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 

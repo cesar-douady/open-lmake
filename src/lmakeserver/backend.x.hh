@@ -7,19 +7,17 @@
 
 #include "rpc_job.hh"
 
-// ENUM macro does not work inside namespace's
-
-ENUM(ConnState
-,	New
+enum class ConnState : uint8_t {
+	New
 ,	Old
 ,	Lost
-)
+} ;
 
-ENUM(HeartbeatState
-,	Alive
+enum class HeartbeatState : uint8_t {
+	Alive
 ,	Lost
 ,	Err
-)
+} ;
 
 namespace Backends {
 

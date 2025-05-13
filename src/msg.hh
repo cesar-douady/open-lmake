@@ -56,7 +56,7 @@ struct IMsgBuf : MsgBuf {
 			Len len = s_sz(_buf.data()) ;
 			// we now expect the data
 			try         { _buf.resize(len) ;                                  }
-			catch (...) { throw cat("cannot resize message to lenght ",len) ; }
+			catch (...) { throw cat("cannot resize message to length ",len) ; }
 			_data_pass = true ;
 			_len       = 0    ;
 			goto DataPass ;

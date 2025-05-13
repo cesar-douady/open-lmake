@@ -104,7 +104,7 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
 # - g       : dont ease debugging
 # - d       : -DNDEBUG
-# - t       : -DNO_TRACE
+# - T       : -DTRACE
 # - SA      : -fsanitize address
 # - ST      : -fsanitize threads
 # - P       : -pg
@@ -128,7 +128,7 @@ EXTRA_CC_FLAGS   :=     $(if $(findstring O1, $(LMAKE_FLAGS)),-O1         ,$(EXT
 EXTRA_CC_FLAGS   :=     $(if $(findstring O0, $(LMAKE_FLAGS)),-O0         ,$(EXTRA_CC_FLAGS)      )
 EXTRA_CC_FLAGS   +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-g                     )
 EXTRA_CC_FLAGS   +=     $(if $(findstring d,  $(LMAKE_FLAGS)),-DNDEBUG                            )
-EXTRA_CC_FLAGS   +=     $(if $(findstring t,  $(LMAKE_FLAGS)),-DNO_TRACE                          )
+EXTRA_CC_FLAGS   +=     $(if $(findstring T,  $(LMAKE_FLAGS)),-DTRACE                             )
 EXTRA_CC_FLAGS   +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
 EXTRA_CC_FLAGS   +=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
 HIDDEN_CC_FLAGS  +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-fno-omit-frame-pointer)
@@ -903,7 +903,7 @@ $(DEBIAN_TAG).orig.tar.gz : $(DEBIAN_SRCS)
 	@echo generate debian dir $(DEBIAN_DIR)
 	@rm -rf $(DEBIAN_DIR) ; mkdir -p $(DEBIAN_DIR)
 	@tar -c $(DEBIAN_SRCS) Manifest | tar -x -C$(DEBIAN_DIR)
-	@echo LMAKE_FLAGS=gtl > $(DEBIAN_DIR)/sys_config.env
+	@echo LMAKE_FLAGS=gl > $(DEBIAN_DIR)/sys_config.env
 	@tar -cz -C$(DEBIAN_DIR) -f $@ .
 	@tar -c $(DEBIAN_COPY) | tar -x -C$(DEBIAN_DIR)
 	@{ for f in                   $(LMAKE_BIN_FILES)  ; do echo /usr/lib/open-lmake/$$f       /usr/$$f                   ; done ; } > $(DEBIAN_DIR)/debian/open-lmake.links

@@ -219,7 +219,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 - persistent states are associated with Rule's, Job's, Node's but not Req's
 
 ## Traces
-- when `lmake` is executed, a trace of activity is generated for debug purpose (unless compiled with `$LMAKE_FLAGS` including `t`)
+- when `lmake` is executed, a trace of activity is generated for debug purpose (if compiled with `$LMAKE_FLAGS` including `T`)
 - this is true for all executables (`lmake`, `lmakeserver`, `lautodep`, ...)
 - traces are located in:
 	- `LMAKE/lmake/local_admin/trace/<executable>`

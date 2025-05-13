@@ -21,11 +21,11 @@
 // /!\ this interface assumes that all variable parts are enclosed within () : this simpliies a lot prefix and suffix identification
 
 #if HAS_PCRE
-	ENUM( RegExprUse
-	,	Unused
+	enum class RegExprUse : uint8_t {
+		Unused
 	,	Old
 	,	New
-	)
+	} ;
 #endif
 
 namespace Re {

@@ -8,7 +8,6 @@
 #include "hash.hh"
 
 using namespace Disk ;
-
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {

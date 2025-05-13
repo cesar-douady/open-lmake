@@ -10,10 +10,8 @@
 
 #include "rpc_job_common.hh"
 
-ENUM_2( JobExecProc
-,	HasFile     = CodecCtx // >=HasFile     means file      field is significative
-,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
-,	None
+enum class JobExecProc : uint8_t {
+	None
 ,	ChkDeps
 ,	Confirm
 ,	DepVerbose
@@ -28,7 +26,11 @@ ENUM_2( JobExecProc
 ,	AccessPattern          // pass flags on a regexpr basis
 ,	DepVerbosePush
 ,	Encode                 // file_info is used to transport min_len
-)
+//
+// aliases
+,	HasFile     = CodecCtx // >=HasFile     means file      field is significative
+,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
+} ;
 
 struct AccessDigest {                                                // order is first read, first write, last write, unlink
 	friend ::string& operator+=( ::string& , AccessDigest const& ) ;

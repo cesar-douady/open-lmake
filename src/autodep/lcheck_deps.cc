@@ -8,10 +8,11 @@
 #include "job_support.hh"
 #include "record.hh"
 
-ENUM(Key,None)
-ENUM(Flag
-,	Sync
-)
+enum class Key : uint8_t { None } ;
+
+enum class Flag : uint8_t {
+	Sync
+} ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{

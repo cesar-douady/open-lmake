@@ -20,41 +20,41 @@
 
 // START_OF_VERSIONING
 
-ENUM( DynKind
-,	None
+enum class DynKind : uint8_t {
+	None
 ,	ShellCmd     // static shell cmd
 ,	PythonCmd    // python cmd (necessarily static)
 ,	Dyn          // dynamic  code, not compiled
 ,	Compiled     // compiled code, glbs not computed
 ,	CompiledGlbs // compiled code, glbs     computed
-)
+} ;
 
-ENUM_1( EnvFlag
-,	Dflt = Rsrc
+enum class EnvFlag : uint8_t {
+	None                       // ignore variable
+,	Rsrc                       // consider variable as a resource : upon modification, rebuild job if it was in error
+,	Cmd                        // consider variable as a cmd      : upon modification, rebuild job
 //
-,	None // ignore variable
-,	Rsrc // consider variable as a resource : upon modification, rebuild job if it was in error
-,	Cmd  // consider variable as a cmd      : upon modification, rebuild job
-)
+// aliases
+,	Dflt = Rsrc
+} ;
 
-ENUM( DynImport
-,	Static      // may import when computing glbs
+enum class DynImport : uint8_t {
+	Static      // may import when computing glbs
 ,	Dyn         // may import when executing code
-)
+} ;
 
-ENUM_1( RuleCrcState
-,	CmdOk = RsrcsOld // <=CmdOk means no need to run job because of cmd
-,	Ok
+enum class RuleCrcState : uint8_t {
+	Ok
 ,	RsrcsOld
 ,	RsrcsForgotten   // when rsrcs are forgotten (and rsrcs were old), process as if cmd changed (i.e. always rerun)
 ,	CmdOld
-)
-
-ENUM_2( Special
-,	NShared = Plain // <NShared means there is a single such rule
-,	HasJobs = Plain // <=HasJobs means jobs can refer to this rule
 //
-,	None            // value 0 reserved to mean not initialized
+// aliases
+,	CmdOk = RsrcsOld // <=CmdOk means no need to run job because of cmd
+} ;
+
+enum class Special : uint8_t {
+	None                       // value 0 reserved to mean not initialized
 ,	Req
 ,	InfiniteDep
 ,	InfinitePath
@@ -62,15 +62,19 @@ ENUM_2( Special
 // ordered by decreasing matching priority within each prio
 ,	Anti
 ,	GenericSrc
-)
+//
+// aliases
+,	NShared = Plain            // <NShared means there is a single such rule
+,	HasJobs = Plain            // <=HasJobs means jobs can refer to this rule
+} ;
 inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
 
-ENUM( VarCmd
-,	Stems   , Stem
+enum class VarCmd : uint8_t {
+	Stems   , Stem
 ,	Targets , Match , StarMatch
 ,	Deps    , Dep
 ,	Rsrcs   , Rsrc
-)
+} ;
 
 // END_OF_VERSIONING
 

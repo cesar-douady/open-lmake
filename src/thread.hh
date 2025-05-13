@@ -163,12 +163,12 @@ private :
 	::jthread _thread ;                                                                                // ensure _thread is last so other fields are constructed when it starts
 } ;
 
-ENUM( WakeupState
-,	Wait
+enum class WakeupState : uint8_t {
+	Wait
 ,	Proceed
 ,	Last
 ,	Stop
-)
+} ;
 
 template<bool Flush=true> struct WakeupThread {
 	using ThreadMutex = Mutex<MutexLvl::Thread> ;
@@ -216,11 +216,11 @@ private :
 	::jthread                            _thread ;                                                       // ensure _thread is last so other fields are constructed when it starts
 } ;
 
-ENUM(ServerThreadEventKind
-,	Master
+enum class ServerThreadEventKind : uint8_t {
+	Master
 ,	Slave
 ,	Stop
-)
+} ;
 template<class T,bool Flush=true> struct ServerThread {                            // if Flush, finish on going connections
 	using Delay     = Time::Delay           ;
 	using EventKind = ServerThreadEventKind ;

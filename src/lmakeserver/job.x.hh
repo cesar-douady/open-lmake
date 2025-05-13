@@ -7,52 +7,54 @@
 
 #ifdef STRUCT_DECL
 
-ENUM( AncillaryTag
-,	Backend
+enum class AncillaryTag : uint8_t {
+	Backend
 ,	Data
 ,	Dbg
 ,	KeepTmp
-)
+} ;
 
-ENUM( JobMakeAction
-,	Wakeup          // waited nodes are available
+enum class JobMakeAction : uint8_t {
+	Wakeup          // waited nodes are available
 ,	Status          // target crcs are available
 ,	End             // job has completed
 ,	GiveUp          // job is abandonned, because of error or ^C
 ,	Query           // used for dep analysis : query only, no action is intiated (for DepsVerbose and ChkDeps)
-)
+} ;
 
-ENUM_3( JobStep       // must be in chronological order
-,	MinCurStats =Dep
-,	MaxCurStats1=Done
-,	End         =Dep  // value to which step is set at end of execution to distinguish from an actively running job
-,	None              // no analysis done yet (not in stats)
-,	Dep               // analyzing deps
-,	Queued            // waiting for execution
-,	Exec              // executing
-,	Done              // done execution (or impossible to execute)
-,	Hit               // cache hit
-)
+enum class JobStep : uint8_t { // must be in chronological order
+	None                       // no analysis done yet (not in stats)
+,	Dep                        // analyzing deps
+,	Queued                     // waiting for execution
+,	Exec                       // executing
+,	Done                       // done execution (or impossible to execute)
+,	Hit                        // cache hit
+//
+// aliases
+,	MinCurStats  = Dep
+,	MaxCurStats1 = Done
+,	End          = Dep         // value to which step is set at end of execution to distinguish from an actively running job
+} ;
 
-ENUM( MissingAudit
-,	No
+enum class MissingAudit : uint8_t {
+	No
 ,	Steady
 ,	Modified
-)
+} ;
 
-ENUM( RunStatus
-,	Ok
+enum class RunStatus : uint8_t {
+	Ok
 ,	DepErr        // job cannot run because some deps are in error
 ,	MissingStatic // job cannot run because missing static dep
 ,	Err           // job cannot run because an error was seen before even starting
-)
+} ;
 
-ENUM( SpecialStep // ordered by increasing importance
-,	Idle
+enum class SpecialStep : uint8_t { // ordered by increasing importance
+	Idle
 ,	Ok
 ,	Err
 ,	Loop
-)
+} ;
 
 namespace Engine {
 

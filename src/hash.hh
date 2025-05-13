@@ -16,17 +16,17 @@
 #include "disk.hh"
 #include "serialize.hh"
 
-// ENUM macro does not work inside namespace's
-
-ENUM_1( CrcSpecial // use non-abbreviated names as it is used for user
-,	Valid = None   // >=Valid means value represent file content, >Val means that in addition, file exists
-,	Unknown        // file is completely unknown
-,	Lnk            // file is a link pointing to an unknown location
-,	Reg            // file is regular with unknown content
-,	None           // file does not exist or is a dir
-,	Empty          // file is the regular empty file
+enum class CrcSpecial : uint8_t { // use non-abbreviated names as it is used for user
+	Unknown                       // file is completely unknown
+,	Lnk                           // file is a link pointing to an unknown location
+,	Reg                           // file is regular with unknown content
+,	None                          // file does not exist or is a dir
+,	Empty                         // file is the regular empty file
 ,	Plain
-)
+//
+// alises
+,	Valid = None                  // >=Valid means value represent file content, >Val means that in addition, file exists
+} ;
 
 namespace Hash {
 

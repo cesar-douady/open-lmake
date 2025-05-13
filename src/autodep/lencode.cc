@@ -15,12 +15,13 @@
 using namespace Disk ;
 using namespace Hash ;
 
-ENUM(Key,None)
-ENUM(Flag
-,	File
+enum class Key : uint8_t { None } ;
+
+enum class Flag : uint8_t {
+	File
 ,	Context
 ,	MinLen
-)
+} ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{

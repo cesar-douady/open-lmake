@@ -6,17 +6,17 @@
 #include "core.hh"      // /!\ must be first to include Python.h first
 #include "serialize.hh"
 
-ENUM( StarAction
-,	None
+enum class StarAction : uint8_t {
+	None
 ,	Stop
 ,	Err
-)
+} ;
 
-ENUM( Escape
-,	None
+enum class Escape : uint8_t {
+	None
 ,	Re
 ,	Fstr
-)
+} ;
 
 namespace Engine {
 

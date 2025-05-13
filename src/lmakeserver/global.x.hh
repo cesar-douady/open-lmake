@@ -9,21 +9,21 @@
 
 #include "rpc_client.hh"
 
-ENUM( EngineClosureKind
-,	Global
+enum class EngineClosureKind : uint8_t {
+	Global
 ,	Req
 ,	Job
 ,	JobMngt
-)
+} ;
 
-ENUM( GlobalProc
-,	None
+enum class GlobalProc : uint8_t {
+	None
 ,	Int
 ,	Wakeup
-)
+} ;
 
-ENUM( JobEvent
-,	Submit     // job is submitted
+enum class JobEvent : uint8_t {
+	Submit     // job is submitted
 ,	Add        // add a Req monitoring job
 ,	Start      // job execution starts
 ,	Done       // job done successfully
@@ -32,19 +32,19 @@ ENUM( JobEvent
 ,	Killed     // job has been killed
 ,	Del        // delete a Req monitoring job
 ,	Err        // job done in error
-)
+} ;
 
-ENUM( NodeEvent
-,	Done        // node was modified
+enum class NodeEvent : uint8_t {
+	Done        // node was modified
 ,	Steady      // node was remade w/o modification
 ,	Uphill      // uphill dir was makable
-)
+} ;
 
-ENUM( ReportBool
-,	No
+enum class ReportBool : uint8_t {
+	No
 ,	Yes
 ,	Reported
-)
+} ;
 
 namespace Engine {
 

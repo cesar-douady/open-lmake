@@ -16,14 +16,14 @@ using namespace Disk   ;
 using namespace Engine ;
 using namespace Time   ;
 
-ENUM( EventKind
-,	Master
+enum class EventKind : uint8_t {
+	Master
 ,	Slave
 ,	Stop
 ,	Std
 ,	Int
 ,	Watch
-)
+} ;
 
 static constexpr Delay StatsRefresh { 1 } ;
 

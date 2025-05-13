@@ -10,13 +10,13 @@
 using namespace Caches ;
 using namespace Disk   ;
 
-ENUM( NoRunReason
-,	None
+enum class NoRunReason : uint8_t {
+	None
 ,	Dep        // dont run because deps are not new
 ,	SubmitLoop // dont run because job submission limit is reached
 ,	RetryLoop  // dont run because job retry      limit is reached
 ,	LostLoop   // dont run because job lost       limit is reached
-)
+} ;
 
 namespace Engine {
 
@@ -736,20 +736,20 @@ namespace Engine {
 		JobData const& jd          = *self            ;
 		Color          color       = {}/*garbage*/    ;
 		JR             res         = {}/*garbage*/    ; // report if not Rerun
-		const char*    step        = nullptr          ;
+		::string_view  step        ;
 		bool           with_stderr = true             ;
 		bool           speculate   = ri.speculate!=No ;
 		bool           done        = ri.done()        ;
 		//
-		if      ( jd.run_status!=RunStatus::Ok               ) { res = JR::Failed     ; color = Color::Err     ; step = snake_cstr(jd.run_status) ; }
-		else if ( jd.status==Status::Killed                  ) { res = JR::Killed     ; color = Color::Note    ; with_stderr = false ;              }
-		else if ( is_lost(jd.status) && is_ok(jd.status)==No ) { res = JR::LostErr    ; color = Color::Err     ;                                    }
-		else if ( is_lost(jd.status)                         ) { res = JR::Lost       ; color = Color::Warning ; with_stderr = false ;              }
-		else if ( jd.status==Status::SubmitLoop              ) { res = JR::SubmitLoop ; color = Color::Err     ;                                    }
-		else if ( req.zombie()                               ) { res = JR::Completed  ; color = Color::Note    ; with_stderr = false ;              }
-		else if ( jd.err()                                   ) { res = JR::Failed     ; color = Color::Err     ;                                    }
-		else if ( ri.modified                                ) { res = JR::Done       ; color = Color::Ok      ;                                    }
-		else                                                   { res = JR::Steady     ; color = Color::Ok      ;                                    }
+		if      ( jd.run_status!=RunStatus::Ok               ) { res = JR::Failed     ; color = Color::Err     ; step = snake(jd.run_status) ; }
+		else if ( jd.status==Status::Killed                  ) { res = JR::Killed     ; color = Color::Note    ; with_stderr = false ;         }
+		else if ( is_lost(jd.status) && is_ok(jd.status)==No ) { res = JR::LostErr    ; color = Color::Err     ;                               }
+		else if ( is_lost(jd.status)                         ) { res = JR::Lost       ; color = Color::Warning ; with_stderr = false ;         }
+		else if ( jd.status==Status::SubmitLoop              ) { res = JR::SubmitLoop ; color = Color::Err     ;                               }
+		else if ( req.zombie()                               ) { res = JR::Completed  ; color = Color::Note    ; with_stderr = false ;         }
+		else if ( jd.err()                                   ) { res = JR::Failed     ; color = Color::Err     ;                               }
+		else if ( ri.modified                                ) { res = JR::Done       ; color = Color::Ok      ;                               }
+		else                                                   { res = JR::Steady     ; color = Color::Ok      ;                               }
 		//
 		JR jr = res ;                                   // report to do now
 		if (done) {
@@ -757,7 +757,7 @@ namespace Engine {
 			ri.modified           = false       ;       // for the user, this is the base of future modifications
 		} else {
 			with_stderr  = false          ;
-			step         = nullptr        ;
+			step         = {}             ;
 			color       &= Color::Warning ;
 			if      (is_lost(jd.status)             ) {                                             }
 			else if (jd.status==Status::EarlyChkDeps) { jr = JR::EarlyRerun ; color = Color::Note ; }
@@ -768,7 +768,7 @@ namespace Engine {
 			case Color::Err : if ( speculate                         ) color = Color::SpeculateErr ; break ;
 			case Color::Ok  : if ( with_stderr && +msg_stderr.stderr ) color = Color::Warning      ; break ;
 		DN}
-		if (!step) step = snake_cstr(jr) ;
+		if (!step) step = snake(jr) ;
 		Trace trace("audit_end",color,pfx,step,self,ri,STR(with_stats),STR(retry),STR(with_stderr),STR(done),STR(speculate),jr,STR(+msg_stderr.msg),STR(+msg_stderr.stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		req->audit_job( color , pfx+step , self , true/*at_end*/ , exec_time ) ;

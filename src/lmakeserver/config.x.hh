@@ -9,8 +9,8 @@
 
 #ifdef STRUCT_DECL
 
-ENUM( Color
-,	None
+enum class Color : uint8_t {
+	None
 ,	HiddenNote
 ,	HiddenOk
 ,	Note
@@ -18,20 +18,20 @@ ENUM( Color
 ,	Warning
 ,	SpeculateErr
 ,	Err
-)
+} ;
 
-ENUM( ConfigDiff
-,	None         // configs are identical
+enum class ConfigDiff : uint8_t {
+	None         // configs are identical
 ,	Dyn          // config can be updated while engine runs
 ,	Static       // config can be updated when engine is steady
 ,	Clean        // config cannot be updated (requires clean repo)
-)
+} ;
 
-ENUM( StdRsrc
-,	Cpu
+enum class StdRsrc : uint8_t {
+	Cpu
 ,	Mem
 ,	Tmp
-)
+} ;
 
 namespace Engine {
 

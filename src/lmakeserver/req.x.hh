@@ -9,8 +9,8 @@
 
 #ifdef STRUCT_DECL
 
-ENUM( JobReport
-,	Speculative
+enum class JobReport : uint8_t {
+	Speculative
 ,	Steady
 ,	Failed
 ,	SubmitLoop
@@ -23,7 +23,7 @@ ENUM( JobReport
 ,	EarlyRerun
 ,	Rerun
 ,	Hit
-)
+} ;
 
 namespace Engine {
 	struct Req     ;

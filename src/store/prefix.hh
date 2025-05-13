@@ -7,7 +7,11 @@
 
 #include "alloc.hh"
 
-ENUM( ItemKind , Terminal, Prefix , Split )
+enum class ItemKind : uint8_t {
+	Terminal
+,	Prefix
+,	Split
+} ;
 
 namespace Store {
 

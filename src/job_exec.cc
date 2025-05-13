@@ -261,13 +261,13 @@ static const ::vector_s SpecialVars {
 ,	"SHELLOPTS"
 } ;
 
-ENUM( State
-,	None
+enum class State : uint8_t {
+	None
 ,	SingleQuote
 ,	DoubleQuote
 ,	BackSlash
 ,	DoubleQuoteBackSlash // after a \ within ""
-)
+} ;
 
 static bool is_special( char c , int esc_lvl , bool first=false ) {
 	switch (c) {

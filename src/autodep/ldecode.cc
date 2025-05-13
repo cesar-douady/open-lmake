@@ -10,12 +10,13 @@
 #include "job_support.hh"
 #include "record.hh"
 
-ENUM(Key,None)
-ENUM(Flag
-,	Code
+enum class Key : uint8_t { None } ;
+
+enum class Flag : uint8_t {
+	Code
 ,	File
 ,	Context
-)
+} ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{

@@ -24,24 +24,24 @@
 // This way, we do not generate spurious errors.
 // To do so, we maintain, for each access entry (i.e. a file), a list of sockets that are unordered, i.e. for which a following Write could actually have been done before by the user.
 
-ENUM( GatherKind // epoll events
-,	Stdout
+enum class GatherKind : uint8_t { // epoll events
+	Stdout
 ,	Stderr
 ,	ServerReply
-,	ChildStart   // just a marker, not actually used as epoll event
+,	ChildStart                    // just a marker, not actually used as epoll event
 ,	ChildEnd
 ,	ChildEndFd
 ,	JobMaster
 ,	JobSlave
 ,	ServerMaster
 ,	ServerSlave
-)
+} ;
 
-ENUM( KillStep
-,	None
+enum class KillStep : uint8_t {
+	None
 ,	Report
 ,	Kill   // must be last as following values are used
-)
+} ;
 
 struct Gather {                                                                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , Gather const& ) ;
