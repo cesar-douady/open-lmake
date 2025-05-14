@@ -60,7 +60,7 @@ struct Gather {                                                                 
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
 		::pair<PD,Accesses> first_read() const {
-			::pair<PD,Access> res = {required,{}} ;
+			::pair<PD,Accesses> res = {required,{}} ;
 			for( Access a : iota(All<Access>) ) {
 				if (!digest.accesses[a]) continue ;
 				if (read[+a]>res.first ) continue ;

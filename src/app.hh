@@ -37,7 +37,7 @@ struct FlagSpec {
 	::string doc        ;
 } ;
 
-template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere=true> struct Syntax {
+template<UEnum Key,UEnum Flag,bool OptionsAnywhere=true> struct Syntax {
 private :
 	static ::string _s_version_str() {
 		return cat("version ",Version[0],'.',Version[1]," (",VersionMrkr,")") ;
@@ -63,7 +63,7 @@ public :
 	::array<FlagSpec,N<Flag>> flags        ;
 } ;
 
-template<StdEnum Key,StdEnum Flag> struct CmdLine {
+template<UEnum Key,UEnum Flag> struct CmdLine {
 	// cxtors & casts
 	CmdLine() = default ;
 	template<bool OAW> CmdLine( Syntax<Key,Flag,OAW> const& , int argc , const char* const* argv ) ;
@@ -85,11 +85,11 @@ template<StdEnum Key,StdEnum Flag> struct CmdLine {
 	::vector_s         args      ;
 } ;
 
-template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::version() const {
+template<UEnum Key,UEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::version() const {
 	exit( {} , _s_version_str() ) ;
 }
 
-template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
+template<UEnum Key,UEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
 	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
     static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
 	::string exe_path  = get_exe()                 ;
@@ -133,7 +133,7 @@ template<StdEnum Key,StdEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax
 	exit( Rc::Usage , err_msg ) ;
 }
 
-template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {
+template<UEnum Key,UEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;

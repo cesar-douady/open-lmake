@@ -153,8 +153,8 @@ namespace Engine {
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
 
 		struct WaitInc {
-			WaitInc (ReqInfo& ri) : _ri{ri} { SWEAR(_ri.n_wait<::numeric_limits<WatcherIdx>::max()) ; _ri.inc_wait() ; }
-			~WaitInc(           )           { SWEAR(_ri.n_wait>0                                  ) ; _ri.dec_wait() ; }
+			WaitInc (ReqInfo& ri) : _ri{ri} { SWEAR(_ri.n_wait<Max<WatcherIdx>) ; _ri.inc_wait() ; }
+			~WaitInc(           )           { SWEAR(_ri.n_wait>0              ) ; _ri.dec_wait() ; }
 		private :
 			ReqInfo& _ri ;
 		} ;

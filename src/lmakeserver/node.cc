@@ -158,8 +158,8 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^
 			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
 			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate              ) ri.overwritten |= mismatch ;                    }
-			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(cri.goal|NodeGoal::Status)) r->audit_job( c , step , lazy_msg() , name_ ) ; }
+			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate                     ) ri.overwritten |= mismatch ;                    }
+			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ; }
 			if (!mismatch) return false/*updated*/ ;
 		}
 		return true/*updated*/ ;
@@ -172,11 +172,13 @@ namespace Engine {
 				Job( s , idx() , Deps(deps,{}/*accesses*/,{}/*dflags*/,false/*parallel*/) )
 			,	true/*is_sure*/
 			}})) ;
-			Buildable b = Buildable::Yes ;
+			buildable = Buildable::Yes ;
 			for( Node const& d : deps )
-				if ( d->buildable!=Buildable::Unknown && d->buildable!=Buildable::PathTooLong )
-					b &= d->buildable ;
-			buildable = b ;
+				switch (d->buildable) {
+					case Buildable::Unknown     :
+					case Buildable::PathTooLong : break ;
+					default                     : buildable = ::min(buildable,d->buildable) ;
+				}
 		}
 		rule_tgts().clear() ;
 		_set_match_ok() ;
@@ -276,17 +278,17 @@ namespace Engine {
 			if (r->prio<prio) goto Done ;
 			if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ; // too deep, must be an infinite dep path
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobTgt jt = JobTgt(rt,name_,Maybe/*chk_psfx*/,req,lvl+1) ; // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
+			JobTgt jt = JobTgt(rt,name_,Maybe/*chk_psfx*/,req,lvl+1) ;         // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
 			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (+jt) {
-				if (jt.sure()) { b  = Buildable::Yes   ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
-				else             b |= Buildable::Maybe ;
+				if (jt.sure()) { b =         Buildable::Yes    ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
+				else             b = ::max(b,Buildable::Maybe) ;
 				jts.push_back(jt) ;
 				prio = r->prio ;
 			}
 			if (n!=NoIdx) n++ ;
 		}
-		n = NoIdx ;                                                    // we have exhausted all rules
+		n = NoIdx ;                                                            // we have exhausted all rules
 	Done :
 		//            vvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (+jts    ) job_tgts ().append    (jts) ;
@@ -348,7 +350,7 @@ namespace Engine {
 				//                    ^^^^^^^^^^^^^^^^^^^^^^^^^
 				//
 				Buildable b = _gather_prio_job_tgts(name_,req,lvl) ;
-				if (db==Buildable::Maybe) b |= Buildable::Maybe ;                    // we are at least as buildable as our dir
+				if (db==Buildable::Maybe) b = ::max(b,Buildable::Maybe) ;            // we are at least as buildable as our dir
 				//vvvvvvvvvvv
 				buildable = b ;
 				//^^^^^^^^^^^
@@ -519,33 +521,33 @@ namespace Engine {
 	}
 
 	static bool _may_need_regenerate( NodeData const& nd , NodeReqInfo& ri , NodeMakeAction make_action ) {
-		/**/                                if (   make_action==NodeMakeAction::Wakeup            ) return false ;                 // do full analysis
-		/**/                                if (   !ri.done(NodeGoal::Status)                     ) return false ;                 // do full analysis
-		JobTgt cjt = nd.conform_job_tgt() ; if (!( +cjt && cjt.produces(nd.idx(),true/*actual*/) )) return false ;                 // no hope to regenerate, proceed normally
-		/**/                                if (   +nd.polluted || nd.busy                        ) ri.done_ &= NodeGoal::Status ; // disk cannot be ok if node is polluted or busy
-		/**/                                if (   ri.done()                                      ) return false ;                 // node is ok
+		/**/                                if (   make_action==NodeMakeAction::Wakeup            ) return false ;                                // do full analysis
+		/**/                                if (   !ri.done(NodeGoal::Status)                     ) return false ;                                // do full analysis
+		JobTgt cjt = nd.conform_job_tgt() ; if (!( +cjt && cjt.produces(nd.idx(),true/*actual*/) )) return false ;                                // no hope to regenerate, proceed normally
+		/**/                                if (   +nd.polluted || nd.busy                        ) ri.done_ = ::min(ri.done_,NodeGoal::Status) ; // disk cannot be ok if node is polluted or busy
+		/**/                                if (   ri.done()                                      ) return false ;                                // node is ok
 		Trace trace("_may_need_regenerate",nd.idx(),ri,cjt,nd.polluted,STR(nd.busy),make_action) ;
-		ri.prio_idx = nd.conform_idx() ;                                                                                           // ask to run only conform job
-		ri.single   = true             ;                                                                                           // .
+		ri.prio_idx = nd.conform_idx() ;                                                                                                          // ask to run only conform job
+		ri.single   = true             ;                                                                                                          // .
 		return true ;
 	}
 	void NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
 		RuleIdx            prod_idx       = NoIdx                              ;
 		Req                req            = ri.req                             ;
-		Bool3              clean          = Maybe                              ;                                                   // lazy evaluate manual()==No
+		Bool3              clean          = Maybe                              ;                                      // lazy evaluate manual()==No
 		::array<RuleIdx,2> multi          = {NoIdx,NoIdx}                      ;
 		bool               stop_speculate = speculate<ri.speculate && +ri.goal ;
 		bool               query          = make_action==MakeAction::Query     ;
-		bool               chk_regenerate = false                              ;                                                   // anti infinite loop : may only regenerate once
+		bool               chk_regenerate = false                              ;                                      // anti infinite loop : may only regenerate once
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvv
 		set_buildable(req) ;
 		//^^^^^^^^^^^^^^^^
 		if (make_action==MakeAction::Wakeup) ri.dec_wait() ;
-		else                                 ri.goal = ri.goal | mk_goal(make_action) ;
+		else                                 ri.goal = ::max( ri.goal , mk_goal(make_action) ) ;
 		if      ( ri.waiting()             ) goto Wait ;
-		else if ( req.zombie()             ) ri.done_ |= NodeGoal::Dsk ;
+		else if ( req.zombie()             ) ri.done_ = ::max( ri.done_ , NodeGoal::Dsk ) ;
 		//
 		if (ri.prio_idx==NoIdx) {
 			if (ri.done()) goto Wakeup ;
@@ -565,8 +567,8 @@ namespace Engine {
 				JobTgt jt   = *it                        ;
 				bool   done = jt->c_req_info(req).done() ;
 				trace("check",jt,jt->c_req_info(req)) ;
-				if (!done             ) { prod_idx = NoIdx ; goto Make ;                                            }              // we waited for it and it is not done, retry
-				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; }              // jobs in error are deemed to produce all their potential targets
+				if (!done             ) { prod_idx = NoIdx ; goto Make ;                                            } // we waited for it and it is not done, retry
+				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; } // jobs in error are deemed to produce all their potential targets
 			}
 			if (prod_idx!=NoIdx) goto DoWakeup ;                                             // we have at least one done job, no need to investigate any further
 			if (ri.single) ri.single   = false  ;                                            // if regenerating but job does not generate us, something strange happened, retry this prio
@@ -581,9 +583,9 @@ namespace Engine {
 				if (!ri.single) {                                                            // fast path : cannot have several jobs not gather new jobs if we consider only a single (existing) job
 					if (ri.prio_idx>=job_tgts().size()) {                                    // gather new job_tgts from rule_tgts
 						try {
-							//                      vvvvvvvvvvvvvvvvvvvvvvvvvv
-							buildable = buildable | _gather_prio_job_tgts(req) ;
-							//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+							//                             vvvvvvvvvvvvvvvvvvvvvvvvvv
+							buildable = ::max( buildable , _gather_prio_job_tgts(req) ) ;
+							//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
 							if (ri.prio_idx>=job_tgts().size()) goto DoWakeup ;              // fast path
 						} catch (::pair<Special,::vector<Node>> const& e) {
 							set_infinite(e.first,e.second) ;
@@ -759,8 +761,8 @@ namespace Engine {
 		}
 		for( Req r : reqs() ) {
 			ReqInfo& ri = req_info(r) ;
-			if (modified) ri.done_  &= NodeGoal::Status ; // target is not conform on disk any more
-			if (+sd     ) ri.manual  = Manual::Ok       ; // if we passed a sig, we know the disk state, and we just updated our records
+			if (modified) ri.done_  = ::min( ri.done_ , NodeGoal::Status ) ; // target is not conform on disk any more
+			if (+sd     ) ri.manual = Manual::Ok                           ; // if we passed a sig, we know the disk state, and we just updated our records
 		}
 		return modified ;
 	}

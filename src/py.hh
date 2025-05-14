@@ -610,9 +610,9 @@ namespace Py {
 		}
 		template<class... A> Ptr<> operator()(A&&... args) const {
 			Gil::s_swear_locked() ;
-			/**/             Ptr<Tuple> t               { sizeof...(A) }                       ;
-			/**/             size_t     i               = 0                                    ;
-			[[maybe_unused]] bool       _[sizeof...(A)] = { (t->set_item(i++,args),false)... } ;
+			Ptr<Tuple> t { sizeof...(A) } ;
+			size_t     i = 0              ;
+			((t->set_item(i++,args)),...) ;
 			return PyObject_CallObject( to_py() , t->to_py() ) ;
 		}
 		template<class R=Object,class... A> Ptr<R> call(A&&... args) const { return self(args...) ; }

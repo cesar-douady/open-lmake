@@ -184,7 +184,7 @@ namespace Backends::Sge {
 			return cat("sge_id:",se.id.load()) ;
 		}
 		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const {
-			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                    // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                        // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::string msg ;
 			try                       { msg = AcFd(get_stderr_file(j)).read() ; }
 			catch (::string const& e) { msg = e                               ; }
@@ -198,10 +198,10 @@ namespace Backends::Sge {
 				catch (::string const& e) { msg = e                                 ; }
 			else
 				msg = "lost job "+::to_string(se.id) ;
-			return { ::move(msg) , HeartbeatState::Lost } ;                                        // XXX! : try to distinguish between Lost and Err
+			return { ::move(msg) , HeartbeatState::Lost } ;                                            // XXX! : try to distinguish between Lost and Err
 		}
 		virtual void kill_queued_job(SpawnedEntry const& se) const {
-			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                 // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                     // asynchronous (as faster and no return value) cancel
 		}
 		virtual SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
 			::string stderr = se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s ;
@@ -221,8 +221,8 @@ namespace Backends::Sge {
 				sge_cmd_line.emplace_back("-v"   ) ;
 				sge_cmd_line.emplace_back(env_str) ;
 			}
-			SWEAR(+reqs) ;                                                                                                 // why launch a job if for no req ?
-			int16_t prio = ::numeric_limits<int16_t>::min() ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
+			SWEAR(+reqs) ;                                                                             // why launch a job if for no req ?
+			int16_t prio = Min<int16_t> ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
 			Rsrcs const& rs = se.rsrcs ;
 			if ( prio                 )            { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }

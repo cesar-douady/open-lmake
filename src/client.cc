@@ -8,6 +8,7 @@
 #include "msg.hh"
 #include "process.hh"
 #include "rpc_client.hh"
+#include "thread.hh"
 #include "time.hh"
 #include "trace.hh"
 
@@ -177,6 +178,13 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	return res ;
 }
 
+static void _out_thread_func(ReqRpcReply const& rrr) {
+	switch (rrr.proc) {
+		case ReqRpcReplyProc::Stderr : Fd::Stderr.write(rrr.txt) ; break ;
+		case ReqRpcReplyProc::Stdout : Fd::Stdout.write(rrr.txt) ; break ;
+	DF}                                                                    // NO_COV
+}
+
 Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool/*start*/)->void{} ) {
 	Trace trace("out_proc") ;
 	//
@@ -195,16 +203,19 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool 
 		case 'r' :
 		case 'R' : rv = Yes                                    ; break ;
 		case 'f' :
-		case 'F' : rv = Maybe                                  ; break ;                                                         // force no color
+		case 'F' : rv = Maybe                                  ; break ;                                // force no color
 		default  : rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("reverse_video",rv) ;
 	//
-	ReqRpcReq rrr        { proc , cmd_line.files() , { rv , cmd_line } } ;
-	Bool3     rc         = Maybe                                         ;
-	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)    ;
-	cb(true/*start*/) ;
+	ReqRpcReq                              rrr        { proc , cmd_line.files() , { rv , cmd_line } } ;
+	Bool3                                  rc         = Maybe                                         ;
+	pid_t                                  server_pid = _connect_to_server(read_only,refresh,sync)    ;
+	trace("starting") ;
+	cb(true/*start*/) ;                                                                                 // block INT once server is initialized so as to be interruptible at all time
+	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func }                      ; // /!\ must be after call to cb so INT can be blocked before creating threads
 	OMsgBuf().send(g_server_fds.out,rrr) ;
+	trace("started") ;
 	try {
 		for(;;) {
 			using Proc = ReqRpcReplyProc ;
@@ -213,16 +224,18 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool 
 				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
 				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX! : why is it necessary to goto Return here ? ...
 				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
-				case Proc::Stderr :                                  Fd::Stderr.write(report.txt) ;                break       ;
-				case Proc::Stdout :                                  Fd::Stdout.write(report.txt) ;                break       ;
+				case Proc::Stderr :
+				case Proc::Stdout : out_thread.push(::move(report)) ;                                              break       ; // queue reports to avoid blocking server should std/stdout be blocked
 			DF}                                                                                                                  // NO_COV
 		}
 	} catch(...) {
 		trace("disconnected") ;
 	}
 Return :
+	trace("exiting") ;
 	cb(false/*start*/) ;
 	g_server_fds.out.close() ;                                                                                                   // ensure server stops living because of us
 	if (sync) waitpid( server_pid , nullptr , 0 ) ;
+	trace("done") ;
 	return rc ;
 }

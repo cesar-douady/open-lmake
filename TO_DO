@@ -24,10 +24,9 @@ items (also used in XXX comments) :
 
 * explictly allow readdir
 	- with a allow_readdir rule attribute
-	- libc : fdopendir+glob+glob64+globfree+globfree64+opendir+scandir+scandir64+scandirat+scandirat64
-	- or     getdents+getdents64+getdirentries+getdirentries64+glob+glob64+globfree+globfree64+readdir+readdir64+readdir_r+readdir64_r+scandir
-	- syscall : getdents+getdents64
-
+	- use /proc/.../fd to recover the read dir
+	- libc    : getdents+getdents64+getdirentries+getdirentries64+glob+glob64+globfree+globfree64+readdir+readdir64+readdir_r+readdir64_r+scandir+scandir64+scandirat+scandirat64
+	- syscall : getdents+getdents64+readdir
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary

@@ -18,15 +18,16 @@ Atomic<bool> g_seen_int = false ;
 
 static void _int_thread_func(::stop_token stop) {
 	t_thread_key = 'I' ;
+	::stop_callback stop_cb { stop , [&](){ Trace trace("stop") ; kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
+	Epoll           epoll   { New                                                       } ; epoll.add_sig(SIGINT) ;
 	Trace trace("_int_thread_func") ;
-	::stop_callback stop_cb { stop , [&](){ kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
-	Epoll           epoll   { New                                 } ; epoll.add_sig(SIGINT) ;
 	for(;;) {
 		epoll.wait() ;
-		if (stop.stop_requested()) break ;                                                    // not an interrupt, just normal exit
-		trace("send_int") ;
+		bool stop_requested = stop.stop_requested() ;
+		trace("int",STR(stop_requested)) ;
+		if (stop_requested) break ;                                                                                 // not an interrupt, just normal exit
 		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
-		Fd::Stdout.write("\n") ;                                                              // output is nicer if ^C is on its own line
+		Fd::Stdout.write("\n") ;                                                                                    // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;
@@ -46,14 +47,16 @@ static void _handle_int(bool start) {
 		}
 	} ;
 	static ::jthread int_jt ;
+	Trace trace("_handle_int",STR(start)) ;
 	if (start) {
 		if (is_blocked_sig(SIGINT)) return ;          // nothing to handle if ^C is blocked
+		trace("set_up") ;
 		static Exit exit ;
 		int_jt = ::jthread(_int_thread_func) ;
 	} else {
 		if (int_jt.joinable()) {
 			int_jt.request_stop() ;
-			kill_self(SIGINT) ;                       // ensure we unblock reading signal_fd
+			trace("wait") ;
 			int_jt.join() ;
 		}
 	}

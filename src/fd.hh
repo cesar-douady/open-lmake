@@ -272,7 +272,7 @@ public :
 //
 
 extern StaticUniqPtr<::uset<int>> _s_epoll_sigs ;         // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
-template<StdEnum E=NewType/*when_unused*/> struct Epoll {
+template<Enum E=NewType/*when_unused*/> struct Epoll {
 	struct Event : ::epoll_event {
 		// cxtors & casts
 		using ::epoll_event::epoll_event ;

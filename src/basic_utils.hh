@@ -323,7 +323,7 @@ inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (
 
 template<class... A> inline ::string cat(A&&... args) {
 	::string res ;
-	[[maybe_unused]] bool _[] = { false , (res+=args,false)... } ;
+	((res+=args),...) ;
 	return res ;
 }
 

@@ -156,17 +156,21 @@ enum class Bool3 : uint8_t {
 static constexpr Bool3 No    = Bool3::No    ;
 static constexpr Bool3 Maybe = Bool3::Maybe ;
 static constexpr Bool3 Yes   = Bool3::Yes   ;
-inline Bool3  operator~ ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
-inline Bool3  operator| ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
-inline Bool3  operator& ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
-inline Bool3  operator| ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
-inline Bool3  operator& ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
-inline Bool3& operator|=( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
-inline Bool3& operator&=( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
-inline Bool3  common    ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
-inline Bool3  common    ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
-inline Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
-inline Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
+inline constexpr Bool3  operator~ ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
+inline constexpr Bool3  operator| ( Bool3  b1 , Bool3 b2 ) {                return ::max(b1,b2)                                                        ; }
+inline constexpr Bool3  operator| ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
+inline constexpr Bool3  operator| ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
+inline constexpr Bool3  operator& ( Bool3  b1 , Bool3 b2 ) {                return ::min(b1,b2)                                                        ; }
+inline constexpr Bool3  operator& ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
+inline constexpr Bool3  operator& ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
+inline constexpr Bool3& operator|=( Bool3& b1 , Bool3 b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
+inline constexpr Bool3& operator|=( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
+inline constexpr Bool3& operator&=( Bool3& b1 , Bool3 b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
+inline constexpr Bool3& operator&=( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
+inline constexpr Bool3  common    ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
+inline constexpr Bool3  common    ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
+inline constexpr Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
+inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
 //
 // mutexes
@@ -524,9 +528,9 @@ template<class... As> [[noreturn]] inline void exit( Rc rc , As const&... args )
 }
 
 template<class... As> void dbg( ::string const& title , As const&... args ) {
-	::string              msg = title                                 ;
-	[[maybe_unused]] bool _[] = { false , (msg<<' '<<args,false)... } ;
-	msg += '\n' ;
+	::string msg = title             ;
+	/**/  (( msg <<' '<< args ),...) ;
+	/**/     msg <<'\n'              ;
 	Fd::Stderr.write(msg) ;
 }
 
@@ -576,10 +580,10 @@ template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&.
 	if (!_crash_busy) {                                                                     // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
 		_crash_busy = true ;
 		::string err_msg = get_exe() ;
-		if (t_thread_key!='?') err_msg <<':'<< t_thread_key            ;
-		/**/                   err_msg <<" ("<<_crash_get_now()<<") :" ;
-		[[maybe_unused]] bool _[] = {false,(err_msg<<' '<<args,false)...} ;
-		err_msg << '\n' ;
+		if (t_thread_key!='?') err_msg <<':'<< t_thread_key                   ;
+		/**/                   err_msg <<" ("<<_crash_get_now()<<") :"        ;
+		/**/                (( err_msg <<' '<< args                    ),...) ;
+		/**/                   err_msg <<'\n'                                 ;
 		Fd::Stderr.write(err_msg) ;
 		set_sig_handler<SIG_DFL>(sig) ;
 		write_backtrace(Fd::Stderr,hide_cnt+1) ;

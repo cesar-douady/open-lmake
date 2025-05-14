@@ -75,7 +75,7 @@ namespace Codec {
 	}
 
 	static FileNameIdx _code_prio( ::string const& code , ::string const& crc ) {
-		static_assert( 3*PATH_MAX<= ::numeric_limits<FileNameIdx>::max() ) ;       // ensure highest possible value fits in range
+		static_assert( 3*PATH_MAX<= Max<FileNameIdx> ) ;                           // ensure highest possible value fits in range
 		SWEAR( code.size()<=PATH_MAX , code ) ;
 		char    last = code.back() ;
 		uint8_t lvl  = 3           ;

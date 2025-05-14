@@ -756,9 +756,9 @@ namespace Engine {
 			ri.modified_speculate = ri.modified ;       // remember to accumulate stats in the right slot
 			ri.modified           = false       ;       // for the user, this is the base of future modifications
 		} else {
-			with_stderr  = false          ;
-			step         = {}             ;
-			color       &= Color::Warning ;
+			with_stderr = false                           ;
+			step        = {}                              ;
+			color       = ::min( color , Color::Warning ) ;
 			if      (is_lost(jd.status)             ) {                                             }
 			else if (jd.status==Status::EarlyChkDeps) { jr = JR::EarlyRerun ; color = Color::Note ; }
 			else if (!retry                         ) { jr = JR::Rerun      ; color = Color::Note ; }
@@ -1108,9 +1108,9 @@ namespace Engine {
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
 				SWEAR(!( +dep_err && modif && !is_static )) ;                            // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
-				state.proto_err    = state.proto_err   | dep_err   ;                     // |= is forbidden for bit fields
-				state.proto_modif  = state.proto_modif | dep_modif ;                     // .
-				critical_modif    |= dep_modif && is_critical      ;
+				state.proto_err    = ::max( state.proto_err , dep_err ) ;                // |= is forbidden for bit fields
+				state.proto_modif  = state.proto_modif | dep_modif      ;                // .
+				critical_modif    |= dep_modif && is_critical           ;
 			}
 			if (ri.waiting()                             ) goto Wait ;
 			if (sure                                     ) mk_sure() ;                   // improve sure (sure is pessimistic)

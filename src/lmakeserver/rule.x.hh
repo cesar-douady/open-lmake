@@ -142,7 +142,7 @@ namespace Engine {
 		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest ) ;
 		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                      ) ;
 		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>         ) ;
-		template<StdEnum    E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
+		template<UEnum      E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
 		//
 		template<        bool Env=false>                                         bool/*updated*/ acquire( ::string     & dst , Py::Object const* py_src ) ;
 		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T  >& dst , Py::Object const* py_src ) ;
@@ -667,7 +667,7 @@ namespace Engine {
 			return true ;
 		}
 
-		template<StdEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
+		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
 			if (!py_src          ) {                 return false/*updated*/ ; }
 			if (*py_src==Py::None) { dst = E::Dflt ; return true /*updated*/ ; }
 			//
