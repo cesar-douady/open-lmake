@@ -39,16 +39,14 @@ struct AccessDigest {                                                // order is
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&   ) ;
-	AccessDigest  operator| (AccessDigest const& ad) const { return ::copy(self) |= ad ;   }
-	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return self ; }
-	AccessDigest  operator| (Accesses     const& a ) const { return ::copy(self) |= a  ;   }
+	AccessDigest  operator| (AccessDigest const& ad) const {                 return ::copy(self)|=ad ; }
+	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return        self      ; }
+	AccessDigest  operator| (Accesses     const& a ) const {                 return ::copy(self)|=a  ; }
 	// data
-	Bool3       write        = No            ;                       // if Maybe, write is not confirmed
-	Accesses    accesses     = {}            ;
-	Tflags      tflags       = {}            ;
-	ExtraTflags extra_tflags = {}            ;
-	Dflags      dflags       = DflagsDfltDyn ;
-	ExtraDflags extra_dflags = {}            ;
+	Bool3      write    = No                        ;                // if Maybe, write is not confirmed
+	Accesses   accesses = {}                        ;
+	bool       read_dir = false                     ;
+	MatchFlags flags    = { .dflags=DflagsDfltDyn } ;                // kind is unused
 } ;
 
 struct JobExecRpcReq {

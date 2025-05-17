@@ -6,13 +6,13 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	from step import step,python
 
 	lmake.manifest = ('Lmakefile.py','step.py')
 
-	class Cpy(Rule) :
+	class Cpy( PyRule if python else Rule ) :
 		targets      = { 'DST'        : 'test'    }
 		side_targets = { 'SCRATCHPAD' : 'test.sp' }
 		if python :

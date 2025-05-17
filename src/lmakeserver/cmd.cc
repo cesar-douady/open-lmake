@@ -195,9 +195,9 @@ namespace Engine {
 			}
 			for( ::string const& p : m.star_patterns() ) {
 				::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
-				if (me.second.flags.is_target!=No) continue ;
-				if (porcelaine) wk = ::max( wk , mk_py_str(me.first).size() ) ;
-				else            wk = ::max( wk ,           me.first .size() ) ;
+				if (me.second.flags.is_target()) continue ;
+				if (porcelaine                 ) wk = ::max( wk , mk_py_str(me.first).size() ) ;
+				else                             wk = ::max( wk ,           me.first .size() ) ;
 				res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
 			}
 		}
@@ -289,6 +289,7 @@ namespace Engine {
 		/**/                         res << ",\tlmake_root     = " << mk_py_str(no_slash(*g_lmake_root_s       )) << '\n' ;
 		if (+job_space.lmake_view_s) res << ",\tlmake_view     = " << mk_py_str(no_slash(job_space.lmake_view_s)) << '\n' ;
 		/**/                         res << ",\tname           = " << mk_py_str(         job->name()            ) << '\n' ;
+		if (ade.readdir_ok         ) res << ",\treaddir_ok     = " << mk_py_str(         ade.readdir_ok         ) << '\n' ;
 		/**/                         res << ",\trepo_root      = " << mk_py_str(no_slash(*g_repo_root_s        )) << '\n' ;
 		if (+job_space.repo_view_s ) res << ",\trepo_view      = " << mk_py_str(no_slash(job_space.repo_view_s )) << '\n' ;
 		if (+jsrr.stdout           ) res << ",\tstdin          = " << mk_py_str(         jsrr.stdin             ) << '\n' ;
@@ -779,15 +780,16 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if (+start.job_space.chroot_dir_s ) push_entry( "chroot_dir" , no_slash(start.job_space.chroot_dir_s) ) ;
-								if (+start.job_space.lmake_view_s ) push_entry( "lmake_view" , no_slash(start.job_space.lmake_view_s) ) ;
-								if (+start.job_space.repo_view_s  ) push_entry( "repo_view"  , no_slash(start.job_space.repo_view_s ) ) ;
-								if (+start.job_space.tmp_view_s   ) push_entry( "tmp_view"   , no_slash(start.job_space.tmp_view_s  ) ) ;
-								if (+start.autodep_env.sub_repo_s ) push_entry( "sub_repo"   , no_slash(start.autodep_env.sub_repo_s) ) ;
-								if ( start.autodep_env.auto_mkdir ) push_entry( "auto_mkdir" , "true"                                 ) ;
-								/**/                                push_entry( "autodep"    , snake_str(start.method)                ) ;
-								if (+start.timeout                ) push_entry( "timeout"    , start.timeout.short_str()              ) ;
-								if ( start.use_script             ) push_entry( "use_script" , "true"                                 ) ;
+								if (+start.job_space.chroot_dir_s) push_entry( "chroot_dir" , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.job_space.lmake_view_s) push_entry( "lmake_view" , no_slash(start.job_space.lmake_view_s) ) ;
+								if (+start.job_space.repo_view_s ) push_entry( "repo_view"  , no_slash(start.job_space.repo_view_s ) ) ;
+								if (+start.job_space.tmp_view_s  ) push_entry( "tmp_view"   , no_slash(start.job_space.tmp_view_s  ) ) ;
+								if (+start.autodep_env.sub_repo_s) push_entry( "sub_repo"   , no_slash(start.autodep_env.sub_repo_s) ) ;
+								if ( start.autodep_env.readdir_ok) push_entry( "readdir_ok" , "true"                                 ) ;
+								if ( start.autodep_env.auto_mkdir) push_entry( "auto_mkdir" , "true"                                 ) ;
+								/**/                               push_entry( "autodep"    , snake_str(start.method)                ) ;
+								if (+start.timeout               ) push_entry( "timeout"    , start.timeout.short_str()              ) ;
+								if ( start.use_script            ) push_entry( "use_script" , "true"                                 ) ;
 								//
 								if      (job->backend==BackendTag::Local  ) SWEAR(sa.used_backend==BackendTag::Local) ;
 								else if (job->backend==BackendTag::Unknown) push_entry( "backend" , snake_str(sa.used_backend)                                         ) ;
@@ -986,8 +988,8 @@ namespace Engine {
 					SWEAR(i==rule->n_statics) ;
 					for( ::string const& p : m.star_patterns() ) {
 						::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
-						if (me.second.flags.is_target!=Yes) continue ;
-						res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
+						if (me.second.flags.is_target())
+							res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
 					}
 				}
 				for( Target t : job->targets ) {

@@ -29,8 +29,8 @@ if __name__!='__main__' :
 		cmd    = ' echo good ; sleep 2 '
 
 	class Dut(BaseRule) :
-		target       = 'dut'
-		allow_stderr = True
+		target    = 'dut'
+		stderr_ok = True
 		cmd = '''
 			deps="$( cat ptr 2>/dev/null || echo bad1 bad2 )"
 			ldepend $deps                                     # makes deps required

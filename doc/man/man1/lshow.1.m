@@ -93,25 +93,26 @@ If I(--porcelaine), the output is generated as as B(dict), much like B(os.enviro
 Item(B(-i),B(--info))
 Show various info about a job, as it last ran (unless stated otherwise):
 	.RS
-	Bullet B(rule)        : the rule name.
-	Bullet B(job)         : the job name.
-	Bullet B(ids)         : the job-id (unique for each job), the small-id (unique among jobs running simultaneously) and the seq-id (unique in a repo).
-	Bullet B(required by) : the job that last necessitated job to run.
-	Bullet B(reason)      : the reason why job ran.
-	Bullet B(host)        : the host on which job ran.
-	Bullet B(scheduling)  : the ETA of the lmake command, a B(-), the duration from start-of-job to end-of-lmake command along the longest dep path as estimated at run time (known as the pressure).
+	Bullet B(rule)          : the rule name.
+	Bullet B(job)           : the job name.
+	Bullet B(ids)           : the job-id (unique for each job), the small-id (unique among jobs running simultaneously) and the seq-id (unique in a repo).
+	Bullet B(required by)   : the job that last necessitated job to run.
+	Bullet B(reason)        : the reason why job ran.
+	Bullet B(host)          : the host on which job ran.
+	Bullet B(scheduling)    : the ETA of the lmake command, a B(-), the duration from start-of-job to end-of-lmake command along the longest dep path as estimated at run time (known as the pressure).
 		Jobs are scheduled by giving higher priority to nearer ETA, then to higher pressure.
-	Bullet B(chroot_dir)  : the chroot dir in which job ran.
-	Bullet B(lmake_view)  : the name under which the lmake installation dir was seen by job.
-	Bullet B(repo_view)   : the name under which the repo root dir was seen by job.
-	Bullet B(tmp_view)    : the name under which the tmp dir was seen by job.
-	Bullet B(sub_repo)    : the sub-repo in which rule was defined.
-	Bullet B(auto_mkdir)  : true if C(chdir,2) to a non-existent triggered an automatic C(mkdir,2) for the C(chdir,2) to succeed.
-	Bullet B(autodep)     : the autodep method used.
-	Bullet B(timeout)     : the timeout after which job would have/has been killed.
-	Bullet B(use_script)  : true if a script was used to launch job (rather than directly using the I(-c) option to the interpreter).
-	bullet B(backend)     : the backend used to launch job.
-	Bullet B(run status)  : whether job could be run last time the need arose (note: if not ok it is later than when job last ran).
+	Bullet B(chroot_dir)    : the chroot dir in which job ran.
+	Bullet B(lmake_view)    : the name under which the lmake installation dir was seen by job.
+	Bullet B(readdir_ok)    : true if C(readdir,3) is allowed on local not B(ignore)d nor B(incremental) dirs.
+	Bullet B(repo_view)     : the name under which the repo root dir was seen by job.
+	Bullet B(tmp_view)      : the name under which the tmp dir was seen by job.
+	Bullet B(sub_repo)      : the sub-repo in which rule was defined.
+	Bullet B(auto_mkdir)    : true if C(chdir,2) to a non-existent triggered an automatic C(mkdir,2) for the C(chdir,2) to succeed.
+	Bullet B(autodep)       : the autodep method used.
+	Bullet B(timeout)       : the timeout after which job would have/has been killed.
+	Bullet B(use_script)    : true if a script was used to launch job (rather than directly using the I(-c) option to the interpreter).
+	bullet B(backend)       : the backend used to launch job.
+	Bullet B(run status)    : whether job could be run last time the need arose (note: if not ok it is later than when job last ran).
 		Possible values are:
 		.RS
 		Item(I(ok))             job could run.

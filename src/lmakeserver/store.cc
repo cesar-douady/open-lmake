@@ -374,8 +374,7 @@ namespace Engine::Persistent {
 		::map_s<uset<Rt>> sfx_map ;
 		for( Rule r : rule_lst() )
 			for( VarIdx ti : iota<VarIdx>(r->matches.size()) ) {
-				if ( r->matches[ti].second.flags.is_target!=Yes         ) continue ;
-				if (!r->matches[ti].second.flags.tflags()[Tflag::Target]) continue ;
+				if (!r->matches[ti].second.flags.tflags[Tflag::Target]) continue ;
 				Rt rt { r->crc , ti } ;
 				sfx_map[rt.sfx].insert(rt) ;
 			}

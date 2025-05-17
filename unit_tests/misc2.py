@@ -25,7 +25,7 @@ if __name__!='__main__' :
 			,	'SIDE' : r'side.{*:[12]}'
 			}
 			side_deps = { 'NO_DEP' : ( r'no_dep.{*:[12]}' , 'Ignore' ) }
-		allow_stderr = True
+		stderr_ok = True
 		def cmd() :
 			open('no_dep.1')
 			open('no_dep.2')

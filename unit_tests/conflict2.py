@@ -6,15 +6,15 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class A(Rule):
+	class A(PyRule) :
 		target = 'a'
 		def cmd(): pass
 
-	class B(Rule):
+	class B(PyRule) :
 		targets   = { 'B' :   'b'                 }
 		side_deps = { 'A' : (r'a{*:.*}','Ignore') }
 		def cmd():

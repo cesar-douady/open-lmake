@@ -12,8 +12,10 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class PyEnv(Rule) :
-		targets = { 'DST' : r'py_env/{*:.*}' }
+		targets   = { 'DST' : r'py_env/{*:.*}'   }
+		side_deps = { 'PY'  : ('.','readdir_ok') } # python reads dirs listed in sys.path and this is not handled by PyRule for shell rules
 		cmd = '''
+			ldepend -D py_env
 			python3 -m venv py_env
 			. py_env/bin/activate
 		'''

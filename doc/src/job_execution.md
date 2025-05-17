@@ -23,7 +23,7 @@ The job is reported ok if all of the following conditions are met:
 - Job execution (as mentioned below) is successful.
 - All static targets are generated
 - All written files are allowed (either appear as target, side target or are dynamically allowed by a call to `ltarget` or `lmake.target`)
-- Nothing is written to stderr, or the `allow_stderr` attribute is set.
+- Nothing is written to stderr, or the `stderr_ok` attribute is set.
 
 ## if cmd is a `str`
 

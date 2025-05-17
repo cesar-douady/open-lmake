@@ -15,8 +15,8 @@ if __name__!='__main__' :
 		cmd    = ''
 
 	class DutSh(Rule) :
-		target       = 'dut_sh'
-		allow_stderr = True
+		target    = 'dut_sh'
+		stderr_ok = True
 		cmd    = '''
 			cat dep_a1
 			ldepend --ignore --regexpr 'dep_a.*'
@@ -26,9 +26,9 @@ if __name__!='__main__' :
 			cat dep_b1
 		'''
 
-	class DutPy(Rule) :
-		target       = 'dut_py'
-		allow_stderr = True
+	class DutPy(PyRule) :
+		target    = 'dut_py'
+		stderr_ok = True
 		def cmd() :
 			print(open('dep_a3').read())
 			lmake.depend(r'dep_a.*' ,ignore=True,regexpr=True)

@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <glob.h>
+
 #include "disk.hh"
 
 #include "backdoor.hh"
@@ -26,20 +28,20 @@ using namespace Time ;
 // Record
 //
 
-bool                                                                 Record::s_static_report  = false     ;
-::vmap_s<DepDigest>*                                                 Record::s_deps           = nullptr   ;
-::string           *                                                 Record::s_deps_err       = nullptr   ;
-StaticUniqPtr<::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>> Record::s_access_cache   ;             // map file to read accesses
-StaticUniqPtr<AutodepEnv                                           > Record::_s_autodep_env   ;             // declare as pointer to avoid late initialization
-Fd                                                                   Record::_s_repo_root_fd  ;
-pid_t                                                                Record::_s_repo_root_pid = 0         ;
-Fd                                                                   Record::_s_report_fd[2]  ;
-pid_t                                                                Record::_s_report_pid[2] = { 0 , 0 } ;
+bool                                        Record::s_static_report  = false     ;
+::vmap_s<DepDigest>*                        Record::s_deps           = nullptr   ;
+::string           *                        Record::s_deps_err       = nullptr   ;
+StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache   ;             // map file to read accesses
+StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env   ;             // declare as pointer to avoid late initialization
+Fd                                          Record::_s_repo_root_fd  ;
+pid_t                                       Record::_s_repo_root_pid = 0         ;
+Fd                                          Record::_s_report_fd[2]  ;
+pid_t                                       Record::_s_report_pid[2] = { 0 , 0 } ;
 
-bool Record::s_is_simple(const char* file) {
-	if (!file        ) return true  ;                                          // no file is simple (not documented, but used in practice)
-	if (!file[0]     ) return true  ;                                          // empty file is simple
-	if ( file[0]!='/') return false ;                                          // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
+bool Record::s_is_simple( const char* file , bool empty_is_simple ) {
+	if (!file        ) return empty_is_simple ;                                // no file is simple (not documented, but used in practice)
+	if (!file[0]     ) return empty_is_simple ;                                // empty file is simple
+	if ( file[0]!='/') return false           ;                                // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
 Restart :
 	size_t pfx_sz = 0 ;
 	switch (file[1]) {                                                         // recognize simple and frequent top level system directories
@@ -102,7 +104,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 			if      (jerr.digest.write!=No) *s_deps_err<<"unexpected write/unlink to "<<jerr.file<<'\n' ; // can have only deps from within server
 			else if (!s_deps              ) *s_deps_err<<"unexpected access of "      <<jerr.file<<'\n' ; // cant have deps when no way to record them
 			else {
-				s_deps->emplace_back( ::move(jerr.file) , DepDigest(jerr.digest.accesses,jerr.file_info,jerr.digest.dflags,true/*parallel*/) ) ;
+				s_deps->emplace_back( ::move(jerr.file) , DepDigest(jerr.digest.accesses,jerr.file_info,jerr.digest.flags.dflags,true/*parallel*/) ) ;
 				s_deps->back().second.parallel = false ;                                                  // parallel bit is marked false on last of a series of parallel accesses
 			}
 		break ;
@@ -129,20 +131,21 @@ Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
 
 Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 	SWEAR( jerr.proc==Proc::Access , jerr.proc ) ;
-	if ( !force && !enable ) return {}/*sent*/ ;   // dont update cache as report is not actually done
+	if ( !force && !enable ) return {}/*sent*/ ;                                      // dont update cache as report is not actually done
 	if (!jerr.sync) {
 		SWEAR( +jerr.file , jerr ) ;
-		auto                                           [it,inserted] = s_access_cache->emplace(jerr.file,pair(Accesses(),Accesses())) ;
-		::pair<Accesses/*accessed*/,Accesses/*seen*/>& entry         = it->second                                                     ;
-		if (jerr.digest.write==No) {               // modifying accesses cannot be cached as we do not know what other processes may have done in between
-			if (!inserted) {
-				if (jerr.file_info.exists()) { if (!( jerr.digest.accesses & ~entry.second )) return {}/*sent*/ ; } // no new seen accesses
-				else                         { if (!( jerr.digest.accesses & ~entry.first  )) return {}/*sent*/ ; } // no new      accesses
+		auto        [it,inserted] = s_access_cache->try_emplace(jerr.file) ;
+		CacheEntry& entry         = it->second                             ;
+		if (jerr.digest.write==No) {                                                  // modifying accesses cannot be cached as we do not know what other processes may have done in between
+			CacheEntry::Acc acc { jerr.digest.accesses , jerr.digest.read_dir } ;
+			if (!inserted) { //!                                              sent
+				if (jerr.file_info.exists()) { if (entry.seen    >=acc) return {} ; } // no new seen accesses
+				else                         { if (entry.accessed>=acc) return {} ; } // no new      accesses
 			}
-			/**/                         entry.first /*accessed*/ |= jerr.digest.accesses ;
-			if (jerr.file_info.exists()) entry.second/*seen    */ |= jerr.digest.accesses ;
+			/**/                         entry.accessed |= acc ;
+			if (jerr.file_info.exists()) entry.seen     |= acc ;
 		} else {
-			entry = {~Accesses(),~Accesses()} ;                                                                     // from now on, read accesses need not be reported as file has been written
+			entry = ~CacheEntry() ;                                                   // from now on, read accesses need not be reported as file has been written
 		}
 	}
 	return report_direct(::move(jerr)) ;
@@ -186,6 +189,52 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 	return {} ;
 }
 
+// for modifying accesses :
+// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
+// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
+// so the choice is to manage Maybe :
+// - access is reported as Maybe before the access
+// - it is then confirmed (with an ok arg to manage errors) after the access
+// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
+//
+::pair<Sent/*confirm*/,JobExecRpcReq::Id> Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force ) const {
+	using Jerr = JobExecRpcReq ;
+	if (fl>FileLoc::Dep ) return { {}/*confirm*/ , 0 } ;
+	if (fl>FileLoc::Repo) jerr.digest.write = No ;
+	// auto-generated id must be different for all accesses (could be random)
+	// if _real_path.pid is not 0, we are ptracing, pid is meaningless but we are single thread and dates are different
+	// else, ::gettid() would be a good id but it is not available on all systems,
+	// however, within a process, dates are always different, so mix pid and date (multipication is to inject entropy in high order bits, practically suppressing all conflict possibilities)
+	Time::Pdate now     ;
+	Jerr::Id    id      = jerr.id                         ;
+	bool        need_id = !id && jerr.digest.write==Maybe ;
+	static_assert(sizeof(Jerr::Id)==8) ;                                                                                                          // else, rework shifting
+	if      (need_id   ) { now = New ; id = now.val() ; if (!_real_path.pid) id += Jerr::Id(::getpid())*((uint64_t(1)<<48)+(uint64_t(1)<<32)) ; } // .
+	else if (!jerr.date)   now = New ;
+	//
+	/**/                                            jerr.proc      = JobExecProc::Access          ;
+	if ( !jerr.date                               ) jerr.date      = now                          ;
+	if ( need_id                                  ) jerr.id        = id                           ;
+	if ( !jerr.file_info && +jerr.digest.accesses ) jerr.file_info = {s_repo_root_fd(),jerr.file} ;
+	//
+	Sent sent = report_cached( ::move(jerr) , force ) ;
+	if (jerr.digest.write==Maybe) return { sent/*confirm*/ , id      } ;
+	else                          return { {}  /*confirm*/ , 0/*id*/ } ;
+}
+
+// if f0 is not empty, write is done to f0 rather than to jerr.file
+::pair<Sent/*confirm*/,JobExecRpcReq::Id> Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force ) const {
+	if (+f0) {
+		// read part
+		JobExecRpcReq read_jerr = jerr ; read_jerr.digest.write = No ;
+		report_access( fl , ::move(read_jerr) , force ) ;
+		// write part
+		fl        = fl0 ;
+		jerr.file = f0  ;
+	}
+	return report_access( fl , ::move(jerr) , force ) ;
+}
+
 Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
 	SWEAR(!accesses) ;                                                                                                                  // no access to last component when no_follow
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                        // in case of overlay, create dir in the view
@@ -197,6 +246,30 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comm
 	FileInfo fi { s_repo_root_fd() , real } ;
 	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) ) // only consider as a target if exe bit changes
 		report_update( r , Access::Reg , c ) ;
+}
+
+static Record* _g_glob_auditor = nullptr/*garbage*/ ;
+struct dirent* _glob_readdir(void* p) {
+	DIR*            dirp = static_cast<DIR*>(p)                               ;
+	Record::ReadDir rd   { *_g_glob_auditor , ::dirfd(dirp) , Comment::glob } ;
+	return rd( *_g_glob_auditor , ::readdir(dirp) ) ;
+}
+void _glob_closedir(void* p) {
+	::closedir(static_cast<DIR*>(p)) ;
+}
+void* _glob_opendir(const char* name) {
+	return ::opendir(name) ;
+}
+Record::Glob::Glob( Record& r , const char* pat , int flags , Comment ) {
+	_g_glob_auditor = &r ;
+	glob_t g {} ;
+	g.gl_closedir = _glob_closedir ;
+	g.gl_readdir  = _glob_readdir  ;
+	g.gl_opendir  = _glob_opendir  ;
+	g.gl_lstat    = ::lstat        ;
+	g.gl_stat     = ::stat         ;
+	glob( pat , ( flags | (GLOB_NOSORT|GLOB_ALTDIRFUNC) ) & ~(GLOB_DOOFFS|GLOB_APPEND) , nullptr/*errfunc*/ , &g ) ;
+	globfree(&g) ;
 }
 
 Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comment c ) :
@@ -212,9 +285,9 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comme
 	dst.report_update( r , Access::Stat , c , CommentExt::Write , now ) ; // writing to dst is sensitive to existence
 }
 
-Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : SolveModify { r , ::move(path) , true/*no_follow*/ , false/*read*/ , false/*create*/ , c } {
 	r.report_guard( file_loc , ::copy(real) ) ;
-	report_dep( r , Access::Stat , c ) ;        // fails if file exists, hence sensitive to existence
+	report_update( r , Access::Stat , c ) ;     // fails if file exists, hence sensitive to existence
 }
 
 Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , Comment c ) :

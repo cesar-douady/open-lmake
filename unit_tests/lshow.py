@@ -35,7 +35,7 @@ if __name__!='__main__' :
 				with open(fn) as f : print(f.read(),end='')
 
 	class Dut(Rule) :
-		allow_stderr = True
+		stderr_ok = True
 		targets = { 'DUT':'dut' }
 		deps = {
 			'SH' : 'hello+world_sh'

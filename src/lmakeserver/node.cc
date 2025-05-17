@@ -388,8 +388,7 @@ namespace Engine {
 			case Buildable::Decode      :
 			case Buildable::Encode      : status(NodeStatus::Src ) ; goto Codec ;
 			case Buildable::Unknown     :                            FAIL()     ;                       // NO_COV
-			default                     :                            break      ;
-		}
+		DN}
 		if (!dir()) goto NotDone ;
 		// step 2 : handle what can be done without making dir
 		//vvvvvvvvvvvvvvvvvvvvvvv
@@ -447,7 +446,8 @@ namespace Engine {
 				goto DirSrc ;
 			case Buildable::SubSrcDir :
 				if (dir()->crc==Crc::None) { status(NodeStatus::None   ) ; goto Src     ; }             // status is overwritten Src if node actually exists
-				[[fallthrough]] ;
+				goto DirSrc ;
+			case Buildable::SubSrc :
 			case Buildable::DynSrc :
 			case Buildable::Src    :
 			DirSrc :

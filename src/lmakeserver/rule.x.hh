@@ -20,6 +20,11 @@
 
 // START_OF_VERSIONING
 
+enum class DynImport : uint8_t {
+	Static                       // may import when computing glbs
+,	Dyn                          // may import when executing code
+} ;
+
 enum class DynKind : uint8_t {
 	None
 ,	ShellCmd     // static shell cmd
@@ -36,11 +41,6 @@ enum class EnvFlag : uint8_t {
 //
 // aliases
 ,	Dflt = Rsrc
-} ;
-
-enum class DynImport : uint8_t {
-	Static      // may import when computing glbs
-,	Dyn         // may import when executing code
 } ;
 
 enum class RuleCrcState : uint8_t {
@@ -96,6 +96,8 @@ namespace Engine {
 #ifdef STRUCT_DEF
 
 namespace Engine {
+
+	::string/*msg*/ accept( MatchKind mk , ::string const& file , bool has_pfx=false , bool has_sfx=false ) ;
 
 	struct CmdIdx {
 		// services
@@ -232,26 +234,28 @@ namespace Engine {
 		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
-			Attrs::acquire_from_dct( allow_stderr           , py_dct , "allow_stderr"  ) ;
-			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"    ) ;
-			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"    ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
-			Attrs::acquire_env     ( env                    , py_dct , "env"           ) ;
-			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"   ) ;
-			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"   ) ;
-			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"    ) ; if (+job_space.lmake_view_s) job_space.lmake_view_s = with_slash(job_space.lmake_view_s) ;
-			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"     ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
-			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"      ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"         ) ;
+			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"  ) ;
+			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
+			Attrs::acquire_from_dct( readdir_ok             , py_dct , "readdir_ok"  ) ;
+			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"   ) ;
+			Attrs::acquire_env     ( env                    , py_dct , "env"         ) ;
+			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter" ) ;
+			Attrs::acquire_from_dct( job_space.chroot_dir_s , py_dct , "chroot_dir"  ) ; if (+job_space.chroot_dir_s) job_space.chroot_dir_s = with_slash(job_space.chroot_dir_s) ;
+			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"  ) ; if (+job_space.lmake_view_s) job_space.lmake_view_s = with_slash(job_space.lmake_view_s) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"   ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"       ) ;
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
 		}
 		// data
 		// START_OF_VERSIONING
-		::vector_s interpreter  ;
-		bool       allow_stderr = false ;
 		bool       auto_mkdir   = false ;
 		bool       ignore_stat  = false ;
+		bool       readdir_ok   = false ;
+		bool       stderr_ok    = false ;
 		::vmap_ss  env          ;
+		::vector_s interpreter  ;
 		JobSpace   job_space    ;
 		// END_OF_VERSIONING
 	} ;
@@ -475,10 +479,10 @@ namespace Engine {
 	public :
 		::string pretty_str() const ;
 		// accesses
-		bool   operator+   (         ) const {                    return !special                          ; }
-		bool   is_special  (         ) const {                    return special!=Special::Plain           ; }
-		bool   user_defined(         ) const {                    return !allow_ext                        ; }                                  // used to decide to print in LMAKE/rules
-		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags() ; }
+		bool   operator+   (         ) const {                    return !special                        ; }
+		bool   is_special  (         ) const {                    return special!=Special::Plain         ; }
+		bool   user_defined(         ) const {                    return !allow_ext                      ; }                                    // used to decide to print in LMAKE/rules
+		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags ; }
 		//
 		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
 		//
@@ -620,18 +624,18 @@ namespace Engine {
 		bool               operator==  (RuleTgt const&) const = default ;
 		::partial_ordering operator<=> (RuleTgt const&) const = default ;
 		//
-		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+self->rule)             ; return self->rule->matches [tgt_idx]  ; }
-		TargetPattern                  const& pattern     () const { SWEAR(+self->rule)             ; return self->rule->patterns[tgt_idx]  ; }
-		::string                       const& key         () const {                                  return key_matches().first            ; }
-		RuleData::MatchEntry           const& matches     () const {                                  return key_matches().second           ; }
-		::string                       const& target      () const { SWEAR(tflags()[Tflag::Target]) ; return matches().pattern              ; }
-		Tflags                                tflags      () const {                                  return matches().flags.tflags      () ; }
-		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags() ; }
+		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+self->rule)             ; return self->rule->matches [tgt_idx] ; }
+		TargetPattern                  const& pattern     () const { SWEAR(+self->rule)             ; return self->rule->patterns[tgt_idx] ; }
+		::string                       const& key         () const {                                  return key_matches().first           ; }
+		RuleData::MatchEntry           const& matches     () const {                                  return key_matches().second          ; }
+		::string                       const& target      () const { SWEAR(tflags()[Tflag::Target]) ; return matches().pattern             ; }
+		Tflags                                tflags      () const {                                  return matches().flags.tflags        ; }
+		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags  ; }
 		// services
 		bool sure() const {
-			Rule       r  = self->rule      ; if (!r) return false ;
-			MatchFlags mf = matches().flags ;
-			return ( tgt_idx<r->n_static_targets && !mf.extra_tflags()[ExtraTflag::Optional] ) || mf.tflags()[Tflag::Phony] ;
+			Rule       r   = self->rule      ; if (!r) return false ;
+			MatchFlags mfs = matches().flags ;
+			return ( tgt_idx<r->n_static_targets && !mfs.extra_tflags[ExtraTflag::Optional] ) || mfs.tflags[Tflag::Phony] ;
 		}
 		size_t hash() const {         // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
 			size_t res = 0x811c9dc5 ;

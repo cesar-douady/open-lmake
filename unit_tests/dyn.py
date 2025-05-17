@@ -9,7 +9,7 @@ if __name__!='__main__' :
 
 	import os
 
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 	from lmake.rules import python as system_python
 
 	lmake.manifest = (
@@ -46,7 +46,7 @@ if __name__!='__main__' :
 		if step==1 : raise RuntimeError
 		return File2
 
-	class Deps(Rule) :
+	class Deps(PyRule) :
 		stems = {
 			'File1' : r'\w*'
 		,	'File2' : r'\w*'
@@ -62,7 +62,7 @@ if __name__!='__main__' :
 			print(open(deps['FIRST' ]).read(),end='')
 			print(open(deps['SECOND']).read(),end='')
 
-	class Interpreter(Rule) :
+	class Interpreter(PyRule) :
 		stems = {
 			'File1' : r'\w*'
 		,	'File2' : r'\w*'
@@ -79,7 +79,7 @@ if __name__!='__main__' :
 			print(open(deps['FIRST' ]).read(),end='')
 			print(open(deps['SECOND']).read(),end='')
 
-	class Env(Rule) :
+	class Env(PyRule) :
 		target = r'env.{File:\w*}'
 		environ           = { 'VAR'           : file_func }
 		environ_resources = { 'VAR_RESOURCES' : file_func }
@@ -119,16 +119,16 @@ if __name__!='__main__' :
 			return File
 		cmd = ''
 
-	class AllowStderr(Rule) :
-		target = r'allow_stderr.{File:\w*}'
-		def allow_stderr() :
+	class StderrOk(Rule) :
+		target = r'stderr_ok.{File:\w*}'
+		def stderr_ok() :
 			if step==1 : raise RuntimeError
 			return File=='yes'
 		cmd = 'echo hello >&2'
 
 	class AutoMkdir(Rule) :
-		target       = r'auto_mkdir.{File:\w*}'
-		allow_stderr = True
+		target    = r'auto_mkdir.{File:\w*}'
+		stderr_ok = True
 		def auto_mkdir() :
 			if step==1 : raise RuntimeError
 			return File=='yes'
@@ -178,8 +178,8 @@ else :
 		ut.lmake( 'resources.2.ok'             , done=2-rc*2 , steady=0    , failed=rc , new=rc   ,                              rc=rc )
 		ut.lmake( 'max_stderr_len.1'           , done=rc     , steady=1-rc , failed=0  , new=0    , early_rerun=rc  ,            rc=0  )
 		ut.lmake( 'max_stderr_len.2'           , done=rc     , steady=1-rc , failed=0  , new=0    , early_rerun=rc  ,            rc=0  )
-		ut.lmake( 'allow_stderr.no'            , done=0      , steady=0    , failed=1  , new=0    , early_rerun=rc  ,            rc=1  )
-		ut.lmake( 'allow_stderr.yes'           , done=1-rc   , steady=0    , failed=rc , new=0    , early_rerun=rc  ,            rc=rc )
+		ut.lmake( 'stderr_ok.no'               , done=0      , steady=0    , failed=1  , new=0    , early_rerun=rc  ,            rc=1  )
+		ut.lmake( 'stderr_ok.yes'              , done=1-rc   , steady=0    , failed=rc , new=0    , early_rerun=rc  ,            rc=rc )
 		ut.lmake( 'auto_mkdir.no.ok'           , done=2-rc*2 , steady=0    , failed=rc , new=rc   , early_rerun=rc  ,            rc=rc )
 		ut.lmake( 'auto_mkdir.yes.ok'          , done=2-rc*2 , steady=0    , failed=rc , new=rc   , early_rerun=rc  ,            rc=rc )
 		ut.lmake( 'cmd'                        , done=1-rc   , steady=0    , failed=rc , new=0    , early_rerun=... ,            rc=rc ) # python3.6 accesses file <code> to report backtrace, ...

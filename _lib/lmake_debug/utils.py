@@ -34,6 +34,7 @@ class Job :
 	chroot_dir  = None
 	cwd         = None
 	lmake_view  = None
+	readdir_ok  = False
 	repo_view   = None
 	source_dirs = None
 	stdin       = None
@@ -132,6 +133,7 @@ class Job :
 		if self.auto_mkdir  : simple , res = False , res+ ' -a'
 		if self.chroot_dir  : simple , res = False , res+f' -c{mk_shell_str(     self.chroot_dir            )}'
 		if self.cwd         : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
+		if self.readdir_ok  :          res =         res+ ' -D'
 		if True             :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
 		if True             :          res =         res+f' -k'
 		if True             :          res =         res+f' -l{                  self.link_support           }'

@@ -224,6 +224,7 @@ Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 | `Essential`   | `essential`    | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                            |
 | `Critical`    | `critical`     | No      | This dep is [critical](critical_deps.html).                                                                                    |
 | `IgnoreError` | `ignore_error` | No      | This dep may be in error, job will be launched anyway.                                                                         |
+| `ReaddirOk`   | `readdir_ok`   | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                                             |
 | `Required`    | `required`     | No      | This dep is deemed to be read, even if not actually read by the job.                                                           |
 | `Top`         | `top`          | No      | dep pattern is interpreted relative to the top-level repo, else to the local repo (cf [subrepos](experimental_subrepos.html ). |
 
@@ -249,8 +250,9 @@ This attribute is used to define flags to deps when they are acquired during job
 It does not declare any dep by itself.
 Syntactically, it follows the `side_targets` attribute except that:
 
-- specified flags are dep flags rather than target flags.
-- an additional flag `Ignore` or `ignore` is available to mean that files matching this pattern must not become deps if accessed as read.
+- Specified flags are dep flags only where `side_targets` accept both target flags an dep flags.
+- The flag `Ignore` or `ignore` only applies to reads to prevent such accessed files from becoming a dep where for `side_targets`, this flag prevents files from being deps or targets.
+- `.` may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the `readdir_ok` flag.
 
 ### `chroot_dir`
 
@@ -492,6 +494,39 @@ So, it is possible for a first definition to define an environment variable that
 
 As for other attributes that may be dynamic, `cmd` is interpreted as an f-string.
 
+### `auto_mkdir`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a true value, executing a `chdir` syscall (e.g. executing `cd` in bash) will create the target dir if it does not exist.
+
+This is useful for scripts in situations such as:
+
+- The script does `chdir a`.
+- Then try to read file `b` from there.
+- What is expected is to have a dep on `a/b` which may not exist initially but will be created by some other job.
+- However, if dir `a` does not exist, the `chdir` call fails and the file which is open for reading is `b` instead of `a/b`.
+- As a consequence, no dep is set for `a/b` and the problem will not be resolved by a further re-execution.
+- Setting this attribute to true creates dir `a` on the fly when `chdir` is called so that it succeeds and the correct dep is set.
+
+### `autodep`
+
+| Inheritance | Type    | Default                                       | Dynamic | Example    |
+|-------------|---------|-----------------------------------------------|---------|------------|
+| python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
+
+This attribute specifies the method used by [autodep](autodep.html) to discover hidden deps.
+
+### `backend`
+
+| Inheritance | Type    | Default | Dynamic | Example   |
+|-------------|---------|---------|---------|-----------|
+| python      | `f-str` | -       | Full    | `'slurm'` |
+
+This attribute specifies the [backend](backends.html) to use to launch jobs.
+
 ### `cache`
 
 | Inheritance | Type    | Default | Dynamic | Example |
@@ -516,71 +551,14 @@ It is passed to the zlib library used to compress job targets.
 - `0` means no compression.
 - `9` means maximum compression.
 
-### `backend`
-
-| Inheritance | Type    | Default | Dynamic | Example   |
-|-------------|---------|---------|---------|-----------|
-| python      | `f-str` | -       | Full    | `'slurm'` |
-
-This attribute specifies the [backend](backends.html) to use to launch jobs.
-
-### `autodep`
-
-| Inheritance | Type    | Default                                       | Dynamic | Example    |
-|-------------|---------|-----------------------------------------------|---------|------------|
-| python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
-
-This attribute specifies the method used by [autodep](autodep.html) to discover hidden deps.
-
-### `resources`
-
-| Inheritance | Type   | Default | Dynamic | Example                   |
-|-------------|--------|---------|---------|---------------------------|
-| Combined    | `dict` | `{}`    | Full    | `{ 'MY_RESOURCE' : '1' }` |
-
-This attribute specifies the resources required by a job to run successfully.
-These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...
-
-Values must `f-str`.
-
-The syntax is the same as for `deps`.
-
-After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf @pxref{local-backend} for the local backend).
-
-### `max_stderr_len`
-
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `100`   | Full    | `1`     |
-
-This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
-The whole content of stderr stays accessible with the `lshow -e` command.
-
-### `allow_stderr`
+### `force`
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
 | python      | `bool` | `False` | Full    | `True`  |
 
-When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
-If it is `True`, writing to stderr is allowed and does not produce an error. The `lmake` output will exhibit a warning, though.
-
-### `auto_mkdir`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-When this attribute has a true value, executing a `chdir` syscall (e.g. executing `cd` in bash) will create the target dir if it does not exist.
-
-This is useful for scripts in situations such as:
-
-- The script does `chdir a`.
-- Then try to read file `b` from there.
-- What is expected is to have a dep on `a/b` which may not exist initially but will be created by some other job.
-- However, if dir `a` does not exist, the `chdir` call fails and the file which is open for reading is `b` instead of `a/b`.
-- As a consequence, no dep is set for `a/b` and the problem will not be resolved by a further re-execution.
-- Setting this attribute to true creates dir `a` on the fly when `chdir` is called so that it succeeds and the correct dep is set.
+When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
+It is rarely necessary.
 
 ### `keep_tmp`
 
@@ -593,41 +571,6 @@ It can be retreived with `lshow -i`.
 
 Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.
-
-### `force`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
-It is rarely necessary.
-
-### `max_submits`
-
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `10`    | No      |         |
-
-The goal is to protect agains potential infinite loop cases.
-The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
-
-### `timeout`
-
-| Inheritance | Type    | Default    | Dynamic | Example |
-|-------------|---------|------------|---------|---------|
-| python      | `float` | no timeout | Full    |         |
-
-When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
-
-### `start_delay`
-
-| Inheritance | Type    | Default    | Dynamic | Example |
-|-------------|---------|------------|---------|---------|
-| python      | `float` | `3`        | Full    |         |
-
-When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
-The consequence is only cosmetic, it has no other impact.
 
 ### `kill_sigs`
 
@@ -663,6 +606,76 @@ This attribute provides the number of allowed retries before giving up when a jo
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called `job_exec`) was manually killed.
 
 In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
+
+### `max_stderr_len`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `100`   | Full    | `1`     |
+
+This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
+The whole content of stderr stays accessible with the `lshow -e` command.
+
+### `max_submits`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `10`    | No      |         |
+
+The goal is to protect agains potential infinite loop cases.
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
+
+### `readdir_ok`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, reading a local dir that is not `ignore`d nor `incremental` is considered an error as the list of files in a dir cannot be made stable,
+i.e. independent of the history (the repo is not constantly maintained without spurious files, nor with all buildable files existing).
+
+If it is true, such reading is allowed and it is the user responsibility to ensure that spurious or missing files have no impact on output, once all deps are up-to-date.
+
+### `resources`
+
+| Inheritance | Type   | Default | Dynamic | Example                   |
+|-------------|--------|---------|---------|---------------------------|
+| Combined    | `dict` | `{}`    | Full    | `{ 'MY_RESOURCE' : '1' }` |
+
+This attribute specifies the resources required by a job to run successfully.
+These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...
+
+Values must `f-str`.
+
+The syntax is the same as for `deps`.
+
+After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf @pxref{local-backend} for the local backend).
+
+### `start_delay`
+
+| Inheritance | Type    | Default    | Dynamic | Example |
+|-------------|---------|------------|---------|---------|
+| python      | `float` | `3`        | Full    |         |
+
+When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
+The consequence is only cosmetic, it has no other impact.
+
+### `stderr_ok`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
+If it is true, writing to stderr is allowed and does not produce an error. The `lmake` output will exhibit a warning, though.
+
+### `timeout`
+
+| Inheritance | Type    | Default    | Dynamic | Example |
+|-------------|---------|------------|---------|---------|
+| python      | `float` | no timeout | Full    |         |
+
+When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
 
 ### `use_script`
 

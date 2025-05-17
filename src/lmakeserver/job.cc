@@ -211,21 +211,18 @@ namespace Engine {
 		if (!match) { trace("no_match") ; return ; }
 		//
 		Rule rule = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
-		auto handle_target = [&]( ::string const& key , ::string const& tgt )->bool/*ok*/ {
-			if ( +tgt && is_canon(tgt) && is_lcl(tgt) ) return true/*ok*/ ;
-			//
-			req->audit_job( Color::Warning , "bad_target" , rule->name , match.name() ) ;
-			//
-			if      (!tgt          ) req->audit_stderr( self , {.msg="empty target "      +key          } , 0/*max_stderr_len*/ , 1 ) ;
-			else if (!is_canon(tgt)) req->audit_stderr( self , {.msg="non-canonic target "+key+" : "+tgt} , 0/*max_stderr_len*/ , 1 ) ;
-			else                     req->audit_stderr( self , {.msg="non-local target "  +key+" : "+tgt} , 0/*max_stderr_len*/ , 1 ) ;
-			//
-			return false/*ok*/ ;
+		auto handle_match = [&]( ::string const& key , ::string const& file , MatchKind kind )->bool/*ok*/ {
+			::string msg = accept( kind , file ) ;
+			if (+msg) {
+				req->audit_job( Color::Warning , cat("bad_",kind) , rule->name , match.name() ) ;
+				req->audit_stderr( self , {.msg=cat(kind,' ',key," : ",msg)} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
+			}
+			return !msg/*ok*/ ;
 		} ;
 		//
 		VarIdx ti = 0 ;
-		for( ::string const& t : match.static_targets() ) { { if (!handle_target(rule->matches[ti].first,t)) return ; } ti++ ; }
-		for( ::string const& t : match.star_targets  () ) { { if (!handle_target(rule->matches[ti].first,t)) return ; } ti++ ; }
+		for( ::string const& t : match.static_targets() ) { { if (!handle_match(rule->matches[ti].first,t,rule->matches[ti].second.flags.kind())) return ; } ti++ ; }
+		for( ::string const& t : match.star_targets  () ) { { if (!handle_match(rule->matches[ti].first,t,rule->matches[ti].second.flags.kind())) return ; } ti++ ; }
 		//
 		::pair_s</*msg*/::vmap_s<DepSpec>> digest    ;
 		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                  // contains holes

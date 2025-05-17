@@ -26,6 +26,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,auto_mkdir                     ) ;
 		::serdes(s,enable                         ) ;
 		::serdes(s,ignore_stat                    ) ;
+		::serdes(s,readdir_ok                     ) ;
 		::serdes(s,fast_report_pipe               ) ;
 		::serdes(s,service                        ) ;
 		::serdes(s,sub_repo_s                     ) ;
@@ -51,9 +52,11 @@ struct AutodepEnv : Disk::RealPathEnv {
 	bool                 auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 	bool                 enable           = true  ; // if false <=> no automatic report
 	bool                 ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
-	::string             fast_host        ;         // host on which fast_report_pipe can be used
+	bool                 readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
 	::string             fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
 	::string             service          ;
 	::string             sub_repo_s       ;         // relative to repo_root_s
 	::vmap_s<::vector_s> views            ;
+	// not transported
+	::string fast_host ;                            // host on which fast_report_pipe can be used
 } ;

@@ -29,31 +29,42 @@ namespace JobSupport {
 			throw_if( verbose      , "regexpr and verbose are exclusive"         ) ;
 		}
 		_chk_files(files) ;
-		::vmap_s<FileInfo> deps      ;
-		Pdate              now       { New } ;                                       // all dates must be identical to be recognized as parallel deps
-		NodeIdx            di        = 0     ;
-		::vector<NodeIdx>  dep_idxs1 ;
+		::vmap_s<FileInfo> deps       ;
+		Pdate              now        { New }                                        ; // all dates must be identical to be recognized as parallel deps
+		NodeIdx            di         = 0                                            ;
+		::vector<NodeIdx>  dep_idxs1  ;
+		bool               readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
+		if (readdir_ok) {
+			ad.flags.dflags &= ~Dflag::Required ;                                      // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
+			ad.read_dir     |= +ad.accesses     ;                                      // if reading and allow dir access, assume user meant reading a dir
+		}
 		for( ::string const& f : files ) {
 			if (regexpr) {
 				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
 				continue ;
 			}
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
-				.file      = ::copy(f)                                               // keep a copy in case there is no server and we must invent a reply
+				.file      = ::copy(f)                                                 // keep a copy in case there is no server and we must invent a reply
 			,	.no_follow = no_follow
 			,	.read      = true
 			,	.write     = false
-			,	.comment  = Comment::depend
+			,	.comment   = Comment::depend
 			}) ;
 			if (!verbose) {
+				if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) {                  // when passing flag readdir_ok, we may want to report top-level dir
+					sr.file_loc = FileLoc::Repo ;
+					sr.real     = "."s          ;                                      // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
+					sr.accesses = {}            ;                                      // besides passing ReadirOk flag, top-level dir is external
+					ad.accesses = {}            ;                                      // .
+				}
 				r.report_access( sr.file_loc , { .comment=Comment::depend , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
 			} else if (sr.file_loc<=FileLoc::Dep) {
-				ad |= sr.accesses ;                                                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
+				ad |= sr.accesses ;                                                    // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 				// not actually sync, but transport as sync to use the same fd as DepVerbose
 				r.report_sync( { .proc=Proc::DepVerbosePush , .sync=Maybe , .comment=Comment::depend , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
-				dep_idxs1.push_back(++di) ;                                          // 0 is reserved to mean no dep info
+				dep_idxs1.push_back(++di) ;                                            // 0 is reserved to mean no dep info
 			} else {
-				dep_idxs1.push_back(0) ;                                             // .
+				dep_idxs1.push_back(0) ;                                               // .
 			}
 		}
 		if (!verbose) return {} ;
@@ -64,8 +75,8 @@ namespace JobSupport {
 		::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
 		for( size_t i : iota(files.size()) ) {
 			NodeIdx di1 = dep_idxs1[i] ;
-			if      (!di1  ) dep_infos.emplace_back( Maybe/*ok*/ , Crc(        ) ) ; // 0 is reserved to mean no dep info
-			else if (!reply) dep_infos.emplace_back( Yes/*ok*/   , Crc(files[i]) ) ; // there was no server, mimic it
+			if      (!di1  ) dep_infos.emplace_back( Maybe/*ok*/ , Crc(        ) ) ;   // 0 is reserved to mean no dep info
+			else if (!reply) dep_infos.emplace_back( Yes/*ok*/   , Crc(files[i]) ) ;   // there was no server, mimic it
 			else             dep_infos.push_back   (reply.dep_infos[di1-1]       ) ;
 		}
 		return dep_infos ;

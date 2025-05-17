@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed May  7 16:29:07 2025 -->
+<!-- CreationDate: Mon May 19 09:31:13 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -102,7 +102,19 @@ which would be an error.</p>
 </h2>
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>-E</b>,
+<p style="margin-left:9%; margin-top: 1em"><b>-W</b>,
+<b>--write</b></p>
+
+<p style="margin-left:18%;">Report an actual write, not
+only target flags. Default is to only alter flags.</p>
+
+<p style="margin-left:9%;"><b>-X</b>, <b>--regexpr</b></p>
+
+<p style="margin-left:18%;">Pass flags to all targets
+matching regexprs passed as argument. The <b>ignore</b> flag
+only applies to targets following this command.</p>
+
+<p style="margin-left:9%;"><b>-E</b>,
 <b>--essential</b></p>
 
 <p style="margin-left:18%;">Show when generating user
@@ -112,7 +124,8 @@ oriented graphs.</p>
 <b>--incremental</b></p>
 
 <p style="margin-left:18%;">Targets are not unlinked before
-job execution and read accesses to them are ignored.</p>
+job execution and read accesses to them are ignored
+(including <b>readdir</b>(3)).</p>
 
 <p style="margin-left:9%;"><b>-w</b>,
 <b>--no-warning</b></p>
@@ -124,7 +137,7 @@ another job.</p>
 <p style="margin-left:9%;"><b>-I</b>, <b>--ignore</b></p>
 
 <p style="margin-left:18%;">From now on, ignore all reads
-and writes to targets.</p>
+and writes to targets (including <b>readdir</b>(3)).</p>
 
 <p style="margin-left:9%;"><b>-a</b>, <b>--no-allow</b></p>
 
@@ -138,16 +151,33 @@ and writes to targets.</p>
 <p style="margin-left:18%;">Unless this option is passed,
 <b>ltarget</b> writing to a source is an error.</p>
 
-<p style="margin-left:9%;"><b>-W</b>, <b>--write</b></p>
+<p style="margin-left:9%; margin-top: 1em">In case
+mentioned targets turn out to be deps, the dep flags are
+also available: <b><br>
+-c</b>, <b>--critical</b></p>
 
-<p style="margin-left:18%;">Report an actual write, not
-only target flags. Default is to only alter flags.</p>
+<p style="margin-left:18%;">Create critical deps (cf. note
+(5)).</p>
 
-<p style="margin-left:9%;"><b>-X</b>, <b>--regexpr</b></p>
+<p style="margin-left:9%;"><b>-D</b>,
+<b>--readdir-ok</b></p>
 
-<p style="margin-left:18%;">Pass flags to all targets
-matching regexprs passed as argument. The <b>ignore</b> flag
-only applies to targets following this command.</p>
+<p style="margin-left:18%;">Allow <b>readdir</b>(3) on
+passed deps even if not <b>ignore</b>d nor
+<b>incremental</b>. Implies flag <b>--no-required</b>.</p>
+
+<p style="margin-left:9%;"><b>-e</b>,
+<b>--ignore-error</b></p>
+
+<p style="margin-left:18%;">Ignore the error status of the
+passed deps.</p>
+
+<p style="margin-left:9%;"><b>-r</b>,
+<b>--no-required</b></p>
+
+<p style="margin-left:18%;">Accept that deps be not
+buildable, as for a normal read access (in such a case, the
+read may fail, but <i>open-lmake</i> is ok).</p>
 
 <h2>NOTES
 <a name="NOTES"></a>

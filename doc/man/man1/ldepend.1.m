@@ -55,10 +55,11 @@ Item(B(-v),B(--verbose))
 	.RE
 Item(B(-R),B(--read))         Report an actual read. Default is to only alter flags.
 Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).
+Item(B(-D),B(--readdir-ok))   Allow C(readdir,3) on passed deps even if not B(ignore)d nor B(incremental). Implies flag B(--no-required).
 Item(B(-E),B(--essential))    Passed deps will appear in the flow shown with a graphical tool.
 Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
-Item(B(-`I'),B(--ignore))     Deps are ignored altogether, even if further accessed (but previous accesses are kept).
+Item(B(-`I'),B(--ignore))     From now on, ignore all reads of deps (including C(readdir,3)).
 Item(B(-X),B(--regexpr))      Pass flags to all deps matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 Default is to optimize dep check as much as possible.
 

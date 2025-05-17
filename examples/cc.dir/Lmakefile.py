@@ -134,7 +134,7 @@ class Chk(Base) :        # generic comparison rule
 
 # Here we scatter all the tests from a single, simple, regression description
 # Each line contains a test, a scenario and and expected output, separated with ':'
-class Scenarios(Base) :
+class Scenarios(Base,PyRule) :
 	targets = {
 		'LST' : '{Exe}.tlst'
 	,	'SCN' : '{Exe}-{Test*}.scn'     # this is a star target : it means all tests are generated in a single job execution

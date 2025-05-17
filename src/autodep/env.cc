@@ -12,9 +12,11 @@ using namespace Disk ;
 	/**/                       os <<      static_cast<RealPathEnv const&>(ade) ;
 	if (+ade.fast_report_pipe) os <<','<< ade.fast_report_pipe                 ;
 	/**/                       os <<','<< ade.service                          ;
-	if ( ade.auto_mkdir      ) os <<",auto_mkdir"                              ;
 	if ( ade.enable          ) os <<",enable"                                  ;
+	if ( ade.auto_mkdir      ) os <<",auto_mkdir"                              ;
+	if ( ade.readdir_ok      ) os <<",readdir_ok"                              ;
 	if (+ade.sub_repo_s      ) os <<','<< ade.sub_repo_s                       ;
+	if (+ade.views           ) os <<','<< ade.views                            ;
 	return                     os <<')'                                        ;
 }                                                                                // END_OF_NO_COV
 
@@ -41,6 +43,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
 			case 'd' : enable        = false            ; break ;
+			case 'D' : readdir_ok    = true             ; break ;
 			case 'i' : ignore_stat   = true             ; break ;
 			case 'm' : auto_mkdir    = true             ; break ;
 			case 'n' : lnk_support   = LnkSupport::None ; break ;
@@ -71,6 +74,7 @@ AutodepEnv::operator ::string() const {
 	// options
 	res << ':' ;
 	if (!enable      ) res << 'd' ;
+	if (readdir_ok   ) res << 'D' ;
 	if (ignore_stat  ) res << 'i' ;
 	if (auto_mkdir   ) res << 'm' ;
 	if (reliable_dirs) res << 'r' ;

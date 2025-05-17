@@ -20,8 +20,8 @@ if __name__!='__main__' :
 		cmd    = 'echo hello=$(cat ref)'
 
 	class Test(PyRule) :
-		target       = 'test'
-		allow_stderr = True
+		target    = 'test'
+		stderr_ok = True
 		def cmd():
 			import hello
 			print(open('hello.py').read(),file=sys.stderr)

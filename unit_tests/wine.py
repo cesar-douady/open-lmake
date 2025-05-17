@@ -9,7 +9,7 @@ if __name__!='__main__' :
 
 	import os
 
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -20,18 +20,20 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
-		chroot_dir        = '/'                                             # ensure pid namespace is used to ensure reliale job termination
-		side_targets      = {
-			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                      # wine writes .wine  dir, even after init
-		,	'CACHE' : (r'.cache/{*:.*}','incremental')                      # wine writes .cache dir, even after init
+		chroot_dir   = '/'                                                # ensure pid namespace is used to ensure reliale job termination
+		side_targets = {
+			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                    # wine writes .wine  dir, even after init
+		,	'CACHE' : (r'.cache/{*:.*}','incremental')                    # wine writes .cache dir, even after init
 		}
-		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY']   } # wine needs a display in all cases
+		side_deps         = { 'TOP' : ('.','readdir_ok') }                # wine seems to read its cwd
+		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY'] } # wine needs a display in all cases
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
 		targets      = { 'WINE' : r'.wine/{*:.*}' }                                                    # for init wine env is not incremental
 		side_targets = { 'WINE' : None            }
-		allow_stderr = True
+		stderr_ok    = True
+		readdir_ok   = True
 		environ      = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
 		timeout      = 30           # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
 		cmd          = 'wine64 cmd' # do nothing, just to init support files (in targets)
@@ -44,7 +46,7 @@ if __name__!='__main__' :
 			autodep = '{Method}'
 			cmd     = f'wine{ext} hostname ; sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
 
-	class Chk(Base) :
+	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'
 		dep    =  'dut{Ext}.{Method}'
 		def cmd() :

@@ -53,9 +53,9 @@ if __name__!='__main__' :
 		cmd = 'diff {REF} {DUT}'
 
 	class Hide(BaseRule) :
-		target       = '{File}.hide'
-		allow_stderr = True
-		cmd          = 'cat {File} || :'
+		target    = '{File}.hide'
+		stderr_ok = True
+		cmd       = 'cat {File} || :'
 
 	class Par(BaseRule) :
 		target = '{{{SubExpr}}}'

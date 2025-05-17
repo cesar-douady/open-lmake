@@ -8,7 +8,7 @@ if __name__!='__main__' :
 	import sys
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -26,7 +26,7 @@ if __name__!='__main__' :
 		targets = { 'DST' : r'{File:.*}.opt' }
 		cmd     = 'echo 2 > {DST}'
 
-	class Star(Rule) :
+	class Star(PyRule) :
 		targets = { 'DST' : (r'{File:.*}.star{D*:\d+}',) }
 		dep     = '{File}'
 		def cmd() :

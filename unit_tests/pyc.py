@@ -17,16 +17,17 @@ if __name__!='__main__' :
 	)
 
 	class Dut(Rule) :
-		target ='dut'
-		python = (sys.executable,'-B')
+		target     ='dut'
+		python     = (sys.executable,'-B')
+		use_script = True                     # ensure root dir is still accessible, even from a script in a sub-dir
 		def cmd():
-			sys.path.append('.') # ensure mod can be founded even if executed with use_script=True
+			lmake.depend('.',readdir_ok=True) # this rule is a Rule, not a PyRule, on purpose (so pyc files are not handled), so we must explicitly allow reading '.'
 			import mod
 
 	class PyDut(PyRule) :
-		target ='py_dut'
+		target     ='py_dut'
+		use_script = True                     # ensure root dir is still accessible, even from a script in a sub-dir
 		def cmd():
-			sys.path.append('.') # ensure mod can be founded even if executed with use_script=True
 			import mod
 
 else :

@@ -6,16 +6,16 @@
 #include "core.hh"      // /!\ must be first to include Python.h first
 #include "serialize.hh"
 
-enum class StarAction : uint8_t {
-	None
-,	Stop
-,	Err
-} ;
-
 enum class Escape : uint8_t {
 	None
 ,	Re
 ,	Fstr
+} ;
+
+enum class StarAction : uint8_t {
+	None
+,	Stop
+,	Err
 } ;
 
 namespace Engine {
@@ -23,6 +23,15 @@ namespace Engine {
 	using namespace Disk ;
 	using namespace Py   ;
 	using namespace Time ;
+
+	::string/*msg*/ accept( MatchKind mk , ::string const& file , bool has_pfx , bool has_sfx ) {
+		if      ( !has_pfx && !has_sfx &&  file=="."               ) { if (mk!=MatchKind::SideDep) return          "is top-level"                                        ; }
+		else if ( !has_pfx && !has_sfx && !file                    )                               return          "is empty"                                            ;
+		else if ( !is_canon(file,true/*empty_ok*/,has_pfx,has_sfx) )                               return cat(file,"is not canonical, consider using : ",mk_canon(file)) ;
+		else if ( !has_sfx && file.back()=='/'                     )                               return cat(file,"ends with /, consider using : "     ,no_slash(file)) ;
+		//
+		return {} ; // ok
+	}
 
 	static const ::string _g_fstr_specials = "{}" ;
 	static ::string _fstr_escape(::string const& s) {
@@ -174,7 +183,7 @@ namespace Engine {
 		_parse_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb(s) ; } ) ;
 	}
 
-	template<class F,class EF> static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
+	static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , MatchFlags& flags , bool dep_only ) {
 		for( Object const& item : py_seq ) {
 			if (n_skip>0) { n_skip-- ; continue ; }
 			if (item.is_a<Str>()) {
@@ -182,17 +191,19 @@ namespace Engine {
 				bool     neg      = flag_str[0]=='-' ;
 				if (neg) flag_str.erase(0,1) ;                        // suppress initial - sign
 				//
-				if      ( F  f  ; can_mk_enum<F >(flag_str) && (f =mk_enum<F >(flag_str),f <F ::NRule) ) flags      .set(f ,!neg) ;
-				else if ( EF ef ; can_mk_enum<EF>(flag_str) && (ef=mk_enum<EF>(flag_str),ef<EF::NRule) ) extra_flags.set(ef,!neg) ;
-				else                                                                                     throw "unexpected flag "+flag_str+" for "+key ;
+				if      ( Tflag      f ; !dep_only && can_mk_enum<Tflag     >(flag_str) && (f=mk_enum<Tflag     >(flag_str))<Tflag     ::NRule ) flags.tflags      .set(f,!neg) ;
+				else if ( ExtraTflag f ; !dep_only && can_mk_enum<ExtraTflag>(flag_str) && (f=mk_enum<ExtraTflag>(flag_str))<ExtraTflag::NRule ) flags.extra_tflags.set(f,!neg) ;
+				else if ( Dflag      f ;              can_mk_enum<Dflag     >(flag_str) && (f=mk_enum<Dflag     >(flag_str))<Dflag     ::NRule ) flags.dflags      .set(f,!neg) ;
+				else if ( ExtraDflag f ;              can_mk_enum<ExtraDflag>(flag_str) && (f=mk_enum<ExtraDflag>(flag_str))<ExtraDflag::NRule ) flags.extra_dflags.set(f,!neg) ;
+				else                                                                                                                             throw "unexpected flag "+flag_str+" for "+key ;
 			} else if (item.is_a<Sequence>()) {
-				_mk_flags( key , item.as_a<Sequence>() , 0 , flags , extra_flags ) ;
+				_mk_flags( key , item.as_a<Sequence>() , 0 , flags , dep_only ) ;
 			} else {
 				throw key+"has a flag that is not a str" ;
 			}
 		}
 	}
-	template<class F,class EF> static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , BitMap<F>& flags , BitMap<EF>& extra_flags ) {
+	static ::string _split_flags( ::string const& key , Object const& py , uint8_t n_skip , MatchFlags& flags , bool dep_only ) {
 		if (py.is_a<Str>()) {
 			SWEAR(n_skip==1) ;                                        // cannot skip 2 values with a single Str
 			return py.as_a<Str>() ;
@@ -202,7 +213,7 @@ namespace Engine {
 		catch (::string const& e) { throw e+" nor a str" ;          } // e is a type error
 		SWEAR(py_seq->size()>=n_skip,key) ;
 		SWEAR((*py_seq)[0].is_a<Str>(),key) ;
-		_mk_flags( key , *py_seq , n_skip , flags , extra_flags ) ;
+		_mk_flags( key , *py_seq , n_skip , flags , dep_only ) ;
 		return (*py_seq)[0].as_a<Str>() ;
 	}
 
@@ -282,9 +293,9 @@ namespace Engine {
 		switch (is_python) {
 			case Yes :
 				kind = Kind::PythonCmd ;
-				if (py_src.contains("glbs"    )) glbs_str = ::string(py_src["glbs"    ].as_a<Str >()) ;
-				/**/                             code_str = ::string(py_src["expr"    ].as_a<Str >()) ;
-				if (py_src.contains("dbg_info")) dbg_info = ::string(py_src["dbg_info"].as_a<Str >()) ;
+				if (py_src.contains("glbs"    )) glbs_str = ::string(py_src["glbs"    ].as_a<Str>()) ;
+				/**/                             code_str = ::string(py_src["expr"    ].as_a<Str>()) ;
+				if (py_src.contains("dbg_info")) dbg_info = ::string(py_src["dbg_info"].as_a<Str>()) ;
 			break ;
 			case No :
 				if (py_src.contains("static")) {
@@ -300,9 +311,9 @@ namespace Engine {
 					kind = Kind::None ;
 					break ;
 				}
-				/**/                               code_str   = ::string(py_src["expr"    ].as_a<Str >()) ;
-				if (py_src.contains("glbs"      )) glbs_str   = ::string(py_src["glbs"    ].as_a<Str >()) ;
-				if (py_src.contains("dbg_info"  )) dbg_info   = ::string(py_src["dbg_info"].as_a<Str >()) ;
+				/**/                               code_str = ::string(py_src["expr"    ].as_a<Str>()) ;
+				if (py_src.contains("glbs"      )) glbs_str = ::string(py_src["glbs"    ].as_a<Str>()) ;
+				if (py_src.contains("dbg_info"  )) dbg_info = ::string(py_src["dbg_info"].as_a<Str>()) ;
 				if (py_src.contains("may_import"))
 					for( Object const& py_k : py_src["may_import"].as_a<Sequence>() )
 						may_import |= mk_enum<DynImport>(py_k.as_a<Str>()) ;
@@ -556,7 +567,7 @@ namespace Engine {
 	//
 
 	void DepsAttrs::init( Dict const* py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		full_dyn = false ;                                                                                                          // if full dynamic, we are not initialized
+		full_dyn = false ;                                                                                                                                    // if full dynamic, we are not initialized
 		//
 		for( auto const& [py_key,py_val] : py_src->as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
@@ -564,16 +575,15 @@ namespace Engine {
 				deps.emplace_back(key,DepSpec()) ;
 				continue ;
 			}
-			VarIdx      n_unnamed = 0                                                            ;
-			Dflags      df        = DflagsDfltStatic                                             ;
-			ExtraDflags edf       ;
-			::string    dep       = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) ; SWEAR(!(edf&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
-			::string    full_dep  = rd.add_cwd( ::move(dep) , edf[ExtraDflag::Top] )             ;
+			VarIdx     n_unnamed = 0                                                                          ;
+			MatchFlags mfs       = { .dflags=DflagsDfltStatic }                                               ; SWEAR(!(mfs.extra_dflags&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
+			::string   dep       = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , mfs , true/*dep_only*/ ) ;
+			dep  = rd.add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
 			try {
-				bool     keep       = false/*garbage*/                                                                                           ;
-				::string parsed_dep = _subst_fstr( full_dep , var_idxs , n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
+				bool     keep       = false/*garbage*/                                                          ;
+				::string parsed_dep = _subst_fstr( dep , var_idxs , n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
 				if (!keep) {
-					if ( key=="python" || key=="shell" ) continue             ;                                                     // accept external dep for interpreter (but ignore it)
+					if ( key=="python" || key=="shell" ) continue             ;             // accept external dep for interpreter (but ignore it)
 					else                                 throw "is external"s ;
 				}
 				//
@@ -581,12 +591,12 @@ namespace Engine {
 					for( auto const& [k,ci] : var_idxs ) if (ci.bucket==VarCmd::Stem) n_unnamed-- ;
 					throw_unless( !n_unnamed , "contains some but not all unnamed static stems" ) ;
 				}
-				deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , df , edf } ) ;
+				deps.emplace_back( key , DepSpec{ ::move(parsed_dep) , mfs.dflags , mfs.extra_dflags } ) ;
 			} catch (::string const& e) {
-				throw cat("dep ",key," (",full_dep,") ",e) ;
+				throw cat("dep ",key," (",dep,") ",e) ;
 			}
 		}
-		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ;                                         // -1 to leave some room to the interpreter, if any
+		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ; // -1 to leave some room to the interpreter, if any
 	}
 
 	::pair_s</*msg*/::vmap_s<DepSpec>> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
@@ -614,19 +624,18 @@ namespace Engine {
 						if (py_val==None) continue ;
 						::string key = py_key.as_a<Str>() ;
 						try {
-							Dflags      df  = DflagsDfltStatic ;
-							ExtraDflags edf ;                    SWEAR(!(edf&~ExtraDflag::Top)) ;      // or we must review side_deps
-							//
-							::string dep = match.rule->add_cwd( _split_flags( "dep "+key , py_val , 1/*n_skip*/ , df , edf ) , edf[ExtraDflag::Top] ) ;
-							DepSpec  ds  { dep , df , edf }                                                                                           ;
+							MatchFlags mfs = { .dflags=DflagsDfltStatic }                                               ; SWEAR(!(mfs.extra_dflags&~ExtraDflag::Top)) ; // or we must review side_deps
+							::string   dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , mfs , true/*dep_only*/ ) ;
+							dep = match.rule->add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
+							DepSpec ds { dep , mfs.dflags , mfs.extra_dflags } ;
 							try {
 								if (!Rule::s_qualify_dep(key,ds.txt)) continue ;
 								if (spec.full_dyn) {
 									dep_specs.emplace_back( key , ::move(ds) ) ;
 								} else {
 									DepSpec& ds2 = dep_specs[dep_idxs.at(key)].second ;
-									SWEAR(!ds2.txt) ;                                                  // dep cannot be both static and dynamic
-									ds2 = ::move(ds) ;                                                 // if not full_dyn, all deps must be listed in spec
+									SWEAR(!ds2.txt) ;                                   // dep cannot be both static and dynamic
+									ds2 = ::move(ds) ;                                  // if not full_dyn, all deps must be listed in spec
 								}
 							} catch(::string const& e) {
 								if (!res.first) res.first = e ;
@@ -638,7 +647,7 @@ namespace Engine {
 			}
 			//
 			return res  ;
-		} catch (::string const& e) { // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
+		} catch (::string const& e) {                                                   // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
 			throw ::pair(e,""s) ;
 		}
 	}
@@ -871,8 +880,8 @@ namespace Engine {
 			) ;
 			field = "matches" ;
 			throw_unless( dct.contains(field) , "not found" ) ;
-			::string job_name_key ;
-			::string job_name_msg = "job_name" ;
+			::string  job_name_key  ;
+			MatchKind job_name_kind ;
 			for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
 				field = py_k.as_a<Str>() ;
 				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                               // .
@@ -886,8 +895,8 @@ namespace Engine {
 						}
 					) ;
 				} else if (!job_name_key) {
-					job_name_key =                     field ;
-					job_name_msg = snake_str(kind)+' '+field ;
+					job_name_key  = field ;
+					job_name_kind = kind  ;
 				}
 			}
 			//
@@ -902,7 +911,7 @@ namespace Engine {
 			} ;
 			_parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
-					if      (!stem_defs.contains(k)) throw "found undefined "+stem_words(k,star,unnamed)+" in "+job_name_msg ;
+					if      (!stem_defs.contains(k)) throw cat("found undefined ",stem_words(k,star,unnamed)," in ",job_name_kind,' ',job_name_key) ;
 					if      (star                  ) job_name_is_star = true ;
 					else if (unnamed               ) n_static_unnamed_stems++ ;
 				}
@@ -915,27 +924,21 @@ namespace Engine {
 				bool                 seen_target                  = false ;
 				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                  // targets are a tuple (target_pattern,flags...)
 					field = py_k.as_a<Str>() ;
-					Sequence const& pyseq_tkfs         = py_tkfs.as_a<Sequence>()                      ;
-					::string        target             =                    pyseq_tkfs[0].as_a<Str>()  ;                       // .
-					MatchKind       kind               = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                       // targets are a tuple (target_pattern,kind,flags...)
-					bool            is_star            = false                                         ;
-					::set_s         missing_stems      ;
-					bool            is_target          = kind!=MatchKind::SideDep                      ;
-					bool            is_official_target = kind==MatchKind::Target                       ;
-					bool            is_stdout          = field=="target"                               ;
-					MatchFlags      flags              ;
-					Tflags          tflags             ;
-					Dflags          dflags             ;
-					ExtraTflags     extra_tflags       ;
-					ExtraDflags     extra_dflags       ;
+					Sequence const& pyseq_tkfs    = py_tkfs.as_a<Sequence>()                      ;
+					::string        target        =                    pyseq_tkfs[0].as_a<Str>()  ;                            // .
+					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                            // targets are a tuple (target_pattern,kind,flags...)
+					bool            is_star       = false                                         ;
+					::set_s         missing_stems ;
+					bool            is_stdout     = field=="target"                               ;
+					MatchFlags      flags         ;
 					// ignore side_targets and side_deps for source and anti-rules
 					// this is meaningless, but may be inherited for stems, typically as a PyRule
-					if ( !is_official_target && is_special() ) continue ;
+					if ( kind!=MatchKind::Target && is_special() ) continue ;
 					// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 					if (target==job_name) {
 						if (job_name_is_star) is_star = true ;
 					} else {
-						if (is_official_target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
+						if (kind==MatchKind::Target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
 						_parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
 								if (!stem_defs.contains(k)) throw "found undefined "+stem_words(k,star,unnamed)+" in "+kind ;
@@ -945,28 +948,31 @@ namespace Engine {
 									return ;
 								}
 								auto it = stem_stars.find(k) ;
-								throw_unless( it!=stem_stars.end() && it->second!=Yes , stem_words(k,star,unnamed)," appears in ",kind," but not in ",job_name_msg,", consider using ",k,'*' ) ;
-								if (is_official_target) missing_stems.erase(k) ;
+								throw_unless(
+									it!=stem_stars.end() && it->second!=Yes
+								,	stem_words(k,star,unnamed)," appears in ",kind," but not in ",job_name_kind,' ',job_name_key,", consider using ",k,'*'
+								) ;
+								if (kind==MatchKind::Target) missing_stems.erase(k) ;
 							}
 						) ;
 					}
-					if (             is_official_target )   tflags |= Tflag::Target    ;
-					if ( !is_star && is_official_target )   tflags |= Tflag::Essential ;                                       // static targets are essential by default
-					if ( !is_star                       )   tflags |= Tflag::Static    ;
-					if ( is_target                      ) { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , tflags , extra_tflags ) ; flags = {tflags,extra_tflags} ; }
-					else                                  { _split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , dflags , extra_dflags ) ; flags = {dflags,extra_dflags} ; }
+					if (             kind==MatchKind::Target  ) flags.tflags       |= Tflag::Target     ;
+					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential  ;                      // static targets are essential by default
+					if ( !is_star                             ) flags.tflags       |= Tflag::Static     ;
+					if (             kind!=MatchKind::SideDep ) flags.extra_tflags |= ExtraTflag::Allow ;
+					_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , flags , kind==MatchKind::SideDep ) ;
 					// check
-					if ( target.starts_with(*g_repo_root_s)                            ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
-					if ( !is_lcl(target)                                               ) throw snake_str(kind)+" must be local : "                         +target  ;
-					if ( +missing_stems                                                ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
-					if (  is_star                              && is_special()         ) throw "star "s+kind+"s are meaningless for source and anti-rules"          ;
-					if (  is_star                              && is_stdout            ) throw "stdout cannot be directed to a star target"s                        ;
-					if ( tflags      [Tflag     ::Incremental] && is_stdout            ) throw "stdout cannot be directed to an incremental target"s                ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && is_star              ) throw "star targets are natively optional : "                     +target  ;
-					if ( extra_tflags[ExtraTflag::Optional   ] && tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "            +target  ;
-					bool is_top = is_target ? extra_tflags[ExtraTflag::Top] : extra_dflags[ExtraDflag::Top] ;
-					seen_top    |= is_top             ;
-					seen_target |= is_official_target ;
+					if ( target.starts_with(*g_repo_root_s)                                        ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
+					if ( !is_lcl(target)                                                           ) throw snake_str(kind)+" must be local : "                         +target  ;
+					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
+					if (  is_star                                    && is_special()               ) throw "star "s+kind+"s are meaningless for source and anti-rules"          ;
+					if (  is_star                                    && is_stdout                  ) throw "stdout cannot be directed to a star target"s                        ;
+					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw "stdout cannot be directed to an incremental target"s                ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw "star targets are natively optional : "                     +target  ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "            +target  ;
+					bool is_top = flags.extra_tflags[ExtraTflag::Top] || flags.extra_dflags[ExtraDflag::Top] ;
+					seen_top    |= is_top                  ;
+					seen_target |= kind==MatchKind::Target ;
 					// record
 					/**/                     target   = add_cwd( ::move(target  ) , is_top ) ;
 					if (field==job_name_key) job_name = add_cwd( ::move(job_name) , is_top ) ;
@@ -1004,20 +1010,26 @@ namespace Engine {
 			//
 			::string        mk_tgt       ;
 			::string const* ensure_canon = nullptr ;
+			MatchKind       kind         ;
 			auto mk_fixed = [&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
 				SWEAR(+fixed) ;
 				mk_tgt += fixed ;
-				if (!ensure_canon                                    ) return                                                                                  ;
-				if (!is_canon(fixed,true/*empty_ok*/,has_pfx,has_sfx)) throw cat(*ensure_canon," is not canonical, consider using : ",mk_canon(*ensure_canon)) ;
-				if (!has_sfx && fixed.back()=='/'                    ) throw cat(*ensure_canon," ends with /, consider using : "     ,no_slash(*ensure_canon)) ;
+				if (!ensure_canon) return ;
+				::string msg = accept( kind , fixed , has_pfx , has_sfx ) ;
+				throw_if( +msg , *ensure_canon , +*ensure_canon?" ":"" , msg ) ;
 			} ;
 			auto mk_stem  = [&]( ::string const& key , bool star , bool /*unnamed*/ , ::string const* /*re*/ )->void {
 				_append_stem(mk_tgt,stem_idxs.at(key+" *"[star])) ;
 			} ;
 			unnamed_star_idx = 1 ;                                                                                             // reset free running at each pass over job_name+targets
 			mk_tgt.clear() ;
-			if (+job_name_key) { field = job_name_key ; ensure_canon = &job_name ; }                                           // if job_name is a target, canon must be checked
-			else                 field = "job_name"   ;
+			if (!job_name_key) {
+				field        = "job_name"    ;
+			} else {
+				field        = job_name_key  ;
+				ensure_canon = &job_name     ;
+				kind         = job_name_kind ;
+			}                                                                                                                  // if job_name is a target, canon must be checked
 			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 			::string new_job_name = ::move(mk_tgt) ;
 			// compile potential conflicts as there are rare and rather expensive to detect, we can avoid most of the verifications by statically analyzing targets
@@ -1030,7 +1042,8 @@ namespace Engine {
 					me.set_pattern(new_job_name,stems.size()) ;
 				} else {
 					mk_tgt.clear() ;
-					ensure_canon = &me.pattern ;
+					ensure_canon = &me.pattern     ;
+					kind         = me.flags.kind() ;                                                                           // providing . as side_deps may be useful to pass readdir_ok flag
 					_parse_py( me.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 					me.set_pattern(::move(mk_tgt),stems.size()) ;
 				}
@@ -1242,9 +1255,9 @@ namespace Engine {
 	::string RuleData::_pretty_matches() const {
 		auto kind = [&](RuleData::MatchEntry const& me)->::string_view {
 			return snake(
-				me.flags.is_target==No           ? MatchKind::SideDep
-			:	me.flags.tflags()[Tflag::Target] ? MatchKind::Target
-			:	                                   MatchKind::SideTarget
+				!me.flags.is_target()          ? MatchKind::SideDep
+			:	me.flags.tflags[Tflag::Target] ? MatchKind::Target
+			:	                                 MatchKind::SideTarget
 			) ;
 		} ;
 		size_t    w1        = 0 ;
@@ -1272,42 +1285,41 @@ namespace Engine {
 			::string                    flags ;
 			//
 			bool first = true ;
-			if (me.flags.is_target==No) {
-				for( Dflag df : iota(Dflag::NRule) ) {
-					if (!me.flags.dflags()[df]) continue ;
-					flags << (first?" : ":" , ") << df ;
-					first = false ;
-				}
-				for( ExtraDflag edf : iota(ExtraDflag::NRule) ) {
-					if (!me.flags.extra_dflags()[edf]) continue ;
-					flags << (first?" : ":" , ") << edf ;
-					first = false ;
-				}
-			} else {
+			if (me.flags.is_target()) {
 				for( Tflag tf : iota(Tflag::NRule) ) {
-					if (!me.flags.tflags()[tf]) continue ;
+					if (!me.flags.tflags[tf]) continue ;
 					flags << (first?" : ":" , ") << tf ;
 					first = false ;
 				}
 				for( ExtraTflag etf : iota(ExtraTflag::NRule) ) {
-					if (!me.flags.extra_tflags()[etf]) continue ;
+					if (!me.flags.extra_tflags[etf]) continue ;
 					flags << (first?" : ":" , ") << etf ;
 					first = false ;
 				}
-				if (me.flags.tflags()[Tflag::Target]) {
-					bool first_conflict = true ;
-					for( VarIdx c : me.conflicts ) {
-						if (first_conflict) {
-							flags << (first?" : ":" , ") << "except[" ;
-							first_conflict = false ;
-							first          = false ;
-						} else {
-							flags << ',' ;
-						}
-						flags << matches[c].first ;
+			}
+			for( Dflag df : iota(Dflag::NRule) ) {
+				if (!me.flags.dflags[df]) continue ;
+				flags << (first?" : ":" , ") << df ;
+				first = false ;
+			}
+			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) {
+				if (!me.flags.extra_dflags[edf]) continue ;
+				flags << (first?" : ":" , ") << edf ;
+				first = false ;
+			}
+			if (me.flags.tflags[Tflag::Target]) {
+				bool first_conflict = true ;
+				for( VarIdx c : me.conflicts ) {
+					if (first_conflict) {
+						flags << (first?" : ":" , ") << "except[" ;
+						first_conflict = false ;
+						first          = false ;
+					} else {
+						flags << ',' ;
 					}
-					if (!first_conflict) flags << ']' ;
+					flags << matches[c].first ;
 				}
+				if (!first_conflict) flags << ']' ;
 			}
 			/**/        res <<'\t'<< widen(cat(kind(me)),w1)<<' '<<widen(k,w2)<<" : " ;
 			if (+flags) res << widen(patterns_[k],w3) << flags                        ;
@@ -1323,7 +1335,7 @@ namespace Engine {
 				if (sr_s.starts_with(e_s)) goto Skip ;                                                // g_config->sub_repos_s are sorted so that higher level occurs first
 			seens_s.insert(sr_s) ;
 			for( auto const& [k,me] : matches ) {                                                     // if all targets have a prefix that excludes considered sub-repo, it cannot match
-				if (!( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )) continue ;      // not a target
+				if (!me.flags.tflags[Tflag::Target]) continue ;
 				::string_view pfx = substr_view( me.pattern , 0 , me.pattern.find(Rule::StemMrkr) ) ; // find target prefix
 				if (sr_s.starts_with(pfx )) goto Report ;                                             // found a target that may      match in sub-repo, include it
 				if (pfx .starts_with(sr_s)) goto Report ;                                             // found a target that may only match in sub-repo, include it
@@ -1419,26 +1431,27 @@ namespace Engine {
 			if (+sub_repo_s                                        ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                        ) ) ;
 		}
 		if (!is_special()) {
-			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                             ) ) ;
-			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                           ) ) ;
-			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                         ) ) ;
+			if ( start_cmd_attrs      .spec.auto_mkdir             ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs      .spec.auto_mkdir             ) ) ;
+			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs    .spec.method                 ) ) ;
 			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs.spec.backend                   ) ) ;
 			if (+submit_ancillary_attrs .spec.cache                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs .spec.cache                  ) ;
-			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                         ) ;
-			if ( start_cmd_attrs      .spec.allow_stderr           ) entries.emplace_back( "allow_stderr"        , cat        (start_cmd_attrs      .spec.allow_stderr           ) ) ;
-			if ( start_cmd_attrs      .spec.auto_mkdir             ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs      .spec.auto_mkdir             ) ) ;
 			if (+start_cmd_attrs      .spec.job_space.chroot_dir_s ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs      .spec.job_space.chroot_dir_s ) ) ;
-			if (+start_cmd_attrs      .spec.job_space.lmake_view_s ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs      .spec.job_space.lmake_view_s ) ) ;
-			if (+start_cmd_attrs      .spec.job_space.repo_view_s  ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs      .spec.job_space.repo_view_s  ) ) ;
-			if (+start_cmd_attrs      .spec.job_space.tmp_view_s   ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs      .spec.job_space.tmp_view_s   ) ) ;
-			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs    .spec.method                 ) ) ;
-			if (+start_rsrcs_attrs    .spec.timeout                ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs    .spec.timeout.short_str()      ) ;
-			if ( start_rsrcs_attrs    .spec.use_script             ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs    .spec.use_script             ) ) ;
-			if ( start_ancillary_attrs.spec.keep_tmp               ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs.spec.keep_tmp               ) ) ;
-			if (+start_ancillary_attrs.spec.start_delay            ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs.spec.start_delay.short_str()  ) ;
-			if (+start_ancillary_attrs.spec.kill_sigs              ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                           ) ;
-			if ( start_ancillary_attrs.spec.max_stderr_len         ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs.spec.max_stderr_len         ) ) ;
 			if ( start_ancillary_attrs.spec.z_lvl                  ) entries.emplace_back( "compression"         , ::to_string(start_ancillary_attrs.spec.z_lvl                  ) ) ;
+			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                             ) ) ;
+			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                         ) ;
+			if ( start_ancillary_attrs.spec.keep_tmp               ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs.spec.keep_tmp               ) ) ;
+			if (+start_ancillary_attrs.spec.kill_sigs              ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                           ) ;
+			if (+start_cmd_attrs      .spec.job_space.lmake_view_s ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs      .spec.job_space.lmake_view_s ) ) ;
+			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                           ) ) ;
+			if ( start_ancillary_attrs.spec.max_stderr_len         ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs.spec.max_stderr_len         ) ) ;
+			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                         ) ) ;
+			if ( start_cmd_attrs      .spec.readdir_ok             ) entries.emplace_back( "readdir_ok"          , cat        (start_cmd_attrs      .spec.readdir_ok             ) ) ;
+			if (+start_cmd_attrs      .spec.job_space.repo_view_s  ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs      .spec.job_space.repo_view_s  ) ) ;
+			if (+start_ancillary_attrs.spec.start_delay            ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs.spec.start_delay.short_str()  ) ;
+			if ( start_cmd_attrs      .spec.stderr_ok              ) entries.emplace_back( "stderr_ok"           , cat        (start_cmd_attrs      .spec.stderr_ok              ) ) ;
+			if (+start_rsrcs_attrs    .spec.timeout                ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs    .spec.timeout.short_str()      ) ;
+			if (+start_cmd_attrs      .spec.job_space.tmp_view_s   ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs      .spec.job_space.tmp_view_s   ) ) ;
+			if ( start_rsrcs_attrs    .spec.use_script             ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs    .spec.use_script             ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		//
@@ -1493,21 +1506,21 @@ namespace Engine {
 	// if the need arises, we will add an "id" artificial field entering in crc->match to distinguish them
 	void RuleData::_set_crcs(RulesBase const& rules) {
 		if (!is_special()) SWEAR(+rules) ;
-		Hash::Xxh h ;                                                                            // each crc continues after the previous one, so they are standalone
+		Hash::Xxh h ;                                                                          // each crc continues after the previous one, so they are standalone
 		//
 		// START_OF_VERSIONING
 		::vmap_s<bool> targets ;
 		for( auto const& [k,me] : matches )
-			if ( me.flags.is_target==Yes && me.flags.tflags()[Tflag::Target] )
-				targets.emplace_back(me.pattern,me.flags.extra_tflags()[ExtraTflag::Optional]) ; // keys and flags have no influence on matching, except Optional
-		h += special ;                                                                           // in addition to distinguishing special from other, ...
-		h += stems   ;                                                                           // ... this guarantees that shared rules have different crc's
+			if (me.flags.tflags[Tflag::Target])
+				targets.emplace_back(me.pattern,me.flags.extra_tflags[ExtraTflag::Optional]) ; // keys and flags have no influence on matching, except Optional
+		h += special ;                                                                         // in addition to distinguishing special from other, ...
+		h += stems   ;                                                                         // ... this guarantees that shared rules have different crc's
 		h += targets ;
 		if (is_special()) {
-			h += allow_ext ;                                                                     // only exists for special rules
+			h += allow_ext ;                                                                   // only exists for special rules
 		} else {
 			h += job_name ;
-			deps_attrs.update_hash( h , rules ) ;                                                // no deps for source & anti
+			deps_attrs.update_hash( h , rules ) ;                                              // no deps for source & anti
 		}
 		Crc match_crc = h.digest() ;
 		//
@@ -1515,8 +1528,8 @@ namespace Engine {
 			crc = {match_crc} ;
 		} else {
 			h += sub_repo_s             ;
-			h += Node::s_src_dirs_crc() ;                                                        // src_dirs influences deps recording
-			h += matches                ;                                                        // these define names and influence cmd execution, all is not necessary but simpler to code
+			h += Node::s_src_dirs_crc() ;                                                      // src_dirs influences deps recording
+			h += matches                ;                                                      // these define names and influence cmd execution, all is not necessary but simpler to code
 			h += force                  ;
 			h += is_python              ;
 			start_cmd_attrs.update_hash( h , rules ) ;
@@ -1585,7 +1598,7 @@ namespace Engine {
 	::uset<Node> Rule::RuleMatch::target_dirs() const {
 		::uset<Node> dirs ;
 		for( auto const& [k,me] : rule->matches ) {
-			if (me.flags.is_target!=Yes) continue ;
+			if (!me.flags.is_target()) continue ;
 			::string target = _subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string { return stems[s] ; }

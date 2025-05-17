@@ -43,6 +43,9 @@ Mimic setting the rule attribute B(chroot_dir)=I(abs_dir).
 Item(B(-d) I(dir),B(--cwd)=I(dir))
 Mimic setting the rule attribute B(cwd)=I(dir).
 
+Item(B(-D),B(--readdir-ok))
+Mimic setting the rule attribute B(readdir_ok)=I(True).
+
 Item(B(-e) I(list),B(--env)=I(list))
 I(list) must be provided as a  tuple or list of str using the python syntax (which most probably requires shell quoting).
 Listed variables are kept from the environment.

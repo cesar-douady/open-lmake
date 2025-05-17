@@ -22,7 +22,10 @@ if __name__!='__main__' :
 			'MRKR' : ( 'src/{Dir:.*}.repo_dir.trigger'    , 'phony'                      )
 		,	'TGT'  : ( 'src/{Dir   }.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' )
 		}
-		side_deps = { 'REPO' : ('{Dir}.repo/{File*}','ignore') }
+		side_deps = {
+			'DIR'  : ('src/{Dir}.repo_dir','readdir_ok')
+		,	'REPO' : ('{Dir}.repo/{File*}','ignore'    )
+		}
 		cmd = '''
 			if [ -f {TGT('.git/index')} ]
 			then ( cd {TGT('')} ; git pull 2>&1 )

@@ -3,7 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <dirent.h>
 #include <errno.h>
+#include <glob.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -93,6 +95,14 @@ extern "C" {
 	extern int __lxstat64       ( int v ,           const char* pth , struct stat64* buf            ) NE ;
 	extern int __fxstatat64     ( int v , int dfd , const char* pth , struct stat64* buf , int flgs ) NE ;
 	//
+	extern ssize_t          getdents64     ( int fd , void* dirp , size_t cnt                                                   ) NE ;
+	extern ssize_t          getdirentries  ( int fd , char* buf , size_t nbytes , off_t  * basep                                ) NE ;
+	extern ssize_t          getdirentries64( int fd , char* buf , size_t nbytes , off64_t* basep                                ) NE ;
+	extern int              glob64         ( const char* pattern , int flags , int(*errfunc)(const char*,int) , glob64_t* pglob ) NE ;
+	extern struct dirent64* readdir64      ( DIR* dirp                                                                          )    ;
+	extern int              readdir_r      ( DIR* dirp , struct dirent*   entry , struct dirent  ** result                      )    ;
+	extern int              readdir64_r    ( DIR* dirp , struct dirent64* entry , struct dirent64** result                      )    ;
+	//
 	#if HAS_CLOSE_RANGE
 		extern int close_range( uint fd1 , uint fd2 , int flgs ) NE ;
 	#endif
@@ -114,36 +124,38 @@ Record& auditor() {
 	return *s_res ;
 }
 
-template<class Action,int NP=1> struct AuditAction : SaveErrno,Action {
+template<class Action,int NPaths> struct AuditAction : SaveErrno,Action {
 	// cxtors & casts
 	// errno must be protected from our auditing actions in cxtor and operator()
 	// more specifically, errno must be the original one before the actual call to libc
 	// and must be the one after the actual call to libc when auditing code finally leave
 	// SaveErrno contains save_errno in its cxtor
 	// so here, errno must be restored at the end of cxtor
-	template<class... A> AuditAction(                                    A&&... args) requires(NP==0) : Action{auditor(),                      ::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(char*          p  ,                 A&&... args) requires(NP==1) : Action{auditor(),Record::WPath(p)     ,::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(Record::Path&& p  ,                 A&&... args) requires(NP==1) : Action{auditor(),::move(p )           ,::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NP==2) : Action{auditor(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(                                    A&&... args) requires(NPaths==0) : Action{auditor(),                      ::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(char*          p ,                  A&&... args) requires(NPaths==1) : Action{auditor(),Record::WPath(p)     ,::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(Record::Path&& p ,                  A&&... args) requires(NPaths==1) : Action{auditor(),::move(p )           ,::forward<A>(args)... } { restore_errno() ; }
+	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NPaths==2) : Action{auditor(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
 	// services
 	template<class T> T operator()(T res) { return Action::operator()(auditor(),res) ; }
 } ;
-//                                           n paths
-using Chdir    = AuditAction<Record::Chdir         > ;
-using Chmod    = AuditAction<Record::Chmod         > ;
-using Hide     = AuditAction<Record::Hide    ,0    > ;
-using Mkdir    = AuditAction<Record::Mkdir         > ;
-using Lnk      = AuditAction<Record::Lnk     ,2    > ;
-using Mount    = AuditAction<Record::Mount   ,2    > ;
-using Open     = AuditAction<Record::Open          > ;
-using Read     = AuditAction<Record::Read          > ;
-using Readlink = AuditAction<Record::Readlink      > ;
-using Rename   = AuditAction<Record::Rename  ,2    > ;
-using Solve    = AuditAction<Record::Solve         > ;
-using Stat     = AuditAction<Record::Stat          > ;
-using Symlink  = AuditAction<Record::Symlink       > ;
-using Unlnk    = AuditAction<Record::Unlnk         > ;
-using WSolve   = AuditAction<Record::WSolve        > ;
+//                                           NPaths
+using Chdir    = AuditAction<Record::Chdir   ,1   > ;
+using Chmod    = AuditAction<Record::Chmod   ,1   > ;
+using Glob     = AuditAction<Record::Glob    ,0   > ;
+using Hide     = AuditAction<Record::Hide    ,0   > ;
+using Mkdir    = AuditAction<Record::Mkdir   ,1   > ;
+using Lnk      = AuditAction<Record::Lnk     ,2   > ;
+using Mount    = AuditAction<Record::Mount   ,2   > ;
+using Open     = AuditAction<Record::Open    ,1   > ;
+using Read     = AuditAction<Record::Read    ,1   > ;
+using ReadDir  = AuditAction<Record::ReadDir ,1   > ;
+using Readlink = AuditAction<Record::Readlink,1   > ;
+using Rename   = AuditAction<Record::Rename  ,2   > ;
+using Solve    = AuditAction<Record::Solve   ,1   > ;
+using Stat     = AuditAction<Record::Stat    ,1   > ;
+using Symlink  = AuditAction<Record::Symlink ,1   > ;
+using Unlnk    = AuditAction<Record::Unlnk   ,1   > ;
+using WSolve   = AuditAction<Record::WSolve  ,1   > ;
 
 #if NEED_ELF
 
@@ -184,7 +196,7 @@ using WSolve   = AuditAction<Record::WSolve        > ;
 		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Record::ExecCS{r,::move(path),no_follow,c} {}
 	} ;
 #endif
-using Exec = AuditAction<_Exec> ;
+using Exec = AuditAction<_Exec,1/*NPaths*/> ;
 
 struct _Execp : _Exec {
 	// search executable file in PATH
@@ -220,7 +232,7 @@ struct _Execp : _Exec {
 		}
 	}
 } ;
-using Execp = AuditAction<_Execp,0/*NP*/> ;
+using Execp = AuditAction<_Execp,0/*NPaths*/> ;
 
 //
 // Fopen
@@ -246,8 +258,8 @@ static int fopen_mk_flags(const char* mode) {
 	return flags ;
 }
 
-struct Fopen : AuditAction<Record::Open> {
-	using Base = AuditAction<Record::Open> ;
+struct Fopen : AuditAction<Record::Open,1/*NPaths*/> {
+	using Base = AuditAction<Record::Open,1/*NPaths*/> ;
 	using Base::Base ;
 	FILE* operator()(FILE* fp) {
 		Base::operator()(fp?::fileno(fp):-1) ;
@@ -260,7 +272,7 @@ struct Fopen : AuditAction<Record::Open> {
 //
 
 struct Mkstemp : WSolve {
-	using Base = AuditAction<Record::WSolve> ;
+	using Base = AuditAction<Record::WSolve,1/*NPaths*/> ;
 	Mkstemp( char* t , int sl , Comment c ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*create*/ , c } , tmpl{t} , sfx_len{sl} , comment{c} {}
 	Mkstemp( char* t ,          Comment c ) : Mkstemp(t,0,c) {}
 	int operator()(int fd) {
@@ -291,6 +303,7 @@ struct Mkstemp : WSolve {
 {
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wignored-attributes"
+	#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 	#define ASLNF(flags) bool((flags)&AT_SYMLINK_NOFOLLOW)
 	#define EXE(  mode ) bool((mode )&S_IXUSR            )
@@ -343,8 +356,8 @@ struct Mkstemp : WSolve {
 	// chdir
 	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p     ,Comment::chdir } ; return r(orig(p )) ; }
-	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{Fd(fd),Comment::fchdir} ; return r(orig(fd)) ; }
+	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p ,Comment::chdir } ; return r(orig(p )) ; }
+	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{fd,Comment::fchdir} ; return r(orig(fd)) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
@@ -614,12 +627,17 @@ struct Mkstemp : WSolve {
 	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,false,Comment::lutimes  } ; return r(orig(  p,t  )) ; }
 	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,Comment::utimensat} ; return r(orig(d,p,t,f)) ; }
 
-	// mere path accesses (neeed to solve path, but no actual access to file data)
+	//
+	// stats : mere path accesses (neeed to solve path, but no actual access to file data)
+	//
+
+	// access
 	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
 	//                                                                                    no_follow accesses
 	int access   (      CC* p,int m      ) NE { HDR1(access   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::access   } ; return r(orig(  p,m  )) ; }
 	int faccessat(int d,CC* p,int m,int f) NE { HDR1(faccessat,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::faccessat} ; return r(orig(d,p,m,f)) ; }
 	#undef ACCESSES
+
 	// stat* accesses provide the size field, which make the user sensitive to file content
 	//                                                                                                             no_follow accesses
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HDR1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,~Accesses(),Comment::__xstat     } ; return r(orig(v,  p,b  )) ; }
@@ -657,20 +675,49 @@ struct Mkstemp : WSolve {
 	char* __realpath_chk        (CC* p,char* rp,size_t rl) NE { HDR1(__realpath_chk        ,p,(p,rp,rl)) ; Stat r{p,false   ,Accesses(),Comment::__realpath_chk        } ; return r(orig(p,rp,rl)) ; }
 	char* canonicalize_file_name(CC* p                   ) NE { HDR1(canonicalize_file_name,p,(p      )) ; Stat r{p,false   ,Accesses(),Comment::canonicalize_file_name} ; return r(orig(p      )) ; }
 
-	// scandir
-	using NmLst = struct dirent***                                     ;
-	using Fltr  = int (*)(const struct dirent*                       ) ;
-	using Cmp   = int (*)(const struct dirent**,const struct dirent**) ;
-	//                                                                                               no_follow read  create
-	int scandir  (      CC* p,NmLst nl,Fltr f,Cmp c) { HDR1(scandir  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,Comment::scandir  } ; return r(orig(  p,nl,f,c)) ; }
-	int scandirat(int d,CC* p,NmLst nl,Fltr f,Cmp c) { HDR1(scandirat,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,Comment::scandirat} ; return r(orig(d,p,nl,f,c)) ; }
 	//
-	using NmLst64 = struct dirent64***                                       ;
-	using Fltr64  = int (*)(const struct dirent64*                         ) ;
-	using Cmp64   = int (*)(const struct dirent64**,const struct dirent64**) ;
-	//                                                                                                         no_follow read  create
-	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandir64  ,p,(  p,nl,f,c)) ; Solve r{   p ,true    ,false,false,Comment::scandir64  } ; return r(orig(  p,nl,f,c)) ; }
-	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandirat64,p,(d,p,nl,f,c)) ; Solve r{{d,p},true    ,false,false,Comment::scandirat64} ; return r(orig(d,p,nl,f,c)) ; }
+	// dirs
+	//
+
+	#define HDR0_DIR(libcall,     args) HDR( libcall , (auditor(),Record::s_autodep_env().readdir_ok)     , args ) // call auditor() to ensure s_autodep_env() is initialized
+	#define HDR1_DIR(libcall,path,args) HDR( libcall , Record::s_is_simple(path,false/*empty_is_simple*/) , args ) // if empty, we may read dir provided by path.at
+
+	// getdents
+	ssize_t getdents64(int fd,void* dirp,size_t cnt) NE { HDR0_DIR(getdents64,(fd,dirp,cnt)) ; ReadDir r{fd,Comment::getdents64} ; return r(orig(fd,dirp,cnt)) ; }
+
+	// getdirentries
+	ssize_t getdirentries  (int fd,char* buf,size_t n,off_t  * bp) NE { HDR0_DIR(getdirentries  ,(fd,buf,n,bp)) ; ReadDir r{fd,Comment::getdirentries  } ; return r(orig(fd,buf,n,bp)) ; }
+	ssize_t getdirentries64(int fd,char* buf,size_t n,off64_t* bp) NE { HDR0_DIR(getdirentries64,(fd,buf,n,bp)) ; ReadDir r{fd,Comment::getdirentries64} ; return r(orig(fd,buf,n,bp)) ; }
+
+	// glob
+	using ErrFunc = int(*)(const char*,int) ;
+	int glob  (const char* pat,int f,ErrFunc ef,glob_t  * pg) NE { HDR0_DIR(glob  ,(pat,f,ef,pg)) ; Glob r{pat,f,Comment::glob  } ; return r(orig(pat,f,ef,pg)) ; }
+	int glob64(const char* pat,int f,ErrFunc ef,glob64_t* pg) NE { HDR0_DIR(glob64,(pat,f,ef,pg)) ; Glob r{pat,f,Comment::glob64} ; return r(orig(pat,f,ef,pg)) ; }
+
+	// readdir
+	struct dirent  * readdir  (DIR* dp) { HDR0_DIR(readdir  ,(dp)) ; ReadDir r{dirfd(dp),Comment::readdir  } ; return r(orig(dp)) ; }
+	struct dirent64* readdir64(DIR* dp) { HDR0_DIR(readdir64,(dp)) ; ReadDir r{dirfd(dp),Comment::readdir64} ; return r(orig(dp)) ; }
+	//
+	int readdir_r  (DIR* dp,struct dirent*   e,struct dirent  ** res) { HDR0_DIR(readdir_r  ,(dp,e,res)) ; ReadDir r{dirfd(dp),Comment::readdir_r  } ; return r(orig(dp,e,res)) ; }
+	int readdir64_r(DIR* dp,struct dirent64* e,struct dirent64** res) { HDR0_DIR(readdir64_r,(dp,e,res)) ; ReadDir r{dirfd(dp),Comment::readdir64_r} ; return r(orig(dp,e,res)) ; }
+
+	// scandir
+	using NmLst = struct dirent***                                    ;
+	using Fltr  = int(*)(const struct dirent*                       ) ;
+	using Cmp   = int(*)(const struct dirent**,const struct dirent**) ;
+	//
+	int scandir  (      CC* p,NmLst nl,Fltr f,Cmp c) { HDR1_DIR(scandir  ,p,(  p,nl,f,c)) ; ReadDir r{   p ,Comment::scandir  } ; return r(orig(  p,nl,f,c)) ; }
+	int scandirat(int d,CC* p,NmLst nl,Fltr f,Cmp c) { HDR1_DIR(scandirat,p,(d,p,nl,f,c)) ; ReadDir r{{d,p},Comment::scandirat} ; return r(orig(d,p,nl,f,c)) ; }
+	//
+	using NmLst64 = struct dirent64***                                      ;
+	using Fltr64  = int(*)(const struct dirent64*                         ) ;
+	using Cmp64   = int(*)(const struct dirent64**,const struct dirent64**) ;
+	//
+	int scandir64  (      CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandir64  ,p,(  p,nl,f,c)) ; ReadDir r{   p ,Comment::scandir64  } ; return r(orig(  p,nl,f,c)) ; }
+	int scandirat64(int d,CC* p,NmLst64 nl,Fltr64 f,Cmp64 c) { HDR1(scandirat64,p,(d,p,nl,f,c)) ; ReadDir r{{d,p},Comment::scandirat64} ; return r(orig(d,p,nl,f,c)) ; }
+
+	#undef HDR0_DIR
+	#undef HDR1_DIR
 
 	#undef CC
 

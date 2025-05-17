@@ -71,6 +71,7 @@ if __name__!='__main__' :
 		tmp_view = '/tmp'
 		environ  = { 'REPO_ROOT' : '$REPO_ROOT' }
 		cmd      = '''
+			ldepend -D {File}.dir/d {File}.dir/d/c
 			cd $TMPDIR
 			cp -a $REPO_ROOT/{File}.dir/d d
 			a=$(cat d/a)

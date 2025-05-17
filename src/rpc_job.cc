@@ -1020,18 +1020,8 @@ void JobEndRpcReq::cache_cleanup() {
 // JobStartRpcReply
 //
 
-::string& operator+=( ::string& os , MatchFlags const& mf ) {                                                                                          // START_OF_NO_COV
-	/**/             os << "MatchFlags(" ;
-	switch (mf.is_target) {
-		case Yes   : os << "target" ; if (+mf.tflags()           ) os<<','<<mf.tflags() ; if (+mf.extra_tflags()) os<<','<<mf.extra_tflags() ; break ;
-		case No    : os << "dep,"   ; if (mf.dflags()!=DflagsDflt) os<<','<<mf.dflags() ; if (+mf.extra_dflags()) os<<','<<mf.extra_dflags() ; break ;
-		case Maybe :                                                                                                                           break ;
-	DF}                                                                                                                                                // NO_COV
-	return           os << ')' ;
-}                                                                                                                                                      // END_OF_NO_COV
-
 ::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {         // START_OF_NO_COV
-	/**/                           os << "JobStartRpcReply("                ;
+	/**/                           os << "JobStartRpcReply("<<jsrr.rule     ;
 	/**/                           os <<','  << to_hex(jsrr.addr)           ;
 	/**/                           os <<','  << jsrr.autodep_env            ;
 	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
@@ -1041,7 +1031,7 @@ void JobEndRpcReq::cache_cleanup() {
 	/**/                           os <<','  << jsrr.interpreter            ;
 	/**/                           os <<','  << jsrr.kill_sigs              ;
 	if (jsrr.live_out            ) os <<','  << "live_out"                  ;
-	if (jsrr.allow_stderr        ) os <<','  << "allow_stderr"              ;
+	if (jsrr.stderr_ok           ) os <<','  << "stderr_ok"                 ;
 	/**/                           os <<','  << jsrr.method                 ;
 	if (+jsrr.network_delay      ) os <<','  << jsrr.network_delay          ;
 	if (+jsrr.pre_actions        ) os <<','  << jsrr.pre_actions            ;

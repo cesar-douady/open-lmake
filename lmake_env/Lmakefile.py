@@ -111,8 +111,8 @@ class AntiPackPack(BaseRule,AntiRule) :
 	}
 
 class Untar(Unpack,PyRule) :
-	deps         = { 'TAR' : 'ext/{Dir}.tar.gz' }
-	allow_stderr = True
+	deps      = { 'TAR' : 'ext/{Dir}.tar.gz' }
+	stderr_ok = True
 	def cmd() :
 		dir = f'ext/{Dir}.dir'
 		n_files = 0
@@ -130,8 +130,8 @@ class Untar(Unpack,PyRule) :
 		print(f'untar {n_files} files',file=sys.stderr)
 
 class Unzip(Unpack,PyRule) :
-	deps         = { 'ZIP' : 'ext/{Dir}.zip' }
-	allow_stderr = True
+	deps      = { 'ZIP' : 'ext/{Dir}.zip' }
+	stderr_ok = True
 	def cmd() :
 		dir = f'ext/{Dir}.dir'
 		n_files  = 0

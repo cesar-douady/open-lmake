@@ -451,6 +451,7 @@ In our example, we have <code>File</code> and <code>Test</code>.</p>
 <ul>
 <li>c++20</li>
 <li>python3.6 or later with developer support (i.e. access to the <code>libpython*.so</code> file)</li>
+<li>if using python2, it must be python2.7</li>
 </ul>
 <p>The following compilers are known to compile open-lmake:</p>
 <ul>
@@ -607,7 +608,7 @@ For example, some default values may be modified and if they are used before thi
 <p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
 <p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
-<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue--regexprfalse-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--requiredtrue--regexprfalse-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True , regexpr=False )</code></a></h3>
+<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False )</code></a></h3>
 <p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
 <p>If <code>follow_symlinks</code>, <code>deps</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
 <p>Each dep is associated with an access pattern.
@@ -621,7 +622,7 @@ Accesses are of 3 kinds, regular, link and stat:</p>
 Making such dinstinctions is most useful for the automatic processing of symbolic links.
 For example, if file <code>a/b</code> is opened for reading, and it turns out to be a symbolic link to <code>c</code>, open-lmake will set a dep to <code>a/b</code> as a link, and to <code>a/c</code>
 as a link (in case it is itself a link) and regular (as it is opened).</p>
-<p>By default, passed deps are associated with no access, but are required to be buildable and produced without error.
+<p>By default, passed deps are associated with no access, but are required to be buildable and produced without error unless <code>readdir_ok</code> is true.
 To simulate a plain access, you need to pass <code>read=True</code> to associate accesses and <code>required=False</code> to allow it not to exist.</p>
 <p>If <code>verbose</code>, return a dict with one entry par dep where:</p>
 <ul>
@@ -638,11 +639,12 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <p>If <code>read</code>, report an actual read of <code>deps</code>. Default is just to alter associated flags.</p>
 <p>If <code>regexpr</code>, pass flags to all deps matching <code>deps</code> interpreted as regexprs, much like the <code>side_deps</code> rule attribute.
 However, the <code>ignore</code> flag only applies to deps following this call.</p>
-<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
+<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code>, <code>readdir_ok</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
 <ul>
 <li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
 <li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
+<li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
 <li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 <li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
 </ul>
@@ -672,7 +674,7 @@ and open-lmake anticipates this by building these deps speculatively.
 But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</li>
 </ul>
-<h3 id="target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--regexprfalse-"><a class="header" href="#target-targets--writefalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--regexprfalse-"><code>target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , regexpr=False )</code></a></h3>
+<h3 id="target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse-"><a class="header" href="#target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse-"><code>target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False )</code></a></h3>
 <p>Declare <code>targets</code> as targets and alter associated flags.
 Note that the <code>allow</code> argument default value is <code>True</code>.</p>
 <p>Also, calling this function does not make <code>targets</code> official targets of the job, i.e. <code>targets</code> are side targets.
@@ -688,6 +690,13 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <li>If <code>ignore</code>,      from now on, ignore all reads and writes to <code>targets</code>.</li>
 <li>If <code>not allow</code>,   do not make <code>targets</code> valid targets.</li>
 <li>If <code>source_ok</code>,   accept that <code>targets</code> be sources. Else, writing to a source is an error.</li>
+</ul>
+<p>In case passed targets turn out to be deps, the deps flags are also available: <code>critical</code>, <code>ignore_error</code>, <code>readdir_ok</code> and <code>required</code>:</p>
+<ul>
+<li>If <code>critical</code>,     create critical deps (cf. note (5) of <code>depend</code>).</li>
+<li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
+<li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
+<li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 </ul>
 <p>Flags accumulate and are never reset.</p>
 <h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
@@ -1337,6 +1346,7 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
 <tr><td><code>Critical</code></td><td><code>critical</code></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
 <tr><td><code>IgnoreError</code></td><td><code>ignore_error</code></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
+<tr><td><code>ReaddirOk</code></td><td><code>readdir_ok</code></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>dep pattern is interpreted relative to the top-level repo, else to the local repo (cf <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
 </tbody></table>
@@ -1358,8 +1368,9 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 It does not declare any dep by itself.
 Syntactically, it follows the <code>side_targets</code> attribute except that:</p>
 <ul>
-<li>specified flags are dep flags rather than target flags.</li>
-<li>an additional flag <code>Ignore</code> or <code>ignore</code> is available to mean that files matching this pattern must not become deps if accessed as read.</li>
+<li>Specified flags are dep flags only where <code>side_targets</code> accept both target flags an dep flags.</li>
+<li>The flag <code>Ignore</code> or <code>ignore</code> only applies to reads to prevent such accessed files from becoming a dep where for <code>side_targets</code>, this flag prevents files from being deps or targets.</li>
+<li><code>.</code> may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the <code>readdir_ok</code> flag.</li>
 </ul>
 <h3 id="chroot_dir"><a class="header" href="#chroot_dir"><code>chroot_dir</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
@@ -1540,6 +1551,33 @@ For such a base class, the solution is to define <code>cmd</code> as a function 
 <p>If several definitions exist along the MRO, They must all be <code>str</code>'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.</p>
 <p>As for other attributes that may be dynamic, <code>cmd</code> is interpreted as an f-string.</p>
+<h3 id="auto_mkdir"><a class="header" href="#auto_mkdir"><code>auto_mkdir</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a true value, executing a <code>chdir</code> syscall (e.g. executing <code>cd</code> in bash) will create the target dir if it does not exist.</p>
+<p>This is useful for scripts in situations such as:</p>
+<ul>
+<li>The script does <code>chdir a</code>.</li>
+<li>Then try to read file <code>b</code> from there.</li>
+<li>What is expected is to have a dep on <code>a/b</code> which may not exist initially but will be created by some other job.</li>
+<li>However, if dir <code>a</code> does not exist, the <code>chdir</code> call fails and the file which is open for reading is <code>b</code> instead of <code>a/b</code>.</li>
+<li>As a consequence, no dep is set for <code>a/b</code> and the problem will not be resolved by a further re-execution.</li>
+<li>Setting this attribute to true creates dir <code>a</code> on the fly when <code>chdir</code> is called so that it succeeds and the correct dep is set.</li>
+</ul>
+<h3 id="autodep"><a class="header" href="#autodep"><code>autodep</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
+</tbody></table>
+</div>
+<p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden deps.</p>
+<h3 id="backend"><a class="header" href="#backend"><code>backend</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
+</tbody></table>
+</div>
+<p>This attribute specifies the <a href="backends.html">backend</a> to use to launch jobs.</p>
 <h3 id="cache"><a class="header" href="#cache"><code>cache</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
@@ -1560,57 +1598,13 @@ It is passed to the zlib library used to compress job targets.</p>
 <li><code>0</code> means no compression.</li>
 <li><code>9</code> means maximum compression.</li>
 </ul>
-<h3 id="backend"><a class="header" href="#backend"><code>backend</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
-</tbody></table>
-</div>
-<p>This attribute specifies the <a href="backends.html">backend</a> to use to launch jobs.</p>
-<h3 id="autodep"><a class="header" href="#autodep"><code>autodep</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
-</tbody></table>
-</div>
-<p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden deps.</p>
-<h3 id="resources"><a class="header" href="#resources"><code>resources</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_RESOURCE' : '1' }</code></td></tr>
-</tbody></table>
-</div>
-<p>This attribute specifies the resources required by a job to run successfully.
-These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...</p>
-<p>Values must <code>f-str</code>.</p>
-<p>The syntax is the same as for <code>deps</code>.</p>
-<p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf @pxref{local-backend} for the local backend).</p>
-<h3 id="max_stderr_len"><a class="header" href="#max_stderr_len"><code>max_stderr_len</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>int</code></td><td><code>100</code></td><td>Full</td><td><code>1</code></td></tr>
-</tbody></table>
-</div>
-<p>This attribute defines the maximum number of lines of stderr that will be displayed in the output of <code>lmake</code>.
-The whole content of stderr stays accessible with the <code>lshow -e</code> command.</p>
-<h3 id="allow_stderr"><a class="header" href="#allow_stderr"><code>allow_stderr</code></a></h3>
+<h3 id="force"><a class="header" href="#force"><code>force</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
-<p>When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
-If it is <code>True</code>, writing to stderr is allowed and does not produce an error. The <code>lmake</code> output will exhibit a warning, though.</p>
-<h3 id="auto_mkdir"><a class="header" href="#auto_mkdir"><code>auto_mkdir</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
-</tbody></table>
-</div>
-<p>When this attribute has a true value, executing a <code>chdir</code> syscall (e.g. executing <code>cd</code> in bash) will create the target dir if it does not exist.</p>
-<p>This is useful for scripts in situations such as:</p>
-<ul>
-<li>The script does <code>chdir a</code>.</li>
-<li>Then try to read file <code>b</code> from there.</li>
-<li>What is expected is to have a dep on <code>a/b</code> which may not exist initially but will be created by some other job.</li>
-<li>However, if dir <code>a</code> does not exist, the <code>chdir</code> call fails and the file which is open for reading is <code>b</code> instead of <code>a/b</code>.</li>
-<li>As a consequence, no dep is set for <code>a/b</code> and the problem will not be resolved by a further re-execution.</li>
-<li>Setting this attribute to true creates dir <code>a</code> on the fly when <code>chdir</code> is called so that it succeeds and the correct dep is set.</li>
-</ul>
+<p>When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
+It is rarely necessary.</p>
 <h3 id="keep_tmp"><a class="header" href="#keep_tmp"><code>keep_tmp</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
@@ -1620,33 +1614,6 @@ If it is <code>True</code>, writing to stderr is allowed and does not produce an
 It can be retreived with <code>lshow -i</code>.</p>
 <p>Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.</p>
-<h3 id="force"><a class="header" href="#force"><code>force</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
-</tbody></table>
-</div>
-<p>When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
-It is rarely necessary.</p>
-<h3 id="max_submits"><a class="header" href="#max_submits"><code>max_submits</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>int</code></td><td><code>10</code></td><td>No</td><td></td></tr>
-</tbody></table>
-</div>
-<p>The goal is to protect agains potential infinite loop cases.
-The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).</p>
-<h3 id="timeout"><a class="header" href="#timeout"><code>timeout</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>float</code></td><td>no timeout</td><td>Full</td><td></td></tr>
-</tbody></table>
-</div>
-<p>When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.</p>
-<h3 id="start_delay"><a class="header" href="#start_delay"><code>start_delay</code></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>
-</tbody></table>
-</div>
-<p>When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
-The consequence is only cosmetic, it has no other impact.</p>
 <h3 id="kill_sigs"><a class="header" href="#kill_sigs"><code>kill_sigs</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>(signal.SIGKILL,)</code></td><td>Full</td><td></td></tr>
@@ -1674,6 +1641,58 @@ in which case <code>stdout</code> is redirected to the the target and is not wai
 <p>This attribute provides the number of allowed retries before giving up when a job is lost.
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called <code>job_exec</code>) was manually killed.</p>
 <p>In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.</p>
+<h3 id="max_stderr_len"><a class="header" href="#max_stderr_len"><code>max_stderr_len</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>int</code></td><td><code>100</code></td><td>Full</td><td><code>1</code></td></tr>
+</tbody></table>
+</div>
+<p>This attribute defines the maximum number of lines of stderr that will be displayed in the output of <code>lmake</code>.
+The whole content of stderr stays accessible with the <code>lshow -e</code> command.</p>
+<h3 id="max_submits"><a class="header" href="#max_submits"><code>max_submits</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>int</code></td><td><code>10</code></td><td>No</td><td></td></tr>
+</tbody></table>
+</div>
+<p>The goal is to protect agains potential infinite loop cases.
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).</p>
+<h3 id="readdir_ok"><a class="header" href="#readdir_ok"><code>readdir_ok</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a false value, reading a local dir that is not <code>ignore</code>d nor <code>incremental</code> is considered an error as the list of files in a dir cannot be made stable,
+i.e. independent of the history (the repo is not constantly maintained without spurious files, nor with all buildable files existing).</p>
+<p>If it is true, such reading is allowed and it is the user responsibility to ensure that spurious or missing files have no impact on output, once all deps are up-to-date.</p>
+<h3 id="resources"><a class="header" href="#resources"><code>resources</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_RESOURCE' : '1' }</code></td></tr>
+</tbody></table>
+</div>
+<p>This attribute specifies the resources required by a job to run successfully.
+These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...</p>
+<p>Values must <code>f-str</code>.</p>
+<p>The syntax is the same as for <code>deps</code>.</p>
+<p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf @pxref{local-backend} for the local backend).</p>
+<h3 id="start_delay"><a class="header" href="#start_delay"><code>start_delay</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
+The consequence is only cosmetic, it has no other impact.</p>
+<h3 id="stderr_ok"><a class="header" href="#stderr_ok"><code>stderr_ok</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
+If it is true, writing to stderr is allowed and does not produce an error. The <code>lmake</code> output will exhibit a warning, though.</p>
+<h3 id="timeout"><a class="header" href="#timeout"><code>timeout</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>float</code></td><td>no timeout</td><td>Full</td><td></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.</p>
 <h3 id="use_script"><a class="header" href="#use_script"><code>use_script</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
@@ -1711,11 +1730,11 @@ lmake foo
 <ul>
 <li>A system call that writes or initiate writing to <code>foo</code>, e.g. <code>open("foo",O_WRONLY|O_TRUNC)</code> or <code>symlink(...,"foo")</code>, assuming the <code>autodep</code> rule attribute is not set to <code>'none'</code>.</li>
 <li>Unlinking <code>foo</code>, e.g. <code>unlink("foo")</code>, is also deemed to be writing to it.</li>
-<li>A call to <code>lmake.target('foo',write=True)</code>. Note that <code>True</code> is the default value for the <code>write</code> argument.</li>
-<li>The execution of <code>ltarget foo</code> in which the <code>-W</code> option is not passed.</li>
+<li>A call to <code>lmake.target('foo',write=True)</code>.</li>
+<li>The execution of <code>ltarget -W foo</code>.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir).</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir).</li>
 </ul>
 <p>Reading file <code>foo</code> means :</p>
 <ul>
@@ -1727,12 +1746,35 @@ any access (reading or writing) to <code>foo</code> which follows symlinks is an
 any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all dirs leading to it.</li>
 <li>Note that some system calls can be both a read and a write, e.g. <code>open("foo", O_RDWR)</code> but also <code>rename("foo",...)</code>.
 In that case, the read occurs before the write.</li>
-<li>A call to <code>lmake.depend('foo',read=True)</code>. Note that <code>True</code> is the default value for the <code>read</code> argument.</li>
-<li>The execution of <code>ldepend foo</code> in which the <code>-R</code> option is not passed.</li>
+<li>A call to <code>lmake.depend('foo',read=True)</code>.</li>
+<li>The execution of <code>ldepend -R foo</code>.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.depend('foo',ignore=True)</code> or the execution of <code>ldepend -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> is not listed in <code>deps</code> or matches a <code>side_deps</code> entry, with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir) or in a source dir.</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir) or in a source dir.</li>
 </ul>
+<h3 id="reading-a-dir"><a class="header" href="#reading-a-dir">Reading a dir</a></h3>
+<p>A dir <code>foo</code> is read when files it contains are listed, which occur when:</p>
+<ul>
+<li>A system call that reads dir <code>foo</code>, e.g. <code>getdents</code>.</li>
+<li>A libc call that reads dir <code>foo</code>, e.g. <code>readdir</code> or <code>glob</code> (in which its pattern argument requires reading <code>foo</code>).</li>
+<li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
+<li>Also under the condition that neither <code>lmake.target('foo',incremental=True)</code> was called nor <code>ltarget -i foo</code> executed.</li>
+<li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> or <code>Incremental</code> flags set.</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir) or is the repo root dir.</li>
+</ul>
+<p>Although dirs do not exist for open-lmake, reading dir <code>foo</code> is an error unless the <code>ReaddirOk</code> attribute was set on the rule or the <code>ReaddirOk</code> flag is set, which can be done by:</p>
+<ul>
+<li>Passing the <code>ReaddirOk</code> flag in the <code>targets</code>, <code>side_targets</code> or <code>side_deps</code> entry.</li>
+<li>Calling <code>lmake.depend('foo',readdir_ok=True)</code> or executing <code>ldepend -D foo</code>.</li>
+<li>Calling <code>lmake.target('foo',readdir_ok=True)</code> or executing <code>ltarget -D foo</code>.</li>
+</ul>
+<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing Python3.
+This is because Python3 optimizes imports by pre-reading these dirs.</p>
+<p>Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
+files may or may not have been already built, or previously built files that are now non-buildable may still exist.</p>
+<p>Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.
+So open-lmake reverts to letting the user deal with this question, using an opt-in approach so the user cannot miss it.</p>
+<p>Note that if such a dir is marked as <code>incremental</code>, the user already has the responsibility of handling its past history and there is no need for an additional flag.</p>
 <h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
 <p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
 In the latter case, it is not a target until the point where it becomes one.
@@ -1808,7 +1850,7 @@ If the temporary dir is not kept through the use of the <code>keep_tmp</code> at
 <li>Job execution (as mentioned below) is successful.</li>
 <li>All static targets are generated</li>
 <li>All written files are allowed (either appear as target, side target or are dynamically allowed by a call to <code>ltarget</code> or <code>lmake.target</code>)</li>
-<li>Nothing is written to stderr, or the <code>allow_stderr</code> attribute is set.</li>
+<li>Nothing is written to stderr, or the <code>stderr_ok</code> attribute is set.</li>
 </ul>
 <h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str">if cmd is a <code>str</code></a></h2>
 <p>Because this attribute undergo dynamic evaluation as described in the <code>cmd</code> rule attribute, there is not further specificities.</p>

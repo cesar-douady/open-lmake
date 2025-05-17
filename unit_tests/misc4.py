@@ -7,7 +7,7 @@ if __name__!='__main__' :
 
 	import lmake
 
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -28,7 +28,7 @@ if __name__!='__main__' :
 		target = 'dut2'
 		cmd    = 'bin/cat x3'
 
-	class Dut3(Rule) :
+	class Dut3(PyRule) :
 		target = 'dut3'
 		def cmd() :
 			import os

@@ -22,11 +22,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* explictly allow readdir
-	- with a allow_readdir rule attribute
-	- use /proc/.../fd to recover the read dir
-	- libc    : getdents+getdents64+getdirentries+getdirentries64+glob+glob64+globfree+globfree64+readdir+readdir64+readdir_r+readdir64_r+scandir+scandir64+scandirat+scandirat64
-	- syscall : getdents+getdents64+readdir
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary
@@ -88,6 +83,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- recompute all lru files
 * implement cache v2 :
 	- use a daemon
+? improve readdir support
+	- provide means to substitute the content of a file
+	- configure file to be either <dir>.index or indexes/<dir>.index (say with a prefix and suffix)
+	- requires to track fd as there is a state in there
+	- requires the use of lautodep (same as for views) for debug
 ? provide several sets of rules/sources
 	- useful if some rules are heavy to read, such as converting from another format
 	- the idea is then to avoid recomputing these rules because another unrelated source of rules has changed
@@ -110,7 +110,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? provide more options to stderr management :
 	- redirect to stdout
 	- hide it (still accessible in lshow -e)
-	? rename allow_stderr to stderr
+	? rename stderr_ok to stderr
 ? provide only visibility to system+repo+tmp to jobs
 	- how to identify system ?
 ? allow dynamic attribute functions to have inherited values (passing inherited value as argument)
@@ -150,6 +150,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* implement lmake.import_machinery._depend_module in clmake
+	- improve perf with C++ code
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str

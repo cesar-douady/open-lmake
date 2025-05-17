@@ -9,7 +9,7 @@ if __name__!='__main__' :
 
 	import os
 
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -20,7 +20,7 @@ if __name__!='__main__' :
 
 	from step import step
 
-	class Deps(Rule) :
+	class Deps(PyRule) :
 		target = 'deps'
 		def deps() :
 			if step==1 : open('one')

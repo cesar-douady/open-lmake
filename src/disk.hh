@@ -34,6 +34,7 @@ static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
 enum class FileLoc : uint8_t {
 	Repo
 ,	SrcDir       // file has been found in source dirs
+,	RepoRoot     // file is repo root
 ,	Tmp
 ,	Proc         // file is in /proc
 ,	Admin
@@ -373,7 +374,12 @@ namespace Disk {
 		// tmp_dir_s must be absolute and canonic
 		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
 		// services
-		FileLoc file_loc( ::string const& real ) const { return _env->file_loc(real) ; }
+		::string at_file(Fd at) {
+			if      (at==Fd::Cwd) return cwd()                                    ;
+			else if (pid        ) return read_lnk(cat("/proc/",pid,"/fd/",at.fd)) ;
+			else                  return read_lnk(cat("/proc/self/fd/"   ,at.fd)) ;
+		}
+		FileLoc file_loc(::string const& real) const { return _env->file_loc(real) ; }
 		//
 		SolveReport solve( Fd at , ::string_view        , bool no_follow=false ) ;
 		SolveReport solve( Fd at , ::string const& file , bool no_follow=false ) { return solve( at      , ::string_view(file) , no_follow ) ; }

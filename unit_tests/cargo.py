@@ -27,16 +27,16 @@ if __name__!='__main__' :
 
 	class CompileRust(HomelessRule,RustRule) :
 		targets      = { 'EXE'        :   r'{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'                   }
-		side_targets = { 'SCRATCHPAD' : ( r'{Dir:.+/|}{Module:[^/]+}/{*:.*}'                , 'Incremental' ) }
-		deps    = {
+		side_targets = { 'SCRATCHPAD' : ( r'{Dir     }{Module      }/{*:.*}'                , 'Incremental' ) }
+		deps = {
 			'PKG' : '{Dir}{Module}/Cargo.toml'
 		,	'SRC' : '{Dir}{Module}/src/main.rs'
 		}
 		if   step==1      : autodep = 'ld_preload_jemalloc'
 		elif step==2      : autodep = 'ptrace'
 		if   has_jemalloc : environ = { 'LD_PRELOAD' : 'libjemalloc.so' }
-		allow_stderr = True
-		cmd          = 'cd  {Dir}{Module} ; cargo build'
+		stderr_ok = True
+		cmd       = 'cd  {Dir}{Module} ; cargo build'
 
 	class RunRust(RustRule) :
 		targets = { 'OUT' : r'{Dir:.+/|}{Module:[^/]+}.out'                   }

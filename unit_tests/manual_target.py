@@ -9,7 +9,7 @@ if __name__!='__main__' :
 
 	import lmake
 	from lmake       import multi_strip
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -26,7 +26,7 @@ if __name__!='__main__' :
 			rm a1
 		''')
 
-	class Cpy(Rule) :
+	class Cpy(PyRule) :
 		target = 'cpy'
 		dep    = 'a2'
 		def cmd() :

@@ -9,7 +9,7 @@ if __name__!='__main__' :
 	import time
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -20,7 +20,7 @@ if __name__!='__main__' :
 			[ -f dut_sh2 ] && exit 1 ; echo 2 >dut_sh2
 		'''
 
-	class DutPy(Rule) :
+	class DutPy(PyRule) :
 		targets = { 'DUT' : r'dut_py{N*:\d}' }
 		def cmd() :
 			print(1,file=open('dut_py1','x'))

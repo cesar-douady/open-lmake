@@ -76,8 +76,8 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 // chdir
 template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir( r , {Fd(args[0])          } , c ) ; ctx = cd ; }
-		else    { Record::Chdir* cd = new Record::Chdir( r , {_path<At>(pid,args+0)} , c ) ; ctx = cd ; }
+		if (At) { Record::Chdir* cd = new Record::Chdir( r , Fd(args[0])           , c ) ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir( r , _path<At>(pid,args+0) , c ) ; ctx = cd ; }
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -120,6 +120,19 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*&
 	} catch (int) {}
 }
 
+// getdents
+[[maybe_unused]] static void _entry_getdents( void*& ctx , Record& r , pid_t , uint64_t args[6] , Comment c ) {
+	ctx = new Record::ReadDir( r , Fd(args[0]) , c ) ;
+}
+[[maybe_unused]] static int64_t/*res*/ _exit_getdents( void* ctx , Record& r , pid_t , int64_t res ) {
+	if (ctx) {
+		Record::ReadDir* rd = static_cast<Record::ReadDir*>(ctx) ;
+		(*rd)( r , res ) ;
+		delete rd ;
+	}
+	return res ;
+}
+
 // hard link
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	Record::Path old ;
@@ -129,7 +142,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ct
 		ctx = new Record::Lnk( r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
 	} catch (int) {}
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t /*pid */, int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
 		Record::Lnk* l = static_cast<Record::Lnk*>(ctx) ;
 		(*l)(r,res) ;
@@ -158,7 +171,7 @@ template<bool At> [[maybe_unused]] static void _entry_open( void*& ctx , Record&
 		ctx = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , c ) ;
 	} catch (int) {}
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
 		Record::Open* o = static_cast<Record::Open*>(ctx) ;
 		(*o)( r , res ) ;
@@ -209,7 +222,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void*&
 		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , c } ;
 	} catch (int) {}
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t /*pid*/ , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
 		Record::Rename* rn = static_cast<Record::Rename*>(ctx) ;
 		(*rn)(r,res) ;
@@ -288,7 +301,7 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	//	/!\ prio must be non-zero as zero means entry is not allocated
 	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
 	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
-	//	                                                                                { entry           <At   ,flag      > , exit           filter,prio, comment             }
+	//	                                                                                { entry           <At   ,flag      > , exit           filter,prio, comment                    }
 	#ifdef SYS_access
 		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_access   <false,FlagNever > , nullptr        , 1   , 1  , Comment::access            } ;
 	#endif
@@ -331,6 +344,12 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	#ifdef SYS_fork
 		static_assert(SYS_fork             <NSyscalls) ; s_tab[SYS_fork             ] = { nullptr                            , nullptr        , 0   , 2  , Comment::fork              } ;
 	#endif
+	#ifdef SYS_getdents
+		static_assert(SYS_getdents         <NSyscalls) ; s_tab[SYS_getdents         ] = { _entry_getdents                    , _exit_getdents , 0   , 2  , Comment::getdents          } ;
+	#endif
+	#ifdef SYS_getdents64
+		static_assert(SYS_getdents64       <NSyscalls) ; s_tab[SYS_getdents64       ] = { _entry_getdents                    , _exit_getdents , 0   , 2  , Comment::getdents64        } ;
+	#endif
 	#ifdef SYS_link
 		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk      <false,FlagNever > , _exit_lnk      , 2   , 1  , Comment::link              } ;
 	#endif
@@ -363,6 +382,9 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	#endif
 	#ifdef SYS_readlink
 		static_assert(SYS_readlink         <NSyscalls) ; s_tab[SYS_readlink         ] = { _entry_read_lnk <false           > , _exit_read_lnk , 1   , 2  , Comment::readlink          } ;
+	#endif
+	#ifdef SYS_readdir
+		static_assert(SYS_readdir          <NSyscalls) ; s_tab[SYS_readdir          ] = { _entry_getdents                    , _exit_getdents , 0   , 2  , Comment::readdir           } ;
 	#endif
 	#ifdef SYS_readlinkat
 		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { _entry_read_lnk <true            > , _exit_read_lnk , 2   , 2  , Comment::readlinkat        } ;

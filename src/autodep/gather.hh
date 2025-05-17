@@ -76,15 +76,16 @@ struct Gather {                                                                 
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		PD           required        = PD::Future                             ;                                 // first required (or ignore) date
-		PD           read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access   (or ignore) date for each access
-		PD           write           = PD::Future                             ;                                 // first write    (or ignore) date
-		PD           target          = PD::Future                             ;                                 // first date at which file was known to be a target
-		PD           seen            = PD::Future                             ;                                 // first date at which file has been seen existing
-		DI           dep_info        ;                                                                          // state when first read
-		AccessDigest digest          = { .dflags={} }                         ;                                 // initially, no dflags, not even default ones (as they accumulate)
-		bool         digest_seen     = false                                  ;                                 // if true <=> not ignored when seen existing
-		bool         digest_required = false                                  ;                                 // if true <=> dep has been required
+		PD           required          = PD::Future                             ;                                 // first required (or ignore) date
+		PD           read[N<Access>]   { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access   (or ignore) date for each access
+		PD           read_dir          = PD::Future                             ;                                 // first date at which file has been read as a dir
+		PD           write             = PD::Future                             ;                                 // first write    (or ignore) date
+		PD           target            = PD::Future                             ;                                 // first date at which file was known to be a target
+		PD           seen              = PD::Future                             ;                                 // first date at which file has been seen existing
+		DI           dep_info          ;                                                                          // state when first read
+		AccessDigest digest            = { .flags{.dflags={}} }                 ;                                 // initially, no dflags, not even default ones (as they accumulate)
+		bool         digest_seen    :1 = false                                  ;                                 // if true <=> not ignored when seen existing
+		bool         digest_required:1 = false                                  ;                                 // if true <=> dep has been required
 	} ;
 	// statics
 private :

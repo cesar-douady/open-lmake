@@ -40,11 +40,11 @@ Writing to file `foo` means:
 
 - A system call that writes or initiate writing to `foo`, e.g. `open("foo",O_WRONLY|O_TRUNC)` or `symlink(...,"foo")`, assuming the `autodep` rule attribute is not set to `'none'`.
 - Unlinking `foo`, e.g. `unlink("foo")`, is also deemed to be writing to it.
-- A call to `lmake.target('foo',write=True)`. Note that `True` is the default value for the `write` argument.
-- The execution of `ltarget foo` in which the `-W` option is not passed.
+- A call to `lmake.target('foo',write=True)`.
+- The execution of `ltarget -W foo`.
 - Under the condition that these actions are not preceded by a call to `lmake.target('foo',ignore=True)` or the execution of `ltarget -I foo`.
 - Also under the condition that `foo` does not match a `targets` or `side_targets` entry with the `Ignore` flag set.
-- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE` sub-dir).
+- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE/lmake` sub-dir).
 
 Reading file `foo` means :
 
@@ -56,11 +56,39 @@ Reading file `foo` means :
   any access (reading or writing) to `foo`, whether it follows symlinks or not, is an implicit `readlink` of all dirs leading to it.
 - Note that some system calls can be both a read and a write, e.g. `open("foo", O_RDWR)` but also `rename("foo",...)`.
   In that case, the read occurs before the write.
-- A call to `lmake.depend('foo',read=True)`. Note that `True` is the default value for the `read` argument.
-- The execution of `ldepend foo` in which the `-R` option is not passed.
+- A call to `lmake.depend('foo',read=True)`.
+- The execution of `ldepend -R foo`.
 - Under the condition that these actions are not preceded by a call to `lmake.depend('foo',ignore=True)` or the execution of `ldepend -I foo`.
 - Also under the condition that `foo` is not listed in `deps` or matches a `side_deps` entry, with the `Ignore` flag set.
-- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE` sub-dir) or in a source dir.
+- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE/lmake` sub-dir) or in a source dir.
+
+### Reading a dir
+
+A dir `foo` is read when files it contains are listed, which occur when:
+
+- A system call that reads dir `foo`, e.g. `getdents`.
+- A libc call that reads dir `foo`, e.g. `readdir` or `glob` (in which its pattern argument requires reading `foo`).
+- Under the condition that these actions are not preceded by a call to `lmake.target('foo',ignore=True)` or the execution of `ltarget -I foo`.
+- Also under the condition that neither `lmake.target('foo',incremental=True)` was called nor `ltarget -i foo` executed.
+- Also under the condition that `foo` does not match a `targets` or `side_targets` entry with the `Ignore` or `Incremental` flags set.
+- Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE/lmake` sub-dir) or is the repo root dir.
+
+Although dirs do not exist for open-lmake, reading dir `foo` is an error unless the `ReaddirOk` attribute was set on the rule or the `ReaddirOk` flag is set, which can be done by:
+
+- Passing the `ReaddirOk` flag in the `targets`, `side_targets` or `side_deps` entry.
+- Calling `lmake.depend('foo',readdir_ok=True)` or executing `ldepend -D foo`.
+- Calling `lmake.target('foo',readdir_ok=True)` or executing `ltarget -D foo`.
+
+Note that the `lmake.PyRule` base class sets the the `ReaddirOk` flag on dirs mentioned in `sys.path` when executing Python3.
+This is because Python3 optimizes imports by pre-reading these dirs.
+
+Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
+files may or may not have been already built, or previously built files that are now non-buildable may still exist.
+
+Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.
+So open-lmake reverts to letting the user deal with this question, using an opt-in approach so the user cannot miss it.
+
+Note that if such a dir is marked as `incremental`, the user already has the responsibility of handling its past history and there is no need for an additional flag.
 
 ### Being a target
 

@@ -87,6 +87,7 @@ using std::is_const_v                          ;
 using std::is_empty_v                          ;
 using std::is_enum_v                           ;
 using std::is_integral_v                       ;
+using std::is_pointer_v                        ;
 using std::is_same_v                           ;
 using std::is_standard_layout_v                ;
 using std::is_signed_v                         ;

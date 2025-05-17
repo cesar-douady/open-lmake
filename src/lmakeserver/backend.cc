@@ -386,11 +386,12 @@ namespace Backends {
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
 			case 1 :
-				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;
-				reply.allow_stderr            =        start_cmd_attrs.allow_stderr  ;
-				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir    ;
-				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat   ;
-				reply.job_space               = ::move(start_cmd_attrs.job_space   ) ;
+				reply.interpreter             = ::move(start_cmd_attrs.interpreter  ) ;
+				reply.stderr_ok               =        start_cmd_attrs.stderr_ok      ;
+				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir     ;
+				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat    ;
+				reply.autodep_env.readdir_ok  =        start_cmd_attrs.readdir_ok     ;
+				reply.job_space               = ::move(start_cmd_attrs.job_space    ) ;
 				//
 				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
@@ -413,6 +414,7 @@ namespace Backends {
 				/**/                               reply.kill_sigs                 = ::move(start_ancillary_attrs.kill_sigs)           ;
 				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
 				/**/                               reply.network_delay             = g_config->network_delay                           ;
+				/**/                               reply.rule                      = rule->user_name()                                 ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;

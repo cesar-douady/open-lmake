@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -15,7 +15,7 @@ if __name__!='__main__' :
 		environ_resources = {'R'                  :'foo2'    }
 		paths             = {'environ_resources.R':'/'       }
 
-	class Test(Base) :
+	class Test(Base,PyRule) :
 		target            = 'test'
 		environ           = {'PATH':'...:bar1'}
 		environ_resources = {'R'   :'.../bar2'}

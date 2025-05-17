@@ -33,14 +33,13 @@ if __name__!='__main__' :
 
 	class RunRust(RustRule) :
 		targets = {
-			'OUT'     : 'mandelbrot/output.dut'
+			'OUT'     :  'mandelbrot/output.dut'
 		,	'COMPILE' : r'mandelbrot/target/{*:.*}'
 		}
-		side_targets = {
-			'SCRATCH' : ( r'.cargo/{*:.*}' , 'Top' )
-		}
-		deps         = { 'MAIN' : 'mandelbrot/src/main.rs' }
-		allow_stderr = True
+		side_targets = { 'SCRATCH' : ( r'.cargo/{*:.*}'          , 'top'        ) }
+		side_deps    = { 'DIR'     : (  'mandelbrot/{*:.*}'      , 'readdir_ok' ) }
+		deps         = { 'MAIN'    :    'mandelbrot/src/main.rs'                  }
+		stderr_ok    = True
 		autodep      = 'ld_preload_jemalloc'
 		environ      = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		cache        = 'dir'

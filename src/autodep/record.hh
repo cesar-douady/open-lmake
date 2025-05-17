@@ -27,9 +27,33 @@ struct Record {
 	using Proc        = JobExecProc                                       ;
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
+	//
+	struct CacheEntry {
+		struct Acc {
+			Acc& operator|=(Acc a) {
+				accesses |= a.accesses ;
+				read_dir |= a.read_dir ;
+				return self ;
+			}
+			Acc operator~() const {
+				return { ~accesses , !read_dir } ;
+			}
+			bool operator>=(Acc a) const {
+				return accesses>=a.accesses && read_dir>=a.read_dir ;
+			}
+			Accesses accesses ;
+			bool     read_dir = false ;
+		} ;
+		CacheEntry operator~() const {
+			return { ~accessed , ~seen } ;
+		}
+		Acc accessed ;
+		Acc seen     ;
+	} ;
+	//
 	// statics
-	static bool s_is_simple(const char*         ) ;
-	static bool s_is_simple(::string const& path) { return s_is_simple(path.c_str()) ; }
+	static bool s_is_simple( const char*          , bool empty_is_simple=true ) ;
+	static bool s_is_simple( ::string const& path , bool empty_is_simple=true ) { return s_is_simple( path.c_str() , empty_is_simple ) ; }
 	//
 	static bool s_has_server() {
 		return _s_autodep_env->has_server() ;
@@ -83,21 +107,21 @@ struct Record {
 	}
 private :
 	static void _s_mk_autodep_env(AutodepEnv* ade) {
-		_s_autodep_env = ade                                                       ;
-		s_access_cache = new ::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>> ;
+		_s_autodep_env = ade                      ;
+		s_access_cache = new ::umap_s<CacheEntry> ;
 	}
 	// static data
 public :
-	static bool                                                                 s_static_report  ; // if true <=> report deps to s_deps instead of through s_report_fd() sockets
-	static ::vmap_s<DepDigest>*                                                 s_deps           ;
-	static ::string           *                                                 s_deps_err       ;
-	static StaticUniqPtr<::umap_s<pair<Accesses/*accessed*/,Accesses/*seen*/>>> s_access_cache   ; // map file to read accesses
+	static bool                                s_static_report ; // if true <=> report deps to s_deps instead of through s_report_fd() sockets
+	static ::vmap_s<DepDigest>*                s_deps          ;
+	static ::string           *                s_deps_err      ;
+	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache  ; // map file to read accesses
 private :
 	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
-	static Fd                        _s_repo_root_fd          ;                 // a file descriptor to repo root dir
-	static pid_t                     _s_repo_root_pid         ;                 // pid in which _s_repo_root_fd is valid
-	static Fd                        _s_report_fd [2/*Fast*/] ;                 // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
-	static pid_t                     _s_report_pid[2/*Fast*/] ;                 // pid in which corresponding _s_report_fd is valid
+	static Fd                        _s_repo_root_fd          ;  // a file descriptor to repo root dir
+	static pid_t                     _s_repo_root_pid         ;  // pid in which _s_repo_root_fd is valid
+	static Fd                        _s_report_fd [2/*Fast*/] ;  // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t                     _s_report_pid[2/*Fast*/] ;  // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
 	Record(                                        ) = default ;
@@ -114,53 +138,11 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
 	}
 public :
-	Sent            report_direct( JobExecRpcReq&& , bool force=false ) const ; // if force, emmit record even if recording is diabled
-	Sent            report_cached( JobExecRpcReq&& , bool force=false ) const ; // .
-	JobExecRpcReply report_sync  ( JobExecRpcReq&& , bool force=false ) const ; // .
-	// for modifying accesses :
-	// - if we report after  the access, it may be that job is interrupted inbetween and repo is modified without server being notified and we have a manual case
-	// - if we report before the access, we may notify an access that will not occur if job is interrupted or if access is finally an error
-	// so the choice is to manage Maybe :
-	// - access is reported as Maybe before the access
-	// - it is then confirmed (with an ok arg to manage errors) after the access
-	// in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
-	//
-	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force=false ) const {
-		using Jerr = JobExecRpcReq ;
-		if (fl>FileLoc::Dep ) return { {}/*confirm*/ , 0 } ;
-		if (fl>FileLoc::Repo) jerr.digest.write = No ;
-		// auto-generated id must be different for all accesses (could be random)
-		// if _real_path.pid is not 0, we are ptracing, pid is meaningless but we are single thread and dates are different
-		// else, ::gettid() would be a good id but it is not available on all systems,
-		// however, within a process, dates are always different, so mix pid and date (multipication is to inject entropy in high order bits, practically suppressing all conflict possibilities)
-		Time::Pdate now     ;
-		Jerr::Id    id      = jerr.id                         ;
-		bool        need_id = !id && jerr.digest.write==Maybe ;
-		static_assert(sizeof(Jerr::Id)==8) ;                                                                                                          // else, rework shifting
-		if      (need_id   ) { now = New ; id = now.val() ; if (!_real_path.pid) id += Jerr::Id(::getpid())*((uint64_t(1)<<48)+(uint64_t(1)<<32)) ; } // .
-		else if (!jerr.date)   now = New ;
-		//
-		/**/                                            jerr.proc      = JobExecProc::Access          ;
-		if ( !jerr.date                               ) jerr.date      = now                          ;
-		if ( need_id                                  ) jerr.id        = id                           ;
-		if ( !jerr.file_info && +jerr.digest.accesses ) jerr.file_info = {s_repo_root_fd(),jerr.file} ;
-		//
-		Sent sent = report_cached( ::move(jerr) , force ) ;
-		if (jerr.digest.write==Maybe) return { sent/*confirm*/ , id      } ;
-		else                          return { {}  /*confirm*/ , 0/*id*/ } ;
-	}
-	// if f0 is not empty, write is done to f0 rather than to jerr.file
-	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force=false ) const {
-		if (+f0) {
-			// read part
-			JobExecRpcReq read_jerr = jerr ; read_jerr.digest.write = No ;
-			report_access( fl , ::move(read_jerr) , force ) ;
-			// write part
-			fl        = fl0 ;
-			jerr.file = f0  ;
-		}
-		return report_access( fl , ::move(jerr) , force ) ;
-	}
+	Sent                                      report_direct(              JobExecRpcReq&&      ,                               bool force=false ) const ; // if force, report even if diabled
+	Sent                                      report_cached(              JobExecRpcReq&&      ,                               bool force=false ) const ; // .
+	JobExecRpcReply                           report_sync  (              JobExecRpcReq&&      ,                               bool force=false ) const ; // .
+	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr ,                               bool force=false ) const ; // .
+	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force=false ) const ; // .
 	//
 	#define FL FileLoc
 	/**/         void report_guard(FL fl,::string&& f) const { if (fl<=FL::Repo)   report_direct({ .proc=Proc::Guard , .file=::move(f) }) ;                      }
@@ -176,15 +158,16 @@ public :
 	}
 	#undef FL
 	//
-	template<bool Writable=false> struct _Path {                                                                     // if !Writable <=> file is is read-only
+	template<bool Writable=false> struct _Path {                                               // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
 		// cxtors & casts
-		_Path(                          )                           {                       }
-		_Path( Fd a                     ) :                   at{a} {                       }
-		_Path(        Char*           f ) : file{f        }         {                       }
-		_Path( Fd a , Char*           f ) : file{f        } , at{a} {                       }
-		_Path(        ::string const& f ) : file{f.c_str()}         { _allocate(f.size()) ; }
-		_Path( Fd a , ::string const& f ) : file{f.c_str()} , at{a} { _allocate(f.size()) ; }
+		_Path(                           )                           {                       }
+		_Path( Fd  a                     ) :                   at{a} {                       }
+		_Path( int a                     ) :                   at{a} {                       } // XXX : why isn't int always converted to Fd ?
+		_Path(         Char*           f ) : file{f        }         {                       }
+		_Path( Fd  a , Char*           f ) : file{f        } , at{a} {                       }
+		_Path(         ::string const& f ) : file{f.c_str()}         { _allocate(f.size()) ; }
+		_Path( Fd  a , ::string const& f ) : file{f.c_str()} , at{a} { _allocate(f.size()) ; }
 		//
 		_Path(_Path && p) { self = ::move(p) ; }
 		_Path& operator=(_Path&& p) {
@@ -192,8 +175,8 @@ public :
 			at          = p.at        ;
 			file        = p.file      ;
 			allocated   = p.allocated ;
-			p.file      = nullptr     ;                                                                              // safer to avoid dangling pointers
-			p.allocated = false       ;                                                                              // we have clobbered allocation, so it is no more p's responsibility
+			p.file      = nullptr     ;                                                        // safer to avoid dangling pointers
+			p.allocated = false       ;                                                        // we have clobbered allocation, so it is no more p's responsibility
 			return self ;
 		}
 		~_Path() { _deallocate() ; }
@@ -206,16 +189,16 @@ public :
 		void _deallocate() { if (allocated) delete[] file ; }
 		//
 		void _allocate(size_t sz) {
-			char* buf = new char[sz+1] ;                                                                             // +1 to account for terminating null
+			char* buf = new char[sz+1] ;                                                       // +1 to account for terminating null
 			::memcpy( buf , file , sz+1 ) ;
 			file      = buf  ;
 			allocated = true ;
 		}
 		// data
 	public :
-		Char* file      = nullptr ;                                                                                  // at & file may be modified, but together, they always refer to the same file ...
-		Fd    at        = Fd::Cwd ;                                                                                  // ... except in the case of mkstemp (& al.) that modifies its arg in place
-		bool  allocated = false   ;                                                                                  // if true <=> file has been allocated and must be freed upon destruction
+		Char* file      = nullptr ;                                                            // at & file may be modified, but together, they always refer to the same file ...
+		Fd    at        = Fd::Cwd ;                                                            // ... except in the case of mkstemp (& al.) that modifies its arg in place
+		bool  allocated = false   ;                                                            // if true <=> file has been allocated and must be freed upon destruction
 	} ; //!            Writable
 	using Path  = _Path<false > ;
 	using WPath = _Path<true  > ;
@@ -227,26 +210,25 @@ public :
 		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , Comment c , CommentExts ces={} ) : Base{::move(path)} {
 			using namespace Disk ;
 			if (ChkSimple) { if ( s_is_simple(file) ) return ; }
-			else           { if ( !file || !file[0] ) return ; }
 			//
-			SolveReport sr = r._real_path.solve(at,file,no_follow) ;
+			SolveReport sr = r._real_path.solve( at , file?(::string_view(file)):(::string_view()) , no_follow ) ;
 			//
-			auto handle_dep = [&]( FileLoc fl , ::string&& file , Accesses a , bool store , CommentExt exts )->void {
+			auto handle_dep = [&]( FileLoc fl , ::string&& file_ , Accesses a , bool store , CommentExt exts )->void {
 				if ( ::vmap_s<::vector_s> const& views = s_autodep_env().views ; +views ) {
 					Fd repo_root_fd = s_repo_root_fd() ;
 					for( auto const& [view,phys] : s_autodep_env().views ) {
-						if (!phys                                                                       ) continue ; // empty phys do not represent a view
-						if (!( file.starts_with(view) && (is_dir_name(view)||file.size()==view.size()) )) continue ;
+						if (!phys                                                                         ) continue ; // empty phys do not represent a view
+						if (!( file_.starts_with(view) && (is_dir_name(view)||file_.size()==view.size()) )) continue ;
 						for( size_t i : iota(phys.size()) ) {
 							bool     last  = i==phys.size()-1                                               ;
-							::string f     = phys[i] + substr_view(file,view.size())                        ;
+							::string f     = phys[i] + substr_view(file_,view.size())                       ;
 							FileInfo fi    = !last||+a ? FileInfo(repo_root_fd,f) : FileInfo(FileTag::None) ;
-							bool     found = fi.exists() || !read                                           ;        // if not reading, assume file is found in upper
-							fl = r._real_path.file_loc(f) ;                                                          // use f before ::move
+							bool     found = fi.exists() || !read                                           ;          // if not reading, assume file_ is found in upper
+							fl = r._real_path.file_loc(f) ;                                                            // use f before ::move
 							if (store) {
 								if      (last ) { real  = f ; file_loc  = fl ; }
 								else if (found) { real  = f ; file_loc  = fl ; }
-								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                     // real0 is only significative when not equal to real
+								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                       // real0 is only significative when not equal to real
 							}
 							if      (last ) { if (+a) r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a             } , .file=::move(f) , .file_info=fi } ) ; return ; }
 							else if (found) {         r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a|Access::Stat} , .file=::move(f) , .file_info=fi } ) ; return ; }
@@ -257,10 +239,10 @@ public :
 				}
 				// when no views match, process as if last
 				if (store) {
-					real     = +a ? ::copy(file) : ::move(file) ;
-					file_loc = sr.file_loc                      ;
+					real     = +a ? ::copy(file_) : ::move(file_) ;
+					file_loc = sr.file_loc                        ;
 				}
-				if (+a) r.report_access( fl , { .comment=c , .comment_exts=exts , .digest={.accesses=a} , .file=::move(file) } ) ;
+				if (+a) r.report_access( fl , { .comment=c , .comment_exts=exts , .digest={.accesses=a} , .file=::move(file_) } ) ;
 			} ;
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
@@ -368,6 +350,11 @@ public :
 	//                  ChkSimple
 	using Exec   = _Exec<false  > ;
 	using ExecCS = _Exec<true   > ;
+	struct Glob {
+		Glob() = default ;
+		Glob( Record& , const char* pat , int flags , Comment ) ;
+		int operator()( Record& , int rc ) { return rc ; }
+	} ;
 	struct Lnk {
 		// cxtors & casts
 		Lnk() = default ;
@@ -378,7 +365,7 @@ public :
 		Solve       src ;
 		SolveModify dst ;
 	} ;
-	struct Mkdir : Solve {
+	struct Mkdir : SolveModify {
 		Mkdir() = default ;
 		Mkdir( Record& , Path&& , Comment ) ;
 	} ;
@@ -403,11 +390,34 @@ public :
 		_Read() = default ;
 		_Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c , CommentExts ces={} ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c,ces} {
 			if ( ChkSimple && !real ) return ;
-			r.report_access( file_loc , { .comment=c , .comment_exts=ces, .digest={.accesses=accesses|Access::Reg} , .file=keep_real?(::copy(real)):(::move(real)) } ) ;
+			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|Access::Reg} , .file=keep_real?(::copy(real)):(::move(real)) } ) ;
 		}
 	} ; //!             ChkSimple
 	using Read   = _Read<false  > ;
 	using ReadCS = _Read<true   > ;
+	struct ReadDir : Solve {
+		using Solve::real     ;
+		using Solve::file_loc ;
+		// cxtors & casts
+		ReadDir() = default ;
+		ReadDir( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),false/*no_follow*/,false/*read*/,false/*create*/,c} , comment{c} {}
+		// services
+		template<class T> T operator()( Record& r , T rc ) {
+			bool ok ;
+			static_assert( ::is_integral_v<T> || ::is_pointer_v <T> , "unexpected type" ) ; // cannot put an else clause with static_assert(false) with gcc-11
+			if      constexpr (::is_integral_v<T>) ok = rc<0 ;
+			else if constexpr (::is_pointer_v <T>) ok = rc   ;
+			//
+			if ( ok && !s_autodep_env().readdir_ok ) {
+				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .file="."          } ) ; // repo root must be analyzed when ...
+				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .file=::move(real) } ) ; // ... reading it
+			}
+			//
+			return rc ;
+		}
+		// data
+		Comment comment = {} ;
+	} ;
 	struct Readlink : Solve {
 		// cxtors & casts
 		Readlink() = default ;
@@ -418,7 +428,7 @@ public :
 		// data
 		char*  buf      = nullptr ;
 		size_t sz       = 0       ;
-		bool   emulated = false   ;               // if true <=> backdoor was used
+		bool   emulated = false   ;                                                                                                                        // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts
@@ -427,7 +437,7 @@ public :
 		// services
 		int operator()( Record& r , int rc ) { return dst(r,rc) ; }
 		// data
-		SolveModify src ;                         // src may be modified in case of exchange
+		SolveModify src ;                                                                                                                                  // src may be modified in case of exchange
 		SolveModify dst ;
 	} ;
 	struct Stat : Solve {
@@ -458,7 +468,7 @@ public :
 	bool enable     = false ;
 private :
 	Disk::RealPath _real_path ;
-	mutable bool   _seen_tmp  = false ;           // record that tmp usage has been reported, no need to report any further
+	mutable bool   _seen_tmp  = false ; // record that tmp usage has been reported, no need to report any further
 } ;
 
 template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) { // START_OF_NO_COV

@@ -12,11 +12,11 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dut(Rule) :
-		target  = r'dut.{Autodep:\w+}'
-		environ = { 'LD_LIBRARY_PATH':'a_dir' }
-		autodep = '{Autodep}'
-		allow_stderr = True
-		cmd     = 'hostname ; hostname'
+		target    = r'dut.{Autodep:\w+}'
+		environ   = { 'LD_LIBRARY_PATH':'a_dir' }
+		autodep   = '{Autodep}'
+		stderr_ok = True
+		cmd       = 'hostname ; hostname'
 
 else :
 

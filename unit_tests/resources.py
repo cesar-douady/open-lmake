@@ -8,7 +8,7 @@ n_good = 20
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
 
@@ -30,7 +30,7 @@ if __name__!='__main__' :
 		target    = r'test3.{Tokens:\d}'
 		resources = { 'gnat': compute_gnat }
 
-	class Test4(Rule) :
+	class Test4(PyRule) :
 		target = r'test4.{Tokens:\d}'
 		def resources() : return { 'gnat' : f'{Tokens}' }
 		def cmd      () : print(resources['gnat'])

@@ -82,6 +82,17 @@ struct SyscallDescr {
 	#define ENUMERATE_CLOSE_RANGE_LIBCALLS
 #endif
 
+#define ENUMERATE_DIR_LIBCALLS \
+,	LIBCALL_ENTRY(getdents64     ) \
+,	LIBCALL_ENTRY(getdirentries  ) \
+,	LIBCALL_ENTRY(getdirentries64) \
+,	LIBCALL_ENTRY(glob           ) \
+,	LIBCALL_ENTRY(glob64         ) \
+,	LIBCALL_ENTRY(readdir        ) \
+,	LIBCALL_ENTRY(readdir64      ) \
+,	LIBCALL_ENTRY(readdir_r      ) \
+,	LIBCALL_ENTRY(readdir64_r    )
+
 #define ENUMERATE_LIBCALLS \
 	LIBCALL_ENTRY(chdir            ) \
 ,	LIBCALL_ENTRY(chmod            ) \
@@ -159,4 +170,5 @@ struct SyscallDescr {
 \
 	ENUMERATE_LD_PRELOAD_LIBCALLS    \
 	ENUMERATE_PATH_LIBCALLS          \
-	ENUMERATE_CLOSE_RANGE_LIBCALLS
+	ENUMERATE_CLOSE_RANGE_LIBCALLS   \
+	ENUMERATE_DIR_LIBCALLS

@@ -15,25 +15,19 @@ using namespace Hash ;
 // AccessDigest
 //
 
-::string& operator+=( ::string& os , AccessDigest const& ad ) {                         // START_OF_NO_COV
+::string& operator+=( ::string& os , AccessDigest const& ad ) {                              // START_OF_NO_COV
 	const char* sep = "" ;
-	/**/                               os << "AccessDigest("                          ;
-	if      (+ad.accesses          ) { os <<      ad.accesses                         ; sep = "," ; }
-	if      ( ad.dflags!=DflagsDflt) { os <<sep<< ad.dflags                           ; sep = "," ; }
-	if      (+ad.extra_dflags      ) { os <<sep<< ad.extra_dflags                     ; sep = "," ; }
-	if      (+ad.tflags            ) { os <<sep<< ad.tflags                           ; sep = "," ; }
-	if      (+ad.extra_tflags      ) { os <<sep<< ad.extra_tflags                     ; sep = "," ; }
-	if      ( ad.write!=No         )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
-	return                             os <<')'                                       ;
-}                                                                                       // END_OF_NO_COV
+	/**/                                    os << "AccessDigest("                          ;
+	if (+ad.accesses                    ) { os <<      ad.accesses                         ; sep = "," ; }
+	if ( ad.flags!=AccessDigest().flags ) { os <<sep<< ad.flags                            ; sep = "," ; }
+	if ( ad.write!=No                   )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
+	return                                  os <<')'                                       ;
+}                                                                                            // END_OF_NO_COV
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
-	if (write!=Yes) accesses     |= ad.accesses     ;
-	/**/            write        |= ad.write        ;
-	/**/            tflags       |= ad.tflags       ;
-	/**/            extra_tflags |= ad.extra_tflags ;
-	/**/            dflags       |= ad.dflags       ;
-	/**/            extra_dflags |= ad.extra_dflags ;
+	if (write!=Yes) accesses |= ad.accesses ;
+	/**/            write    |= ad.write    ;
+	/**/            flags    |= ad.flags    ;
 	return self ;
 }
 

@@ -10,12 +10,13 @@ from . import depend
 
 from . import _maybe_lcl
 
-def _depend_module(module_name,path=None) :
-	if path==None : path = _sys.path
+def _depend_module(module_name,path) : # XXX : implement in C++ in clmake
+	if path==None                : path = _sys.path
+	if _sys.version_info.major>2 : depend( *(d or '.' for d in path) , readdir_ok=True ) # '' represent cwd, transform it into '.'
 	tail = module_name.rsplit('.',1)[-1]
 	for dir in path :
-		if dir : dir += '/'
-		base = dir+tail
+		if dir : base     = dir+'/'+tail
+		else   : base,dir =         tail,'.'
 		if _maybe_lcl(base) :
 			for suffix in module_suffixes :
 				file = base+suffix
@@ -67,6 +68,8 @@ else :
 				_depend_module(module_name,path)
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found
+		# python3 optimizes imports by reading dirs in path and only access files found there, defeating autodep ability to discover dep to inexistent files
+		depend( *(d or '.' for d in _sys.path) , readdir_ok=True )                             # '' represent cwd, transform it into '.'
 		_fix_path()
 
 	def load_module( name , file=None ) :

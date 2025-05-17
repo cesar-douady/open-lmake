@@ -35,7 +35,7 @@ if __name__!='__main__' :
 			open(dir+'/testfile','w').write('good')
 			print(open(dir+'/testfile').read())
 
-	class Dut3(Rule) :
+	class Dut3(PyRule) :
 		tmp_view = '/tmp'
 		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.repo_root+'/'} }
 		target   = 'dut3'

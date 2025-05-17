@@ -63,7 +63,6 @@ class _RuleBase :
 	side_deps    = {}            # .
 
 class Rule(_RuleBase) :
-#	allow_stderr        = False                        # if set, writing to stderr is not an error but a warning
 #	auto_mkdir          = False                        # auto mkdir directory in case of chdir
 	backend             = 'local'                      # may be set anywhere in the inheritance hierarchy if execution must be remote
 #	chroot_dir          = '/'                          # chroot directory to execute cmd (if None, empty or absent, no chroot is not done)
@@ -90,9 +89,11 @@ class Rule(_RuleBase) :
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
+#	readdir_ok          = False                        # if set, listing a local non-ignored dir is not an error
 #	repo_view           = '/repo'                      # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)
 	shell               = (shell ,)                    # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay         = 3                            # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
+#	stderr_ok           = False                        # if set, writing to stderr is not an error but a warning
 #	timeout             = None                         # timeout allocated to job execution (in s), must be None or an int
 #	tmp_view            = '/tmp'                       # may be :
 	#                                                  # - not specified, '' or None : do not mount tmp dir

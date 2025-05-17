@@ -20,37 +20,35 @@ using namespace Time ;
 // Gather::AccessInfo
 //
 
-::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {                                             // START_OF_NO_COV
+::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {                                                   // START_OF_NO_COV
 	bool  i  = false/*garbage*/ ;
 	Pdate rd = Pdate::Future    ;
 	for( Access a : iota(All<Access>) ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
-	/**/                                            os << "AccessInfo("                                         ;
-	if ( rd!=Pdate::Future                        ) os << "R:" <<rd<<(i?"~":"")                           <<',' ;
-	if ( ai.digest.extra_tflags[ExtraTflag::Allow]) os << "T:" <<ai.target                                <<',' ;
-	if ( ai.digest.write!=No                      ) os << "W:"<<ai.write<<(ai.digest.write==Maybe?"?":"") <<',' ;
-	if (+ai.dep_info                              ) os << ai.dep_info                                     <<',' ;
-	/**/                                            os << ai.digest                                             ;
-	if ( ai.seen!=Pdate::Future                   ) os <<",seen"                                                ;
-	return                                          os <<')'                                                    ;
-}                                                                                                                 // END_OF_NO_COV
+	/**/                              os << "AccessInfo("                                         ;
+	if ( rd!=Pdate::Future          ) os << "R:" <<rd<<(i?"~":"")                           <<',' ;
+	if ( ai.digest.flags.is_target()) os << "T:" <<ai.target                                <<',' ;
+	if ( ai.digest.write!=No        ) os << "W:"<<ai.write<<(ai.digest.write==Maybe?"?":"") <<',' ;
+	if (+ai.dep_info                ) os << ai.dep_info                                     <<',' ;
+	/**/                              os << ai.digest                                             ;
+	if ( ai.seen!=Pdate::Future     ) os <<",seen"                                                ;
+	return                            os <<')'                                                    ;
+}                                                                                                                       // END_OF_NO_COV
 
 void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di={} ) {
-	digest.tflags       |= ad.tflags       ;
-	digest.extra_tflags |= ad.extra_tflags ;
-	digest.dflags       |= ad.dflags       ;
-	digest.extra_dflags |= ad.extra_dflags ;
+	digest.flags |= ad.flags ;
 	//
-	bool tfi =        ad.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || ad.extra_dflags[ExtraDflag::Ignore] ;               // tfi also prevents reads from being visible
+	bool tfi =        ad.flags.extra_tflags[ExtraTflag::Ignore] ;
+	bool dfi = tfi || ad.flags.extra_dflags[ExtraDflag::Ignore] ;         // tfi also prevents reads from being visible
 	//
 	for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
 	dep_info = dfi ? DI() : di ;                                          // if ignore, record empty info (which will mask further info)
 NotFirst :
-	/**/                                if ( PD& d=seen     ; pd<d && (dfi||di.seen(ad.accesses)       ) ) { d = pd ; digest_seen     = !dfi         ; }
-	/**/                                if ( PD& d=required ; pd<d && (dfi||ad.dflags[Dflag::Required] ) ) { d = pd ; digest_required = !dfi         ; }
-	for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; pd<d && (dfi||ad.accesses[a]             ) ) { d = pd ; digest.accesses.set(a,!dfi)    ; }
-	/**/                                if ( PD& d=write    ; pd<d && (tfi||ad.write!=No               ) ) { d = pd ; digest.write = (!tfi)&ad.write ; }
-	/**/                                if ( PD& d=target   ; pd<d && ad.extra_tflags[ExtraTflag::Allow] )   d = pd ;
+	/**/                                if ( PD& d=seen     ; pd<d && (dfi||di.seen(ad.accesses)            )  ) { d = pd ; digest_seen     = !dfi              ; }
+	/**/                                if ( PD& d=required ; pd<d && (dfi||ad.flags.dflags[Dflag::Required])  ) { d = pd ; digest_required = !dfi              ; }
+	for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; pd<d && (dfi||ad.accesses[a]                  )  ) { d = pd ; digest.accesses.set(a,!dfi)         ; }
+	/**/                                if ( PD& d=read_dir ; pd<d && (dfi||ad.read_dir                     )  ) { d = pd ; digest.read_dir = !dfi              ; }
+	/**/                                if ( PD& d=write    ; pd<d && (tfi||ad.write!=No                    )  ) { d = pd ; digest.write    = (!tfi) & ad.write ; }
+	/**/                                if ( PD& d=target   ; pd<d && ad.flags.is_target()                     )   d = pd ;
 	//
 }
 
@@ -94,7 +92,7 @@ void Gather::new_dep( PD pd , ::string&& dep , DepDigest&& dd , ::string const& 
 			if (!dd.accesses) dd.sig(FileInfo(dep)) ; // record now if not previously accessed
 			dd.accesses |= Access::Reg ;
 		}
-		_new_access( pd , ::move(dep) , {.accesses=dd.accesses,.dflags=dd.dflags} , dd , is_stdin?Comment::stdin:Comment::staticDep ) ;
+		_new_access( pd , ::move(dep) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags}} , dd , is_stdin?Comment::stdin:Comment::staticDep ) ;
 }
 
 void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
@@ -396,7 +394,7 @@ Status Gather::exec_child() {
 					if (child_stderr==Child::PipeFd) stderr = ensure_nl(e) ;
 					else                             child_stderr.write(ensure_nl(e)) ;
 					status = Status::EarlyErr ;
-					break ; // cannot start, exit loop
+					break ;                       // cannot start, exit loop
 				}
 				if (+timeout) end_timeout = start_date + timeout ;
 				_exec_trace( start_date , Comment::startJob ) ;
@@ -409,7 +407,7 @@ Status Gather::exec_child() {
 				/**/                               epoll.add_read( job_master_fd  , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
 			} else if (!must_wait) {
-				break ; // we are done, exit loop
+				break ;                           // we are done, exit loop
 			}
 		}
 		for( Event const& event : events ) {
@@ -620,10 +618,7 @@ Status Gather::exec_child() {
 								break ;
 								case Proc::AccessPattern :
 									trace("access_pattern",kind,fd,jerr.date,jerr.digest,jerr.file) ;
-									switch (jerr.digest.write) { //!             pattern
-										case Yes : access_patterns.emplace_back( jerr.file , ::pair<PD,MatchFlags>{ jerr.date , {jerr.digest.tflags,jerr.digest.extra_tflags} } ) ; break ;
-										case No  : access_patterns.emplace_back( jerr.file , ::pair<PD,MatchFlags>{ jerr.date , {jerr.digest.dflags,jerr.digest.extra_dflags} } ) ; break ;
-									DF}
+									access_patterns.emplace_back( jerr.file/*pattern*/ , ::pair<PD,MatchFlags>(jerr.date,jerr.digest.flags) ) ; break ;
 								break ;
 								case Proc::Tmp :
 									if (!seen_tmp) {
@@ -679,12 +674,9 @@ void Gather::reorder(bool at_end) {
 	for ( auto const& [re,date_flags] : access_patterns ) {
 		trace("pattern",date_flags) ;
 		auto [date,flags] = date_flags ;
-		SWEAR( flags.is_target!=Maybe , date,flags ) ;
-		for ( auto& [file,ai] : accesses ) {
-			if (!re.match(file)     ) continue ;
-			if (flags.is_target==Yes) ai.update( date , { .write=Yes , .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags() } ) ;
-			else                      ai.update( date , { .write=No  , .dflags=flags.dflags() , .extra_dflags=flags.extra_dflags() } ) ;
-		}
+		for ( auto& [file,ai] : accesses )
+			if (+re.match(file))
+				ai.update( date , { .write=No|flags.is_target() , .flags=flags } ) ;
 	}
 	//
 	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
@@ -699,9 +691,9 @@ void Gather::reorder(bool at_end) {
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
 		::string const& file   = it->first         ;
 		::AccessDigest& digest = it->second.digest ;
-		if (digest.write!=No)               goto NextDep ;
-		if (digest.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
-		if (!digest.accesses)               goto NextDep ;
+		if (digest.write!=No                  )                   goto NextDep ;
+		if (digest.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
+		if (!digest.accesses                  )                   goto NextDep ;
 		for( auto last : lasts ) {
 			if (!( last->first.starts_with(file) && last->first[file.size()]=='/' ))                                                                                            continue     ;
 			if (   last->second.dep_info.exists()==Yes                             ) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ;                       goto NextDep ; }
@@ -721,13 +713,13 @@ void Gather::reorder(bool at_end) {
 	for( auto& access : accesses ) {
 		::string const& file   = access.first         ;
 		::AccessDigest& digest = access.second.digest ;
-		if ( digest.write==No && digest.dflags==DflagsDfltDyn && !digest.tflags ) {
+		if ( digest.write==No && digest.flags.dflags==DflagsDfltDyn && !digest.flags.tflags ) {
 			auto it = dirs.find(file+'/') ;
 			if (it!=dirs.end()) {
 				if (it->second) { trace("skip_from_prev"  ,file) ; digest.accesses  = {}           ; }
 				else            { trace("no_lnk_from_prev",file) ; digest.accesses &= ~Access::Lnk ; }
 			}
-			if (!digest.accesses) {
+			if ( !digest.accesses && !digest.read_dir ) {
 				if (!at_end) access_map.erase(file) ;
 				cpy = true ;
 				continue ;

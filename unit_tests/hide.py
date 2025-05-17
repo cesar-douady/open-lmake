@@ -18,9 +18,9 @@ if __name__!='__main__' :
 		cmd    = "echo '#auto'{Digit}"
 
 	class Hide(Rule) :
-		target       = r'{File:.*}.hide'
-		allow_stderr = True
-		cmd          = 'cat {File} || :'
+		target    = r'{File:.*}.hide'
+		stderr_ok = True
+		cmd       = 'cat {File} || :'
 
 	class Cat(Rule) :
 		prio = 1

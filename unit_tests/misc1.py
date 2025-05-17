@@ -16,8 +16,8 @@ if __name__!='__main__' :
 	)
 
 	class Test(Rule) :
-		target       = 'test'
-		allow_stderr = True
+		target    = 'test'
+		stderr_ok = True
 		if step==1 : cmd = "cat a ; echo >a"
 		else       : cmd = "cat a ; :      "
 

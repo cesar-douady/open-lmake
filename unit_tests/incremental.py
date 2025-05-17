@@ -8,14 +8,14 @@ if __name__!='__main__' :
 	import os
 
 	import lmake
-	from lmake.rules import Rule
+	from lmake.rules import PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'dep'
 	)
 
-	class Inc(Rule) :
+	class Inc(PyRule) :
 		targets = {
 			'MANIFEST' : ( 'manifest'      , 'incremental' )           # we need old value to compute old/new files
 		,	'TGT'      : ( 'dut.{Sfx*:.*}' , 'incremental' )

@@ -15,12 +15,16 @@ enum class Key : uint8_t { None } ;
 enum class Flag : uint8_t {
 	Write
 ,	Regexpr
+,	Critical
 ,	Essential
+,	Ignore
+,	IgnoreError
 ,	Incremental
+,	NoAllow
+,	NoRequired
 ,	NoWarning
 ,	Phony
-,	Ignore
-,	NoAllow
+,	ReaddirOk
 ,	SourceOk
 } ;
 
@@ -36,21 +40,31 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Ignore      , { .short_name=ExtraTflagChars[+ExtraTflag::Ignore     ].second , .has_arg=false , .doc="ignore writes"                                                          } }
 	,	{ Flag::NoAllow     , { .short_name=ExtraTflagChars[+ExtraTflag::Allow      ].second , .has_arg=false , .doc="do not force target to be accepted, just inform writing to it"          } }
 	,	{ Flag::SourceOk    , { .short_name=ExtraTflagChars[+ExtraTflag::SourceOk   ].second , .has_arg=false , .doc="accept if target is actually a source"                                  } }
+	,	{ Flag::Critical    , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .has_arg=false , .doc="report critical deps"                                                   } }
+	,	{ Flag::IgnoreError , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .has_arg=false , .doc="ignore if deps are in error"                                            } }
+	,	{ Flag::NoRequired  , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .has_arg=false , .doc="ignore if deps cannot be built"                                         } }
+	,	{ Flag::ReaddirOk   , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .has_arg=false , .doc="allow readdir"                                                          } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
 	if (!cmd_line.args) return 0 ;                                                                         // fast path : declare no targets
 	for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot declare empty file as target") ;
 	//
-	AccessDigest ad { .write=No|cmd_line.flags[Flag::Write] } ;
+	AccessDigest ad ;
 	//
-	if ( cmd_line.flags[Flag::Essential  ]) ad.tflags       |= Tflag     ::Essential   ;
-	if ( cmd_line.flags[Flag::Incremental]) ad.tflags       |= Tflag     ::Incremental ;
-	if ( cmd_line.flags[Flag::NoWarning  ]) ad.tflags       |= Tflag     ::NoWarning   ;
-	if ( cmd_line.flags[Flag::Phony      ]) ad.tflags       |= Tflag     ::Phony       ;
-	if ( cmd_line.flags[Flag::Ignore     ]) ad.extra_tflags |= ExtraTflag::Ignore      ;
-	if (!cmd_line.flags[Flag::NoAllow    ]) ad.extra_tflags |= ExtraTflag::Allow       ;
-	if ( cmd_line.flags[Flag::SourceOk   ]) ad.extra_tflags |= ExtraTflag::SourceOk    ;
+	if ( cmd_line.flags[Flag::Write      ]) ad.write               =  Yes                     ;
+	//
+	if ( cmd_line.flags[Flag::Essential  ]) ad.flags.tflags       |=  Tflag     ::Essential   ;
+	if ( cmd_line.flags[Flag::Incremental]) ad.flags.tflags       |=  Tflag     ::Incremental ;
+	if ( cmd_line.flags[Flag::NoWarning  ]) ad.flags.tflags       |=  Tflag     ::NoWarning   ;
+	if ( cmd_line.flags[Flag::Phony      ]) ad.flags.tflags       |=  Tflag     ::Phony       ;
+	if ( cmd_line.flags[Flag::Ignore     ]) ad.flags.extra_tflags |=  ExtraTflag::Ignore      ;
+	if (!cmd_line.flags[Flag::NoAllow    ]) ad.flags.extra_tflags |=  ExtraTflag::Allow       ;
+	if ( cmd_line.flags[Flag::SourceOk   ]) ad.flags.extra_tflags |=  ExtraTflag::SourceOk    ;
+	if ( cmd_line.flags[Flag::Critical   ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
+	if ( cmd_line.flags[Flag::IgnoreError]) ad.flags.dflags       |=  Dflag     ::IgnoreError ;
+	if ( cmd_line.flags[Flag::NoRequired ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
+	if ( cmd_line.flags[Flag::ReaddirOk  ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
 	//
 	try                       { JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad , cmd_line.flags[Flag::Regexpr] ) ; }
 	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                       }

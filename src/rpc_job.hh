@@ -32,7 +32,7 @@ enum class CacheTag : uint8_t { // PER_CACHE : add a tag for each cache method
 
 // START_OF_VERSIONING
 enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
-	Unknown        // must be first
+	Unknown                       // must be first
 ,	Local
 ,	Sge
 ,	Slurm
@@ -44,17 +44,17 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 
 // START_OF_VERSIONING
 enum class FileActionTag : uint8_t {
-	Src                // file is src, no action
-,	Unlink             // used in ldebug, so it cannot be Unlnk
-,	UnlinkWarning      // .
-,	UnlinkPolluted     // .
+	Src                              // file is src, no action
+,	Unlink                           // used in ldebug, so it cannot be Unlnk
+,	UnlinkWarning                    // .
+,	UnlinkPolluted                   // .
 ,	None
 ,	Uniquify
 ,	Mkdir
 ,	Rmdir
 //
 // aliases
-,	HasFile = Uniquify // <=HasFile means action acts on file
+,	HasFile = Uniquify               // <=HasFile means action acts on file
 } ;
 // END_OF_VERSIONING
 
@@ -215,14 +215,6 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 }} ;
 static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 inline bool is_retry(JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry ; }
-
-// START_OF_VERSIONING
-enum class MatchKind : uint8_t {
-	Target
-,	SideTarget
-,	SideDep
-} ;
-// END_OF_VERSIONING
 
 enum class MountAction : uint8_t {
 	Access
@@ -576,43 +568,6 @@ template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& j
 	return os << "JobDigest(" << to_hex(jd.upload_key) <<','<< jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() <<')' ;
 }                                                                                                                                                                // END_OF_NO_COV
 
-struct MatchFlags {
-	friend ::string& operator+=( ::string& , MatchFlags const& ) ;
-	// cxtors & casts
-	MatchFlags(                                ) = default ;
-	MatchFlags( Tflags tf , ExtraTflags etf={} ) : is_target{Yes} , _tflags{tf} , _extra_tflags{etf} {}
-	MatchFlags( Dflags df , ExtraDflags edf={} ) : is_target{No } , _dflags{df} , _extra_dflags{edf} {}
-	// accesses
-	bool        operator+   () const {                              return is_target!=Maybe ; }
-	Tflags      tflags      () const { SWEAR(is_target==Yes,self) ; return _tflags          ; }
-	Dflags      dflags      () const { SWEAR(is_target==No ,self) ; return _dflags          ; }
-	ExtraTflags extra_tflags() const { SWEAR(is_target==Yes,self) ; return _extra_tflags    ; }
-	ExtraDflags extra_dflags() const { SWEAR(is_target==No ,self) ; return _extra_dflags    ; }
-	// services
-	MatchFlags& operator|=(MatchFlags mfs) {
-		if (mfs.is_target!=Maybe)
-			switch (is_target) {
-				case Maybe :                                          self = mfs ;                                                  break ;
-				case Yes   : SWEAR( mfs.is_target==Yes , self,mfs ) ; _tflags |= mfs._tflags ; _extra_tflags |= mfs._extra_tflags ; break ;
-				case No    : SWEAR( mfs.is_target==No  , self,mfs ) ; _dflags |= mfs._dflags ; _extra_dflags |= mfs._extra_dflags ; break ;
-			}
-		return self ;
-	}
-	MatchFlags operator|(MatchFlags mfs) {
-		MatchFlags res = self ; res |= mfs ;
-		return res ;
-	}
-	// data
-	// START_OF_VERSIONING
-	Bool3 is_target = Maybe ;
-private :
-	Tflags      _tflags       ; // if is_target==Yes
-	Dflags      _dflags       ; // if is_target==No
-	ExtraTflags _extra_tflags ; // if is_target==Yes
-	ExtraDflags _extra_dflags ; // if is_target==No
-	// END_OF_VERSIONING
-} ;
-
 struct JobInfo ;
 
 namespace Caches {
@@ -747,7 +702,6 @@ struct JobStartRpcReply {                                                // NOLI
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,addr          ) ;
-		::serdes(s,allow_stderr  ) ;
 		::serdes(s,autodep_env   ) ;
 		::serdes(s,cache_idx     ) ;
 		::serdes(s,cmd           ) ;
@@ -763,9 +717,11 @@ struct JobStartRpcReply {                                                // NOLI
 		::serdes(s,method        ) ;
 		::serdes(s,network_delay ) ;
 		::serdes(s,pre_actions   ) ;
+		::serdes(s,rule          ) ;
 		::serdes(s,small_id      ) ;
 		::serdes(s,star_matches  ) ;
 		::serdes(s,static_matches) ;
+		::serdes(s,stderr_ok     ) ;
 		::serdes(s,stdin         ) ;
 		::serdes(s,stdout        ) ;
 		::serdes(s,timeout       ) ;
@@ -797,7 +753,6 @@ struct JobStartRpcReply {                                                // NOLI
 	// data
 	// START_OF_VERSIONING
 	in_addr_t            addr           = 0                   ;          // the address at which server and subproccesses can contact job_exec
-	bool                 allow_stderr   = false               ;
 	AutodepEnv           autodep_env    ;
 	Caches::Cache*       cache          = nullptr             ;
 	CacheIdx             cache_idx      = 0                   ;          // value to be repeated in JobEndRpcReq to ensure it is available when processing
@@ -814,9 +769,11 @@ struct JobStartRpcReply {                                                // NOLI
 	AutodepMethod        method         = AutodepMethod::Dflt ;
 	Time::Delay          network_delay  ;
 	::vmap_s<FileAction> pre_actions    ;
+	::string             rule           ;                                // rule name
 	SmallId              small_id       = 0                   ;
 	::vmap_s<MatchFlags> star_matches   ;                                // maps regexprs to flags
 	::vmap_s<MatchFlags> static_matches ;                                // maps individual files to flags
+	bool                 stderr_ok      = false               ;
 	::string             stdin          ;
 	::string             stdout         ;
 	Time::Delay          timeout        ;

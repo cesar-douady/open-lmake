@@ -3,6 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <dirent.h>
+#include <glob.h>
+
 #include "app.hh"
 #include "disk.hh"
 #include "hash.hh"
@@ -11,6 +14,7 @@ using namespace Disk ;
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {
+
 	app_init(true/*read_only_ok*/,No/*chk_version*/,No/*cd_root*/) ;
 	#if PROFILING
 		::string gmon_dir_s ; if (g_repo_root_s) gmon_dir_s = *g_repo_root_s+AdminDirS+"gmon.out/" ;

@@ -29,10 +29,10 @@ if __name__!='__main__' :
 		cmd    = "echo '#auto'"
 
 	class Hide(Rule) :
-		target       = r'{File:.*}.hide'
-		allow_stderr = True
-		cache        = 'dir'
-		cmd          = 'cat {File} || :'
+		target    = r'{File:.*}.hide'
+		stderr_ok = True
+		cache     = 'dir'
+		cmd       = 'cat {File} || :'
 
 	class Cat(Rule) :
 		prio = 1

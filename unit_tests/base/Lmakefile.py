@@ -52,11 +52,11 @@ class Par(BaseRule) :
 	cmd    = 'cat'
 
 class Hide(BaseRule) :
-	target       = '{File}.hide'
-	allow_stderr = True
-	cmd          = 'cat {File} || :'
+	target    = '{File}.hide'
+	stderr_ok = True
+	cmd       = 'cat {File} || :'
 
-class Version(BaseRule) :
+class Version(BaseRule,PyRule) :
 	target = '{File}.version'
 	dep    = '{File}'
 	def cmd() :
@@ -65,7 +65,7 @@ class Version(BaseRule) :
 
 for to in (None,5) :
 	to_ = '' if to==None else str(to)
-	class Wait(BaseRule) :
+	class Wait(BaseRule,PyRule) :
 		name    = f'wait{to_}'
 		stems   = { 'Wait' : r'r?w\d+|r?\d+w?|\d+rw?'       }
 		targets = { 'TGT'  : f'{{File}}.{{Wait}}.wait{to_}' }
@@ -92,7 +92,7 @@ class Cat(BaseRule) :
 	}
 	cmd = 'cat {FIRST} {SECOND}'
 
-class Dup(BaseRule) :
+class Dup(BaseRule,PyRule) :
 	targets = {
 		'DST1' : '{File}.dup1'
 	,	'DST2' : '{File}.dup2'
@@ -103,7 +103,7 @@ class Dup(BaseRule) :
 		open(DST1,'w').write(text)
 		open(DST2,'w').write(text)
 
-class Star(BaseRule) :
+class Star(BaseRule,PyRule) :
 	targets = { 'DST' : '{File}.star{Digit*}' }
 	dep     = '{File}'
 	def cmd() :
@@ -119,23 +119,23 @@ class Cmp(BaseRule) :
 	}
 	cmd = 'diff {REF} {DUT}'
 
-class Inf(BaseRule) :
+class Inf(BaseRule,PyRule) :
 	target = '{File}.inf'
 	dep    = '{File}.inf.inf'
 	def cmd() : print(sys.stdin.read(),'inf')
 
-class CircularDeps(BaseRule) :
+class CircularDeps(BaseRule,PyRule) :
 	target = '{File}.circ'
 	dep    = '{File}.circ.cpy'
 	def cmd() :
 		print(sys.stdin.read(),'circ')
 
-class CircularHiddenDeps(BaseRule) :
+class CircularHiddenDeps(BaseRule,PyRule) :
 	target = '{File}.hcirc'
 	def cmd() :
 		print( open(f'{File}.hcirc.cpy').read() , 'hcirc' )
 
-class Force(Rule) :
+class Force(PyRule) :
 	target = 'force'
 	force  = True
 	def cmd() :

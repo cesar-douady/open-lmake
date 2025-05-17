@@ -31,9 +31,9 @@ struct PatternDict {
 		for( auto const& [p,r] : patterns ) if (+p.match(x)) return r          ;
 		/**/                                                 return NotFound   ;
 	}
-	void add( bool star , ::string const& key , MatchFlags const& val ) {
-		if (star) patterns.emplace_back( RegExpr(key,false/*cache*/,true/*with_paren*/) , val ) ;
-		else      knowns  .emplace     (         key                                    , val ) ;
+	void add( bool star , ::string const& key , MatchFlags const& mfs ) {
+		if (star) patterns.emplace_back( RegExpr(key,false/*cache*/,true/*with_paren*/) , mfs ) ;
+		else      knowns  .emplace     (         key                                    , mfs ) ;
 	}
 	// data
 	::umap_s<MatchFlags>       knowns   = {} ;
@@ -80,44 +80,56 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		else if (+e          ) exit(Rc::Fail,"cannot connect to server at",g_service_start,':',e) ; // this may be a server config problem, better to report if verbose
 		else                   exit(Rc::Fail,"cannot connect to server at",g_service_start      ) ; // .
 	}
-	g_exec_trace->push_back({ New , Comment::startInfo , CommentExt::Reply }) ;
+	g_exec_trace->push_back({ New/*date*/ , Comment::startInfo , CommentExt::Reply }) ;
 	trace(res) ;
 	return res ;
 }
 
-Digest analyze(Status status=Status::New) {                               // status==New means job is not done
+Digest analyze(Status status=Status::New) {                                                                                                        // status==New means job is not done
 	Trace trace("analyze",status,g_gather.accesses.size()) ;
-	Digest res             ; res.deps.reserve(g_gather.accesses.size()) ; // typically most of accesses are deps
+	Digest res             ;                                         res.deps.reserve(g_gather.accesses.size()) ;                                  // typically most of accesses are deps
 	Pdate  prev_first_read ;
 	Pdate  relax           = Pdate(New)+g_start_info.network_delay ;
+	bool   readdir_warned  = false                                 ;
 	//
 	for( auto& [file,info] : g_gather.accesses ) {
 		MatchFlags    flags = g_match_dct.at(file) ;
 		AccessDigest& ad    = info.digest          ;
-		switch (flags.is_target) {
-			// manage ignore flag if mentioned in the rule
-			case Yes   : ad.tflags |= flags.tflags() ; ad.extra_tflags |= flags.extra_tflags() ; if (flags.extra_tflags()[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.write = No ; } break ;
-			case No    : ad.dflags |= flags.dflags() ; ad.extra_dflags |= flags.extra_dflags() ; if (flags.extra_dflags()[ExtraDflag::Ignore])   ad.accesses = {} ;                   break ;
-			case Maybe :                                                                       ;                                                                                      break ;
-		DF}                                                                                                                                                                                   // NO_COV
+		ad.flags |= flags ;
+		if      (flags.extra_tflags[ExtraTflag::Ignore]) { ad.accesses = {} ; ad.read_dir = false ; ad.write = No ; }
+		else if (flags.extra_dflags[ExtraDflag::Ignore]) { ad.accesses = {} ; ad.read_dir = false ;                 }
 		//
-		if (ad.write==Yes)                                                                                                                  // ignore reads after earliest confirmed write
-			for( Access a : iota(All<Access>) )
-				if ( info.read[+a]>info.write || info.read[+a]>info.target ) ad.accesses &= ~a ;
-		::pair<Pdate,Accesses> first_read = info.first_read()                                                                             ;
-		bool                   ignore  = ad.extra_dflags[ExtraDflag::Ignore] || ad.extra_tflags[ExtraTflag::Ignore]                       ;
-		bool                   sense   = info.digest_required || !ad.dflags[Dflag::IgnoreError]                                           ;
-		bool                   is_read = +ad.accesses || ( !ignore && sense )                                                             ;
-		bool                   is_dep  = ad.dflags[Dflag::Static] || ( flags.is_target!=Yes && is_read && first_read.first<=info.target ) ; // if a (side) target, it is so since the beginning
+		if (ad.write==Yes) {                                                                                                                       // ignore reads after earliest confirmed write
+			for( Access a : iota(All<Access>) ) if ( info.read[+a]>info.write || info.read[+a]>info.target ) ad.accesses &= ~a    ;
+			/**/                                if ( info.read_dir>info.write || info.read_dir>info.target ) ad.read_dir  = false ;
+		}
+		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                    ;
+		bool                   ignore     = ad.flags.extra_dflags[ExtraDflag::Ignore] || ad.flags.extra_tflags[ExtraTflag::Ignore]               ;
+		bool                   sense      = info.digest_required || !ad.flags.dflags[Dflag::IgnoreError]                                         ;
+		bool                   is_read    = +ad.accesses || ( !ignore && sense )                                                                 ;
+		bool                   is_dep     = ad.flags.dflags[Dflag::Static] || ( !flags.is_target() && is_read && first_read.first<=info.target ) ; // if a (side) target, it has always been so
 		bool is_tgt =
 			ad.write!=No
-		||	(	(  flags.is_target==Yes || info.target!=Pdate::Future         )
-			&&	!( !ad.tflags[Tflag::Target] && ad.tflags[Tflag::Incremental] )                           // fast path : no matching, no pollution, no washing => forget it
+		||	(	(  flags.is_target() || info.target!=Pdate::Future    )
+			&&	!( !ad.flags.tflags[Tflag::Target] && ad.flags.tflags[Tflag::Incremental] )                             // fast path : no matching, no pollution, no washing => forget it
 			)
 		;
+		// handle read_dir
+		if ( ad.read_dir && !(ad.flags.extra_dflags[ExtraDflag::ReaddirOk]||ad.flags.tflags[Tflag::Incremental]) ) {    // if incremental, user handle previous values
+			res.msg << "read dir without readdir_ok : "<<mk_file(file,No)<<'\n' ;
+			if (!readdir_warned) {
+				res.msg << "  consider (ordered by decreasing reliability) :\n"                                       ;
+				res.msg << "  - if files non-generated by this job exist in this dir, avoid reading it if possible\n" ; // XXX : improve message by detecting whether condition is met
+				res.msg << "  - call : lmake.depend("<<mk_file(file,FileDisplay::Py)<<",readdir_ok=True)\n"           ;
+				res.msg << "    or   : ldepend -D "<<mk_file(file,FileDisplay::Shell)<<'\n'                           ;
+				res.msg << "  - set  : "<<g_start_info.rule<<".readdir_ok=True\n"                                     ;
+				readdir_warned = true ;
+			}
+		}
+		if (file==".") { SWEAR(ad.read_dir) ; continue ; }                                                // . is only reported when reading dir but otherwise is an external file
 		// handle deps
 		if (is_dep) {
-			DepDigest dd { ad.accesses , info.dep_info , ad.dflags } ;
+			DepDigest dd { ad.accesses , info.dep_info , ad.flags.dflags } ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.is_a<DepInfoKind::Info>() && !info.dep_info.info().date.avail_at(first_read.first,g_start_info.ddate_prec) ;
@@ -137,8 +149,9 @@ Digest analyze(Status status=Status::New) {                               // sta
 			res.deps.emplace_back(file,dd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (status!=Status::New) {                 // only trace for user at end of job as intermediate analyses are of marginal interest for user
-				if      (unstable) g_exec_trace->push_back({ New , Comment::unstable , CommentExts() , file }) ;
-				else if (dd.hot  ) g_exec_trace->push_back({ New , Comment::hot      , CommentExts() , file }) ;
+				//                                          date                     comment_exts
+				if      (unstable) g_exec_trace->push_back({ New , Comment::unstable , {}       , file }) ;
+				else if (dd.hot  ) g_exec_trace->push_back({ New , Comment::hot      , {}       , file }) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
@@ -155,41 +168,27 @@ Digest analyze(Status status=Status::New) {                               // sta
 				if (info.dep_info.is_a<DepInfoKind::Crc>()) { crc = Crc(file,/*out*/sig) ; written |= info.dep_info.crc()!=crc ; } // solve lazy evaluation
 				else                                                                       written |= info.dep_info.sig()!=sig ;
 			}
-			if (!crc) sig = file ;                                                                // sig is computed at the same time as crc, but we need it in all cases
+			if (!crc) sig = file ;                                                                                         // sig is computed at the same time as crc, but we need it in all cases
 			//
-			TargetDigest td       { .tflags=ad.tflags , .extra_tflags=ad.extra_tflags } ;
-			bool unlnk    = !sig  ;
-			bool reported = false ;
+			TargetDigest td    { .tflags=ad.flags.tflags , .extra_tflags=ad.flags.extra_tflags } ;
+			bool         unlnk = !sig                                                            ;
 			//
-			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ; // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ;                          // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.pre_exist  = info.dep_info.seen(ad.accesses) ;
-			switch (flags.is_target) {
-				case Yes   : break ;
-				case Maybe :
-					if (unlnk) break ;                                                            // it is ok to write and unlink temporary files
-				[[fallthrough]] ;
-				case No :
-					if (!written                          ) break ;                               // it is ok to attempt writing as long as attempt does not succeed
-					if (ad.extra_tflags[ExtraTflag::Allow]) break ;                               // it is ok if explicitly allowed by user
-					trace("bad_access",ad,flags) ;
-					if (ad.write==Maybe    ) res.msg << "maybe "                        ;
-					/**/                     res.msg << "unexpected "                   ;
-					/**/                     res.msg << (unlnk?"unlink ":"write to ")   ;
-					if (flags.is_target==No) res.msg << "dep "                          ;
-					/**/                     res.msg << mk_file(file,No|!unlnk) << '\n' ;
-					reported = true ;
-				break ;
-			}
-			if ( is_dep && !unlnk ) {
-				g_exec_trace->push_back({ New , Comment::depAndTarget , CommentExts() , file }) ;
-				if (!reported) {                                                                  // if dep and unexpected target, prefer unexpected message rather than this one
+			if (is_dep                        ) {
+				if (ad.flags.dflags[Dflag::Static]) {
+					//                                  date
+					if (unlnk) g_exec_trace->push_back({ New , Comment::staticDepAndTarget , CommentExt::Unlnk , file }) ;
+					else       g_exec_trace->push_back({ New , Comment::staticDepAndTarget , {}                , file }) ;
+					res.msg << "static dep was written to : "<<mk_file(file)<<'\n' ;
+				} else if (!unlnk) {
 					const char* read = nullptr ;
-					if      (ad.dflags[Dflag::Static]       ) read = "a static dep" ;
-					else if (first_read.second[Access::Reg ]) read = "read"         ;
-					else if (first_read.second[Access::Lnk ]) read = "readlink'ed"  ;
-					else if (first_read.second[Access::Stat]) read = "stat'ed"      ;
-					else if (ad.dflags[Dflag::Required]     ) read = "required"     ;
+					if      (first_read.second[Access::Reg ] ) read = "read"        ;
+					else if (first_read.second[Access::Lnk ] ) read = "readlink'ed" ;
+					else if (first_read.second[Access::Stat] ) read = "stat'ed"     ;
+					else if (ad.flags.dflags[Dflag::Required]) read = "required"    ;
 					SWEAR(read) ;
+					g_exec_trace->push_back({ New/*date*/ , Comment::depAndTarget , {}/*comment_exts*/ , file }) ;
 					res.msg << "file was "<<read<<" and later declared as target : "<<mk_file(file)<<'\n' ;
 				}
 			}
@@ -215,14 +214,12 @@ Digest analyze(Status status=Status::New) {                               // sta
 		}
 	}
 	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
-		using ETF = ExtraTflag ;
 		trace("wash",t) ;
 		MatchFlags flags = g_match_dct.at(t) ;
-		if      (flags.is_target!=Yes             ) res.targets.emplace_back( t , TargetDigest{                          .extra_tflags=                     ETF::Wash , .crc=Crc::None } ) ;
-		else if (flags.extra_tflags()[ETF::Ignore]) {}
-		else                                        res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags() , .extra_tflags=flags.extra_tflags()|ETF::Wash , .crc=Crc::None } ) ;
+		if      (!flags.is_target()                     ) res.targets.emplace_back( t , TargetDigest{                        .extra_tflags=                   ExtraTflag::Wash , .crc=Crc::None } ) ;
+		else if (!flags.extra_tflags[ExtraTflag::Ignore]) res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags , .extra_tflags=flags.extra_tflags|ExtraTflag::Wash , .crc=Crc::None } ) ;
 	}
-	g_exec_trace->push_back({ New , Comment::analyzed }) ;
+	g_exec_trace->push_back({ New/*date*/ , Comment::analyzed }) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -456,7 +453,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
-	g_exec_trace->push_back({ New , Comment::computedCrcs }) ;
+	g_exec_trace->push_back({ New/*date*/ , Comment::computedCrcs }) ;
 	return msg ;
 }
 
@@ -505,10 +502,10 @@ int main( int argc , char* argv[] ) {
 		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
 		//
 		g_nfs_guard.reliable_dirs = g_start_info.autodep_env.reliable_dirs ;
-		//
-		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false/*star*/ , d  , digest.dflags ) ;
-		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false/*star*/ , dt , mf            ) ;
-		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true /*star*/ , p  , mf            ) ;
+		//                                                                                                              star
+		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false , d  , {.dflags=digest.dflags} ) ;
+		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false , dt , mf                      ) ;
+		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true  , p  , mf                      ) ;
 		//
 		try {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , g_nfs_guard )) ;
@@ -570,7 +567,7 @@ int main( int argc , char* argv[] ) {
 						if      (a==MountAction::Write) g_gather.new_target( washed , ::move(sr.real) ,                 Comment::mount , CommentExt::Write ) ;
 					}
 				}
-				g_exec_trace->push_back({ New , Comment::enteredNamespace }) ;
+				g_exec_trace->push_back({ New/*date*/ , Comment::enteredNamespace }) ;
 			}
 			g_start_info.job_space.update_env(
 				/*inout*/cmd_env
@@ -615,8 +612,8 @@ int main( int argc , char* argv[] ) {
 			}
 		//
 		for( auto& [d,dd] : g_start_info.deps ) g_gather.new_dep( washed , ::move(d) , ::move(dd) , g_start_info.stdin ) ;
-		for( auto const& [t,f] : g_match_dct.knowns )
-			if ( f.is_target==Yes && !f.extra_tflags()[ExtraTflag::Optional] )
+		for( auto const& [t,mfs] : g_match_dct.knowns )
+			if ( mfs.is_target() && !mfs.extra_tflags[ExtraTflag::Optional] )
 				g_gather.new_unlnk(washed,t) ;                                              // always report non-optional static targets
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
@@ -648,7 +645,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
-			g_exec_trace->push_back({ New , Comment::uploadedToCache , CommentExts() , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
+			g_exec_trace->push_back({ New/*date*/ , Comment::uploadedToCache , {}/*comment_exts*/ , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
 			trace("cache",upload_key) ;
 		}
 		//
@@ -658,7 +655,7 @@ int main( int argc , char* argv[] ) {
 			g_nfs_guard.close() ;
 		}
 		//
-		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.allow_stderr) ) )
+		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.stderr_ok) ) )
 			status = Status::Err ;
 		//
 		/**/                        end_report.msg_stderr.msg += g_gather.msg ;
@@ -687,7 +684,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->push_back(ExecTraceEntry{ end_overhead , Comment::endOverhead , {}/*CommentExt*/ , cat(end_report.digest.status) }) ;
+			g_exec_trace->push_back({ end_overhead , Comment::endOverhead , {}/*CommentExt*/ , cat(end_report.digest.status) }) ;
 			end_report.digest.exec_time = end_overhead - start_overhead ;                                                                       // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;

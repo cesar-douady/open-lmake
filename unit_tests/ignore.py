@@ -28,12 +28,12 @@ if __name__!='__main__' :
 	class SideTarget(Rule) :
 		target       = 'dut_side_target'
 		side_targets = { 'BAD' : ('bad_target','ignore') }
-		allow_stderr = True
+		stderr_ok    = True
 		cmd          = 'cat >bad_target'
 
 	class DynTargetSh(Rule) :
-		target       = 'dut_dyn_target_sh'
-		allow_stderr = True
+		target    = 'dut_dyn_target_sh'
+		stderr_ok = True
 		cmd = '''
 			ltarget --ignore bad_target
 			ldepend          bad_target
@@ -41,29 +41,29 @@ if __name__!='__main__' :
 		'''
 
 	class DynTargetPy(PyRule) :
-		target       = 'dut_dyn_target_py'
-		allow_stderr = True
+		target    = 'dut_dyn_target_py'
+		stderr_ok = True
 		def cmd() :
 			lmake.target('bad_target',ignore=True)
 			open('bad_target','w')
 
 	class SideDep(Rule) :
-		target       = 'dut_side_dep'
-		side_deps    = { 'BAD' : ('bad_dep','ignore') }
-		allow_stderr = True
-		cmd          = '! cat bad_dep' # cat must fail as bad_dep must not be produced
+		target    = 'dut_side_dep'
+		side_deps = { 'BAD' : ('bad_dep','ignore') }
+		stderr_ok = True
+		cmd       = '! cat bad_dep' # cat must fail as bad_dep must not be produced
 
 	class DynDepSh(Rule) :
-		target       = 'dut_dyn_dep_sh'
-		allow_stderr = True
+		target    = 'dut_dyn_dep_sh'
+		stderr_ok = True
 		cmd = '''
 			ldepend --ignore bad_dep
 			! cat bad_dep            # cat must fail as bad_dep must not be produced
 		'''
 
 	class DynDepPy(PyRule) :
-		target       = 'dut_dyn_dep_py'
-		allow_stderr = True
+		target    = 'dut_dyn_dep_py'
+		stderr_ok = True
 		def cmd() :
 			lmake.depend('bad_dep',ignore=True)
 			try :

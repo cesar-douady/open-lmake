@@ -68,7 +68,7 @@ else :
 	if not shutil.which('qsub') :
 		print('sge not available',file=open('skipped','w'))
 		exit() ;
-	if sp.run(('qsub','-b','y','-o','/dev/null','-e','/dev/null','/dev/null'),stdin=sp.DEVNULL,stdout=sp.DEVNULL,stderr=sp.DEVNULL).returncode!=0 :
+	if sp.run(('qsub','-b','y','-o','/dev/null','-e','/dev/null','-N','<tu_sense_daemon>','/dev/null'),stdin=sp.DEVNULL,stdout=sp.DEVNULL,stderr=sp.DEVNULL).returncode!=0 :
 		print('sge not usable',file=open('skipped','w'))
 		exit() ;
 

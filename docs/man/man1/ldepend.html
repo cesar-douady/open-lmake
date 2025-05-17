@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed May  7 16:29:06 2025 -->
+<!-- CreationDate: Mon May 19 09:31:12 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -248,6 +248,13 @@ is to only alter flags.</p>
 <p style="margin-left:18%;">Create critical deps (cf. note
 (5)).</p>
 
+<p style="margin-left:9%;"><b>-D</b>,
+<b>--readdir-ok</b></p>
+
+<p style="margin-left:18%;">Allow <b>readdir</b>(3) on
+passed deps even if not <b>ignore</b>d nor
+<b>incremental</b>. Implies flag <b>--no-required</b>.</p>
+
 <p style="margin-left:9%;"><b>-E</b>,
 <b>--essential</b></p>
 
@@ -269,9 +276,8 @@ read may fail, but <i>open-lmake</i> is ok).</p>
 
 <p style="margin-left:9%;"><b>-I</b>, <b>--ignore</b></p>
 
-<p style="margin-left:18%;">Deps are ignored altogether,
-even if further accessed (but previous accesses are
-kept).</p>
+<p style="margin-left:18%;">From now on, ignore all reads
+of deps (including <b>readdir</b>(3)).</p>
 
 <p style="margin-left:9%;"><b>-X</b>, <b>--regexpr</b></p>
 

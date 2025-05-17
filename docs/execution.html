@@ -180,11 +180,11 @@ lmake foo
 <ul>
 <li>A system call that writes or initiate writing to <code>foo</code>, e.g. <code>open("foo",O_WRONLY|O_TRUNC)</code> or <code>symlink(...,"foo")</code>, assuming the <code>autodep</code> rule attribute is not set to <code>'none'</code>.</li>
 <li>Unlinking <code>foo</code>, e.g. <code>unlink("foo")</code>, is also deemed to be writing to it.</li>
-<li>A call to <code>lmake.target('foo',write=True)</code>. Note that <code>True</code> is the default value for the <code>write</code> argument.</li>
-<li>The execution of <code>ltarget foo</code> in which the <code>-W</code> option is not passed.</li>
+<li>A call to <code>lmake.target('foo',write=True)</code>.</li>
+<li>The execution of <code>ltarget -W foo</code>.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir).</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir).</li>
 </ul>
 <p>Reading file <code>foo</code> means :</p>
 <ul>
@@ -196,12 +196,35 @@ any access (reading or writing) to <code>foo</code> which follows symlinks is an
 any access (reading or writing) to <code>foo</code>, whether it follows symlinks or not, is an implicit <code>readlink</code> of all dirs leading to it.</li>
 <li>Note that some system calls can be both a read and a write, e.g. <code>open("foo", O_RDWR)</code> but also <code>rename("foo",...)</code>.
 In that case, the read occurs before the write.</li>
-<li>A call to <code>lmake.depend('foo',read=True)</code>. Note that <code>True</code> is the default value for the <code>read</code> argument.</li>
-<li>The execution of <code>ldepend foo</code> in which the <code>-R</code> option is not passed.</li>
+<li>A call to <code>lmake.depend('foo',read=True)</code>.</li>
+<li>The execution of <code>ldepend -R foo</code>.</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.depend('foo',ignore=True)</code> or the execution of <code>ldepend -I foo</code>.</li>
 <li>Also under the condition that <code>foo</code> is not listed in <code>deps</code> or matches a <code>side_deps</code> entry, with the <code>Ignore</code> flag set.</li>
-<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE</code> sub-dir) or in a source dir.</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir) or in a source dir.</li>
 </ul>
+<h3 id="reading-a-dir"><a class="header" href="#reading-a-dir">Reading a dir</a></h3>
+<p>A dir <code>foo</code> is read when files it contains are listed, which occur when:</p>
+<ul>
+<li>A system call that reads dir <code>foo</code>, e.g. <code>getdents</code>.</li>
+<li>A libc call that reads dir <code>foo</code>, e.g. <code>readdir</code> or <code>glob</code> (in which its pattern argument requires reading <code>foo</code>).</li>
+<li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
+<li>Also under the condition that neither <code>lmake.target('foo',incremental=True)</code> was called nor <code>ltarget -i foo</code> executed.</li>
+<li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> or <code>Incremental</code> flags set.</li>
+<li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir) or is the repo root dir.</li>
+</ul>
+<p>Although dirs do not exist for open-lmake, reading dir <code>foo</code> is an error unless the <code>ReaddirOk</code> attribute was set on the rule or the <code>ReaddirOk</code> flag is set, which can be done by:</p>
+<ul>
+<li>Passing the <code>ReaddirOk</code> flag in the <code>targets</code>, <code>side_targets</code> or <code>side_deps</code> entry.</li>
+<li>Calling <code>lmake.depend('foo',readdir_ok=True)</code> or executing <code>ldepend -D foo</code>.</li>
+<li>Calling <code>lmake.target('foo',readdir_ok=True)</code> or executing <code>ltarget -D foo</code>.</li>
+</ul>
+<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing Python3.
+This is because Python3 optimizes imports by pre-reading these dirs.</p>
+<p>Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
+files may or may not have been already built, or previously built files that are now non-buildable may still exist.</p>
+<p>Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.
+So open-lmake reverts to letting the user deal with this question, using an opt-in approach so the user cannot miss it.</p>
+<p>Note that if such a dir is marked as <code>incremental</code>, the user already has the responsibility of handling its past history and there is no need for an additional flag.</p>
 <h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
 <p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
 In the latter case, it is not a target until the point where it becomes one.

@@ -66,7 +66,7 @@ This functions ensures that all dirs listed in arguments such as `-I` or `-L` ex
 
 `stdin` is the text ot send as the stdin of `cmd_line`.
 
-### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , required=True , regexpr=False )`
+### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False )`
 
 Declare `deps` as parallel deps (i.e. no order exist between them).
 
@@ -84,7 +84,7 @@ Making such dinstinctions is most useful for the automatic processing of symboli
 For example, if file `a/b` is opened for reading, and it turns out to be a symbolic link to `c`, open-lmake will set a dep to `a/b` as a link, and to `a/c`
 as a link (in case it is itself a link) and regular (as it is opened).
 
-By default, passed deps are associated with no access, but are required to be buildable and produced without error.
+By default, passed deps are associated with no access, but are required to be buildable and produced without error unless `readdir_ok` is true.
 To simulate a plain access, you need to pass `read=True` to associate accesses and `required=False` to allow it not to exist.
 
 If `verbose`, return a dict with one entry par dep where:
@@ -101,11 +101,12 @@ If `read`, report an actual read of `deps`. Default is just to alter associated 
 If `regexpr`, pass flags to all deps matching `deps` interpreted as regexprs, much like the `side_deps` rule attribute.
 However, the `ignore` flag only applies to deps following this call.
 
-For `critical`, `essential`, `ignore`, `ignore_error` and `required`, set the corresponding [flag](rules.html#deps) on all `deps`:
+For `critical`, `essential`, `ignore`, `ignore_error`, `readdir_ok` and `required`, set the corresponding [flag](rules.html#deps) on all `deps`:
 
 - If `critical`,     create critical deps (cf. note (5)).
 - If `essential`,    passed deps will appear in the flow shown with a graphical tool.
 - If `ignore_error`, ignore the error status of the passed deps.
+- If `readdir_ok`,   `readdir` (3) can be called on passed deps without error even if not `ignore`'ed nor `incremental`.
 - If `not required`, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).
 - If `ignore`,       deps are ignored altogether, even if further accessed (but previous accesses are kept).
 
@@ -136,7 +137,7 @@ Notes:
 	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
 
-### `target( *targets , write=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , regexpr=False )`
+### `target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False )`
 
 Declare `targets` as targets and alter associated flags.
 Note that the `allow` argument default value is `True`.
@@ -156,6 +157,12 @@ For `allow`, `essential`, `ignore`, `incremental`, `no_warning` and `source_ok`,
 - If `ignore`,      from now on, ignore all reads and writes to `targets`.
 - If `not allow`,   do not make `targets` valid targets.
 - If `source_ok`,   accept that `targets` be sources. Else, writing to a source is an error.
+
+In case passed targets turn out to be deps, the deps flags are also available: `critical`, `ignore_error`, `readdir_ok` and `required`:
+- If `critical`,     create critical deps (cf. note (5) of `depend`).
+- If `ignore_error`, ignore the error status of the passed deps.
+- If `readdir_ok`,   `readdir` (3) can be called on passed deps without error even if not `ignore`'ed nor `incremental`.
+- If `not required`, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).
 
 Flags accumulate and are never reset.
 

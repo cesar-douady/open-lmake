@@ -15,10 +15,10 @@ if __name__!='__main__' :
 		cmd    = 'echo dut'
 
 	class Cpy(Rule) :
-		target       = r'{File:.*}.cpy'
-		max_submits  = 1
-		allow_stderr = True
-		cmd          = ' cat {File} ; : '
+		target      = r'{File:.*}.cpy'
+		max_submits = 1
+		stderr_ok   = True
+		cmd         = ' cat {File} ; : '
 
 	class Cmp(Rule) :
 		target = 'dut.ok'

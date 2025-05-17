@@ -15,9 +15,9 @@ if __name__!='__main__' :
 	)
 
 	class Dut(Rule) :
-		target       = 'dut'
-		allow_stderr = True
-		cmd          = 'cat dep/sub ; cat dep'
+		target    = 'dut'
+		stderr_ok = True
+		cmd       = 'cat dep/sub ; cat dep'
 
 	class Test(Rule) :
 		target = 'test'

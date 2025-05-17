@@ -18,8 +18,8 @@ using namespace Time ;
 enum class CmdKey : uint8_t { None } ;
 
 enum class CmdFlag : uint8_t {
-	AutodepMethod
-,	AutoMkdir
+	AutoMkdir
+,	AutodepMethod
 ,	ChrootDir
 ,	Cwd
 ,	Env
@@ -27,6 +27,7 @@ enum class CmdFlag : uint8_t {
 ,	LinkSupport
 ,	LmakeView
 ,	Out
+,	ReaddirOk
 ,	RepoView
 ,	SourceDirs
 ,	TmpDir
@@ -99,6 +100,7 @@ int main( int argc , char* argv[] ) {
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                       } }
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }
 	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                         } }
+	,	{ CmdFlag::ReaddirOk     , { .short_name='D' , .has_arg=false , .doc="allow reading local non-ignored dirs"                                                                      } }
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
