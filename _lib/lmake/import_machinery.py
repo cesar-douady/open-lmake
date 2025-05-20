@@ -6,27 +6,9 @@
 import os.path as _osp
 import sys     as _sys
 
-from . import depend
+from . import report_import
 
 from . import _maybe_lcl
-
-def _depend_module(module_name,path) : # XXX : implement in C++ in clmake
-	if path==None                : path = _sys.path
-	if _sys.version_info.major>2 : depend( *(d or '.' for d in path) , readdir_ok=True ) # '' represent cwd, transform it into '.'
-	tail = module_name.rsplit('.',1)[-1]
-	for dir in path :
-		if dir : base     = dir+'/'+tail
-		else   : base,dir =         tail,'.'
-		if _maybe_lcl(base) :
-			for suffix in module_suffixes :
-				file = base+suffix
-				depend(file,required=False,read=True)
-				if _osp.exists(file) : return
-		else :
-			base_init = base+'/__init__'
-			for suffix in _std_suffixes :
-				if _osp.exists(base     +suffix) : return
-				if _osp.exists(base_init+suffix) : return
 
 def _fix_path() :
 	try :
@@ -44,7 +26,7 @@ if _sys.version_info.major==2 :
 		class Depend :                               # this a special finder that explicitly depends on searched files, ...
 			@staticmethod                            # ... but otherwise finds no module, so that system machinery is actually used to load module
 			def find_module(module_name,path=None) :
-				_depend_module(module_name,path)
+				report_import(module_name,path,module_suffixes)
 		_sys.meta_path.insert(0,Depend)
 		_fix_path()
 
@@ -65,11 +47,11 @@ else :
 		class Depend :                                                                         # this a special finder that explicitly depends on searched files, ...
 			@staticmethod                                                                      # ... but otherwise finds no module, so that system machinery is actually used to load module
 			def find_spec(module_name,path,target=None) :
-				_depend_module(module_name,path)
+				report_import(module_name,path,module_suffixes)
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found
 		# python3 optimizes imports by reading dirs in path and only access files found there, defeating autodep ability to discover dep to inexistent files
-		depend( *(d or '.' for d in _sys.path) , readdir_ok=True )                             # '' represent cwd, transform it into '.'
+		report_import() # Python does some imports at start-up and read the dirs in sys.path
 		_fix_path()
 
 	def load_module( name , file=None ) :

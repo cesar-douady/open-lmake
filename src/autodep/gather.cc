@@ -719,7 +719,7 @@ void Gather::reorder(bool at_end) {
 				if (it->second) { trace("skip_from_prev"  ,file) ; digest.accesses  = {}           ; }
 				else            { trace("no_lnk_from_prev",file) ; digest.accesses &= ~Access::Lnk ; }
 			}
-			if ( !digest.accesses && !digest.read_dir ) {
+			if (!digest) {
 				if (!at_end) access_map.erase(file) ;
 				cpy = true ;
 				continue ;

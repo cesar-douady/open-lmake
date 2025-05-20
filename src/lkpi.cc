@@ -13,7 +13,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	size_t n_rules[N<Special>   ] = {} ;
 	size_t n_jobs [2/*has_rule*/] = {} ;
-	size_t n_deps [2/*has_rule*/] = {} ;
+	size_t n_deps [N<Buildable> ] = {} ;
 	size_t n_nodes[N<Buildable> ] = {} ;
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
@@ -27,19 +27,18 @@ int main( int argc , char* /*argv*/[] ) {
 		n_rules[+r->special]++ ;
 	}
 	for( const Job j : Persistent::job_lst() ) {
-		bool has_rule = +j->rule() ;
-		/**/                                            n_jobs[has_rule]++ ;
-		for ( [[maybe_unused]] Dep const& _ : j->deps ) n_deps[has_rule]++ ;
+		/**/                                            n_jobs[+j->rule()   ]++ ;
+		for ( [[maybe_unused]] Dep const& d : j->deps ) n_deps[+d->buildable]++ ;
 	}
 	for( const Node n : Persistent::node_lst() ) {
 		n_nodes[+n->buildable]++ ;
 	}
 	//
 	::vmap_s<size_t> out_tab ;
-	for( Special   s : iota(All<Special  >) ) out_tab.emplace_back( "rules "s+s                           , n_rules[+s] ) ;
-	for( bool      r : {false,true}         ) out_tab.emplace_back( "jobs "s+(r?"with":"without")+" rule" , n_jobs [r ] ) ;
-	for( bool      r : {false,true}         ) out_tab.emplace_back( "deps "s+(r?"with":"without")+" rule" , n_deps [r ] ) ;
-	for( Buildable b : iota(All<Buildable>) ) out_tab.emplace_back( "nodes "s+b                           , n_nodes[+b] ) ;
+	for( Special   s : iota(All<Special  >) ) out_tab.emplace_back( cat("rules ",s                           ) , n_rules[+s] ) ;
+	for( bool      r : {false,true}         ) out_tab.emplace_back( cat("jobs " ,(r?"with":"without")," rule") , n_jobs [r ] ) ;
+	for( Buildable b : iota(All<Buildable>) ) out_tab.emplace_back( cat("nodes ",b                           ) , n_nodes[+b] ) ;
+	for( Buildable b : iota(All<Buildable>) ) out_tab.emplace_back( cat("deps " ,b                           ) , n_deps [+b] ) ;
 	//
 	::string out ;
 	size_t   wk  = 0 ;

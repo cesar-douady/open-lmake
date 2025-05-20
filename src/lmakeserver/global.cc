@@ -210,8 +210,8 @@ namespace Engine {
 		if (n_node_set_pressure   ) res <<"n_node_set_pressure    : "<< n_node_set_pressure      <<'\n' ;
 		if (+py_exec_time         ) res <<"python_exec_time       : "<< py_exec_time.short_str() <<'\n' ;
 		for ( ReqEntry const& re : reqs ) {
-			res <<"\tn_job_req_info  : " << re.n_job_req_info <<'\n' ;
-			res <<"\tn_job_node_info : " << re.n_job_req_info <<'\n' ;
+			res <<"\tn_job_req_info  : " << re.n_job_req_info  <<'\n' ;
+			res <<"\tn_node_req_info : " << re.n_node_req_info <<'\n' ;
 		}
 		return res ;
 	}

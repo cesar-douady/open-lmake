@@ -79,8 +79,8 @@ Although dirs do not exist for open-lmake, reading dir `foo` is an error unless 
 - Calling `lmake.depend('foo',readdir_ok=True)` or executing `ldepend -D foo`.
 - Calling `lmake.target('foo',readdir_ok=True)` or executing `ltarget -D foo`.
 
-Note that the `lmake.PyRule` base class sets the the `ReaddirOk` flag on dirs mentioned in `sys.path` when executing Python3.
-This is because Python3 optimizes imports by pre-reading these dirs.
+Note that the `lmake.PyRule` base class sets the the `ReaddirOk` flag on dirs mentioned in `sys.path` when executing python3.
+This is because python3 optimizes imports by pre-reading these dirs.
 
 Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
 files may or may not have been already built, or previously built files that are now non-buildable may still exist.

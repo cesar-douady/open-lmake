@@ -43,7 +43,7 @@ enum class KillStep : uint8_t {
 ,	Kill   // must be last as following values are used
 } ;
 
-struct Gather {                                                                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct Gather {                                                        // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , Gather const& ) ;
 	using Kind = GatherKind            ;
 	using Proc = JobExecProc           ;
@@ -51,9 +51,9 @@ struct Gather {                                                                 
 	using Crc  = Hash::Crc             ;
 	using PD   = Time::Pdate           ;
 	using DI   = DepInfo               ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ;                                                         // heartbeat to probe server when waiting for it ...
-	struct AccessInfo {                                                                                         // ... dont bother server too much as there may be 1000's job_exec's waiting for it, ...
-		friend ::string& operator+=( ::string& , AccessInfo const& ) ;                                          // ... 100s seems a good compromize
+	static constexpr Time::Delay HeartbeatTick { 10 } ;                // heartbeat to probe server when waiting for it ...
+	struct AccessInfo {                                                // ... dont bother server too much as there may be 1000's job_exec's waiting for it, ...
+		friend ::string& operator+=( ::string& , AccessInfo const& ) ; // ... 100s seems a good compromize
 		// cxtors & casts
 		AccessInfo() = default ;
 		//
@@ -99,17 +99,17 @@ private :
 	void _new_access( Fd fd , Jerr&& jerr ) {
 		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.comment , jerr.comment_exts ) ;
 	}
-	void _new_guard( Fd fd , Jerr&& jerr ) {                                                                    // fd for trace purpose only
+	void _new_guard( Fd fd , Jerr&& jerr ) {                                                                      // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr) ;
 		guards.insert(::move(jerr.file)) ;
 	}
 	void         _kill          ( bool force           ) ;
-	void         _send_to_server( Fd fd , Jerr&&       ) ;                                                      // files are required for DepVerbose and forbidden for other
+	void         _send_to_server( Fd fd , Jerr&&       ) ;                                                        // files are required for DepVerbose and forbidden for other
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
-public : //!                                                                                                                                    crc_file_info
+public : //!                                                                                                                                   crc_file_info
 	void new_target( PD pd , ::string const& t , Comment c=Comment::staticTarget , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }
-	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::staticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }  // used for internal wash
-	void new_guard (         ::string const& f                                                         ) { guards.insert(f) ;                                         }
+	void new_unlnk ( PD pd , ::string const& t , Comment c=Comment::staticUnlnk  , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; } // used for internal wash
+	void new_guard (         ::string const& f                                                        ) { guards.insert(f) ;                                         }
 	//
 	void new_exec( PD    , ::string const& exe ,              Comment  =Comment::staticExec                      ) ;
 	void new_dep ( PD pd , ::string&&      dep , Accesses a , Comment c=Comment::staticDep  , CommentExts ces={} ) { _new_access(pd,::move(dep),{.accesses=a},Disk::FileInfo(dep),c,ces) ; }

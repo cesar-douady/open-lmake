@@ -218,8 +218,8 @@ In that case, the read occurs before the write.</li>
 <li>Calling <code>lmake.depend('foo',readdir_ok=True)</code> or executing <code>ldepend -D foo</code>.</li>
 <li>Calling <code>lmake.target('foo',readdir_ok=True)</code> or executing <code>ltarget -D foo</code>.</li>
 </ul>
-<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing Python3.
-This is because Python3 optimizes imports by pre-reading these dirs.</p>
+<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing python3.
+This is because python3 optimizes imports by pre-reading these dirs.</p>
 <p>Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
 files may or may not have been already built, or previously built files that are now non-buildable may still exist.</p>
 <p>Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.

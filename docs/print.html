@@ -753,6 +753,26 @@ Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p>Note : this checksum is not the same as the checksum of a file with same content.</p>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
 <p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<h3 id="report_importmodule_namenonepathnonemodule_suffixesnone"><a class="header" href="#report_importmodule_namenonepathnonemodule_suffixesnone"><code>report_import(module_name=None,path=None,module_suffixes=None)</code></a></h3>
+<p>Does necessary reporting when a module has been imported.</p>
+<p><code>module_name</code> is the name of the imported module.
+This function only handles the last level import, so it must be called at each level in case the module lies in a package.</p>
+<p>If not provided or empty, only does the reporting due to the path, but assumes no module is accessed.</p>
+<p>The way such reporting is done is by reporting a dep for each local dir in the path, for each module suffix, until the module is found, locally or externally.</p>
+<p><code>path</code> is the path which the imported module is searched in.</p>
+<p>If not provided or empty, it defaults to the current value of <code>sys.path</code>.</p>
+<p>Unless used with python2, this function allows <code>readdir</code> accesses to local dirs in the path as python does such a <code>readdir</code>.</p>
+<p><code>module_suffixes</code> is the list of suffixes to try that may provide a module, e.g. <code>('.py','/__init__.py')</code>.</p>
+<p>If not provided, the default is:</p>
+<ul>
+<li>for python2: <code>('.so','.py','/__init__.so','/__init__.py')</code></li>
+<li>for python3: <code>( i+s for s in importlib.machinery.all_suffixes() for i in ('','/__init__'))</code></li>
+</ul>
+<p>Note:</p>
+<ul>
+<li>It may be wise to specify only the suffixes actually used locally to reduce the number of deps.</li>
+<li>External modules are searched with the standard suffixes, even if <code>module_suffixes</code> is provided as there is no reason for the external modules to adhere to local conventions.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -1768,8 +1788,8 @@ In that case, the read occurs before the write.</li>
 <li>Calling <code>lmake.depend('foo',readdir_ok=True)</code> or executing <code>ldepend -D foo</code>.</li>
 <li>Calling <code>lmake.target('foo',readdir_ok=True)</code> or executing <code>ltarget -D foo</code>.</li>
 </ul>
-<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing Python3.
-This is because Python3 optimizes imports by pre-reading these dirs.</p>
+<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing python3.
+This is because python3 optimizes imports by pre-reading these dirs.</p>
 <p>Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
 files may or may not have been already built, or previously built files that are now non-buildable may still exist.</p>
 <p>Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.

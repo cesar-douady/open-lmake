@@ -15,14 +15,15 @@ using namespace Hash ;
 // AccessDigest
 //
 
-::string& operator+=( ::string& os , AccessDigest const& ad ) {                              // START_OF_NO_COV
-	const char* sep = "" ;
-	/**/                                    os << "AccessDigest("                          ;
-	if (+ad.accesses                    ) { os <<      ad.accesses                         ; sep = "," ; }
-	if ( ad.flags!=AccessDigest().flags ) { os <<sep<< ad.flags                            ; sep = "," ; }
-	if ( ad.write!=No                   )   os <<sep<< "written"<<(ad.write==Maybe?"?":"") ;
-	return                                  os <<')'                                       ;
-}                                                                                            // END_OF_NO_COV
+::string& operator+=( ::string& os , AccessDigest const& ad ) {                                      // START_OF_NO_COV
+	First first ;
+	/**/                                  os << "AccessDigest("                                    ;
+	if (+ad.accesses                    ) os <<first("",",")<< ad.accesses                         ;
+	if ( ad.read_dir                    ) os <<first("",",")<< "read_dir"                          ;
+	if ( ad.flags!=AccessDigest().flags ) os <<first("",",")<< ad.flags                            ;
+	if ( ad.write!=No                   ) os <<first("",",")<< "written"<<(ad.write==Maybe?"?":"") ;
+	return                                os <<')'                                                 ;
+}                                                                                                    // END_OF_NO_COV
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	if (write!=Yes) accesses |= ad.accesses ;

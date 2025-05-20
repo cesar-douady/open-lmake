@@ -35,7 +35,8 @@ enum class JobExecProc : uint8_t {
 struct AccessDigest {                                                // order is first read, first write, last write, unlink
 	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
-	bool operator+() const { return +accesses || write!=No ; }       // true if some access of some sort is done
+	bool has_read () const { return +accesses || read_dir   ; }      // true if some access of some sort is done
+	bool operator+() const { return has_read() || write!=No ; }      // true if some access of some sort is done
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&   ) ;
@@ -65,23 +66,23 @@ struct JobExecRpcReq {
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
-		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                         // Encode uses file_info to store min_len
+		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                           // Encode uses file_info to store min_len
 		switch (proc) {
 			case Proc::ChkDeps        :
-			case Proc::Tmp            : SWEAR(                !digest          &&  !id                       && +date , self ) ; break ;
-			case Proc::DepVerbose     : SWEAR( sync==Yes   &&                      !id                       && +date , self ) ; break ;
+			case Proc::Tmp            : SWEAR(                !digest            &&  !id                       && +date , self ) ; break ;
+			case Proc::DepVerbose     : SWEAR( sync==Yes   &&                        !id                       && +date , self ) ; break ;
 			case Proc::Trace          :
-			case Proc::Panic          : SWEAR( sync==No    && !digest          &&  !id                       && !date , self ) ; break ;
+			case Proc::Panic          : SWEAR( sync==No    && !digest            &&  !id                       && !date , self ) ; break ;
 			case Proc::CodecFile      :
 			case Proc::CodecCtx       :
-			case Proc::DepVerbosePush : SWEAR( sync==Maybe && !digest          &&  !id                       && !date , self ) ; break ;
-			case Proc::Confirm        : SWEAR(                !digest.accesses && ( id&&digest.write!=Maybe) && !date , self ) ; break ;
-			case Proc::Guard          : SWEAR(                !digest          &&  !id                       && !date , self ) ; break ;
+			case Proc::DepVerbosePush : SWEAR( sync==Maybe && !digest            &&  !id                       && !date , self ) ; break ;
+			case Proc::Confirm        : SWEAR(                !digest.has_read() && ( id&&digest.write!=Maybe) && !date , self ) ; break ;
+			case Proc::Guard          : SWEAR(                !digest            &&  !id                       && !date , self ) ; break ;
 			case Proc::Decode         :
-			case Proc::Encode         : SWEAR( sync==Yes   && !digest          &&  !id                       && !date , self ) ; break ;
-			case Proc::Access         : SWEAR(                                    ( id||digest.write!=Maybe) && +date , self ) ; break ;
-			case Proc::AccessPattern  : SWEAR( sync!=Yes   && !digest.accesses && (!id&&digest.write!=Maybe) && +date , self ) ; break ;
-		DF}                                                                                                                              // NO_COV
+			case Proc::Encode         : SWEAR( sync==Yes   && !digest            &&  !id                       && !date , self ) ; break ;
+			case Proc::Access         : SWEAR(                                      ( id||digest.write!=Maybe) && +date , self ) ; break ;
+			case Proc::AccessPattern  : SWEAR( sync!=Yes   && !digest.has_read() && (!id&&digest.write!=Maybe) && +date , self ) ; break ;
+		DF}                                                                                                                                // NO_COV
 	}
 	template<IsStream T> void serdes(T& s) {
 		/**/                         ::serdes(s,proc        ) ;

@@ -103,17 +103,6 @@ Digest analyze(Status status=Status::New) {                                     
 			for( Access a : iota(All<Access>) ) if ( info.read[+a]>info.write || info.read[+a]>info.target ) ad.accesses &= ~a    ;
 			/**/                                if ( info.read_dir>info.write || info.read_dir>info.target ) ad.read_dir  = false ;
 		}
-		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                    ;
-		bool                   ignore     = ad.flags.extra_dflags[ExtraDflag::Ignore] || ad.flags.extra_tflags[ExtraTflag::Ignore]               ;
-		bool                   sense      = info.digest_required || !ad.flags.dflags[Dflag::IgnoreError]                                         ;
-		bool                   is_read    = +ad.accesses || ( !ignore && sense )                                                                 ;
-		bool                   is_dep     = ad.flags.dflags[Dflag::Static] || ( !flags.is_target() && is_read && first_read.first<=info.target ) ; // if a (side) target, it has always been so
-		bool is_tgt =
-			ad.write!=No
-		||	(	(  flags.is_target() || info.target!=Pdate::Future    )
-			&&	!( !ad.flags.tflags[Tflag::Target] && ad.flags.tflags[Tflag::Incremental] )                             // fast path : no matching, no pollution, no washing => forget it
-			)
-		;
 		// handle read_dir
 		if ( ad.read_dir && !(ad.flags.extra_dflags[ExtraDflag::ReaddirOk]||ad.flags.tflags[Tflag::Incremental]) ) {    // if incremental, user handle previous values
 			res.msg << "read dir without readdir_ok : "<<mk_file(file,No)<<'\n' ;
@@ -126,7 +115,19 @@ Digest analyze(Status status=Status::New) {                                     
 				readdir_warned = true ;
 			}
 		}
-		if (file==".") { SWEAR(ad.read_dir) ; continue ; }                                                // . is only reported when reading dir but otherwise is an external file
+		if (file==".") { SWEAR( !ad.accesses && ad.write==No , info ) ; continue ; }                      // . is only reported when reading dir but otherwise is an external file
+		//
+		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                    ;
+		bool                   dep_ignore = ad.flags.extra_dflags[ExtraDflag::Ignore] || ad.flags.extra_tflags[ExtraTflag::Ignore]               ;
+		bool                   dep_sense  = info.digest_required || !ad.flags.dflags[Dflag::IgnoreError]                                         ;
+		bool                   is_read    = +ad.accesses || ( !dep_ignore && dep_sense )                                                         ;
+		bool                   is_dep     = ad.flags.dflags[Dflag::Static] || ( !flags.is_target() && is_read && first_read.first<=info.target ) ; // if a (side) target, it has always been so
+		bool is_tgt =
+			ad.write!=No
+		||	(	(  flags.is_target() || info.target!=Pdate::Future                        )
+			&&	!( !ad.flags.tflags[Tflag::Target] && ad.flags.tflags[Tflag::Incremental] )                             // fast path : no matching, no pollution, no washing => forget it
+			)
+		;
 		// handle deps
 		if (is_dep) {
 			DepDigest dd { ad.accesses , info.dep_info , ad.flags.dflags } ;
@@ -685,18 +686,18 @@ End :
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
 			g_exec_trace->push_back({ end_overhead , Comment::endOverhead , {}/*CommentExt*/ , cat(end_report.digest.status) }) ;
-			end_report.digest.exec_time = end_overhead - start_overhead ;                                                                       // measure overhead as late as possible
+			end_report.digest.exec_time = end_overhead - start_overhead ;                                                         // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                                          // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                            // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}
 	try                       { g_start_info.exit() ;                             }
-	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                             // NO_COV defensive programming
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                               // NO_COV defensive programming
 	//
 	return 0 ;
 }

@@ -15,6 +15,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* fix Anselme's bug (https://github.com/cesar-douady/open-lmake/discussions/27)
 ? exceptionnally, server has been seen to block
 	- seems to be while taking GIL
 
@@ -22,6 +23,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* improve lmake.user_environ
+* replace environ/environ_resources/environ_ancillary with a unique dict
+	- value is either a str or a tuple with value and flags
+	- much like deps
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? add quarantined files in summary

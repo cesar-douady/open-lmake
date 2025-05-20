@@ -22,7 +22,8 @@ using namespace Time ;
 
 using Proc = JobExecProc ;
 
-static Record _g_record ;
+static Record     _g_record      ;
+static AutodepEnv _g_autodep_env ;
 
 template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
 	static PyObject* py_func( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
@@ -240,6 +241,89 @@ static void set_autodep( Tuple const& py_args , Dict const& py_kwds ) {
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 }
 
+template<bool EmptyIsDot> static ::vector_s _get_seq( ::string const& key , Object const& py_val ) {
+	throw_unless( py_val.is_a<Sequence>() , key , " is not a list/tuple" ) ;
+	//
+	Sequence const& py_seq = py_val.as_a<Sequence>() ;
+	::vector_s      res    ;                           res.reserve(py_seq.size()) ;
+	for( Object const& py : py_seq )
+		if ( EmptyIsDot && !py ) res.emplace_back("."      ) ;
+		else                     res.emplace_back(*py.str()) ;
+	return res ;
+}
+static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
+	static ::vector_s s_std_sfxs ;
+	if (!s_std_sfxs) {
+		#if PY_MAJOR_VERSION>2
+			Ptr<Module  > py_machinery { "importlib.machinery" }                                            ;
+			Ptr<Sequence> py_std_sfxs  = py_machinery->get_attr<Callable>("all_suffixes")->call<Sequence>() ;
+			for( Object const& py_sfx : *py_std_sfxs ) {
+				::string sfx = *py_sfx.str() ;
+				s_std_sfxs.push_back(            sfx) ;
+				s_std_sfxs.push_back("/__init__"+sfx) ;
+			}
+		#else
+			s_std_sfxs = { ".so" , ".py" , "/__init__.so" , "/__init__.py" } ;
+		#endif
+	}
+	size_t        n_args  = py_args.size() ;
+	Object const* py_name = nullptr        ;
+	Object const* py_path = nullptr        ;
+	Object const* py_sfxs = nullptr        ;
+	switch (n_args) {
+		case 3  : py_sfxs = &py_args[2] ; [[fallthrough]] ;
+		case 2  : py_path = &py_args[1] ; [[fallthrough]] ;
+		case 1  : py_name = &py_args[0] ; [[fallthrough]] ;
+		case 0  :                         break           ;
+		default : throw cat("too many args : ",n_args,'>',3) ;
+	}
+	for( auto const& [py_key,py_val] : py_kwds ) {
+		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
+		::string key = py_key.template as_a<Str>() ;
+		switch (key[0]) {
+			case 'm' : if (key=="module_name"    ) { throw_if(py_sfxs,"arg module_suffixes",MsgEnd) ; py_sfxs = &py_val ; continue ; }
+			/**/       if (key=="module_suffixes") { throw_if(py_name,"arg module_name"    ,MsgEnd) ; py_name = &py_val ; continue ; } break ;
+			case 'p' : if (key=="path"           ) { throw_if(py_path,"arg path"           ,MsgEnd) ; py_path = &py_val ; continue ; } break ;
+		DN}
+		throw "unexpected keyword arg "+key ;
+	}
+	//
+	// path
+	::vector_s path ; //!                      EmptyIsDot
+	if ( py_path && +*py_path ) path = _get_seq<true    >("path"    ,*py_path          ) ;
+	else                        path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
+	#if PY_MAJOR_VERSION>2
+		try                       { JobSupport::depend( _g_record , ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
+		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                               }
+	#endif
+	//
+	// name
+	if (!( py_name && +*py_name )) return ;                               // if no module => no deps
+	::string name = *py_name->str() ;
+	//
+	// sfxs
+	bool              has_sfxs = py_sfxs && +*py_sfxs           ;
+	::vector_s        sfxs_    ;                                  if (has_sfxs) sfxs_ = _get_seq<false/*EmptyIsDot*/>("module_suffixes",*py_sfxs) ;
+	::vector_s const& sfxs     = has_sfxs ? sfxs_ : s_std_sfxs  ;
+	::string          tail     = name.substr(name.rfind('.')+1) ;
+	::string          cwd_s_   = cwd_s()                        ;
+	for( ::string const& dir : path ) {
+		::string dir_s  = with_slash(dir)                               ;
+		bool     is_lcl = dir_s.starts_with(_g_autodep_env.repo_root_s) ;
+		if (!is_abs(dir)) {                                               // fast path : dont compute cwd unless required
+			if (!cwd_s_) cwd_s_ = cwd_s() ;
+			dir_s = mk_abs(dir_s,cwd_s_) ;
+		}
+		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs ) {             // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
+			::string file = dir_s+tail+sfx ;
+			if (is_lcl)
+				try                       { JobSupport::depend( _g_record , {file} , {.accesses=~Accesses(),.flags{.dflags=DflagsDfltDepend&~Dflag::Required}} , false/*no_follow*/ ) ; }
+				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                                     }
+			if (FileInfo(file).exists()) return ;
+		}
+	}
+}
+
 #pragma GCC visibility push(default)
 PyMODINIT_FUNC
 #if PY_MAJOR_VERSION<3
@@ -342,6 +426,13 @@ PyMODINIT_FUNC
 			"Note : this checksum is *not* crypto-robust.\n"
 			"Cf man xxhsum for a description of the algorithm.\n"
 		)
+	,	F( "report_import" , py_func<report_import> ,
+			"report_import(module_name=None,path=None)\n"
+			"Inform autodep that module_name is (or is about to be) accessed.\n"
+			"the enclosing package is supposed to have already been loaded (i.e. this function must be called for each package along the hierarchy).\n"
+			"If module_name is None, only path is handled, but no dep is actually set as a result of importing a module.\n"
+			"If path is None, sys.path is used instead.\n"
+		)
 	,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 	} ;
 	#undef F
@@ -370,14 +461,14 @@ PyMODINIT_FUNC
 	static constexpr size_t      NBes  = sizeof(Bes)/sizeof(Bes[0])    ;
 	Ptr<Tuple> py_bes { NBes } ; for( size_t i : iota(NBes) ) py_bes->set_item(i,*Ptr<Str>(Bes[i])) ;
 	//
-	AutodepEnv  ade { New }                                                    ;
+	_g_autodep_env = New ;
 	Ptr<Module> mod { New , PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(ade.repo_root_s               ).c_str()) ) ;
-	mod->set_attr( "repo_root"     , *Ptr<Str>(no_slash(ade.repo_root_s+ade.sub_repo_s).c_str()) ) ;
-	mod->set_attr( "backends"      , *py_bes                                                     ) ;
-	mod->set_attr( "autodeps"      , *py_ads                                                     ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(_g_autodep_env.repo_root_s                          ).c_str()) ) ;
+	mod->set_attr( "repo_root"     , *Ptr<Str>(no_slash(_g_autodep_env.repo_root_s+_g_autodep_env.sub_repo_s).c_str()) ) ;
+	mod->set_attr( "backends"      , *py_bes                                                                ) ;
+	mod->set_attr( "autodeps"      , *py_ads                                                                ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	#if PY_MAJOR_VERSION>=3
 		return mod->to_py_boost() ;
 	#else

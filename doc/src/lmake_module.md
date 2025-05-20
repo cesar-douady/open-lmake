@@ -253,3 +253,32 @@ Note : this checksum is not the same as the checksum of a file with same content
 Note : this checksum is **not** crypto-robust.
 
 Cf `man xxhsum` for a description of the algorithm.
+
+### `report_import(module_name=None,path=None,module_suffixes=None)`
+
+Does necessary reporting when a module has been imported.
+
+`module_name` is the name of the imported module.
+This function only handles the last level import, so it must be called at each level in case the module lies in a package.
+
+If not provided or empty, only does the reporting due to the path, but assumes no module is accessed.
+
+The way such reporting is done is by reporting a dep for each local dir in the path, for each module suffix, until the module is found, locally or externally.
+
+`path` is the path which the imported module is searched in.
+
+If not provided or empty, it defaults to the current value of `sys.path`.
+
+Unless used with python2, this function allows `readdir` accesses to local dirs in the path as python does such a `readdir`.
+
+`module_suffixes` is the list of suffixes to try that may provide a module, e.g. `('.py','/__init__.py')`.
+
+If not provided, the default is:
+
+- for python2: `('.so','.py','/__init__.so','/__init__.py')`
+- for python3: `( i+s for s in importlib.machinery.all_suffixes() for i in ('','/__init__'))`
+
+Note:
+
+- It may be wise to specify only the suffixes actually used locally to reduce the number of deps.
+- External modules are searched with the standard suffixes, even if `module_suffixes` is provided as there is no reason for the external modules to adhere to local conventions.
