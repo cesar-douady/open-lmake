@@ -181,12 +181,14 @@ namespace Engine {
 	// used at match time
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
-		// services
-		void init( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		// cxtors & casts
+		void init( Py::Dict const& , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		// accesses
+		void   mk_full_dyn() { dyn_deps = true ; }
 		// data
 		// START_OF_VERSIONING
-		bool              full_dyn = true ; // if true <=> deps is empty and new keys can be added, else dynamic deps must be within dep keys ...
-		::vmap_s<DepSpec> deps     ;        // ... if full_dyn, we are not initialized, so be ready by default
+		bool dyn_deps = false ;
+		::vmap_s<DepSpec> deps ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -194,21 +196,25 @@ namespace Engine {
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
 		// services
-		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
-		void update( Py::Dict const& py_dct ) {
+		void update(Py::Dict const& py_dct) {
+			dyn_rsrcs = false ;                                                                                                     // update solves dynamic val
 			/**/ Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
 			if ( Attrs::acquire_from_dct( rsrcs   , py_dct , "rsrcs"   ) ) ::sort(rsrcs) ;                                          // stabilize rsrcs crc
 		}
+		void mk_dyn(::uset_s const& dyn_keys) {
+			if (dyn_keys.contains("rsrcs")) dyn_rsrcs = true ;
+		}
 		Tokens1 tokens1() const {
-			for(auto const& [k,v] : rsrcs) if (k=="cpu")
+			for( auto const& [k,v] : rsrcs ) if (k=="cpu")
 				try                     { return ::min( ::max(from_string<uint32_t>(v),uint32_t(1))-1 , uint32_t(Max<Tokens1>) ); }
 				catch (::string const&) { break ;                                                                                 } // no valid cpu count, do as if no cpu found
 			return 0 ;                                                                                                              // not found : default to 1 cpu
 		}
 		// data
 		// START_OF_VERSIONING
-		BackendTag backend = BackendTag::Local ;                                                                                    // backend to use to launch jobs
-		::vmap_ss  rsrcs   ;
+		bool       dyn_rsrcs = false             ;
+		BackendTag backend   = BackendTag::Local ;                                                                                  // backend to use to launch jobs
+		::vmap_ss  rsrcs     ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -216,7 +222,6 @@ namespace Engine {
 	struct SubmitAncillaryAttrs {
 		static constexpr const char* Msg = "cache key" ;
 		// services
-		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
 		void update( Py::Dict const& py_dct ) {
 			Attrs::acquire_from_dct( cache , py_dct , "cache" ) ;
 			throw_unless( !cache || g_config->cache_idxs.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
@@ -231,9 +236,9 @@ namespace Engine {
 	struct StartCmdAttrs {
 		static constexpr const char* Msg = "execution command attributes" ;
 		// services
-		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
+			dyn_env = false ;                                                                                                                                 // update solves dynamic val
 			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"  ) ;
 			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
 			Attrs::acquire_from_dct( readdir_ok             , py_dct , "readdir_ok"  ) ;
@@ -248,35 +253,45 @@ namespace Engine {
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
 		}
+		void mk_dyn(::uset_s const& dyn_keys) {
+			if (dyn_keys.contains("env"  )) dyn_env   = true ;
+			if (dyn_keys.contains("views")) dyn_views = true ;
+		}
 		// data
 		// START_OF_VERSIONING
-		bool       auto_mkdir   = false ;
-		bool       ignore_stat  = false ;
-		bool       readdir_ok   = false ;
-		bool       stderr_ok    = false ;
-		::vmap_ss  env          ;
-		::vector_s interpreter  ;
-		JobSpace   job_space    ;
+		bool       auto_mkdir  = false ;
+		bool       ignore_stat = false ;
+		bool       readdir_ok  = false ;
+		bool       stderr_ok   = false ;
+		bool       dyn_env     = false ;
+		bool       dyn_views   = false ;
+		::vmap_ss  env         ;
+		::vector_s interpreter ;
+		JobSpace   job_space   ;
 		// END_OF_VERSIONING
 	} ;
 
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
-		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
 		void update( Py::Dict const& py_dct ) {
+			dyn_env = false ;                                                                      // update solves dynamic val
 			Attrs::acquire_env     ( env        , py_dct , "env"                               ) ;
 			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
 			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_from_dct( use_script , py_dct , "use_script"                        ) ;
 			::sort(env) ;                                                                          // stabilize rsrcs crc
 		}
+		void mk_dyn(::uset_s const& dyn_keys) {
+			if (dyn_keys.contains("env")) dyn_env = true ;
+		}
 		// data
 		// START_OF_VERSIONING
-		::vmap_ss     env        ;
 		AutodepMethod method     = {}    ;
 		Time::Delay   timeout    ;                                                                 // if 0 <=> no timeout, maximum time allocated to job execution in s
 		bool          use_script = false ;
+		bool          dyn_env    = false ;
+		::vmap_ss     env         ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -284,9 +299,9 @@ namespace Engine {
 	struct StartAncillaryAttrs {
 		static constexpr const char* Msg = "execution ancillary attributes" ;
 		// services
-		void init  ( Py::Dict const* py_src , ::umap_s<CmdIdx> const& , RuleData const& ) { update(*py_src) ; }
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
+			dyn_env = false ;                                                                              // update solves dynamic val
 			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
 			Attrs::acquire_from_dct( z_lvl          , py_dct , "compression"                           ) ;
 			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
@@ -295,21 +310,23 @@ namespace Engine {
 			Attrs::acquire_env     ( env            , py_dct , "env"                                   ) ;
 			::sort(env) ;                                                                                  // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
+		void mk_dyn(::uset_s const& dyn_keys) {
+			if (dyn_keys.contains("env")) dyn_env = true ;
+		}
 		// data
 		// START_OF_VERSIONING
 		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
-		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
-		::vmap_ss         env            ;
 		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
 		bool              keep_tmp       = false ;
 		uint8_t           z_lvl          = 0     ;
+		bool              dyn_env        = false ;
+		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
+		::vmap_ss         env            ;
 		// END_OF_VERSIONING
 	} ;
 
 	struct Cmd {
 		static constexpr const char* Msg = "execution command" ;
-		// services
-		void init( Py::Dict const* , ::umap_s<CmdIdx> const& , RuleData const& ) {}
 	} ;
 
 	//
@@ -515,6 +532,7 @@ namespace Engine {
 		/**/              ::string _pretty_matches(                    ) const ;
 		/**/              ::string _pretty_deps   (                    ) const ;
 		/**/              ::string _pretty_env    (                    ) const ;
+		/**/              ::string _pretty_views  (                    ) const ;
 		// START_OF_VERSIONING
 		// user data
 	public :
@@ -680,11 +698,10 @@ namespace Engine {
 		}
 
 		template<bool Env> bool/*updated*/ acquire( ::string& dst , Py::Object const* py_src ) {
-			if      ( !py_src                       )             return false/*updated*/ ;
-			else if (  Env && *py_src==Py::None     )                                       dst = EnvDynMrkr     ;   // special case environment variable to mark dynamic values
-			else if ( !Env && *py_src==Py::None     ) { if (!dst) return false/*updated*/ ; dst = {}             ; }
-			else if ( !Env && *py_src==Py::Ellipsis )                                       dst = "..."          ;
-			else                                                                            dst = *py_src->str() ;
+			if      (!py_src              ) return false/*updated*/ ;
+			else if (*py_src==Py::None    ) dst = DynMrkr                 ;
+			else if (*py_src==Py::Ellipsis) dst = Env ? PassMrkr : "..."s ;
+			else                            dst = *py_src->str()          ;
 			return true ;
 		}
 
@@ -727,12 +744,6 @@ namespace Engine {
 			Py::Dict const& py_map  = py_src->as_a<Py::Dict>() ;
 			for( auto const& [py_key,py_val] : py_map ) {
 				::string key = py_key.template as_a<Py::Str>() ;
-				if constexpr (Env)
-					if (py_val==Py::Ellipsis) {
-						updated      = true        ;
-						dst_map[key] = EnvPassMrkr ;                                 // special case for environment where we put an otherwise illegal marker to ask to pass value from job_exec env
-						continue ;
-					}
 				try {
 					auto [it,inserted] = dst_map.emplace(key,T()) ;
 					/**/               updated |= inserted                         ;
@@ -793,15 +804,33 @@ namespace Engine {
 		trace("done",kind,kind_) ;
 	}
 
-	template<class Spec> concept SpecHasUpdate = requires( Spec spec , Py::Dict dct ) { spec.update(dct) ; } ;
+	template<class Spec> concept SpecHasInit      = requires( Spec spec , Py::Dict dct ) { spec.init       (dct,::umap_s<CmdIdx>(),RuleData()) ; } ;
+	template<class Spec> concept SpecHasUpdate    = requires( Spec spec , Py::Dict dct ) { spec.update     (dct                              ) ; } ;
+	template<class Spec> concept SpecHasMkDyn     = requires( Spec spec                ) { spec.mk_dyn     (::uset_s()                       ) ; } ;
+	template<class Spec> concept SpecHasMkFullDyn = requires( Spec spec                ) { spec.mk_full_dyn(                                 ) ; } ;
 	template<class T> Dyn<T>::Dyn( RulesBase& rules , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		Py::Ptr<>  py_update ;
 		Py::Ptr<>* pu        = SpecHasUpdate<T> ? &py_update : nullptr ;
 		//
 		static_cast<DynBase&>(self) = DynBase( /*out*/pu , rules , py_src , var_idxs , ::is_same_v<T,Cmd>?No|rd.is_python:Maybe ) ;
-		if (py_src.contains("static") )                     spec.init  ( &py_src["static"].as_a<Py::Dict>() , var_idxs , rd ) ;
-		if constexpr (SpecHasUpdate<T>) { if   (+py_update) spec.update( py_update->as_a<Py::Dict>()                        ) ; }
-		else                              SWEAR(!py_update) ;                                                                     // if we have no update, we'd better have nothing to update
+		if (py_src.contains("static") ) {
+			if      constexpr (SpecHasInit  <T>) spec.init  ( py_src["static"].as_a<Py::Dict>() , var_idxs , rd ) ;
+			else if constexpr (SpecHasUpdate<T>) spec.update( py_src["static"].as_a<Py::Dict>()                 ) ;
+		}
+		if (py_src.contains("dyn_vals") ) {
+			Py::Object const& py_dyn_vals = py_src["dyn_vals"] ;
+			if constexpr (SpecHasMkFullDyn<T>) {
+				if (&py_dyn_vals==&Py::True) spec.mk_full_dyn() ;
+			}
+			if constexpr (SpecHasMkDyn<T>) {
+				if (py_dyn_vals.is_a<Py::Sequence>()) {
+					::uset_s dyn_vals ; for( Py::Object const& py_dyn_val : py_dyn_vals.as_a<Py::Sequence>() ) dyn_vals.insert(*py_dyn_val.str()) ;
+					spec.mk_dyn(dyn_vals) ;
+				}
+			}
+		}
+		if constexpr (SpecHasUpdate<T>) { if   (+py_update) spec.update(py_update->as_a<Py::Dict>()) ; }
+		else                              SWEAR(!py_update) ;                                            // if we have no update, we'd better have nothing to update
 	}
 
 	template<class T> void Dyn<T>::eval_ctx( Job job , Rule::RuleMatch& match_ , ::vmap_ss const& rsrcs_ , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) const {

@@ -401,7 +401,8 @@ class Handle :
 		,	no_imports     = lcl_mod_file                    # dynamic attributes cannot afford local imports, so serialize in place all of them
 		,	call_callables = True
 		)
-		if static_val : dyn_expr.static = static_val
+		if static_val : dyn_expr.static   = static_val
+		if dyn_val    : dyn_expr.dyn_vals = tuple(dyn_val.keys()) if isinstance(dyn_val,dict) else True
 		finalize_dyn_expr( dyn_expr , for_cmd=False )
 		for mod_name in dyn_expr.modules :                   # check for local modules
 			m = ''

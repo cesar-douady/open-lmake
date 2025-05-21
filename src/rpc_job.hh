@@ -266,8 +266,8 @@ static_assert(chk_enum_tab(StatusAttrs)) ;
 inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }
 inline bool  is_lost(Status s) { return StatusAttrs[+s].second.second ; }
 
-static const ::string EnvPassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
-static const ::string EnvDynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed env variables
+static const ::string PassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
+static const ::string DynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed variable
 
 static constexpr char QuarantineDirS[] = ADMIN_DIR_S "quarantine/" ;
 
@@ -612,11 +612,17 @@ struct JobSpace {
 	struct ViewDescr {
 		friend ::string& operator+=( ::string& , ViewDescr const& ) ;
 		bool operator+() const { return +phys ; }
+		// services
+		template<IsStream T> void serdes(T& s) {
+			::serdes(s,phys   ) ;
+			::serdes(s,copy_up) ;
+		}
 		// data
 		// START_OF_VERSIONING
-		::vector_s phys    ;                 // (upper,lower...)
-		::vector_s copy_up ;                 // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		::vector_s phys    = {} ;            // (upper,lower...)
+		::vector_s copy_up = {} ;            // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
+		bool is_dyn = false ;                // only used in rule attributes
 	} ;
 	// accesses
 	bool operator+() const { return +chroot_dir_s || +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; }

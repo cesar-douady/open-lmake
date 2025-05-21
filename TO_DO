@@ -15,7 +15,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* fix Anselme's bug (https://github.com/cesar-douady/open-lmake/discussions/27)
 ? exceptionnally, server has been seen to block
 	- seems to be while taking GIL
 
@@ -24,7 +23,10 @@ items (also used in XXX comments) :
 ****************************************************************************************************
 
 * improve lmake.user_environ
-* replace environ/environ_resources/environ_ancillary with a unique dict
+* add a report that maps pfx/sfx to rule candidates
+	- available in traces
+	- useful to optimize Lmakefile.py, even when no trace
+? replace environ/environ_resources/environ_ancillary with a unique dict
 	- value is either a str or a tuple with value and flags
 	- much like deps
 ! generate meaningful messages in case of I/O error such as disk full
@@ -155,8 +157,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* implement lmake.import_machinery._depend_module in clmake
-	- improve perf with C++ code
+* cache matching file versus rule
+	- avoid full rematching when adding source (or other dag modif)
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str

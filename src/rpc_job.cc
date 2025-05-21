@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sched.h>        // unshare
+#include <sched.h> // unshare
 
 #include "disk.hh"
 #include "hash.hh"
@@ -1027,7 +1027,7 @@ void JobEndRpcReq::cache_cleanup() {
 	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
 	if ( jsrr.keep_tmp           ) os <<','  << "keep"                      ;
 	if (+jsrr.ddate_prec         ) os <<','  << jsrr.ddate_prec             ;
-	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable EnvPassMrkr value
+	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable PassMrkr value
 	/**/                           os <<','  << jsrr.interpreter            ;
 	/**/                           os <<','  << jsrr.kill_sigs              ;
 	if (jsrr.live_out            ) os <<','  << "live_out"                  ;
@@ -1061,8 +1061,8 @@ bool/*entered*/ JobStartRpcReply::enter(
 	Trace trace("JobStartRpcReply::enter",phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
 	//
 	for( auto& [k,v] : env )
-		if      (v!=EnvPassMrkr)                                                         cmd_env[k] = ::move(v ) ;
-		else if (has_env(k)    ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
+		if      (v!=PassMrkr)                                                         cmd_env[k] = ::move(v ) ;
+		else if (has_env(k) ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
 	//
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;

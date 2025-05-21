@@ -527,7 +527,7 @@ int main( int argc , char* argv[] ) {
 					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
 					if      (it==g_start_info.env.end()       ) {}
-					else if (it->second!=EnvPassMrkr          ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
+					else if (it->second!=PassMrkr             ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
 					else if (has_env("TMPDIR")                ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_start_info.small_id<<'/' ;
 					if      (!end_report.phy_tmp_dir_s        ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<PrivateAdminDirS<<"tmp/"         <<g_start_info.small_id<<'/' ;
 					else if (!is_abs(end_report.phy_tmp_dir_s)) {

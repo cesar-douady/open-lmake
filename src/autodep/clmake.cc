@@ -254,16 +254,24 @@ template<bool EmptyIsDot> static ::vector_s _get_seq( ::string const& key , Obje
 static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	static ::vector_s s_std_sfxs ;
 	if (!s_std_sfxs) {
-		#if PY_MAJOR_VERSION>2
+		#if PY_MAJOR_VERSION==2
+			for( const char* pfx : {"/__init__",""} )
+				for( const char* sfx : { ".so" , "module.so" , ".py" , ".pyc" } )
+					s_std_sfxs.push_back(cat(pfx,sfx)) ;
+		#else
 			Ptr<Module  > py_machinery { "importlib.machinery" }                                            ;
 			Ptr<Sequence> py_std_sfxs  = py_machinery->get_attr<Callable>("all_suffixes")->call<Sequence>() ;
-			for( Object const& py_sfx : *py_std_sfxs ) {
-				::string sfx = *py_sfx.str() ;
-				s_std_sfxs.push_back(            sfx) ;
-				s_std_sfxs.push_back("/__init__"+sfx) ;
+			for( const char* pfx : {"/__init__",""} ) {
+				// although not reflected in all_suffixes(), python3 tries .so files first
+				for( Object const& py_sfx : *py_std_sfxs ) {
+					::string sfx = *py_sfx.str() ;
+					if (sfx.ends_with(".so")) s_std_sfxs.push_back(cat(pfx,*py_sfx.str())) ;
+				}
+				for( Object const& py_sfx : *py_std_sfxs ) {
+					::string sfx = *py_sfx.str() ;
+					if (!sfx.ends_with(".so")) s_std_sfxs.push_back(cat(pfx,*py_sfx.str())) ;
+				}
 			}
-		#else
-			s_std_sfxs = { ".so" , ".py" , "/__init__.so" , "/__init__.py" } ;
 		#endif
 	}
 	size_t        n_args  = py_args.size() ;

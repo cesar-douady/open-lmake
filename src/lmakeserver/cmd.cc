@@ -249,7 +249,7 @@ namespace Engine {
 		::umap_ss                                   de      = mk_umap(job_info.end.dyn_env) ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
 		for( auto const& [k,v] : job_info.start.start.env )
-			if      (v!=EnvPassMrkr) res.first .emplace_back(k,v       ) ;
+			if      (v!=PassMrkr   ) res.first .emplace_back(k,v       ) ;
 			else if (!has_end      ) res.second.push_back   (k         ) ;
 			else if (de.contains(k)) res.first .emplace_back(k,de.at(k)) ;
 		return res ;
@@ -265,8 +265,8 @@ namespace Engine {
 			if (ro.flags[ReqFlag::StdTmp])                                                            goto Tmp ;
 			for( auto const& [k,v] : jsrr.env ) {
 				if (k!="TMPDIR") continue ;
-				/**/                                                                    if ( v!=EnvPassMrkr) { tmp_dir_s = with_slash(v ) ; add_key = true ; goto Tmp ; }
-				for( auto const& [k2,v2] : g_config->backends[+BackendTag::Local].env ) if ( k2=="TMPDIR"  ) { tmp_dir_s = with_slash(v2) ; add_key = true ; goto Tmp ; }
+				/**/                                                                    if (v!=PassMrkr ) { tmp_dir_s = with_slash(v ) ; add_key = true ; goto Tmp ; }
+				for( auto const& [k2,v2] : g_config->backends[+BackendTag::Local].env ) if (k2=="TMPDIR") { tmp_dir_s = with_slash(v2) ; add_key = true ; goto Tmp ; }
 			}
 		Tmp :
 			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
