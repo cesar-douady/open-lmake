@@ -33,7 +33,7 @@ RUN yum install -y man
 #RUN yum install -y strace                                                  # try a docker without strace
 #RUN yum install -y libseccomp
 #RUN yum install -y glibc-devel.i686 libgcc.i686 gcc-toolset-11-libstdc++-devel.i686
-#RUN yum install -y pcre2 pcre2-devel
+RUN yum install -y pcre2 pcre2-devel
 #RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
 
 #

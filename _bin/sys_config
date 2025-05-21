@@ -303,8 +303,16 @@ OS_ID="$ID-$VERSION_ID"
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
 
 #
-# PCRE (HAS_PCRE)
+# PCRE (HAS_PCRE,HAS_PCRE_ENDANCHORED)
 #
+cat <<"EOF" >pcre.cc
+	#define PCRE2_CODE_UNIT_WIDTH 8
+	#include <pcre2.h>
+	int main() {
+		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL,nullptr,nullptr,nullptr) ;
+	}
+EOF
+HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2_compile is available in lib
 cat <<"EOF" >pcre.cc
 	#define PCRE2_CODE_UNIT_WIDTH 8
 	#include <pcre2.h>
@@ -312,7 +320,7 @@ cat <<"EOF" >pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2_compile is available in lib
+HAS_PCRE_ENDANCHORED=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2_compile is available in lib
 #
 [ $HAS_PCRE = 1 ] || echo "no pcre2 support, fall back to (slower) c++ STL regular expression library" >>$SUM_FILE
 
@@ -501,6 +509,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_PCRE                    $HAS_PCRE
+	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR

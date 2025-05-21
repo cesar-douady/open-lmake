@@ -54,10 +54,16 @@ namespace Re {
 		//
 
 		::pcre2_code* RegExpr::_s_compile(::string const& infix) {
+			#if HAS_PCRE_ENDANCHORED
+				::string const& infix_for_compile = infix ;
+			#else
+				#define PCRE2_ENDANCHORED 0
+				::string infix_for_compile = infix+'$' ; // work around missing flag
+			#endif
 			int         err_code = 0 ;
 			PCRE2_SIZE  err_pos  = 0 ;
 			pcre2_code* code     = ::pcre2_compile(
-				_s_cast_in(infix.data()) , infix.size()
+				_s_cast_in(infix_for_compile.data()) , infix_for_compile.size()
 			,	PCRE2_ANCHORED | PCRE2_DOLLAR_ENDONLY | PCRE2_DOTALL | PCRE2_ENDANCHORED
 			,	&err_code , &err_pos
 			,	nullptr/*context*/
@@ -82,7 +88,7 @@ namespace Re {
 			size_t      sz    = pattern.size()  ;
 			const char* start = pattern.c_str() ;
 			const char* end   = start+sz        ;
-			if (with_paren) {                         // find fixed prefix and suffix, variable parts are assumed to be enclosed within ()
+			if (with_paren) {                     // find fixed prefix and suffix, variable parts are assumed to be enclosed within ()
 				for(; start<end ; start++ ) {
 					if      (*start=='\\') { SWEAR(start+1<end) ; start++ ; }
 					else if (*start=='(' )   break ;
