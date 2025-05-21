@@ -1216,8 +1216,9 @@ namespace Engine {
 		res << title <<'\n' ;
 		for( auto const& [k,v] : m ) {
 			res <<'\t'<< k <<" :" ;
-			SWEAR(+v.phys) ;
-			if (v.phys.size()==1) {
+			if (+v.phys) {
+				res <<" <dynamic>" ;
+			} else if (v.phys.size()==1) {
 				SWEAR(!v.copy_up) ;
 				res <<' '<< v.phys[0] ;
 			} else {
