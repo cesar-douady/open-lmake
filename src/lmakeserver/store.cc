@@ -89,8 +89,9 @@ namespace Engine::Persistent {
 		//
 		s_prev_rules = new Rules{New} ; s_prev_rules->reserve(s_rules->size()) ;                  // s_prev_rules is temporarily used to store new rules
 		for( Rule r : rule_lst() ) s_prev_rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
-		s_prev_rules->dyn_vec     = ::move(new_rules.dyn_vec    ) ;
-		s_prev_rules->py_sys_path = ::move(new_rules.py_sys_path) ;
+		s_prev_rules->dyn_vec      = ::move(new_rules.dyn_vec     ) ;
+		s_prev_rules->py_sys_path  = ::move(new_rules.py_sys_path ) ;
+		s_prev_rules->sys_path_crc =        new_rules.sys_path_crc  ;
 		s_prev_rules->compile() ;
 		//
 		Rules* sav_rules    = &*s_rules            ;                                              // exchange s_rules and s_prev_rules, making s_prev_rules the previous rules
