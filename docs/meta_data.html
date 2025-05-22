@@ -176,6 +176,18 @@
 <p>This file contains the list of environment variables actually used in <code>Lmakefile.py</code> in the form of lines containing <code>&lt;key&gt;=&lt;value&gt;</code>.</p>
 <h3 id="lmakemanifest"><a class="header" href="#lmakemanifest"><code>LMAKE/manifest</code></a></h3>
 <p>This file contains a description of the sources as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmakematching"><a class="header" href="#lmakematching"><code>LMAKE/matching</code></a></h3>
+<p>This file contains a description of the matching performed by open-lmake when looking for rules to generate a file.
+It is composed of matching entries.</p>
+<p>Each matching entry starts with a header providing a prefix and a suffix.
+Files matching the prefix and suffix are matched against the rules listed underneath.</p>
+<p>The prefix and suffix are given in the form <code>&lt;prefix&gt;*&lt;suffix&gt;' to mimic shell patterns. However, in this case, the </code>*` may match a negative number of characters, i.e. the prefix and the suffix may overlap.</p>
+<p>The listed rules are provided as:</p>
+<ul>
+<li>Its priority: if a rule at given priority match and generate the file, rules of lower priority are not tried.</li>
+<li>Its name.</li>
+<li>The target corresponding to this prefix/suffix pair.</li>
+</ul>
 <h3 id="lmakerules"><a class="header" href="#lmakerules"><code>LMAKE/rules</code></a></h3>
 <p>This file contains a description of the rules as they have been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
 <h3 id="lmakeoutputsdatetime"><a class="header" href="#lmakeoutputsdatetime"><code>LMAKE/outputs/&lt;date&gt;/&lt;time&gt;</code></a></h3>

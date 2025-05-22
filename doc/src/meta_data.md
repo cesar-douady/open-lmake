@@ -36,6 +36,23 @@ This file contains the list of environment variables actually used in `Lmakefile
 
 This file contains a description of the sources as it has been understood by open-lmake after having processed `Lmakefile.py`.
 
+### `LMAKE/matching`
+
+This file contains a description of the matching performed by open-lmake when looking for rules to generate a file.
+It is composed of matching entries.
+
+Each matching entry starts with a header providing a prefix and a suffix.
+Files matching the prefix and suffix are matched against the rules listed underneath.
+
+The prefix and suffix are given in the form `<prefix>*<suffix>' to mimic shell patterns.
+However, in this case, the `*` may match a negative number of characters, i.e. the prefix and the suffix may overlap.
+
+The listed rules are provided as:
+
+- Its priority: if a rule at given priority match and generate the file, rules of lower priority are not tried.
+- Its name.
+- The target corresponding to this prefix/suffix pair.
+
 ### `LMAKE/rules`
 
 This file contains a description of the rules as they have been understood by open-lmake after having processed `Lmakefile.py`.

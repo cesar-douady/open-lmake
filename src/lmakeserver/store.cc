@@ -485,23 +485,35 @@ namespace Engine::Persistent {
 			if (res) _compile_psfxs() ;                                                                         // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs),STR(modified_rule_order)) ;
-		// trace
-		Trace trace2 ;
-		for( PsfxIdx sfx_idx : _g_sfxs_file.lst() ) {
-			::string sfx      = _g_sfxs_file.str_key(sfx_idx) ;
-			PsfxIdx  pfx_root = _g_sfxs_file.at     (sfx_idx) ;
-			bool     single   = +sfx && sfx[0]==StartMrkr  ;
-			for( PsfxIdx pfx_idx : _g_pfxs_file.lst(pfx_root) ) {
-				RuleTgts rts = _g_pfxs_file.at     (pfx_idx) ;
-				::string pfx = _g_pfxs_file.str_key(pfx_idx) ;
-				if (single) { SWEAR(!pfx,pfx) ; trace2(         sfx.substr(1) , ':' ) ; }
-				else        {                   trace2( pfx+'*'+sfx           , ':' ) ; }
-				Trace trace3 ;
-				for( RuleTgt rt : rts.view() )
-					trace3( rt->rule , ':' , rt->rule->user_prio , rt->rule->prio , rt->rule->user_name() , rt.key() ) ;
+		// matching report
+		{	::map_s<::vector<RuleTgt>> match_report ;
+			size_t                     w_prio       = 4 ; // 4 to account for header : prio
+			size_t                     w_name       = 4 ; // 4 to account for header : name
+			for( PsfxIdx sfx_idx : _g_sfxs_file.lst() ) {
+				::string sfx      = _g_sfxs_file.str_key(sfx_idx) ;
+				PsfxIdx  pfx_root = _g_sfxs_file.at     (sfx_idx) ;
+				bool     single   = +sfx && sfx[0]==StartMrkr     ;
+				for( PsfxIdx pfx_idx : _g_pfxs_file.lst(pfx_root) ) {
+					RuleTgts           rts   = _g_pfxs_file.at     (pfx_idx)        ;
+					::string           pfx   = _g_pfxs_file.str_key(pfx_idx)        ;
+					::string           key   = single ? sfx.substr(1) : pfx+'*'+sfx ;
+					::vector<RuleTgt>& entry = match_report[key]                    ;
+					for( RuleTgt rt : rts.view() ) {
+						entry.push_back(rt) ;
+						w_prio = ::max(w_prio,cat(rt->rule->user_prio).size()) ;
+						w_name = ::max(w_name,rt->rule->user_name()   .size()) ;
+					}
+				}
 			}
+			::string match_report_str ;
+			match_report_str << "#\t" << widen("prio",w_prio) <<' '<<widen("rule",w_name) <<' '<< "target" <<'\n' ;;
+			for( auto const& [key,rts] : match_report ) {
+				match_report_str << key <<" :\n" ;
+				for( RuleTgt rt : rts ) match_report_str <<'\t'<< widen(cat(rt->rule->user_prio),w_prio) <<' '<< widen(rt->rule->user_name(),w_name) <<' '<< rt.key() <<'\n' ;
+			}
+			AcFd( ADMIN_DIR_S "matching" , Fd::Write ).write(match_report_str) ;
 		}
-		// user report
+		// rule report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
 			::sort( rules , [](Rule a,Rule b){
 				if (a->sub_repo_s!=b->sub_repo_s) return a->sub_repo_s < b->sub_repo_s ;
@@ -513,7 +525,7 @@ namespace Engine::Persistent {
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
-			AcFd( AdminDirS+"rules"s , Fd::Write ).write(content) ;
+			AcFd( ADMIN_DIR_S "rules" , Fd::Write ).write(content) ;
 		}
 		trace("done") ;
 		return res ;
