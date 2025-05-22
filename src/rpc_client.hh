@@ -115,12 +115,13 @@ struct ReqOptions {
 	// cxtors & casts
 	ReqOptions(                    ) : flag_args{*new FlagArgs} {             }
 	ReqOptions(ReqOptions const& ro) : ReqOptions{}             { self = ro ; }
-	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqFlags f={} , FlagArgs const& fa={} ) :
+	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ::umap_ss const& ue , ReqFlags f={} , FlagArgs const& fa={} ) :
 		startup_dir_s { sds               }
 	,	reverse_video { rv                }
 	,	key           { k                 }
 	,	flags         { f                 }
 	,	flag_args     { *new FlagArgs{fa} }
+	,	user_env      { ue                }
 	{}
 	ReqOptions( Bool3 rv , ReqCmdLine cl ) :
 		startup_dir_s { *g_startup_dir_s            }
@@ -128,6 +129,7 @@ struct ReqOptions {
 	,	key           { cl.key                      }
 	,	flags         { cl.flags                    }
 	,	flag_args     { *new FlagArgs{cl.flag_args} }
+	,	user_env      { mk_environ()                }
 	{}
 	~ReqOptions() {
 		delete &flag_args ;
@@ -138,6 +140,7 @@ struct ReqOptions {
 		key           = ro.key           ;
 		flags         = ro.flags         ;
 		flag_args     = ro.flag_args     ;
+		user_env      = ro.user_env      ;
 		return self ;
 	}
 	// services
@@ -147,6 +150,7 @@ struct ReqOptions {
 		::serdes(s,key          ) ;
 		::serdes(s,flags        ) ;
 		::serdes(s,flag_args    ) ;
+		::serdes(s,user_env     ) ;
 	}
 	// data
 	::string               startup_dir_s ;
@@ -154,6 +158,7 @@ struct ReqOptions {
 	ReqKey                 key           = ReqKey::None ;
 	ReqFlags               flags         ;
 	::array_s<N<ReqFlag>>& flag_args     ;                // owned, avoid putting enormous array in place as it appears in g_engine_queue and that would make *all* items enormous
+	::umap_ss              user_env      ;                // environment as captured by client
 } ;
 
 struct ReqRpcReq {

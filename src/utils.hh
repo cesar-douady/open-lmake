@@ -466,6 +466,14 @@ inline void del_env(::string const& name) {
 	swear_prod(rc==0,"cannot unsetenv",name) ;
 }
 
+inline ::umap_ss mk_environ() {
+	::umap_ss res ;
+	for( char** e=environ ; *e ; e++ )
+		if ( const char* eq = ::strchr(*e,'=') )
+			res[{*e,size_t(eq-*e)}] = eq+1 ;
+	return res ;
+}
+
 template<class T> struct SaveInc {
 	 SaveInc(T& ref) : _ref{ref} { SWEAR(_ref<Max<T>) ; _ref++ ; } // increment
 	~SaveInc(      )             { SWEAR(_ref>Min<T>) ; _ref-- ; } // restore
@@ -482,10 +490,11 @@ template<class T,MutexLvl A> struct StaticUniqPtr {
 	friend ::string& operator+=<>( ::string& , StaticUniqPtr<T,A> const& ) ;
 	template<class,MutexLvl> friend struct StaticUniqPtr ;
 	// cxtors & casts
-	StaticUniqPtr() = default ;
-	StaticUniqPtr(T*                 p  ) : _ptr{ p    } {}
-	StaticUniqPtr(NewType               ) : _ptr{ new T} {}
-	StaticUniqPtr(StaticUniqPtr<T>&& sup) : _ptr{ sup._ptr } { sup._ptr = nullptr ; }
+	/**/                 StaticUniqPtr() = default ;
+	/**/                 StaticUniqPtr(T*                   p  )                    : _ptr{p       } {}
+	/**/                 StaticUniqPtr(NewType                 )                    : _ptr{new T   } {}
+	/**/                 StaticUniqPtr(StaticUniqPtr<T  >&& sup) requires(bool(+A)) : _ptr{sup._ptr} { sup._ptr = nullptr ; } // allow move as long as both are not atomic
+	template<MutexLvl B> StaticUniqPtr(StaticUniqPtr<T,B>&& sup) requires(     !A ) : _ptr{sup._ptr} { sup._ptr = nullptr ; } // .
 	//
 	StaticUniqPtr& operator=(NewType) { self = new T ; return self ; }
 	//

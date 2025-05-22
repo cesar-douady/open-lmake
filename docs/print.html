@@ -594,6 +594,7 @@ Hence, the check is that major versions must match equal and the actual minor ve
 <h3 id="user_environ"><a class="header" href="#user_environ"><code>user_environ</code></a></h3>
 <p>When reading <code>Lmakefile.py</code>, the environment is reset to a standard environment and this variable holds a copy of <code>os.environ</code> before it was reset.</p>
 <p>This ensures that the environment cannot be used unless explicitly asked.</p>
+<p>Variable values actually used in <code>Lmakefile.py</code> are considered as deps for this process and it is rerun if the actual environment is modified in subsequent <code>lmake</code> commands.</p>
 <h3 id="class-pdict"><a class="header" href="#class-pdict"><code>class pdict</code></a></h3>
 <p>This class is a dict in which attribute accesses are mapped to item accesses.
 It is very practical to handle configurations.</p>
@@ -2448,6 +2449,7 @@ video mode is set to normal, else it is set to reverse.</p>
 <h1 id="meta-data"><a class="header" href="#meta-data">Meta data</a></h1>
 <p>The <code>LMAKE</code> dir at the root of the repo contains numerous information that may be handy for the user.</p>
 <p>It also contains a <code>lmake</code> dir containing private data for open-lmake's own usage.</p>
+<p><code>LMAKE/environ</code> and <code>LMAKE/manifest</code> can be freely used in jobs and are considered as sources if they are listed in <code>lmake.manifest</code>, which is automatic by default.</p>
 <h3 id="lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><a class="header" href="#lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><code>LMAKE/config_deps</code>, <code>LMAKE/rules_deps</code> and <code>LMAKE/sources_deps</code></a></h3>
 <p>These files contain a list of files that open-lmake has read to process <code>Lmakefile.py</code> when reading each section (config, rules and sources).</p>
 <p>They contain several types of lines, depending on the first char:</p>
@@ -2460,6 +2462,8 @@ video mode is set to normal, else it is set to reverse.</p>
 <p>These contents are then used to determine if each section must be refreshed when a new <code>lmake</code> command is run.</p>
 <h3 id="lmakeconfig"><a class="header" href="#lmakeconfig"><code>LMAKE/config</code></a></h3>
 <p>This file contains a description of the <code>lmake.config</code> <code>dict</code> as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmakeenviron"><a class="header" href="#lmakeenviron"><code>LMAKE/environ</code></a></h3>
+<p>This file contains the list of environment variables actually used in <code>Lmakefile.py</code> in the form of lines containing <code>&lt;key&gt;=&lt;value&gt;</code>.</p>
 <h3 id="lmakemanifest"><a class="header" href="#lmakemanifest"><code>LMAKE/manifest</code></a></h3>
 <p>This file contains a description of the sources as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
 <h3 id="lmakerules"><a class="header" href="#lmakerules"><code>LMAKE/rules</code></a></h3>

@@ -287,11 +287,11 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING
-		AutodepMethod method     = {}    ;
+		AutodepMethod method     = AutodepMethod::Dflt ;
 		Time::Delay   timeout    ;                                                                 // if 0 <=> no timeout, maximum time allocated to job execution in s
-		bool          use_script = false ;
-		bool          dyn_env    = false ;
-		::vmap_ss     env         ;
+		bool          use_script = false               ;
+		bool          dyn_env    = false               ;
+		::vmap_ss     env        ;
 		// END_OF_VERSIONING
 	} ;
 

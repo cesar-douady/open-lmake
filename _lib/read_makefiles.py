@@ -41,8 +41,22 @@ import fmt_rule
 if is_top : lmake.sub_repo = '.'
 else      : lmake.sub_repo = cwd[len(top_cwd)+1:]
 
-lmake.user_environ = eval(open(environ_file).read()) # make original user env available while reading config
-pdict              = lmake.pdict
+pdict        = lmake.pdict
+user_environ = eval(open(environ_file).read()) # make original user env available while reading config
+
+class UserEnvironDict(pdict) :
+	AccessedKeys = set()
+	def __getitem__(self,key) :
+		self.__class__.AccessedKeys.add(key)
+		return super().__getitem__(key)
+	def get(self,key,default=None) :
+		self.__class__.AccessedKeys.add(key)
+		return super().get(key,default)
+	def __setitem__(self,key,val) : raise TypeError('user_environ is read-only'           )
+	def __delitem__(self,key    ) : raise TypeError('user_environ is read-only'           )
+	def __iter__   (self        ) : raise TypeError('user_environ cannot be iterated over') # record all keys if it turns out to be necessary
+
+lmake.user_environ = UserEnvironDict(user_environ)
 
 # suppress access to _lib (not  for user usage)
 # add access to repo      (only for user usage)
@@ -170,6 +184,12 @@ def dict_end (l) : return '\t'*(l+1)
 
 with open(out_file,'w') as out :
 	print('{',file=out)
+	#
+	if UserEnvironDict.AccessedKeys :
+		kl = max((len(repr(k)) for k in UserEnvironDict.AccessedKeys),default=0)
+		if True                               : print(f"{sep(0)}'user_environ' : {{"                 ,file=out)
+		for k in UserEnvironDict.AccessedKeys : print(f'{sep(1)}{k!r:{kl}} : {user_environ.get(k)!r}',file=out)
+		if True                               : print(f'{dict_end(0)}}}'                             ,file=out)
 	#
 	if '/config/' in actions :
 		kl = max((len(repr(k)) for k in config.keys()),default=0)

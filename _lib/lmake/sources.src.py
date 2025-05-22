@@ -14,6 +14,9 @@ import os         as _os
 import os.path    as _osp
 import subprocess as _sp
 
+def std_sources() :
+	return [ 'LMAKE/environ' , 'LMAKE/manifest' ]
+
 def manifest_sources(manifest='Manifest',**kwds) :
 	'''
 		read manifest, filtering out comments :
@@ -28,7 +31,8 @@ def manifest_sources(manifest='Manifest',**kwds) :
 	try                      : stream = open(manifest)
 	except FileNotFoundError : raise NotImplementedError(f'cannot find {manifest}')
 	srcs = [ f for f in ( line_re.fullmatch(l).group('file') for l in stream ) if f ]
-	if 'Lmakefile.py' not in srcs : raise NotImplementedError(f'cannot find Lmakefile.py in git files')
+	if 'Lmakefile.py' not in srcs : raise NotImplementedError(f'cannot find Lmakefile.py in {manifest}')
+	srcs += std_sources()
 	return srcs
 
 _git = '$GIT'                                                                                                             # value is substitued at installation configuration
@@ -100,6 +104,8 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 			cd = open(common_dir).read().strip()
 			srcs.append( _osp.normpath(_osp.join(rel_git_dir_s,cd)) + '/' )
 	srcs.append(rel_git_dir_s)
+	if 'Lmakefile.py' not in srcs : raise NotImplementedError(f'cannot find Lmakefile.py in git files')
+	srcs += std_sources()
 	return srcs
 
 def auto_sources(**kwds) :

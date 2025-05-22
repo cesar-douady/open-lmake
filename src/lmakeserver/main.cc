@@ -352,7 +352,7 @@ static bool/*interrupted*/ _engine_loop() {
 							goto NoMake ;
 						}
 						try {
-							Makefiles::dyn_refresh( msg , startup_dir_s ) ;
+							Makefiles::dyn_refresh( msg , ecr.options.user_env , startup_dir_s ) ;
 							if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
 							trace("new_req",req) ;
 							req.alloc() ; allocated = true ;

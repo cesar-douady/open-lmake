@@ -9,6 +9,8 @@ The `LMAKE` dir at the root of the repo contains numerous information that may b
 
 It also contains a `lmake` dir containing private data for open-lmake's own usage.
 
+`LMAKE/environ` and `LMAKE/manifest` can be freely used in jobs and are considered as sources if they are listed in `lmake.manifest`, which is automatic by default.
+
 ### `LMAKE/config_deps`, `LMAKE/rules_deps` and `LMAKE/sources_deps`
 
 These files contain a list of files that open-lmake has read to process `Lmakefile.py` when reading each section (config, rules and sources).
@@ -25,6 +27,10 @@ These contents are then used to determine if each section must be refreshed when
 ### `LMAKE/config`
 
 This file contains a description of the `lmake.config` `dict` as it has been understood by open-lmake after having processed `Lmakefile.py`.
+
+### `LMAKE/environ`
+
+This file contains the list of environment variables actually used in `Lmakefile.py` in the form of lines containing `<key>=<value>`.
 
 ### `LMAKE/manifest`
 

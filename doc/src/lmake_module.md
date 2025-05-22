@@ -40,6 +40,8 @@ When reading `Lmakefile.py`, the environment is reset to a standard environment 
 
 This ensures that the environment cannot be used unless explicitly asked.
 
+Variable values actually used in `Lmakefile.py` are considered as deps for this process and it is rerun if the actual environment is modified in subsequent `lmake` commands.
+
 ### `class pdict`
 
 This class is a dict in which attribute accesses are mapped to item accesses.

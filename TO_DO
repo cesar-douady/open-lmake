@@ -22,7 +22,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* improve lmake.user_environ
 * add a report that maps pfx/sfx to rule candidates
 	- available in traces
 	- useful to optimize Lmakefile.py, even when no trace

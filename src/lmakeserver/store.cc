@@ -80,22 +80,22 @@ namespace Engine::Persistent {
 	}
 
 	void RuleBase::s_from_vec_dyn(Rules&& new_rules) {
-		static StaticUniqPtr<Rules> s_prev_rules ;                                                // keep prev rules in case some on-going activity refers rules while being updated
+		static StaticUniqPtr<Rules> s_prev_rules ;                                                              // keep prev rules in case some on-going activity refers rules while being updated
 		Trace trace("s_from_vec_dyn",new_rules.size()) ;
-		SWEAR(s_rules->sys_path_crc==new_rules.sys_path_crc) ;                                    // may not change dynamically as this would potentially change rule cmd's
-		SWEAR(s_rules->size()      ==new_rules.size()      ) ;                                    // may not change dynamically
+		SWEAR( s_rules->sys_path_crc==new_rules.sys_path_crc , s_rules->sys_path_crc,new_rules.sys_path_crc ) ; // may not change dynamically as this would potentially change rule cmd's
+		SWEAR( s_rules->size()      ==new_rules.size()       , s_rules->size()      ,new_rules.size()       ) ; // may not change dynamically
 		//
 		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
-		s_prev_rules = new Rules{New} ; s_prev_rules->reserve(s_rules->size()) ;                  // s_prev_rules is temporarily used to store new rules
-		for( Rule r : rule_lst() ) s_prev_rules->push_back(::move(*rule_map.at(r->crc->match))) ; // crc->match's must be identical between old and new or we should be here
-		s_prev_rules->dyn_vec     = ::move(new_rules.dyn_vec    ) ;
-		s_prev_rules->py_sys_path = ::move(new_rules.py_sys_path) ;
-		s_prev_rules->compile() ;
+		Rules* next_rules = new Rules{New} ; next_rules->reserve(s_rules->size()) ;
+		for( Rule r : rule_lst() ) next_rules->push_back(::move(*rule_map.at(r->crc->match))) ;                 // crc->match's must be identical between old and new or we should be here
+		next_rules->dyn_vec      = ::move(new_rules.dyn_vec     ) ;
+		next_rules->py_sys_path  = ::move(new_rules.py_sys_path ) ;
+		next_rules->sys_path_crc =        new_rules.sys_path_crc  ;
+		next_rules->compile() ;
 		//
-		Rules* sav_rules    = &*s_rules            ;                                              // exchange s_rules and s_prev_rules, making s_prev_rules the previous rules
-		/**/   s_rules      = ::move(s_prev_rules) ;                                              // .
-		/**/   s_prev_rules = sav_rules            ;                                              // .
+		/**/   s_prev_rules = ::move(s_rules) ;
+		/**/   s_rules      = next_rules      ;
 		//
 		_s_save() ;
 		trace("done") ;
@@ -322,18 +322,18 @@ namespace Engine::Persistent {
 	// return suffix after last stem (StartMrkr+str if no stem)
 	static ::string _parse_sfx(::string const& str) {
 		size_t pos = 0 ;
-		for(;;) {                                           // cannot use rfind as anything can follow a StemMrkr, including a StemMrkr, so iterate with find
+		for(;;) {                                                        // cannot use rfind as anything can follow a StemMrkr, including a StemMrkr, so iterate with find
 			size_t nxt_pos = str.find(Rule::StemMrkr,pos) ;
 			if (nxt_pos==Npos) break ;
 			pos = nxt_pos+1+sizeof(VarIdx) ;
 		}
-		if (pos==0) return StartMrkr+str   ;                // signal that there is no stem by prefixing with StartMrkr
-		else        return str.substr(pos) ;                // suppress stem marker & stem idx
+		if (pos==0) return StartMrkr+str   ;                             // signal that there is no stem by prefixing with StartMrkr
+		else        return str.substr(pos) ;                             // suppress stem marker & stem idx
 	}
 	// return prefix before first stem (empty if no stem)
 	static ::string _parse_pfx(::string const& str) {
 		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==Npos) return {}                ;           // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
+		if (pos==Npos) return {}                ;                        // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
 		else           return str.substr(0,pos) ;
 	}
 	struct Rt : RuleTgt {
@@ -519,7 +519,7 @@ namespace Engine::Persistent {
 		return res ;
 	}
 
-	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn ) {
+	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn , ::string const& manifest ) {
 		NfsGuard             nfs_guard    { g_config->reliable_dirs } ;
 		::vmap<Node,FileTag> srcs         ;
 		::umap<Node,FileTag> old_srcs     ;
@@ -613,7 +613,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::string content ;
 			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( AdminDirS+"manifest"s , Fd::Write ).write(content) ;
+			AcFd( manifest , Fd::Write ).write(content) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return true ;
