@@ -94,7 +94,7 @@ namespace Engine::Persistent {
 		s_prev_rules->sys_path_crc =        new_rules.sys_path_crc  ;
 		s_prev_rules->compile() ;
 		//
-		Rules* sav_rules    = &*s_rules            ;                                              // exchange s_rules and s_prev_rules, making s_prev_rules the previous rules
+		Rules* sav_rules    = &*s_rules            ; s_rules.detach() ;                           // exchange s_rules and s_prev_rules, making s_prev_rules the previous rules
 		/**/   s_rules      = ::move(s_prev_rules) ;                                              // .
 		/**/   s_prev_rules = sav_rules            ;                                              // .
 		//
