@@ -54,5 +54,5 @@ else :
 
 	import os
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'dut0_0' , done=1           )
-	ut.lmake( 'dut1_0' , dep_err=1 , rc=1 ) # dut1 cannot be built with a non-buildable required dep
+	ut.lmake( 'dut0_0' , done=1             )
+	ut.lmake( 'dut1_0' , dep_error=1 , rc=1 ) # dut1 cannot be built with a non-buildable required dep

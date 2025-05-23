@@ -44,9 +44,9 @@ enum class MissingAudit : uint8_t {
 
 enum class RunStatus : uint8_t {
 	Ok
-,	DepErr        // job cannot run because some deps are in error
+,	DepError      // job cannot run because some deps are in error
 ,	MissingStatic // job cannot run because missing static dep
-,	Err           // job cannot run because an error was seen before even starting
+,	Error         // job cannot run because an error was seen before even starting
 } ;
 
 enum class SpecialStep : uint8_t { // ordered by increasing importance
@@ -137,6 +137,7 @@ namespace Engine {
 		JobTgt(                                                                                   ) = default ;
 		JobTgt( Job j , bool isp=false                                                            ) : Job(j ) { if (+j) is_static_phony(isp)          ; } // if no job, ensure JobTgt appears as false
 		JobTgt( RuleTgt rt , ::string const& t , Bool3 chk_psfx=Yes , Req req={} , DepDepth lvl=0 ) ;                                                     // chk_psfx=Maybe means check size only
+		JobTgt( Rule::RuleMatch&& m , bool sure                     , Req req={} , DepDepth lvl=0 ) ;
 		JobTgt( JobTgt const& jt                                                                  ) : Job(jt) { is_static_phony(jt.is_static_phony()) ; }
 		//
 		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_static_phony(jt.is_static_phony()) ; return self ; }
@@ -348,9 +349,9 @@ namespace Engine {
 		bool err() const {
 			switch (run_status) {
 				case RunStatus::Ok            : return is_ok(status)!=Yes ;
-				case RunStatus::DepErr        : return true               ;
+				case RunStatus::DepError      : return true               ;
 				case RunStatus::MissingStatic : return false              ;
-				case RunStatus::Err           : return true               ;
+				case RunStatus::Error         : return true               ;
 			DF}                                                                                                          // NO_COV
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }
@@ -446,6 +447,7 @@ namespace Engine {
 	//
 
 	inline JobTgt::JobTgt( RuleTgt rt , ::string const& t , Bool3 chk_psfx , Req r , DepDepth lvl ) : JobTgt{ Job(rt,t,chk_psfx,r,lvl) , rt.sure() } {} // chk_psfx=Maybe means check size only
+	inline JobTgt::JobTgt( Rule::RuleMatch&& m , bool sure                 , Req r , DepDepth lvl ) : JobTgt{ Job(::move(m)    ,r,lvl) , sure      } {}
 
 	inline bool JobTgt::sure() const {
 		return is_static_phony() && self->sure() ;

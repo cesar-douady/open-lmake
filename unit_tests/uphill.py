@@ -30,4 +30,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'res' , may_rerun=1 , failed=1 , steady=1 , done=1 , was_dep_err=1 , rc=1 )
+	ut.lmake( 'res' , may_rerun=1 , failed=1 , steady=1 , done=1 , was_dep_error=1 , rc=1 )

@@ -36,5 +36,5 @@ else :
 
 	import ut
 
-	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dut' , new=1 , may_rerun=1 , failed=1 , was_dep_err=1 , rc=1 )
-	print('step=2',file=open('step.py','w')) ; ut.lmake( 'dut' , steady=1                                       , rc=0 )
+	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dut' , new=1 , may_rerun=1 , failed=1 , was_dep_error=1 , rc=1 )
+	print('step=2',file=open('step.py','w')) ; ut.lmake( 'dut' , steady=1                                         , rc=0 )

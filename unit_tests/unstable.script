@@ -7,24 +7,24 @@
 
 echo 1 > src1
 
-ut_launch -done 2 -rerun 0            -new 1 -steady 0 -rc 0 lmake src1.6r.wait &
+ut_launch -done 2 -rerun 0            -new 1 -steady 0    -rc 0 lmake src1.6r.wait &
 sleep 3
 touch src1
 wait %1
-ut_launch -done 1          -changed 0                  -rc 0 lmake src1.6r.wait
+ut_launch -done 1          -changed 0                     -rc 0 lmake src1.6r.wait
 
 echo 2 > src1
 
-ut_launch -done 1 -rerun 0 -changed 1 -new 0 -dep_err 1 -rc 1 lmake src1.6r.wait &
+ut_launch -done 1 -rerun 0 -changed 1 -new 0 -dep_error 1 -rc 1 lmake src1.6r.wait &
 sleep 3
 echo >> src1
 wait %1
-ut_launch -done 1          -changed 0                   -rc 0 lmake src1.6r.wait
+ut_launch -done 1          -changed 0                     -rc 0 lmake src1.6r.wait
 
 echo 3 > src1
 
-ut_launch -done 1 -rerun 0 -changed 2 -new 0 -dep_err 1 -rc 1 lmake src1.r6.wait &
+ut_launch -done 1 -rerun 0 -changed 2 -new 0 -dep_error 1 -rc 1 lmake src1.r6.wait &
 sleep 3
 echo >> src1
 wait %1
-ut_launch -done 2          -changed 0                   -rc 0 lmake src1.r6.wait
+ut_launch -done 2          -changed 0                     -rc 0 lmake src1.r6.wait

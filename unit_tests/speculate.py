@@ -27,10 +27,10 @@ else :
 	import ut
 
 	print('read_bad1',file=open('src','w'))
-	ut.lmake( 'dut' , new=1 , may_rerun=1 , failed=1 , was_dep_err=1 , rc=1 ) # check targets are out of date
+	ut.lmake( 'dut' , new=1 , may_rerun=1 , failed=1 , was_dep_error=1 , rc=1 ) # check targets are out of date
 
 	print('read_bad2',file=open('src','w'))
-	ut.lmake( 'dut' , changed=1 , failed=1 , was_failed=1 , dep_err=1 , rc=1 ) # failed : when bad is computed speculatively, was_failed : when bad is finally known to be actually needed
+	ut.lmake( 'dut' , changed=1 , failed=1 , was_failed=1 , dep_error=1 , rc=1 ) # failed : when bad is computed speculatively, was_failed : when bad is finally known to be actually needed
 
 	print('3',file=open('src','w'))
 	ut.lmake( 'dut' , changed=1 , failed=1 , done=1 )

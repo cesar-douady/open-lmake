@@ -472,7 +472,7 @@ namespace Engine::Persistent {
 				new_rd->stats_weight   = old_rd.stats_weight   ;
 			}
 		}
-		bool res = n_new_rules || n_old_rules || modified_rule_order ;
+		bool invalidate = n_new_rules || n_old_rules || modified_rule_order ;
 		if (dyn) {                                                                                              // check if compatible with dynamic update
 			throw_if( n_new_rules         , "new rules appeared"           ) ;
 			throw_if( n_old_rules         , "old rules disappeared"        ) ;
@@ -482,13 +482,13 @@ namespace Engine::Persistent {
 			RuleBase::s_from_vec_dyn(::move(new_rules_)) ;
 		} else {
 			RuleBase::s_from_vec_not_dyn(::move(new_rules_)) ;
-			if (res) _compile_psfxs() ;                                                                         // recompute matching
+			if (invalidate) _compile_psfxs() ;                                                                  // recompute matching
 		}
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs),STR(modified_rule_order)) ;
 		// matching report
 		{	::map_s<::vector<RuleTgt>> match_report ;
-			size_t                     w_prio       = 4 ; // 4 to account for header : prio
-			size_t                     w_name       = 4 ; // 4 to account for header : name
+			size_t                     w_prio       = 4 ;                                                       // 4 to account for header : prio
+			size_t                     w_name       = 4 ;                                                       // 4 to account for header : name
 			for( PsfxIdx sfx_idx : _g_sfxs_file.lst() ) {
 				::string sfx      = _g_sfxs_file.str_key(sfx_idx) ;
 				PsfxIdx  pfx_root = _g_sfxs_file.at     (sfx_idx) ;
@@ -528,14 +528,14 @@ namespace Engine::Persistent {
 			AcFd( ADMIN_DIR_S "rules" , Fd::Write ).write(content) ;
 		}
 		trace("done") ;
-		return res ;
+		return invalidate ;
 	}
 
 	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn , ::string const& manifest ) {
 		NfsGuard             nfs_guard    { g_config->reliable_dirs } ;
 		::vmap<Node,FileTag> srcs         ;
 		::umap<Node,FileTag> old_srcs     ;
-		::umap<Node,FileTag> new_srcs_    ;
+		::umap<Node,FileTag> new_srcs     ;
 		::uset<Node        > src_dirs     ;
 		::uset<Node        > old_src_dirs ;
 		::uset<Node        > new_src_dirs ;
@@ -557,14 +557,14 @@ namespace Engine::Persistent {
 			if (dyn) nfs_guard.access(src) ;
 			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
 			FileInfo              fi { src }                                  ;
-			if (+sr.lnks) {
-				throw                                                                             "source "+src+(is_dir_?"/":"")+" has symbolic link "+sr.lnks[0]+" in its path"    ;
-			} else if (is_dir_) {
-				throw_unless( fi.tag()==FileTag::Dir                                            , "source ",src," is not a directory"                                             ) ;
+			if (is_dir_) {
+				throw_if    ( +sr.lnks                                                          , "source dir ",src,"/ has symbolic link ",sr.lnks[0]," in its path" ) ;
+				throw_unless( fi.tag()==FileTag::Dir                                            , "source dir ",src,"/ is not a directory"                           ) ;
 			} else {
-				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                                 ) ;
-				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"                      ) ;
-				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"                  ) ;
+				throw_if    ( +sr.lnks                                                          , "source ",src," has symbolic link ",sr.lnks[0]," in its path"      ) ;
+				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                    ) ;
+				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"         ) ;
+				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"     ) ;
 				SWEAR(src==sr.real,src,sr.real) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
 			}
 			srcs.emplace_back( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
@@ -586,40 +586,52 @@ namespace Engine::Persistent {
 		bool fresh = !old_srcs ;
 		for( auto nt : srcs ) {
 			auto it = old_srcs.find(nt.first) ;
-			if (it==old_srcs.end()) new_srcs_.insert(nt) ;
-			else                    old_srcs .erase (it) ;
+			if (it==old_srcs.end()) new_srcs.insert(nt) ;
+			else                    old_srcs.erase (it) ;
 		}
 		if (!fresh) {
-			for( auto [n,t] : new_srcs_ ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ; // we may not have recorded some deps to these, and this is unpredictable
-			for( auto [n,t] : old_srcs  ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX! : this could be managed if necessary
+			for( auto [n,t] : new_srcs ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ; // we may not have recorded some deps to these, and this is unpredictable
+			for( auto [n,t] : old_srcs ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX! : this could be managed if necessary
 		}
 		//
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }
 		//
-		if ( !old_srcs && !new_srcs_ ) return false ;
+		if ( !old_srcs && !new_srcs ) return false/*invalidate*/ ;
 		if (dyn) {
-			if (+new_srcs_) throw "new source "    +new_srcs_.begin()->first->name() ;
-			if (+old_srcs ) throw "removed source "+old_srcs .begin()->first->name() ;
-			FAIL() ;                                                                                                   // NO_COV
+			if (+new_srcs) throw "new source "    +new_srcs.begin()->first->name() ;
+			if (+old_srcs) throw "removed source "+old_srcs.begin()->first->name() ;
+			FAIL() ;                                                                                                  // NO_COV
 		}
 		//
-		trace("srcs",'-',old_srcs.size(),'+',new_srcs_.size()) ;
+		trace("srcs",'-',old_srcs.size(),'+',new_srcs.size()) ;
 		// commit
 		for( bool add : {false,true} ) {
-			::umap<Node,FileTag> const& srcs = add ? new_srcs_ : old_srcs ;
-			::vector<Node>              ss   ;                              ss.reserve(srcs.size()) ;                  // typically, there are very few src dirs
-			::vector<Node>              sds  ;                                                                         // .
+			::umap<Node,FileTag> const& srcs = add ? new_srcs : old_srcs ;
+			::vector<Node>              ss   ;                             ss.reserve(srcs.size()) ;                  // typically, there are very few src dirs
+			::vector<Node>              sds  ;                                                                        // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;
 			Node::s_srcs(true /*dirs*/,add,sds) ;
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
+		bool invalidate = true || +old_srcs ;
 		{	Trace trace2 ;
-			for( auto [n,t] : old_srcs     ) { Node(n)->mk_no_src()           ; trace2('-',t==FileTag::Dir?"dir":"",n) ; }
-			for( Node  d    : old_src_dirs )        d ->mk_no_src()           ;
-			for( auto [n,t] : new_srcs_    ) { Node(n)->mk_src(t            ) ; trace2('+',t==FileTag::Dir?"dir":"",n) ; }
-			for( Node  d    : new_src_dirs )        d ->mk_src(FileTag::None) ;
+			for( auto [n,t] : old_srcs ) {
+				Node(n)->mk_no_src() ;
+				trace2('-',t==FileTag::Dir?"dir":"",n) ;
+			}
+			for( Node d : old_src_dirs ) d->mk_no_src()           ;
+			for( auto [n,t] : new_srcs ) {
+				switch (n->buildable) {
+					case Buildable::Unknown :                                                                         // if node was not observed   , making it a source cannot change matching
+					case Buildable::Yes     : break ;                                                                 // if node was known buildable, matching does not change
+					default                 : invalidate = true ;
+				}
+				Node(n)->mk_src(t) ;
+				trace2('+',t==FileTag::Dir?"dir":"",n) ;
+			}
+			for( Node d : new_src_dirs ) d->mk_src(FileTag::None) ;
 		}
 		_compile_srcs() ;
 		// user report
@@ -628,16 +640,18 @@ namespace Engine::Persistent {
 			AcFd( manifest , Fd::Write ).write(content) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
-		return true ;
+		return invalidate ;
 	}
 
 	void invalidate_match(bool force_physical) {
 		MatchGen& match_gen = _g_rule_crc_file.hdr() ;
 		Trace trace("invalidate_match","old gen",match_gen) ;
-		match_gen++ ;                                                                                                         // increase generation, which automatically makes all nodes !match_ok()
-		if ( force_physical || match_gen==0 ) {                                                                               // unless we wrapped around
+		match_gen++ ;                                         // increase generation, which automatically makes all nodes !match_ok()
+		if ( force_physical || match_gen==0 ) {               // unless we wrapped around
 			trace("reset") ;
-			Fd::Stderr.write("collecting nodes ...") ; for( Node n : node_lst() ) n->mk_old() ; Fd::Stderr.write(" done\n") ; // physically reset node match_gen's
+			Fd::Stderr.write("collecting nodes ...") ;
+			for( Node n : node_lst() ) n->mk_old() ;
+			Fd::Stderr.write(" done\n") ;                     // physically reset node match_gen's
 			match_gen = 1 ;
 		}
 		Rule::s_match_gen = match_gen ;

@@ -11,7 +11,7 @@
 
 // START_OF_VERSIONING
 enum class Buildable : uint8_t {
-	Anti        //                                   match independent
+	Anti                         //                                   match independent
 ,	SrcDir      //                                   match independent dir of a Src or SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
 ,	SubSrc      //                                   match independent sub-file of a Src listed in manifest
 ,	PathTooLong //                                   match dependent (as limit may change with config)
@@ -62,15 +62,15 @@ enum class Manual : uint8_t {
 
 enum class NodeGoal : uint8_t { // each action is included in the following one
 	None
-,	Status     // check book-keeping, no disk access
-,	Dsk        // ensure up-to-date on disk
+,	Status                      // check book-keeping, no disk access
+,	Dsk                         // ensure up-to-date on disk
 } ;
 
 enum class NodeMakeAction : uint8_t {
-	Wakeup           // a job has completed
+	Wakeup                            // a job has completed
 ,	Status
 ,	Dsk
-,	Query            // query only, no job is executed, besides that, looks like Dsk
+,	Query                             // query only, no job is executed, besides that, looks like Dsk
 } ;
 
 enum class NodeStatus : uint8_t {
@@ -89,7 +89,7 @@ enum class NodeStatus : uint8_t {
 
 // START_OF_VERSIONING
 enum class Polluted : uint8_t {
-	Clean      // must be first
+	Clean                       // must be first
 ,	Old
 ,	PreExist
 ,	Job
@@ -329,6 +329,31 @@ namespace Engine {
 
 namespace Engine {
 
+	struct RejectSet {
+		// cxtors & casts
+		RejectSet (NodeData& nd) : _node_data{nd} {}
+		~RejectSet(            )                  { _save() ; }
+		//
+		RejectSet& operator=(RejectSet const&) = delete ;
+		// services
+		bool contains(RuleTgt rt) {
+			_solve_lazy() ;
+			return _rule_tgts.contains(rt) ;
+		}
+		void insert(RuleTgt rt) {
+			_solve_lazy() ;
+			bool inserted = _rule_tgts.try_emplace(rt,_rule_tgts.size()).second ;
+			SWEAR(inserted) ;
+		}
+	private :
+		void _save      () ;
+		void _solve_lazy() ;
+		// data
+		NodeData&                             _node_data ;
+		::umap<RuleTgt,size_t/*idx*/>/*lazy*/ _rule_tgts ;         // idx is to retain insertion order so as to generate stable vectors
+		Bool3                                 _dirty     = Maybe ; // if Maybe <=> lazy must be solved, if Yes <=> must be written back to rejected_rule_tgts
+	} ;
+
 	struct NodeData : JobNodeData {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
@@ -355,24 +380,28 @@ namespace Engine {
 		bool is_encode() const { return buildable==Buildable::Encode ; }
 		bool is_plain () const { return !is_decode() && !is_encode() ; }
 		//
-		Node             & dir          ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
-		Node        const& dir          () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
-		JobTgts          & job_tgts     ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
-		JobTgts     const& job_tgts     () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
-		RuleTgts         & rule_tgts    ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
-		RuleTgts    const& rule_tgts    () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
-		Job              & actual_job   ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
-		Job         const& actual_job   () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
-		Tflags           & actual_tflags()       { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
-		Tflags      const& actual_tflags() const { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
-		SigDate          & date         ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
-		SigDate     const& date         () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
-		Codec::Val       & codec_val    ()       { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
-		Codec::Val  const& codec_val    () const { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
-		Codec::Code      & codec_code   ()       { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
-		Codec::Code const& codec_code   () const { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
-		Ddate            & log_date     ()       { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
-		Ddate       const& log_date     () const { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
+		Node             & dir               ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
+		Node        const& dir               () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
+		JobTgts          & job_tgts          ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
+		JobTgts     const& job_tgts          () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
+		RuleTgts         & rule_tgts         ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
+		RuleTgts    const& rejected_rule_tgts() const { SWEAR(  is_plain () , buildable ) ; return _if_plain .rejected_rule_tgts                       ; }
+		RuleTgts         & rejected_rule_tgts()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .rejected_rule_tgts                       ; }
+		RuleTgts    const& rule_tgts         () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
+		Job              & actual_job        ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
+		Job         const& actual_job        () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
+		Job              & polluting_job     ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .polluting_job                            ; }
+		Job         const& polluting_job     () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .polluting_job                            ; }
+		Tflags           & actual_tflags     ()       { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
+		Tflags      const& actual_tflags     () const { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
+		SigDate          & date              ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
+		SigDate     const& date              () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
+		Codec::Val       & codec_val         ()       { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
+		Codec::Val  const& codec_val         () const { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
+		Codec::Code      & codec_code        ()       { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
+		Codec::Code const& codec_code        () const { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
+		Ddate            & log_date          ()       { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
+		Ddate       const& log_date          () const { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
 		//
 		void crc_date( Crc crc_ , SigDate const& sd ) {
 			date() = sd   ;
@@ -406,7 +435,7 @@ namespace Engine {
 			if (+reqs) set_buildable(reqs[0]) ;
 			else       set_buildable(       ) ;
 			if (is_src_anti()) refresh_src_anti(report_no_file,reqs) ;
-			else               manual_refresh  (Req()              ) ;                         // no manual_steady diagnostic as this may be because of another job
+			else               manual_refresh  (Req()              ) ;                                  // no manual_steady diagnostic as this may be because of another job
 		}
 		//
 		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
@@ -422,7 +451,7 @@ namespace Engine {
 			Job cj = conform_job_tgt() ;
 			return +cj && ( cj->is_special() || has_actual_job(cj) ) ;
 		}
-		Bool3 ok(bool force_err=false) const {                                                 // if Maybe <=> not built
+		Bool3 ok(bool force_err=false) const {                                                          // if Maybe <=> not built
 			switch (status()) {
 				case NodeStatus::Plain : return No | !( force_err || conform_job_tgt()->err() ) ;
 				case NodeStatus::Multi : return No                                              ;
@@ -445,14 +474,14 @@ namespace Engine {
 		bool  is_src_anti(bool permissive=false) const { { if (!permissive) SWEAR(match_ok()) ; } return BuildableAttrs[+            buildable                    ].second.second ; }
 		//
 		// services
-		bool read(Accesses a) const {                                                          // return true <= file was perceived different from non-existent, assuming access provided in a
-			if (crc==Crc::None ) return false          ;                                       // file does not exist, cannot perceive difference
-			if (a[Access::Stat]) return true           ;                                       // if file exists, stat is different
+		bool read(Accesses a) const {                                                                   // return true <= file was perceived different from non-existent, assuming access provided in a
+			if (crc==Crc::None ) return false          ;                                                // file does not exist, cannot perceive difference
+			if (a[Access::Stat]) return true           ;                                                // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
-			else                 return +a             ;                                       // dont know if file is a link, any access may have perceived a difference
+			else                 return +a             ;                                                // dont know if file is a link, any access may have perceived a difference
 		}
-		bool up_to_date( DepDigest const& dd , bool full=false ) const {                       // only manage crc, not dates
+		bool up_to_date( DepDigest const& dd , bool full=false ) const {                                // only manage crc, not dates
 			return crc.match( dd.crc() , full?~Accesses():dd.accesses ) ;
 		}
 		//
@@ -466,15 +495,19 @@ namespace Engine {
 		::span<JobTgt const> prio_job_tgts     (RuleIdx prio_idx) const ;
 		::span<JobTgt const> conform_job_tgts  (ReqInfo const&  ) const ;
 		::span<JobTgt const> conform_job_tgts  (                ) const ;
-		::span<JobTgt const> candidate_job_tgts(                ) const ;                      // all jobs above prio provided in conform_idx
+		::span<JobTgt const> candidate_job_tgts(                ) const ;                               // all jobs above prio provided in conform_idx
 		//
-		void set_buildable_throw( Req      , DepDepth lvl=0       ) ;                          // data independent, may be pessimistic (Maybe instead of Yes), req is for error reporing only
-		void set_buildable      ( Req      , DepDepth lvl=0       ) ;                          // set infinite if looping
-		void set_buildable      (                                 ) { set_buildable({}) ; }
-		void set_pressure       ( ReqInfo& , CoarseDelay pressure ) const ;
+		// data independent, may be pessimistic (Maybe versus Yes), req is for error reporing only, set infinite if !throw_if_infinite && looping
+		void set_buildable( Req   , RejectSet* /*lazy*/ known_rejected , DepDepth lvl=0 , bool throw_if_infinite=false ) ;
+		void set_buildable( Req r , RejectSet& /*lazy*/ kr             , DepDepth lvl=0 , bool tii              =false ) { set_buildable(r ,&kr    ,lvl,tii) ; }
+		void set_buildable( Req r ,                                      DepDepth lvl=0 , bool tii              =false ) { set_buildable(r ,nullptr,lvl,tii) ; }
+		void set_buildable(         RejectSet& /*lazy*/ kr             , DepDepth lvl=0 , bool tii              =false ) { set_buildable({},&kr    ,lvl,tii) ; }
+		void set_buildable(                                              DepDepth lvl=0 , bool tii              =false ) { set_buildable({},nullptr,lvl,tii) ; }
+		//
+		void set_pressure( ReqInfo& , CoarseDelay pressure ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ;                // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ;                         // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			_propag_speculate(ri) ;
@@ -492,56 +525,53 @@ namespace Engine {
 		bool/*modified*/ refresh( Crc , SigDate const& ={} ) ;
 		void             refresh(                          ) ;
 	private :
-		void           _do_set_buildable( Req      , DepDepth                         ) ;      // req is for error reporting only
-		bool/*solved*/ _make_pre        ( ReqInfo& , bool query                       ) ;
-		void           _do_make         ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
-		void           _do_set_pressure ( ReqInfo&                                    ) const ;
-		void           _propag_speculate( ReqInfo const&                              ) const ;
+		void           _do_set_buildable( Req      , RejectSet&/*lazy*/ known_rejected , DepDepth=0 ) ; // req is for error reporting only
+		bool/*solved*/ _make_pre        ( ReqInfo& , bool query                                     ) ;
+		void           _do_make         ( ReqInfo& , MakeAction , Bool3 speculate=Yes               ) ;
+		void           _do_set_pressure ( ReqInfo&                                                  ) const ;
+		void           _propag_speculate( ReqInfo const&                                            ) const ;
 		//
-		Buildable _gather_special_rule_tgts( ::string const& name                          ) ;
-		Buildable _gather_prio_job_tgts    ( ::string const& name , Req   , DepDepth lvl=0 ) ;
-		Buildable _gather_prio_job_tgts    (                        Req r , DepDepth lvl=0 ) {
-			if (!rule_tgts()) return Buildable::No                             ;               // fast path : avoid computing name()
-			else              return _gather_prio_job_tgts( name() , r , lvl ) ;
-		}
+		Buildable _gather_special_rule_tgts( ::string const& name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
+		Buildable _gather_prio_job_tgts    ( ::string const& name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;
 		//
 		void _set_match_ok() ;
 		// data
 		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
-			SigDate  date       ;                        // ~40+40<128 bits,         p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
-			Node     dir        ;                        //  31   < 32 bits, shared
-			JobTgts  job_tgts   ;                        //         32 bits, owned , ordered by prio, valid if match_ok
-			RuleTgts rule_tgts  ;                        // ~20   < 32 bits, shared, matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			Job      actual_job ;                        //  31   < 32 bits, shared, job that generated node
+			SigDate  date               ;                // ~40+40<128 bits,           p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
+			Node     dir                ;                //  31   < 32 bits, shared
+			JobTgts  job_tgts           ;                //         32 bits, owned ,   ordered by prio, valid if match_ok
+			RuleTgts rule_tgts          ;                // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			RuleTgts rejected_rule_tgts ;                // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
+			Job      actual_job         ;                //  31   < 32 bits, shared,   job that generated node
+			Job      polluting_job      ;                //         32 bits,           polluting job when polluted was last set to Polluted::Job
 		} ;
 		struct IfDecode {
-			Ddate      log_date ;                        // ~40   < 64 bits,         logical date to detect overwritten
-			Codec::Val val      ;                        //         32 bits,         offset in association file where the association line can be found
+			Ddate      log_date ;                        // ~40   < 64 bits,           logical date to detect overwritten
+			Codec::Val val      ;                        //         32 bits,           offset in association file where the association line can be found
 		} ;
 		struct IfEncode {
-			Ddate       log_date ;                       // ~40   < 64 bits,         logical date to detect overwritten
-			Codec::Code code     ;                       //         32 bits,         offset in association file where the association line can be found
+			Ddate       log_date ;                       // ~40   < 64 bits,           logical date to detect overwritten
+			Codec::Code code     ;                       //         32 bits,           offset in association file where the association line can be found
 		} ;
 		//Name  name   ;                                 //         32 bits, inherited
-		Watcher asking ;                                 //         32 bits,         last watcher needing this node
-		Crc     crc    = Crc::None ;                     // ~45   < 64 bits,         disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		Watcher asking ;                                 //         32 bits,           last watcher needing this node
+		Crc     crc    = Crc::None ;                     // ~45   < 64 bits,           disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 	private :
 		union {
-			IfPlain  _if_plain  = {} ;                   //        256 bits
+			IfPlain  _if_plain  = {} ;                   //        320 bits
 			IfDecode _if_decode ;                        //         96 bits
 			IfEncode _if_encode ;                        //         96 bits
 		} ;
 	public :
-		Job       polluting_job ;                        //         32 bits,          polluting job when polluted was last set to Polluted::Job
-		MatchGen  match_gen     = 0                  ;   //          8 bits,          if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
-		Buildable buildable:4   = Buildable::Unknown ;   //          4 bits,          data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		Polluted  polluted :2   = Polluted::Clean    ;   //          2 bits,          reason for pollution
-		bool      busy     :1   = false              ;   //          1 bit ,          a job is running with this node as target
+		MatchGen  match_gen   = 0                  ;     //          8 bits,           if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		Buildable buildable:4 = Buildable::Unknown ;     //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+		Polluted  polluted :2 = Polluted::Clean    ;     //          2 bits,           reason for pollution
+		bool      busy     :1 = false              ;     //          1 bit ,           a job is running with this node as target
 	private :
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,          index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
-		Tflags  _actual_tflags ;                         //          8 bits,          tflags associated with actual_job
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		Tflags  _actual_tflags ;                         //   6   <  8 bits,           tflags associated with actual_job
 		// END_OF_VERSIONING
 	} ;
 
@@ -616,15 +646,16 @@ namespace Engine {
 		match_gen = Rule::s_match_gen ;
 	}
 
-	inline void NodeData::set_buildable_throw( Req req , DepDepth lvl ) {                                      // req is for error reporting only
-		if (!match_ok()) _do_set_buildable(req,lvl) ;                                                          // if not already set
-		SWEAR(buildable!=Buildable::Unknown) ;
-		if (buildable==Buildable::PathTooLong) throw ::pair( Special::InfinitePath , ::vector<Node>{idx()} ) ; // mimic _do_set_buildable
-	}
-
-	inline void NodeData::set_buildable( Req req , DepDepth lvl ) {                          // req is for error reporting only
-		try                                             { set_buildable_throw(req,lvl) ;   }
-		catch (::pair<Special,::vector<Node>> const& e) { set_infinite(e.first,e.second) ; }
+	inline void NodeData::set_buildable( Req req , RejectSet* /*lazy*/ known_rejected , DepDepth lvl , bool throw_if_infinite ) { // req is for error reporting only
+		try {
+			if      (match_ok()                       ) {}                                                                        // buildable is already known
+			else if (known_rejected                   ) _do_set_buildable( req , *known_rejected        , lvl ) ;
+			else                                        _do_set_buildable( req , ::ref(RejectSet(self)) , lvl ) ;
+			if      (buildable==Buildable::PathTooLong) throw ::pair( Special::InfinitePath , ::vector<Node>{idx()} ) ;           // mimic _do_set_buildable
+		} catch (::pair<Special,::vector<Node>> const& e) {
+			if (throw_if_infinite) throw ;
+			else                   set_infinite(e.first,e.second) ;
+		}
 		SWEAR(buildable!=Buildable::Unknown) ;
 	}
 
@@ -673,6 +704,21 @@ namespace Engine {
 	inline DepsIter::Digest DepsIter::digest(Deps ds) const {
 		return { hdr?DepsIdx(hdr-ds.items()):0 , i_chunk } ;
 	}
+
+	inline void RejectSet::_save() {
+		if (_dirty!=Yes) return ;
+		::vector<RuleTgt> rts_vector(_rule_tgts.size()) ; for( auto [rt,i] : _rule_tgts ) rts_vector[i] = rt ;
+		_node_data.rejected_rule_tgts() = rts_vector ;
+		_dirty                          = No         ;
+	}
+
+	inline void RejectSet::_solve_lazy() {
+		if (_dirty!=Maybe) return ;
+		size_t i = 0 ;
+		for( RuleTgt rt : _node_data.rejected_rule_tgts().view() ) _rule_tgts[rt] = i++ ; // retain insertion order
+		_dirty = No ;
+	}
+
 }
 
 #endif

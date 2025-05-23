@@ -246,8 +246,8 @@ namespace Engine {
 		if (!jri.done()) return false/*overflow*/ ;
 		if (!job->err()) return false/*overflow*/ ;
 		//
-		bool intermediate = job->run_status==RunStatus::DepErr ;
-		Rule r            = job->rule()                        ;
+		bool intermediate = job->run_status==RunStatus::DepError ;
+		Rule r            = job->rule()                          ;
 		if ( self->_send_err( intermediate , r->name , +target?target->name():job->name() , n_err , lvl ) ) return true/*overflow*/ ;
 		//
 		if ( !seen_stderr && job->run_status==RunStatus::Ok ) { // show first stderr

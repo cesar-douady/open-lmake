@@ -29,4 +29,4 @@ else :
 	os.makedirs('deps',exist_ok=True)
 	open('deps/dangling','w')
 
-	ut.lmake( 'dut' , dangling=1 , dep_err=1 , rc=1 )
+	ut.lmake( 'dut' , dangling=1 , dep_error=1 , rc=1 )

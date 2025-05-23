@@ -45,4 +45,4 @@ else :
 	for i in range(9) : os.unlink(f'dep.{i}')
 	sp.run(('lforget','-d','submit_loop'))
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'dut' , may_rerun=3 , steady=2 , submit_loop=1 , was_dep_err=1 , rc=1 ) # check no crash
+	ut.lmake( 'dut' , may_rerun=3 , steady=2 , submit_loop=1 , was_dep_error=1 , rc=1 ) # check no crash

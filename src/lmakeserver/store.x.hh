@@ -288,21 +288,21 @@ namespace Engine::Persistent {
 		Targets no_triggers ; // these nodes do not trigger rebuild
 	} ;
 
-	//                                          autolock  header              index             n_index_bits       key       data          misc
+	//                                          autolock  header     index             n_index_bits       key       data          misc
 	// jobs
-	using JobFile      = Store::AllocFile       < false , JobHdr            , Job             , NJobIdxBits      ,           JobData                        > ;
-	using DepsFile     = Store::VectorFile      < false , void              , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
-	using TargetsFile  = Store::VectorFile      < false , void              , Targets         , NTargetsIdxBits  ,           Target                         > ;
+	using JobFile      = Store::AllocFile       < false , JobHdr   , Job             , NJobIdxBits      ,           JobData                        > ;
+	using DepsFile     = Store::VectorFile      < false , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
+	using TargetsFile  = Store::VectorFile      < false , void     , Targets         , NTargetsIdxBits  ,           Target                         > ;
 	// nodes
-	using NodeFile     = Store::AllocFile       < false , NodeHdr           , Node            , NNodeIdxBits     ,           NodeData                       > ;
-	using JobTgtsFile  = Store::VectorFile      < false , void              , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
+	using NodeFile     = Store::AllocFile       < false , NodeHdr  , Node            , NNodeIdxBits     ,           NodeData                       > ;
+	using JobTgtsFile  = Store::VectorFile      < false , void     , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
 	// rules
-	using RuleCrcFile  = Store::AllocFile       < false , MatchGen          , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
-	using RuleTgtsFile = Store::SinglePrefixFile< false , void              , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
-	using SfxFile      = Store::SinglePrefixFile< false , void              , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
-	using PfxFile      = Store::MultiPrefixFile < false , void              , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
+	using RuleCrcFile  = Store::AllocFile       < false , MatchGen , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
+	using RuleTgtsFile = Store::SinglePrefixFile< false , void     , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
+	using SfxFile      = Store::SinglePrefixFile< false , void     , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
+	using PfxFile      = Store::MultiPrefixFile < false , void     , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
 	// commons
-	using NameFile     = Store::SinglePrefixFile< true  , void              , Name            , NNameIdxBits     , char    , JobNode                        > ; // for Job's & Node's
+	using NameFile     = Store::SinglePrefixFile< true  , void     , Name            , NNameIdxBits     , char    , JobNode                        > ; // for Job's & Node's
 
 	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 
