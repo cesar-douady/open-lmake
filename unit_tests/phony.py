@@ -31,7 +31,7 @@ else :
 	import ut
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('tgt',may_rerun=1,dep_err=1,was_dep_err=1,rc=1)
+	ut.lmake('tgt',may_rerun=1,dep_error=1,was_dep_error=1,rc=1)
 
 	print('step=2',file=open('step.py','w'))
 	ut.lmake('tgt',steady=2)

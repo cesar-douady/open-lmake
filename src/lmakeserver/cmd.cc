@@ -790,6 +790,7 @@ namespace Engine {
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(MsgStderr const&) {}
 							//
+							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , cat(RunStatus(job->run_status)) , Color::Err ) ;
 							if (+end) {
 								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
 								Color status_color =

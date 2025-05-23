@@ -45,10 +45,10 @@ else :
 	print('2',file=open('src2','w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'tgt' , may_rerun=2 , was_dep_err=1 , done=n_goods , failed=n_bads , new=2 , rc=1 ) # must discover good_*, then bad_*
+	ut.lmake( 'tgt' , may_rerun=2 , was_dep_error=1 , done=n_goods , failed=n_bads , new=2 , rc=1 ) # must discover good_*, then bad_*
 
 	print('new 1',file=open('src1','w'))
-	ut.lmake( 'tgt' , dep_err=1 , changed=1 , rc=1 ) # src* are read, so tgt is rerun
+	ut.lmake( 'tgt' , dep_error=1 , changed=1 , rc=1 ) # src* are read, so tgt is rerun
 
 	print('step=2',file=open('step.py','w'))
 	ut.lmake( 'tgt' , steady=n_goods-1+1 , done=1 , rc=0 ) # modified critical good_0 implies that bad_* are not remade

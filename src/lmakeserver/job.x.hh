@@ -42,9 +42,9 @@ ENUM( MissingAudit
 
 ENUM( RunStatus
 ,	Ok
-,	DepErr        // job cannot run because some deps are in error
+,	DepError      // job cannot run because some deps are in error
 ,	MissingStatic // job cannot run because missing static dep
-,	Err           // job cannot run because an error was seen before even starting
+,	Error         // job cannot run because an error was seen before even starting
 )
 
 ENUM( SpecialStep // ordered by increasing importance
@@ -337,9 +337,9 @@ namespace Engine {
 		bool err() const {
 			switch (run_status) {
 				case RunStatus::Ok            : return is_ok(status)!=Yes ;
-				case RunStatus::DepErr        : return true               ;
+				case RunStatus::DepError      : return true               ;
 				case RunStatus::MissingStatic : return false              ;
-				case RunStatus::Err           : return true               ;
+				case RunStatus::Error         : return true               ;
 			DF}
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }

@@ -1061,7 +1061,7 @@ namespace Engine {
 					}
 					if ( may_care && +(cdri->overwritten&dep.accesses) ) {
 						state.reason |= {JobReasonTag::DepOverwritten,+dep} ;
-						dep_err       = RunStatus::DepErr                   ;
+						dep_err       = RunStatus::DepError                 ;
 						goto Continue ;
 					}
 					Bool3 ok = dnd.ok() ; if ( ok==No && !sense_err ) ok = Yes ;
@@ -1069,7 +1069,7 @@ namespace Engine {
 						case No :
 							trace("dep_err",dep,STR(sense_err)) ;
 							state.reason |= {JobReasonTag::DepErr,+dep} ;
-							dep_err       = RunStatus::DepErr           ;
+							dep_err       = RunStatus::DepError         ;
 						break ;
 						case Maybe :                                                     // dep is not buidlable, check if required
 							if (dnd.status()==NodeStatus::Transient) {                   // dep uphill is a symlink, it will disappear at next run
@@ -1078,15 +1078,15 @@ namespace Engine {
 								break ;
 							}
 							if      (is_static) { trace("missing_static"  ,dep) ; state.reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; dep_err = RunStatus::MissingStatic ; break ; }
-							else if (required ) { trace("missing_required",dep) ; state.reason |= {JobReasonTag::DepMissingRequired,+dep} ; dep_err = RunStatus::DepErr        ; break ; }
+							else if (required ) { trace("missing_required",dep) ; state.reason |= {JobReasonTag::DepMissingRequired,+dep} ; dep_err = RunStatus::DepError      ; break ; }
 							dep_missing_dsk |= !query && cdri->manual>=Manual::Changed ; // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
 							if (dep_goal==NodeGoal::Dsk) {                               // if asking for disk, we must check disk integrity
 								switch(cdri->manual) {
 									case Manual::Empty   :
-									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepErr ; trace("dangling",dep,cdri->manual) ; break ;
-									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                               trace("unlnked" ,dep             ) ; break ;
+									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepError ; trace("dangling",dep,cdri->manual) ; break ;
+									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                                 trace("unlnked" ,dep             ) ; break ;
 								DN}
 							} else if ( dep_modif && at_end && dep_missing_dsk ) {       // dep out of date but we do not wait for it being rebuilt
 								dep_goal = NodeGoal::Dsk ;                               // we must ensure disk integrity for detailed analysis
@@ -1395,7 +1395,7 @@ namespace Engine {
 		} catch (MsgStderr const& msg_err) {
 			req->audit_job   ( Color::Err  , "failed" , idx()                                                                                                       ) ;
 			req->audit_stderr( idx() , { ensure_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } , 0/*max_stderr_len*/ , 1 ) ;
-			run_status = RunStatus::Err ;
+			run_status = RunStatus::Error ;
 			trace("no_rsrcs",ri) ;
 			return false/*maybe_new_deps*/ ;
 		}

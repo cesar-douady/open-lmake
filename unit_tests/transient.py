@@ -25,4 +25,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'test.ko' , new=... , may_rerun=1 , done=1 , failed=2 , was_failed=1 , dep_err=1 , rc=1 )
+	ut.lmake( 'test.ko' , new=... , may_rerun=1 , done=1 , failed=2 , was_failed=1 , dep_error=1 , rc=1 )

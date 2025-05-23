@@ -45,8 +45,8 @@ else :
 	open(f'__pycache__/mod.cpython-{sys.version_info.major}{sys.version_info.minor}.pyc','w')
 	os.unlink('dut')
 
-	ut.lmake(        dangling=1 , failed=0  , new=0 , rc=1 )
-	ut.lmake( '-e' , dangling=1 , dep_err=1 , new=0 , rc=1 )
+	ut.lmake(        dangling=1 , failed=0    , new=0 , rc=1 )
+	ut.lmake( '-e' , dangling=1 , dep_error=1 , new=0 , rc=1 )
 
 	os.environ['LMAKE_ARGS'] = 'py_dut'
 
