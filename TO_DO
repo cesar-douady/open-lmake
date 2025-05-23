@@ -161,8 +161,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* cache matching file versus rule
-	- avoid full rematching when adding source (or other dag modif)
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str

@@ -722,8 +722,10 @@ namespace Engine {
 		_dirty = No ;
 		size_t i = 0 ;
 		for( RuleTgt rt : _node_data.rejected_rule_tgts().view() ) {
-			if (+rt->rule) _rule_tgts[rt] = i++ ;                    // retain insertion order
-			else           _dirty         = Yes ;                    // if a rule is obsolete, forget it and remind to save cleaned up vector
+			Rule r = rt->rule ;
+			if      (!r        )   _dirty = Yes ;                                                  // if a rule is obsolete, forget it and remind to save cleaned up vector
+			else if (rt!=r->crc) { _dirty = Yes ; _rule_tgts[RuleTgt(r->crc,rt.tgt_idx)] = i++ ; } // take last version of rule and retain insertion order
+			else                                  _rule_tgts[rt                        ] = i++ ;
 		}
 	}
 
