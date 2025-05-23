@@ -337,17 +337,17 @@ namespace Engine {
 		RejectSet& operator=(RejectSet const&) = delete ;
 		// services
 		bool contains(RuleTgt rt) {
-			_solve_lazy() ;
+			_load() ;
 			return _rule_tgts.contains(rt) ;
 		}
 		void insert(RuleTgt rt) {
-			_solve_lazy() ;
+			_load() ;
 			bool inserted = _rule_tgts.try_emplace(rt,_rule_tgts.size()).second ;
 			SWEAR(inserted) ;
 		}
 	private :
-		void _save      () ;
-		void _solve_lazy() ;
+		void _save() ;
+		void _load() ;
 		// data
 		NodeData&                             _node_data ;
 		::umap<RuleTgt,size_t/*idx*/>/*lazy*/ _rule_tgts ;         // idx is to retain insertion order so as to generate stable vectors
@@ -444,8 +444,8 @@ namespace Engine {
 		void       status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
 		//
 		JobTgt conform_job_tgt() const {
-			if (status()==NodeStatus::Plain) return job_tgts()[conform_idx()] ;
-			else                             return {}                        ;
+			if (status()==NodeStatus::Plain) { SWEAR( conform_idx()<n_job_tgts , status(),conform_idx(),n_job_tgts ) ; return job_tgts()[conform_idx()] ; }
+			else                                                                                                       return {}                        ;
 		}
 		bool conform() const {
 			Job cj = conform_job_tgt() ;
@@ -531,8 +531,8 @@ namespace Engine {
 		void           _do_set_pressure ( ReqInfo&                                                  ) const ;
 		void           _propag_speculate( ReqInfo const&                                            ) const ;
 		//
-		Buildable _gather_special_rule_tgts( ::string const& name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
-		Buildable _gather_prio_job_tgts    ( ::string const& name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;
+		Buildable _gather_special_rule_tgts( ::string const&   name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
+		Buildable _gather_prio_job_tgts    ( ::string&/*lazy*/ name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;
 		//
 		void _set_match_ok() ;
 		// data
@@ -541,7 +541,7 @@ namespace Engine {
 		struct IfPlain {
 			SigDate  date               ;                // ~40+40<128 bits,           p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
 			Node     dir                ;                //  31   < 32 bits, shared
-			JobTgts  job_tgts           ;                //         32 bits, owned ,   ordered by prio, valid if match_ok
+			JobTgts  job_tgts           ;                //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
 			RuleTgts rule_tgts          ;                // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 			RuleTgts rejected_rule_tgts ;                // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
 			Job      actual_job         ;                //  31   < 32 bits, shared,   job that generated node
@@ -565,13 +565,14 @@ namespace Engine {
 			IfEncode _if_encode ;                        //         96 bits
 		} ;
 	public :
-		MatchGen  match_gen   = 0                  ;     //          8 bits,           if <Rule::s_match_gen => deem !job_tgts.size() && !rule_tgts && !sure
+		RuleIdx   n_job_tgts  = 0                  ;     //         16 bits,           number of actual meaningful JobTgt's in job_tgts
+		MatchGen  match_gen   = 0                  ;     //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
 		Buildable buildable:4 = Buildable::Unknown ;     //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
 		Polluted  polluted :2 = Polluted::Clean    ;     //          2 bits,           reason for pollution
 		bool      busy     :1 = false              ;     //          1 bit ,           a job is running with this node as target
 	private :
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		Tflags  _actual_tflags ;                         //   6   <  8 bits,           tflags associated with actual_job
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		// END_OF_VERSIONING
 	} ;
 
@@ -629,7 +630,7 @@ namespace Engine {
 	inline ::span<JobTgt const> NodeData::conform_job_tgts(                  ) const {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
-		RuleIdx prio_idx = conform_idx()                      ;
+		RuleIdx prio_idx = conform_idx()                      ; SWEAR(prio_idx<n_job_tgts) ;
 		RuleIdx prio     = job_tgts()[prio_idx]->rule()->prio ;
 		while ( prio_idx && job_tgts()[prio_idx-1]->rule()->prio==prio ) prio_idx-- ; // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
@@ -705,6 +706,10 @@ namespace Engine {
 		return { hdr?DepsIdx(hdr-ds.items()):0 , i_chunk } ;
 	}
 
+	//
+	// RejectSet
+	//
+
 	inline void RejectSet::_save() {
 		if (_dirty!=Yes) return ;
 		::vector<RuleTgt> rts_vector(_rule_tgts.size()) ; for( auto [rt,i] : _rule_tgts ) rts_vector[i] = rt ;
@@ -712,11 +717,14 @@ namespace Engine {
 		_dirty                          = No         ;
 	}
 
-	inline void RejectSet::_solve_lazy() {
+	inline void RejectSet::_load() {
 		if (_dirty!=Maybe) return ;
-		size_t i = 0 ;
-		for( RuleTgt rt : _node_data.rejected_rule_tgts().view() ) _rule_tgts[rt] = i++ ; // retain insertion order
 		_dirty = No ;
+		size_t i = 0 ;
+		for( RuleTgt rt : _node_data.rejected_rule_tgts().view() ) {
+			if (+rt->rule) _rule_tgts[rt] = i++ ;                    // retain insertion order
+			else           _dirty         = Yes ;                    // if a rule is obsolete, forget it and remind to save cleaned up vector
+		}
 	}
 
 }

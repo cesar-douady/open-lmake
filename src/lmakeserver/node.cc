@@ -170,6 +170,7 @@ namespace Engine {
 				Job( s , idx() , Deps(deps,{}/*accesses*/,{}/*dflags*/,false/*parallel*/) )
 			,	true/*is_sure*/
 			}})) ;
+			n_job_tgts = 1 ;
 			buildable = Buildable::Yes ;
 			for( Node const& d : deps )
 				switch (d->buildable) {
@@ -184,14 +185,13 @@ namespace Engine {
 
 	::span<JobTgt const> NodeData::prio_job_tgts(RuleIdx prio_idx) const {
 		if (prio_idx==NoIdx) return {} ;
-		JobTgts const& jts = job_tgts() ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
-		if (prio_idx>=jts.size()) {
-			SWEAR( prio_idx==jts.size() , prio_idx , jts.size() ) ;
+		if (prio_idx>=n_job_tgts) {
+			SWEAR( prio_idx==n_job_tgts , prio_idx,n_job_tgts ) ;
 			return {} ;
 		}
-		RuleIdx              sz   = 0                    ;
-		::span<JobTgt const> sjts = jts.subvec(prio_idx) ;
-		RuleIdx              prio = 0                    ;
+		RuleIdx              sz   = 0                                               ;
+		::span<JobTgt const> sjts = job_tgts().subvec(prio_idx,n_job_tgts-prio_idx) ;
+		RuleIdx              prio = 0                                               ;
 		for( JobTgt jt : sjts ) {
 			RuleIdx new_prio = jt->rule()->prio ;
 			if (new_prio<prio) break ;
@@ -204,10 +204,11 @@ namespace Engine {
 	::span<JobTgt const> NodeData::candidate_job_tgts() const {
 		RuleIdx ci = conform_idx() ;
 		if (ci==NoIdx) return {} ;
+		SWEAR( ci<n_job_tgts , ci,n_job_tgts ) ;
 		JobTgts const& jts  = job_tgts()            ; // /!\ jts is a Crunch vector, so if single element, a subvec would point to it, so it *must* be a ref
 		RuleIdx        prio = jts[ci]->rule()->prio ;
 		RuleIdx        idx  = ci                    ;
-		for( JobTgt jt : jts.subvec(ci) ) {
+		for( JobTgt jt : jts.subvec(ci,n_job_tgts-ci) ) {
 			if (jt->rule()->prio<prio) break ;
 			idx++ ;
 		}
@@ -220,14 +221,14 @@ namespace Engine {
 		// services
 		JobTgtIter& operator++(int) {
 			_prev_prio = _cur_prio() ;
-			if (single) idx = node.job_tgts().size() ;
+			if (single) idx = node.n_job_tgts ;
 			else        idx++ ;
 			return self ;
 		}
-		JobTgt        operator* () const { return node.job_tgts()[idx] ;                                  }
-		JobTgt const* operator->() const { return node.job_tgts().begin()+idx ;                           }
-		JobTgt      * operator->()       { return node.job_tgts().begin()+idx ;                           }
-		operator bool           () const { return idx<node.job_tgts().size() && _cur_prio()>=_prev_prio ; }
+		JobTgt        operator* () const { SWEAR( idx<node.n_job_tgts , idx,node.n_job_tgts ) ; return node.job_tgts()[idx]                           ; }
+		JobTgt const* operator->() const { SWEAR( idx<node.n_job_tgts , idx,node.n_job_tgts ) ; return node.job_tgts().begin()+idx                    ; }
+		JobTgt      * operator->()       { SWEAR( idx<node.n_job_tgts , idx,node.n_job_tgts ) ; return node.job_tgts().begin()+idx                    ; }
+		operator bool           () const {                                                      return idx<node.n_job_tgts && _cur_prio()>=_prev_prio ; }
 	private :
 		RuleIdx _cur_prio() const { return (*self)->rule()->prio ; }
 		// data
@@ -241,7 +242,7 @@ namespace Engine {
 
 	// check rule_tgts special rules and set rule_tgts accordingly
 	Buildable NodeData::_gather_special_rule_tgts( ::string const& name_ , RejectSet&/*lazy*/ known_rejected ) {
-		job_tgts().clear() ;
+		n_job_tgts  = 0                        ;
 		rule_tgts() = Node::s_rule_tgts(name_) ;
 		//
 		RuleIdx n_skip = 0 ;
@@ -263,45 +264,60 @@ namespace Engine {
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and set rule_tgts accordingly
 	// - special rules (always first) are already processed
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
-	Buildable NodeData::_gather_prio_job_tgts( ::string const& name_ , Req req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl ) {
+	Buildable NodeData::_gather_prio_job_tgts( ::string&/*lazy*/ name_ , Req req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl ) {
+		if (!rule_tgts()                ) return Buildable::No                                ;
+		if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ;                // too deep, must be an infinite dep path
 		//
-		RuleIdx           prio       = 0                  ;                                         // initially, we are ready to accept any rule
-		RuleIdx           n          = 0                  ;
-		Buildable         b          = Buildable::No      ;                                         // return val if we find no job candidate
+		RuleIdx           prio       = 0                  ;                                                    // initially, we are ready to accept any rule
+		RuleIdx           n_rules    = 0                  ;
+		Buildable         b          = Buildable::No      ;                                                    // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
-		//
-		SWEAR(is_lcl(name_),name_) ;
-		::vector<JobTgt> jts ; jts.reserve(rule_tgts_.size()) ;                                     // typically, there is a single priority
+		JobTgts&          jts        = job_tgts()         ;
+		::vector<JobTgt>  new_jts    ;                                                                             // typically, there is a single matching job, so dont reserve
+		bool              name_chked = false              ;
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			Rule r = rt->rule ; if (!r) continue ;
 			SWEAR(!r->is_special()) ;
-			if (r->prio<prio                ) goto Done                                           ;
-			if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ; // too deep, must be an infinite dep path
-			if (!known_rejected.contains(rt)) {
-				Rule::RuleMatch rm { rt , name_ , Maybe/*chk_psfx*/ } ; // rule is pre-filtered, so no need to match prefix and suffix, check name_.size() though, as pfx an sfx could overlap
-				if (!rm) {
-					known_rejected.insert(rt) ;
-				} else {
-					//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					JobTgt jt = JobTgt( ::move(rm) , rt.sure() , req , lvl+1 ) ;
-					//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (+jt) {
-						if (jt.sure()) { b =         Buildable::Yes    ; n = NoIdx ; } // after a sure job, we can forget about rules at lower prio
-						else             b = ::max(b,Buildable::Maybe) ;
-						jts.push_back(jt) ;
-						prio = r->prio ;
-					}
-				}
+			if (r->prio<prio               ) goto Done ;
+			if (n_rules!=NoIdx             ) n_rules++ ;                                                       // in all cases, rule is consumed, whether it matches or not
+			if (known_rejected.contains(rt)) continue  ;                                                       // this is the major purpose of known_rejected
+			//
+			bool            from_reservoir = !new_jts && n_job_tgts<jts.size() && r==jts[n_job_tgts]->rule() ; // once a job is in new_jts, we cant simply extend job_tgts by incrementing n_job_tgts
+			Rule::RuleMatch rm             ;
+			//
+			if (from_reservoir) {
+				rm = { jts[n_job_tgts] } ;                                                                     // fast path : avoid matching (the only purpose of keeping jobs in reservoir)
+			} else {
+				if (!name_     )   name_ = name() ;
+				if (!name_chked) { SWEAR(is_lcl(name_),name_) ; name_chked = true ; }
+				//
+				rm = { rt , name_ , Maybe/*chk_psfx*/ } ;                                                      // no adequate job in reservoir, matching is unavoidable
+				//
+				if (!rm) { known_rejected.insert(rt) ; continue ; }
 			}
-			if (n!=NoIdx) n++ ;
+			//
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			JobTgt jt { ::move(rm) , rt.sure() , req , RuleIdx(lvl+1) } ; if (!jt) continue ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (from_reservoir)   n_job_tgts++ ;                                                               // simply extend official size as reservoir job is ok
+			else                  new_jts.push_back(jt) ;
+			if (jt.sure()     ) { b =         Buildable::Yes    ; n_rules = NoIdx ; }                          // after a sure job, we can forget about rules at lower prio
+			else                  b = ::max(b,Buildable::Maybe) ;
+			prio = r->prio ;
 		}
-		n = NoIdx ;                                                                    // we have exhausted all rules
+		n_rules = NoIdx ;                                                                                      // we have exhausted all rules
 	Done :
-		//            vvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (+jts    ) job_tgts ().append    (jts) ;
-		if (n==NoIdx) rule_tgts().clear     (   ) ;
-		else          rule_tgts().shorten_by(n  ) ;
-		//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (+new_jts) {
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			jts.shorten_by(jts.size()-n_job_tgts) ;
+			jts.append(new_jts)                   ;
+			//^^^^^^^^^^^^^^^^^^^^
+			n_job_tgts += new_jts.size() ;
+		}
+		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (n_rules==NoIdx) rule_tgts().clear     (       ) ;
+		else                rule_tgts().shorten_by(n_rules) ;
+		//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		return b ;
 	}
 
@@ -547,6 +563,7 @@ namespace Engine {
 		bool               query          = make_action==MakeAction::Query     ;
 		bool               chk_regenerate = false                              ;                                      // anti infinite loop : may only regenerate once
 		RejectSet/*lazy*/  known_rejected { self }                             ;
+		::string/*lazy*/   name_          ;                                                                           // = name()
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -578,31 +595,31 @@ namespace Engine {
 				if (!done             ) { prod_idx = NoIdx ; goto Make ;                                            } // we waited for it and it is not done, retry
 				if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; } // jobs in error are deemed to produce all their potential targets
 			}
-			if (prod_idx!=NoIdx) goto DoWakeup ;             // we have at least one done job, no need to investigate any further
-			if (ri.single) ri.single   = false  ;            // if regenerating but job does not generate us, something strange happened, retry this prio
-			else           ri.prio_idx = it.idx ;            // else go on with next prio
+			if (prod_idx!=NoIdx) goto DoWakeup ;                                             // we have at least one done job, no need to investigate any further
+			if (ri.single) ri.single   = false  ;                                            // if regenerating but job does not generate us, something strange happened, retry this prio
+			else           ri.prio_idx = it.idx ;                                            // else go on with next prio
 		}
 	Make :
 		g_kpi.n_node_make++ ;
 		SWEAR(prod_idx==NoIdx,prod_idx) ;
-		for( chk_regenerate=true ;; chk_regenerate=false ) { // only check regenerate once (e.g. in case of submit_loop, we would try forever)
+		for( chk_regenerate=true ;; chk_regenerate=false ) {                                 // only check regenerate once (e.g. in case of submit_loop, we would try forever)
 			for (;;) {
 				SWEAR(ri.prio_idx!=NoIdx) ;
-				if (!ri.single) {                            // fast path : cannot have several jobs not gather new jobs if we consider only a single (existing) job
-					if (ri.prio_idx>=job_tgts().size()) {    // gather new job_tgts from rule_tgts
+				if (!ri.single) {                                                            // fast path : cannot have several jobs not gather new jobs if we consider only a single (existing) job
+					if (ri.prio_idx>=n_job_tgts) {                                           // gather new JobTgt's from rule_tgts
 						try {
-							if (+rule_tgts()) { //!            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv fast path : avoid computing name()v
-								buildable = ::max( buildable , _gather_prio_job_tgts( name() , req , known_rejected ) ) ;
-							} //!                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							if (ri.prio_idx>=job_tgts().size()) goto DoWakeup ;                                       // fast path
+							//!                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv fast path : avoid computing name()
+							buildable = ::max( buildable , _gather_prio_job_tgts( name_ , req , known_rejected ) ) ;
+							//!                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							if (ri.prio_idx>=n_job_tgts) goto DoWakeup ;                     // fast path
 						} catch (::pair<Special,::vector<Node>> const& e) {
 							set_infinite(e.first,e.second) ;
 							goto DoWakeup ;
 						}
 					}
-					for( JobTgtIter it{self,ri} ; it ; it++ ) {                                                       // check if we obviously have several jobs, in which case make nothing
+					for( JobTgtIter it{self,ri} ; it ; it++ ) {                              // check if we obviously have several jobs, in which case make nothing
 						JobTgt jt = *it ;
-						if      ( jt.sure()                 )   buildable = Buildable::Yes ;                          // buildable is data independent & pessimistic (may be Maybe instead of Yes)
+						if      ( jt.sure()                 )   buildable = Buildable::Yes ; // buildable is data independent & pessimistic (may be Maybe instead of Yes)
 						else if (!jt->c_req_info(req).done())   continue ;
 						else if (!jt.produces(idx())        )   continue ;
 						if      (prod_idx!=NoIdx            ) { multi = {prod_idx,it.idx} ; goto DoWakeup ; }
@@ -709,7 +726,7 @@ namespace Engine {
 		bool    res  = true ;
 		RuleIdx k    = 0    ;
 		RuleIdx prio = 0    ;
-		for( Job j : job_tgts() ) {
+		for( Job j : job_tgts().subvec(0,n_job_tgts) ) {
 			RuleIdx p = j->rule()->prio ;
 			if (p<prio) break ;              // all jobs above or besides conform job(s)
 			res &= j->forget(targets,deps) ;
@@ -732,7 +749,7 @@ namespace Engine {
 		match_gen = 0                  ;
 		fence() ;
 		rule_tgts ().clear() ;
-		job_tgts  ().clear() ;
+		job_tgts  ().clear() ; n_job_tgts = 0 ;
 		actual_job().clear() ;
 		refresh() ;
 	}
@@ -742,7 +759,7 @@ namespace Engine {
 		buildable = b ;
 		fence() ;
 		rule_tgts ().clear() ;
-		job_tgts  ().clear() ;
+		job_tgts  ().clear() ; n_job_tgts = 0 ;
 		actual_job().clear() ;
 		_set_match_ok() ;
 	}

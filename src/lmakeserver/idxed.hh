@@ -220,9 +220,9 @@ namespace Vector {
 		void shorten_by(Sz by) {
 			Sz sz = size() ;
 			SWEAR( by<=sz , by , sz ) ;
-			if      (!_multi()) { if (by==sz) forget() ;                                          }
+			if      (!_multi()) { if (by==sz) forget() ;                   }
 			else if (by!=sz-1 )   self = F::file.shorten_by( self , by ) ;
-			else                { Item save = self[0] ; F::file.pop(Vector(self)) ; self = save ; }
+			else                  assign(::span(items(),1)) ;
 		}
 		//
 		template<::convertible_to<Item> I> void append(::span<I> const& v) {
