@@ -102,18 +102,20 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	for( size_t i : iota(dep_infos.size()) ) {
 		DepVerboseInfo const& dvi = dep_infos[i] ;
 		Object*   py_ok    ;
-		Ptr<Dict> py_stems { New } ;
 		switch (dvi.ok) {
 			case Yes   : py_ok = &True  ; break ;
 			case Maybe : py_ok = &None  ; break ;
 			case No    : py_ok = &False ; break ;
 		DF}
-		for( auto const& [k,v] : dvi.stems ) py_stems->set_item( k , *Ptr<Str>(v) ) ;
 		Ptr<Dict> py_dep_info { New } ;
-		py_dep_info->set_item( "ok"       , *py_ok                       ) ;
-		py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(dvi.crc)) ) ;
-		py_dep_info->set_item( "rule"     , *Ptr<Str>(        dvi.rule ) ) ;
-		py_dep_info->set_item( "stems"    , *py_stems                    ) ;
+		/**/              py_dep_info->set_item( "ok"       , *py_ok                       ) ;
+		if (+dvi.crc    ) py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(dvi.crc)) ) ;
+		if (+dvi.rule   ) py_dep_info->set_item( "rule"     , *Ptr<Str>(dvi.rule         ) ) ;
+		if (+dvi.special) py_dep_info->set_item( "special"  , *Ptr<Str>(dvi.special      ) ) ;
+		if (+dvi.stems) {
+			Ptr<Dict> py_stems { New } ; for( auto const& [k,v] : dvi.stems ) py_stems->set_item( k , *Ptr<Str>(v) ) ;
+			py_dep_info->set_item( "stems" , *py_stems ) ;
+		}
 		res->set_item( files[i] , *py_dep_info ) ;
 	}
 	return res ;

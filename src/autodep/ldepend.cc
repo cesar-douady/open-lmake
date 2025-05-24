@@ -70,7 +70,7 @@ int main( int argc , char* argv[]) {
 	int      rc     = 0 ;
 	::string out    ;
 	size_t   w_ok   = 0 ;
-	size_t   w_crc  = 0 ;
+	size_t   w_crc  = 3 ;
 	size_t   w_rule = 0 ;
 	for( DepVerboseInfo dvi : dep_infos ) {
 		const char* ok_str ;
@@ -79,9 +79,11 @@ int main( int argc , char* argv[]) {
 			case Maybe : ok_str = "???"   ; break ;
 			case No    : ok_str = "error" ; break ;
 		DF}                                                                                        // NO_COV
-		w_ok   = ::max( w_ok   , ::strlen(ok_str)          ) ;
-		w_crc  = ::max( w_crc  , ::string(dvi.crc ).size() ) ;
-		w_rule = ::max( w_rule ,          dvi.rule .size() ) ;
+		/**/                   w_ok   = ::max( w_ok   , ::strlen(ok_str)                ) ;
+		/**/                   w_crc  = ::max( w_crc  , ::string(dvi.crc)       .size() ) ;
+		if      (+dvi.rule   ) w_rule = ::max( w_rule ,             dvi.rule    .size() ) ;
+		else if (+dvi.special) w_rule = ::max( w_rule , ("special:"+dvi.special).size() ) ;
+		else                   w_rule = ::max( w_rule , ::strlen("???")                 ) ;
 	}
 	for( size_t i : iota(dep_infos.size()) ) {
 		DepVerboseInfo const& dvi = dep_infos[i] ;
@@ -90,9 +92,12 @@ int main( int argc , char* argv[]) {
 			case Maybe : out << widen("???"  ,w_ok) ; rc = 1 ; break ;
 			case No    : out << widen("error",w_ok) ; rc = 1 ; break ;
 		DF}                                                                                        // NO_COV
-		out <<' '<< widen(::string(dvi.crc),w_crc) ;
-		out <<' '<< cmd_line.args[i]               ;
-		out <<'\n' ;
+		/**/                   out <<' '<< widen(::string(dvi.crc),w_crc ) ;
+		if      (+dvi.rule   ) out <<' '<< widen(dvi.rule         ,w_rule) ;
+		else if (+dvi.special) out <<' '<< widen(dvi.special      ,w_rule) ;
+		else                   out <<' '<< widen("???"            ,w_rule) ;
+		/**/                   out <<' '<< cmd_line.args[i]                ;
+		/**/                   out <<'\n'                                  ;
 		size_t w_k = 0 ;
 		for( auto const& [k,_] : dvi.stems ) w_k = ::max( w_k , k.size() ) ;
 		for( auto const& [k,v] : dvi.stems ) out <<'\t'<< widen(k,w_k) <<' '<< v <<'\n' ;

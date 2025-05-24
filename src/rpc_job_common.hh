@@ -280,10 +280,11 @@ using CommentExts = BitMap<CommentExt> ;
 
 struct DepVerboseInfo {
 	friend ::string& operator+=( ::string& , DepVerboseInfo const& ) ;
-	Bool3     ok    = Maybe ;
-	Hash::Crc crc   = {}    ;
-	::string  rule  = {}    ;
-	::vmap_ss stems = {}    ;
+	Bool3     ok      = Maybe ;
+	Hash::Crc crc     = {}    ;
+	::string  rule    = {}    ;
+	::string  special = {}    ;
+	::vmap_ss stems   = {}    ;
 } ;
 
 inline ::string& operator+=( ::string& os , DepVerboseInfo const& dvi ) { // START_OF_NO_COV

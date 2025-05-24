@@ -630,10 +630,11 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The key is the dep name.</li>
 <li>The value is a <code>dict</code> composed of:
 <ul>
-<li><code>ok</code>: <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: the checksum computed after the dep (cf. <code>xxhsum</code> (1)).</li>
-<li><code>rule</code>: the rule name of the job that has generated the dep.</li>
-<li><code>stems</code>: a <code>dict</code> mapping stem names to stem values.</li>
+<li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
+<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <code>xxhsum</code> (1)).</li>
+<li><code>rule</code>:     The rule name of the job that has generated the dep one exists.</li>
+<li><code>special</code>:  The special nature (e.g. <code>src</code>).</li>
+<li><code>stems</code>:    A <code>dict</code> mapping stem names to stem values if the rule is a plain rule.</li>
 </ul>
 </li>
 </ul>

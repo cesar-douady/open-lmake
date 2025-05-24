@@ -93,10 +93,11 @@ If `verbose`, return a `dict` with one entry par dep where:
 
 - The key is the dep name.
 - The value is a `dict` composed of:
-  - `ok`: `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
-  - `checksum`: the checksum computed after the dep (cf. `xxhsum` (1)).
-  - `rule`: the rule name of the job that has generated the dep.
-  - `stems`: a `dict` mapping stem names to stem values.
+  - `ok`:       `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
+  - `checksum`: The checksum computed after the dep (unless `ok` is `None`) (cf. `xxhsum` (1)).
+  - `rule`:     The rule name of the job that has generated the dep one exists.
+  - `special`:  The special nature (e.g. `src`).
+  - `stems`:    A `dict` mapping stem names to stem values if the rule is a plain rule.
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 
