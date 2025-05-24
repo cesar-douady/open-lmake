@@ -625,15 +625,15 @@ For example, if file <code>a/b</code> is opened for reading, and it turns out to
 as a link (in case it is itself a link) and regular (as it is opened).</p>
 <p>By default, passed deps are associated with no access, but are required to be buildable and produced without error unless <code>readdir_ok</code> is true.
 To simulate a plain access, you need to pass <code>read=True</code> to associate accesses and <code>required=False</code> to allow it not to exist.</p>
-<p>If <code>verbose</code>, return a dict with one entry par dep where:</p>
+<p>If <code>verbose</code>, return a <code>dict</code> with one entry par dep where:</p>
 <ul>
-<li>the key is dep</li>
-<li>the value is a tuple (ok,checksum) where:
+<li>The key is the dep name.</li>
+<li>The value is a <code>dict</code> composed of:
 <ul>
-<li>ok = True if the dep is built with no error</li>
-<li>ok = False if the dep is built in error</li>
-<li>ok = None is the dep was not built</li>
-<li>checksum is computed after the dep</li>
+<li><code>ok</code>: <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
+<li><code>checksum</code>: the checksum computed after the dep (cf. <code>xxhsum</code> (1)).</li>
+<li><code>rule</code>: the rule name of the job that has generated the dep.</li>
+<li><code>stems</code>: a <code>dict</code> mapping stem names to stem values.</li>
 </ul>
 </li>
 </ul>

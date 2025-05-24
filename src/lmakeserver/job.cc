@@ -358,13 +358,13 @@ namespace Engine {
 		::vector<Req> reqs = self->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_analysis",proc,deps.size(),reqs.size()) ;
 		//
+		if (!reqs) return {.proc=proc} ;                                                       // if job is not running, it is too late, seq_id will be filled in later
+		JobMngtRpcReply res { .proc=proc } ;                                                   // seq_id will be filled in later
 		switch (proc) {
-			case JobMngtProc::DepVerbose : {
-				::vector<pair<Bool3/*ok*/,Crc>> res ;
-				if (!reqs) return {proc,{}/*seq_id*/,{}/*fd*/,res} ;      // if job is not running, it is too late, seq_id will be filled in later, /!\ {} would be interpreted as Bool3 !
-				res.reserve(deps.size()) ;
+			case JobMngtProc::DepVerbose :
+				res.dep_infos.reserve(deps.size()) ;
 				for( Dep const& dep : deps ) {
-					Node(dep)->full_refresh(false/*report_no_file*/,{}) ; // dep is const
+					Node(dep)->full_refresh(false/*report_no_file*/,{}) ;                      // dep is const
 					Bool3 dep_ok = Yes ;
 					for( Req req : reqs ) {
 						NodeReqInfo& dri = dep->req_info(req) ;
@@ -373,12 +373,20 @@ namespace Engine {
 						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
 					}
 					trace("dep_info",dep,dep_ok) ;
-					res.emplace_back(dep_ok,dep->crc) ;
+					if ( Job j = dep->actual_job() ; +j ) {
+						if ( Rule r = j->rule() ; +r ) {
+							Rule::RuleMatch rm  { j                                                 } ;
+							DepVerboseInfo  dvi { .ok=dep_ok , .crc=dep->crc , .rule=r->user_name() } ;
+							for( VarIdx i : iota(rm.stems.size()) ) dvi.stems.emplace_back( r->stems[i].first , ::move(rm.stems[i]) ) ;
+							res.dep_infos.push_back(::move(dvi)) ;
+							continue ;
+						}
+					}
+					res.dep_infos.push_back({ .ok=dep_ok , .crc=dep->crc }) ;
 				}
-				return { proc , {}/*seq_id*/ , {}/*fd*/ , res } ;
-			}
+			break ;
 			case JobMngtProc::ChkDeps :
-				if (!reqs) return { .proc=proc , .ok=Maybe } ;                                 // if job is not running, it is too late, seq_id will be filled in later
+				res.ok = Yes ;
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{}) ;                      // dep is const
 					Bool3 dep_ok = Yes ;
@@ -389,12 +397,17 @@ namespace Engine {
 						if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
 						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
 					}
-					if (dep_ok!=Yes) return { .proc=proc , .txt=dep->name() , .ok=dep_ok } ;   // seq_id will be filled in later
+					if (dep_ok!=Yes) {
+						res.ok  = dep_ok      ;
+						res.txt = dep->name() ;
+						break ;
+					}
 					trace("ok",dep) ;
 				}
-				trace("done") ;
-				return { .proc=proc , .ok=Yes } ;                                              // seq_id will be filled in later
+			break ;
 		DF}                                                                                    // NO_COV
+		trace("done") ;
+		return res ;
 	}
 
 	void JobExec::live_out( ReqInfo& ri , ::string const& txt ) const {

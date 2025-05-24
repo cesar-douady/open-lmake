@@ -555,6 +555,7 @@ namespace Engine {
 		//
 		if (node->buildable==Buildable::PathTooLong) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
+			audit_info( Color::Note    , cat("consider : lmake.config.max_path = ",name.size()," (or larger)") , lvl+1 ) ;
 			return ;
 		}
 		//

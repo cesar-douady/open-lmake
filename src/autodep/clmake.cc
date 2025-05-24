@@ -90,7 +90,7 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	//
 	::vector_s files = _get_files(py_args) ;
 	//
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+	::vector<DepVerboseInfo> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose , regexpr ) ; }
 	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                            }
 	//
@@ -100,13 +100,21 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	//
 	SWEAR( dep_infos.size()==files.size() , dep_infos.size() , files.size() ) ;
 	for( size_t i : iota(dep_infos.size()) ) {
-		Object* py_ok = nullptr/*garbage*/ ;
-		switch (dep_infos[i].first) {
+		DepVerboseInfo const& dvi = dep_infos[i] ;
+		Object*   py_ok    ;
+		Ptr<Dict> py_stems { New } ;
+		switch (dvi.ok) {
 			case Yes   : py_ok = &True  ; break ;
 			case Maybe : py_ok = &None  ; break ;
 			case No    : py_ok = &False ; break ;
-		}
-		res->set_item( files[i] , *Ptr<Tuple>( *py_ok , *Ptr<Str>(::string(dep_infos[i].second)) ) ) ;
+		DF}
+		for( auto const& [k,v] : dvi.stems ) py_stems->set_item( k , *Ptr<Str>(v) ) ;
+		Ptr<Dict> py_dep_info { New } ;
+		py_dep_info->set_item( "ok"       , *py_ok                       ) ;
+		py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(dvi.crc)) ) ;
+		py_dep_info->set_item( "rule"     , *Ptr<Str>(        dvi.rule ) ) ;
+		py_dep_info->set_item( "stems"    , *py_stems                    ) ;
+		res->set_item( files[i] , *py_dep_info ) ;
 	}
 	return res ;
 }

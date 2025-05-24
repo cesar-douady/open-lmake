@@ -44,15 +44,15 @@ Bullet
 .LP
 Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
 Item(B(-v),B(--verbose))
-	Write lines composed of the checksum and the name separated by a space for each required dep.
+	Write lines composed of:
 	.RS
-	The checksum is :
-	Item(I(unknown)) the checksum could not be computed, typically because the file is a special file (such as a device for example)
-	Item(I(none))    the file does not exist
-	Item(I(empty-R)) the file is an empty non-executable regular file
-	Item(I(<checksum>-R)) the file is a regular file , <checksum> is 16-digit hexadecimal number computed after its content (the exe permission is taken into account when computing checksum)
-	Item(I(<checksum>-L)) the file is a symbolic link, <checksum> is 16-digit hexadecimal number computed on the link (not the content of the target of the link)
+	Item(I(status))   B(ok) if dep is built ok, B(error) if dep is built in error, B(???) if dep is no built.
+	Item(I(checksum)) See C(xxhsum,1).
+	Item(I(rule))     The rule name of the job that has generated the dep.
+	Item(I(file))     The file name
 	.RE
+	.IP
+	For each file, such line is followed by one line for each stem, starting with a tab, composed of the name of the stem followed by its value.
 Item(B(-R),B(--read))         Report an actual read. Default is to only alter flags.
 Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).
 Item(B(-D),B(--readdir-ok))   Allow C(readdir,3) on passed deps even if not B(ignore)d nor B(incremental). Implies flag B(--no-required).

@@ -21,7 +21,7 @@ namespace JobSupport {
 		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
 	}
 
-	::vector<pair<Bool3/*ok*/,Crc>> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose , bool regexpr ) {
+	::vector<DepVerboseInfo> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose , bool regexpr ) {
 		if (regexpr) {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
@@ -72,12 +72,12 @@ namespace JobSupport {
 		JobExecRpcReply reply { .proc=Proc::DepVerbose } ;
 		if (di) reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .comment=Comment::depend , .digest=ad|~Accesses() , .date=now } , true/*force*/ ) ;
 		// fill holes for external deps
-		::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
+		::vector<DepVerboseInfo> dep_infos ;
 		for( size_t i : iota(files.size()) ) {
 			NodeIdx di1 = dep_idxs1[i] ;
-			if      (!di1  ) dep_infos.emplace_back( Maybe/*ok*/ , Crc(        ) ) ;   // 0 is reserved to mean no dep info
-			else if (!reply) dep_infos.emplace_back( Yes/*ok*/   , Crc(files[i]) ) ;   // there was no server, mimic it
-			else             dep_infos.push_back   (reply.dep_infos[di1-1]       ) ;
+			if      (!di1  ) dep_infos.push_back({ .ok=Maybe                      }) ; // 0 is reserved to mean no dep info
+			else if (!reply) dep_infos.push_back({ .ok=Yes   , .crc=Crc(files[i]) }) ; // there was no server, mimic it
+			else             dep_infos.push_back(::move(reply.dep_infos[di1-1])    ) ;
 		}
 		return dep_infos ;
 	}

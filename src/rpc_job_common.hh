@@ -277,3 +277,19 @@ enum class CommentExt : uint8_t {
 } ;
 using CommentExts = BitMap<CommentExt> ;
 // END_OF_VERSIONING
+
+struct DepVerboseInfo {
+	friend ::string& operator+=( ::string& , DepVerboseInfo const& ) ;
+	Bool3     ok    = Maybe ;
+	Hash::Crc crc   = {}    ;
+	::string  rule  = {}    ;
+	::vmap_ss stems = {}    ;
+} ;
+
+inline ::string& operator+=( ::string& os , DepVerboseInfo const& dvi ) { // START_OF_NO_COV
+	/**/            os <<'('<< dvi.ok    ;
+	if (+dvi.crc  ) os <<','<< dvi.crc   ;
+	if (+dvi.rule ) os <<','<< dvi.rule  ;
+	if (+dvi.stems) os <<','<< dvi.stems ;
+	return          os <<')'             ;
+}                                                                         // END_OF_NO_COV

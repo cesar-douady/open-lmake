@@ -47,9 +47,6 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* improve infinite messages
-	- add reference to path_max (and provide its value)
-	- provide a consider line
 ! add a warning when ids reach 15/16 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
@@ -86,8 +83,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide job info in depend verbose
-	- provide rule an stems
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size
@@ -173,6 +168,7 @@ M port to Darwin
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
 ! no req_info for non-buildable nodes
+	- to improve lmakeserver memory footprint
 ! find a way to serialize global dict
 	- like marshal, with functions
 ? evaluate dynamic deps only if static deps match

@@ -485,11 +485,12 @@ Status Gather::exec_child() {
 							case JobMngtProc::DepVerbose : {
 								Pdate now { New } ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
-								for( auto const& [ok,crc] : jmrr.dep_infos ) switch (ok) {
-									case Yes   : _exec_trace( now , Comment::depend , CommentExt::Reply , ::string(crc) ) ; break ;
-									case Maybe : _exec_trace( now , Comment::depend , CommentExt::Reply , "???"         ) ; break ;
-									case No    : _exec_trace( now , Comment::depend , CommentExt::Reply , "error"       ) ; break ;
-								}
+								for( DepVerboseInfo const& dvi : jmrr.dep_infos )
+									switch (dvi.ok) {
+										case Yes   : _exec_trace( now , Comment::depend , CommentExt::Reply , ::string(dvi.crc) ) ; break ;
+										case Maybe : _exec_trace( now , Comment::depend , CommentExt::Reply , "???"             ) ; break ;
+										case No    : _exec_trace( now , Comment::depend , CommentExt::Reply , "error"           ) ; break ;
+									}
 							} break ;
 							case JobMngtProc::Heartbeat :                                                                                                      break ;
 							case JobMngtProc::Kill      : _exec_trace( New , Comment::kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;

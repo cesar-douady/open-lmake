@@ -60,22 +60,42 @@ int main( int argc , char* argv[]) {
 	if (cmd_line.flags[Flag::NoRequired ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
 	if (cmd_line.flags[Flag::ReaddirOk  ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
 	//
-	::vector<pair<Bool3/*ok*/,Hash::Crc>> dep_infos ;
+	::vector<DepVerboseInfo> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , verbose , cmd_line.flags[Flag::Regexpr] ) ; }
 	catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                         }
 	//
 	if (!verbose) return 0 ;
 	//
 	SWEAR( dep_infos.size()==cmd_line.args.size() , dep_infos.size() , cmd_line.args.size() ) ;
-	int      rc  = 0 ;
-	::string out ;
-	for( size_t i : iota(dep_infos.size()) ) {
-		switch (dep_infos[i].first) {
-			case Yes   : out += "ok  " ;          break ;
-			case Maybe : out += "??? " ; rc = 1 ; break ;
-			case No    : out += "err " ; rc = 1 ; break ;
+	int      rc     = 0 ;
+	::string out    ;
+	size_t   w_ok   = 0 ;
+	size_t   w_crc  = 0 ;
+	size_t   w_rule = 0 ;
+	for( DepVerboseInfo dvi : dep_infos ) {
+		const char* ok_str ;
+		switch (dvi.ok) {
+			case Yes   : ok_str = "ok"    ; break ;
+			case Maybe : ok_str = "???"   ; break ;
+			case No    : ok_str = "error" ; break ;
 		DF}                                                                                        // NO_COV
-		out << ::string(dep_infos[i].second) <<' '<< cmd_line.args[i] <<'\n' ;
+		w_ok   = ::max( w_ok   , ::strlen(ok_str)          ) ;
+		w_crc  = ::max( w_crc  , ::string(dvi.crc ).size() ) ;
+		w_rule = ::max( w_rule ,          dvi.rule .size() ) ;
+	}
+	for( size_t i : iota(dep_infos.size()) ) {
+		DepVerboseInfo const& dvi = dep_infos[i] ;
+		switch (dvi.ok) {
+			case Yes   : out << widen("ok"   ,w_ok) ;          break ;
+			case Maybe : out << widen("???"  ,w_ok) ; rc = 1 ; break ;
+			case No    : out << widen("error",w_ok) ; rc = 1 ; break ;
+		DF}                                                                                        // NO_COV
+		out <<' '<< widen(::string(dvi.crc),w_crc) ;
+		out <<' '<< cmd_line.args[i]               ;
+		out <<'\n' ;
+		size_t w_k = 0 ;
+		for( auto const& [k,_] : dvi.stems ) w_k = ::max( w_k , k.size() ) ;
+		for( auto const& [k,v] : dvi.stems ) out <<'\t'<< widen(k,w_k) <<' '<< v <<'\n' ;
 	}
 	Fd::Stdout.write(out) ;
 	return rc ;

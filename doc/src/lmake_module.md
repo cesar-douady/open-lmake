@@ -89,14 +89,14 @@ as a link (in case it is itself a link) and regular (as it is opened).
 By default, passed deps are associated with no access, but are required to be buildable and produced without error unless `readdir_ok` is true.
 To simulate a plain access, you need to pass `read=True` to associate accesses and `required=False` to allow it not to exist.
 
-If `verbose`, return a dict with one entry par dep where:
+If `verbose`, return a `dict` with one entry par dep where:
 
-- the key is dep
-- the value is a tuple (ok,checksum) where:
-  - ok = True if the dep is built with no error
-  - ok = False if the dep is built in error
-  - ok = None is the dep was not built
-  - checksum is computed after the dep
+- The key is the dep name.
+- The value is a `dict` composed of:
+  - `ok`: `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
+  - `checksum`: the checksum computed after the dep (cf. `xxhsum` (1)).
+  - `rule`: the rule name of the job that has generated the dep.
+  - `stems`: a `dict` mapping stem names to stem values.
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 

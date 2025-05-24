@@ -139,8 +139,8 @@ struct JobExecRpcReply {
 		DN}
 	}
 	// data
-	Proc                            proc      = Proc::None ;
-	Bool3                           ok        = Maybe      ;                           // if proc==ChkDeps|Decode|Encode
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}         ;                           // if proc==DepVerbose            , same order as deps
-	::string                        txt       = {}         ;                           // if proc==        Decode|Encode , value for Decode, code for Encode
+	Proc                     proc      = Proc::None ;
+	Bool3                    ok        = Maybe      ;                                  // if proc==ChkDeps|Decode|Encode
+	::vector<DepVerboseInfo> dep_infos = {}         ;                                  // if proc==DepVerbose            , same order as deps
+	::string                 txt       = {}         ;                                  // if proc==        Decode|Encode , value for Decode, code for Encode
 } ;

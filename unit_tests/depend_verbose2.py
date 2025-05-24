@@ -36,7 +36,7 @@ if __name__!='__main__' :
 			from lmake import depend
 			time.sleep(1)                                            # ensure dep is being built if launched in //
 			status = depend(f'dep_{S}',verbose=True,required=int(R))
-			if status[f'dep_{S}'][0] and status[f'dep_{S}'][1]!='none' :
+			if status[f'dep_{S}']['ok'] and status[f'dep_{S}']['checksum']!='none' :
 				open(f'dep_{S}')
 			print(status)
 

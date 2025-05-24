@@ -311,11 +311,11 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                     as_is
-		void audit_info ( Color c , SC& t , SC& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t+' '+Disk::mk_file(lt) , false , l      ) ; }
-		void audit_info ( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                       , false , l      ) ; }
+		//                                                                                                                                           as_is
+		void audit_info ( Color c , SC& t , SC& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , +lt?t+' '+Disk::mk_file(lt):t , false , l      ) ; }
+		void audit_info ( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                             , false , l      ) ; }
 		void audit_node ( Color c , SC& p , Node n , DepDepth l=0 ) const ;
-		void audit_as_is(           SC& t                         ) const { audit( audit_fd , log_fd , options ,     t                       , true  , 1,'\t' ) ; } // maintain internal aligment
+		void audit_as_is(           SC& t                         ) const { audit( audit_fd , log_fd , options ,     t                             , true  , 1,'\t' ) ; } // maintain internal aligment
 		//
 		void audit_job( Color , Pdate , SC& step , SC& rule_name , SC& job_name , in_addr_t host=0 , Delay exec_time={} ) const ;
 		void audit_job( Color , Pdate , SC& step , Job                          , in_addr_t host=0 , Delay exec_time={} ) const ;

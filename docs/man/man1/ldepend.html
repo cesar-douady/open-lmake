@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu May 22 16:21:49 2025 -->
+<!-- CreationDate: Sat May 24 16:53:23 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -193,15 +193,27 @@ link, default is not to follow.</p>
 
 <p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
-<p style="margin-left:18%;">Write lines composed of the
-checksum and the name separated by a space for each required
-dep. <br>
-The checksum is : <i><br>
-unknown</i></p>
+<p style="margin-left:18%;">Write lines composed of:</p>
 
-<p style="margin-left:27%;">the checksum could not be
-computed, typically because the file is a special file (such
-as a device for example)</p>
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="8%">
+
+
+<p><i>status</i></p></td>
+<td width="1%"></td>
+<td width="73%">
+
+
+<p><b>ok</b> if dep is built ok, <b>error</b> if dep is
+built in error, <b>???</b> if dep is no built.</p></td></tr>
+</table>
+
+<p style="margin-left:18%;"><i>checksum</i></p>
+
+<p style="margin-left:27%;">See <b>xxhsum</b>(1).</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -210,33 +222,33 @@ as a device for example)</p>
 <td width="5%">
 
 
-<p><i>none</i></p></td>
+<p><i>rule</i></p></td>
 <td width="4%"></td>
-<td width="29%">
+<td width="67%">
 
 
-<p>the file does not exist</p></td>
-<td width="44%">
+<p>The rule name of the job that has generated the dep.</p></td>
+<td width="6%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="5%">
+
+
+<p><i>file</i></p></td>
+<td width="4%"></td>
+<td width="67%">
+
+
+<p>The file name</p></td>
+<td width="6%">
 </td></tr>
 </table>
 
-<p style="margin-left:18%;"><i>empty-R</i></p>
-
-<p style="margin-left:27%;">the file is an empty
-non-executable regular file</p>
-
-<p style="margin-left:18%;"><i>&lt;checksum&gt;-R</i></p>
-
-<p style="margin-left:27%;">the file is a regular file ,
-&lt;checksum&gt; is 16-digit hexadecimal number computed
-after its content (the exe permission is taken into account
-when computing checksum)</p>
-
-<p style="margin-left:18%;"><i>&lt;checksum&gt;-L</i></p>
-
-<p style="margin-left:27%;">the file is a symbolic link,
-&lt;checksum&gt; is 16-digit hexadecimal number computed on
-the link (not the content of the target of the link)</p>
+<p style="margin-left:18%; margin-top: 1em">For each file,
+such line is followed by one line for each stem, starting
+with a tab, composed of the name of the stem followed by its
+value.</p>
 
 <p style="margin-left:9%;"><b>-R</b>, <b>--read</b></p>
 

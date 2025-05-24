@@ -166,8 +166,8 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 		case Proc::CodecFile      : codec_file = ::move(jerr.file) ;            break ;
 		case Proc::CodecCtx       : codec_ctx  = ::move(jerr.file) ;            break ;
 		case Proc::DepVerbose : {
-			::vector<pair<Bool3/*ok*/,Crc>> dep_infos ;
-			for( ::string& f : dep_verboses ) dep_infos.emplace_back( Yes/*ok*/ , Crc(f) ) ;
+			::vector<DepVerboseInfo> dep_infos ;
+			for( ::string& f : dep_verboses ) dep_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
 			dep_verboses.clear() ;
 			return { .proc=jerr.proc , .dep_infos=::move(dep_infos) } ;
 		}

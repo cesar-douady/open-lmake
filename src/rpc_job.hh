@@ -898,13 +898,13 @@ struct JobMngtRpcReply {
 		DF}                                                                                                        // NO_COV
 	}
 	// data
-	Proc                            proc      = {}    ;
-	SeqId                           seq_id    = 0     ;
-	Fd                              fd        = {}    ; // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
-	::vector<pair<Bool3/*ok*/,Crc>> dep_infos = {}    ; // proc ==         DepVerbose
-	::string                        txt       = {}    ; // proc == ChkDeps|           Decode|Encode , reason for ChkDeps, value for Decode, code for Encode
-	Crc                             crc       = {}    ; // proc ==                    Decode|Encode , crc of txt
-	Bool3                           ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	Proc                     proc      = {}    ;
+	SeqId                    seq_id    = 0     ;
+	Fd                       fd        = {}    ; // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
+	::vector<DepVerboseInfo> dep_infos = {}    ; // proc ==         DepVerbose
+	::string                 txt       = {}    ; // proc == ChkDeps|           Decode|Encode , reason for ChkDeps, value for Decode, code for Encode
+	Crc                      crc       = {}    ; // proc ==                    Decode|Encode , crc of txt
+	Bool3                    ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
 } ;
 
 struct SubmitAttrs {
