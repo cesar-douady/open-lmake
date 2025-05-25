@@ -15,21 +15,18 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? exceptionnally, server has been seen to block
+? seen once : server has been seen blocked
 	- seems to be while taking GIL
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* add a report that maps pfx/sfx to rule candidates
-	- available in traces
-	- useful to optimize Lmakefile.py, even when no trace
+! generate meaningful messages in case of I/O error such as disk full
+! manage 32 bits executables with ptrace
 ? replace environ/environ_resources/environ_ancillary with a unique dict
 	- value is either a str or a tuple with value and flags
 	- much like deps
-! generate meaningful messages in case of I/O error such as disk full
-! manage 32 bits executables with ptrace
 ? add quarantined files in summary
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
@@ -47,7 +44,7 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-! add a warning when ids reach 15/16 of their limits
+! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
 	- either known at that time
@@ -238,6 +235,3 @@ X manage HUGE pages in store
 	- put a header in files so that format can be automatically recognized
 	- suitable for use in vim
 ? make a navigation tool based on Neo4J or a similarly complete tool
-? consider gdb guis :
-	- apt install nemiver
-	- insight

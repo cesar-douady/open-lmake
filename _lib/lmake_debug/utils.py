@@ -145,7 +145,7 @@ class Job :
 		if self.repo_view   : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
 		if self.tmp_view    : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
 		if self.views       : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'
-		if True             :          res =         res+ ' \\\n'
+		if True             :          res =         res+ ' -- \\\n'
 		#
 		if True        : res += ' '.join(x for x in args)                                # must be before redirections to files if args contains redirections
 		#

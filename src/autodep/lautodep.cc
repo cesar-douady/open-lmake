@@ -15,8 +15,7 @@ using namespace Disk ;
 using namespace Py   ;
 using namespace Time ;
 
-enum class CmdKey : uint8_t { None } ;
-
+enum class CmdKey  : uint8_t { None } ;
 enum class CmdFlag : uint8_t {
 	AutoMkdir
 ,	AutodepMethod
@@ -95,7 +94,7 @@ int main( int argc , char* argv[] ) {
 	app_init(true/*read_only_ok*/,Yes/*chk_version*/,Maybe/*cd_root*/) ;
 	Py::init(*g_lmake_root_s) ;
 	//
-	Syntax<CmdKey,CmdFlag,false/*OptionsAnywhere*/> syntax {{
+	Syntax<CmdKey,CmdFlag> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                       } }
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }

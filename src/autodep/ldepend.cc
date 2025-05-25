@@ -30,17 +30,17 @@ enum class Flag : uint8_t {
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::FollowSymlinks , { .short_name='L' , .has_arg=false , .doc="Logical view, follow symolic links" } }
-	,	{ Flag::Verbose        , { .short_name='v' , .has_arg=false , .doc="write dep crcs on stdout"           } }
-	,	{ Flag::Read           , { .short_name='R' , .has_arg=false , .doc="report a read"                      } }
-	,	{ Flag::Regexpr        , { .short_name='X' , .has_arg=false , .doc="args are regexprs"                  } }
+		{ Flag::FollowSymlinks , { .short_name='L' , .doc="Logical view, follow symolic links" } }
+	,	{ Flag::Verbose        , { .short_name='v' , .doc="write dep crcs on stdout"           } }
+	,	{ Flag::Read           , { .short_name='R' , .doc="report a read"                      } }
+	,	{ Flag::Regexpr        , { .short_name='X' , .doc="args are regexprs"                  } }
 	//
-	,	{ Flag::Critical    , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .has_arg=false , .doc="report critical deps"                    } }
-	,	{ Flag::Essential   , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .has_arg=false , .doc="ask that deps be seen in graphical flow" } }
-	,	{ Flag::IgnoreError , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .has_arg=false , .doc="ignore if deps are in error"             } }
-	,	{ Flag::NoRequired  , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .has_arg=false , .doc="ignore if deps cannot be built"          } }
-	,	{ Flag::Ignore      , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .has_arg=false , .doc="ignore deps"                             } }
-	,	{ Flag::ReaddirOk   , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .has_arg=false , .doc="allow readdir"                           } }
+	,	{ Flag::Critical    , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
+	,	{ Flag::Essential   , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .doc="ask that deps be seen in graphical flow" } }
+	,	{ Flag::IgnoreError , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .doc="ignore if deps are in error"             } }
+	,	{ Flag::NoRequired  , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .doc="ignore if deps cannot be built"          } }
+	,	{ Flag::Ignore      , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .doc="ignore deps"                             } }
+	,	{ Flag::ReaddirOk   , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                           } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	//

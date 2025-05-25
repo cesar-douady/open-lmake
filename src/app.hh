@@ -6,8 +6,6 @@
 #pragma once
 
 #include "disk.hh"
-#include "lib.hh"
-#include "time.hh"
 #include "trace.hh"
 #include "version.hh"
 
@@ -21,6 +19,7 @@ extern StaticUniqPtr<::string> g_exe_name      ; //                            e
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , Bool3 cd_root=Yes ) ;
 
 void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
+
 inline ::string git_clean_msg() {
 	::string d ; if (+*g_startup_dir_s) d = ' '+no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
 	return "consider : git clean -ffdx"+d ;
@@ -37,28 +36,36 @@ struct FlagSpec {
 	::string doc        ;
 } ;
 
-template<UEnum Key,UEnum Flag,bool OptionsAnywhere=true> struct Syntax {
+template<UEnum Key,UEnum Flag> struct Syntax {
 private :
 	static ::string _s_version_str() {
 		return cat("version ",Version[0],'.',Version[1]," (",VersionMrkr,")") ;
 	}
-	// cxtors & casts
 public :
+	[[noreturn]] static void s_version() {
+		exit( {} , _s_version_str() ) ;
+	}
+	// cxtors & casts
 	Syntax() = default ;
 	Syntax(                                 ::umap<Flag,FlagSpec> const& fs    ) : Syntax{{},fs} {}
 	Syntax( ::umap<Key,KeySpec> const& ks , ::umap<Flag,FlagSpec> const& fs={} ) {
+		has_keys     = +ks                           ;
+		has_flags    = +fs                           ;
 		has_dflt_key = !ks || ks.contains(Key::None) ;
 		//
-		SWEAR(!( has_dflt_key && +ks && ks.at(Key::None).short_name )) ;
+		SWEAR(!( has_dflt_key &&  ks.contains(Key::None) && ks.at(Key::None).short_name )) ;
 		//
 		for( auto const& [k,s] : ks ) { SWEAR(!keys [+k].short_name) ; keys [+k] = s ; } // ensure no short name conflicts
 		for( auto const& [f,s] : fs ) { SWEAR(!flags[+f].short_name) ; flags[+f] = s ; } // .
 	}
 	//
-	[[noreturn]] void version(                      ) const ;
-	[[noreturn]] void usage  (::string const& msg={}) const ;
+	void usage(::string const& msg={}) const ;
 	// data
+	bool                      has_keys     = false ;
+	bool                      has_flags    = false ;
 	bool                      has_dflt_key = false ;
+	bool                      args_ok      = true  ;
+	::string                  sub_option   ;
 	::array<KeySpec ,N<Key >> keys         ;
 	::array<FlagSpec,N<Flag>> flags        ;
 } ;
@@ -66,7 +73,7 @@ public :
 template<UEnum Key,UEnum Flag> struct CmdLine {
 	// cxtors & casts
 	CmdLine() = default ;
-	template<bool OAW> CmdLine( Syntax<Key,Flag,OAW> const& , int argc , const char* const* argv ) ;
+	CmdLine( Syntax<Key,Flag> const& , int argc , const char* const* argv ) ;
 	// services
 	::vector_s files() const {
 		Trace trace("files") ;
@@ -78,44 +85,44 @@ template<UEnum Key,UEnum Flag> struct CmdLine {
 		return res ;
 	}
 	// data
-	::string           exe       ;
 	Key                key       = Key::None ;
 	BitMap<Flag>       flags     ;
 	::array_s<N<Flag>> flag_args ;
 	::vector_s         args      ;
 } ;
 
-template<UEnum Key,UEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::version() const {
-	exit( {} , _s_version_str() ) ;
-}
-
-template<UEnum Key,UEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key,Flag,OptionsAnywhere>::usage(::string const& msg) const {
-	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                        // cannot use ::strlen which is not constexpr with clang
-    static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                        // account for terminating null
-	::string exe_path  = get_exe()                 ;
-	::string exe_name  = Disk::base_name(exe_path) ;
-	size_t   wk        = 0                         ; for( Key  k : iota(All<Key >) ) if (keys [+k].short_name) wk       = ::max( wk , snake(k).size() ) ;
-	size_t   wf        = 0                         ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) wf       = ::max( wf , snake(f).size() ) ;
-	bool     has_arg   = false                     ; for( Flag e : iota(All<Flag>) )                           has_arg |= flags[+e].has_arg             ;
+template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg) const {
+	static constexpr char   NoKey[] = "<no_key>"      ;                                                                                         // cannot use ::strlen which is not constexpr with clang
+    static constexpr size_t NoKeySz = sizeof(NoKey)-1 ;                                                                                         // account for terminating null
+	::string exe_path = get_exe()                 ;
+	::string exe_name = Disk::base_name(exe_path) ;
+	bool     has_arg  = false                     ; for( Flag e : iota(All<Flag>) ) has_arg |= flags[+e].has_arg ;
 	//
 	::string err_msg = ensure_nl(msg) ;
-	/**/                 err_msg << exe_name <<" [ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
-	/**/                 err_msg << _s_version_str() <<"\n"                                                                                       ;
-	if (OptionsAnywhere) err_msg << "options may be interleaved with args\n"                                                                      ;
-	/**/                 err_msg << "-h or --help : print this help and exit\n"                                                                   ;
-	/**/                 err_msg << "--version    : print version and exit\n"                                                                     ;
 	//
-	if (wk) {
-		if (has_dflt_key) { err_msg << "keys (at most 1) :\n" ; wk = ::max(wk,NoKeySz) ; }
-		else                err_msg << "keys (exactly 1) :\n" ;
-		if (has_dflt_key) err_msg << "<no key>" << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
+	/**/             err_msg <<      exe_name                                                                                          ;
+	if (+sub_option) err_msg <<' '<< sub_option                                                                                        ;
+	if (args_ok    ) err_msg <<' '<< "[ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
+	else             err_msg <<' '<< "[ -<short-option>[<option-value>] | --<long-option>[=<option-value>] ]*\n"                       ;
+	//
+	if (!sub_option) err_msg << _s_version_str() <<"\n"                     ; // analyze top level cmd line
+	if (args_ok    ) err_msg << "options may be interleaved with args\n"    ;
+	/**/             err_msg << "-h or --help : print this help and exit\n" ;
+	if (!sub_option) err_msg << "--version    : print version and exit\n"   ; // .
+	//
+	if (has_keys) {
+		size_t wk = 0 ; for( Key  k : iota(All<Key>) ) if (k!=Key::None) wk = ::max( wk , snake(k).size() ) ;
+		if (has_dflt_key) { err_msg << "keys (at most 1) :\n"                                  ; wk = ::max(wk,NoKeySz) ; }
+		else                err_msg << "keys (exactly 1) :\n"                                  ;
+		if (has_dflt_key)   err_msg << "<no key>" << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
 		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
 			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,wk) <<" : "<< keys[+k].doc <<'\n' ;
 		}
 	}
 	//
-	if (wf) {
+	if (has_flags) {
+		size_t wf = 0 ; for( Flag f : iota(All<Flag>) ) wf = ::max( wf , snake(f).size() ) ;
 		err_msg << "flags (0 or more) :\n"  ;
 		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
@@ -129,24 +136,25 @@ template<UEnum Key,UEnum Flag,bool OptionsAnywhere> [[noreturn]] void Syntax<Key
 	err_msg << "consider :"                                                   <<'\n' ;
 	err_msg << "  man "      <<exe_name                                       <<'\n' ;
 	err_msg << "  <browser> "<<Disk::dir_name_s(exe_path,2)<<"docs/index.html"<<'\n' ;
-
-	exit( Rc::Usage , err_msg ) ;
+	//
+	if (!sub_option) exit( Rc::Usage , err_msg ) ;
+	else             throw err_msg ;
 }
 
-template<UEnum Key,UEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>::CmdLine( Syntax<Key,Flag,OptionsAnywhere> const& syntax , int argc , const char* const* argv ) {
+template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> const& syntax , int argc , const char* const* argv ) {
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
-	::umap<char,Key > key_map  ; for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
-	::umap<char,Flag> flag_map ; for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
+	::umap<char,Key > key_map  ;     for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
+	::umap<char,Flag> flag_map ;     for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
 		bool has_key    = false ;
 		bool force_args = false ;
 		for( a=1 ; a<argc ; a++ ) {
 			const char* arg = argv[a] ;
 			if ( arg[0]!='-' || force_args ) {
+				throw_unless( syntax.args_ok , "unrecognized option does not start with - : ",arg ) ;
 				args.emplace_back(arg) ;
-				if (!OptionsAnywhere) force_args = true ;
 				continue ;
 			}
 			throw_unless( arg[1] , "unexpected lonely -" ) ;
@@ -173,15 +181,15 @@ template<UEnum Key,UEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>:
 				if (can_mk_enum<Flag>(option)) {
 					Flag f = mk_enum<Flag>(option) ;
 					if (syntax.flags[+f].short_name) {
-						if (syntax.flags[+f].has_arg) { throw_unless( *p=='=' , "no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // skip = sign
+						if (syntax.flags[+f].has_arg) { throw_unless( *p=='=' , "no value for option --"        ,option) ; flag_args[+f] = p+1 ; } // +1 to skip = sign
 						else                            throw_unless( !*p     , "unexpected value for option --",option) ;
 						flags |= f ;
 						continue ;
 					}
 				}
-				if      (option=="version") syntax.version()                    ;
-				else if (option=="help"   ) throw ""s                           ;
-				else                        throw "unexpected option --"+option ;
+				if      ( !syntax.sub_option && option=="version" ) syntax.s_version()                  ;
+				else if ( option=="help"                          ) throw ""s                           ;
+				else                                                throw "unexpected option --"+option ;
 			} else {
 				// short options
 				const char* p ;
@@ -191,9 +199,9 @@ template<UEnum Key,UEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>:
 						throw_if( has_key , "cannot specify both --",key," and --",k ) ;
 						key     = k    ;
 						has_key = true ;
-					} else if (flag_map.contains(*p)) {
-						Flag f = flag_map.at(*p) ;
-						flags |= f ;
+					} else if ( auto it=flag_map.find(*p) ; it!=flag_map.end() ) {
+						Flag f  = it->second ;
+						flags  |= f          ;
 						//
 						if (!syntax.flags[+f].has_arg) continue ;
 						//
@@ -213,7 +221,6 @@ template<UEnum Key,UEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Flag>:
 		throw_unless( has_key || syntax.has_dflt_key , "must specify a key" ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
-	exe = argv[0] ;
 	args.reserve(argc-a) ;
 	for( ; a<argc ; a++ ) args.emplace_back(argv[a]) ;
 }

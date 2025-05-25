@@ -26,8 +26,8 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"         } }
 	,	{ ReqKey::Trace      , { .short_name='u' , .doc="show execution trace of jobs leading to files" } }
 	},{
-		{ ReqFlag::Porcelaine , { .short_name='p' , .has_arg=false , .doc="generate output as an easy to parse python object" } }
-	,	{ ReqFlag::Verbose    , { .short_name='v' , .has_arg=false , .doc="generate info for non-existent deps/targts"        } }
+		{ ReqFlag::Porcelaine , { .short_name='p' , .doc="generate output as an easy to parse python object" } }
+	,	{ ReqFlag::Verbose    , { .short_name='v' , .doc="generate info for non-existent deps/targts"        } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//

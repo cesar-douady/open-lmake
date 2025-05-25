@@ -5,14 +5,26 @@
 
 #include "slurm_api.hh" // /!\ must be first because Python.h must be first
 
+#include "app.hh"
+
 #include <filesystem>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // seems to be necessary for compiling with -fsanitize
-#include "ext/cxxopts.hpp"
-#pragma GCC diagnostic pop
-
 using namespace Disk ;
+
+enum class SlurmKey  : uint8_t { None } ;
+enum class SlurmFlag : uint8_t {
+	CpusPerTask
+,	Mem
+,	Tmp
+,	Constraint
+,	Exclude
+,	Gres
+,	Licenses
+,	Nodelist
+,	Partition
+,	Qos
+,	Reservation
+} ;
 
 namespace Backends::Slurm {
 
@@ -434,60 +446,54 @@ namespace Backends::Slurm {
 		return daemon ;
 	}
 
-	static cxxopts::Options _create_parser() {
-		cxxopts::Options res { "slurm" , "Slurm options parser for lmake" } ;
-		res.add_options()
-			( "c,cpus-per-task" , "cpus-per-task" , cxxopts::value<uint16_t>() )
-			( "mem"             , "mem"           , cxxopts::value<::string>() )
-			( "tmp"             , "tmp"           , cxxopts::value<::string>() )
-			( "C,constraint"    , "constraint"    , cxxopts::value<::string>() )
-			( "x,exclude"       , "exclude nodes" , cxxopts::value<::string>() )
-			( "gres"            , "gres"          , cxxopts::value<::string>() )
-			( "L,licenses"      , "licenses"      , cxxopts::value<::string>() )
-			( "w,nodelist"      , "nodes"         , cxxopts::value<::string>() )
-			( "p,partition"     , "partition"     , cxxopts::value<::string>() )
-			( "q,qos"           , "qos"           , cxxopts::value<::string>() )
-			( "reservation"     , "reservation"   , cxxopts::value<::string>() )
-			( "h,help"          , "print usage"                                )
-		;
-		return res ;
-	}
 	RsrcsData parse_args(::string const& args) {
-		static ::string         s_slurm     = "slurm"          ;                   // apparently "slurm"s.data() does not work as memory is freed right away
-		static cxxopts::Options s_opt_parse = _create_parser() ;
+		Syntax<SlurmKey,SlurmFlag> syntax {{
+			{ SlurmFlag::CpusPerTask    , { .short_name='c' , .has_arg=true , .doc="cpus per task" } }
+		,	{ SlurmFlag::Mem            , {                   .has_arg=true , .doc="mem"           } }
+		,	{ SlurmFlag::Tmp            , {                   .has_arg=true , .doc="tmp disk space"} }
+		,	{ SlurmFlag::Constraint     , { .short_name='C' , .has_arg=true , .doc="constraint"    } }
+		,	{ SlurmFlag::Exclude        , { .short_name='x' , .has_arg=true , .doc="exclude nodes" } }
+		,	{ SlurmFlag::Gres           , {                   .has_arg=true , .doc="gres"          } }
+		,	{ SlurmFlag::Licenses       , { .short_name='L' , .has_arg=true , .doc="licenses"      } }
+		,	{ SlurmFlag::Nodelist       , { .short_name='w' , .has_arg=true , .doc="nodes"         } }
+		,	{ SlurmFlag::Partition      , { .short_name='p' , .has_arg=true , .doc="partition"     } }
+		,	{ SlurmFlag::Qos            , { .short_name='q' , .has_arg=true , .doc="qos"           } }
+		,	{ SlurmFlag::Reservation    , {                   .has_arg=true , .doc="reservation"   } }
+		}} ;
+		syntax.args_ok    = false       ;
+		syntax.sub_option = "--backend" ;
 		//
 		Trace trace(BeChnl,"parse_args",args) ;
 		//
-		if (!args) return {} ;                                                     // fast path
+		if (!args) return {} ;                                                                 // fast path
 		//
-		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")       ; // sentinel to parse last args
-		::vector<char*> argv    ;                   argv.reserve(arg_vec.size()) ;
+		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")         ;           // sentinel to parse last args
+		::vector<char*> argv(1) ;                   argv.reserve(arg_vec.size()+1) ;
 		RsrcsData       res     ;
 		//
-		argv.push_back(s_slurm.data()) ;
-		for ( ::string& arg : arg_vec ) {
+		for( ::string& arg : arg_vec ) {
 			if (arg!=":") {
 				argv.push_back(arg.data()) ;
 				continue ;
 			}
 			RsrcsDataSingle res1 ;
 			try {
-				auto opts = s_opt_parse.parse(argv.size(),argv.data()) ;
-				//
-				if (opts.count("cpus-per-task")) res1.cpu       =                                                   opts["cpus-per-task"].as<uint16_t>()  ;
-				if (opts.count("mem"          )) res1.mem       = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["mem"          ].as<::string>()) ;
-				if (opts.count("tmp"          )) res1.tmp       = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(opts["tmp"          ].as<::string>()) ;
-				if (opts.count("constraint"   )) res1.features  =                                                   opts["constraint"   ].as<::string>()  ;
-				if (opts.count("exclude"      )) res1.excludes  =                                                   opts["exclude"      ].as<::string>()  ;
-				if (opts.count("gres"         )) res1.gres      =                                                   opts["gres"         ].as<::string>()  ;
-				if (opts.count("licenses"     )) res1.licenses  =                                                   opts["licenses"     ].as<::string>()  ;
-				if (opts.count("nodelist"     )) res1.nodes     =                                                   opts["nodelist"     ].as<::string>()  ;
-				if (opts.count("partition"    )) res1.partition =                                                   opts["partition"    ].as<::string>()  ;
-				if (opts.count("qos"          )) res1.qos       =                                                   opts["qos"          ].as<::string>()  ;
-				if (opts.count("reservation"  )) res1.reserv    =                                                   opts["reservation"  ].as<::string>()  ;
-				if (opts.count("help"         )) throw s_opt_parse.help() ;
-			} catch (cxxopts::exceptions::exception const& e) {
-				throw "Error while parsing slurm options: "s+e.what() ;
+				CmdLine<SlurmKey,SlurmFlag> opts { syntax , int(argv.size()) , argv.data() } ;
+				//                                                                                         RndUp
+				if (opts.flags[SlurmFlag::CpusPerTask]) res1.cpu       = from_string          <    uint16_t     >(opts.flag_args[+SlurmFlag::CpusPerTask]) ;
+				if (opts.flags[SlurmFlag::Mem        ]) res1.mem       = from_string_with_unit<'M',uint32_t,true>(opts.flag_args[+SlurmFlag::Mem        ]) ;
+				if (opts.flags[SlurmFlag::Tmp        ]) res1.tmp       = from_string_with_unit<'M',uint32_t,true>(opts.flag_args[+SlurmFlag::Tmp        ]) ;
+				if (opts.flags[SlurmFlag::Constraint ]) res1.features  =                                          opts.flag_args[+SlurmFlag::Constraint ]  ;
+				if (opts.flags[SlurmFlag::Exclude    ]) res1.excludes  =                                          opts.flag_args[+SlurmFlag::Exclude    ]  ;
+				if (opts.flags[SlurmFlag::Gres       ]) res1.gres      =                                          opts.flag_args[+SlurmFlag::Gres       ]  ;
+				if (opts.flags[SlurmFlag::Licenses   ]) res1.licenses  =                                          opts.flag_args[+SlurmFlag::Licenses   ]  ;
+				if (opts.flags[SlurmFlag::Nodelist   ]) res1.nodes     =                                          opts.flag_args[+SlurmFlag::Nodelist   ]  ;
+				if (opts.flags[SlurmFlag::Partition  ]) res1.partition =                                          opts.flag_args[+SlurmFlag::Partition  ]  ;
+				if (opts.flags[SlurmFlag::Qos        ]) res1.qos       =                                          opts.flag_args[+SlurmFlag::Qos        ]  ;
+				if (opts.flags[SlurmFlag::Reservation]) res1.reserv    =                                          opts.flag_args[+SlurmFlag::Reservation]  ;
+			} catch (::string const& e) {
+				if (e.find('\n')==Npos) throw "error while parsing slurm options: " +e ;
+				else                    throw "error while parsing slurm options:\n"+e ;
 			}
 			res.push_back(::move(res1)) ;
 			argv.resize(1)              ;

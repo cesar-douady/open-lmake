@@ -16,7 +16,7 @@ enum class Flag : uint8_t {
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::Sync , { .short_name='s' , .has_arg=false , .doc="wait for server reply that previous deps are up-to-date with no error" } }
+		{ Flag::Sync , { .short_name='s' , .doc="wait for server reply that previous deps are up-to-date with no error" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
 	bool              sync     = cmd_line.flags[Flag::Sync]                            ;
