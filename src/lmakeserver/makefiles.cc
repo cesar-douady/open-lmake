@@ -159,15 +159,15 @@ namespace Engine::Makefiles {
 	static void _read_makefile( ::string&/*out*/ msg , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::string const& action , ::string const& sub_repos ) {
 		Trace trace("_read_makefile",action,Pdate(New)) ;
 		//
-		::string data   = PrivateAdminDirS+action+"_data.py" ;
-		Gather   gather ;
-		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                              ;
-		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                     ;
-		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data , PrivateEnvironFile , '/'+action+"/top/" , sub_repos } ;
-		gather.env                     = &_g_env                                                                                                            ;
-		gather.child_stdin             = Child::NoneFd                                                                                                      ;
-		gather.child_stdout            = Child::PipeFd                                                                                                      ;
-		gather.child_stderr            = Child::JoinFd                                                                                                      ;
+		::string data_file = PrivateAdminDirS+action+"_data.py" ;
+		Gather   gather    ;
+		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                   ;
+		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                          ;
+		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , PrivateEnvironFile , '.'+action+".top." , sub_repos } ;
+		gather.env                     = &_g_env                                                                                                                 ;
+		gather.child_stdin             = Child::NoneFd                                                                                                           ;
+		gather.child_stdout            = Child::PipeFd                                                                                                           ;
+		gather.child_stderr            = Child::JoinFd                                                                                                           ;
 		//
 		{	SavPyLdLibraryPath spllp ;
 			//              vvvvvvvvvvvvvvvvvvv
@@ -181,10 +181,10 @@ namespace Engine::Makefiles {
 		}
 		//
 		deps.files.reserve(gather.accesses.size()) ;
-		::string   deps_str = AcFd(data).read() ;
+		::string   deps_str = AcFd(data_file).read() ;
 		::uset_s   dep_set  ;
-		try                       { py_info = py_eval(deps_str) ;                           }
-		catch (::string const& e) { FAIL( "error while reading makefile digest :\n" , e ) ; } // NO_COV
+		try                       { py_info = py_eval(deps_str) ; }
+		catch (::string const& e) { FAIL(e) ;                     } // NO_COV
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.digest.write!=No) continue ;
 			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = cat( m.group(d,1/*dir_s*/) , m.group(d,2/*module*/) , ".py" ) ;
@@ -212,8 +212,8 @@ namespace Engine::Makefiles {
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		try                      { config = (*py_info)["config"].as_a<Dict>() ;    }
 		catch(::string const& e) { throw "while processing config :\n"+indent(e) ; }
-		config.has_split_rules = !py_info->contains("rules"  ) ;
-		config.has_split_srcs  = !py_info->contains("sources") ;
+		config.rules_action = py_info->get_item("rules_action"  ).as_a<Str>() ;
+		config.srcs_action  = py_info->get_item("sources_action").as_a<Str>() ;
 		//
 		return true/*done*/ ;
 	}
@@ -227,17 +227,27 @@ namespace Engine::Makefiles {
 	,	::umap_ss const& user_env
 	,	::string  const& startup_dir_s
 	) {
-		bool has_split = IsRules ? g_config->has_split_rules : g_config->has_split_srcs ;
-		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,STR(has_split)) ;
-		if ( !has_split && !py_info && changed==No ) return Maybe/*done*/ ;                                     // sources has not been read
+		::string const& action = IsRules ? g_config->rules_action : g_config->srcs_action ;
+		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,action) ;
+		if ( !action && !py_info && changed==No ) return Maybe/*done*/ ;                                        // sources has not been read
 		::string  reason      ;
 		Gil       gil         ;                                                                                 // ensure Gil is taken when py_new_info is destroyed
 		Ptr<Dict> py_new_info ;
-		::string     kind        = IsRules ? "rules" : "sources" ;
-		if (has_split) {
+		::string  kind        = IsRules ? "rules" : "sources" ;
+		if (+action) {
 			switch (changed) {
-				case Yes   : reason = kind+" module/callable appeared"       ; break ;
-				case Maybe : reason = kind+" module/callable was never read" ; break ;
+				case Yes   :
+					if      (action.find("import"  )!=Npos) reason = "module "   ;
+					else if (action.find("callable")!=Npos) reason = "function " ;
+					reason += "Lmakefile."+kind+" appeared" ;
+				break ;
+				case Maybe :
+					reason = "Lmakefile."+kind ;
+					if      (action.find("import"  )!=Npos) reason = "module "   +reason+" was never imported" ;
+					else if (action.find("callable")!=Npos) reason = "function " +reason+"() was never called" ;
+					else if (action.find("dflt"    )!=Npos) reason = "default sources were never read"         ;
+					else                                    reason =              reason+" was never read"     ;
+				break ;
 				case No    :
 					reason = _chk_deps( kind , user_env , startup_dir_s , g_config->reliable_dirs ) ;
 					if (!reason) return No/*done*/ ;
@@ -250,9 +260,9 @@ namespace Engine::Makefiles {
 			for( ::string const& sr_s : g_config->sub_repos_s ) sub_repos_s <<first("",",")<< mk_py_str(sr_s) ; // use sub-repos list discovered during config
 			/**/                                                sub_repos_s <<first("",",","")<<')'           ; // singletons must have a terminating ','
 			msg<<"read "<<kind<<" because "<<reason<<'\n' ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_read_makefile( /*out*/msg , /*out*/py_new_info , /*out*/deps , kind , sub_repos_s ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			_read_makefile( /*out*/msg , /*out*/py_new_info , /*out*/deps , kind+'.'+action , sub_repos_s ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
 		try                      { res = (*py_info)[kind].as_a<typename T::PyType>() ; }
@@ -310,9 +320,9 @@ namespace Engine::Makefiles {
 			}
 			if (!new_) return ;                                                  // no new config means we keep old config, no modification
 			//
-			changed_srcs  |= old.has_split_srcs !=new_.has_split_srcs  ;
-			changed_rules |= old.has_split_rules!=new_.has_split_rules ;
-			invalidate    |= old.sub_repos_s    !=new_.sub_repos_s     ;         // this changes matching exceptions, which means it changes matching
+			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
+			changed_rules |= old.rules_action!=new_.rules_action ;
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;               // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

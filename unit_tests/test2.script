@@ -9,7 +9,7 @@ TARGET=src1.w6.wait
 date +%T.%N >&2
 lmake $TARGET &
 date +%T.%N >&2
-sleep 2
+sleep 3
 date +%T.%N >&2
 kill -2 %1
 date +%T.%N >&2

@@ -19,15 +19,15 @@ assert sys.path[0]==lmake_private_lib # normal python behavior : put script dir 
 sys.path[0:0] = [lmake_lib]
 
 if len(sys.argv)!=5 :
-	print('usage : python read_makefiles.py <out_file> <environ_file> /[config/][rules/][sources/][top/] sub_repos_s sub_repo_s',file=sys.stderr)
+	print('usage : python read_makefiles.py <out_file> <environ_file> .(<actions>.)* sub_repos_s sub_repo_s',file=sys.stderr)
 	sys.exit(1)
 
 out_file     =      sys.argv[1]
 environ_file =      sys.argv[2]
 actions      =      sys.argv[3]
 sub_repos_s  = eval(sys.argv[4])
-is_top       = '/top/' in actions
-actions      = actions.replace('/top/','/')
+is_top       = '.top.' in actions
+actions      = actions.replace('.top.','.')
 cwd          = os.getcwd()
 
 if is_top : os.environ['TOP_REPO_ROOT'] = cwd
@@ -61,25 +61,31 @@ lmake.user_environ = UserEnvironDict(user_environ)
 # suppress access to _lib (not  for user usage)
 # add access to repo      (only for user usage)
 sys.path = [ lmake_lib , *sys.path[2:] , '.' ]
-import Lmakefile
-# if sys.path has been manipulated, record it for dynamic attribute execution
-# but only extern imports are allowed, so filter out local dirs
-sys_path = tuple(d for d in sys.path if not _maybe_lcl(d))
 
 config = pdict()
-if '/config/' in actions :
-	if callable(getattr(Lmakefile,'config',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.config() are correctly caught
-		Lmakefile.config()
-	else :
-		try :
-			import Lmakefile.config
-		except ImportError as e :
-			if e.name!='Lmakefile.config' : raise
+if '.config.' in actions :
+	from importlib.util import find_spec
+	import Lmakefile                       # import only when necessary
+	is_pkg = hasattr(Lmakefile,'__path__')
+	if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
+	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
 	config = lmake.config
 	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
+	srcs_action = ''
+	if   lmake.manifest                              : actions     += 'sources.'
+	elif not is_top                                  : pass
+	elif callable(getattr(Lmakefile,'sources',None)) : srcs_action  = 'sources_callable'
+	elif is_pkg and find_spec('Lmakefile.sources')   : srcs_action  = 'sources_import'
+	else                                             : srcs_action  = 'sources_dflt'
+	#
+	rules_action = ''
+	if   lmake._rules                               : actions      += 'rules.'
+	elif not is_top                                 : pass
+	elif callable(getattr(Lmakefile,'rules',None))  : rules_action  = 'rules_callable'
+	elif is_pkg and find_spec('Lmakefile.rules')    : rules_action  = 'rules_import'
+	else                                            : actions      += 'rules.'
+	#
 	if is_top :
-		if lmake.manifest : actions += 'sources/'
-		if lmake._rules   : actions += 'rules/'
 		for be in config.get('backends',{}).values() :
 			if 'interface' not in be : continue
 			import serialize
@@ -90,33 +96,40 @@ if '/config/' in actions :
 			)
 			be['interface'] = expr.glbs+'interface = '+expr.expr
 
-sources = []
-if '/sources/' in actions :
-	if callable(getattr(Lmakefile,'sources',None)) : # /!\ dont use try/except to ensure errors inside Lmakefile.sources() are correctly caught
+srcs = []
+if '.sources.' in actions :
+	if  '.sources_callable.' in actions :
+		import Lmakefile                  # import only when necessary
 		Lmakefile.sources()
-	else :
-		try :
-			import Lmakefile.sources
-		except ImportError as e :
-			if e.name!='Lmakefile.sources' : raise
+	elif '.sources_import.' in actions :
+		import Lmakefile.sources
+	elif '.sources_dflt.' in actions :
+		import lmake.sources
+		lmake.manifest = lmake.sources.auto_sources()
 	if not lmake.manifest :
-		from lmake import sources
-		lmake.manifest = sources.auto_sources()
-	sources = list(lmake.manifest)
+		print('lmake.manifest is empty',file=sys.stderr)
+		exit(1)
+	srcs = list(lmake.manifest)
 
 rules = []
-if '/rules/' in actions :
-	if callable(getattr(Lmakefile,'rules',None)) :                                                       # /!\ dont use try/except to ensure errors inside Lmakefile.rules() are correctly caught
+if '.rules.' in actions :
+	if '.rules_callable.' in actions :
+		import Lmakefile                                                                                 # import only when necessary
 		Lmakefile.rules()
-	else :
-		try :
-			import Lmakefile.rules
-		except ImportError as e :
-			if e.name!='Lmakefile.rules' : raise
+	elif '.rules_import.' in actions :
+		import Lmakefile.rules
 	fmt_rule.no_imports |= { r.__module__ for r in lmake._rules if fmt_rule.lcl_mod_file(r.__module__) } # transport by value all local modules that contain at least one rule
 	for r in lmake._rules :
 		r2 = fmt_rule.fmt_rule(r)
 		if r2 : rules.append(r2)
+
+#
+# manage sys.path
+#
+
+# if sys.path has been manipulated, record it for dynamic attribute execution
+# but only extern imports are allowed, so filter out local dirs
+sys_path = tuple(d for d in sys.path if not _maybe_lcl(d))
 
 #
 # manage sub-repos
@@ -132,17 +145,17 @@ def merge_config( config , sub_config , sub_dir_s ) :
 	if sub_config.sub_repos :
 		config.sub_repos += tuple(sub_dir_s+sr for sr in sub_config.sub_repos )
 
-def merge_sources( sources , sub_sources , sub_dir_s ) :
-	sources[:] = [ s for s in sources if not s.startswith(sub_dir_s) ] # in sub-repo, sources are provided by sub-repo, not by top-level
-	for s in sub_sources :
-		if   not s.endswith  ('/'  ) : sources.append(sub_dir_s+s)     # source file
-		elif     s.startswith('/'  ) : sources.append(          s)     # absolute source dir
-		elif not s.startswith('../') : sources.append(sub_dir_s+s)     # local source dir
-		else :                                                         # relative external source dir : walks up sub_dir_s
+def merge_srcs( srcs , sub_srcs , sub_dir_s ) :
+	srcs[:] = [ s for s in srcs if not s.startswith(sub_dir_s) ] # in sub-repo, sources are provided by sub-repo, not by top-level
+	for s in sub_srcs :
+		if   not s.endswith  ('/'  ) : srcs.append(sub_dir_s+s)  # source file
+		elif     s.startswith('/'  ) : srcs.append(          s)  # absolute source dir
+		elif not s.startswith('../') : srcs.append(sub_dir_s+s)  # local source dir
+		else :                                                   # relative external source dir : walks up sub_dir_s
 			sd_s = sub_dir_s
 			while sd_s and s.startswith('../') : sd_s , s = sd_s[0:sd_s.rfind('/',0,-1)+1] , s[3:]
 			# if local to the top level dir, relative external sources of the sub-repo are deemed produced by the top-level (or other sub-repo's) rules, thus they are no more external sources
-			if s.startswith('../') : sources.append(sd_s+s)
+			if s.startswith('../') : srcs.append(sd_s+s)
 
 def merge_rules( sub_rules , sub_dir_s ) :
 	global rules
@@ -161,11 +174,9 @@ for sub_repo_s in sub_repos_s :
 	if rc : sys.exit(rc)
 	os.chdir(cwd)
 	sub_infos = pdict.mk_deep(eval(open(out_file).read()))
-	if '/config/'  in actions : merge_config ( config  , sub_infos.config  , sub_repo_s )
-	if '/sources/' in actions : merge_sources( sources , sub_infos.sources , sub_repo_s )
-	if '/rules/'   in actions : merge_rules  (           sub_infos.rules   , sub_repo_s )
-
-sources = sorted(set(sources)) # suppress duplicates if any
+	if '.config.'   in actions : merge_config( config , sub_infos.config  , sub_repo_s )
+	if '.sources.'  in actions : merge_srcs  ( srcs   , sub_infos.sources , sub_repo_s )
+	if '.rules.'    in actions : merge_rules (          sub_infos.rules   , sub_repo_s )
 
 # generate output
 # could be a mere print, but it is easier to debug with a prettier output
@@ -191,13 +202,16 @@ with open(out_file,'w') as out :
 		for k in UserEnvironDict.AccessedKeys : print(f'{sep(1)}{k!r:{kl}} : {user_environ.get(k)!r}',file=out)
 		if True                               : print(f'{dict_end(0)}}}'                             ,file=out)
 	#
-	if '/config/' in actions :
+	if '.config.' in actions :
+		if is_top :
+			print(f"{sep(0)}'rules_action'   : {rules_action!r}",file=out)
+			print(f"{sep(0)}'sources_action' : {srcs_action !r}",file=out)
 		kl = max((len(repr(k)) for k in config.keys()),default=0)
 		if True                   : print(f"{sep(0)}'config' : {{"     ,file=out)
 		for k,v in config.items() : print(f'{sep(1)}{k!r:{kl}} : {v!r}',file=out)
 		if True                   : print(f'{dict_end(0)}}}'           ,file=out)
 	#
-	if rules or '/rules/' in actions :
+	if '.rules.' in actions :
 		print(f"{sep(0)}'rules' : {{"             ,file=out)
 		print(f"{sep(1)}'sys_path' : {sys_path!r}",file=out) # for dynamic attributes execution
 		print(f"{sep(1)}'rules' : ("              ,file=out)
@@ -208,10 +222,15 @@ with open(out_file,'w') as out :
 			if True              : print(f'{dict_end(2)}}}'           ,file=out)
 		print(f'{tuple_end(1)})',file=out)
 		print(f'{dict_end(0)}}}',file=out)
+	else :
+		assert not rules
 	#
-	if sources or '/sources/' in actions :
-		if True            : print(f"{sep(0)}'sources' : (",file=out)
-		for src in sources : print(f'{sep(1)}{src!r}'      ,file=out)
-		if True            : print(f'{tuple_end(0)})'      ,file=out)
+	if '.sources.' in actions :
+		srcs = sorted(set(srcs)) # suppress duplicates if any
+		if True         : print(f"{sep(0)}'sources' : (",file=out)
+		for src in srcs : print(f'{sep(1)}{src!r}'   ,file=out)
+		if True         : print(f'{tuple_end(0)})'   ,file=out)
+	else :
+		assert not srcs
 	#
 	print('}',file=out)

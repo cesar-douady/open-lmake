@@ -21,10 +21,10 @@ enum class Color : uint8_t {
 } ;
 
 enum class ConfigDiff : uint8_t {
-	None         // configs are identical
-,	Dyn          // config can be updated while engine runs
-,	Static       // config can be updated when engine is steady
-,	Clean        // config cannot be updated (requires clean repo)
+	None                          // configs are identical
+,	Dyn                           // config can be updated while engine runs
+,	Static                        // config can be updated when engine is steady
+,	Clean                         // config cannot be updated (requires clean repo)
 } ;
 
 enum class StdRsrc : uint8_t {
@@ -93,18 +93,18 @@ namespace Engine {
 		// data
 		// /!\ default values must stay in sync with _lib/lmake/config.src.py
 		// START_OF_VERSIONING
-		Time::Delay       ddate_prec      { 0.01 } ; // precision of dates on disk
-		Time::Delay       heartbeat       { 10   } ; // min time between successive heartbeat probes for any given job
-		Time::Delay       heartbeat_tick  { 0.01 } ; // min time between successive heartbeat probes
-		DepDepth          max_dep_depth   = 100    ; // max dep of the whole flow used to detect infinite recursion
-		Time::Delay       network_delay   { 1    } ;
-		size_t            path_max        = 200    ; // if -1 <=> unlimited
-		::vector_s        sub_repos_s     ;
-		TraceConfig       trace           ;
-		::vector<Cache>   caches          ;
-		::map_s<CacheIdx> cache_idxs      ;
-		bool              has_split_rules = false  ; // if true <=> read independently of config
-		bool              has_split_srcs  = false  ; // .
+		Time::Delay       ddate_prec     { 0.01 } ; // precision of dates on disk
+		Time::Delay       heartbeat      { 10   } ; // min time between successive heartbeat probes for any given job
+		Time::Delay       heartbeat_tick { 0.01 } ; // min time between successive heartbeat probes
+		DepDepth          max_dep_depth  = 100    ; // max dep of the whole flow used to detect infinite recursion
+		Time::Delay       network_delay  { 1    } ;
+		size_t            path_max       = 200    ; // if -1 <=> unlimited
+		::vector_s        sub_repos_s    ;
+		TraceConfig       trace          ;
+		::vector<Cache>   caches         ;
+		::map_s<CacheIdx> cache_idxs     ;
+		::string          rules_action   ;          // action to perform to read independently of config
+		::string          srcs_action    ;          // .
 		// END_OF_VERSIONING
 	} ;
 

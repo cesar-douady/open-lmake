@@ -38,6 +38,7 @@ config.caches.dir = {
 
 config.console.date_precision = 2
 config.console.show_eta       = True
+config.console.host_len       = 15
 
 config.local_admin_dir = repo_root+'/LMAKE_LOCAL'
 

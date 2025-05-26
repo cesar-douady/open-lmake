@@ -44,7 +44,7 @@ config = pdict(
 		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
 	,	has_exec_time  = True                               # if True, output the exec_time field
 	,	history_days   = 7                                  # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
-	,	host_length    = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
+	,	host_len       = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
 	,	show_eta       = False
 	,	show_ete       = True                               # if True, the title includes the ETA of the lmake command
 	)
