@@ -482,20 +482,20 @@ namespace Backends {
 			//
 			reply.small_id = _s_small_ids.acquire() ;
 			//    vvvvvvvvvvvvvvvvvvvvvvvv
-			try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                             // send reply ASAP to minimize overhead, failure will be caught by heartbeat
+			try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {} // send reply ASAP to minimize overhead, failure will be caught by heartbeat
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^
-			job_exec            = { job , jis.start.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
-			entry.start_date    = job_exec.start_date                                 ;
-			entry.workload      = _s_workload.start(entry.reqs,job)                   ;
-			entry.conn.host     = job_exec.host                                       ;
-			entry.conn.port     = jsrr.port                                           ;
-			entry.conn.small_id = jis.start.small_id                                  ;
+			job_exec            = { job , s_is_local(entry.tag)?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts, no host for local backend
+			entry.start_date    = job_exec.start_date                                                         ;
+			entry.workload      = _s_workload.start(entry.reqs,job)                                           ;
+			entry.conn.host     = job_exec.host                                                               ;
+			entry.conn.port     = jsrr.port                                                                   ;
+			entry.conn.small_id = jis.start.small_id                                                          ;
 		}
-		bool report_now =                                                                                             // dont defer long jobs or if a message is to be delivered to user
+		bool report_now =                                                // dont defer long jobs or if a message is to be delivered to user
 				+pre_action_warnings
 			||	+start_msg_err.stderr
-			||	is_retry(submit_attrs.reason.tag)                                                                     // emit retry start message
-			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay                                              // if job is probably long, emit start message immediately
+			||	is_retry(submit_attrs.reason.tag)                        // emit retry start message
+			||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay // if job is probably long, emit start message immediately
 		;
 		Job::s_record_thread.emplace( job , ::move(jis) ) ;
 		trace("started",job_exec,jis.start) ;
@@ -734,7 +734,7 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		if (!dyn) {                                                                              // if dyn, threads are already running
+		if (!dyn) {                                                                                                    // if dyn, threads are already running
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
 			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
@@ -789,7 +789,7 @@ namespace Backends {
 			if (addrs.size()==1) {
 				be->addr = addrs[0].second ;
 			} else if (be->is_local()) {
-				be->addr = SockFd::LoopBackAddr ;                                                                   // dont bother user for local backend
+				be->addr = SockFd::LoopBackAddr ;                                                                      // dont bother user for local backend
 			} else if (addrs.size()==0) {
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
