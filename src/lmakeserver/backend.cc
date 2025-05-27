@@ -484,7 +484,7 @@ namespace Backends {
 			//    vvvvvvvvvvvvvvvvvvvvvvvv
 			try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {} // send reply ASAP to minimize overhead, failure will be caught by heartbeat
 			//    ^^^^^^^^^^^^^^^^^^^^^^^^
-			job_exec            = { job , s_is_local(entry.tag)?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts, no host for local backend
+			job_exec            = { job , s_is_local(entry.tag)?0:jis.start.addr , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts, no host for local backend
 			entry.start_date    = job_exec.start_date                                                         ;
 			entry.workload      = _s_workload.start(entry.reqs,job)                                           ;
 			entry.conn.host     = job_exec.host                                                               ;
