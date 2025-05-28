@@ -383,6 +383,8 @@ namespace Backends {
 				case StartingId : return { {} , HeartbeatState::Alive } ;                                      // book keeping is not updated yet
 				case FailedId   : {
 					spawned_jobs.end(self,::move(it)) ;
+					if (!_oldest_submitted_job) _oldest_submitted_job = New ;
+					launch() ;
 					auto     mit = msgs.find(j)       ; SWEAR(mit!=msgs.end(),j) ;
 					::string msg = ::move(mit->second) ;
 					msgs.erase(mit) ;
@@ -391,7 +393,11 @@ namespace Backends {
 				default : {
 					::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 					trace(digest) ;
-					if (digest.second!=HeartbeatState::Alive) spawned_jobs.end(self,::move(it)) ;
+					if (digest.second!=HeartbeatState::Alive) {
+						spawned_jobs.end(self,::move(it)) ;
+						if (!_oldest_submitted_job) _oldest_submitted_job = New ;
+						launch() ;
+					}
 					return digest ;
 				}
 			}
@@ -510,7 +516,6 @@ namespace Backends {
 							se.id = FailedId ;
 							trace("fail",j,ld.prio,e) ;
 							msgs[j] = e        ;
-							_launch_queue.wakeup() ;                                              // we may have new jobs to launch as we did not launch all jobs we were supposed to
 						}
 					}
 					se.id.notify_one() ;
