@@ -791,7 +791,7 @@ namespace Backends {
 			::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;
 			if (addrs.size()==1) {
 				be->addr = addrs[0].second ;
-			} else if (be->is_local()) {
+			} else if (t==Tag::Local) {
 				be->addr = SockFd::LoopBackAddr ;                                                                      // dont bother user for local backend
 			} else if (addrs.size()==0) {                                                                              // START_OF_NO_COV condition is system dependent
 				throw "cannot determine address from interface "+cfg.ifce ;

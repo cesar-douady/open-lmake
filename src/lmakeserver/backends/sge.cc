@@ -80,8 +80,8 @@ namespace Backends::Sge {
 	constexpr Tag MyTag = Tag::Sge ;
 
 	struct SgeBackend
-	:	             GenericBackend<MyTag,'G'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,'G'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,'G'/*LaunchThreadKey*/,RsrcsData>
+	{	using Base = GenericBackend<MyTag,'G'/*LaunchThreadKey*/,RsrcsData> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet

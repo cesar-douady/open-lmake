@@ -130,9 +130,8 @@ namespace Backends {
 		using JobEndThread   = ServerThread    <JobEndRpcReq  ,false/*Flush*/> ;
 		using DeferredThread = TimedQueueThread<DeferredEntry ,false/*Flush*/> ;
 		// statics
-		static bool             s_is_local  (Tag) ;
-		static bool             s_ready     (Tag) ;
-		static ::string const&  s_config_err(Tag) ;
+		static bool            s_ready     (Tag) ;
+		static ::string const& s_config_err(Tag) ;
 		//
 		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) ;             // send warnings on first time only
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
@@ -194,9 +193,8 @@ namespace Backends {
 		virtual ~Backend() = default ;                                                                 // ensure all fields of sub-backends are correctly destroyed
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual bool      is_local(                                                                    ) const { return true ; }
-		virtual ::vmap_ss descr   (                                                                    ) const { return {}   ; }
-		virtual void      config  ( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dyn*/ )       {               }
+		virtual ::vmap_ss descr (                                                                    ) const { return {}   ; }
+		virtual void      config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dyn*/ )       {               }
 		//
 		virtual void          open_req         ( Req    , JobIdx /*n_jobs*/ ) {}                       // called before any operation on req , n_jobs is the max number of jobs that can be launched
 		virtual void          new_req_etas     (                            ) {}                       // inform backend that req has a new eta, which may change job priorities
@@ -247,7 +245,6 @@ namespace Backends {
 		return res ;
 	}
 
-	inline bool            Backend::s_is_local  (Tag t) { return                     s_tab[+t]->is_local() ; }
 	inline bool            Backend::s_ready     (Tag t) { return +t && s_tab[+t] && !s_tab[+t]->config_err ; }
 	inline ::string const& Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err ; }
 	//

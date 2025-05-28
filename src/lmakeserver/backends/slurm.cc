@@ -82,8 +82,8 @@ namespace Backends::Slurm {
 	constexpr Tag MyTag = Tag::Slurm ;
 
 	struct SlurmBackend
-	:	             GenericBackend<MyTag,'U'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/>
-	{	using Base = GenericBackend<MyTag,'U'/*LaunchThreadKey*/,RsrcsData,false/*IsLocal*/> ;
+	:	             GenericBackend<MyTag,'U'/*LaunchThreadKey*/,RsrcsData>
+	{	using Base = GenericBackend<MyTag,'U'/*LaunchThreadKey*/,RsrcsData> ;
 
 		struct SpawnedMap : ::umap<Rsrcs,JobIdx> {
 			// count number of jobs spawned but not started yet

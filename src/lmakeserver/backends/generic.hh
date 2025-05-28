@@ -141,7 +141,7 @@ namespace Backends {
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all
-	template< Tag T , char LaunchThreadKey , class RsrcsData , bool IsLocal > struct GenericBackend : Backend {
+	template< Tag T , char LaunchThreadKey , class RsrcsData > struct GenericBackend : Backend {
 
 		using Rsrcs = Shared<RsrcsData,JobIdx> ;
 
@@ -262,9 +262,6 @@ namespace Backends {
 			sub_config(dct,env,dyn) ;
 			if (!dyn) _launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ;
 		}
-		virtual bool is_local() const {
-			return IsLocal ;
-		}
 		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
 			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
@@ -376,7 +373,9 @@ namespace Backends {
 				case StartingId : return { {} , HeartbeatState::Alive } ;                                      // book keeping is not updated yet
 				case FailedId   : {
 					spawned_jobs.end(self,::move(it)) ;
-					auto     mit = msgs.find(j)       ; SWEAR(mit!=msgs.end(),j) ;
+					if (!_oldest_submitted_job) _oldest_submitted_job = New ;
+					launch() ;
+					auto     mit = msgs.find(j)        ; SWEAR(mit!=msgs.end(),j) ;
 					::string msg = ::move(mit->second) ;
 					msgs.erase(mit) ;
 					return { ::move(msg) , HeartbeatState::Err } ;
@@ -384,7 +383,11 @@ namespace Backends {
 				default : {
 					::pair_s<HeartbeatState> digest = heartbeat_queued_job(j,se) ;
 					trace(digest) ;
-					if (digest.second!=HeartbeatState::Alive) spawned_jobs.end(self,::move(it)) ;
+					if (digest.second!=HeartbeatState::Alive) {
+						spawned_jobs.end(self,::move(it)) ;
+						if (!_oldest_submitted_job) _oldest_submitted_job = New ;
+						launch() ;
+					}
 					return digest ;
 				}
 			}
@@ -500,10 +503,9 @@ namespace Backends {
 							SWEAR(se.id>=0,j) ;                                                   // negative id are used to mark special states
 							trace("child",j,ld.prio,se.id,ld.cmd_line) ;
 						} catch (::string const& e) {
-							se.id = FailedId ;
 							trace("fail",j,ld.prio,e) ;
+							se.id   = FailedId ;
 							msgs[j] = e        ;
-							_launch_queue.wakeup() ;                                              // we may have new jobs to launch as we did not launch all jobs we were supposed to
 						}
 					}
 					se.id.notify_one() ;

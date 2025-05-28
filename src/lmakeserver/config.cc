@@ -203,9 +203,9 @@ namespace Engine {
 			}
 			// do some adjustments
 			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is not remote
-				if (!backends[+t].configured         ) continue        ;
-				if (!Backends::Backend::s_ready   (t)) continue        ;
-				if (!Backends::Backend::s_is_local(t)) goto SeenRemote ;
+				if (!backends[+t].configured      ) continue        ;
+				if (!Backends::Backend::s_ready(t)) continue        ;
+				if (t!=BackendTag::Local          ) goto SeenRemote ;
 			}
 			reliable_dirs    = true ;                                                                                                  // all backends are local, dirs are necessarily reliable
 			console.host_len = 0    ;                                                                                                  // host has no interest if all jobs are local
@@ -278,7 +278,7 @@ namespace Engine {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;
 			}
-			res <<"\t\t"<< t <<'('<< (bbe->is_local()?"local":"remote") <<") :\n" ;
+			res <<"\t\t"<< t <<" :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
 			if ( +be.ifce)                    w = ::max(w,strlen("interface")) ;

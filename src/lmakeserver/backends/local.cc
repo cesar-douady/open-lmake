@@ -45,7 +45,7 @@ namespace Backends::Local {
 
 	constexpr Tag MyTag = Tag::Local ;
 
-	struct LocalBackend : GenericBackend<MyTag,'L'/*LaunchThreadKey*/,RsrcsData,true/*IsLocal*/> {
+	struct LocalBackend : GenericBackend<MyTag,'L'/*LaunchThreadKey*/,RsrcsData> {
 		// init
 		static void s_init() {
 			static bool once=false ; if (once) return ; else once = true ;
