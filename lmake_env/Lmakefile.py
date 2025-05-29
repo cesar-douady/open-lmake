@@ -31,9 +31,8 @@ else :
 	backend = 'local'
 
 config.caches.dir = {
-	'tag'  : 'dir'
-,	'repo' : repo_root
-,	'dir'  : osp.dirname(repo_root)+'/lmake_env-cache'
+	'tag' : 'dir'
+,	'dir' : osp.dirname(repo_root)+'/lmake_env-cache'
 }
 
 config.console.date_precision = 2
@@ -293,6 +292,7 @@ class TarLmake(BaseRule) :
 	targets = { 'TAR' : 'lmake.tar.gz' }
 	deps = {
 		'SERIALIZE'           : '_lib/serialize.py'
+	,	'FMT_RULE_PY'         : '_lib/fmt_rule.py'
 	,	'READ_MAKEFILES_PY'   : '_lib/read_makefiles.py'
 	,	'LD_PRELOAD'          : '_lib/ld_preload.so'
 	,	'LD_PRELOAD_JEMALLOC' : '_lib/ld_preload_jemalloc.so'
@@ -347,14 +347,16 @@ class CpyPy(BaseRule) :
 	dep    = '_lib/{File}.py'
 	cmd    = 'cat'
 
-class CpyLmakePy(BaseRule,PyRule) :
-	target = 'lib/{File}.py'
+class SrcSrcPy(AntiRule) :
+	target = r'{:.*}.src.src.py'
+class ExpandSrcPy(BaseRule,PyRule) :
+	target = '_lib/{File}.py'
 	dep    = '_lib/{File}.src.py'
 	def cmd() :
 		import shutil
 		txt = sys.stdin.read()
 		txt = txt.replace('$BASH'           ,Rule.shell[0]                         )
-		txt = txt.replace('$GIT'            ,shutil.which('git' ) or ''            )
+		txt = txt.replace('$GIT'            ,shutil.which('git') or ''             )
 		txt = txt.replace('$LD_LIBRARY_PATH',Rule.environ.get('LD_LIBRARY_PATH',''))
 		txt = txt.replace('$STD_PATH'       ,Rule.environ.PATH                     )
 		sys.stdout.write(txt)

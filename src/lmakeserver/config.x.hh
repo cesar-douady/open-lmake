@@ -64,7 +64,7 @@ namespace Engine {
 			using Tag = CacheTag ;
 			// cxtors & casts
 			Cache() = default ;
-			Cache( Py::Dict const& py_map ) ;
+			Cache(Py::Dict const&) ;
 			// services
 			bool operator==(Cache const&) const = default ;
 			template<IsStream T> void serdes(T& s) {
@@ -73,9 +73,8 @@ namespace Engine {
 			}
 			// data
 			// START_OF_VERSIONING
-			::string  name ;
-			CacheTag  tag  ;
-			::vmap_ss dct  ;
+			CacheTag  tag ;
+			::vmap_ss dct ;
 			// END_OF_VERSIONING
 		} ;
 		//

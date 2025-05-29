@@ -1345,62 +1345,64 @@ namespace Engine {
 			if (it!=g_config->cache_idxs.end()) {
 				::vmap_s<DepDigest> dns ;
 				for( Dep const& d : deps ) {
-					DepDigest dd = d ; dd.crc(d->crc) ;                                                                       // provide node actual crc as this is the hit criteria
+					DepDigest dd = d ; dd.crc(d->crc) ;                                                                           // provide node actual crc as this is the hit criteria
 					dns.emplace_back(d->name(),dd) ;
 				}
 				cache_idx = it->second ;
-				Cache*       cache       = Cache::s_tab[cache_idx]             ;
-				Cache::Match cache_match = cache->match( unique_name() , dns ) ;
-				if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
-				switch (cache_match.hit) {
-					case Yes :
-						try {
-							NfsGuard nfs_guard { g_config->reliable_dirs } ;
-							//
-							vmap<Node,FileAction> fas     = pre_actions(match) ;
-							::vmap_s<FileAction>  actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-							::string              dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
-							//
-							if (+dfa_msg) {
-								req->audit_job ( Color::Note , "wash"  , idx()     ) ;
-								req->audit_info( Color::Note , dfa_msg         , 1 ) ;
-								trace("hit_msg",dfa_msg,ri) ;
-							}
-							//
-							JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host
-							JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
-							job_info.start.pre_start.job       = +idx()    ;                                                  // repo dependent
-							job_info.start.submit_attrs.reason = ri.reason ;                                                  // context dependent
-							job_info.end  .end_date            = New       ;                                                  // execution dependnt
-							//
-							JobDigest<Node> digest = job_info.end.digest ;                                                    // gather info before being moved
-							Job::s_record_thread.emplace(idx(),::move(job_info.start)) ;
-							Job::s_record_thread.emplace(idx(),::move(job_info.end  )) ;
-							//
-							if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
-							//
-							ri.step(Step::Hit,idx()) ;
-							trace("hit_result") ;
-							je.end(::move(digest)) ;
-							req->stats.add(JobReport::Hit) ;
-							req->missing_audits[idx()] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
-							goto ResetReqInfo ;
-						} catch (::string const&e) {
-							trace("hit_throw",e) ;
-						}                                                                                                     // if we cant download result, it is like a miss
-					break ;
-					case Maybe : {
-						::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back(dn,dd) ;
-						deps.assign(ds) ;
-						status = Status::CacheMatch ;
-						trace("hit_deps") ;
-					}
-					ResetReqInfo :
-						for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
-						return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter is still a legal iterator
-					case No :
-					break ;
-				DF}                                                                                                           // NO_COV
+				if (cache_idx) {
+					Cache*       cache       = Cache::s_tab[cache_idx]             ;
+					Cache::Match cache_match = cache->match( unique_name() , dns ) ;
+					if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
+					switch (cache_match.hit) {
+						case Yes :
+							try {
+								NfsGuard nfs_guard { g_config->reliable_dirs } ;
+								//
+								vmap<Node,FileAction> fas     = pre_actions(match) ;
+								::vmap_s<FileAction>  actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
+								::string              dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
+								//
+								if (+dfa_msg) {
+									req->audit_job ( Color::Note , "wash"  , idx()     ) ;
+									req->audit_info( Color::Note , dfa_msg         , 1 ) ;
+									trace("hit_msg",dfa_msg,ri) ;
+								}
+								//
+								JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host
+								JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
+								job_info.start.pre_start.job       = +idx()    ;                                                  // repo dependent
+								job_info.start.submit_attrs.reason = ri.reason ;                                                  // context dependent
+								job_info.end  .end_date            = New       ;                                                  // execution dependnt
+								//
+								JobDigest<Node> digest = job_info.end.digest ;                                                    // gather info before being moved
+								Job::s_record_thread.emplace(idx(),::move(job_info.start)) ;
+								Job::s_record_thread.emplace(idx(),::move(job_info.end  )) ;
+								//
+								if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
+								//
+								ri.step(Step::Hit,idx()) ;
+								trace("hit_result") ;
+								je.end(::move(digest)) ;
+								req->stats.add(JobReport::Hit) ;
+								req->missing_audits[idx()] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
+								goto ResetReqInfo ;
+							} catch (::string const&e) {
+								trace("hit_throw",e) ;
+							}                                                                                                     // if we cant download result, it is like a miss
+						break ;
+						case Maybe : {
+							::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back(dn,dd) ;
+							deps.assign(ds) ;
+							status = Status::CacheMatch ;
+							trace("hit_deps") ;
+						}
+						ResetReqInfo :
+							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
+							return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter is still a legal iterator
+						case No :
+						break ;
+					DF}                                                                                                           // NO_COV
+				}
 			}
 		}
 		//
@@ -1415,7 +1417,7 @@ namespace Engine {
 			trace("no_rsrcs",ri) ;
 			return false/*maybe_new_deps*/ ;
 		}
-		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;             // mark new deps as resources only
+		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;                 // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
 			Node         d   { dn }             ;
 			NodeReqInfo& dri = d->req_info(req) ;

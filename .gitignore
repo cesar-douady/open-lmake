@@ -7,8 +7,8 @@ __pycache__
 # directories
 /unit_tests/*.dir
 /examples/*.trial
-/bin/
-/lib/
+/bin
+/lib
 
 # binaries
 /_bin/align_comments
@@ -21,6 +21,7 @@ __pycache__
 
 # libs
 /_lib/fmt_rule.py
+/_lib/read_makefiles.py
 
 # doc
 /man/man1/*.1

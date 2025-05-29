@@ -66,10 +66,10 @@ namespace Caches {
 		if ( auto it=config_map.find("dir") ; it!=config_map.end() ) dir_s = with_slash(it->second) ;
 		else                                                         throw "dir not found"s ;
 		//
-		Hash::Xxh repo_hash ;
-		if ( auto it=config_map.find("repo") ; it!=config_map.end() ) repo_hash += it->second               ;
-		else                                                          repo_hash += no_slash(*g_repo_root_s) ;
-		repo_s = "repo-"+repo_hash.digest().hex()+'/' ;
+		Hash::Xxh key_hash ;
+		if ( auto it=config_map.find("key") ; it!=config_map.end() ) key_hash += it->second ;
+		else                                                         throw "key not found"s ;
+		key_s = "key-"+key_hash.digest().hex()+'/' ;
 		//
 		if ( auto it=config_map.find("reliable_dirs") ; it!=config_map.end() ) reliable_dirs = it->second!="False" && it->second!="0" && +it->second ;
 		//
@@ -269,7 +269,7 @@ namespace Caches {
 	bool/*ok*/ DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
 		NfsGuard nfs_guard { reliable_dirs }    ;
 		::string jn_s      = job+'/'            ;
-		::string jnid_s    = jn_s+repo_s        ;
+		::string jnid_s    = jn_s+key_s         ;
 		Trace trace("DirCache::sub_commit",upload_key,job) ;
 		//
 		// START_OF_VERSIONING
@@ -315,7 +315,7 @@ namespace Caches {
 		Hash::Xxh deps_hash ; deps_hash += deps_str ;
 		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+deps_hash.digest().hex() ;
 		unlnk( abs_deps_hint , false/*dir_ok*/ , true/*abs_ok*/ ) ;
-		lnk  ( abs_deps_hint , no_slash(repo_s) ) ;
+		lnk  ( abs_deps_hint , no_slash(key_s) ) ;
 		//
 		trace("done",new_sz) ;
 		return true/*ok*/ ;

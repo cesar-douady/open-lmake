@@ -65,7 +65,7 @@ sys.path = [ lmake_lib , *sys.path[2:] , '.' ]
 config = pdict()
 if '.config.' in actions :
 	from importlib.util import find_spec
-	import Lmakefile                       # import only when necessary
+	import Lmakefile                                                                                              # import only when necessary
 	is_pkg = hasattr(Lmakefile,'__path__')
 	if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
 	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
@@ -95,6 +95,13 @@ if '.config.' in actions :
 			,	call_callables = True
 			)
 			be['interface'] = expr.glbs+'interface = '+expr.expr
+		git = '$GIT'                                                                                              # value is substitued at installation configuration
+		for cache in config.get('caches',{}).values() :
+			if 'key' in cache : continue
+			key = cwd
+			try    : key += '/'+check_output((git,'rev-parse','--verify','HEAD'),universal_newlines=True).split()
+			except : pass                                                                                         # if not under git, ignore
+			cache['key'] = key
 
 srcs = []
 if '.sources.' in actions :
@@ -213,7 +220,7 @@ with open(out_file,'w') as out :
 	#
 	if '.rules.' in actions :
 		print(f"{sep(0)}'rules' : {{"             ,file=out)
-		print(f"{sep(1)}'sys_path' : {sys_path!r}",file=out) # for dynamic attributes execution
+		print(f"{sep(1)}'sys_path' : {sys_path!r}",file=out)       # for dynamic attributes execution
 		print(f"{sep(1)}'rules' : ("              ,file=out)
 		for r in rules :
 			kl = max((len(repr(k)) for k in r.keys()),default=0)
@@ -226,7 +233,7 @@ with open(out_file,'w') as out :
 		assert not rules
 	#
 	if '.sources.' in actions :
-		srcs = sorted(set(srcs)) # suppress duplicates if any
+		srcs = sorted(set(srcs))                                   # suppress duplicates if any
 		if True         : print(f"{sep(0)}'sources' : (",file=out)
 		for src in srcs : print(f'{sep(1)}{src!r}'   ,file=out)
 		if True         : print(f'{tuple_end(0)})'   ,file=out)

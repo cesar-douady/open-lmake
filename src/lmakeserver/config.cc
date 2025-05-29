@@ -334,9 +334,14 @@ namespace Engine {
 		//
 		if (dyn) return ;
 		//
-		for( auto const& [_,idx] : cache_idxs ) {
+		for( auto& [k,idx] : cache_idxs ) {
 			Cache const& cache = caches[idx] ;
-			Caches::Cache::s_config(idx,cache.tag,cache.dct) ;
+			try {
+				Caches::Cache::s_config(idx,cache.tag,cache.dct) ;
+			} catch (::string const& e) {
+				idx = 0 ;
+				Fd::Stderr.write(cat("ignore (cannot configure) cache ",k," : ",e,'\n')) ;
+			}
 		}
 	}
 

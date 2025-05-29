@@ -255,6 +255,13 @@ Same meaning as `config.reliable_dirs` for the dir containing the cache.
 
 This attribute specifies the group used when creating entries.
 
+### `caches.<dir>.key` : Static (repo root dir/git sha1)
+
+A key used to avoid cache pollution.
+No more than a single entry can be stored for any job with a given key.
+
+By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.
+
 ### `debug`
 
 When `ldebug` is used, it consults this `dict`.
