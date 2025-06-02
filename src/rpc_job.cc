@@ -95,6 +95,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 			case FileActionTag::Uniquify : {
 				struct stat s ;
 				if (   ::stat(f.c_str(),&s)<0                 ) { trace(a.tag,"no_file"  ,f) ; continue ; }                // file does not exist, nothing to do
+				if (   s.st_nlink==0                          ) { trace(a.tag,"ghost"    ,f) ; continue ; }                // file may be being unlinked by another process, do as if it does not exist
 				dir_exists(f) ;                                                                                            // if file exists, certainly its dir exists as well
 				if (   s.st_nlink==1                          ) { trace(a.tag,"single"   ,f) ; continue ; }                // file is already unique, nothing to do
 				if (!( s.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only",f) ; continue ; }                // if file is read-only, assume it is immutable
