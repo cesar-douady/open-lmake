@@ -52,12 +52,13 @@ if __name__!='__main__' :
 
 else :
 
+	import os
 	import os.path as osp
 
 	if 'slurm' not in lmake.backends :
 		print('slurm not compiled in',file=open('skipped','w'))
 		exit()
-	if not osp.exists('/etc/slurm/slurm.conf') :
+	if os.system('scontrol ping')!=0 :
 		print('slurm not available',file=open('skipped','w'))
 		exit()
 

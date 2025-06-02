@@ -1,6 +1,14 @@
 open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
 
-  * initial release
-  * cache is an experimental feature
+  * manage readdir syscalls (were ignored in previous versions)
+  * replace allow_stderr attribute by stderr_ok for homogeneity with readdir_ok
+  * depend verbose now reports more info on deps
+  * implement regexpr based lmake.depend/ldepend and lmake.target/ltarget
+  * improve cache
+  * add LMAKE/matching file to report candidate rules for each prefix/suffix pair
+  * add example to show C++20 module support
+  * support Debian12 an OpenSuse15.6 in addition to CentOS7, Rocky8, Rocky9, Ubuntu20.04, Ubuntu22.04 and Ubuntu24.04
+  * bug fixes
+  * improve perf
 
  -- Cesar Douady <cesar.douady@doliam.fr>  $DATE
