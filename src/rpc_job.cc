@@ -94,6 +94,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 			case FileActionTag::Uniquify : {
 				struct stat s ;
 				if (   ::stat(f.c_str(),&s)<0                 ) { trace(a.tag,"no_file"  ,f) ; continue ; }                // file does not exist, nothing to do
+				if (   s.st_nlink==0                          ) { trace(a.tag,"ghost"    ,f) ; continue ; }                // file may be being unlinked by another process, do as if it does not exist
 				dir_exists(f) ;                                                                                            // if file exists, certainly its dir exists as well
 				if (   s.st_nlink==1                          ) { trace(a.tag,"single"   ,f) ; continue ; }                // file is already unique, nothing to do
 				if (!( s.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only",f) ; continue ; }                // if file is read-only, assume it is immutable
@@ -121,7 +122,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 		DF}                                                                                                                // NO_COV
 	}
 	for( auto const& [_,e] : uniq_tab ) {
-		SWEAR(e.files.size()<=e.n_lnks,e.n_lnks,e.files) ;                                                                 // check consistency
+		SWEAR( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                             // check consistency
 		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                           // we have all the links, nothing to do
 		trace("uniquify",e.n_lnks,e.files) ;
 		//

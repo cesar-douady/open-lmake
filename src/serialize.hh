@@ -70,12 +70,10 @@ template<class T> requires( ::is_trivially_copyable_v<T> && !::is_empty_v<T> ) s
 } ;
 
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
-	struct U { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
+	struct Universal { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
 	template<IsStream S> static void s_serdes( S& s , T& x ) {
 
-		#define S(a) serdes(s,a)
-		#
-		#define U1  U()
+		#define U1  Universal()
 		#define U2  U1  , U1
 		#define U4  U2  , U2
 		#define U8  U4  , U4
@@ -89,7 +87,7 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 		#define A16(pfx) A8 (pfx##0) , A8 (pfx##1)
 		#define A32(pfx) A16(pfx##0) , A16(pfx##1)
 		#
-		#define S1( pfx) S(a##pfx) ;
+		#define S1( pfx) serdes(s,a##pfx) ;
 		#define S2( pfx) S1 (pfx##0) S1 (pfx##1)
 		#define S4( pfx) S2 (pfx##0) S2 (pfx##1)
 		#define S8( pfx) S4 (pfx##0) S4 (pfx##1)
@@ -97,7 +95,7 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 		#define S32(pfx) S16(pfx##0) S16(pfx##1)
 
 		// force compilation error to ensure no partial serialization of large classes
-		if      constexpr (requires{T{ U32 , U32                     };}) { U(0) ; } // cannot use static_assert(false) with gcc-11
+		if      constexpr (requires{T{ U32 , U32                     };}) { Universal(0) ; } // cannot use static_assert(false) with gcc-11
 		else if constexpr (requires{T{ U32 , U16 , U8 , U4 , U2 , U1 };}) { auto& [ A32() , A16() , A8() , A4() , A2() , A1() ] = x ; S32() S16() S8() S4() S2() S1() }
 		else if constexpr (requires{T{ U32 , U16 , U8 , U4 , U2      };}) { auto& [ A32() , A16() , A8() , A4() , A2()        ] = x ; S32() S16() S8() S4() S2()      }
 		else if constexpr (requires{T{ U32 , U16 , U8 , U4 ,      U1 };}) { auto& [ A32() , A16() , A8() , A4() ,        A1() ] = x ; S32() S16() S8() S4()      S1() }
@@ -162,10 +160,8 @@ template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T>
 		else if constexpr (requires{T{                       U2      };}) { auto& [                               A2()        ] = x ;                       S2()      }
 		else if constexpr (requires{T{                            U1 };}) { auto& [                                      A1() ] = x ;                            S1() } // XXX! : find a working way
 		else if constexpr (requires{T{                               };}) {                                                                                           }
-		else                                                              { U(0) ; } // cannot use static_assert(false) with gcc-11
+		else                                                              { Universal(0) ; } // cannot use static_assert(false) with gcc-11
 
-		#undef S
-		#
 		#undef U1
 		#undef U2
 		#undef U4
