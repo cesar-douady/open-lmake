@@ -152,7 +152,6 @@ ifeq ($(CXX_FLAVOR),clang)
     WARNING_FLAGS += $(CLANG_WARNING_FLAGS)
 endif
 #
-# XXX : suppress -fno-strict-aliasing when proven correct
 USER_FLAGS := -std=$(CXX_STD) $(EXTRA_CC_FLAGS)
 COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_CC_FLAGS) -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
 LINT       := clang-tidy

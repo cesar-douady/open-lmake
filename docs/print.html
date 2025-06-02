@@ -1169,6 +1169,10 @@ The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code
 <p>Same meaning as <code>config.reliable_dirs</code> for the dir containing the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
 <p>This attribute specifies the group used when creating entries.</p>
+<h3 id="cachesdirkey--static-repo-root-dirgit-sha1"><a class="header" href="#cachesdirkey--static-repo-root-dirgit-sha1"><code>caches.&lt;dir&gt;.key</code> : Static (repo root dir/git sha1)</a></h3>
+<p>A key used to avoid cache pollution.
+No more than a single entry can be stored for any job with a given key.</p>
+<p>By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.</p>
 <h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>
 <p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
 <p>It maps debug keys to modules to import to implement the debug method (cf man ldebug).

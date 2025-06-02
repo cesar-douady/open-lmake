@@ -47,6 +47,7 @@ else :
 		class Depend :                                                                         # this a special finder that explicitly depends on searched files, ...
 			@staticmethod                                                                      # ... but otherwise finds no module, so that system machinery is actually used to load module
 			def find_spec(module_name,path,target=None) :
+				if path and not isinstance(path,(tuple,list)) : path = tuple(path)
 				report_import(module_name,path,module_suffixes)
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               Depend ) # or at the end if none is found

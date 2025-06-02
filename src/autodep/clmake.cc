@@ -273,14 +273,8 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 			Ptr<Sequence> py_std_sfxs  = py_machinery->get_attr<Callable>("all_suffixes")->call<Sequence>() ;
 			for( const char* pfx : {"/__init__",""} ) {
 				// although not reflected in all_suffixes(), python3 tries .so files first
-				for( Object const& py_sfx : *py_std_sfxs ) {
-					::string sfx = *py_sfx.str() ;
-					if (sfx.ends_with(".so")) s_std_sfxs.push_back(cat(pfx,*py_sfx.str())) ;
-				}
-				for( Object const& py_sfx : *py_std_sfxs ) {
-					::string sfx = *py_sfx.str() ;
-					if (!sfx.ends_with(".so")) s_std_sfxs.push_back(cat(pfx,*py_sfx.str())) ;
-				}
+				for( Object const& py_sfx : *py_std_sfxs ) { ::string sfx = *py_sfx.str() ; if ( sfx.ends_with(".so")) s_std_sfxs.push_back(cat(pfx,sfx)) ; }
+				for( Object const& py_sfx : *py_std_sfxs ) { ::string sfx = *py_sfx.str() ; if (!sfx.ends_with(".so")) s_std_sfxs.push_back(cat(pfx,sfx)) ; }
 			}
 		#endif
 	}
@@ -299,9 +293,9 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'm' : if (key=="module_name"    ) { throw_if(py_sfxs,"arg module_suffixes",MsgEnd) ; py_sfxs = &py_val ; continue ; }
-			/**/       if (key=="module_suffixes") { throw_if(py_name,"arg module_name"    ,MsgEnd) ; py_name = &py_val ; continue ; } break ;
-			case 'p' : if (key=="path"           ) { throw_if(py_path,"arg path"           ,MsgEnd) ; py_path = &py_val ; continue ; } break ;
+			case 'm' : if (key=="module_name"    ) { throw_if(py_sfxs,key,MsgEnd) ; py_sfxs = &py_val ; continue ; }
+			/**/       if (key=="module_suffixes") { throw_if(py_name,key,MsgEnd) ; py_name = &py_val ; continue ; } break ;
+			case 'p' : if (key=="path"           ) { throw_if(py_path,key,MsgEnd) ; py_path = &py_val ; continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
 	}
@@ -337,7 +331,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 			if (is_lcl)
 				try                       { JobSupport::depend( _g_record , {file} , {.accesses=~Accesses(),.flags{.dflags=DflagsDfltDepend&~Dflag::Required}} , false/*no_follow*/ ) ; }
 				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                                     }
-			if (FileInfo(file).exists()) return ;
+			if (FileInfo(file).exists()) return ;                         // found module, dont explore path any further
 		}
 	}
 }

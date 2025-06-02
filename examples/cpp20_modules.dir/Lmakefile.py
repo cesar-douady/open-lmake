@@ -31,7 +31,7 @@ gxx = 'g++'
 # map_dir/logical_name.gcm -> physical_name.gcm
 class GenGcms(PyRule) :
 	targets = { 'GCM' : r'map_dir/{File*:.*}.gcm' }
-	deps    = { 'LST' :  'Manifest'               }                                    # XXX : use LMAKE/manifest when available as this would be version control agnostic
+	deps    = { 'LST' :  'LMAKE/manifest'         }
 	def cmd() :
 		#
 		# gather list of all source file
