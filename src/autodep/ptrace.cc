@@ -72,6 +72,7 @@ void AutodepPtrace::init(pid_t cp) {
 		(HAS_SECCOMP?PTRACE_O_TRACESECCOMP:0)
 	|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
 	|	PTRACE_O_TRACESYSGOOD                                                  // necessary to have a correct syscall_info.op field
+	|	PTRACE_O_EXITKILL                                                      // ensure no process is left stopped, even if alive at end of job
 	) ;
 	if (rc!=0) return ;                                                        // child_pid will be waited for in process
 	SWEAR( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
