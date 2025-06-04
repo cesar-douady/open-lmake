@@ -486,10 +486,17 @@ namespace Engine {
 			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (+clash_nodes) {
-			::vmap<Node,NodeIdx/*order*/> clash_nodes_ = mk_vmap(clash_nodes) ;
-			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
+			using Entry = ::pair<NodeIdx/*order*/,::pair<Job,Job>> ;
+			::vmap<Node,Entry> clash_nodes_ = mk_vmap(clash_nodes) ;
+			::sort( clash_nodes_ , []( ::pair<Node,Entry> const& a , ::pair<Node,Entry> b ) { return a.second.first<b.second.first ; } ) ;            // sort in discovery order
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
-			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
+			for( auto [n,i_jj] : clash_nodes_ ) {
+				::pair<Job,Job> const& jj = i_jj.second                                                             ;
+				size_t                 w  = ::max( jj.first->rule()->name.size() , jj.second->rule()->name.size() ) ;
+				audit_node( Color::Warning                             , {}                               , n                 , 1/*lvl*/ ) ;
+				audit_info( jj.first ->err()?Color::Err:Color::Warning , widen(jj.first ->rule()->name,w) , jj.first ->name() , 2/*lvl*/ ) ;
+				audit_info( jj.second->err()?Color::Err:Color::Warning , widen(jj.second->rule()->name,w) , jj.second->name() , 2/*lvl*/ ) ;
+			}
 			if ( Rule r=job->rule() ; r->special!=Special::Req) {
 				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->full_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
 			} else {

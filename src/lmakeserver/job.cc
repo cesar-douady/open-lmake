@@ -540,7 +540,7 @@ namespace Engine {
 						if ( +aj && aj!=self && target->crc.valid() && target->actual_tflags()[Tflag::Target] && !is_src_anti ) { // existing crc was believed to be reliable but actually was not
 							trace("critical_clash",start_date,target->date().date) ;
 							for( Req r : target->reqs() ) {
-								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
+								r->clash_nodes.emplace(target,::pair<size_t,::pair<Job,Job>>(r->clash_nodes.size(),{aj,self})) ;
 								target->req_info(r).done_ = NodeGoal::None ;                             // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 							}
 						}
@@ -1113,7 +1113,7 @@ namespace Engine {
 				critical_modif    |= dep_modif && is_critical      ;
 			}
 			if (ri.waiting()                             ) goto Wait ;
-			if (sure                                     ) mk_sure() ;                          // improve sure (sure is pessimistic)
+			if (sure                                     ) mk_sure() ;                   // improve sure (sure is pessimistic)
 			if (+(run_status=ri.state.stamped_err)       ) goto Done ;
 			if (no_run_reason(ri.state)==NoRunReason::Dep) goto Done ;
 		}

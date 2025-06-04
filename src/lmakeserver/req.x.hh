@@ -341,30 +341,30 @@ namespace Engine {
 		// data
 	public : //!    ThreadSafe
 		InfoMap<Job ,false   > jobs           ;
-		InfoMap<Node,true    > nodes          ;           // nodes are observed in job start thread
+		InfoMap<Node,true    > nodes          ;                              // nodes are observed in job start thread
 		Idx                    idx_by_start   = Idx(-1) ;
 		Idx                    idx_by_eta     = Idx(-1) ;
-		Job                    job            ;           // owned if job->rule->special==Special::Req
+		Job                    job            ;                              // owned if job->rule->special==Special::Req
 		::umap<Job,JobAudit>   missing_audits ;
 		ReqStats               stats          ;
-		Fd                     audit_fd       ;           // to report to user
-		AcFd                   log_fd         ;           // saved output
-		Job mutable            last_info      ;           // used to identify last message to generate an info line in case of ambiguity
+		Fd                     audit_fd       ;                              // to report to user
+		AcFd                   log_fd         ;                              // saved output
+		Job mutable            last_info      ;                              // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions             options        ;
 		Pdate                  start_pdate    ;
 		Ddate                  start_ddate    ;
-		Pdate                  eta            ;           // Estimated Time of Arrival
-		Delay                  ete            ;           // Estimated Time Enroute
-		::umap<Rule,JobIdx >   ete_n_rules    ;           // number of jobs participating to stats.ete with exec_time from rule
+		Pdate                  eta            ;                              // Estimated Time of Arrival
+		Delay                  ete            ;                              // Estimated Time Enroute
+		::umap<Rule,JobIdx >   ete_n_rules    ;                              // number of jobs participating to stats.ete with exec_time from rule
 		uint8_t                n_retries      = 0       ;
 		uint8_t                n_submits      = 0       ;
 		bool                   has_backend    = false   ;
 		// summary
-		::vector<Node>                up_to_dates  ;      // asked nodes already done when starting
-		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;      // frozen     jobs                                   (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> frozen_nodes ;      // frozen     nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> no_triggers  ;      // no-trigger nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> clash_nodes  ;      // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                                        up_to_dates  ; // asked nodes already done when starting
+		::umap<Job ,       JobIdx /*order*/                 > frozen_jobs  ; // frozen     jobs                                   (value is just for summary ordering purpose)
+		::umap<Node,       NodeIdx/*order*/                 > frozen_nodes ; // frozen     nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,       NodeIdx/*order*/                 > no_triggers  ; // no-trigger nodes                                  (value is just for summary ordering purpose)
+		::umap<Node,::pair<NodeIdx/*order*/,::pair<Job,Job>>> clash_nodes  ; // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }
