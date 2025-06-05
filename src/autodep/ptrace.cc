@@ -68,12 +68,20 @@ void AutodepPtrace::init(pid_t cp) {
 	int   wstatus ;
 	pid_t pid     = ::wait(&wstatus) ;                                         // first signal is only there to start tracing as we are initially traced to next signal
 	if (pid!=child_pid) return ;                                               // child_pid will be waited for in process
-	long rc = ::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ ,
-		(HAS_SECCOMP?PTRACE_O_TRACESECCOMP:0)
-	|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-	|	PTRACE_O_TRACESYSGOOD                                                  // necessary to have a correct syscall_info.op field
-	|	PTRACE_O_EXITKILL                                                      // ensure no process is left stopped, even if alive at end of job
-	) ;
+	#ifdef PTRACE_O_EXITKILL
+		long rc = ::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ ,
+			(HAS_SECCOMP?PTRACE_O_TRACESECCOMP:0)
+		|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+		|	PTRACE_O_TRACESYSGOOD                                              // necessary to have a correct syscall_info.op field
+		|	PTRACE_O_EXITKILL                                                  // ensure no process is left stopped, even if alive at end of job
+		) ;
+	#else                                                                      // if PTRACE_O_EXITKILL is not available, emulating it seems too difficult
+		long rc = ::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ ,
+			(HAS_SECCOMP?PTRACE_O_TRACESECCOMP:0)
+		|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+		|	PTRACE_O_TRACESYSGOOD                                              // necessary to have a correct syscall_info.op field
+		) ;
+	#endif
 	if (rc!=0) return ;                                                        // child_pid will be waited for in process
 	SWEAR( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
 	rc = ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ; SWEAR(rc==0,rc,int(errno)) ;
