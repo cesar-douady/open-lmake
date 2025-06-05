@@ -68,25 +68,25 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	} ;
 	//
 	Trace trace("do_file_actions") ;
-	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                       // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                               // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                        // acting on root dir is non-sense
+	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                                // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None           : {
 				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) { trace(a.tag,"no_file",f) ; continue ; }                                                        // file does not exist, nothing to do
-				dir_exists(f) ;                                                                                            // if a file exists, its dir necessarily exists
-				bool quarantine = sig!=a.sig && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ;                 // only compute crc if file has been modified
+				if (!sig) { trace(a.tag,"no_file",f) ; continue ; }                                                                 // file does not exist, nothing to do
+				dir_exists(f) ;                                                                                                     // if a file exists, its dir necessarily exists
+				bool quarantine = sig!=a.sig && sig.tag()!=Crc::Empty && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ; // only compute crc if file has been modified
 				if (quarantine) {
 					if (::rename( nfs_guard.rename(f).c_str() , dir_guard(QuarantineDirS+f).c_str() )<0) throw "cannot quarantine "+f ;
 					msg <<"quarantined " << mk_file(f) <<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
 					if (!unlnk(nfs_guard.change(f))) throw "cannot unlink "+f ;
-					if ( a.tag==FileActionTag::None && !a.no_warning ) msg <<"unlinked " << mk_file(f) <<'\n' ;            // if a file has been unlinked, its dir necessarily exists
+					if ( a.tag==FileActionTag::None && !a.no_warning ) msg <<"unlinked "<<mk_file(f)<<'\n' ;                        // if a file has been unlinked, its dir necessarily exists
 				}
 				trace(a.tag,STR(quarantine),f) ;
 				if (unlnks) unlnks->push_back(f) ;

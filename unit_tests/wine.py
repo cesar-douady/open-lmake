@@ -3,11 +3,11 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import shutil
+
 import lmake
 
 if __name__!='__main__' :
-
-	import os
 
 	from lmake.rules import Rule,PyRule
 
@@ -15,6 +15,8 @@ if __name__!='__main__' :
 
 	lmake.config.network_delay = 10    # WineInit is still alive after job end for ~1s but may last more than 5s
 	lmake.config.trace.n_jobs  = 10000 # ensure we keep all traces
+
+	xvfb = shutil.which('xvfb-run')
 
 	class Base(Rule) :
 		stems = { 'Method' : r'\w+' }
@@ -35,8 +37,10 @@ if __name__!='__main__' :
 		stderr_ok    = True
 		readdir_ok   = True
 		environ      = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
-		timeout      = 30           # actual time should be ~5s for the init rule, but seems to block from time to time when host is loaded
-		cmd          = 'wine64 cmd' # do nothing, just to init support files (in targets)
+		timeout      = 30                                                                              # actual time should be ~5s for the init rule, ...
+		#                                                                                              # ... but seems to block from time to time when host is loaded
+		if shutil.which('xvfb-run') : cmd = 'xvfb-run wine64 cmd && sleep 1'                           # do nothing, just to init support files (in targets) (sleep to allow X server to clean up)
+		else                        : cmd = '         wine64 cmd'                                      # .
 
 	for ext in ('','64') :
 		class Dut(Base,WineRule) :
@@ -44,7 +48,7 @@ if __name__!='__main__' :
 			target  = f'dut{ext}.{{Method}}'
 			deps    = { 'WINE_INIT' : '.wine/init' }
 			autodep = '{Method}'
-			cmd     = f'wine{ext} hostname ; sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
+			cmd     = f'wine{ext} hostname && sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
 
 	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'
@@ -60,7 +64,6 @@ else :
 
 	import os
 	import os.path as osp
-	import shutil
 	import subprocess as sp
 	import sys
 

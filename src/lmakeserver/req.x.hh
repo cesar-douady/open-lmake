@@ -356,11 +356,11 @@ namespace Engine {
 		uint8_t                n_submits      = 0       ;
 		bool                   has_backend    = false   ;
 		// summary
-		::vector<Node>                up_to_dates  ;      // asked nodes already done when starting
-		::umap<Job ,JobIdx /*order*/> frozen_jobs  ;      // frozen     jobs                                   (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> frozen_nodes ;      // frozen     nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> no_triggers  ;      // no-trigger nodes                                  (value is just for summary ordering purpose)
-		::umap<Node,NodeIdx/*order*/> clash_nodes  ;      // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                   up_to_dates  ;   // asked nodes already done when starting
+		OrderedSet<Job >                 frozen_jobs  ;   // frozen     jobs                                   (value is just for summary ordering purpose)
+		OrderedSet<Node>                 frozen_nodes ;   // frozen     nodes                                  (value is just for summary ordering purpose)
+		OrderedSet<Node>                 no_triggers  ;   // no-trigger nodes                                  (value is just for summary ordering purpose)
+		OrderedMap<Node,::pair<Job,Job>> clash_nodes  ;   // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

@@ -110,16 +110,16 @@ By default, the configuration contains the 2 generic resources: `cpu` and `mem` 
 
 Each rule has a default `resources` attribute requiring one CPU.
 
-### Command line option
-
-The command line option passed with `-b` or `--backend` is ignored.
-
 ## SGE backend
 
 The SGE backend connects to a SGE daemon to schedule jobs, which allows:
 
 - a global scheduling policy (while the local backend only sees jobs in its own repo).
 - the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
+
+### Command line option
+
+The command line option passed with `-b` or `--backend` is ignored.
 
 ### Configuration
 
@@ -162,12 +162,6 @@ The `resources` rule attributes is composed of :
 - `soft` : `qsub` options to be used after a `-soft` option.
 - any other resource passed to the SGE daemon through the `-l` `qsub` option.
 
-### Command line option
-
-The only option that can be passed from command line (`-b` or `--backend`) is the priority through the `-p` options of `qsub`.
-
-Hence, the command line option must directly contain the priority to pass to `qsub`.
-
 ## Slurm backend
 
 The slurm backend connects to a slurm daemon to schedule jobs, which allows :
@@ -175,12 +169,18 @@ The slurm backend connects to a slurm daemon to schedule jobs, which allows :
 - a global scheduling policy (while the local backend only sees jobs in its own repo).
 - the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).
 
+### Command line option
+
+The only option that can be passed from command line (`-b` or `--backend`) is the priority through the `-p` options of `qsub`.
+
+Hence, the command line option must directly contain the priority to pass to `qsub`.
+
 ### Configuration
 
 The configuration is composed of :
 
-- `config` : The slurm configuration file to use to contact the slurm controller. By default, the slurm library auto detects its configuration.
-- `lib_slurm` : The slurm dynamic library. By default, `open-lmake` looks for `libslurm.so` in the default `$LD_LIBRARY_PATH` (as compiled in).
+- `config` : The slurm configuration file to use to contact the slurm controller. By default, `/etc/slurm/slurm.conf` is used.
+- `lib_slurm` : The slurm dynamic library. If no `/` appears, `$LD_LIBRARY_PATH` (as compiled in) and system default lib dirs are searched. By default, `libslurm.so` is used.
 - `n_max_queued_jobs` : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
   This is done to decrease the load of the slurm daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources
   (helped in this by the limited precision on CPU, memory and temporary disk space requirements).

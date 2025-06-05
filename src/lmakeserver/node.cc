@@ -139,7 +139,7 @@ namespace Engine {
 			return msg ;
 		} ;
 		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,sig) ;
-		if (frozen) for( Req r : reqs_  ) r->frozen_nodes.emplace(idx(),r->frozen_nodes.size()) ;
+		if (frozen) for( Req r : reqs_ ) r->frozen_nodes.push(idx()) ;
 		if (!fi.exists()) {
 			if (report_no_file) for( Req r : reqs_  ) r->audit_job( Color::Err , "missing" , lazy_msg() , name_ ) ;
 			if (crc==Crc::None) return false/*updated*/ ;
@@ -266,52 +266,65 @@ namespace Engine {
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
 	Buildable NodeData::_gather_prio_job_tgts( ::string&/*lazy*/ name_ , Req req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl ) {
 		if (!rule_tgts()                ) return Buildable::No                                ;
-		if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ;                // too deep, must be an infinite dep path
+		if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ;       // too deep, must be an infinite dep path
 		//
-		RuleIdx           prio       = 0                  ;                                                    // initially, we are ready to accept any rule
 		RuleIdx           n_rules    = 0                  ;
-		Buildable         b          = Buildable::No      ;                                                    // return val if we find no job candidate
+		Buildable         b          = Buildable::No      ;                                           // return val if we find no job candidate
 		::vector<RuleTgt> rule_tgts_ = rule_tgts().view() ;
 		JobTgts&          jts        = job_tgts()         ;
-		::vector<JobTgt>  new_jts    ;                                                                             // typically, there is a single matching job, so dont reserve
+		::vector<JobTgt>  new_jts    ;                                                                // typically, there is a single matching job, so dont reserve
 		bool              name_chked = false              ;
+		Rule              prev_rule  ;
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			Rule r = rt->rule ; if (!r) continue ;
 			SWEAR(!r->is_special()) ;
-			if (r->prio<prio               ) goto Done ;
-			if (n_rules!=NoIdx             ) n_rules++ ;                                                       // in all cases, rule is consumed, whether it matches or not
-			if (known_rejected.contains(rt)) continue  ;                                                       // this is the major purpose of known_rejected
+			if ( +prev_rule && r->prio<prev_rule->prio ) goto Done ;
+			if ( n_rules!=NoIdx                        ) n_rules++ ;                                  // in all cases, rule is consumed, whether it matches or not
+			if ( r==prev_rule                          ) continue  ;                                  // only match first target candidate for any given rule
+			if ( known_rejected.contains(rt)           ) continue  ;                                  // this is the major purpose of known_rejected
 			//
-			bool            from_reservoir = !new_jts && n_job_tgts<jts.size() && r==jts[n_job_tgts]->rule() ; // once a job is in new_jts, we cant simply extend job_tgts by incrementing n_job_tgts
-			Rule::RuleMatch rm             ;
+			bool   from_reservoir = !new_jts && n_job_tgts<jts.size() && r==jts[n_job_tgts]->rule() ; // once a job is in new_jts, we cant simply extend job_tgts by incrementing n_job_tgts
+			JobTgt jt             ;
 			//
-			if (from_reservoir) {
-				rm = { jts[n_job_tgts] } ;                                                                     // fast path : avoid matching (the only purpose of keeping jobs in reservoir)
+			if (from_reservoir) {                                                                     // fast path : avoid matching (the only purpose of keeping jobs in reservoir)
+				//   vvvvvvvvvvvvvvv
+				jt = jts[n_job_tgts] ;                                                                // gather from reservoir
+				//   ^^^^^^^^^^^^^^^
+				bool static_deps_ok = true ;
+				for ( Dep const& d : jt->deps ) {                                                     // check static deps : if one is not buildable, rule does not apply ...
+					if (!d.dflags[Dflag::Static]) continue ;                                          // ... note that name computation is avoided for both self and jt
+					Node(d)->set_buildable( req , lvl , true/*throw_if_infinite*/ ) ;
+					if (d->buildable<=Buildable::No) {
+						prev_rule      = r     ;                                                      // prevent further matching of same rule
+						static_deps_ok = false ;
+						break ;
+					}
+				}
+				if (!static_deps_ok) continue ;
+				n_job_tgts++ ;                                                                        // simply extend official size as reservoir job is ok
 			} else {
-				if (!name_     )   name_ = name() ;
+				if (!name_     )   name_ = name() ;                                                   // solve lazy
 				if (!name_chked) { SWEAR(is_lcl(name_),name_) ; name_chked = true ; }
 				//
-				rm = { rt , name_ , Maybe/*chk_psfx*/ } ;                                                      // no adequate job in reservoir, matching is unavoidable
+				Rule::RuleMatch rm = { rt , name_ , Maybe/*chk_psfx*/ } ;                             // no adequate job in reservoir, matching is unavoidable
 				//
 				if (!rm) { known_rejected.insert(rt) ; continue ; }
+				//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				jt = { ::move(rm) , rt.sure() , req , RuleIdx(lvl+1) } ; if (!jt) continue ;
+				//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				new_jts.push_back(jt) ;
 			}
-			//
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			JobTgt jt { ::move(rm) , rt.sure() , req , RuleIdx(lvl+1) } ; if (!jt) continue ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (from_reservoir)   n_job_tgts++ ;                                                               // simply extend official size as reservoir job is ok
-			else                  new_jts.push_back(jt) ;
-			if (jt.sure()     ) { b =         Buildable::Yes    ; n_rules = NoIdx ; }                          // after a sure job, we can forget about rules at lower prio
-			else                  b = ::max(b,Buildable::Maybe) ;
-			prio = r->prio ;
+			if (jt.sure()) { b =         Buildable::Yes    ; n_rules = NoIdx ; }                      // after a sure job, we can forget about rules at lower prio
+			else             b = ::max(b,Buildable::Maybe) ;
+			prev_rule = r ;                                                                           // prevent further matching of same rule
 		}
-		n_rules = NoIdx ;                                                                                      // we have exhausted all rules
+		n_rules = NoIdx ;                                                                             // we have exhausted all rules
 	Done :
 		if (+new_jts) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			jts.shorten_by(jts.size()-n_job_tgts) ;
 			jts.append(new_jts)                   ;
-			//^^^^^^^^^^^^^^^^^^^^
+			//^^^^^^^^^^^^^^^^^
 			n_job_tgts += new_jts.size() ;
 		}
 		//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

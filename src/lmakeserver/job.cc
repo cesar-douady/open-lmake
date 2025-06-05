@@ -224,7 +224,7 @@ namespace Engine {
 		for( ::string const& t : match.static_targets() ) { { if (!handle_match(rule->matches[ti].first,t,rule->matches[ti].second.flags.kind())) return ; } ti++ ; }
 		for( ::string const& t : match.star_targets  () ) { { if (!handle_match(rule->matches[ti].first,t,rule->matches[ti].second.flags.kind())) return ; } ti++ ; }
 		//
-		::pair_s</*msg*/::vmap_s<DepSpec>> digest    ;
+		::pair_s</*msg*/::vmap_s<DepSpec>> digest          ;
 		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                  // contains holes
 		try {
 			digest = rule->deps_attrs.eval(match) ;
@@ -545,18 +545,19 @@ namespace Engine {
 						// There are 2 problems : for us and for them.
 						// For us, it's ok, we will rerun.
 						// But for them, they are already done,  possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user,
-						// and all that is wron.
+						// and all that is wrong.
 						// This is too complex and too rare to detect (and ideally handle).
 						// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
 						if ( crc.valid() && td.tflags[Tflag::Target] ) {                                                          // official targets should have a valid crc, but if not, we dont care
 							trace("clash",start_date,target->date().date) ;
 							target_reason |= {JobReasonTag::ClashTarget,+target} ;                                                // crc is actually unreliable, rerun
 						}
-						Job aj =target->actual_job() ;
+						Job aj = target->actual_job() ;
 						if ( +aj && aj!=self && target->crc.valid() && target->actual_tflags()[Tflag::Target] && !is_src_anti ) { // existing crc was believed to be reliable but actually was not
+							SWEAR(+aj->rule()) ;                                                                                  // what could be this ruleless job that has been run ?!?
 							trace("critical_clash",start_date,target->date().date) ;
 							for( Req r : target->reqs() ) {
-								r->clash_nodes.emplace(target,r->clash_nodes.size()) ;
+								r->clash_nodes.push(target,{aj,Job(self)}) ;
 								target->req_info(r).done_ = NodeGoal::None ;                             // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 							}
 						}
@@ -1064,9 +1065,9 @@ namespace Engine {
 					dep_modif          = !dep.up_to_date( is_static && modif ) ;         // after a modified dep, consider static deps as being fully accessed to avoid reruns due to previous errors
 					if ( dep_modif && status==Status::Ok ) {                             // no_trigger only applies to successful jobs
 						// if not full, a dep is only used to compute resources
-						// if asked by user, record to repeat in summary, value is just to order summary in discovery order
+						// if asked by user, record to repeat in summary
 						if      (!dep.dflags[Dflag::Full])   dep_modif = false ;
-						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.emplace(dep,req->no_triggers.size()) ; }
+						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.push(dep) ; }
 					}
 					if ( +state.stamped_err  ) goto Continue ;                           // we are already in error, no need to analyze errors any further
 					if ( !is_static && modif ) goto Continue ;                           // if not static, errors may be washed by previous modifs, dont record them
@@ -1257,17 +1258,17 @@ namespace Engine {
 		}
 	}
 
-	void JobData::_submit_special(ReqInfo& ri) {                               // never report new deps
+	void JobData::_submit_special(ReqInfo& ri) {                       // never report new deps
 		Trace trace("submit_special",idx(),ri) ;
 		Req     req     = ri.req          ;
 		Special special = rule()->special ;
 		bool    frozen_ = idx().frozen()  ;
 		//
-		if (frozen_) req->frozen_jobs.emplace(idx(),req->frozen_jobs.size()) ; // record to repeat in summary, value is only for ordering summary in discovery order
+		if (frozen_) req->frozen_jobs.push(idx()) ;                    // record to repeat in summary
 		//
 		switch (special) {
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                               // only case where we are here without special rule
+				SWEAR(frozen_) ;                                       // only case where we are here without special rule
 				SpecialStep special_step = SpecialStep::Idle         ;
 				Node        worst_target ;
 				Bool3       modified     = No                        ;

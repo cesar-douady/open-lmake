@@ -32,7 +32,7 @@ enum class JobExecProc : uint8_t {
 ,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
 } ;
 
-struct AccessDigest {                                                // order is first read, first write, last write, unlink
+struct AccessDigest {                                                // semantic access order is first read, first write, last write, unlink
 	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
 	bool has_read () const { return +accesses || read_dir   ; }      // true if some access of some sort is done

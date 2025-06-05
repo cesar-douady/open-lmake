@@ -737,7 +737,7 @@ namespace Backends {
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) {
 		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
-		if (!dyn) {                                                                                                    // if dyn, threads are already running
+		if (!dyn) {                                                                                                             // if dyn, threads are already running
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
 			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
@@ -748,13 +748,13 @@ namespace Backends {
 		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                              // local backend is always available
+		for( Tag t : iota(1,All<Tag>) ) {                                                                                       // local backend is always available
 			Backend*               be        = s_tab [+t].get() ; if (!be) { trace("not_implemented",t) ; continue ; }
 			bool                   was_ready = s_ready(t)       ;
 			Config::Backend const& cfg       = config[+t]       ;
 			if (!cfg.configured) {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend ",t ) ;
-				be->config_err = "not configured" ;                                                                    // empty config_err means ready
+				be->config_err = "not configured" ;                                                                             // empty config_err means ready
 				trace("not_configured" ,t) ;
 				continue ;
 			}
@@ -764,7 +764,7 @@ namespace Backends {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend : ",e ) ;
 				if (+e) {
 					be->config_err = e ;
-					if (first_time) Fd::Stderr.write("Warning : backend "+t+" could not be configured : "+e+'\n') ;    // avoid annoying user with warnings they are already aware of
+					if (first_time) Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",ensure_nl(e))) ; // avoid annoying user with warnings they are already aware of
 					trace("err",t,e) ;
 				} else {
 					be->config_err = "no backend" ;
@@ -773,10 +773,10 @@ namespace Backends {
 				continue ;
 			}
 			if ( dyn && !was_ready ) {
-				SWEAR(+be->config_err) ;                                                                               // empty config_err means ready
+				SWEAR(+be->config_err) ;                                                                                        // empty config_err means ready
 				throw cat("cannot dynamically add backend ",t) ;
 			}
-			be->config_err = {} ;                                                                                      // empty config_err means ready
+			be->config_err = {} ;                                                                                               // empty config_err means ready
 			//
 			::string ifce ;
 			if (+cfg.ifce) {
@@ -792,8 +792,8 @@ namespace Backends {
 			if (addrs.size()==1) {
 				be->addr = addrs[0].second ;
 			} else if (t==Tag::Local) {
-				be->addr = SockFd::LoopBackAddr ;                                                                      // dont bother user for local backend
-			} else if (addrs.size()==0) {                                                                              // START_OF_NO_COV condition is system dependent
+				be->addr = SockFd::LoopBackAddr ;                                                                               // dont bother user for local backend
+			} else if (addrs.size()==0) {                                                                                       // START_OF_NO_COV condition is system dependent
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
 				::string msg   = "multiple possible interfaces : " ;
@@ -810,7 +810,7 @@ namespace Backends {
 					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
 				}
 				throw msg ;
-			}                                                                                                          // END_OF_NO_COV
+			}                                                                                                                   // END_OF_NO_COV
 			be->addr = addrs[0].second ;
 		}
 		trace(_s_job_exec) ;

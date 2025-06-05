@@ -342,16 +342,16 @@ namespace Engine {
 		}
 		void insert(RuleTgt rt) {
 			_load() ;
-			bool inserted = _rule_tgts.try_emplace(rt,_rule_tgts.size()).second ;
+			bool inserted = _rule_tgts.push(rt) ;
 			SWEAR(inserted) ;
 		}
 	private :
 		void _save() ;
 		void _load() ;
 		// data
-		NodeData&                             _node_data ;
-		::umap<RuleTgt,size_t/*idx*/>/*lazy*/ _rule_tgts ;         // idx is to retain insertion order so as to generate stable vectors
-		Bool3                                 _dirty     = Maybe ; // if Maybe <=> lazy must be solved, if Yes <=> must be written back to rejected_rule_tgts
+		NodeData&                   _node_data ;
+		OrderedSet<RuleTgt>/*lazy*/ _rule_tgts ;         // keep insertion order to generate stable vectors
+		Bool3                       _dirty     = Maybe ; // if Maybe <=> lazy must be solved, if Yes <=> must be written back to rejected_rule_tgts
 	} ;
 
 	struct NodeData : JobNodeData {
@@ -712,20 +712,18 @@ namespace Engine {
 
 	inline void RejectSet::_save() {
 		if (_dirty!=Yes) return ;
-		::vector<RuleTgt> rts_vector(_rule_tgts.size()) ; for( auto [rt,i] : _rule_tgts ) rts_vector[i] = rt ;
-		_node_data.rejected_rule_tgts() = rts_vector ;
-		_dirty                          = No         ;
+		_node_data.rejected_rule_tgts() = ::vector<RuleTgt>(_rule_tgts) ; // sorted when converted to ::vector<RuleTgt>
+		_dirty                          = No                            ;
 	}
 
 	inline void RejectSet::_load() {
 		if (_dirty!=Maybe) return ;
 		_dirty = No ;
-		size_t i = 0 ;
 		for( RuleTgt rt : _node_data.rejected_rule_tgts().view() ) {
 			Rule r = rt->rule ;
-			if      (!r        )   _dirty = Yes ;                                                  // if a rule is obsolete, forget it and remind to save cleaned up vector
-			else if (rt!=r->crc) { _dirty = Yes ; _rule_tgts[RuleTgt(r->crc,rt.tgt_idx)] = i++ ; } // take last version of rule and retain insertion order
-			else                                  _rule_tgts[rt                        ] = i++ ;
+			if      (!r        )   _dirty = Yes ;                                                 // if a rule is obsolete, forget it and remind to save cleaned up vector
+			else if (rt!=r->crc) { _dirty = Yes ; _rule_tgts.push(RuleTgt(r->crc,rt.tgt_idx)) ; } // take last version of rule and retain insertion order
+			else                                  _rule_tgts.push(rt                        ) ;   // .
 		}
 	}
 

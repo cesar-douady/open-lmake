@@ -7,7 +7,7 @@ open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
   * improve cache
   * add LMAKE/matching file to report candidate rules for each prefix/suffix pair
   * add example to show C++20 module support
-  * support Debian12 an OpenSuse15.6 in addition to CentOS7, Rocky8, Rocky9, Ubuntu20.04, Ubuntu22.04 and Ubuntu24.04
+  * support Debian12 and OpenSuse15.6 in addition to CentOS7, Rocky8, Rocky9, Ubuntu20.04, Ubuntu22.04 and Ubuntu24.04
   * bug fixes
   * improve perf
 

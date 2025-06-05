@@ -403,12 +403,19 @@ namespace Engine::Persistent {
 				::sort(
 					pfx_rule_tgt_vec
 				,	[]( Rt const& a , Rt const& b )->bool {
-						// compulsery : order by priority, with special Rule's before plain Rule's, with Anti's before GenericSrc's within each priority level
-						// optim      : put more specific rules before more generic ones to favor sharing RuleTgts in reversed PrefixFile
-						// finally    : any stable sort is fine, just to avoid random order
-						return
-							::tuple( a->rule->is_special() , a->rule->prio , a->rule->special , a.pfx.size()+a.sfx.size() , a->rule->name , a->rule->sub_repo_s )
-						>	::tuple( b->rule->is_special() , b->rule->prio , b->rule->special , b.pfx.size()+b.sfx.size() , b->rule->name , a->rule->sub_repo_s )
+						// order :
+						// - rule order :
+						//   - special Rule's before plain Rule's
+						//   - by decreasing prio
+						//   - Anti's before GenericSrc's within given priority
+						//   - any stable sort
+						// - within rule :
+						//   - by tgt_idx so as to correspond to candidate order
+						RuleData const& ard = *a->rule ;
+						RuleData const& brd = *b->rule ;
+						return //!                                               any stable sort
+							::tuple( ard.is_special() , ard.prio , ard.special , +ard.crc->match , a.tgt_idx )
+						>	::tuple( brd.is_special() , brd.prio , brd.special , +brd.crc->match , b.tgt_idx )
 						;
 					}
 				) ;

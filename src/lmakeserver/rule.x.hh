@@ -603,8 +603,8 @@ namespace Engine {
 	private :
 		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                                // .
 	public :
-		bool operator==(RuleMatch const&) const = default ;
-		bool operator+ (                ) const { return +rule ; }
+		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
+		bool operator+ (                   ) const { return +rule                            ; }
 		// accesses
 		::vector_s star_patterns () const ;
 		::vector_s py_matches    () const ;

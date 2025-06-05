@@ -65,7 +65,7 @@ namespace Backends::Slurm {
 
 	RsrcsData parse_args        (::string const& args                                     ) ;
 	::string  read_stderr       (Job                                                      ) ;
-	Daemon    slurm_sense_daemon( ::string const& lib_slurm , ::string const& config_file ) ;
+	Daemon    slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm ) ;
 	//
 	SlurmId slurm_spawn_job(
 		::stop_token
@@ -134,7 +134,7 @@ namespace Backends::Slurm {
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
 			if (!dyn) {
-				daemon = slurm_sense_daemon( lib_slurm , config_file ) ;
+				daemon = slurm_sense_daemon( config_file , lib_slurm ) ;
 				_s_slurm_cancel_thread.open('K',SlurmApi::cancel_func) ;
 			}
 			//
@@ -267,7 +267,7 @@ namespace Backends::Slurm {
 		SpawnedMap mutable  spawned_rsrcs     ;                 // number of spawned jobs queued in slurm queue
 		::vector<RsrcsData> req_forces        ;                 // indexed by req, resources forced by req
 		::string            config_file       ;
-		::string            lib_slurm         = "libslurm.so" ;
+		::string            lib_slurm         ;
 		uint32_t            n_max_queued_jobs = 10            ; // by default, limit to 10 the number of jobs waiting for a given set of resources
 		bool                use_nice          = false         ;
 		::string            repo_key          ;                 // a short identifier of the repository
@@ -390,42 +390,50 @@ namespace Backends::Slurm {
 	static void _exit1() {
 		::_exit(1) ;
 	}
-	Daemon slurm_sense_daemon( ::string const& lib_slurm , ::string const& config_file ) {
-		Trace trace(BeChnl,"slurm_sense_daemon",lib_slurm,config_file) ;
-		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                        // if nothing to try, no backend but no error
+	Daemon slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm ) {
+		Trace trace(BeChnl,"slurm_sense_daemon",config_file,lib_slurm) ;
+		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                   // if nothing to try, no backend but no error
 		//
-		SlurmApi::g_lib_handler = ::dlopen(lib_slurm.c_str(),RTLD_NOW|RTLD_GLOBAL) ; throw_unless( SlurmApi::g_lib_handler , "cannot find ",lib_slurm ) ;
+		::string config_file_ = config_file | "/etc/slurm/slurm.conf"s ;
+		::string lib_slurm_   = lib_slurm   | "libslurm.so"s           ;
 		//
-		const char*               cf                 = +config_file ? config_file.c_str() : nullptr                                                        ;
+		SlurmApi::g_lib_handler = ::dlopen(lib_slurm_.c_str(),RTLD_NOW|RTLD_GLOBAL) ; throw_unless( SlurmApi::g_lib_handler , "cannot find ",lib_slurm_ ) ;
+		//
 		SlurmApi::InitFunc        init_func          = reinterpret_cast<SlurmApi::InitFunc       >(::dlsym(SlurmApi::g_lib_handler,"slurm_init"         )) ;
 		SlurmApi::LoadCtlConfFunc load_ctl_conf_func = reinterpret_cast<SlurmApi::LoadCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_load_ctl_conf")) ;
 		SlurmApi::FreeCtlConfFunc free_ctl_conf_func = reinterpret_cast<SlurmApi::FreeCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_free_ctl_conf")) ;
-		throw_unless( init_func          , "cannot find slurm_init"          ) ;
-		throw_unless( load_ctl_conf_func , "cannot find slurm_load_ctl_conf" ) ;
-		throw_unless( free_ctl_conf_func , "cannot find slurm_free_ctl_conf" ) ;
+		throw_unless( init_func          , "cannot find function slurm_init in "         ,lib_slurm_ ) ;
+		throw_unless( load_ctl_conf_func , "cannot find function slurm_load_ctl_conf in ",lib_slurm_ ) ;
+		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
 		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
 		// so the idea here is to fork a process to probe SlurmApi::init
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
-			::atexit(_exit1) ;                                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
-			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                      // this is just a probe, we want nothing on stderr
-			::dup2(dev_null_fd,2) ;                                           // so redirect to /dev/null
-			init_func(cf) ;                                                   // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
-			::_exit(0) ;                                                      // if we are here, everything went smoothly
+			::atexit(_exit1) ;                                           // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
+			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                 // this is just a probe, we want nothing on stderr
+			::dup2(dev_null_fd,2) ;                                      // so redirect to /dev/null
+			init_func(config_file_.c_str()) ;                            // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
+			::_exit(0) ;                                                 // if we are here, everything went smoothly
 		} else {
 			// in parent
-			int wstatus ;
-			pid_t rc = ::waitpid(child_pid,&wstatus,0) ;                      // gather status to know if we were able to call SlurmApi::init
-			if ( rc<=0 || !wstatus_ok(wstatus) ) throw "cannot init slurm"s ; // no, report error
+			int   wstatus ;
+			pid_t rc      = ::waitpid(child_pid,&wstatus,0) ;            // gather status to know if we were able to call SlurmApi::init
+			if ( rc<=0 || !wstatus_ok(wstatus) ) {                       // no, report error
+				::string msg = "cannot init slurm\n" ;
+				if (+config_file) msg << "ensure lmake.config.backends.slurm.config is adequate : "      <<config_file <<'\n'             ;
+				else              msg << "consider setting lmake.config.backends.slurm.config (using "   <<config_file_<<" by default)\n" ;
+				if (+lib_slurm  ) msg << "ensure lmake.config.backends.slurm.lib_slurm is adequate : "   <<lib_slurm   <<'\n'             ;
+				else              msg << "consider setting lmake.config.backends.slurm.lib_slurm (using "<<lib_slurm_  <<" by default)\n" ;
+				throw msg ;
+			}
 		}
-		init_func(cf) ;                                                       // this should be safe now that we have checked it works in a child
+		init_func(config_file_.c_str()) ;                                // this should be safe now that we have checked it works in a child
 		//
 		void* conf = nullptr ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
-		{	Lock     lock { slurm_mutex }                        ;
-			::string cf   = config_file|"/etc/slurm/slurm.conf"s ;
-			if (!is_target(cf)                               ) throw "no slurm config file "+cf  ;
-			if (load_ctl_conf_func(0/*update_time*/,&conf)!=0) throw "cannot reach slurm daemon" ;
+		{	Lock lock { slurm_mutex } ;
+			if (!is_target(config_file_)                     ) throw "no slurm config file "+config_file_ ;
+			if (load_ctl_conf_func(0/*update_time*/,&conf)!=0) throw "cannot reach slurm daemon"          ;
 		}
 		SWEAR(conf) ;
 		//
@@ -438,7 +446,7 @@ namespace Backends::Slurm {
 				daemon = sense_daemon_func(conf) ;
 				found  = true                    ;
 				break ;
-			} catch (::string const&) {}                                      // ignore errors as well
+			} catch (::string const&) {}                                 // ignore errors as well
 		}
 		//
 		free_ctl_conf_func(conf) ;
@@ -465,9 +473,9 @@ namespace Backends::Slurm {
 		//
 		Trace trace(BeChnl,"parse_args",args) ;
 		//
-		if (!args) return {} ;                                                                 // fast path
+		if (!args) return {} ;                                                       // fast path
 		//
-		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")         ;           // sentinel to parse last args
+		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")         ; // sentinel to parse last args
 		::vector<char*> argv(1) ;                   argv.reserve(arg_vec.size()+1) ;
 		RsrcsData       res     ;
 		//

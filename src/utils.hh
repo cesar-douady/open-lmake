@@ -338,6 +338,51 @@ private :
 } ;
 
 //
+// OrderedMap & OrderedSet
+// ordered by insertion order
+//
+
+// /!\ OrderedSet is like OrderedMap without value, both codes must stay in sync
+template<class K> struct OrderedSet {
+	// cxtors & casts
+	OrderedSet() = default ;
+	operator ::vector<K>() const {
+		::vector<K> res(_data.size()) ; for( auto const& [k,i] : _data ) res[i] = k ;
+		return res ;
+	}
+	// accesses
+	bool operator+(          ) const { return +_data            ; }
+	bool contains (K const& k) const { return _data.contains(k) ; }
+	// services
+	bool push(K const& k) {                                   // store if k does not already exists
+		return _data.try_emplace( k , _data.size() ).second ;
+	}
+	// data
+private :
+	::umap<K,size_t/*order*/> _data ;
+} ;
+
+// /!\ OrderedSet is like OrderedMap without value, both codes must stay in sync
+template<class K,class V> struct OrderedMap {
+	// cxtors & casts
+	OrderedMap() = default ;
+	operator ::vmap<K,V>() const {
+		::vmap<K,V> res(_data.size()) ; for( auto const& [k,i_v] : _data ) res[i_v.first] = {k,i_v.second} ;
+		return res ;
+	}
+	// accesses
+	bool operator+(          ) const { return +_data            ; }
+	bool contains (K const& k) const { return _data.contains(k) ; }
+	// services
+	bool push( K const& k , V const& v ) {                        // store if k does not already exists
+		return _data.try_emplace( k , _data.size() , v ).second ;
+	}
+	// data
+private :
+	::umap<K,::pair<size_t,NoVoid<V>>> _data ;
+} ;
+
+//
 // Fd
 // necessary here in utils.hh, so cannot be put in higher level include such as fd.hh
 //
@@ -517,9 +562,9 @@ template<class T,MutexLvl A> struct StaticUniqPtr {
 private :
 	::conditional_t<+A,Atomic<T*,A>,T*> _ptr = nullptr ;
 } ;
-template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) { // START_OF_NO_COV
+template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) {                           // START_OF_NO_COV
 	return os << sup._ptr ;
-}                                                                                                   // END_OF_NO_COV
+}                                                                                                                             // END_OF_NO_COV
 
 enum class Rc : uint8_t {
 	Ok

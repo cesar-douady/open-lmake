@@ -458,27 +458,28 @@ namespace Engine {
 				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , widen(n->ok()!=No         ?plain_ok_msg:plain_err_msg,w)+" :" , n ) ;
 		}
 		if (+frozen_jobs) {
-			::vmap<Job,JobIdx/*order*/> frozen_jobs_ = mk_vmap(frozen_jobs) ;
-			::sort( frozen_jobs_ , []( ::pair<Job,JobIdx/*order*/> const& a , ::pair<Job,JobIdx/*order*/> b ) { return a.second<b.second ; } ) ;      // sort in discovery order
+			::vector<Job> frozen_jobs_sorted = frozen_jobs ;
 			size_t w = 0 ;
-			for( auto [j,_] : frozen_jobs_ ) w = ::max( w , j->rule()->name.size() ) ;
-			for( auto [j,_] : frozen_jobs_ ) audit_info( j->err()?Color::Err:Color::Warning , "frozen "+widen(j->rule()->name,w) , j->name() ) ;
+			for( Job j : frozen_jobs_sorted ) w = ::max( w , j->rule()->user_name().size() ) ;
+			for( Job j : frozen_jobs_sorted ) audit_info( j->err()?Color::Err:Color::Warning , "frozen "+widen(j->rule()->user_name(),w) , j->name() ) ;
 		}
 		if (+frozen_nodes) {
-			::vmap<Node,NodeIdx/*order*/> frozen_nodes_ = mk_vmap(frozen_nodes) ;
-			::sort( frozen_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ; // sort in discovery order
-			for( auto [n,_] : frozen_nodes_ ) audit_node( Color::Warning , "frozen " , n ) ;
+			::vector<Node> frozen_nodes_sorted = frozen_nodes ;
+			for( Node n : frozen_nodes_sorted ) audit_node( Color::Warning , "frozen " , n ) ;
 		}
 		if (+no_triggers) {
-			::vmap<Node,NodeIdx/*order*/> no_triggers_ = mk_vmap(no_triggers) ;
-			::sort( no_triggers_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
-			for( auto [n,_] : no_triggers_ ) audit_node( Color::Warning , "no trigger" , n ) ;
+			::vector<Node> no_triggers_sorted = no_triggers ;
+			for( Node n : no_triggers_sorted ) audit_node( Color::Warning , "no trigger" , n ) ;
 		}
 		if (+clash_nodes) {
-			::vmap<Node,NodeIdx/*order*/> clash_nodes_ = mk_vmap(clash_nodes) ;
-			::sort( clash_nodes_ , []( ::pair<Node,NodeIdx/*order*/> const& a , ::pair<Node,NodeIdx/*order*/> b ) { return a.second<b.second ; } ) ;  // sort in discovery order
+			::vmap<Node,::pair<Job,Job>> clash_nodes_sorted = clash_nodes ;
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
-			for( auto [n,_] : clash_nodes_ ) audit_node(Color::Warning,{},n,1) ;
+			for( auto [n,jj] : clash_nodes_sorted ) {
+				size_t w = ::max( jj.first->rule()->user_name().size() , jj.second->rule()->user_name().size() ) ;
+				audit_node( Color::Warning                             , {}                                      , n                 , 1/*lvl*/ ) ;
+				audit_info( jj.first ->err()?Color::Err:Color::Warning , widen(jj.first ->rule()->user_name(),w) , jj.first ->name() , 2/*lvl*/ ) ;
+				audit_info( jj.second->err()?Color::Err:Color::Warning , widen(jj.second->rule()->user_name(),w) , jj.second->name() , 2/*lvl*/ ) ;
+			}
 			if ( Rule r=job->rule() ; r->special!=Special::Req) {
 				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->user_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
 			} else {
