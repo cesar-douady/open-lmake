@@ -46,10 +46,24 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 'D' : readdir_ok    = true             ; break ;
 			case 'i' : ignore_stat   = true             ; break ;
 			case 'm' : auto_mkdir    = true             ; break ;
-			case 'n' : lnk_support   = LnkSupport::None ; break ;
-			case 'f' : lnk_support   = LnkSupport::File ; break ;
-			case 'a' : lnk_support   = LnkSupport::Full ; break ;
-			case 'r' : reliable_dirs = true             ; break ;
+			case 'l' :
+				pos++ ;
+				switch (env[pos]) {
+					case 'n' : lnk_support = LnkSupport::None ; break ;
+					case 'f' : lnk_support = LnkSupport::File ; break ;
+					case 'a' : lnk_support = LnkSupport::Full ; break ;
+					default  : goto Fail ;
+				}
+			break ;
+			case 's' :
+				pos++ ;
+				switch (env[pos]) {
+					case 'n' : file_sync = FileSync::None ; break ;
+					case 'd' : file_sync = FileSync::Dir  ; break ;
+					case 's' : file_sync = FileSync::Sync ; break ;
+					default  : goto Fail ;
+				}
+			break ;
 			default  : goto Fail ;
 		}
 	// other stuff                                                                                                                       empty_ok
@@ -73,15 +87,19 @@ AutodepEnv::operator ::string() const {
 	res <<':'<< '"'<<mk_printable<'"'>(fast_report_pipe)<<'"' ;
 	// options
 	res << ':' ;
-	if (!enable      ) res << 'd' ;
-	if (readdir_ok   ) res << 'D' ;
-	if (ignore_stat  ) res << 'i' ;
-	if (auto_mkdir   ) res << 'm' ;
-	if (reliable_dirs) res << 'r' ;
+	if (!enable    ) res << 'd' ;
+	if (readdir_ok ) res << 'D' ;
+	if (ignore_stat) res << 'i' ;
+	if (auto_mkdir ) res << 'm' ;
 	switch (lnk_support) {
-		case LnkSupport::None : res << 'n' ; break ;
-		case LnkSupport::File : res << 'f' ; break ;
-		case LnkSupport::Full : res << 'a' ; break ;
+		case LnkSupport::None : res << "ln" ; break ;
+		case LnkSupport::File : res << "lf" ; break ;
+		case LnkSupport::Full : res << "la" ; break ;
+	DF} //! NO_COV
+	switch (file_sync) {
+		case FileSync::None : res << "sn" ; break ;
+		case FileSync::Dir  : res << "sd" ; break ;
+		case FileSync::Sync : res << "ss" ; break ;
 	DF} //! NO_COV                                empty_ok
 	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s         )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s       )<<'"' ;

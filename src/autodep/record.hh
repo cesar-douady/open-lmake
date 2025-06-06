@@ -124,7 +124,6 @@ private :
 	static pid_t                     _s_report_pid[2/*Fast*/] ;  // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
-	Record(                                        ) = default ;
 	Record( NewType ,                  pid_t pid   ) : Record( New , Maybe , pid ) {}
 	Record( NewType , Bool3 en=Maybe , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
 		if (en==Maybe) enable = s_autodep_env().enable ;

@@ -71,7 +71,11 @@ namespace Caches {
 		else                                                         throw "key not found"s ;
 		key_s = "key-"+key_hash.digest().hex()+'/' ;
 		//
-		if ( auto it=config_map.find("reliable_dirs") ; it!=config_map.end() ) reliable_dirs = it->second!="False" && it->second!="0" && +it->second ;
+		if ( auto it=config_map.find("file_sync") ; it!=config_map.end() ) {
+			if      (it->second=="None"                ) file_sync = FileSync::None ;
+			else if (!can_mk_enum<FileSync>(it->second)) throw cat("unexpected value for file_sync : ",it->second) ;
+			else                                         file_sync = mk_enum<FileSync>(it->second) ;
+		}
 		//
 		try                     { chk_version(true/*may_init*/,dir_s+AdminDirS) ;                    }
 		catch (::string const&) { throw "cache version mismatch, running without "+no_slash(dir_s) ; }
@@ -181,7 +185,7 @@ namespace Caches {
 
 	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) {
 		Trace trace("DirCache::match",job) ;
-		NfsGuard            nfs_guard    { reliable_dirs }                            ;
+		NfsGuard            nfs_guard    { file_sync }                                ;
 		::string            abs_jn_s     = dir_s+job+'/'                              ;
 		AcFd                dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir } ;
 		LockedFd            lock         { dir_s , false/*exclusive*/ }               ;
@@ -237,11 +241,11 @@ namespace Caches {
 	}
 
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {
-		NfsGuard                nfs_guard  { reliable_dirs }                               ;
-		::string                key_s      = match_key+'/'                                 ;
-		AcFd                    dfd        { nfs_guard.access_dir(dir_s+key_s) , Fd::Dir } ;
-		AcFd                    info_fd    ;
-		AcFd                    data_fd    ;
+		NfsGuard                nfs_guard { file_sync }                                   ;
+		::string                key_s     = match_key+'/'                                 ;
+		AcFd                    dfd       { nfs_guard.access_dir(dir_s+key_s) , Fd::Dir } ;
+		AcFd                    info_fd   ;
+		AcFd                    data_fd   ;
 		{	LockedFd lock { dir_s , true /*exclusive*/ }     ;                                           // because we manipulate LRU, need exclusive
 			Sz       sz   = _lru_remove( key_s , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_first( key_s , sz , nfs_guard ) ;
@@ -255,8 +259,8 @@ namespace Caches {
 	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz max_sz) {
 		Trace trace("DirCache::reserve",max_sz) ;
 		//
-		NfsGuard nfs_guard { reliable_dirs }    ;
-		uint64_t upload_key       = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
+		NfsGuard nfs_guard  { file_sync }        ;
+		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
 		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
 			_mk_room( 0 , max_sz , nfs_guard ) ;
 		}
@@ -267,9 +271,9 @@ namespace Caches {
 	}
 
 	bool/*ok*/ DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		NfsGuard nfs_guard { reliable_dirs }    ;
-		::string jn_s      = job+'/'            ;
-		::string jnid_s    = jn_s+key_s         ;
+		NfsGuard nfs_guard { file_sync } ;
+		::string jn_s      = job+'/'     ;
+		::string jnid_s    = jn_s+key_s  ;
 		Trace trace("DirCache::sub_commit",upload_key,job) ;
 		//
 		// START_OF_VERSIONING
@@ -322,7 +326,7 @@ namespace Caches {
 	}
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {
-		NfsGuard nfs_guard { reliable_dirs }             ;
+		NfsGuard nfs_guard { file_sync }                 ;
 		LockedFd lock      { dir_s , true/*exclusive*/ } ;                        // lock as late as possible
 		_dismiss( upload_key , _reserved_sz(upload_key,nfs_guard) , nfs_guard ) ;
 	}

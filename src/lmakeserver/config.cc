@@ -70,14 +70,15 @@ namespace Engine {
 		//
 		::vector_s fields = {{}} ;
 		try {
-			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) reliable_dirs          =                           +py_map[fields[0]]                          ;
+			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
+			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())                  ;
+			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay()        ;
+			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay()        ;
+			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
+			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
+			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
+			// XXX> : suppress when backward compatibility is no more required
+			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) file_sync              = +py_map[fields[0]] ? FileSync::None                         : FileSync::Dflt ;
 			//
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
@@ -91,6 +92,12 @@ namespace Engine {
 				if      (!py_lnk_support     ) lnk_support = LnkSupport::None                                ;
 				else if (py_lnk_support==True) lnk_support = LnkSupport::Full                                ;
 				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
+			}
+			fields[0] = "file_sync" ;
+			if (py_map.contains(fields[0])) {
+				Object const& py_file_sync = py_map[fields[0]] ;
+				if (!py_file_sync) file_sync = FileSync::None                              ;
+				else               file_sync = mk_enum<FileSync>(py_file_sync.as_a<Str>()) ;
 			}
 			//
 			fields[0] = "console" ;
@@ -207,8 +214,8 @@ namespace Engine {
 				if (!Backends::Backend::s_ready(t)) continue        ;
 				if (t!=BackendTag::Local          ) goto SeenRemote ;
 			}
-			reliable_dirs    = true ;                                                                                                  // all backends are local, dirs are necessarily reliable
-			console.host_len = 0    ;                                                                                                  // host has no interest if all jobs are local
+			file_sync        = FileSync::None ;                                                                                        // all backends are local, filesystem is necessarily reliable
+			console.host_len = 0              ;                                                                                        // host has no interest if all jobs are local
 		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) field<<'.'<<f ;
@@ -258,7 +265,7 @@ namespace Engine {
 		//
 		/**/               res << "dynamic :\n"                                  ;
 		if (max_err_lines) res << "\tmax_error_lines : " << max_err_lines <<'\n' ;
-		/**/               res << "\treliable_dirs   : " << reliable_dirs <<'\n' ;
+		/**/               res << "\tfile_sync       : " << file_sync     <<'\n' ;
 		//
 		res << "\tconsole :\n" ;
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
@@ -316,7 +323,7 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
 		Trace trace("Config::open",STR(dyn),STR(first_time)) ;
-		SWEAR(+key) ;                                                     // ensure no init problem
+		SWEAR(+key) ;                                               // ensure no init problem
 		::string std_dir_s = cat(PrivateAdminDirS,"local_admin/") ;
 		if (!user_local_admin_dir_s) {
 			local_admin_dir_s = ::move(std_dir_s) ;

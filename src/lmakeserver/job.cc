@@ -1258,21 +1258,21 @@ namespace Engine {
 		}
 	}
 
-	void JobData::_submit_special(ReqInfo& ri) {                       // never report new deps
+	void JobData::_submit_special(ReqInfo& ri) {                   // never report new deps
 		Trace trace("submit_special",idx(),ri) ;
 		Req     req     = ri.req          ;
 		Special special = rule()->special ;
 		bool    frozen_ = idx().frozen()  ;
 		//
-		if (frozen_) req->frozen_jobs.push(idx()) ;                    // record to repeat in summary
+		if (frozen_) req->frozen_jobs.push(idx()) ;                // record to repeat in summary
 		//
 		switch (special) {
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                       // only case where we are here without special rule
-				SpecialStep special_step = SpecialStep::Idle         ;
+				SWEAR(frozen_) ;                                   // only case where we are here without special rule
+				SpecialStep special_step = SpecialStep::Idle     ;
 				Node        worst_target ;
-				Bool3       modified     = No                        ;
-				NfsGuard    nfs_guard    { g_config->reliable_dirs } ;
+				Bool3       modified     = No                    ;
+				NfsGuard    nfs_guard    { g_config->file_sync } ;
 				for( Target t : targets ) {
 					::string    tn = t->name()         ;
 					SpecialStep ss = SpecialStep::Idle ;
@@ -1282,7 +1282,7 @@ namespace Engine {
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->date() ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvv
-						t->refresh( crc , {sig,{}} ) ; // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
+						t->refresh( crc , {sig,{}} ) ;             // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if      ( crc!=Crc::None || t.tflags[Tflag::Phony]           ) ss = SpecialStep::Ok  ;
 						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) ss = SpecialStep::Err ;
@@ -1357,7 +1357,7 @@ namespace Engine {
 					switch (cache_match.hit) {
 						case Yes :
 							try {
-								NfsGuard nfs_guard { g_config->reliable_dirs } ;
+								NfsGuard nfs_guard { g_config->file_sync } ;
 								//
 								vmap<Node,FileAction> fas     = pre_actions(match) ;
 								::vmap_s<FileAction>  actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;

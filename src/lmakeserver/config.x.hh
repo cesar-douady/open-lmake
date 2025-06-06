@@ -137,9 +137,9 @@ namespace Engine {
 			bool operator==(Console const&) const = default ;
 			// /!\ default values must stay in sync with _lib/lmake/config.src.py
 			// START_OF_VERSIONING
-			uint8_t  date_prec     = 0     ;                                                            // -1 means no date at all in console output
-			uint8_t  host_len      = 0     ;                                                            //  0 means no host at all in console output
-			uint32_t history_days  = 7     ;                                                            // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
+			uint8_t  date_prec     = 0     ; // -1 means no date at all in console output
+			uint8_t  host_len      = 0     ; //  0 means no host at all in console output
+			uint32_t history_days  = 7     ; // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
 			bool     has_exec_time = true  ;
 			bool     show_eta      = false ;
 			bool     show_ete      = true  ;
@@ -152,12 +152,12 @@ namespace Engine {
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
 		// START_OF_VERSIONING
-		size_t                                                                  max_err_lines = 0     ; // unlimited
-		bool                                                                    reliable_dirs = false ; // if true => dirs coherence is enforced when files are modified
+		size_t                                                                  max_err_lines = 0              ; // unlimited
+		FileSync                                                                file_sync     = FileSync::Dflt ; // if true => dirs coherence is enforced when files are modified
 		Console                                                                 console       ;
-		::array<Backend,N<BackendTag>>                                          backends      ;         // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}    ;
-		::umap_ss                                                               dbg_tab       = {}    ; // maps debug keys to modules to import
+		::array<Backend,N<BackendTag>>                                          backends      ;                  // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}             ;
+		::umap_ss                                                               dbg_tab       = {}             ; // maps debug keys to modules to import
 		// END_OF_VERSIONING
 	} ;
 

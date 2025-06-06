@@ -22,13 +22,14 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
-		chroot_dir   = '/'                                                # ensure pid namespace is used to ensure reliale job termination
+#		chroot_dir   = '/'                                                           # ensure pid namespace is used to ensure reliale job termination
 		side_targets = {
-			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                    # wine writes .wine  dir, even after init
-		,	'CACHE' : (r'.cache/{*:.*}','incremental')                    # wine writes .cache dir, even after init
+			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes .wine  dir, even after init
+		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # wine writes .cache dir, even after init
 		}
-		side_deps         = { 'TOP' : ('.','readdir_ok') }                # wine seems to read its cwd
-		environ_resources = { 'DISPLAY' : lmake.user_environ['DISPLAY'] } # wine needs a display in all cases
+		side_deps = { 'TOP' : ('.','readdir_ok') }                                   # wine seems to read its cwd
+		if xvfb : environ_resources = { 'SMALL_ID' : '$SMALL_ID'                   } # display is provided by xvfb-run
+		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display
 
 	class WineInit(WineRule) :
 		target       = '.wine/init'
@@ -39,8 +40,8 @@ if __name__!='__main__' :
 		environ      = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
 		timeout      = 30                                                                              # actual time should be ~5s for the init rule, ...
 		#                                                                                              # ... but seems to block from time to time when host is loaded
-		if shutil.which('xvfb-run') : cmd = 'xvfb-run wine64 cmd && sleep 1'                           # do nothing, just to init support files (in targets) (sleep to allow X server to clean up)
-		else                        : cmd = '         wine64 cmd'                                      # .
+		if xvfb : cmd = f'{xvfb} wine64 cmd && sleep 1'                                                # do nothing, just to init support files (in targets) (sleep to allow X server to clean up)
+		else    : cmd =  '       wine64 cmd'                                                           # .
 
 	for ext in ('','64') :
 		class Dut(Base,WineRule) :
@@ -48,7 +49,8 @@ if __name__!='__main__' :
 			target  = f'dut{ext}.{{Method}}'
 			deps    = { 'WINE_INIT' : '.wine/init' }
 			autodep = '{Method}'
-			cmd     = f'wine{ext} hostname && sleep 1' # wine64 terminates before hostname, so we have to wait to get the result
+			if xvfb : cmd = f'{xvfb} -n $((50+$SMALL_ID)) wine{ext} hostname && sleep 1' # wine terminates before hostname, so we have to wait to get the result
+			else    : cmd = f'                            wine{ext} hostname && sleep 1' # .
 
 	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'

@@ -103,23 +103,25 @@ It is subject to infinite recursion and several means are provided to avoid it.
 
 The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called `infinite`.
 
-### `reliable_dirs` : Static (`False` if non-local backends are used)
+### `file_sync` : Static (`'dir'` if non-local backends are used, else `None`)
 
-This attribute specifies whether dir coherence is enforced when a file is created/modified/unlinked.
+This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.
 
-When not the case, open-lmake emit additional traffic to ensure the necessary coherency.
+Possible values are:
 
-Known file systems :
+- `'none'` or `None`: the filesystem is deemed reliable an no further protection is needed.
+- `'dir'`: the enclosing dir (and recursively up-hill) of a file is closed after any write (or creation or removal) and open before any read.
+- `'sync'`: `fsync` is called on file after any write.
 
-| File system | reliable dirs |
-|-------------|---------------|
-| NFS         | False         |
-| CEPH        | True          |
+Recommanded values for known file systems:
 
-- If uselessly set to False, there is a performance hit.
-- If wrongly set to True, builds will be unreliable with difficult to analyze patterns.
+| File system | `file_sync` |
+|-------------|-------------|
+| NFS         | `'dir'`     |
+| CEPH        | `None`      |
 
-So if in doubt, leave False.
+The expected performance impact is increasing in this order : `None`, `'dir'`, `'sync'`.
+The expected reliability order is the reverse one.
 
 ### `sub_repos` : Static (`()`)
 
@@ -247,9 +249,9 @@ This attribute specifies the dir in which the cache puts its data.
 The dir must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (`k`, `M`, `G`, `T`, `P` or `E`). These refer to base 1024.
 
-### `caches.<dir>.reliable_dirs` : Static (`False`)
+### `caches.<dir>.file_sync` : Static (`'dir'`)
 
-Same meaning as `config.reliable_dirs` for the dir containing the cache.
+Same meaning as `config.file_sync` for accesses in the cache.
 
 ### `caches.<dir>.group` : Static (default group of user)
 

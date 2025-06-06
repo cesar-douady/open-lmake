@@ -357,12 +357,12 @@ namespace Disk {
 	//
 
 	::string& operator+=( ::string& os , RealPathEnv const& rpe ) {       // START_OF_NO_COV
-		/**/                    os << "RealPathEnv(" << rpe.lnk_support ;
-		if ( rpe.reliable_dirs) os << ",reliable_dirs"                  ;
-		/**/                    os <<','<< rpe.repo_root_s              ;
-		if (+rpe.tmp_dir_s    ) os <<','<< rpe.tmp_dir_s                ;
-		if (+rpe.src_dirs_s   ) os <<','<< rpe.src_dirs_s               ;
-		return                  os <<')'                                ;
+		/**/                 os << "RealPathEnv(" << rpe.lnk_support ;
+		if (+rpe.file_sync ) os <<','<< rpe.file_sync                ;
+		/**/                 os <<','<< rpe.repo_root_s              ;
+		if (+rpe.tmp_dir_s ) os <<','<< rpe.tmp_dir_s                ;
+		if (+rpe.src_dirs_s) os <<','<< rpe.src_dirs_s               ;
+		return               os <<')'                                ;
 	}                                                                     // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , RealPath::SolveReport const& sr ) {               // START_OF_NO_COV
@@ -420,7 +420,7 @@ namespace Disk {
 		if (ds<chk.size()) ok = chk[ds]=='/' ;
 	}
 
-	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _repo_root_sz{_env->repo_root_s.size()} {
+	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _repo_root_sz{_env->repo_root_s.size()} , _nfs_guard{rpe.file_sync} {
 		SWEAR( is_abs(rpe.repo_root_s) , rpe.repo_root_s ) ;
 		SWEAR( is_abs(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
 		//
@@ -497,9 +497,6 @@ namespace Disk {
 				if (src_idx==Npos) continue ;
 			}
 			//
-			if ( !last && !_env->reliable_dirs )                                                                             // at last level, dirs are rare and NFS does the coherence job
-				if ( +AcFd(::open(real.c_str(),O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NOATIME)) ) continue ;                      // sym links are rare, so this has no significant perf impact ...
-			//
 			switch (_env->lnk_support) {
 				case LnkSupport::None :                                 continue ;
 				case LnkSupport::File : if (last) goto HandleLnk ; else continue ;                                           // only handle sym links as last component
@@ -507,7 +504,7 @@ namespace Disk {
 			DF}                                                                                                              // NO_COV
 		HandleLnk :
 			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when file is neither local_file's, any buffer is ok
-			nxt = read_lnk(real) ;
+			nxt = read_lnk(_nfs_guard.access(real)) ;
 			if (!nxt) {
 				if (errno==ENOENT) exists = false ;
 				// do not generate dep for intermediate dir that are not links as we indirectly depend on them through the last components

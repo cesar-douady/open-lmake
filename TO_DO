@@ -15,12 +15,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* touch foo
-  lmake -> open(foo) -> dangling (foo not mentioned as dep in error)
-  modify code -> not open foo
-  lmake -> dep_err while foo is no more read
-* a target seen to match twice the same rule
-	- cf discussion with Nicolas
 ? seen once : server has been seen blocked
 	- seems to be while taking GIL
 
@@ -28,10 +22,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* implement several strategies for dir reliability
-	- none (reliable dirs)
-	- current (open/close on file dirs before read/after write)
-	- fsync (fsync on file after write)
 ! generate meaningful messages in case of I/O error such as disk full
 ! manage 32 bits executables with ptrace
 ? replace environ/environ_resources/environ_ancillary with a unique dict
@@ -54,6 +44,7 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* avoid generating hostname when early_rerun
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
@@ -90,6 +81,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* implement a nice mecanism
+	- a backend attribute
+	- ensure -b or other way from command line
 * implement cache_repair
 	- clean LMAKE/reserved
 	- recompute overall size

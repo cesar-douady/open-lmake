@@ -38,10 +38,10 @@ namespace Engine::Makefiles {
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
-	static ::string _chk_deps( ::string const& action , ::umap_ss const& user_env , ::string const& startup_dir_s , bool reliable_dirs=false ) { // startup_dir_s for diagnostic purpose only
+	static ::string _chk_deps( ::string const& action , ::umap_ss const& user_env , ::string const& startup_dir_s , FileSync file_sync=FileSync::Dflt ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		NfsGuard   nfs_guard { reliable_dirs }                                ;
+		NfsGuard   nfs_guard { file_sync }                                    ;
 		::string   deps_file = _deps_file(action)                             ;
 		Ddate      deps_date = file_date(deps_file)                           ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
 		::vector_s deps      = AcFd(deps_file).read_lines(true/*no_file_ok*/) ;
@@ -203,7 +203,7 @@ namespace Engine::Makefiles {
 	// msg may be updated even if throwing
 	static bool/*done*/ _refresh_config( ::string&/*out*/ msg , Config&/*out*/ config , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::umap_ss const& user_env , ::string const& startup_dir_s ) {
 		Trace trace("refresh_config") ;
-		::string reason = _chk_deps( "config" , user_env , startup_dir_s , false/*reliable_dirs*/ ) ; // until we have config info, protect against NFS
+		::string reason = _chk_deps( "config" , user_env , startup_dir_s ) ;
 		if (!reason) return false/*done*/ ;
 		msg << "read config because "<<reason<<'\n' ;
 		Gil gil ;
@@ -249,7 +249,7 @@ namespace Engine::Makefiles {
 					else                                    reason =              reason+" was never read"     ;
 				break ;
 				case No    :
-					reason = _chk_deps( kind , user_env , startup_dir_s , g_config->reliable_dirs ) ;
+					reason = _chk_deps( kind , user_env , startup_dir_s , g_config->file_sync ) ;
 					if (!reason) return No/*done*/ ;
 				break ;
 			}

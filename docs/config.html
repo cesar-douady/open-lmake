@@ -232,20 +232,22 @@ The purpose is to ease reading.</p>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
-<h3 id="reliable_dirs--static-false-if-non-local-backends-are-used"><a class="header" href="#reliable_dirs--static-false-if-non-local-backends-are-used"><code>reliable_dirs</code> : Static (<code>False</code> if non-local backends are used)</a></h3>
-<p>This attribute specifies whether dir coherence is enforced when a file is created/modified/unlinked.</p>
-<p>When not the case, open-lmake emit additional traffic to ensure the necessary coherency.</p>
-<p>Known file systems :</p>
-<div class="table-wrapper"><table><thead><tr><th>File system</th><th>reliable dirs</th></tr></thead><tbody>
-<tr><td>NFS</td><td>False</td></tr>
-<tr><td>CEPH</td><td>True</td></tr>
+<h3 id="file_sync--static-dir-if-non-local-backends-are-used-else-none"><a class="header" href="#file_sync--static-dir-if-non-local-backends-are-used-else-none"><code>file_sync</code> : Static (<code>'dir'</code> if non-local backends are used, else <code>None</code>)</a></h3>
+<p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
+<p>Possible values are:</p>
+<ul>
+<li><code>'none'</code> or <code>None</code>: the filesystem is deemed reliable an no further protection is needed.</li>
+<li><code>'dir'</code>: the enclosing dir (and recursively up-hill) of a file is closed after any write (or creation or removal) and open before any read.</li>
+<li><code>'sync'</code>: <code>fsync</code> is called on file after any write.</li>
+</ul>
+<p>Recommanded values for known file systems:</p>
+<div class="table-wrapper"><table><thead><tr><th>File system</th><th><code>file_sync</code></th></tr></thead><tbody>
+<tr><td>NFS</td><td><code>'dir'</code></td></tr>
+<tr><td>CEPH</td><td><code>None</code></td></tr>
 </tbody></table>
 </div>
-<ul>
-<li>If uselessly set to False, there is a performance hit.</li>
-<li>If wrongly set to True, builds will be unreliable with difficult to analyze patterns.</li>
-</ul>
-<p>So if in doubt, leave False.</p>
+<p>The expected performance impact is increasing in this order : <code>None</code>, <code>'dir'</code>, <code>'sync'</code>.
+The expected reliability order is the reverse one.</p>
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
 <p>This attribute provide the list of sub-repos.</p>
 <p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
@@ -322,8 +324,8 @@ In the current version, only 2 tags may be used:</p>
 <p>This attribute specifies the dir in which the cache puts its data.</p>
 <p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
-<h3 id="cachesdirreliable_dirs--static-false"><a class="header" href="#cachesdirreliable_dirs--static-false"><code>caches.&lt;dir&gt;.reliable_dirs</code> : Static (<code>False</code>)</a></h3>
-<p>Same meaning as <code>config.reliable_dirs</code> for the dir containing the cache.</p>
+<h3 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h3>
+<p>Same meaning as <code>config.file_sync</code> for accesses in the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
 <p>This attribute specifies the group used when creating entries.</p>
 <h3 id="cachesdirkey--static-repo-root-dirgit-sha1"><a class="header" href="#cachesdirkey--static-repo-root-dirgit-sha1"><code>caches.&lt;dir&gt;.key</code> : Static (repo root dir/git sha1)</a></h3>

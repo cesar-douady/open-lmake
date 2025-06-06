@@ -539,7 +539,7 @@ namespace Engine::Persistent {
 	}
 
 	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn , ::string const& manifest ) {
-		NfsGuard             nfs_guard    { g_config->reliable_dirs } ;
+		NfsGuard             nfs_guard    { g_config->file_sync } ;
 		::vmap<Node,FileTag> srcs         ;
 		::umap<Node,FileTag> old_srcs     ;
 		::umap<Node,FileTag> new_srcs     ;

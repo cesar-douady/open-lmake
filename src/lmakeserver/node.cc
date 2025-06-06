@@ -125,9 +125,9 @@ namespace Engine {
 		bool             prev_ok   = crc.valid() && crc.exists() ;
 		bool             frozen    = idx().frozen()              ;
 		::string/*lazy*/ msg       ;
-		NfsGuard         nfs_guard { g_config->reliable_dirs }   ;
+		NfsGuard         nfs_guard { g_config->file_sync     }   ;
 		FileInfo         fi        { nfs_guard.access(name_) }   ;
-		FileSig          sig       { fi  }                       ;
+		FileSig          sig       { fi                      }   ;
 		auto lazy_msg = [&]()->string const& {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;

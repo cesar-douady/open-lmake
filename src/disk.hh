@@ -17,7 +17,7 @@
 	#define O_NOATIME 0 // this is just for perf, if not possible, no big deal
 #endif
 
-enum class Access : uint8_t {                                                            // in all cases, dirs are deemed non-existing
+enum class Access : uint8_t {                                          // in all cases, dirs are deemed non-existing
 	Lnk                                                                // file is accessed with readlink              , regular files are deemed non-existing
 ,	Reg                                                                // file is accessed with open                  , symlinks      are deemed non-existing
 ,	Stat                                                               // file is accessed with stat like (read inode), only distinguish tag
@@ -30,6 +30,13 @@ static constexpr ::amap<Access,char,N<Access>> AccessChars = {{
 static_assert(chk_enum_tab(AccessChars)) ;
 using Accesses = BitMap<Access> ;                                      // distinguish files as soon as they can be distinguished by one of the liste Access'es
 static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
+
+enum class FileDisplay : uint8_t {
+	None
+,	Printable
+,	Shell
+,	Py
+} ;
 
 enum class FileLoc : uint8_t {
 	Repo
@@ -45,12 +52,16 @@ enum class FileLoc : uint8_t {
 ,	Dep = SrcDir // <=Dep means that file must be reported as a dep
 } ;
 
-enum class FileDisplay : uint8_t {
+// START_OF_VERSIONING
+// PER_FILE_SYNC : add entry here
+enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 	None
-,	Printable
-,	Shell
-,	Py
+,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
+,	Sync                        // sync file after write
+// aliases
+,	Dflt = Dir
 } ;
+// END_OF_VERSIONING
 
 namespace Disk {
 	using Ddate       = Time::Ddate              ;
@@ -205,7 +216,12 @@ namespace Disk {
 		Pdate   date ;
 	} ;
 
-	struct NfsGuard {
+	struct NfsGuardNone {
+		::string const& access    (::string const& file ) { return file  ; }
+		::string const& access_dir(::string const& dir_s) { return dir_s ; }
+		::string const& change    (::string const& file ) { return file  ; }
+	} ;
+	struct NfsGuardDir {                                                 // open/close uphill dirs before read accesses and after write accesses
 		// statics
 	private :
 		void _s_protect(::string const& dir_s) {
@@ -213,40 +229,83 @@ namespace Disk {
 		}
 		// cxtors & casts
 	public :
-		NfsGuard(bool rd=false) : reliable_dirs{rd} {}                                     // if dirs are not reliable, i.e. close to open coherence does not encompass uphill dirs ...
-		~NfsGuard() { close() ; }                                                          // ... uphill dirs must must be open/close to force reliable access to files and their inodes
-		//service
-		::string const& access(::string const& file) {                                     // return file, must be called before any access to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && +file && has_dir(file) ) access_dir(dir_name_s(file)) ;
+		~NfsGuardDir() { close() ; }
+		//services
+		::string const& access(::string const& file) {
+			if (has_dir(file)) access_dir(dir_name_s(file)) ;
 			return file ;
 		}
-		::string const& change(::string const& path) {                                     // must be called before any modif to file or its inode if not sure it was produced locally
-			if ( !reliable_dirs && has_dir(path) ) {
-				::string dir_s = dir_name_s(path) ;
+		::string const& change(::string const& file) {
+			if (has_dir(file)) {
+				::string dir_s = dir_name_s(file) ;
 				access_dir(dir_s) ;
 				to_stamp_dirs_s.insert(::move(dir_s)) ;
 			}
-			return path ;
+			return file ;
+		}
+		void close() {
+			for( ::string const& d_s : to_stamp_dirs_s ) _s_protect(d_s) ;
+			to_stamp_dirs_s.clear() ;
+		}
+		::string const& access_dir(::string const& dir_s) {
+			access(no_slash(dir_s)) ;                                    // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+			if (fetched_dirs_s.insert(dir_s).second) _s_protect(dir_s) ; // open to force NFS close to open coherence, close is useless
+			return dir_s ;
+		}
+		// data
+		::uset_s fetched_dirs_s  ;
+		::uset_s to_stamp_dirs_s ;
+	} ;
+	struct NfsGuardSync {                                                // fsync file after they are written
+		// cxtors & casts
+		~NfsGuardSync() { close() ; }
+		//services
+		::string const& access    (::string const& file ) {                         return file  ; }
+		::string const& access_dir(::string const& dir_s) {                         return dir_s ; }
+		::string const& change    (::string const& file ) { to_stamp.insert(file) ; return file  ; }
+		void close() {
+			for( ::string const& f : to_stamp ) if ( AcFd fd{f} ; +fd ) ::fsync(fd) ;
+			to_stamp.clear() ;
+		}
+		// data
+		::uset_s to_stamp ;
+	} ;
+	struct NfsGuard : ::variant< NfsGuardNone , NfsGuardDir , NfsGuardSync > {
+		// cxtors & casts
+		NfsGuard(FileSync fs) {
+			switch (fs) {                                                // PER_FILE_SYNC : add entry here
+				case FileSync::None : emplace<0>() ; break ;
+				case FileSync::Dir  : emplace<1>() ; break ;
+				case FileSync::Sync : emplace<2>() ; break ;
+			DF}
+		}
+		// services
+		::string const& access(::string const& file) {                   // return file, must be called before any access to file or its inode if not sure it was produced locally
+			switch (index()) {                                           // PER_FILE_SYNC : add entry here
+				case 0 : return ::get<0>(self).access(file) ;
+				case 1 : return ::get<1>(self).access(file) ;
+				case 2 : return ::get<2>(self).access(file) ;
+			DF}
+		}
+		::string const& access_dir(::string const& dir_s) {                   // return file, must be called before any access to file or its inode if not sure it was produced locally
+			switch (index()) {                                           // PER_FILE_SYNC : add entry here
+				case 0 : return ::get<0>(self).access_dir(dir_s) ;
+				case 1 : return ::get<1>(self).access_dir(dir_s) ;
+				case 2 : return ::get<2>(self).access_dir(dir_s) ;
+			DF}
+		}
+		::string const& change(::string const& file) {                   // return file, must be called before any write access to file or its inode if not sure it is going to be read only locally
+			switch (index()) {                                           // PER_FILE_SYNC : add entry here
+				case 0 : return ::get<0>(self).change(file) ;
+				case 1 : return ::get<1>(self).change(file) ;
+				case 2 : return ::get<2>(self).change(file) ;
+			DF}
 		}
 		::string const& rename(::string const& file) {
 			access(file) ;
 			change(file) ;
 			return file ;
 		}
-		void close() {
-			SWEAR( !to_stamp_dirs_s || !reliable_dirs ) ;                                  // cannot record dirs to stamp if reliable_dirs
-			for( ::string const& d_s : to_stamp_dirs_s ) _s_protect(d_s) ;                 // close to force NFS close to open cohenrence, open is useless
-			to_stamp_dirs_s.clear() ;
-		}
-		::string const& access_dir(::string const& dir_s) {
-			access(no_slash(dir_s)) ;                                                      // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-			if (fetched_dirs_s.insert(dir_s).second) _s_protect(dir_s) ;                   // open to force NFS close to open coherence, close is useless
-			return dir_s ;
-		}
-		// data
-		::uset_s fetched_dirs_s  ;
-		::uset_s to_stamp_dirs_s ;
-		bool     reliable_dirs   = false/*garbage*/ ;
 	} ;
 
 	// list files within dir with prefix in front of each entry
@@ -337,11 +396,11 @@ namespace Disk {
 		// services
 		FileLoc file_loc(::string const& file) const ;
 		// data
-		LnkSupport lnk_support   = LnkSupport::Full ; // by default, be pessimistic
-		bool       reliable_dirs = false            ; // if true => dirs coherence is enforced when files are updated (unlike NFS)
-		::string   repo_root_s   = {}               ;
-		::string   tmp_dir_s     = {}               ;
-		::vector_s src_dirs_s    = {}               ;
+		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
+		FileSync   file_sync   = FileSync::Dflt   ;
+		::string   repo_root_s = {}               ;
+		::string   tmp_dir_s   = {}               ;
+		::vector_s src_dirs_s  = {}               ;
 	} ;
 
 	struct RealPath {
@@ -369,7 +428,6 @@ namespace Disk {
 		} ;
 		// cxtors & casts
 	public :
-		RealPath() = default ;
 		// src_dirs_s may be either absolute or relative, but must be canonic
 		// tmp_dir_s must be absolute and canonic
 		RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
@@ -402,11 +460,12 @@ namespace Disk {
 	public :
 		pid_t pid = 0 ;
 	private :
-		RealPathEnv const* _env            ;
+		RealPathEnv const* _env            = nullptr ;
 		::vector_s         _abs_src_dirs_s ;                              // this is an absolute version of src_dirs
 		size_t             _repo_root_sz   ;
 		::string           _cwd            ;
-		pid_t              _cwd_pid        = 0 ;                          // pid for which _cwd is valid if pid==0
+		pid_t              _cwd_pid        = 0       ;                    // pid for which _cwd is valid if pid==0
+		NfsGuard           _nfs_guard      ;
 	} ;
 	::string& operator+=( ::string& , RealPath::SolveReport const& ) ;
 

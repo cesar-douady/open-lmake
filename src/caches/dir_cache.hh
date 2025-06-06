@@ -34,16 +34,17 @@ namespace Caches {
 		void     _dismiss      ( uint64_t upload_key     , Sz , Disk::NfsGuard&     ) ;
 		//
 		template<IsStream T> void _serdes(T& s) {
-			::serdes(s,key_s        ) ;
-			::serdes(s,dir_s        ) ;
-			::serdes(s,sz           ) ;
-			::serdes(s,reliable_dirs) ;
+			::serdes(s,key_s    ) ;
+			::serdes(s,dir_s    ) ;
+			::serdes(s,sz       ) ;
+			::serdes(s,file_sync) ;
 		}
 		// data
-		::string key_s         ;
-		::string dir_s         ;
-		Sz       sz            = 0     ;
-		bool     reliable_dirs = false ;
+	public :
+		::string key_s     ;
+		::string dir_s     ;
+		Sz       sz        = 0              ;
+		FileSync file_sync = FileSync::Dflt ;
 	} ;
 
 }

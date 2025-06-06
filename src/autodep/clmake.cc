@@ -22,7 +22,7 @@ using namespace Time ;
 
 using Proc = JobExecProc ;
 
-static Record     _g_record      ;
+static Record*    _g_record      = nullptr ;
 static AutodepEnv _g_autodep_env ;
 
 template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
@@ -91,8 +91,8 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	::vector_s files = _get_files(py_args) ;
 	//
 	::vector<DepVerboseInfo> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( _g_record , ::copy(files) , ad , no_follow , verbose , regexpr ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                            }
+	try                       { dep_infos = JobSupport::depend( *_g_record , ::copy(files) , ad , no_follow , verbose , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                             }
 	//
 	if (!verbose) return &None ;
 	//
@@ -140,8 +140,8 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 	//
 	::vector_s files = _get_files(py_args) ;
-	try                       { JobSupport::target( _g_record , ::move(files) , ad , regexpr ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                          }
+	try                       { JobSupport::target( *_g_record , ::move(files) , ad , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                           }
 }
 
 static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
@@ -154,7 +154,7 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 		else             throw "unexpected keyword arg "+key ;
 	}
 	try {
-		Bool3 ok = JobSupport::check_deps(_g_record,sync) ;
+		Bool3 ok = JobSupport::check_deps(*_g_record,sync) ;
 		if (!sync) return &None ;
 		throw_if(ok==Maybe,"some deps are out-of-date") ; // in case handler catches killing signal as job will be killed in that case
 		return Ptr<Bool>(ok==Yes) ;
@@ -199,8 +199,8 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	if (!Encode) throw_unless( !has_min_len , "unexpected arg min_len" ) ;
 	//
 	::pair_s<bool/*ok*/> reply =
-		Encode ? JobSupport::encode( _g_record , ::move(file) , ::move(cv/*val*/ ) , ::move(ctx) , min_len )
-		:        JobSupport::decode( _g_record , ::move(file) , ::move(cv/*code*/) , ::move(ctx)           )
+		Encode ? JobSupport::encode( *_g_record , ::move(file) , ::move(cv/*val*/ ) , ::move(ctx) , min_len )
+		:        JobSupport::decode( *_g_record , ::move(file) , ::move(cv/*code*/) , ::move(ctx)           )
 	;
 	throw_unless( reply.second , reply.first ) ;
 	return reply.first ;
@@ -305,8 +305,8 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	if ( py_path && +*py_path ) path = _get_seq<true    >("path"    ,*py_path          ) ;
 	else                        path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
 	#if PY_MAJOR_VERSION>2
-		try                       { JobSupport::depend( _g_record , ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
-		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                               }
+		try                       { JobSupport::depend( *_g_record , ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
+		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                }
 	#endif
 	//
 	// name
@@ -329,8 +329,8 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs ) {             // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
 			::string file = dir_s+tail+sfx ;
 			if (is_lcl)
-				try                       { JobSupport::depend( _g_record , {file} , {.accesses=~Accesses(),.flags{.dflags=DflagsDfltDepend&~Dflag::Required}} , false/*no_follow*/ ) ; }
-				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                                     }
+				try                       { JobSupport::depend( *_g_record , {file} , {.accesses=~Accesses(),.flags{.dflags=DflagsDfltDepend&~Dflag::Required}} , false/*no_follow*/ ) ; }
+				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                                      }
 			if (FileInfo(file).exists()) return ;                         // found module, dont explore path any further
 		}
 	}
@@ -450,7 +450,7 @@ PyMODINIT_FUNC
 	#undef F
 
 	try {
-		_g_record = { New , Yes/*enabled*/ } ;
+		_g_record = new Record { New , Yes/*enabled*/ } ;
 	} catch (::string const& e) {
 		#if PY_MAJOR_VERSION>=3
 			return py_err_set( PyException::FileNotFoundErr , e ) ;

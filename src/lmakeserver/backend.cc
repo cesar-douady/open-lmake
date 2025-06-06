@@ -338,7 +338,7 @@ namespace Backends {
 			try {
 				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
 				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps                                                      ) ; step = 2 ;
-				cmd               = rule->cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
+				cmd               = rule->cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ;     // use_script is forced true if cmd is large
 				//
 				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
 				for( auto const& [t,a] : pre_actions )
@@ -355,7 +355,7 @@ namespace Backends {
 				case 1 : start_msg_err.msg <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
 				case 2 : start_msg_err.msg <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
 				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                                    ; break ;
-			DF}                                                                                                                                        // NO_COV
+			DF}                                                                                                                                            // NO_COV
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
@@ -372,7 +372,7 @@ namespace Backends {
 				}
 				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
-					reply.z_lvl = start_ancillary_attrs.z_lvl ;                                                                                              // if zlib is not available, dont compress
+					reply.z_lvl = start_ancillary_attrs.z_lvl ;                                                                                            // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
@@ -400,25 +400,25 @@ namespace Backends {
 				for( ::string const& tn : match.static_targets() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
 				for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
 				//
-				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                     = dep_specs           [rule->stdin_idx ].second.txt ;
-				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                    = reply.static_matches[rule->stdout_idx].first      ;
-				/**/                               reply.addr                      = fd.peer_addr()                                    ; SWEAR(reply.addr) ; // 0 means no address
-				/**/                               reply.autodep_env.lnk_support   = g_config->lnk_support                             ;
-				/**/                               reply.autodep_env.reliable_dirs = g_config->reliable_dirs                           ;
-				/**/                               reply.autodep_env.src_dirs_s    = *g_src_dirs_s                                     ;
-				/**/                               reply.autodep_env.sub_repo_s    = rule->sub_repo_s                                  ;
-				if (submit_attrs.cache_idx       ) reply.cache_idx                 =              submit_attrs.cache_idx               ;
-				if (submit_attrs.cache_idx       ) reply.cache                     = Cache::s_tab[submit_attrs.cache_idx]              ;
-				/**/                               reply.ddate_prec                = g_config->ddate_prec                              ;
-				/**/                               reply.key                       = g_config->key                                     ;
-				/**/                               reply.kill_sigs                 = ::move(start_ancillary_attrs.kill_sigs)           ;
-				/**/                               reply.live_out                  = submit_attrs.live_out                             ;
-				/**/                               reply.network_delay             = g_config->network_delay                           ;
-				/**/                               reply.rule                      = rule->user_name()                                 ;
+				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rule->stdin_idx ].second.txt ;
+				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rule->stdout_idx].first      ;
+				/**/                               reply.addr                    = fd.peer_addr()                                    ; SWEAR(reply.addr) ; // 0 means no address
+				/**/                               reply.autodep_env.lnk_support = g_config->lnk_support                             ;
+				/**/                               reply.autodep_env.file_sync   = g_config->file_sync                               ;
+				/**/                               reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                     ;
+				/**/                               reply.autodep_env.sub_repo_s  = rule->sub_repo_s                                  ;
+				if (submit_attrs.cache_idx       ) reply.cache_idx               =              submit_attrs.cache_idx               ;
+				if (submit_attrs.cache_idx       ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx]              ;
+				/**/                               reply.ddate_prec              = g_config->ddate_prec                              ;
+				/**/                               reply.key                     = g_config->key                                     ;
+				/**/                               reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)           ;
+				/**/                               reply.live_out                = submit_attrs.live_out                             ;
+				/**/                               reply.network_delay           = g_config->network_delay                           ;
+				/**/                               reply.rule                    = rule->user_name()                                 ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
-		DF}                                                                                                                                                  // NO_COV
+		DF}                                                                                                                                                // NO_COV
 		//
 		jis.stems     =                 ::move(match.stems)  ;
 		jis.pre_start =                 ::move(jsrr       )  ;
@@ -426,8 +426,8 @@ namespace Backends {
 		if (+deps) {
 			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
-				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;          // update existing dep
-				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      }        // create new dep
+				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;        // update existing dep
+				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      }      // create new dep
 		}
 		bool deps_done = false ;                                           // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {

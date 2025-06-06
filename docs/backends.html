@@ -245,14 +245,14 @@ and if not possible (e.g. because a resource is not available locally or because
 <li><code>mem</code> : The physical memory size as returned by <code>s.sysconf('SC_PHYS_PAGES')*os.sysconf('SC_PAGE_SIZE')</code> in MB.</li>
 </ul>
 <p>Each rule has a default <code>resources</code> attribute requiring one CPU.</p>
-<h3 id="command-line-option"><a class="header" href="#command-line-option">Command line option</a></h3>
-<p>The command line option passed with <code>-b</code> or <code>--backend</code> is ignored.</p>
 <h2 id="sge-backend"><a class="header" href="#sge-backend">SGE backend</a></h2>
 <p>The SGE backend connects to a SGE daemon to schedule jobs, which allows:</p>
 <ul>
 <li>a global scheduling policy (while the local backend only sees jobs in its own repo).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
+<h3 id="command-line-option"><a class="header" href="#command-line-option">Command line option</a></h3>
+<p>The command line option passed with <code>-b</code> or <code>--backend</code> is ignored.</p>
 <h3 id="configuration-1"><a class="header" href="#configuration-1">Configuration</a></h3>
 <p>The configuration is composed of:</p>
 <ul>
@@ -292,23 +292,23 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <li><code>soft</code> : <code>qsub</code> options to be used after a <code>-soft</code> option.</li>
 <li>any other resource passed to the SGE daemon through the <code>-l</code> <code>qsub</code> option.</li>
 </ul>
-<h3 id="command-line-option-1"><a class="header" href="#command-line-option-1">Command line option</a></h3>
-<p>The only option that can be passed from command line (<code>-b</code> or <code>--backend</code>) is the priority through the <code>-p</code> options of <code>qsub</code>.</p>
-<p>Hence, the command line option must directly contain the priority to pass to <code>qsub</code>.</p>
 <h2 id="slurm-backend"><a class="header" href="#slurm-backend">Slurm backend</a></h2>
 <p>The slurm backend connects to a slurm daemon to schedule jobs, which allows :</p>
 <ul>
 <li>a global scheduling policy (while the local backend only sees jobs in its own repo).</li>
 <li>the capability to run jobs on remote hosts (while the local backend only run jobs on the local host).</li>
 </ul>
+<h3 id="command-line-option-1"><a class="header" href="#command-line-option-1">Command line option</a></h3>
+<p>The only option that can be passed from command line (<code>-b</code> or <code>--backend</code>) is the priority through the <code>-p</code> options of <code>qsub</code>.</p>
+<p>Hence, the command line option must directly contain the priority to pass to <code>qsub</code>.</p>
 <h3 id="configuration-2"><a class="header" href="#configuration-2">Configuration</a></h3>
 <p>The configuration is composed of :</p>
 <ul>
 <li>
-<p><code>config</code> : The slurm configuration file to use to contact the slurm controller. By default, the slurm library auto detects its configuration.</p>
+<p><code>config</code> : The slurm configuration file to use to contact the slurm controller. By default, <code>/etc/slurm/slurm.conf</code> is used.</p>
 </li>
 <li>
-<p><code>lib_slurm</code> : The slurm dynamic library. By default, <code>open-lmake</code> looks for <code>libslurm.so</code> in the default <code>$LD_LIBRARY_PATH</code> (as compiled in).</p>
+<p><code>lib_slurm</code> : The slurm dynamic library. If no <code>/</code> appears, <code>$LD_LIBRARY_PATH</code> (as compiled in) and system default lib dirs are searched. By default, <code>libslurm.so</code> is used.</p>
 </li>
 <li>
 <p><code>n_max_queued_jobs</code> : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.

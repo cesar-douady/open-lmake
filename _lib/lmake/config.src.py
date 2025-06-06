@@ -35,10 +35,10 @@ config = pdict(
 ,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay       = 1                                 # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
 ,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
-,	reliable_dirs       = False                             # if true, close to open coherence is deemed to encompass enclosing directory coherence (improve performances)
-#	                                                        # - forced true if only local backend is used
-#	                                                        # - set   true  for ceph
-#	                                                        # - leave false for NFS
+,	file_sync           = 'dir'                             # method used to ensure real close-to-open file synchronization :
+#	                                                        # - 'none' or None : none
+#	                                                        # - 'dir'          : close dir after write, open dir before read
+#	                                                        # - 'sync'         : call fsync after write
 ,	sub_repos           = []                                # list of sub_repos
 ,	console = pdict(                                        # tailor output lines
 		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
