@@ -157,6 +157,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* compute number of static_deps and stop iterating over deps when number is reached
+	- when managing job_tgt reservoir
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
