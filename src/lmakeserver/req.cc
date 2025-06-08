@@ -550,9 +550,9 @@ namespace Engine {
 
 	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
 		::string                        name      = node->name() ;
-		::vmap<RuleTgt,Rule::RuleMatch> mrts      ;                                                     // matching rules
-		RuleTgt                         art       ;                                                     // set if an anti-rule matches
-		RuleIdx                         n_missing = 0            ;                                      // number of rules missing deps
+		::vmap<RuleTgt,Rule::RuleMatch> mrts      ;                        // matching rules
+		RuleTgt                         art       ;                        // set if an anti-rule matches
+		RuleIdx                         n_missing = 0            ;         // number of rules missing deps
 		//
 		if (node->buildable==Buildable::PathTooLong) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
@@ -570,14 +570,17 @@ namespace Engine {
 			return ;
 		}
 		//
-		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {                                            // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
+		Rule prev_rule ;
+		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {               // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
+			Rule            r = rt->rule    ; if (r==prev_rule) continue ; // only consider first match for any given rule
 			Rule::RuleMatch m { rt , name } ;
 			if (!m                              )              continue ;
 			if (rt->rule->special==Special::Anti) { art = rt ; break    ; }
 			//
-			if ( JobTgt jt{rt,name} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass self as req to avoid generating error message at cxtor time
+			if ( JobTgt jt{::copy(m),rt.sure()} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass self as req to avoid generating error message at cxtor time
 			try                      { rt->rule->deps_attrs.eval(m) ; }
-			catch (MsgStderr const&) { goto Continue ;                }                                 // do not consider rule if deps cannot be computed
+			catch (MsgStderr const&) { goto Continue ;                }                                             // do not consider rule if deps cannot be computed
+			prev_rule = rt->rule ;
 			n_missing++ ;
 		Continue :
 			mrts.emplace_back(rt,::move(m)) ;
@@ -587,25 +590,31 @@ namespace Engine {
 		else                                             audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
 		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                                              // second pass to do report
-			JobTgt            jt          { rt , name } ;                                               // do not pass self as req to avoid generating error message at cxtor time
+		for( auto const& [rt,m] : mrts ) {                                                // second pass to do report
+			Rule              r           = rt->rule                ;
+			JobTgt            jt          { ::copy(m) , rt.sure() } ;                     // do not pass self as req to avoid generating error message at cxtor time
 			::string          reason      ;
 			Node              missing_dep ;
 			::vmap_s<DepSpec> static_deps ;
-			if ( +jt && jt->run_status!=RunStatus::MissingStatic ) { reason = "does not produce it" ; goto Report ; }
 			//
-			{	VarIdx ti = 0 ;
-				for( ::string const& t : m.static_targets() ) { if (!is_canon(t)) { reason = "non-canonic target "+m.rule->matches[ti].first+" : "+t ; goto Report ; } ti++ ; }
-				for( ::string const& t : m.star_targets  () ) { if (!is_canon(t)) { reason = "non-canonic target "+m.rule->matches[ti].first+" : "+t ; goto Report ; } ti++ ; }
+			if ( +jt && jt->run_status!=RunStatus::MissingStatic  ) {
+				reason << "does not produce it" ;
+				goto Report ;
+			}
+			if ( ::pair_s<VarIdx> msg=m.reject_msg() ; +msg.first ) {
+				::pair_s<RuleData::MatchEntry> const& k_me = r->matches[msg.second] ;
+				reason << "non-canonic "<<k_me.second.flags.kind()<<' '<<k_me.first<<" : "<<msg.first ;
+				goto Report ;
 			}
 			//
-			try                              { static_deps = rt->rule->deps_attrs.dep_specs(m)                                       ;               }
-			catch (::string  const& msg    ) { reason      = "cannot compute its deps :\n"+indent<' ',2>(msg                       ) ; goto Report ; }
-			catch (MsgStderr const& msg_err) { reason      = "cannot compute its deps :\n"+indent<' ',2>(msg_err.msg+msg_err.stderr) ; goto Report ; }
-			for( bool search_non_buildable : {true,false} )                                             // first search a non-buildable, if not found, search for non makable as deps have been made
+			try                              { static_deps = r->deps_attrs.dep_specs(m) ;                                                         }
+			catch (::string  const& msg    ) { reason << "cannot compute its deps :\n"<<indent<' ',2>(msg                       ) ; goto Report ; }
+			catch (MsgStderr const& msg_err) { reason << "cannot compute its deps :\n"<<indent<' ',2>(msg_err.msg+msg_err.stderr) ; goto Report ; }
+			//
+			for( bool search_non_buildable : {true,false} )                               // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
 					if (!is_canon(ds.txt,false/*empty_ok*/)) {
-						if (search_non_buildable  ) continue ;                                          // non-canonic deps are detected after non-buidlable ones
+						if (search_non_buildable  ) continue ;                            // non-canonic deps are detected after non-buidlable ones
 						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
 						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;
 						else         reason = "empty static dep "      +k                 ;
@@ -614,14 +623,14 @@ namespace Engine {
 					Node d { ds.txt } ;
 					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 					missing_dep = d ;
-					SWEAR(+missing_dep) ;                                                               // else why wouldn't it apply ?!?
+					SWEAR(+missing_dep) ;                                                 // else why wouldn't it apply ?!?
 					FileTag tag = FileInfo(nfs_guard.access(missing_dep->name())).tag() ;
 					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 					goto Report ;
 				}
 		Report :
-			if (+missing_dep) audit_node( Color::Note , "rule "+rt->rule->user_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
-			else              audit_info( Color::Note , "rule "+rt->rule->user_name()+' '+reason      ,               lvl+1 ) ;
+			if (+missing_dep) audit_node( Color::Note , "rule "+r->user_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
+			else              audit_info( Color::Note , "rule "+r->user_name()+' '+reason      ,               lvl+1 ) ;
 			//
 			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
 		}

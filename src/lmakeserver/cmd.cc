@@ -187,14 +187,14 @@ namespace Engine {
 		::vmap_s<RegExpr> res        ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
-			VarIdx          i = rule->n_statics   ;
 			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {   // this cannot fail as we already have the job
 				if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
 				else            wk = ::max( wk ,           k .size() ) ;
 				rev_map[d.txt] = k ;
 			}
+			VarIdx i = 0 ;
 			for( ::string const& p : m.star_patterns() ) {
-				::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
+				::pair_s<RuleData::MatchEntry> const& me = rule->star_matches()[i++] ;
 				if (me.second.flags.is_target()) continue ;
 				if (porcelaine                 ) wk = ::max( wk , mk_py_str(me.first).size() ) ;
 				else                             wk = ::max( wk ,           me.first .size() ) ;
@@ -346,7 +346,7 @@ namespace Engine {
 		{	res << ",\tstatic_targets = (" ;
 			First first ;
 			for( Target const& t : job->targets )
-				if (t.tflags[Tflag::Static]) res << first("\n\t\t",",\t") << mk_py_str(t->name()) << "\n\t" ;
+				if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) res << first("\n\t\t",",\t") << mk_py_str(t->name()) << "\n\t" ;
 			res << first("",",","") << ")\n" ;
 		}
 		{	res << ",\tviews = {" ;
@@ -984,12 +984,16 @@ namespace Engine {
 				if (+rule) {
 					Rule::RuleMatch m = job->rule_match() ;
 					VarIdx          i = 0                 ;
-					for( ::string const& t : m.static_targets() ) rev_map[t] = rule->matches[i++].first ;
-					SWEAR(i==rule->n_statics) ;
+					for( ::string const& t : m.static_matches() ) {
+						::pair_s<RuleData::MatchEntry> const& me = rule->static_matches()[i++] ;
+						if (!me.second.flags.is_target()) break ;                                                                     // side_deps are last
+						rev_map[t] = me.first ;
+					}
+					i = 0 ;
 					for( ::string const& p : m.star_patterns() ) {
-						::pair_s<RuleData::MatchEntry> const& me = rule->matches[i++] ;
-						if (me.second.flags.is_target())
-							res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
+						::pair_s<RuleData::MatchEntry> const& me = rule->star_matches()[i++] ;
+						if (!me.second.flags.is_target()) break ;                                                                     // side_deps are last
+						res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
 					}
 				}
 				for( Target t : job->targets ) {

@@ -209,20 +209,15 @@ namespace Engine {
 	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) {
 		Trace trace("Job",match,req,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
-		//
-		Rule rule = match.rule ; SWEAR( rule->special<=Special::HasJobs , rule->special ) ;
-		auto handle_match = [&]( ::string const& key , ::string const& file , MatchKind kind )->bool/*ok*/ {
-			::string msg = accept( kind , file ) ;
-			if (+msg) {
-				req->audit_job( Color::Warning , cat("bad_",kind) , rule->name , match.name() ) ;
-				req->audit_stderr( self , {.msg=cat(kind,' ',key," : ",msg)} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
-			}
-			return !msg/*ok*/ ;
-		} ;
-		//
-		VarIdx ti = 0 ;
-		for( ::string const& t : match.static_targets() ) { { if (!handle_match(rule->matches[ti].first,t,rule->matches[ti].second.flags.kind())) return ; } ti++ ; }
-		for( ::string const& t : match.star_targets  () ) { { if (!handle_match(rule->matches[ti].first,t,rule->matches[ti].second.flags.kind())) return ; } ti++ ; }
+		Rule rule = match.rule    ;
+		if ( ::pair_s<VarIdx> msg=match.reject_msg() ; +msg.first ) {
+			trace("not_accepted") ;
+			::pair_s<RuleData::MatchEntry> const& k_me = rule->matches[msg.second] ;
+			MatchKind                             mk   = k_me.second.flags.kind()  ;
+			req->audit_job( Color::Warning , cat("bad_",mk) , rule->name , match.name() ) ;
+			req->audit_stderr( self , {.msg=cat(mk,' ',k_me.first," : ",msg.first)} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
+			return ;
+		}
 		//
 		::pair_s</*msg*/::vmap_s<DepSpec>> digest          ;
 		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                  // contains holes
@@ -827,15 +822,15 @@ namespace Engine {
 	}
 
 	void JobData::_reset_targets(Rule::RuleMatch const& match) {
-		Rule             r     = rule()                          ;
-		::vector<Target> ts    ;                                   ts.reserve(r->n_static_targets) ;
-		::vector_s       sts   = match.static_targets()          ;
+		Rule             r     = rule()                                     ;
+		::vector<Target> ts    ;                                              ts.reserve(r->n_static_targets) ; // there are usually no duplicates
+		::vector_s       sts   = match.static_matches(true/*targets_only*/) ;
 		::uset_s         seens ;
 		for( VarIdx ti : iota(r->n_static_targets) ) {
-			if (!seens.insert(sts[ti]).second) continue ; // remove duplicates
+			if (!seens.insert(sts[ti]).second) continue ;                                                       // remove duplicates
 			ts.emplace_back(sts[ti],r->tflags(ti)) ;
 		}
-		::sort(ts) ;                                      // ease search in targets
+		::sort(ts) ;                                                                                            // ease search in targets
 		targets.assign(ts) ;
 	}
 

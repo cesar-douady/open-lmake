@@ -24,8 +24,9 @@ if __name__!='__main__' :
 	class WineRule(Rule) :
 #		chroot_dir   = '/'                                                           # ensure pid namespace is used to ensure reliale job termination
 		side_targets = {
-			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes .wine  dir, even after init
-		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # wine writes .cache dir, even after init
+			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes in dir, even after init
+		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # .
+		,	'LOCAL' : (r'.local/{*:.*}','incremental')                               # .
 		}
 		side_deps = { 'TOP' : ('.','readdir_ok') }                                   # wine seems to read its cwd
 		if xvfb : environ_resources = { 'SMALL_ID' : '$SMALL_ID'                   } # display is provided by xvfb-run
@@ -91,10 +92,9 @@ else :
 		print(f'{hostname_exe} not found',file=open('skipped','w'))
 		exit()
 
-	autodeps = ('none',*lmake.autodeps)
-	ut.lmake( *(f'test64.{m}' for m in autodeps) , done=1+2*len(autodeps) , new=0 , rc=0 )
-	ut.lmake( *(f'test64.{m}' for m in autodeps)                                         )     # ensure nothing needs to be remade
+	ut.lmake( *(f'test64.{m}' for m in lmake.autodeps) , done=1+2*len(lmake.autodeps) , new=0 , rc=0 )
+	ut.lmake( *(f'test64.{m}' for m in lmake.autodeps)                                               ) # ensure nothing needs to be remade
 	if os.environ['HAS_32'] and shutil.which('wine') :
-		methods_32 = [m for m in autodeps if m!='ptrace']
-		ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
-		ut.lmake( *(f'test.{m}' for m in methods_32)                                         ) # ensure nothing needs to be remade
+		methods_32 = [m for m in lmake.autodeps if m!='ptrace']
+		ut.lmake( *(f'test.{m}' for m in methods_32) , done=2*len(methods_32) , new=0 , rc=0 )         # ptrace is not supported in 32 bits
+		ut.lmake( *(f'test.{m}' for m in methods_32)                                         )         # ensure nothing needs to be remade

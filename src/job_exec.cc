@@ -27,17 +27,29 @@ struct PatternDict {
 	static constexpr MatchFlags NotFound = {} ;
 	// services
 	MatchFlags const& at(::string const& x) const {
-		if ( auto it=knowns.find(x) ; it!=knowns.end() )     return it->second ;
-		for( auto const& [p,r] : patterns ) if (+p.match(x)) return r          ;
-		/**/                                                 return NotFound   ;
-	}
-	void add( bool star , ::string const& key , MatchFlags const& mfs ) {
-		if (star) patterns.emplace_back( RegExpr(key,false/*cache*/,true/*with_paren*/) , mfs ) ;
-		else      knowns  .emplace     (         key                                    , mfs ) ;
+		if ( auto it=knowns.find(x) ; it==knowns.end() ) {
+			for( auto const& [p,mf] : patterns ) if (+p.match(x)) return mf       ;
+			/**/                                                  return NotFound ;
+		} else if (it->second.first) {
+			return it->second.second ;                                                                   // if a dep, dont check patterns
+		} else {
+			MatchKind mk = it->second.second.kind() ;
+			for( auto const& [p,mf] : patterns ) {
+				if (mf.kind()>=mk) break     ;                                                           // only check patterns of higher precedence (at same level, static has priority over pattern)
+				if (+p.match(x)  ) return mf ;                                                           // found matching pattern
+			}
+			return it->second.second ;                                                                   // no higher precedence pattern found, found static entry
+		}
+	} //!                                                                                  is_dep
+	void add_dep ( ::string const& key , MatchFlags const& mf ) { knowns.try_emplace( key , true ,mf ) ; }
+	void add_side( ::string const& key , MatchFlags const& mf ) { knowns.try_emplace( key , false,mf ) ; }
+	void add_star( ::string const& key , MatchFlags const& mf ) {
+		if (+patterns) SWEAR( mf.kind()>=patterns.back().second.kind() , mf , patterns.back().second ) ; // check decreasing precedence (else entries should be sorted)
+		patterns.emplace_back( RegExpr(key,false/*cache*/,true/*with_paren*/) , mf  ) ;
 	}
 	// data
-	::umap_s<MatchFlags>       knowns   = {} ;
-	::vmap<RegExpr,MatchFlags> patterns = {} ;
+	::umap_s<::pair<bool/*is_dep*/,MatchFlags>> knowns   = {} ;
+	::vmap<RegExpr,MatchFlags>                  patterns = {} ;
 } ;
 
 ::vector<ExecTraceEntry>* g_exec_trace      = nullptr      ;
@@ -121,7 +133,7 @@ Digest analyze(Status status=Status::New) {                                     
 		::pair<Pdate,Accesses> first_read = info.first_read()                                                                                    ;
 		bool                   dep_ignore = ad.flags.extra_dflags[ExtraDflag::Ignore] || ad.flags.extra_tflags[ExtraTflag::Ignore]               ;
 		bool                   dep_sense  = info.digest_required || !ad.flags.dflags[Dflag::IgnoreError]                                         ;
-		bool                   is_read    = +ad.accesses || ( !dep_ignore && dep_sense )                                                         ;
+		bool                   is_read    = +ad.accesses || ( !dep_ignore && dep_sense && ad.write==No )                                         ;
 		bool                   is_dep     = ad.flags.dflags[Dflag::Static] || ( !flags.is_target() && is_read && first_read.first<=info.target ) ; // if a (side) target, it has always been so
 		bool is_tgt =
 			ad.write!=No
@@ -178,20 +190,21 @@ Digest analyze(Status status=Status::New) {                                     
 			if (is_dep                        ) td.tflags    |= Tflag::Incremental              ;                          // if is_dep, previous target state is guaranteed by being a dep, use it
 			if (!td.tflags[Tflag::Incremental]) td.pre_exist  = info.dep_info.seen(ad.accesses) ;
 			if (is_dep                        ) {
+				const char* written = ad.write==No ? "declared as target" : "written to" ;
 				if (ad.flags.dflags[Dflag::Static]) {
 					//                                  date
 					if (unlnk) g_exec_trace->push_back({ New , Comment::staticDepAndTarget , CommentExt::Unlnk , file }) ;
 					else       g_exec_trace->push_back({ New , Comment::staticDepAndTarget , {}                , file }) ;
-					res.msg << "static dep was written to : "<<mk_file(file)<<'\n' ;
+					res.msg << "static dep was "<<written<<" : "<<mk_file(file)<<'\n' ;
 				} else if (!unlnk) {
 					const char* read = nullptr ;
 					if      (first_read.second[Access::Reg ] ) read = "read"        ;
 					else if (first_read.second[Access::Lnk ] ) read = "readlink'ed" ;
 					else if (first_read.second[Access::Stat] ) read = "stat'ed"     ;
 					else if (ad.flags.dflags[Dflag::Required]) read = "required"    ;
-					SWEAR(read) ;
+					else                                       read = "accessed"    ;
 					g_exec_trace->push_back({ New/*date*/ , Comment::depAndTarget , {}/*comment_exts*/ , file }) ;
-					res.msg << "file was "<<read<<" and later declared as target : "<<mk_file(file)<<'\n' ;
+					res.msg << "file was "<<read<<" and later "<<written<<" : "<<mk_file(file)<<'\n' ;
 				}
 			}
 			if (written) {
@@ -504,10 +517,10 @@ int main( int argc , char* argv[] ) {
 		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
 		//
 		NfsGuard nfs_guard { g_start_info.autodep_env.file_sync } ;
-		//                                                                                                              star
-		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add( false , d  , {.dflags=digest.dflags} ) ;
-		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add( false , dt , mf                      ) ;
-		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add( true  , p  , mf                      ) ;
+		//
+		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add_dep ( d  , {.dflags=digest.dflags} ) ;
+		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add_side( dt , mf                      ) ;
+		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add_star( p  , mf                      ) ;
 		//
 		try {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , nfs_guard )) ;
@@ -607,16 +620,16 @@ int main( int argc , char* argv[] ) {
 		g_gather.service_mngt     =        g_service_mngt              ;
 		g_gather.timeout          =        g_start_info.timeout        ;
 		//
-		if (!g_start_info.method)                                                           // if no autodep, consider all static deps are fully accessed as we have no precise report
+		if (!g_start_info.method)                                                               // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
 				digest.accesses = ~Accesses() ;
 				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
 			}
 		//
 		for( auto& [d,dd] : g_start_info.deps ) g_gather.new_dep( washed , ::move(d) , ::move(dd) , g_start_info.stdin ) ;
-		for( auto const& [t,mfs] : g_match_dct.knowns )
-			if ( mfs.is_target() && !mfs.extra_tflags[ExtraTflag::Optional] )
-				g_gather.new_unlnk(washed,t) ;                                              // always report non-optional static targets
+		for( auto const& [t,id_mf] : g_match_dct.knowns )
+			if ( id_mf.second.is_target() && !id_mf.second.extra_tflags[ExtraTflag::Optional] )
+				g_gather.new_unlnk(washed,t) ;                                                  // always report non-optional static targets
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
 		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
@@ -634,10 +647,10 @@ int main( int argc , char* argv[] ) {
 		//                                   vvvvvvvvvvvvvvvvvvvvv
 		try                       { status = g_gather.exec_child() ;            }
 		//                                   ^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }           // NO_COV defensive programming
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }               // NO_COV defensive programming
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                // XXX> : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                    // XXX> : suppress when CentOS7 bug is fixed
 		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -651,7 +664,7 @@ int main( int argc , char* argv[] ) {
 			trace("cache",upload_key) ;
 		}
 		//
-		if (+g_start_info.autodep_env.file_sync) {                                          // fast path : avoid listing targets & guards if !file_sync
+		if (+g_start_info.autodep_env.file_sync) {                                              // fast path : avoid listing targets & guards if !file_sync
 			for( auto const& [t,_] : digest.targets  ) nfs_guard.change(t) ;
 			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
 		}

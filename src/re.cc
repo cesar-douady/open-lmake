@@ -22,14 +22,14 @@ namespace Re {
 		Match::Match( RegExpr const& re , ::string const& s , Bool3 chk_psfx ) {
 			switch (chk_psfx) {
 				case Yes :
-					if   ( s.size() <  re.pfx.size()+re.sfx.size() ) return ;
-					if   ( !s.starts_with(re.pfx)                  ) return ;
-					if   ( !s.ends_with  (re.sfx)                  ) return ;
+					if ( s.size() < re.pfx.size()+re.sfx.size() ) return ;
+					if ( !s.starts_with(re.pfx)                 ) return ;
+					if ( !s.ends_with  (re.sfx)                 ) return ;
 				break ;
 				case Maybe :
-					if   ( s.size() <  re.pfx.size()+re.sfx.size() ) return ;
-					SWEAR( s.starts_with(re.pfx)                   , s,re.pfx,re.sfx ) ;
-					SWEAR( s.ends_with  (re.sfx)                   , s,re.pfx,re.sfx ) ;
+					if ( s.size() < re.pfx.size()+re.sfx.size() ) return ;
+					SWEAR( s.starts_with(re.pfx) , s,re.pfx,re.sfx ) ;
+					SWEAR( s.ends_with  (re.sfx) , s,re.pfx,re.sfx ) ;
 				break ;
 				case No :
 					SWEAR( s.size() >= re.pfx.size()+re.sfx.size() , s,re.pfx,re.sfx ) ;

@@ -396,9 +396,8 @@ namespace Backends {
 				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
 			case 0 : {
-				VarIdx ti = 0 ;
-				for( ::string const& tn : match.static_targets() ) reply.static_matches.emplace_back( tn , rule->matches[ti++].second.flags ) ;
-				for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->matches[ti++].second.flags ) ;
+				VarIdx ti = 0 ; for( ::string const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->static_matches()[ti++].second.flags ) ;
+				/**/   ti = 0 ; for( ::string const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->star_matches  ()[ti++].second.flags ) ;
 				//
 				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rule->stdin_idx ].second.txt ;
 				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rule->stdout_idx].first      ;

@@ -97,8 +97,6 @@ namespace Engine {
 
 namespace Engine {
 
-	::string/*msg*/ accept( MatchKind mk , ::string const& file , bool has_pfx=false , bool has_sfx=false ) ;
-
 	struct CmdIdx {
 		// services
 		::strong_ordering operator<=>(CmdIdx const&) const = default ;
@@ -462,7 +460,7 @@ namespace Engine {
 	struct RuleData {
 		friend ::string& operator+=( ::string& , RuleData const& ) ;
 		friend Rule ;
-		static constexpr char   JobMrkr =  0          ;                // ensure no ambiguity between job names and node names
+		static constexpr char   JobMrkr =  0          ;                                                                                         // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
 		// START_OF_VERSIONING
 		using Prio = double ;
@@ -473,15 +471,14 @@ namespace Engine {
 			void set_pattern( ::string const& p , VarIdx n_stems ) { set_pattern(::copy(p),n_stems) ; }
 			// data
 			// START_OF_VERSIONING
-			::string         pattern   = {} ;
-			MatchFlags       flags     = {} ;
-			::vector<VarIdx> conflicts = {} ;                          // for target only, the idx of the previous targets that may conflict with this one
-			::vector<VarIdx> ref_cnts  = {} ;                          // indexed by stem, number of times stem is referenced
+			::string         pattern  = {} ;
+			MatchFlags       flags    = {} ;
+			::vector<VarIdx> ref_cnts = {} ;                                                                                                    // indexed by stem, number of times stem is referenced
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
 		RuleData(                                        ) = default ;
-		RuleData( Special , ::string const& src_dir_s={} ) ;           // src_dir in case Special is SrcDir
+		RuleData( Special , ::string const& src_dir_s={} ) ;                                                                                    // src_dir in case Special is SrcDir
 		RuleData(::string_view str) {
 			serdes(str) ;
 		}
@@ -506,9 +503,11 @@ namespace Engine {
 			::string res = name ; if (+sub_repo_s) res <<':'<< no_slash(sub_repo_s) ;
 			return mk_printable(res) ;
 		}
-		Disk::FileNameIdx job_sfx_len(                ) const ;
-		::string          job_sfx    (                ) const ;
-		void              validate   (::string job_sfx) const ;
+		Disk::FileNameIdx                  job_sfx_len   (                ) const ;
+		::string                           job_sfx       (                ) const ;
+		void                               validate      (::string job_sfx) const ;
+		::span<::pair_s<MatchEntry> const> static_matches(                ) const { return { &matches[0        ] , n_statics                } ; }
+		::span<::pair_s<MatchEntry> const> star_matches  (                ) const { return { &matches[n_statics] , matches.size()-n_statics } ; }
 		// services
 		::string add_cwd( ::string&& file , bool top=false ) const {
 			if ( !top && +sub_repo_s ) return Disk::mk_glb(file,sub_repo_s) ;
@@ -563,6 +562,7 @@ namespace Engine {
 		RuleCrc            crc              ;
 		VarIdx             n_static_stems   = 0 ;
 		VarIdx             n_static_targets = 0 ;                                  // number of official static targets
+		VarIdx             n_star_targets   = 0 ;                                  // number of official star   targets
 		VarIdx             n_statics        = 0 ;
 		// stats
 		mutable Delay    cost_per_token = {} ;                                     // average cost per token
@@ -594,36 +594,37 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , RuleMatch const& ) ;
 		// cxtors & casts
 	public :
-		RuleMatch(                                        ) = default ;
-		RuleMatch( Rule    r , ::vector_s const& ss       ) : rule{r} , stems{ss} {}
-		RuleMatch( Job                                    ) ;
-		RuleMatch( Rule    r , ::string   const& job_name , Bool3 chk_psfx=Yes ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {} // chk_psfx=Maybe means check size only
-		RuleMatch( RuleTgt   , ::string   const& target   , Bool3 chk_psfx=Yes ) ;                                                       // .
+		RuleMatch(                                                           ) = default ;
+		RuleMatch( Rule    r , ::vector_s const& ss                          ) : rule{r} , stems{ss} {}
+		RuleMatch( Job                                                       ) ;
+		RuleMatch( Rule    r , ::string const& job_name , Bool3 chk_psfx=Yes ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {} // chk_psfx=Maybe means check size only
+		RuleMatch( RuleTgt   , ::string const& target   , Bool3 chk_psfx=Yes ) ;                                                       // .
 	private :
-		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                                // .
+		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                               // .
+		// accesses
 	public :
 		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
 		bool operator+ (                   ) const { return +rule                            ; }
-		// accesses
-		::vector_s star_patterns () const ;
-		::vector_s py_matches    () const ;
-		::vector_s static_targets() const ;
-		::vector_s star_targets  () const ;
+		::vector_s star_patterns (                       ) const ;
+		::vector_s py_matches    (                       ) const ;
+		::vector_s static_matches(bool targets_only=false) const ;
+		::vector_s star_matches  (bool targets_only=false) const ;
 		//
 		::vmap_s<DepSpec> const& deps_holes() const {
 			if (!_has_deps) {
-				_deps     = rule->deps_attrs.eval(self).second ;                                                                         // this includes empty slots
+				_deps     = rule->deps_attrs.eval(self).second ;                                                                        // this includes empty slots
 				_has_deps = true                               ;
 			}
 			return _deps ;
 		}
 		// services
-		::pair_ss    full_name  () const ;
-		::string     name       () const { return full_name().first ; }
-		::uset<Node> target_dirs() const ;
+		::pair_s<VarIdx> reject_msg () const ;
+		::pair_ss        full_name  () const ;
+		::string         name       () const { return full_name().first ; }
+		::uset<Node>     target_dirs() const ;
 		// data
 		Rule       rule  ;
-		::vector_s stems ;                                                                                                               // static stems only of course
+		::vector_s stems ;                                                                                                              // static stems only of course
 		// cache
 	private :
 		mutable bool              _has_deps = false ;
@@ -910,6 +911,7 @@ namespace Engine {
 		::serdes(s,crc             ) ;
 		::serdes(s,n_static_stems  ) ;
 		::serdes(s,n_static_targets) ;
+		::serdes(s,n_star_targets  ) ;
 		::serdes(s,n_statics       ) ;
 		if (special==Special::Plain) {
 			::serdes(s,deps_attrs            ) ;
@@ -945,6 +947,12 @@ namespace Engine {
 		Crc crc_ { decode_int<Crc::Val>(&job_sfx[job_sfx.size()-sizeof(Crc::Val)]) } ;
 		SWEAR( crc_==crc->match , name , sub_repo_s , crc_ , crc->match ) ;
 	}
+
+	//
+	// Rule::RuleMatch
+	//
+
+	inline Rule::RuleMatch::RuleMatch( RuleTgt rt , ::string const& target , Bool3 chk_psfx ) : RuleMatch{rt->rule,rt.pattern(),target,chk_psfx} {}
 
 }
 

@@ -276,8 +276,8 @@ namespace Engine {
 		bool              name_chked = false              ;
 		Rule              prev_rule  ;
 		for( RuleTgt const& rt : rule_tgts_ ) {
-			Rule r = rt->rule ; if (!r) continue ;
-			RuleData const& rd = *r ;
+			Rule            r  = rt->rule ; if (!r) continue ;
+			RuleData const& rd = *r       ;
 			SWEAR(!rd.is_special()) ;
 			if ( +prev_rule && rd.prio<prev_rule->prio ) goto Done ;
 			if ( n_rules!=NoIdx                        ) n_rules++ ;                                   // in all cases, rule is consumed, whether it matches or not

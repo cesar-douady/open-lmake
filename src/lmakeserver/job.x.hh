@@ -15,11 +15,11 @@ enum class AncillaryTag : uint8_t {
 } ;
 
 enum class JobMakeAction : uint8_t {
-	Wakeup          // waited nodes are available
-,	Status          // target crcs are available
-,	End             // job has completed
-,	GiveUp          // job is abandonned, because of error or ^C
-,	Query           // used for dep analysis : query only, no action is intiated (for DepsVerbose and ChkDeps)
+	Wakeup                           // waited nodes are available
+,	Status                           // target crcs are available
+,	End                              // job has completed
+,	GiveUp                           // job is abandonned, because of error or ^C
+,	Query                            // used for dep analysis : query only, no action is intiated (for DepsVerbose and ChkDeps)
 } ;
 
 enum class JobStep : uint8_t { // must be in chronological order
@@ -122,7 +122,7 @@ namespace Engine {
 		// accesses
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
 		// services
-		JobInfo job_info(BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;            // read job info from ancillary file, taking care of queued events
+		JobInfo    job_info    ( BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;    // read job info from ancillary file, taking care of queued events
 		//
 		void record(JobInfo1 const&) const ;
 		void record(JobInfo  const&) const ;

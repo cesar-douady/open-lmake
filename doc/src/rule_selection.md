@@ -43,7 +43,7 @@ In all cases, as soon as such a match is found, the process stops here.
 
 ### Plain rules
 
-The rules are split into groups. Each group contains all of the rules that share a given `prio`.
+The rules are split into groups. Each group contains all the rules that share a given `prio`.
 Groups are ordered with higher `prio` first.
 
 The following steps is executed for each group in order, until a rule is found. If none is found, the file declared not buildable.
