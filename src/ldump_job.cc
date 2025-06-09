@@ -11,10 +11,10 @@ using namespace Disk ;
 
 ::string g_out ;
 
-template<class V> void _print_map(::vmap_s<V> const& m) {
+template<class K,class V> void _print_map(::vmap<K,V> const& m) {
 	size_t w = 0 ;
-	for( auto const& [k,v] : m ) w = ::max(w,k.size()) ;
-	for( auto const& [k,v] : m ) g_out <<'\t'<< widen(k,w) <<" : "<< v <<'\n' ;
+	for( auto const& [k,v] : m ) w = ::max(w,cat(k).size()) ;
+	for( auto const& [k,v] : m ) g_out <<'\t'<< widen(cat(k),w) <<" : "<< v <<'\n' ;
 }
 
 void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {

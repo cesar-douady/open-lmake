@@ -471,9 +471,9 @@ namespace Engine {
 			void set_pattern( ::string const& p , VarIdx n_stems ) { set_pattern(::copy(p),n_stems) ; }
 			// data
 			// START_OF_VERSIONING
-			::string         pattern  = {} ;
-			MatchFlags       flags    = {} ;
-			::vector<VarIdx> ref_cnts = {} ;                                                                                                    // indexed by stem, number of times stem is referenced
+			::string       pattern  = {} ;
+			MatchFlags     flags    = {} ;
+			::vector<bool> captures = {} ;                                                                                                      // indexed by stem, number of times stem is referenced
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
@@ -600,19 +600,19 @@ namespace Engine {
 		RuleMatch( Rule    r , ::string const& job_name , Bool3 chk_psfx=Yes ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {} // chk_psfx=Maybe means check size only
 		RuleMatch( RuleTgt   , ::string const& target   , Bool3 chk_psfx=Yes ) ;                                                       // .
 	private :
-		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                               // .
+		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                              // .
 		// accesses
 	public :
 		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
 		bool operator+ (                   ) const { return +rule                            ; }
-		::vector_s star_patterns (                       ) const ;
-		::vector_s py_matches    (                       ) const ;
-		::vector_s static_matches(bool targets_only=false) const ;
-		::vector_s star_matches  (bool targets_only=false) const ;
+		::vector<Re::Pattern> star_patterns (                       ) const ;
+		::vector_s            py_matches    (                       ) const ;
+		::vector_s            static_matches(bool targets_only=false) const ;
+		::vector_s            star_matches  (bool targets_only=false) const ;
 		//
 		::vmap_s<DepSpec> const& deps_holes() const {
 			if (!_has_deps) {
-				_deps     = rule->deps_attrs.eval(self).second ;                                                                        // this includes empty slots
+				_deps     = rule->deps_attrs.eval(self).second ;                                                                       // this includes empty slots
 				_has_deps = true                               ;
 			}
 			return _deps ;
@@ -624,7 +624,7 @@ namespace Engine {
 		::uset<Node>     target_dirs() const ;
 		// data
 		Rule       rule  ;
-		::vector_s stems ;                                                                                                              // static stems only of course
+		::vector_s stems ;                                                                                                             // static stems only of course
 		// cache
 	private :
 		mutable bool              _has_deps = false ;

@@ -28,7 +28,10 @@ if __name__!='__main__' :
 		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # .
 		,	'LOCAL' : (r'.local/{*:.*}','incremental')                               # .
 		}
-		side_deps = { 'TOP' : ('.','readdir_ok') }                                   # wine seems to read its cwd
+		side_deps = {
+			'TOP_DIR'   : ('.'     ,'readdir_ok')                                    # wine seems to sometimes readdir that
+		,	'LOCAL_DIR' : ('.local','readdir_ok')                                    # .
+		}
 		if xvfb : environ_resources = { 'SMALL_ID' : '$SMALL_ID'                   } # display is provided by xvfb-run
 		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display
 

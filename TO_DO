@@ -90,6 +90,15 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- recompute all lru files
 * implement cache v2 :
 	- use a daemon
+* implement no_target targets
+	- to have exceptions when matching targets
+	- use None as a target flag to signal no_target
+	- wait for user traction
+* implement target priority
+	- to control target matching order within a rule
+	- use int or float as a target flag to signal priority
+	- sort targets with a stable sort based on priority
+	- wait for user traction
 ? improve readdir support
 	- provide means to substitute the content of a file
 	- configure file to be either <dir>.index or indexes/<dir>.index (say with a prefix and suffix)
@@ -157,8 +166,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* compute number of static_deps and stop iterating over deps when number is reached
-	- when managing job_tgt reservoir
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str

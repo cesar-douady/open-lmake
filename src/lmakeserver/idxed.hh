@@ -30,7 +30,7 @@ private :
 	static constexpr void _s_chk(Idx idx) { swear_prod( !(idx&~lsb_msk(NValBits)) , "index overflow" ) ; }
 	// cxtors & casts
 public :
-	constexpr Idxed(     ) = default ;
+	constexpr Idxed() = default ;
 	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; }                                     // ensure no index overflow
 	// accesses
 	constexpr Idx operator+() const { return _idx&lsb_msk(NValBits) ; }
@@ -77,7 +77,7 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	template<class T> static constexpr bool IsAOrB = IsA<T> || IsB<T> ;
 	//
 	// cxtors & casts
-	constexpr Idxed2(   ) = default ;
+	constexpr Idxed2() = default ;
 	constexpr Idxed2(A a) : _val{SIdx( +a)} {}
 	constexpr Idxed2(B b) : _val{SIdx(-+b)} {}
 	//

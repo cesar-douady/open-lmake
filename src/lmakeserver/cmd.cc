@@ -193,12 +193,12 @@ namespace Engine {
 				rev_map[d.txt] = k ;
 			}
 			VarIdx i = 0 ;
-			for( ::string const& p : m.star_patterns() ) {
+			for( Pattern const& p : m.star_patterns() ) {
 				::pair_s<RuleData::MatchEntry> const& me = rule->star_matches()[i++] ;
 				if (me.second.flags.is_target()) continue ;
 				if (porcelaine                 ) wk = ::max( wk , mk_py_str(me.first).size() ) ;
 				else                             wk = ::max( wk ,           me.first .size() ) ;
-				res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
+				res.emplace_back( me.first , RegExpr(p) ) ;
 			}
 		}
 		for( Dep const& d : job->deps ) {
@@ -990,10 +990,10 @@ namespace Engine {
 						rev_map[t] = me.first ;
 					}
 					i = 0 ;
-					for( ::string const& p : m.star_patterns() ) {
+					for( Pattern const& p : m.star_patterns() ) {
 						::pair_s<RuleData::MatchEntry> const& me = rule->star_matches()[i++] ;
 						if (!me.second.flags.is_target()) break ;                                                                     // side_deps are last
-						res.emplace_back( me.first , RegExpr(p,false/*cache*/,true/*with_paren*/) ) ;
+						res.emplace_back( me.first , RegExpr(p) ) ;
 					}
 				}
 				for( Target t : job->targets ) {

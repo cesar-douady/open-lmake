@@ -156,6 +156,20 @@ namespace Py {
 	Ptr<    > py_eval( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<false/*Run*/>( expr , glbs , sys_path ) ; }
 	Ptr<Dict> py_run ( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<true /*Run*/>( expr , glbs , sys_path ) ; }
 
+	::string py_fstr_escape(::string const& s) {
+		constexpr ::array<bool,256> IsSpecial = []() {
+			::array<bool,256> res = {} ;
+			for( char const* p = "{}" ; *p ; p++ ) res[*p] = true ;
+			return res ;
+		}() ;
+		::string res ; res.reserve(s.size()) ;                     // typically nothing to double
+		for( char c : s ) {
+			if (IsSpecial[c]) res += c ;    // double specials
+			/**/              res += c ;
+		}
+		return res ;
+	}
+
 	//
 	// val methods (mostly for debug)
 	//

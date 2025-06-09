@@ -43,9 +43,9 @@ struct PatternDict {
 	} //!                                                                                  is_dep
 	void add_dep ( ::string const& key , MatchFlags const& mf ) { knowns.try_emplace( key , true ,mf ) ; }
 	void add_side( ::string const& key , MatchFlags const& mf ) { knowns.try_emplace( key , false,mf ) ; }
-	void add_star( ::string const& key , MatchFlags const& mf ) {
+	void add_star( Pattern  const& key , MatchFlags const& mf ) {
 		if (+patterns) SWEAR( mf.kind()>=patterns.back().second.kind() , mf , patterns.back().second ) ; // check decreasing precedence (else entries should be sorted)
-		patterns.emplace_back( RegExpr(key,false/*cache*/,true/*with_paren*/) , mf  ) ;
+		patterns.emplace_back( RegExpr(key) , mf ) ;                                                     // XXX : transport pattern as a vector rather than as a string
 	}
 	// data
 	::umap_s<::pair<bool/*is_dep*/,MatchFlags>> knowns   = {} ;

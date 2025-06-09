@@ -378,7 +378,7 @@ namespace Engine::Persistent {
 				Rt rt { r->crc , ti } ;
 				sfx_map[rt.sfx].insert(rt) ;
 			}
-		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;                              // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
+		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;                                          // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
 		// create empty entries for all sub-repos so as markers to ensure prefixes are not propagated through sub-repo boundaries
@@ -386,36 +386,44 @@ namespace Engine::Persistent {
 		::uset_s          sub_repos_s   = mk_uset(g_config->sub_repos_s) ;
 		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
 			::map_s<uset<Rt>> pfx_map = empty_pfx_map ;
-			if ( sfx.starts_with(StartMrkr) ) {                                  // manage targets with no stems as a suffix made of the entire target and no prefix
+			if ( sfx.starts_with(StartMrkr) ) {                                              // manage targets with no stems as a suffix made of the entire target and no prefix
 				::string_view sfx1 = substr_view(sfx,1) ;
 				for( Rt const& rt : sfx_rule_tgts ) if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
 			} else {
 				for( Rt const& rt : sfx_rule_tgts ) pfx_map[rt.pfx].insert(rt) ;
-				_propag_to_longer<false/*IsSfx*/>(pfx_map,sub_repos_s) ;         // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
+				_propag_to_longer<false/*IsSfx*/>(pfx_map,sub_repos_s) ;                     // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
 			}
 			//
 			// store proper rule_tgts (ordered by decreasing prio, giving priority to AntiRule within each prio) for each prefix/suffix
 			PsfxIdx pfx_root = _g_pfxs_file.emplace_root() ;
 			_g_sfxs_file.insert_at(sfx) = pfx_root ;
 			for( auto const& [pfx,pfx_rule_tgts] : pfx_map ) {
-				if (!pfx_rule_tgts) continue ;                                   // this is a sub-repo marker, not a real entry
-				vector<Rt> pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
+				if (!pfx_rule_tgts) continue ;                                               // this is a sub-repo marker, not a real entry
+				vector<Rt>                     pfx_rule_tgt_vec = mk_vector(pfx_rule_tgts) ;
+				::umap<Rule,size_t/*psfx_sz*/> psfx_szs         ;                            // used to optimize rule order
+				for( Rt const& rt : pfx_rule_tgt_vec ) {
+					size_t& psfx_sz = psfx_szs[rt->rule] ;
+					psfx_sz = ::max( psfx_sz , rt.pfx.size() + rt.sfx.size() ) ;
+				}
 				::sort(
 					pfx_rule_tgt_vec
-				,	[]( Rt const& a , Rt const& b )->bool {
+				,	[&]( Rt const& a , Rt const& b )->bool {
 						// order :
 						// - rule order :
 						//   - special Rule's before plain Rule's
 						//   - by decreasing prio
 						//   - Anti's before GenericSrc's within given priority
+						//   - max size of pfx+sfx (among targets appearing here) to favor sharing of last section (as it is stored in a reversed prefix tree)
 						//   - any stable sort
 						// - within rule :
 						//   - by tgt_idx so as to correspond to candidate order
-						RuleData const& ard = *a->rule ;
-						RuleData const& brd = *b->rule ;
-						return //!                                               any stable sort
-							::tuple( ard.is_special() , ard.prio , ard.special , +ard.crc->match , a.tgt_idx )
-						>	::tuple( brd.is_special() , brd.prio , brd.special , +brd.crc->match , b.tgt_idx )
+						Rule            ar  = a->rule ;
+						Rule            br  = b->rule ;
+						RuleData const& ard = *ar     ;
+						RuleData const& brd = *br     ;
+						return //!                                               optim sort   any stable sort
+							::tuple( ard.is_special() , ard.prio , ard.special , psfx_szs[ar] , +a->match   , a.tgt_idx )
+						>	::tuple( brd.is_special() , brd.prio , brd.special , psfx_szs[br] , +b->match   , b.tgt_idx )
 						;
 					}
 				) ;

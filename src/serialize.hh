@@ -223,6 +223,12 @@ template<class T> struct Serdeser<::vector<T>> {
 	template<IsIStream S> static void s_serdes( S& is , ::vector<T>      & v ) { v.resize(deserialize<uint32_t>(is)) ; for( T      & x : v ) serdes(is,x) ; }
 } ;
 
+// special case vector<bool> as it is special cased in std (operator[] returns a fancy type)
+template<> struct Serdeser<::vector<bool>> {
+	template<IsOStream S> static void s_serdes( S& os , ::vector<bool> const& v ) { serdes(os,_sz32(v)) ;                 for( bool   x : v              )            serdes(os,x) ;              }
+	template<IsIStream S> static void s_serdes( S& is , ::vector<bool>      & v ) { v.resize(deserialize<uint32_t>(is)) ; for( size_t i : iota(v.size()) ) { bool b ; serdes(is,b) ; v[i] = b ; } }
+} ;
+
 template<class T> struct Serdeser<::set<T>> {
 	template<IsOStream S> static void s_serdes( S& os , ::set<T> const& s ) { serdes(os,_sz32(s)) ; for( T const& x : s ) serdes(os,x)  ;                                         }
 	template<IsIStream S> static void s_serdes( S& is , ::set<T>      & s ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) s.insert(deserialize<T>(is  )) ; }

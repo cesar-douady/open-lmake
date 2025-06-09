@@ -604,7 +604,7 @@ namespace Py {
 		// services
 		bool qualify() const { return PyCallable_Check(to_py()) ; }
 		//
-		Ptr<> operator()() const { // fast path : no empty tuple
+		Ptr<> operator()() const {  // fast path : no empty tuple
 			Gil::s_swear_locked() ;
 			return PyObject_CallObject( to_py() , nullptr ) ;
 		}
@@ -645,6 +645,8 @@ namespace Py {
 
 	Ptr<    > py_eval( ::string const& expr , Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) ;
 	Ptr<Dict> py_run ( ::string const& text , Dict* glbs=nullptr , Sequence const* sys_path=nullptr ) ; // update glbs if provided (else use clean dict), return globals after execution
+
+	::string py_fstr_escape(::string const& s) ;
 
 	//
 	// RAII

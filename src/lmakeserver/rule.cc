@@ -6,12 +6,6 @@
 #include "core.hh"      // /!\ must be first to include Python.h first
 #include "serialize.hh"
 
-enum class Escape : uint8_t {
-	None
-,	Re
-,	Fstr
-} ;
-
 enum class StarAction : uint8_t {
 	None
 ,	Stop
@@ -33,20 +27,11 @@ namespace Engine {
 		return {} ; // ok
 	}
 
-	static const ::string _g_fstr_specials = "{}" ;
-	static ::string _fstr_escape(::string const& s) {
-		::string res ; res.reserve(s.size()+(s.size()>>4)) ;       // take a little margin for escapes
-		for( char c : s ) {
-			if (_g_fstr_specials.find(c)!=Npos) res.push_back(c) ; // double specials
-			/**/                                res.push_back(c) ;
-		}
-		return res ;
-	}
-
-	using ParsePyFuncFixed = ::function<void  ( string const& fixed , bool has_pfx , bool has_sfx               )> ; // first is Yes is first, Maybe if in the middle, No if last
-	using ParsePyFuncStem  = ::function<void  ( string const& key , bool star , bool unnamed , string const* re )> ;
-	using SubstTargetFunc  = ::function<string( FileNameIdx pos , VarIdx stem                                   )> ;
-	using ParseTargetFunc  = ::function<void  ( FileNameIdx pos , VarIdx stem                                   )> ;
+	using ParsePyFuncFixed     = ::function<void    ( ::string const& fixed , bool has_pfx , bool has_sfx                 )> ; // first is Yes is first, Maybe if in the middle, No if last
+	using ParsePyFuncStem      = ::function<void    ( ::string const& key , bool star , bool unnamed , ::string const* re )> ;
+	using SubstTargetFuncStem  = ::function<::string( FileNameIdx pos , VarIdx stem                                       )> ;
+	using SubstTargetFuncFixed = ::function<::string( ::string const&                                                     )> ;
+	using ParseTargetFunc      = ::function<void    ( FileNameIdx pos , VarIdx stem                                       )> ;
 
 	// str has the same syntax as python f-strings
 	// cb_fixed is called on each fixed part found
@@ -142,30 +127,33 @@ namespace Engine {
 	}
 
 	// star stems are represented by a StemMrkr followed by the stem idx
-	// cb is called on each stem found
-	// return str with stems substituted with the return value of cb and special characters outside stems escaped as asked
-	static ::string _subst_target( ::string const& str , SubstTargetFunc const& cb , Escape escape=Escape::None , VarIdx stop_above=Rule::NoVar ) {
-		::string res ;
-		for( size_t i=0 ; i<str.size() ; i++ ) {                                                  // /!\ not a iota
+	// return str with stems substituted with the return values of cb_stem and fixed parts replaced by the values of cb_fixed
+	static ::string _subst_target_func_fixed_cp(::string const& s) { return s ; }
+	static ::string _subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) {
+		::string res   ;
+		::string fixed ;
+		for( size_t i=0 ; i<str.size() ; i++ ) { // /!\ not a iota
 			char c = str[i] ;
-			if (c==Rule::StemMrkr) {
-				VarIdx stem = decode_int<VarIdx>(&str[i+1]) ; i += sizeof(VarIdx) ;
-				if (stem>=stop_above) return res ;
-				res += cb(res.size(),stem) ;
-			} else {
-				switch (escape) {
-					case Escape::None :                                                   break ;
-					case Escape::Re   : if (Re::SpecialChars.find(c)!=Npos) res += '\\' ; break ; // escape specials
-					case Escape::Fstr : if (_g_fstr_specials.find(c)!=Npos) res += c    ; break ; // double specials
-				DF}                                                                               // NO_COV
-				res += c ;
-			}
+			if (c!=Rule::StemMrkr) { fixed += c ; continue ;                  }
+			if (+fixed           ) { res += cb_fixed(fixed) ; fixed.clear() ; }
+			//
+			VarIdx stem = decode_int<VarIdx>(&str[i+1]) ;
+			i += sizeof(VarIdx) ;
+			if (stem>=stop_above) return res ;
+			res += cb_stem(res.size(),stem) ;
 		}
+		if (+fixed) res += cb_fixed(fixed) ;
 		return res ;
 	}
-	// provide shortcut when pos is unused
-	static ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb , Escape escape=Escape::None , VarIdx stop_above=-1 ) {
-		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb(s) ; } , escape , stop_above ) ;
+	// provide shortcut when pos or cb_fixed are unused
+	inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) {
+		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , cb_fixed , stop_above ) ;
+	}
+	inline ::string _subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
+		return _subst_target( str , cb_stem , _subst_target_func_fixed_cp , stop_above ) ;
+	}
+	inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
+		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , _subst_target_func_fixed_cp , stop_above ) ;
 	}
 
 	// same as above, except pos is position in input and no result
@@ -685,10 +673,10 @@ namespace Engine {
 				bool first = seen.insert(s).second ;
 				::string k = stems[s].first        ;
 				if ( k.front()=='<' and k.back()=='>' )   k = k.substr(1,k.size()-2) ;
-				if ( s>=r->n_static_stems             ) { if (first) args.push_back(k)      ; return '{'+k+'}'                ; }
-				else                                    { if (!m   ) m = Rule::RuleMatch(j) ; return _fstr_escape(m.stems[s]) ; } // solve lazy m
+				if ( s>=r->n_static_stems             ) { if (first) args.push_back(k)      ; return '{'+k+'}'                  ; }
+				else                                    { if (!m   ) m = Rule::RuleMatch(j) ; return py_fstr_escape(m.stems[s]) ; } // solve lazy m
 			}
-		,	Escape::Fstr
+		,	py_fstr_escape
 		) ;
 		::string res   = "def "+key+'(' ;
 		First    first ;
@@ -743,9 +731,13 @@ namespace Engine {
 	//
 
 	void RuleData::MatchEntry::set_pattern( ::string&& p , VarIdx n_stems ) {
-		pattern  = ::move(p)                 ;
-		ref_cnts = ::vector<VarIdx>(n_stems) ;
-		_parse_target( pattern , [&](VarIdx s)->::string { ref_cnts[s]++ ; return {} ; } ) ;
+		::uset<VarIdx> seen ;
+		pattern = ::move(p) ;
+		captures.resize(n_stems) ; for( bool c : captures ) SWEAR(!c) ; // captures is being initialized
+		_parse_target( pattern , [&](VarIdx s)->::string {
+			if (!seen.insert(s).second) captures[s] = true ;            // stem must always be captured for back-reference if seen several times
+			return {} ;
+		} ) ;
 	}
 
 	static void _append_stem( ::string& target , VarIdx stem_idx ) {
@@ -953,8 +945,8 @@ namespace Engine {
 					::string const& s = stem_defs.at(k) ;
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
 					stems    .emplace_back( k            , s                    ) ;
-					try         { stem_mark_cnts.push_back(Re::RegExpr(s,true/*cache*/,true/*with_paren*/).mark_count()) ; }
-					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                                                }
+					try         { stem_mark_cnts.push_back(Re::RegExpr(s,true/*cache*/).mark_count()) ; }
+					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                             }
 				}
 				if (!star) n_static_stems = stems.size() ;
 			}
@@ -1071,24 +1063,35 @@ namespace Engine {
 		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(.*)c\.d"
 		TargetPattern res       ;
 		VarIdx        cur_group = 1 ;
+		Re::Pattern   pattern   ;
 		res.groups = ::vector<uint32_t>(stems.size()) ;
 		res.txt    = _subst_target(
 			me.pattern
 		,	[&](VarIdx s)->::string {
 				if ( s>=n_static_stems && for_name ) {
 					::string const& k = stems[s].first ;
-					if (k.front()=='<'&&k.back()=='>' ) return Re::escape("{*}"     ) ; // when matching on job name, star stems are matched as they are reported to user
-					else                                return Re::escape('{'+k+"*}") ; // .
+					// when matching on job name, star stems are matched as they are reported to user
+					::string r = k.front()=='<'&&k.back()=='>' ? "{*}"s : cat('{',k,"*}") ;
+					pattern.emplace_back(r,Maybe/*capture*/) ;
+					return Re::escape(r) ;
 				}
-				if (res.groups[s]) return cat("(?:\\",res.groups[s],')') ;              // already seen, we must protect against following text potentially containing numbers
-				bool capture = s<n_static_stems || me.ref_cnts[s]>1 ;                   // star stems are only captured if back referenced
+				if (res.groups[s]) {                                  // already seen, we must protect against following text potentially containing numbers
+					::string r = cat('\\',res.groups[s]) ;
+					pattern.emplace_back( r , No/*capture*/ ) ;
+					return cat("(?:",r,')') ;
+				}
+				bool capture = s<n_static_stems || me.captures[s] ; // star stems are only captured if back referenced
 				if (capture) res.groups[s] = cur_group ;
 				cur_group += capture+stem_mark_cnts[s] ;
+				pattern.emplace_back( stems[s].second , No|capture ) ;
 				return (capture?"(":"(?:")+stems[s].second+')' ;
 			}
-		,	Escape::Re
+		,	[&](::string const& s)->::string {
+				pattern.emplace_back( s , Maybe ) ;
+				return Re::escape(s) ;
+			}
 		) ;
-		res.re = {res.txt,true/*cache*/,true/*with_paren*/} ;                           // stem regexprs have been validated, normally there is no error here
+		res.re = {pattern,true/*cache*/} ;                            // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -1231,7 +1234,7 @@ namespace Engine {
 				::string p = _subst_target(
 					me.pattern
 				,	[&](VarIdx s)->::string { return '{' + stems[s].first + (s<n_static_stems?"":"*") + '}' ; }
-				,	Escape::Fstr
+				,	py_fstr_escape
 				) ;
 				wk2 = ::max(wk2,k.size()) ;
 				wp  = ::max(wp ,p.size()) ;
@@ -1445,7 +1448,7 @@ namespace Engine {
 			h += allow_ext ;                                                                   // only exists for special rules
 		} else {
 			h += job_name ;
-			deps_attrs.update_hash( h , rules ) ;                                              // no deps for source & anti
+			deps_attrs.update_hash( /*inout*/h , rules ) ;                                     // no deps for source & anti
 		}
 		Crc match_crc = h.digest() ;
 		//
@@ -1457,12 +1460,12 @@ namespace Engine {
 			h += matches                ;                                                      // these define names and influence cmd execution, all is not necessary but simpler to code
 			h += force                  ;
 			h += is_python              ;
-			start_cmd_attrs.update_hash( h , rules ) ;
-			cmd            .update_hash( h , rules ) ;
+			start_cmd_attrs.update_hash( /*inout*/h , rules ) ;
+			cmd            .update_hash( /*inout*/h , rules ) ;
 			Crc cmd_crc = h.digest() ;
 			//
-			submit_rsrcs_attrs.update_hash( h , rules ) ;
-			start_rsrcs_attrs .update_hash( h , rules ) ;
+			submit_rsrcs_attrs.update_hash( /*inout*/h , rules ) ;
+			start_rsrcs_attrs .update_hash( /*inout*/h , rules ) ;
 			Crc rsrcs_crc = h.digest() ;
 			//
 			crc = { match_crc , cmd_crc , rsrcs_crc } ;
@@ -1516,7 +1519,6 @@ namespace Engine {
 			::string target = _subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string { return stems[s] ; }
-			,	Escape::None
 			,	rule->n_static_stems/*stop_above*/
 			) ;
 			if ( size_t sep=target.rfind('/') ; sep!=Npos ) {
@@ -1527,24 +1529,31 @@ namespace Engine {
 		return dirs ;
 	}
 
-	::vector_s Rule::RuleMatch::star_patterns() const {
-		::vector_s res ; res.reserve(rule->star_matches().size()) ;
+	::vector<Re::Pattern> Rule::RuleMatch::star_patterns() const {
+		::vector<Re::Pattern> res ; res.reserve(rule->star_matches().size()) ;
 		for( auto const& k_me : rule->star_matches() ) {
-			RuleData::MatchEntry const& me        = k_me.second          ;          // /!\ clang refuses to pass structured binding to lambda's
-			size_t                      cur_group = 1                    ;
-			::vector<uint32_t>          groups    ( rule->stems.size() ) ;          // used to set back references
-			res.push_back(_subst_target(
+			RuleData::MatchEntry const& me        = k_me.second              ; // /!\ clang refuses to pass structured binding to lambda's
+			uint32_t                    cur_group = 1                        ;
+			VarIdx                      nss       = rule->n_static_stems     ;
+			::vector<uint32_t>          groups    ( rule->stems.size()-nss ) ; // used to set back references
+			Re::Pattern                 pattern   ;
+			_subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return Re::escape(stems[s])       ;
-					if (groups[s]             ) return cat("(?:\\",groups[s],')') ; // enclose in () to protect against following text potentially containing numbers
-					bool capture = me.ref_cnts[s]>1 ;
-					if (capture) groups[s] = cur_group ;
+					if (s<nss        ) { pattern.emplace_back( stems[s]                , Maybe/*capture*/ ) ; return {} ; }
+					if (groups[s-nss]) { pattern.emplace_back( cat('\\',groups[s-nss]) , No   /*capture*/ ) ; return {} ; }
+					bool capture = me.captures[s] ;
+					if (capture) groups[s-nss] = cur_group ;
 					cur_group += capture+rule->stem_mark_cnts[s] ;
-					return (capture?"(":"(?:")+rule->stems[s].second+')' ;
+					pattern.emplace_back( rule->stems[s].second , No|capture ) ;
+					return {} ;
 				}
-			,	Escape::Re
-			)) ;
+			,	[&](::string const& s)->::string {
+					pattern.emplace_back( s , Maybe ) ;
+					return {} ;
+				}
+			) ;
+			res.push_back(::move(pattern)) ;
 		}
 		return res ;
 	}
@@ -1562,7 +1571,7 @@ namespace Engine {
 					else if ( stem.first.front()=='<' && stem.first.back()=='>' ) return '('   +               stem.second+')' ; // stem is unnamed
 					else                                                          return "(?P<"+stem.first+'>'+stem.second+')' ;
 				}
-			,	Escape::Re
+			,	Re::escape
 			)) ;
 		}
 		return res ;
