@@ -222,21 +222,28 @@ template<bool WithStart,class T> struct Iota {
 		T cur = {} ;
 	} ;
 	// cxtors & casts
-	/**/               constexpr Iota(        T e ) requires(!WithStart) : bounds{  e} {}
-	template<class I1> constexpr Iota( I1 b , T e ) requires( WithStart) : bounds{b,e} {}
+	Iota() = default ;
+	/**/               constexpr Iota(        T e ) requires(!WithStart) : bounds{     e} {}
+	/**/               constexpr Iota(        T e ) requires( WithStart) : bounds{T( ),e} {}
+	template<class T1> constexpr Iota( T1 b , T e ) requires( WithStart) : bounds{T(b),e} {}
 	//accesses
+	constexpr bool contains(T idx) const { return idx>=_first() && idx<_end() ; }
 private :
 	constexpr T _first() const { return WithStart ? bounds[0] : T() ; }
+	constexpr T _end  () const { return bounds[WithStart]           ; }
 	// services
 public :
-	constexpr Iterator begin() const { return Iterator(_first()         )    ; }
-	constexpr Iterator end  () const { return Iterator(bounds[WithStart])    ; }
-	constexpr size_t   size () const { return +bounds[WithStart] - +_first() ; }
+	constexpr Iterator begin() const { return Iterator(_first())  ; }
+	constexpr Iterator end  () const { return Iterator(_end()  )  ; }
+	constexpr size_t   size () const { return +_end() - +_first() ; }
 	// data
 	T bounds[1+WithStart] = {} ;
 } ; //!                                          with_start
 template<         class T > inline constexpr Iota<false   ,T > iota(            T  end ) {                                    return {   end} ; }
 template<class T1,class T2> inline constexpr Iota<true    ,T2> iota( T1 begin , T2 end ) { T2 b2=T2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
+//                                  with_start
+template<class T> using Iota1 = Iota<false   ,T> ;
+template<class T> using Iota2 = Iota<true    ,T> ;
 
 struct First {
 	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }

@@ -318,7 +318,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	::vector_s        sfxs_    ;                                  if (has_sfxs) sfxs_ = _get_seq<false/*EmptyIsDot*/>("module_suffixes",*py_sfxs) ;
 	::vector_s const& sfxs     = has_sfxs ? sfxs_ : s_std_sfxs  ;
 	::string          tail     = name.substr(name.rfind('.')+1) ;
-	::string          cwd_s_   = cwd_s()                        ;
+	::string          cwd_s_   ;
 	for( ::string const& dir : path ) {
 		::string dir_s  = with_slash(dir)                               ;
 		bool     is_lcl = dir_s.starts_with(_g_autodep_env.repo_root_s) ;
@@ -326,12 +326,14 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 			if (!cwd_s_) cwd_s_ = cwd_s() ;
 			dir_s = mk_abs(dir_s,cwd_s_) ;
 		}
+		::string base = dir_s+tail ;
 		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs ) {             // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
-			::string file = dir_s+tail+sfx ;
+			::string file   = base + sfx              ;
+			bool     exists = FileInfo(file).exists() ;
 			if (is_lcl)
 				try                       { JobSupport::depend( *_g_record , {file} , {.accesses=~Accesses(),.flags{.dflags=DflagsDfltDepend&~Dflag::Required}} , false/*no_follow*/ ) ; }
 				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                                      }
-			if (FileInfo(file).exists()) return ;                         // found module, dont explore path any further
+			if (exists) return ;                                          // found module, dont explore path any further
 		}
 	}
 }

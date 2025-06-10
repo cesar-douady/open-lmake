@@ -27,6 +27,7 @@ if __name__!='__main__' :
 			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes in dir, even after init
 		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # .
 		,	'LOCAL' : (r'.local/{*:.*}','incremental')                               # .
+		,	'DBUS'  : (r'.dbus/{*:.*}' ,'incremental')                               # .
 		}
 		side_deps = {
 			'TOP_DIR'   : ('.'     ,'readdir_ok')                                    # wine seems to sometimes readdir that

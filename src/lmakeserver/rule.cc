@@ -373,33 +373,34 @@ namespace Engine {
 	}
 
 	void DynBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
-		::string         res        ;
-		Rule             r          = +j ? j->rule() : m.rule          ;
-		::vmap_ss const& rsrcs_spec = r->submit_rsrcs_attrs.spec.rsrcs ;
-		::vector_s       mtab       ;
-		::vmap_ss        dtab       ;
-		::umap_ss        rtab       ;
+		::string         res                 ;
+		RuleData const&  rd                  = *( +j ? j->rule() : m.rule )                        ;
+		::vmap_ss const& rsrcs_spec          = rd.submit_rsrcs_attrs.spec.rsrcs                    ;
+		::vector_s       mtab                ;
+		::vmap_ss        dtab                ;
+		::umap_ss        rtab                ;
+		Iota2<VarIdx>    static_targets_iota = rd.matches_iotas[false/*star*/][+MatchKind::Target] ;
 		//
-		auto match = [&]()->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m             ; } ; // solve lazy evaluation
+		auto match = [&]()->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m             ; } ;                                                            // solve lazy evaluation
 		auto stems = [&]()->::vector_s      const& {                                      return match().stems ; } ;
 		//
-		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,r->sub_repo_s)) ; } return mtab ; } ;
-		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps_holes() ) dtab.emplace_back(k,mk_lcl(dn.txt,r->sub_repo_s)) ; } return dtab ; } ;
+		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,rd.sub_repo_s)) ; } return mtab ; } ;
+		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps_holes() ) dtab.emplace_back(k,mk_lcl(dn.txt,rd.sub_repo_s)) ; } return dtab ; } ;
 		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                 } return rtab ; } ;
 		for( auto [vc,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (vc) {
-				case VarCmd::Stem      :                                                                        cb_str(vc,i,r->stems  [i].first,stems  ()[i]       ) ;   break ;
+				case VarCmd::Stem      :                                                                        cb_str(vc,i,rd.stems  [i].first,stems  ()[i]       ) ;   break ;
 				case VarCmd::StarMatch :
-				case VarCmd::Match     :                                                                        cb_str(vc,i,r->matches[i].first,matches()[i]       ) ;   break ;
+				case VarCmd::Match     :                                                                        cb_str(vc,i,rd.matches[i].first,matches()[i]       ) ;   break ;
 				case VarCmd::Dep       :                                                                        cb_str(vc,i,deps()    [i].first,deps   ()[i].second) ;   break ;
 				case VarCmd::Rsrc      : { auto it = rsrcs().find(rsrcs_spec[i].first) ; if (it!=rsrcs().end()) cb_str(vc,i,it->first          ,it->second         ) ; } break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j : iota(r->n_static_stems  ) ) dct.emplace_back(r->stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
-				case VarCmd::Targets : for( VarIdx j : iota(r->n_static_targets) ) dct.emplace_back(r->matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,d] : deps()           ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                  cb_dct(vc,i,"resources",rsrcs_) ; break ;
-			DF}                                                                                                                                                                   // NO_COV
+				case VarCmd::Stems   : for( VarIdx j : iota(rd.n_static_stems) ) dct.emplace_back(rd.stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
+				case VarCmd::Targets : for( VarIdx j : static_targets_iota     ) dct.emplace_back(rd.matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,d] : deps()         ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                cb_dct(vc,i,"resources",rsrcs_) ; break ;
+			DF}                                                                                                                                                                 // NO_COV
 		}
 	}
 
@@ -757,16 +758,15 @@ namespace Engine {
 			case Special::InfiniteDep  :
 			case Special::InfinitePath :                break ;
 			case Special::GenericSrc :
-				name             = "source dir" ;
-				job_name         = src_dir_s    ; _append_stem(job_name,0) ;
-				force            = true         ;
-				n_static_stems   = 1            ;
-				n_static_targets = 1            ;
-				n_statics        = 1            ;
-				allow_ext        = true         ;                                               // sources may lie outside repo
+				name           = "source dir" ;
+				job_name       = src_dir_s    ; _append_stem(job_name,0) ;
+				force          = true         ;
+				allow_ext      = true         ;                                                 // sources may lie outside repo
+				n_static_stems = 1            ;
 				stems         .emplace_back("",".*"                ) ;
 				stem_mark_cnts.push_back   (0                      ) ;
 				matches       .emplace_back("",MatchEntry{job_name}) ;
+				matches_iotas[false/*star*/][+MatchKind::Target] = {0,1} ;
 			break ;
 		DF}                                                                                     // NO_COV
 		_set_crcs({}) ;                                                                         // rules is not necessary for special rules
@@ -811,7 +811,7 @@ namespace Engine {
 					stem_defs.emplace( ::string(py_k.as_a<Str>()) , ::string(py_v.as_a<Str>()) ) ;
 			//
 			// augment stems with definitions found in job_name and targets
-			size_t unnamed_star_idx = 1 ;                                                                                      // free running while walking over job_name + targets
+			size_t unnamed_star_idx = 1 ;                                                                             // free running while walking over job_name + targets
 			auto augment_stems = [&]( ::string const& k , bool star , ::string const* re , bool star_only ) -> void {
 				if (re) {
 					auto [it,inserted] = stem_defs.emplace(k,*re) ;
@@ -819,7 +819,7 @@ namespace Engine {
 				}
 				if ( !star_only || star ) {
 					auto [it,inserted] = stem_stars.emplace(k,No|star) ;
-					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                                             // stem is used both as static and star
+					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                                    // stem is used both as static and star
 				}
 			} ;
 			field = "job_name" ;
@@ -834,8 +834,8 @@ namespace Engine {
 			MatchKind job_name_kind ;
 			for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
 				field = py_k.as_a<Str>() ;
-				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                               // .
-				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                               // targets are a tuple (target_pattern,kind,flags...)
+				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                      // .
+				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                      // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
 					_parse_py( target , &unnamed_star_idx ,
@@ -852,7 +852,7 @@ namespace Engine {
 			//
 			// gather job_name and targets
 			field            = "job_name" ;
-			unnamed_star_idx = 1          ;                                                                                    // reset free running at each pass over job_name+targets
+			unnamed_star_idx = 1          ;                                                                           // reset free running at each pass over job_name+targets
 			VarIdx n_static_unnamed_stems = 0     ;
 			bool   job_name_is_star       = false ;
 			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
@@ -868,15 +868,15 @@ namespace Engine {
 			) ;
 			//
 			field = "matches" ;
-			{	::vmap_s<MatchEntry> star_matches  [N<MatchKind>] ;                                                            // defer star matches so that static targets are put first
-				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                            // .
+			{	::vmap_s<MatchEntry> star_matches  [N<MatchKind>] ;                                                   // defer star matches so that static targets are put first
+				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                   // .
 				bool                 seen_top                     = false ;
 				bool                 seen_target                  = false ;
-				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                  // targets are a tuple (target_pattern,flags...)
+				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                         // targets are a tuple (target_pattern,flags...)
 					field = py_k.as_a<Str>() ;
 					Sequence const& pyseq_tkfs    = py_tkfs.as_a<Sequence>()                      ;
-					::string        target        =                    pyseq_tkfs[0].as_a<Str>()  ;                            // .
-					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                            // targets are a tuple (target_pattern,kind,flags...)
+					::string        target        =                    pyseq_tkfs[0].as_a<Str>()  ;                   // .
+					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                   // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star       = false                                         ;
 					::set_s         missing_stems ;
 					bool            is_stdout     = field=="target"                               ;
@@ -907,7 +907,7 @@ namespace Engine {
 						) ;
 					}
 					if (             kind==MatchKind::Target  ) flags.tflags       |= Tflag::Target     ;
-					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential  ;                      // static targets are essential by default
+					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential  ;             // static targets are essential by default
 					if ( !is_star                             ) flags.tflags       |= Tflag::Static     ;
 					if (             kind!=MatchKind::SideDep ) flags.extra_tflags |= ExtraTflag::Allow ;
 					_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , flags , kind==MatchKind::SideDep ) ;
@@ -928,20 +928,21 @@ namespace Engine {
 					if (field==job_name_key) job_name = add_cwd( ::move(job_name) , is_top ) ;
 					(is_star?star_matches:static_matches)[+kind].emplace_back( field , MatchEntry{::move(target),flags} ) ;
 				}
-				SWEAR(+seen_target) ;                                                                                          // we should not have come up to here without a target
+				SWEAR(+seen_target) ;                                                                                 // we should not have come up to here without a target
 				if (!job_name_key) job_name = add_cwd( ::move(job_name) , seen_top ) ;
-				n_static_targets = static_matches[+MatchKind::Target].size() ; static_assert(+MatchKind::Target==0) ;          // ensure offical targets are first in matches
-				n_star_targets   = star_matches  [+MatchKind::Target].size() ; static_assert(+MatchKind::Target==0) ;          // .
-				for( MatchKind k : iota(All<MatchKind>) ) for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ; // put static first
-				n_statics  = matches.size() ;
-				for( MatchKind k : iota(All<MatchKind>) ) for( auto& st : star_matches  [+k] ) matches.push_back(::move(st)) ; // then star
+				SWEAR(+MatchKind::Target==0) ;                                                                        // targets (both static and star) must be first to ensure ...
+				for( MatchKind k : iota(All<MatchKind>) ) {                                                           // ... RuleTgt stability when Rule's change without crc.match modif
+					//            star
+					matches_iotas[false][+k] = { VarIdx(matches.size()) , VarIdx(matches.size()+static_matches[+k].size()) } ; for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ;
+					matches_iotas[true ][+k] = { VarIdx(matches.size()) , VarIdx(matches.size()+star_matches  [+k].size()) } ; for( auto& st : star_matches  [+k] ) matches.push_back(::move(st)) ;
+				}
 			}
 			field.clear() ;
 			throw_unless( matches.size()<NoVar , "too many targets, side_targets and side_deps ",matches.size()," >= ",int(NoVar) ) ;
 			::umap_s<VarIdx> stem_idxs ;
-			for( bool star : {false,true} ) {                                                                                  // keep only useful stems and order them : static first, then star
+			for( bool star : {false,true} ) {                                                                         // keep only useful stems and order them : static first, then star
 				for( auto const& [k,v] : stem_stars ) {
-					if (v==(No|!star)) continue ;                                                                              // stems that are both static and start appear twice
+					if (v==(No|!star)) continue ;                                                                     // stems that are both static and start appear twice
 					::string const& s = stem_defs.at(k) ;
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
 					stems    .emplace_back( k            , s                    ) ;
@@ -978,8 +979,8 @@ namespace Engine {
 				field        = job_name_key  ;
 				ensure_canon = &job_name     ;
 				kind         = job_name_kind ;
-			}                                                                                                                  // if job_name is a target, canon must be checked
-			unnamed_star_idx = 1 ;                                                                                             // reset free running at each pass over job_name+targets
+			}                                                                                                         // if job_name is a target, canon must be checked
+			unnamed_star_idx = 1 ;                                                                                    // reset free running at each pass over job_name+targets
 			mk_tgt.clear() ;
 			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 			::string new_job_name = ::move(mk_tgt) ;
@@ -992,7 +993,7 @@ namespace Engine {
 					me.set_pattern(new_job_name,stems.size()) ;
 				} else {
 					ensure_canon = &me.pattern     ;
-					kind         = me.flags.kind() ;                                                                           // providing . as side_deps may be useful to pass readdir_ok flag
+					kind         = me.flags.kind() ;                                                                  // providing . as side_deps may be useful to pass readdir_ok flag
 					mk_tgt.clear() ;
 					_parse_py( me.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
 					me.set_pattern(::move(mk_tgt),stems.size()) ;
@@ -1002,7 +1003,7 @@ namespace Engine {
 			job_name = ::move(new_job_name) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvvvvv
-			if (is_special()) return ;                                                                                         // if special, we have no dep, no execution, we only need essential info
+			if (is_special()) return ;                                                                                // if special, we have no dep, no execution, we only need essential info
 			//^^^^^^^^^^^^^^^^^^^^^^^^
 			//
 			// acquire fields linked to job execution
@@ -1013,8 +1014,11 @@ namespace Engine {
 			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts      , &dct[field] ) ;
 			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits    , &dct[field] ) ;
 			//
-			/**/                                            var_idxs["targets"        ] = { VarCmd::Targets                              , 0  } ;
-			for( VarIdx mi : iota<VarIdx>(matches.size()) ) var_idxs[matches[mi].first] = { mi<n_statics?VarCmd::Match:VarCmd::StarMatch , mi } ;
+			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
+			for( bool star : {false,true} )
+				for( MatchKind k : iota(All<MatchKind>) )
+					for( VarIdx mi : matches_iotas[star][+k] )
+						var_idxs[matches[mi].first] = { star?VarCmd::StarMatch:VarCmd::Match , mi } ;
 			//
 			field = "deps" ;
 			if (dct.contains("deps_attrs")) deps_attrs = { rules , dct["deps_attrs"].as_a<Dict>() , var_idxs , self } ;
@@ -1035,7 +1039,7 @@ namespace Engine {
 			//
 			field.clear() ;
 			//
-			for( VarIdx mi : iota(n_static_targets) ) {
+			for( VarIdx mi : matches_iotas[false/*star*/][+MatchKind::Target] ) {
 				if (matches[mi].first=="target") {
 					stdout_idx = mi ;
 					break ;
@@ -1043,7 +1047,7 @@ namespace Engine {
 			}
 			if (!deps_attrs.spec.dyn_deps)
 				for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
-					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                                      // dep is a reserved key that means stdin
+					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                             // dep is a reserved key that means stdin
 					stdin_idx = di ;
 					break ;
 				}
@@ -1075,7 +1079,7 @@ namespace Engine {
 					pattern.emplace_back(r,Maybe/*capture*/) ;
 					return Re::escape(r) ;
 				}
-				if (res.groups[s]) {                                  // already seen, we must protect against following text potentially containing numbers
+				if (res.groups[s]) {                                // already seen, we must protect against following text potentially containing numbers
 					::string r = cat('\\',res.groups[s]) ;
 					pattern.emplace_back( r , No/*capture*/ ) ;
 					return cat("(?:",r,')') ;
@@ -1091,7 +1095,7 @@ namespace Engine {
 				return Re::escape(s) ;
 			}
 		) ;
-		res.re = {pattern,true/*cache*/} ;                            // stem regexprs have been validated, normally there is no error here
+		res.re = {pattern,true/*cache*/} ;                          // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -1229,50 +1233,52 @@ namespace Engine {
 			size_t     wp        = 0 ;
 			::vector_s patterns_ ;
 			//
-			for( auto const& [k,me] : matches ) {
-				if (me.flags.kind()!=mk) continue ;
-				::string p = _subst_target(
-					me.pattern
-				,	[&](VarIdx s)->::string { return '{' + stems[s].first + (s<n_static_stems?"":"*") + '}' ; }
-				,	py_fstr_escape
-				) ;
-				wk2 = ::max(wk2,k.size()) ;
-				wp  = ::max(wp ,p.size()) ;
-				patterns_.push_back(::move(p)) ;
-			}
+			for( bool star : {false,true} )
+				for( VarIdx mi : matches_iotas[star][+mk] ) {
+					::string p = _subst_target(
+						matches[mi].second.pattern
+					,	[&](VarIdx s)->::string { return '{' + stems[s].first + (s<n_static_stems?"":"*") + '}' ; }
+					,	py_fstr_escape
+					) ;
+					wk2 = ::max(wk2,matches[mi].first.size()) ;
+					wp  = ::max(wp ,p                .size()) ;
+					patterns_.push_back(::move(p)) ;
+				}
 			wk = ::max(wk,wk2) ;
 			::string matches_str ;
 			VarIdx   i           = 0 ;
-			for( auto const& [k,me] : matches ) {
-				if (me.flags.kind()!=mk) continue ;
-				::string flags_str ;
-				First    first     ;
-				if (mk!=MatchKind::SideDep) for( Tflag      tf  : iota(Tflag     ::NRule) ) if (me.flags.tflags      [tf ]) flags_str << first(" : "," , ") << tf  ;
-				if (mk!=MatchKind::SideDep) for( ExtraTflag etf : iota(ExtraTflag::NRule) ) if (me.flags.extra_tflags[etf]) flags_str << first(" : "," , ") << etf ;
-				/**/                        for( Dflag      df  : iota(Dflag     ::NRule) ) if (me.flags.dflags      [df ]) flags_str << first(" : "," , ") << df  ;
-				/**/                        for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (me.flags.extra_dflags[edf]) flags_str << first(" : "," , ") << edf ;
-				/**/            matches_str <<'\t'<< widen(k,wk2)<<" : "           ;
-				if (+flags_str) matches_str << widen(patterns_[i],wp) << flags_str ;
-				else            matches_str <<       patterns_[i]                  ;
-				/**/            matches_str <<'\n'                                 ;
-				i++ ;
-			}
+			for( bool star : {false,true} )
+				for( VarIdx mi : matches_iotas[star][+mk] ) {
+					MatchFlags mf        = matches[mi].second.flags ;
+					::string   flags_str ;
+					First      first     ;
+					if (mk!=MatchKind::SideDep) for( Tflag      tf  : iota(Tflag     ::NRule) ) if (mf.tflags      [tf ]) flags_str << first(" : "," , ") << tf  ;
+					if (mk!=MatchKind::SideDep) for( ExtraTflag etf : iota(ExtraTflag::NRule) ) if (mf.extra_tflags[etf]) flags_str << first(" : "," , ") << etf ;
+					/**/                        for( Dflag      df  : iota(Dflag     ::NRule) ) if (mf.dflags      [df ]) flags_str << first(" : "," , ") << df  ;
+					/**/                        for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (mf.extra_dflags[edf]) flags_str << first(" : "," , ") << edf ;
+					/**/            matches_str <<'\t'<< widen(matches[mi].first,wk2)<<" : " ;
+					if (+flags_str) matches_str << widen(patterns_[i],wp) << flags_str       ;
+					else            matches_str <<       patterns_[i]                        ;
+					/**/            matches_str <<'\n'                                       ;
+					i++ ;
+				}
 			if (+matches_str) res << mk<<'s' <<" :\n"<< matches_str ;
 		}
 		// report exceptions (i.e. sub-repos in which rule does not apply) unless it can be proved we cannot match in such sub-repos
-		::vector_s excepts_s ;                                                                        // sub-repos exceptions
-		::uset_s   seens_s   ;                                                                        // we are only interested in first level sub-repos under our sub-repo
+		::vector_s excepts_s ;                                                                 // sub-repos exceptions
+		::uset_s   seens_s   ;                                                                 // we are only interested in first level sub-repos under our sub-repo
 		for( ::string const& sr_s : g_config->sub_repos_s ) {
-			if (!( sr_s.size()>sub_repo_s.size() && sr_s.starts_with(sub_repo_s) )) continue ;        // if considered sub-repo is not within our sub-repo, it cannot match
+			if (!( sr_s.size()>sub_repo_s.size() && sr_s.starts_with(sub_repo_s) )) continue ; // if considered sub-repo is not within our sub-repo, it cannot match
 			for( ::string const& e_s : seens_s )
-				if (sr_s.starts_with(e_s)) goto Skip ;                                                // g_config->sub_repos_s are sorted so that higher level occurs first
+				if (sr_s.starts_with(e_s)) goto Skip ;                                         // g_config->sub_repos_s are sorted so that higher level occurs first
 			seens_s.insert(sr_s) ;
-			for( auto const& [k,me] : matches ) {                                                     // if all targets have a prefix that excludes considered sub-repo, it cannot match
-				if (!me.flags.tflags[Tflag::Target]) continue ;
-				::string_view pfx = substr_view( me.pattern , 0 , me.pattern.find(Rule::StemMrkr) ) ; // find target prefix
-				if (sr_s.starts_with(pfx )) goto Report ;                                             // found a target that may      match in sub-repo, include it
-				if (pfx .starts_with(sr_s)) goto Report ;                                             // found a target that may only match in sub-repo, include it
-			}
+			for( bool star : {false,true} )
+				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) {
+					::string const& p   = matches[mi].second.pattern                    ;
+					::string_view   pfx = substr_view( p , 0 , p.find(Rule::StemMrkr) ) ;      // find target prefix
+					if (sr_s.starts_with(pfx )) goto Report ;                                  // found a target that may      match in sub-repo, include it
+					if (pfx .starts_with(sr_s)) goto Report ;                                  // found a target that may only match in sub-repo, include it
+				}
 		Skip :
 			continue ;
 		Report :
@@ -1336,7 +1342,9 @@ namespace Engine {
 		::string  kill_sigs   ;
 		//
 		{	title = user_name() + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
-			for( auto const& [k,me] : matches ) if (job_name_==me.pattern) { job_name_ = "<targets."+k+'>' ; break ; }
+			for( bool star : {false,true} )
+				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] )
+					if (job_name_==matches[mi].second.pattern) { job_name_ = "<targets."+matches[mi].first+'>' ; break ; }
 		}
 		if (!is_special()) {
 			{	First first ;
@@ -1434,21 +1442,21 @@ namespace Engine {
 	// if the need arises, we will add an "id" artificial field entering in crc->match to distinguish them
 	void RuleData::_set_crcs(RulesBase const& rules) {
 		if (!is_special()) SWEAR(+rules) ;
-		Hash::Xxh h ;                                                                          // each crc continues after the previous one, so they are standalone
+		Hash::Xxh h ;                                                  // each crc continues after the previous one, so they are standalone
 		//
 		// START_OF_VERSIONING
 		::vmap_s<bool> targets ;
-		for( auto const& [k,me] : matches )
-			if (me.flags.tflags[Tflag::Target])
-				targets.emplace_back(me.pattern,me.flags.extra_tflags[ExtraTflag::Optional]) ; // keys and flags have no influence on matching, except Optional
-		h += special ;                                                                         // in addition to distinguishing special from other, ...
-		h += stems   ;                                                                         // ... this guarantees that shared rules have different crc's
+		for( bool star : {false,true} )
+			for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable
+				targets.emplace_back( matches[mi].second.pattern , matches[mi].second.flags.extra_tflags[ExtraTflag::Optional] ) ; // keys and flags have no influence on matching, except Optional
+		h += special ;                                                                                                             // in addition to distinguishing special from other, ...
+		h += stems   ;                                                                                                             // ... this guarantees that shared rules have different crc's
 		h += targets ;
 		if (is_special()) {
-			h += allow_ext ;                                                                   // only exists for special rules
+			h += allow_ext ;                               // only exists for special rules
 		} else {
 			h += job_name ;
-			deps_attrs.update_hash( /*inout*/h , rules ) ;                                     // no deps for source & anti
+			deps_attrs.update_hash( /*inout*/h , rules ) ; // no deps for source & anti
 		}
 		Crc match_crc = h.digest() ;
 		//
@@ -1456,8 +1464,8 @@ namespace Engine {
 			crc = {match_crc} ;
 		} else {
 			h += sub_repo_s             ;
-			h += Node::s_src_dirs_crc() ;                                                      // src_dirs influences deps recording
-			h += matches                ;                                                      // these define names and influence cmd execution, all is not necessary but simpler to code
+			h += Node::s_src_dirs_crc() ;                  // src_dirs influences deps recording
+			h += matches                ;                  // these define names and influence cmd execution, all is not necessary but simpler to code
 			h += force                  ;
 			h += is_python              ;
 			start_cmd_attrs.update_hash( /*inout*/h , rules ) ;
@@ -1530,80 +1538,78 @@ namespace Engine {
 	}
 
 	::vector<Re::Pattern> Rule::RuleMatch::star_patterns() const {
-		::vector<Re::Pattern> res ; res.reserve(rule->star_matches().size()) ;
-		for( auto const& k_me : rule->star_matches() ) {
-			RuleData::MatchEntry const& me        = k_me.second              ; // /!\ clang refuses to pass structured binding to lambda's
-			uint32_t                    cur_group = 1                        ;
-			VarIdx                      nss       = rule->n_static_stems     ;
-			::vector<uint32_t>          groups    ( rule->stems.size()-nss ) ; // used to set back references
-			Re::Pattern                 pattern   ;
-			_subst_target(
-				me.pattern
-			,	[&](VarIdx s)->::string {
-					if (s<nss        ) { pattern.emplace_back( stems[s]                , Maybe/*capture*/ ) ; return {} ; }
-					if (groups[s-nss]) { pattern.emplace_back( cat('\\',groups[s-nss]) , No   /*capture*/ ) ; return {} ; }
-					bool capture = me.captures[s] ;
-					if (capture) groups[s-nss] = cur_group ;
-					cur_group += capture+rule->stem_mark_cnts[s] ;
-					pattern.emplace_back( rule->stems[s].second , No|capture ) ;
-					return {} ;
-				}
-			,	[&](::string const& s)->::string {
-					pattern.emplace_back( s , Maybe ) ;
-					return {} ;
-				}
-			) ;
-			res.push_back(::move(pattern)) ;
-		}
+		RuleData const&       rd  = *rule ;
+		VarIdx                n   = 0     ; for( MatchKind mk : iota(All<MatchKind>) ) n += rd.matches_iotas[true/*star*/][+mk].size() ;
+		::vector<Re::Pattern> res ;         res.reserve(n) ;
+		for( MatchKind mk : iota(All<MatchKind>) )
+			for( VarIdx mi : rd.matches_iotas[true/*star*/][+mk] ) {
+				RuleData::MatchEntry const& me        = rd.matches[mi].second ;
+				uint32_t                    cur_group = 1                     ;
+				VarIdx                      nss       = rd.n_static_stems     ;
+				::vector<uint32_t>          groups    ( rd.stems.size()-nss ) ; // used to set back references
+				Re::Pattern                 pattern   ;
+				_subst_target(
+					me.pattern
+				,	[&](VarIdx s)->::string {
+						if (s<nss        ) { pattern.emplace_back( stems[s]                , Maybe/*capture*/ ) ; return {} ; }
+						if (groups[s-nss]) { pattern.emplace_back( cat('\\',groups[s-nss]) , No   /*capture*/ ) ; return {} ; }
+						bool capture = me.captures[s] ;
+						if (capture) groups[s-nss] = cur_group ;
+						cur_group += capture+rd.stem_mark_cnts[s] ;
+						pattern.emplace_back( rd.stems[s].second , No|capture ) ;
+						return {} ;
+					}
+				,	[&](::string const& s)->::string {
+						pattern.emplace_back( s , Maybe ) ;
+						return {} ;
+					}
+				) ;
+				res.push_back(::move(pattern)) ;
+			}
 		return res ;
 	}
 
 	::vector_s Rule::RuleMatch::py_matches() const {
-		::vector_s res = static_matches() ;
-		for( auto const& [_,me] : rule->star_matches() ) {
-			::uset<VarIdx> seen ;
-			res.push_back(_subst_target(
-				me.pattern
-			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return Re::escape(stems[s]) ;
-					::pair_ss const& stem = rule->stems[s] ;
-					if      ( !seen.insert(s).second                            ) return "(?P="+stem.first                +')' ;
-					else if ( stem.first.front()=='<' && stem.first.back()=='>' ) return '('   +               stem.second+')' ; // stem is unnamed
-					else                                                          return "(?P<"+stem.first+'>'+stem.second+')' ;
-				}
-			,	Re::escape
-			)) ;
+		RuleData const& rd  = *rule                  ;
+		::vector_s      res ;                          res.reserve(rd.matches.size()) ;
+		::vector_s      ms  = matches(false/*star*/) ;
+		VarIdx          i   = 0                      ;
+		for( MatchKind mk : iota(All<MatchKind>) ) {
+			for( [[maybe_unused]] VarIdx _  : rd.matches_iotas[false/*star*/][+mk] ) res.push_back(::move(ms[i++])) ;
+			for(                  VarIdx mi : rd.matches_iotas[true /*star*/][+mk] ) {
+				::uset<VarIdx> seen_stems ;
+				res.push_back(_subst_target(
+					rd.matches[mi].second.pattern
+				,	[&](VarIdx s)->::string {
+						if (s<rd.n_static_stems) return Re::escape(stems[s]) ;
+						::pair_ss const& stem = rd.stems[s] ;
+						if      ( !seen_stems.insert(s).second                      ) return "(?P="+stem.first                +')' ;
+						else if ( stem.first.front()=='<' && stem.first.back()=='>' ) return '('   +               stem.second+')' ; // stem is unnamed
+						else                                                          return "(?P<"+stem.first+'>'+stem.second+')' ;
+					}
+				,	Re::escape
+				)) ;
+			}
 		}
+		SWEAR( i==ms.size() , i,ms.size() ) ;
 		return res ;
 	}
 
-	::vector_s Rule::RuleMatch::static_matches(bool targets_only) const {
-		VarIdx     n   = targets_only ? rule->n_static_targets : rule->static_matches().size() ;
-		::vector_s res ;                                                                         res.reserve(n) ;
-		for( VarIdx mi : iota(n) ) {
-			res.push_back(_subst_target(
-				rule->static_matches()[mi].second.pattern
-			,	[&](VarIdx s)->::string {
-					SWEAR(s<rule->n_static_stems) ;
-					return stems[s] ;
-				}
-			)) ;
-		}
-		return res ;
-	}
-
-	::vector_s Rule::RuleMatch::star_matches(bool targets_only) const {
-		VarIdx     n   = targets_only ? rule->n_star_targets : rule->star_matches().size() ;
-		::vector_s res ;                                                                     res.reserve(n) ;
-		for( VarIdx mi : iota(n) ) {
-			res.push_back(_subst_target(
-				rule->star_matches()[mi].second.pattern
-			,	[&](VarIdx s)->::string {
-					if (s<rule->n_static_stems) return stems[s]                      ;
-					else                        return "{"+rule->stems[s].first+"*}" ;
-				}
-			)) ;
-		}
+	::vector_s Rule::RuleMatch::_matches( bool star , bool targets_only ) const {
+		Iota1<MatchKind> iota_mk = iota( targets_only ? MatchKind::Target+1 : All<MatchKind> ) ;
+		RuleData const&  rd      = *rule                                                       ;
+		VarIdx           n       = 0                                                           ; for( MatchKind mk : iota_mk ) n += rd.matches_iotas[star][+mk].size() ;
+		::vector_s       res     ;                                                               res.reserve(n) ;
+		for( MatchKind mk : iota_mk )
+			for( VarIdx mi : rd.matches_iotas[star][+mk] )
+				res.push_back(_subst_target(
+					rd.matches[mi].second.pattern
+				,	[&](VarIdx s)->::string {
+						if (!star                 ) SWEAR(s<rd.n_static_stems) ;
+						if (s<rule->n_static_stems) return stems[s]                      ;
+						else                        return "{"+rule->stems[s].first+"*}" ;
+					}
+				)) ;
 		return res ;
 	}
 
@@ -1632,17 +1638,15 @@ namespace Engine {
 	::pair_s<VarIdx> Rule::RuleMatch::reject_msg() const {
 		RuleData const& rd = *rule ;
 		SWEAR( rd.special<=Special::HasJobs , rd.special ) ;
-		VarIdx ti = 0 ;
-		for( ::string const& t : static_matches(true/*targets_only*/) ) {
-			MatchKind k = rd.matches[ti].second.flags.kind() ;
-			if ( ::string msg=_reject_msg(k,t) ; +msg ) return {msg,ti} ;
-			ti++ ;
-		}
-		ti = rd.n_statics ;
-		for( ::string const& t : star_matches(true/*targets_only*/) ) {
-			MatchKind k = rd.matches[ti].second.flags.kind() ;
-			if ( ::string msg=_reject_msg(k,t) ; +msg ) return {msg,ti} ;
-			ti++ ;
+		for( bool star : {false,true} ) {
+			Iota2<VarIdx> matches_iota = rd.matches_iotas[star][+MatchKind::Target] ;
+			auto it = matches_iota.begin() ;
+			for( ::string const& t : targets(star) ) {
+				SWEAR(it!=matches_iota.end()) ;
+				MatchKind k = rd.matches[*it].second.flags.kind() ;
+				if ( ::string msg=_reject_msg(k,t) ; +msg ) return {msg,*it} ;
+				it++ ;
+			}
 		}
 		return {} ;
 	}

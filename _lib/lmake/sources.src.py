@@ -104,7 +104,7 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 			cd = open(common_dir).read().strip()
 			srcs.append( _osp.normpath(_osp.join(rel_git_dir_s,cd)) + '/' )
 	srcs.append(rel_git_dir_s)
-	if 'Lmakefile.py' not in srcs : raise NotImplementedError(f'cannot find Lmakefile.py in git files')
+	if 'Lmakefile.py' not in srcs and 'Lmakefile/__init__.py' not in srcs : raise NotImplementedError(f'cannot find Lmakefile.py nor Lmakefile/__init__.py in git files')
 	srcs += std_sources()
 	return srcs
 

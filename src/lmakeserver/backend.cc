@@ -300,10 +300,11 @@ namespace Backends {
 		if (!jsrr) return false ;                                                                   // if connection is lost, ignore it
 		Trace trace(BeChnl,"_s_handle_job_start",jsrr) ;
 		SWEAR(+fd,jsrr) ;                                                                           // fd is needed to reply
-		Job                      job                   { jsrr.job }                     ;
+		Job                      job                   { jsrr.job }                  ;
 		JobExec                  job_exec              ;
-		Rule                     rule                  = job->rule()                    ;
-		Rule::RuleMatch          match                 = job->rule_match()              ;
+		Rule                     rule                  = job->rule()                 ;
+		RuleData const&          rd                    = *rule                       ;
+		Rule::RuleMatch          match                 = job->rule_match()           ;
 		vmap<Node,FileAction>    pre_actions           ;
 		vmap<Node,FileActionTag> pre_action_warnings   ;
 		StartCmdAttrs            start_cmd_attrs       ;
@@ -311,11 +312,11 @@ namespace Backends {
 		StartAncillaryAttrs      start_ancillary_attrs ;
 		MsgStderr                start_msg_err         ;
 		::vector<ReqIdx>         reqs                  ;
-		JobInfoStart             jis                   { .rule_crc_cmd=rule->crc->cmd } ;
-		JobStartRpcReply&        reply                 = jis.start                      ;
-		::string        &        cmd                   = reply.cmd                      ;
-		SubmitAttrs     &        submit_attrs          = jis.submit_attrs               ;
-		::vmap_ss       &        rsrcs                 = jis.rsrcs                      ;
+		JobInfoStart             jis                   { .rule_crc_cmd=rd.crc->cmd } ;
+		JobStartRpcReply&        reply                 = jis.start                   ;
+		::string        &        cmd                   = reply.cmd                   ;
+		SubmitAttrs     &        submit_attrs          = jis.submit_attrs            ;
+		::vmap_ss       &        rsrcs                 = jis.rsrcs                   ;
 		//
 		// to lock for minimal time, we lock twice
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
@@ -330,15 +331,15 @@ namespace Backends {
 			tie(jis.eta,reply.keep_tmp) = entry.req_info()           ;
 		}
 		trace("submit_attrs",submit_attrs) ;
-		::vmap_s<DepDigest>& deps          = submit_attrs.deps                 ;                    // these are the deps for dynamic attriute evaluation
-		size_t               n_submit_deps = deps.size()                       ;
-		int                  step          = 0                                 ;
-		::vmap_s<DepSpec>    dep_specs     = rule->deps_attrs.dep_specs(match) ;                    // this cannot fail as it was already run to construct job
+		::vmap_s<DepDigest>& deps          = submit_attrs.deps              ;                       // these are the deps for dynamic attriute evaluation
+		size_t               n_submit_deps = deps.size()                    ;
+		int                  step          = 0                              ;
+		::vmap_s<DepSpec>    dep_specs     = rd.deps_attrs.dep_specs(match) ;                       // this cannot fail as it was already run to construct job
 		try {
 			try {
-				start_cmd_attrs   = rule->start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
-				start_rsrcs_attrs = rule->start_rsrcs_attrs.eval(match,rsrcs,&deps                                                      ) ; step = 2 ;
-				cmd               = rule->cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ;     // use_script is forced true if cmd is large
+				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
+				start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps                                                      ) ; step = 2 ;
+				cmd               = rd.cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ;   // use_script is forced true if cmd is large
 				//
 				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
 				for( auto const& [t,a] : pre_actions )
@@ -351,11 +352,11 @@ namespace Backends {
 			start_msg_err.msg    <<set_nl<< e.msg    ;
 			start_msg_err.stderr <<set_nl<< e.stderr ;
 			switch (step) {
-				case 0 : start_msg_err.msg <<set_nl<< rule->start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
-				case 1 : start_msg_err.msg <<set_nl<< rule->cmd              .s_exc_msg(false/*using_static*/) ; break ;
-				case 2 : start_msg_err.msg <<set_nl<< rule->start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
-				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                                    ; break ;
-			DF}                                                                                                                                            // NO_COV
+				case 0 : start_msg_err.msg <<set_nl<< rd.start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
+				case 1 : start_msg_err.msg <<set_nl<< rd.cmd              .s_exc_msg(false/*using_static*/) ; break ;
+				case 2 : start_msg_err.msg <<set_nl<< rd.start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
+				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                                 ; break ;
+			DF}                                                                                                                                       // NO_COV
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
@@ -363,16 +364,16 @@ namespace Backends {
 			case 4 :
 				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
-					try                       { start_ancillary_attrs = rule->start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
-					catch (::string const& e) { throw MsgStderr{.msg=e} ;                                                     }
+					try                       { start_ancillary_attrs = rd.start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
+					catch (::string const& e) { throw MsgStderr{.msg=e} ;                                                  }
 				} catch (MsgStderr const& e) {
-					start_msg_err         = e                                ;
-					start_ancillary_attrs = rule->start_ancillary_attrs.spec ;
-					jsrr.msg <<set_nl<< rule->start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
+					start_msg_err         = e                             ;
+					start_ancillary_attrs = rd.start_ancillary_attrs.spec ;
+					jsrr.msg <<set_nl<< rd.start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
 				}
 				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
-					reply.z_lvl = start_ancillary_attrs.z_lvl ;                                                                                            // if zlib is not available, dont compress
+					reply.z_lvl = start_ancillary_attrs.z_lvl ;                                                                                       // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
@@ -396,28 +397,33 @@ namespace Backends {
 				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
 			case 0 : {
-				VarIdx ti = 0 ; for( ::string    const& tn : match.static_matches() ) reply.static_matches.emplace_back( tn , rule->static_matches()[ti++].second.flags ) ;
-				/**/   ti = 0 ; for( Re::Pattern const& p  : match.star_patterns () ) reply.star_matches  .emplace_back( p  , rule->star_matches  ()[ti++].second.flags ) ;
+				::vector_s            static_matches = match.matches(false/*star*/) ; VarIdx i_static = 0 ;
+				::vector<Re::Pattern> star_patterns  = match.star_patterns()        ; VarIdx i_star   = 0 ;
+				for( MatchKind mk : iota(All<MatchKind>) ) {
+					//                                star
+					for( VarIdx mi : rd.matches_iotas[false][+mk] ) reply.static_matches.emplace_back( static_matches[i_static++] , rd.matches[mi].second.flags ) ;
+					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
+				}
 				//
-				if (rule->stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rule->stdin_idx ].second.txt ;
-				if (rule->stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rule->stdout_idx].first      ;
-				/**/                               reply.addr                    = fd.peer_addr()                                    ; SWEAR(reply.addr) ; // 0 means no address
-				/**/                               reply.autodep_env.lnk_support = g_config->lnk_support                             ;
-				/**/                               reply.autodep_env.file_sync   = g_config->file_sync                               ;
-				/**/                               reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                     ;
-				/**/                               reply.autodep_env.sub_repo_s  = rule->sub_repo_s                                  ;
-				if (submit_attrs.cache_idx       ) reply.cache_idx               =              submit_attrs.cache_idx               ;
-				if (submit_attrs.cache_idx       ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx]              ;
-				/**/                               reply.ddate_prec              = g_config->ddate_prec                              ;
-				/**/                               reply.key                     = g_config->key                                     ;
-				/**/                               reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)           ;
-				/**/                               reply.live_out                = submit_attrs.live_out                             ;
-				/**/                               reply.network_delay           = g_config->network_delay                           ;
-				/**/                               reply.rule                    = rule->user_name()                                 ;
+				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt ;
+				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first      ;
+				/**/                            reply.addr                    = fd.peer_addr()                                 ; SWEAR(reply.addr) ;  // 0 means no address
+				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                          ;
+				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                            ;
+				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                  ;
+				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                  ;
+				if (submit_attrs.cache_idx    ) reply.cache_idx               =              submit_attrs.cache_idx            ;
+				if (submit_attrs.cache_idx    ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx]           ;
+				/**/                            reply.ddate_prec              = g_config->ddate_prec                           ;
+				/**/                            reply.key                     = g_config->key                                  ;
+				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)        ;
+				/**/                            reply.live_out                = submit_attrs.live_out                          ;
+				/**/                            reply.network_delay           = g_config->network_delay                        ;
+				/**/                            reply.rule                    = rd.user_name()                                 ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
-		DF}                                                                                                                                                // NO_COV
+		DF}                                                                                                                                           // NO_COV
 		//
 		jis.stems     =                 ::move(match.stems)  ;
 		jis.pre_start =                 ::move(jsrr       )  ;
@@ -425,8 +431,8 @@ namespace Backends {
 		if (+deps) {
 			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
-				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;        // update existing dep
-				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      }      // create new dep
+				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;   // update existing dep
+				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      } // create new dep
 		}
 		bool deps_done = false ;                                           // true if all deps are done for at least a non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {

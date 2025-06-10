@@ -233,8 +233,8 @@ namespace Engine {
 		}
 		::vector<Dep>       deps ; deps.reserve(dep_specs_holes.size()) ;
 		::umap<Node,VarIdx> dis  ;
-		for( auto const& kds : dep_specs_holes ) {
-			DepSpec const& ds = kds.second ;
+		for( auto const& k_ds : dep_specs_holes ) {
+			DepSpec const& ds = k_ds.second ;
 			if (!ds.txt) continue ;                                                                                                           // filter out holes
 			Node           d  { ds.txt }                                                       ;
 			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
@@ -822,15 +822,17 @@ namespace Engine {
 	}
 
 	void JobData::_reset_targets(Rule::RuleMatch const& match) {
-		Rule             r     = rule()                                     ;
-		::vector<Target> ts    ;                                              ts.reserve(r->n_static_targets) ; // there are usually no duplicates
-		::vector_s       sts   = match.static_matches(true/*targets_only*/) ;
+		Rule             r     = rule()                       ;
+		::vector<Target> ts    ;                                ts.reserve(r->matches_iotas[false/*star*/][+MatchKind::Target].size()) ; // there are usually no duplicates
+		::vector_s       sts   = match.targets(false/*star*/) ;
+		VarIdx           i     = 0                            ;
 		::uset_s         seens ;
-		for( VarIdx ti : iota(r->n_static_targets) ) {
-			if (!seens.insert(sts[ti]).second) continue ;                                                       // remove duplicates
-			ts.emplace_back(sts[ti],r->tflags(ti)) ;
+		for( VarIdx mi : r->matches_iotas[false/*star*/][+MatchKind::Target] ) {
+			::string const& t = sts[i++] ;
+			if (!seens.insert(t).second) continue ;                                                                                      // remove duplicates
+			ts.emplace_back(t,r->tflags(mi)) ;
 		}
-		::sort(ts) ;                                                                                            // ease search in targets
+		::sort(ts) ;                                                                                                                     // ease search in targets
 		targets.assign(ts) ;
 	}
 

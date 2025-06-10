@@ -503,11 +503,9 @@ namespace Engine {
 			::string res = name ; if (+sub_repo_s) res <<':'<< no_slash(sub_repo_s) ;
 			return mk_printable(res) ;
 		}
-		Disk::FileNameIdx                  job_sfx_len   (                ) const ;
-		::string                           job_sfx       (                ) const ;
-		void                               validate      (::string job_sfx) const ;
-		::span<::pair_s<MatchEntry> const> static_matches(                ) const { return { &matches[0        ] , n_statics                } ; }
-		::span<::pair_s<MatchEntry> const> star_matches  (                ) const { return { &matches[n_statics] , matches.size()-n_statics } ; }
+		Disk::FileNameIdx job_sfx_len(                ) const ;
+		::string          job_sfx    (                ) const ;
+		void              validate   (::string job_sfx) const ;
 		// services
 		::string add_cwd( ::string&& file , bool top=false ) const {
 			if ( !top && +sub_repo_s ) return Disk::mk_glb(file,sub_repo_s) ;
@@ -541,7 +539,7 @@ namespace Engine {
 		::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice
 		::string             sub_repo_s ;                                          // sub_repo which this rule belongs to
 		::string             job_name   ;                                          // used to show in user messages (not all fields are actually used)
-		::vmap_s<MatchEntry> matches    ;                                          // keep star user order, static entries first in MatchKind order
+		::vmap_s<MatchEntry> matches    ;                                          // keep user within each star/MatchKind sequence, targets (static and star) are first to ensure RuleTgt stability
 		VarIdx               stdout_idx = NoVar         ;                          // index of target used as stdout
 		VarIdx               stdin_idx  = NoVar         ;                          // index of dep used as stdin
 		bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
@@ -558,12 +556,10 @@ namespace Engine {
 		uint8_t                   n_losts                = 0     ;                 // max number of times a job can be lost
 		uint8_t                   n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
 		// derived data
-		::vector<uint32_t> stem_mark_cnts   ;                                      // number of capturing groups within each stem
-		RuleCrc            crc              ;
-		VarIdx             n_static_stems   = 0 ;
-		VarIdx             n_static_targets = 0 ;                                  // number of official static targets
-		VarIdx             n_star_targets   = 0 ;                                  // number of official star   targets
-		VarIdx             n_statics        = 0 ;
+		::vector<uint32_t> stem_mark_cnts                         ;                // number of capturing groups within each stem
+		RuleCrc            crc                                    ;
+		VarIdx             n_static_stems                         = 0  ;
+		Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;
 		// stats
 		mutable Delay    cost_per_token = {} ;                                     // average cost per token
 		mutable Delay    exec_time      = {} ;                                     // average exec_time
@@ -605,11 +601,13 @@ namespace Engine {
 	public :
 		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
 		bool operator+ (                   ) const { return +rule                            ; }
-		::vector<Re::Pattern> star_patterns (                       ) const ;
-		::vector_s            py_matches    (                       ) const ;
-		::vector_s            static_matches(bool targets_only=false) const ;
-		::vector_s            star_matches  (bool targets_only=false) const ;
-		//
+		::vector<Re::Pattern> star_patterns (         ) const ;
+		::vector_s            py_matches    (         ) const ; //!                  targets_only
+		::vector_s            matches       (bool star) const { return _matches(star,false      ) ; }
+		::vector_s            targets       (bool star) const { return _matches(star,true       ) ; }
+	private :
+		::vector_s            _matches      ( bool star , bool targets_only ) const ;
+	public :
 		::vmap_s<DepSpec> const& deps_holes() const {
 			if (!_has_deps) {
 				_deps     = rule->deps_attrs.eval(self).second ;                                                                       // this includes empty slots
@@ -653,7 +651,7 @@ namespace Engine {
 		bool sure() const {
 			Rule       r   = self->rule      ; if (!r) return false ;
 			MatchFlags mfs = matches().flags ;
-			return ( tgt_idx<r->n_static_targets && !mfs.extra_tflags[ExtraTflag::Optional] ) || mfs.tflags[Tflag::Phony] ;
+			return ( r->matches_iotas[false/*star*/][+MatchKind::Target].contains(tgt_idx) && !mfs.extra_tflags[ExtraTflag::Optional] ) || mfs.tflags[Tflag::Phony] ;
 		}
 		size_t hash() const {         // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
 			size_t res = 0x811c9dc5 ;
@@ -904,15 +902,13 @@ namespace Engine {
 		::serdes(s,sub_repo_s      ) ;
 		::serdes(s,job_name        ) ;
 		::serdes(s,matches         ) ;
+		::serdes(s,matches_iotas   ) ;
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
 		::serdes(s,stem_mark_cnts  ) ;
 		::serdes(s,crc             ) ;
 		::serdes(s,n_static_stems  ) ;
-		::serdes(s,n_static_targets) ;
-		::serdes(s,n_star_targets  ) ;
-		::serdes(s,n_statics       ) ;
 		if (special==Special::Plain) {
 			::serdes(s,deps_attrs            ) ;
 			::serdes(s,submit_rsrcs_attrs    ) ;

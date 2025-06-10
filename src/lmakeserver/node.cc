@@ -304,7 +304,16 @@ namespace Engine {
 						n_seen_sdeps++ ;
 						if (n_seen_sdeps==n_sdeps) break ;                                             // all static deps have been seen, no need to explore any further
 					}
-					if (n_sdeps!=Npos) SWEAR( n_seen_sdeps==n_sdeps , n_seen_sdeps,n_sdeps ) ;
+//					if (n_sdeps!=Npos) SWEAR( n_seen_sdeps==n_sdeps , n_seen_sdeps,n_sdeps ) ;         // XXX : suppress fancy code below when bug is fixed
+					if ( n_sdeps!=Npos && n_seen_sdeps!=n_sdeps ) {
+						Rule::RuleMatch rm       = { rt , name_ , Maybe/*chk_psfx*/ } ;
+						::vector_s      expected ;
+						::vector_s      actual   ;
+						::pair_s</*msg*/::vmap_s<DepSpec>> digest = r->deps_attrs.eval(rm) ;
+						for( auto const& kds : digest.second ) if ( DepSpec const& ds = kds.second ; +ds.txt                 ) expected.push_back(ds.txt   ) ;
+						for( Dep  const& d   : jt->deps      ) if (                                  d.dflags[Dflag::Static] ) actual  .push_back(d->name()) ;
+						FAIL(n_seen_sdeps,n_sdeps,digest.first,expected,actual) ;
+					}
 				}
 				n_job_tgts++ ;                                                                         // simply extend official size as reservoir job is ok
 			} else {

@@ -173,7 +173,7 @@ namespace Engine::Persistent {
 	struct RuleBase
 	:	             Idxed<RuleIdx>
 	{	using Base = Idxed<RuleIdx> ;
-		friend Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared) ;
+		friend Iota2<Rule> rule_lst(bool with_shared) ;
 		static constexpr char   NoRuleName[] = "no_rule"            ;
 		static constexpr size_t NoRuleNameSz = sizeof(NoRuleName)-1 ;     // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
 		// statics
@@ -457,7 +457,7 @@ namespace Engine::Persistent {
 	//
 	// RuleBase
 	//
-	inline Iota<true/*WithStart*/,Rule> rule_lst(bool with_shared=false) {
+	inline Iota2<Rule> rule_lst(bool with_shared=false) {
 		if (+Rule::s_rules) return { with_shared?1:+Special::NShared , Rule(Rule::s_rules->size()+1) } ; // rules are numbered from 1 to _s_n_rules
 		else                return { 0                               , 0                             } ;
 	}
