@@ -301,9 +301,9 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 	//
 	// path
-	::vector_s path ; //!                      EmptyIsDot
-	if ( py_path && +*py_path ) path = _get_seq<true    >("path"    ,*py_path          ) ;
-	else                        path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
+	::vector_s path ; //!                           EmptyIsDot
+	if ( py_path && py_path!=&None ) path = _get_seq<true    >("path"    ,*py_path          ) ;
+	else                             path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
 	#if PY_MAJOR_VERSION>2
 		try                       { JobSupport::depend( *_g_record , ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
 		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                }

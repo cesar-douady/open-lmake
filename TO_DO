@@ -166,6 +166,12 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+! share deps to non-buildable Node's in job deps
+	- define a new prefix file non_buildable_deps (reversed)
+	- store such entries in deps rather than the explicit list
+! when matching rules, devise a prefix tree for infixes
+	- much like prefix/suffix
+	- but explore a sub-tree depending on whether each infix is found or not, in order
 ! avoid ack at job start
 	- pass all infos in command line
 		- pass JobRpcReply as argument through mk_shell_str
