@@ -181,22 +181,23 @@ namespace Engine {
 		size_t            wk         = 0                             ;
 		size_t            wf         = 0                             ;
 		::umap_ss         rev_map    ;
-		::vector<Color  > dep_colors ;                                      // indexed before filtering
-		::vector<NodeIdx> dep_groups ;                                      // indexed after  filtering, deps in given group are parallel
+		::vector<Color  > dep_colors ;                                       // indexed before filtering
+		::vector<NodeIdx> dep_groups ;                                       // indexed after  filtering, deps in given group are parallel
 		NodeIdx           dep_group  = 0                             ;
 		::vmap_s<RegExpr> res        ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
-			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {      // this cannot fail as we already have the job
-				if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
-				else            wk = ::max( wk ,           k .size() ) ;
-				rev_map[d.txt] = k ;
+			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {       // this cannot fail as we already have the job
+				if (rev_map.try_emplace(d.txt,k).second) {                   // in case of multiple matches, retain first
+					if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
+					else            wk = ::max( wk ,           k .size() ) ;
+				}
 			}
 			::vector<Pattern> star_patterns = m.star_patterns() ;
 			VarIdx            i             = 0                 ;
 			for( MatchKind mk : iota(All<MatchKind>) )
 				for( VarIdx mi : rule->matches_iotas[true/*star*/][+mk] ) {
-					if (mk!=MatchKind::Target) {                            // deps cannot be found in targets, but they can in side_targets
+					if (mk!=MatchKind::Target) {                             // deps cannot be found in targets, but they can in side_targets
 						::string const& k = rule->matches[mi].first ;
 						if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
 						else            wk = ::max( wk ,           k .size() ) ;
@@ -213,8 +214,8 @@ namespace Engine {
 			dep_groups.push_back(dep_group) ;
 			wf = ::max( wf , mk_py_str(d->name()).size() ) ;
 		}
-		NodeIdx di1          = 0 ;                                          // before filtering
-		NodeIdx di2          = 0 ;                                          // after  filtering
+		NodeIdx di1          = 0 ;                                           // before filtering
+		NodeIdx di2          = 0 ;                                           // after  filtering
 		NodeIdx n_dep_groups = 0 ;
 		if (porcelaine) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
 		for( Dep const& dep : job->deps ) {
@@ -991,7 +992,8 @@ namespace Engine {
 					VarIdx          i              = 0                        ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[false/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep) rev_map[static_matches[i]] = rule->matches[mi].first ;                        // side deps cannot be targets
+							if (mk!=MatchKind::SideDep)                                                                               // side deps cannot be targets
+								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                                  // in case of multiple matches, retain first
 							i++ ;
 						}
 					::vector<Pattern> star_patterns = m.star_patterns() ;

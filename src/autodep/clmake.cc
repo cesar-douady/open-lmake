@@ -293,8 +293,8 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'm' : if (key=="module_name"    ) { throw_if(py_sfxs,key,MsgEnd) ; py_sfxs = &py_val ; continue ; }
-			/**/       if (key=="module_suffixes") { throw_if(py_name,key,MsgEnd) ; py_name = &py_val ; continue ; } break ;
+			case 'm' : if (key=="module_name"    ) { throw_if(py_name,key,MsgEnd) ; py_name = &py_val ; continue ; }
+			/**/       if (key=="module_suffixes") { throw_if(py_sfxs,key,MsgEnd) ; py_sfxs = &py_val ; continue ; } break ;
 			case 'p' : if (key=="path"           ) { throw_if(py_path,key,MsgEnd) ; py_path = &py_val ; continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
