@@ -37,14 +37,22 @@ using namespace Disk ;
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 // /!\ this function must not modify anything outside its local frame as it may be called as pre_exec under ::vfork()
 [[noreturn]] void Child::_do_child_trampoline() {
-	if (as_session) ::setsid() ;                                             // if we are here, we are the init process and we must be in the new session to receive the kill signal
+	if (as_session) ::setsid() ;                 // if we are here, we are the init process and we must be in the new session to receive the kill signal
+	if (nice) {
+		[[maybe_unused]] int nice_val ;                                                            // ignore error if any, as we cant do much about it
+		if (!as_session)
+			/**/                       nice_val = ::nice(nice) ;
+		else
+			try                      { AcFd("/proc/self/autogroup",Fd::Write).write(cat(nice)) ; } // as_session creates a new autogroup : apply nice_val to it, not locally between processes within it
+			catch (::string const&e) { nice_val = ::nice(nice) ;                                 } // best effort
+	}
 	//
-	sigset_t full_mask ; ::sigfillset(&full_mask) ;                          // sig fillset may be a macro
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                          // restore default behavior
+	sigset_t full_mask ; ::sigfillset(&full_mask) ;                                                // sig fillset may be a macro
+	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                                                // restore default behavior
 	//
-	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
-	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; } // .
-	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; } // .
+	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; }                       // could be optimized, but too complex to manage
+	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; }                       // .
+	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; }                       // .
 	// set up std fd
 	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (                      _p2c .read !=Fd::Stdin  ) ::dup2(_p2c .read ,Fd::Stdin ) ;
 	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if ( stdout_fd!=JoinFd && _c2po.write!=Fd::Stdout ) ::dup2(_c2po.write,Fd::Stdout) ;
@@ -53,16 +61,16 @@ using namespace Disk ;
 	if      (stdout_fd==JoinFd) { SWEAR(stderr_fd!=JoinFd) ; ::dup2(Fd::Stderr,Fd::Stdout) ; }
 	else if (stderr_fd==JoinFd)                              ::dup2(Fd::Stdout,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;                          // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                          // .
-	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                          // .
+	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;                                                // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                                                // .
+	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                                                // .
 	//
 	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"    ) ; }
 	//
 	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                         // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                               // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
 	if (first_pid) {

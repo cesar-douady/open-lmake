@@ -32,7 +32,7 @@ else :
 	import ut
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake('test',new=1,may_rerun=1,done=2)
+	ut.lmake('-N10','test',new=1,may_rerun=1,done=2)
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake('test',failed=1,may_rerun=1,done=1,steady=1)
+	ut.lmake('-N10','test',failed=1,may_rerun=1,done=1,steady=1)

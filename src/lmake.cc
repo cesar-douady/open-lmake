@@ -73,6 +73,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                     } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
 	,	{ ReqFlag::MaxSubmits      , { .short_name='m' , .has_arg=true  , .doc="max sumits on top of rule prescription"      } }
+	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                 } }
 	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                         } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
@@ -90,10 +91,12 @@ int main( int argc , char* argv[] ) {
 	/**/  trace("main",args                    ) ;
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
-	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                           }
-	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ; }
-	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                    }
-	catch (::string const& e) { syntax.usage("cannot understand retry count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ; }
+	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                                                         }
+	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ;                               }
+	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                                                 }
+	catch (::string const& e) { syntax.usage("cannot understand retry count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                              }
+	try                       { uint8_t n = from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::Nice],true/*empty_ok*/) ; throw_unless(n<=20,"must be at most 20") ; }
+	catch (::string const& e) { syntax.usage("cannot understand nice value ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                               }
 	// start interrupt handling thread once server is started
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;

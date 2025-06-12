@@ -189,6 +189,7 @@ Fd Gather::_spawn_child() {
 	//
 	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                    // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
+	_child.nice       = nice                                  ;
 	_child.stdin_fd   = child_stdin                           ;
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;

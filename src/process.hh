@@ -95,6 +95,7 @@ private :
 public :
 	// spawn parameters
 	bool            as_session         = false      ;
+	uint8_t         nice               = 0          ;
 	pid_t           first_pid          = 0          ;
 	::vector_s      cmd_line           = {}         ;
 	Fd              stdin_fd           = Fd::Stdin  ;

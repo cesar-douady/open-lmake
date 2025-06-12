@@ -22,7 +22,19 @@ It is better to reduce this list to what is really needed in you flow, i.e. the 
 Reducing this list avoids useless deps.
 
 The default value is the full standard list,
-e.g. `('.py','.cpython-312-x86_64-linux-gnu.so','.abi3.so','.so','/__init__.py','/__init__.cpython-312-x86_64-linux-gnu.so','/__init__.abi3.so','/__init__.so')`
+e.g. `('/__init__.cpython-312-x86_64-linux-gnu.so','/__init__.abi3.so','/__init__.so','/__init__.py','.cpython-312-x86_64-linux-gnu.so','.abi3.so','.so','.py')`
 for python3.12 running on Linux with a x86\_64 processor architecture.
 
-A reasonable value would be `('.py','.so','/__init__.py')`, or `('.py','/__init__.py')` if no module are compiled, or even `('.py',)` if no package is generated.
+This standard list is constructed as follows:
+
+- Call `importlib.machinery.all_suffixes()`.
+- Reorder to put suffixes ending with `.so` before those ending in `.py` to match actual python try order.
+- Then use 2 copies of this list, the first one being prefixed with `/__init__` for each entry (again, python gives priority to packages over leaf modules).
+
+Reasonable values could be:
+
+- `('/__init__.so','/__init__.py','.so','.py')` if compiled packages and modules are used locally.
+- `('/__init__.py','.py')`                      if no modules nor packages are compiled.
+- `('.py',)`                                    if no packages is used locally nor modules compiled.
+
+Note that the management of `.pyc` files is independent.

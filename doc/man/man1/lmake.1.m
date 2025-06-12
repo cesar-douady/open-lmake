@@ -92,6 +92,9 @@ Generating such output for all jobs would produce an intermixed flow of characte
 When this option is used, only the jobs directly producing the asked targets have their output generated on the output of B(lmake).
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
 
+Item(B(-N) I(nice_val),B(--nice)=I(nice_val))
+Apply the specified nice value to all jobs.
+
 Item(B(-m) I(count),B(--max-submits)=I(count))
 Ask B(lmake) to limit number of submits for any job to this number.
 This constraint must be enforced together with the B(max_submits) rule attribute, i.e. the min of these 2 constraints is used.

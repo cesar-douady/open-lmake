@@ -1317,6 +1317,7 @@ namespace Engine {
 			SubmitAttrs sa = {
 				.pressure = pressure
 			,	.live_out = ri.live_out
+			,	.nice     = rr->nice
 			} ;
 			//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			ri.miss_live_out = Backend::s_add_pressure( backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
@@ -1439,6 +1440,7 @@ namespace Engine {
 			,	.cache_idx =        cache_idx
 			,	.tokens1   =        tokens1
 			,	.live_out  =        ri.live_out
+			,	.nice      =        req->nice
 			} ;
 			estimate_stats(tokens1) ;                // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

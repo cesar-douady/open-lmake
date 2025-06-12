@@ -405,6 +405,12 @@ namespace Backends::Slurm {
 		throw_unless( init_func          , "cannot find function slurm_init in "         ,lib_slurm_ ) ;
 		throw_unless( load_ctl_conf_func , "cannot find function slurm_load_ctl_conf in ",lib_slurm_ ) ;
 		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
+		if (!AcFd(config_file_)) {
+			::string msg = "cannot find slurm config\n" ;
+			if (+config_file) msg << "ensure lmake.config.backends.slurm.config is adequate : "   <<config_file <<'\n'             ;
+			else              msg << "consider setting lmake.config.backends.slurm.config (using "<<config_file_<<" by default)\n" ;
+			throw msg ;
+		}
 		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
 		// so the idea here is to fork a process to probe SlurmApi::init
 		if ( pid_t child_pid=::fork() ; !child_pid ) {

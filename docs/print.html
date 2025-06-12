@@ -868,9 +868,21 @@ This is embarassing if <code>foo.py</code> is dynamically produced as initially,
 (modules that are sources are not concerned by this list and deps to them will be accurate in all cases).
 Reducing this list avoids useless deps.</p>
 <p>The default value is the full standard list,
-e.g. <code>('.py','.cpython-312-x86_64-linux-gnu.so','.abi3.so','.so','/__init__.py','/__init__.cpython-312-x86_64-linux-gnu.so','/__init__.abi3.so','/__init__.so')</code>
+e.g. <code>('/__init__.cpython-312-x86_64-linux-gnu.so','/__init__.abi3.so','/__init__.so','/__init__.py','.cpython-312-x86_64-linux-gnu.so','.abi3.so','.so','.py')</code>
 for python3.12 running on Linux with a x86_64 processor architecture.</p>
-<p>A reasonable value would be <code>('.py','.so','/__init__.py')</code>, or <code>('.py','/__init__.py')</code> if no module are compiled, or even <code>('.py',)</code> if no package is generated.</p>
+<p>This standard list is constructed as follows:</p>
+<ul>
+<li>Call <code>importlib.machinery.all_suffixes()</code>.</li>
+<li>Reorder to put suffixes ending with <code>.so</code> before those ending in <code>.py</code> to match actual python try order.</li>
+<li>Then use 2 copies of this list, the first one being prefixed with <code>/__init__</code> for each entry (again, python gives priority to packages over leaf modules).</li>
+</ul>
+<p>Reasonable values could be:</p>
+<ul>
+<li><code>('/__init__.so','/__init__.py','.so','.py')</code> if compiled packages and modules are used locally.</li>
+<li><code>('/__init__.py','.py')</code>                      if no modules nor packages are compiled.</li>
+<li><code>('.py',)</code>                                    if no packages is used locally nor modules compiled.</li>
+</ul>
+<p>Note that the management of <code>.pyc</code> files is independent.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->

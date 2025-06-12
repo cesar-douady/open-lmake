@@ -419,6 +419,7 @@ namespace Backends {
 				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)        ;
 				/**/                            reply.live_out                = submit_attrs.live_out                          ;
 				/**/                            reply.network_delay           = g_config->network_delay                        ;
+				/**/                            reply.nice                    = submit_attrs.nice                              ;
 				/**/                            reply.rule                    = rd.user_name()                                 ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;

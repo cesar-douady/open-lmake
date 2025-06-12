@@ -723,6 +723,7 @@ struct JobStartRpcReply {                                                 // NOL
 		::serdes(s,live_out      ) ;
 		::serdes(s,method        ) ;
 		::serdes(s,network_delay ) ;
+		::serdes(s,nice          ) ;
 		::serdes(s,pre_actions   ) ;
 		::serdes(s,rule          ) ;
 		::serdes(s,small_id      ) ;
@@ -775,6 +776,7 @@ struct JobStartRpcReply {                                                 // NOL
 	bool                           live_out       = false               ;
 	AutodepMethod                  method         = AutodepMethod::Dflt ;
 	Time::Delay                    network_delay  ;
+	uint8_t                        nice           = 0                   ;
 	::vmap_s<FileAction>           pre_actions    ;
 	::string                       rule           ;                       // rule name
 	SmallId                        small_id       = 0                   ;
@@ -917,6 +919,7 @@ struct SubmitAttrs {
 		if (!deps        ) deps          =                other.deps         ; else if (+other.deps        ) SWEAR( deps        ==other.deps         , deps        ,other.deps         ) ;
 		if (!used_backend) used_backend  =                other.used_backend ; else if (+other.used_backend) SWEAR( used_backend==other.used_backend , used_backend,other.used_backend ) ;
 		/**/               live_out     |=                other.live_out     ;
+		/**/               nice          = ::min(nice    ,other.nice     )   ;
 		/**/               pressure      = ::max(pressure,other.pressure )   ;
 		/**/               reason       |=                other.reason       ;
 		/**/               tokens1       = ::max(tokens1 ,other.tokens1  )   ;
@@ -936,6 +939,7 @@ struct SubmitAttrs {
 	Tokens1             tokens1      = 0     ;
 	BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
 	bool                live_out     = false ;
+	uint8_t             nice         = 0     ;
 	// END_OF_VERSIONING
 } ;
 

@@ -218,7 +218,6 @@ M port to Darwin
 	? rest of code is identical
 ? improve rule updating
 	? when matching changes but command does not change, avoid to relaunch job
-	? compute cmd checksum on its code rather than on the source to resist to cosmetic changes such as comments modifs
 X manage HUGE pages in store
 	- requires privileges
 

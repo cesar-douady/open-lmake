@@ -42,8 +42,9 @@ private :
 		return cat("version ",Version[0],'.',Version[1]," (",VersionMrkr,")") ;
 	}
 public :
-	[[noreturn]] static void s_version() {
-		exit( {} , _s_version_str() ) ;
+	[[noreturn]] static void s_version(bool quiet=false) {
+		if (quiet) exit( {} , VersionMrkr      ) ;
+		else       exit( {} , _s_version_str() ) ;
 	}
 	// cxtors & casts
 	Syntax() = default ;
@@ -148,8 +149,10 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 	::umap<char,Key > key_map  ;     for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
 	::umap<char,Flag> flag_map ;     for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
-		bool has_key    = false ;
-		bool force_args = false ;
+		bool has_key       = false ;
+		bool force_args    = false ;
+		bool print_help    = false ;
+		bool print_version = false ;
 		for( a=1 ; a<argc ; a++ ) {
 			const char* arg = argv[a] ;
 			if ( arg[0]!='-' || force_args ) {
@@ -187,8 +190,8 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 						continue ;
 					}
 				}
-				if      ( !syntax.sub_option && option=="version" ) syntax.s_version()                  ;
-				else if ( option=="help"                          ) throw ""s                           ;
+				if      ( !syntax.sub_option && option=="version" ) print_version = true ;
+				else if (                       option=="help"    ) print_help    = true ;
 				else                                                throw "unexpected option --"+option ;
 			} else {
 				// short options
@@ -211,13 +214,18 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 						else               throw "no value for option -"s+*p ;
 						break ;
 					} else if (*p=='h') {
-						throw ""s ;
+						print_help = true ;
 					} else {
 						throw "unexpected option -"s+*p ;
 					}
 				}
 			}
 		}
+		if (print_version) {
+			if constexpr (requires(){Flag::Quiet;}) syntax.s_version(flags[Flag::Quiet]) ;
+			else                                    syntax.s_version(                  ) ;
+		}
+		throw_if    ( print_help                                            ) ;
 		throw_unless( has_key || syntax.has_dflt_key , "must specify a key" ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//

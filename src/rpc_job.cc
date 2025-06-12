@@ -1033,6 +1033,7 @@ void JobEndRpcReq::cache_cleanup() {
 	/**/                           os <<','  << jsrr.interpreter            ;
 	/**/                           os <<','  << jsrr.kill_sigs              ;
 	if (jsrr.live_out            ) os <<','  << "live_out"                  ;
+	if (jsrr.nice                ) os <<','  << "nice:"<<jsrr.nice          ;
 	if (jsrr.stderr_ok           ) os <<','  << "stderr_ok"                 ;
 	/**/                           os <<','  << jsrr.method                 ;
 	if (+jsrr.network_delay      ) os <<','  << jsrr.network_delay          ;

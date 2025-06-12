@@ -141,7 +141,8 @@ public :
 	vmap_s<AccessInfo>                      accesses           ;
 	vmap<Re::RegExpr,::pair<PD,MatchFlags>> access_patterns    ;                                              // apply flags to matching accesses, ignore only to posterior accesses
 	in_addr_t                               addr               = 0                                          ; // local addr to which we can be contacted by running job
-	Atomic<bool>                            as_session         = false                                      ; // if true <=> process is launched in its own group
+	bool                                    as_session         = false                                      ; // if true <=> process is launched in its own group
+	uint8_t                                 nice               = 0                                          ;
 	AutodepEnv                              autodep_env        ;
 	::function<::vmap_s<DepDigest>()>       cur_deps_cb        = [&]()->::vmap_s<DepDigest> { return {} ; } ;
 	PD                                      end_date           ;

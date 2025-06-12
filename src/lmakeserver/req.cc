@@ -48,6 +48,7 @@ namespace Engine {
 		try {
 			if (ecr.options.flags[ReqFlag::RetryOnError]) data.n_retries = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::RetryOnError]                 ) ;
 			if (ecr.options.flags[ReqFlag::MaxSubmits  ]) data.n_submits = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::MaxSubmits  ]                 ) ;
+			if (ecr.options.flags[ReqFlag::Nice        ]) data.nice      = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::Nice        ]                 ) ;
 			JobIdx                                        n_jobs         = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
 			if (ecr.is_job()) data.job = ecr.job()                                                                               ;
 			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),DflagsDfltStatic,true/*parallel*/) ) ;

@@ -605,6 +605,7 @@ int main( int argc , char* argv[] ) {
 		//
 		g_gather.addr             =        g_start_info.addr           ;
 		g_gather.as_session       =        true                        ;
+		g_gather.nice             =        g_start_info.nice           ;
 		g_gather.autodep_env      = ::move(g_start_info.autodep_env  ) ;
 		g_gather.cur_deps_cb      =        cur_deps_cb                 ;
 		g_gather.env              =        &cmd_env                    ;

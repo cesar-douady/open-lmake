@@ -773,22 +773,32 @@ lmake_env/Manifest : Manifest
 lmake_env/% : %
 	@mkdir -p $(@D)
 	cp $< $@
-lmake_env/stamp : $(LMAKE_ALL_FILES) lmake_env/Manifest $(patsubst %,lmake_env/%,$(LMAKE_SRCS))
-	@mkdir -p lmake_env-cache/LMAKE
-	echo '300M' > lmake_env-cache/LMAKE/size
+lmake_env/stamp : lmake_env/Manifest $(patsubst %,lmake_env/%,$(LMAKE_SRCS))
 	@touch $@
-	@echo init lmake_env-cache
-lmake_env/tok : lmake_env/stamp lmake_env/Lmakefile.py
-	@set -e                                                                                        ; \
-	cd lmake_env                                                                                   ; \
-	export CXX=$(CXX)                                                                              ; \
-	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1                                              ; \
-	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp                                                 ; \
-	wait $$!                                                                                       ; \
-	rm -rf LMAKE.bck                                                                               ; \
-	$(REPO_ROOT)/bin/lrepair >>$(@F).tmp                                                           ; \
-	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp2                                                ; \
-	grep -q 'was already up to date' $(@F).tmp2 && { cat $(@F).tmp2 >$(@F).tmp ; rm $(@F).tmp2 ; } ; \
+	@echo init lmake_env
+lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
+	@cd lmake_env ;                                       \
+	$(REPO_ROOT)/bin/lmake --version >/dev/null 2>&1 || { \
+		echo reset lmake_env book-keeping ;               \
+		rm -rf LMAKE ../lmake_env-cache   ;               \
+	}
+	@[ -f lmake_env-cache/LMAKE/size ] || {       \
+		echo init lmake_env-cache               ; \
+		mkdir -p lmake_env-cache/LMAKE          ; \
+		echo '300M' >lmake_env-cache/LMAKE/size ; \
+	}
+	@set -e ; cd lmake_env                            ; \
+	export CXX=$(CXX)                                 ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp    ; \
+	wait $$!                                          ; \
+	rm -rf LMAKE.bck                                  ; \
+	$(REPO_ROOT)/bin/lrepair >>$(@F).tmp              ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp2   ; \
+	grep -q 'was already up to date' $(@F).tmp2 && {    \
+		cat $(@F).tmp2 >$(@F).tmp ;                     \
+		rm $(@F).tmp2             ;                     \
+	} ;                                                 \
 	mv $(@F).tmp $(@F)
 
 #
