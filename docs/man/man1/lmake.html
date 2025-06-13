@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Jun 12 14:37:24 2025 -->
+<!-- CreationDate: Fri Jun 13 12:06:30 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -521,10 +521,10 @@ repeatability.</p>
 <p style="margin-left:9%;"><b>-e</b>,
 <b>--forget-old-errors</b></p>
 
-<p style="margin-left:18%;">Assume encountered errors
-(before this command) are transicent. Contrarily to the
-<b>lforget -e</b> command, this only concerns this
-execution, not subsequent ones.</p>
+<p style="margin-left:18%;">Assume previous errors (before
+this command) are transicent. Contrarily to the <b>lforget
+-e</b> command, this only concerns this execution, not
+subsequent ones.</p>
 
 <p style="margin-left:9%;"><b>-j</b> jobs,
 <b>--jobs</b>=<i>jobs</i></p>
@@ -576,7 +576,11 @@ in case of error. This is useful for unattended execution
 enough to guarantee correct execution at the desired
 level.</p>
 
-<p style="margin-left:9%;"><b>-l</b>, <b>--local</b></p>
+<p style="margin-left:9%; margin-top: 1em">Contrarily to
+<b>-e</b>, this concerns all jobs. Previous errors are
+counted as 1 trial. Hence, <b>-r</b> encompasses <b>-e</b>,
+but retries more jobs in error. <b><br>
+-l</b>, <b>--local</b></p>
 
 <p style="margin-left:18%;">With this option, jobs are
 launched locally (i.e. using the <i>local</i> backend)

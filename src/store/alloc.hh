@@ -136,9 +136,9 @@ namespace Store {
 			Iterator cend  () const { return Iterator(self,{}    ) ; }
 			// data
 		private :
-			AllocFile const*    _self  ;
-			::uset<IntIdx<Idx>> _frees ;
-			mutable SLock       _lock  ;
+			AllocFile const*     _self  ;
+			::uset<UintIdx<Idx>> _frees ;
+			mutable SLock        _lock  ;
 		} ;
 
 		// statics

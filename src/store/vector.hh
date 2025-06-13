@@ -26,10 +26,10 @@ namespace Store {
 		template<class Idx_,class Item_,class Sz_=Idx_,size_t MinSz_=1> struct Chunk
 		:	              ChunkBase<Idx_,Item_,Sz_,MinSz_>
 		{	using Base  = ChunkBase<Idx_,Item_,Sz_,MinSz_> ;
-			using Idx   = Idx_        ;
-			using Item  = Item_       ;
-			using Sz    = Sz_         ;
-			using IdxSz = IntIdx<Idx> ;
+			using Idx   = Idx_         ;
+			using Item  = Item_        ;
+			using Sz    = Sz_          ;
+			using IdxSz = UintIdx<Idx> ;
 			static constexpr size_t MinSz = MinSz_ ;
 			//
 			static constexpr bool IsTrivial = ::Store::IsTrivial<Item> ;
@@ -69,7 +69,7 @@ namespace Store {
 
 	}
 
-	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Item_,class Sz=IntIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
+	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Item_,class Sz=UintIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
 	:	              AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa >
 	{	using Base  = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa > ;
 		using Chunk =                                                         Vector::Chunk<Idx_,Item_,Sz,MinSz>              ;

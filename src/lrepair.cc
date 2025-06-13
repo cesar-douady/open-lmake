@@ -20,8 +20,11 @@ struct RepairDigest {
 
 RepairDigest repair(::string const& from_dir) {
 	Trace trace("repair",from_dir) ;
-	RepairDigest     res      ;
+	RepairDigest res           ;
+	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , Fd::Write } ;
+	//
 	::umap<Crc,Rule> rule_tab ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
+	//
 	for( ::string const& jd : walk(from_dir,from_dir) ) {
 		{	JobInfo job_info { jd } ;
 			// qualify report
@@ -76,7 +79,9 @@ RepairDigest repair(::string const& from_dir) {
 			job_info.start.submit_attrs.reason.node = 0    ;                                               // reason node is stored as a idx, not a name, cannot restore it
 			// restore job_data
 			job.record(job_info) ;
-			trace("restored",jd,job->name()) ;
+			::string jn = job->name() ;
+			repaired_jobs.write(cat(jn,'\n')) ;
+			trace("restored",jd,jn) ;
 		}
 		res.n_repaired++ ;
 	NextJob : ;
@@ -85,6 +90,7 @@ RepairDigest repair(::string const& from_dir) {
 	return res ;
 }
 
+// lad = local_admin_dir
 int main( int argc , char* /*argv*/[] ) {
 	::string admin_dir_s      = AdminDirS                                                 ;
 	::string admin_dir        = no_slash(admin_dir_s)                                     ;
@@ -141,6 +147,7 @@ int main( int argc , char* /*argv*/[] ) {
 	g_trace_file = new ::string{cat(PrivateAdminDirS,"trace/",*g_exe_name)} ;
 	Trace::s_start() ;
 	//
+	// make a fresh local admin dir
 	{	::string msg ;
 		try                       { Makefiles::refresh( msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
 		catch (::string const& e) {                                                                  if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
@@ -159,6 +166,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Persistent::chk() ;
 	chk_version(true/*may_init*/) ;                                                                             // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;

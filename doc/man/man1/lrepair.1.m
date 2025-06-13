@@ -20,6 +20,8 @@ In case of incoherent behavior, the user may decide to run B(lrepair).
 This process is pretty long, the goal being to avoid having to restart from a fresh repo, which may incur a severe cost in terms of compute power.
 .LP
 Once B(lrepair) is done, it generates some suggestions about what to do with the freshly repaired repo, including step back and forget about the repair.
+.LP
+While repairing B(lrepair) generates a file I(LMAKE/repaired_jobs) that contains the list of successfully repaired jobs.
 
 ClientGeneralities()
 

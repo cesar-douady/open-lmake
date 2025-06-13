@@ -13,7 +13,7 @@ namespace Store {
 
 		template<class Hdr_,class Idx,class Data> struct Hdr {
 			using HdrNv  = NoVoid<Hdr_> ;
-			using Sz     = IntIdx<Idx>  ;
+			using Sz     = UintIdx<Idx> ;
 			using DataNv = NoVoid<Data> ;
 			// cxtors & casts
 			template<class... A> Hdr(A&&... args) : hdr{::forward<A>(args)...} {}
@@ -42,7 +42,7 @@ namespace Store {
 		using Data   = Data_                   ;
 		using HdrNv  = NoVoid<Hdr >            ;
 		using DataNv = NoVoid<Data>            ;
-		using Sz     = IntIdx<Idx>             ;
+		using Sz     = UintIdx<Idx>            ;
 		using ULock  = UniqueLock<AutoLock>    ;
 		using SLock  = SharedLock<AutoLock>    ;
 		//
@@ -83,7 +83,7 @@ namespace Store {
 		/**/                 void init( ::string const& /*name*/ , bool /*writable*/                   ) requires(!HasFile) {}
 		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) requires( HasFile) {
 			Base::init( name , writable ) ;
-			if (Base::operator+()) return                                   ;
+			if (Base::operator+()) return ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
@@ -114,7 +114,8 @@ namespace Store {
 		}
 		void chk() const requires(HasFile) {
 			Base::chk() ;
-			if (size()) throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
+			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
+			throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
 		void _clear() {
@@ -136,7 +137,7 @@ namespace Store {
 				fence() ;                                                                                         // update state when it is legal to do so
 				_size() = new_sz ;                                                                                // once allocation is done, no reason to maintain lock
 			}
-			Idx res{old_sz} ;
+			Idx res { old_sz } ;
 			new(&at(res)) Data(::forward<A>(args)...) ;
 			_chk_sz(res,sz) ;
 			return res ;

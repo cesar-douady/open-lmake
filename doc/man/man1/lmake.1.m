@@ -78,7 +78,7 @@ This is used for example to pass a partition or specificities to the slurm backe
 Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
 
 Item(B(-e),B(--forget-old-errors))
-Assume encountered errors (before this command) are transicent.
+Assume previous errors (before this command) are transicent.
 Contrarily to the B(lforget -e) command, this only concerns this execution, not subsequent ones.
 
 Item(B(-j) jobs,B(--jobs)=I(jobs))
@@ -103,6 +103,10 @@ This is useful to observe a job while it is supposed to rerun.
 Item(B(-r) I(count),B(--retry-on-error)=I(count))
 Ask B(lmake) to retry jobs in case of error.
 This is useful for unattended execution (e.g. nightly regressions) when system reliability is not enough to guarantee correct execution at the desired level.
+.LP
+Contrarily to B(-e), this concerns all jobs.
+Previous errors are counted as 1 trial.
+Hence, B(-r) encompasses B(-e), but retries more jobs in error.
 
 Item(B(-l),B(--local))
 With this option, jobs are launched locally (i.e. using the I(local) backend) instead of the backend mentioned in the rule.
