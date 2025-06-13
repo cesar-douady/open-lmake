@@ -113,7 +113,8 @@ namespace Store {
 		}
 		void chk() const requires(HasFile) {
 			Base::chk() ;
-			if (size()) throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
+			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
+			throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
 		void _clear() {

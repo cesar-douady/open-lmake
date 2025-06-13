@@ -156,6 +156,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Persistent::chk() ;
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;
