@@ -28,47 +28,49 @@ RepairDigest repair(::string const& from_dir) {
 	for( ::string const& jd : walk(from_dir,from_dir) ) {
 		{	JobInfo job_info { jd } ;
 			// qualify report
-			if (job_info.end.digest.status!=Status::Ok) { trace("not_ok",jd) ; goto NextJob ; }                         // repairing jobs in error is useless
+			if (job_info.end.digest.status!=Status::Ok) { trace("not_ok",jd) ; goto NextJob ; }                           // repairing jobs in error is useless
 			// find rule
 			auto it = rule_tab.find(job_info.start.rule_crc_cmd) ;
-			if (it==rule_tab.end()) { trace("no_rule",jd,job_info.start.rule_crc_cmd) ; goto NextJob ; }                // no rule
+			if (it==rule_tab.end()) { trace("no_rule",jd,job_info.start.rule_crc_cmd) ; goto NextJob ; }                  // no rule
 			Rule rule = it->second ;
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
-				if ( !is_canon(tn)                                 ) { trace("nul_in_target" ,jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
-				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                   continue     ;   // this is not a target
-				if ( !td.crc.valid()                               ) { trace("invalid_target",jd,tn) ; goto NextJob ; } // XXX? : handle this case (is it worth?)
-				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch" ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
+				if ( !is_canon(tn)                                 ) { trace("target_non_canon",jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
+				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                     continue     ;   // this is not a target
+				if ( !td.crc.valid()                               ) { trace("no_target_crc"   ,jd,tn) ; goto NextJob ; } // XXX? : handle this case (is it worth?)
+				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch"   ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
 				//
-				Node t{tn} ;
-				t->refresh( td.crc , {td.sig,{}} ) ;                                                                    // if file does not exist, the Epoch as a date is fine
+				Node t { tn } ;
+				t->refresh( td.crc , {td.sig,{}} ) ;                                                                      // if file does not exist, the Epoch as a date is fine
 				targets.emplace_back( t , td.tflags ) ;
 			}
-			::sort(targets) ;                                                                              // ease search in targets
+			::sort(targets) ;                                                                                // ease search in targets
 			// find deps
 			::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
 			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
-			job_info.update_digest() ;                                                                     // gather newer dep crcs
+			job_info.update_digest() ;                                                                       // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
-				if ( !is_canon(dn)) goto NextJob ;                                                         // this should never happen, there is a problem with this job
+				if ( !is_canon(dn)) goto NextJob ;                                                           // this should never happen, there is a problem with this job
 				if (!is_lcl(dn)) {
-					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
-					goto NextJob ;                                                                         // this should never happen as src_dirs are part of cmd definition
+					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;              // this could be optimized by searching the longest match in the name prefix tree
+					goto NextJob ;                                                                           // this should never happen as src_dirs are part of cmd definition
 				KeepDep : ;
 				}
 				Dep dep { Node(dn) , dd } ;
-				if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
-				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
+				if ( !is_canon(dn)                       ) { trace("dep_non_canon",jd,dn) ; goto NextJob ; } // this should never happen, there is a problem with this job
+				if ( !dep.is_crc                         ) { trace("no_dep_crc"   ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
+				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep"  ,jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
 				deps.emplace_back(dep) ;
 			}
 			// set job
-			Job job { {rule,::move(job_info.start.stems)} } ;
-			if (!job) goto NextJob ;
+			Rule::RuleMatch m   { rule , ::move(job_info.start.stems) } ; if ( ::string msg=m.reject_msg().first ; +msg ) { trace("rejected"         ,jd,msg) ; goto NextJob ; }
+			Job             job { ::move(m)                           } ; if ( !job                                     ) { trace("no_job_from_match",jd    ) ; goto NextJob ; }
+			//
 			job->targets.assign(targets) ;
 			job->deps   .assign(deps   ) ;
 			job->status = job_info.end.digest.status ;
-			job->set_exec_ok() ;                                                                           // pretend job just ran
+			job->set_exec_ok() ;                                                                             // pretend job just ran
 			// set target actual_job's
 			for( Target t : targets ) {
 				t->actual_job   () = job      ;
@@ -76,7 +78,7 @@ RepairDigest repair(::string const& from_dir) {
 			}
 			// adjust job_info
 			job_info.start.pre_start.job            = +job ;
-			job_info.start.submit_attrs.reason.node = 0    ;                                               // reason node is stored as a idx, not a name, cannot restore it
+			job_info.start.submit_attrs.reason.node = 0    ;                                                 // reason node is stored as a idx, not a name, cannot restore it
 			// restore job_data
 			job.record(job_info) ;
 			::string jn = job->name() ;

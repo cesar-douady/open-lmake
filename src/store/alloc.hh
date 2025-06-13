@@ -73,14 +73,14 @@ namespace Store {
 		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;                                                               // ... to code
 		using BaseData =                                                                                                     Alloc::Data<Idx_,Data_> ;
 		//
-		using Hdr    = Hdr_                 ;
-		using Idx    = Idx_                 ;
-		using Data   = Data_                ;
-		using HdrNv  = NoVoid<Hdr >         ;
-		using DataNv = NoVoid<Data>         ;
-		using Sz     = typename Base::Sz    ;
-		using ULock  = UniqueLock<AutoLock> ;
-		using SLock  = SharedLock<AutoLock> ;
+		using Hdr    = Hdr_                       ;
+		using Idx    = Idx_                       ;
+		using Data   = Data_                      ;
+		using HdrNv  = NoVoid<Hdr >               ;
+		using DataNv = NoVoid<Data>               ;
+		using Sz     = typename Base::Sz          ;
+		using ULock  = UniqueSharedLock<AutoLock> ;
+		using SLock  = SharedLock      <AutoLock> ;
 		//
 		static constexpr bool HasHdr    = !is_void_v<Hdr >         ;
 		static constexpr bool HasData   = !is_void_v<Data>         ;
@@ -93,7 +93,6 @@ namespace Store {
 		using Base::name         ;
 		using Base::size         ;
 		using Base::writable     ;
-		using Base::_mutex       ;
 
 		struct Lst {
 			struct Iterator {
@@ -138,7 +137,7 @@ namespace Store {
 		private :
 			AllocFile const*     _self  ;
 			::uset<UintIdx<Idx>> _frees ;
-			mutable SLock        _lock  ;
+			SLock  mutable       _lock  ;
 		} ;
 
 		// statics
@@ -242,6 +241,9 @@ namespace Store {
 			fence() ;                                                                                                          // ensure free list is always consistent
 			free = idx ;
 		}
+		// data
+	private :
+		SharedMutex<AutoLock> mutable _mutex ;
 	} ;
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
 		Base::chk() ;

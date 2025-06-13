@@ -469,12 +469,12 @@ namespace Store {
 	{	using Base  = AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
 		using Item  =                                                                                                Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
 		//
-		using Hdr   = Hdr_                 ;
-		using Idx   = Idx_                 ;
-		using Char  = Char_                ;
-		using Data  = Data_                ;
-		using ULock = UniqueLock<AutoLock> ;
-		using SLock = SharedLock<AutoLock> ;
+		using Hdr   = Hdr_                       ;
+		using Idx   = Idx_                       ;
+		using Char  = Char_                      ;
+		using Data  = Data_                      ;
+		using ULock = UniqueSharedLock<AutoLock> ;
+		using SLock = SharedLock      <AutoLock> ;
 		//
 		static_assert(sizeof(Item)==Item::ItemSizeOf) ;
 		static constexpr bool Reverse = Reverse_ ;
@@ -507,7 +507,6 @@ namespace Store {
 		using Base::chk_writable ;
 		using Base::clear        ;
 		using Base::size         ;
-		using Base::_mutex       ;
 
 		struct Lst {
 			using value_type = Idx ;
@@ -648,11 +647,15 @@ namespace Store {
 			_scheduled_pop    .clear() ;
 			_scheduled_shorten.clear() ;
 		}
+	protected :
+		Idx _emplace_root() {
+			return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ;
+		}
 	public :
 		// globals
 		Idx emplace_root() {
 			ULock lock{_mutex} ;
-			return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ;
+			return _emplace_root() ;
 		}
 		Lst lst(Idx root) const {
 			return Lst(self,root) ;
@@ -1118,6 +1121,10 @@ namespace Store {
 			}
 		}
 
+		// data
+	protected :
+		SharedMutex<AutoLock> mutable _mutex ;
+
 	} ;
 
 	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
@@ -1462,7 +1469,7 @@ namespace Store {
 		}
 	private :
 		void _boot() {
-			Idx root = Base::emplace_root() ;
+			Idx root = Base::_emplace_root() ;
 			SWEAR( root==Root , root ) ;
 		}
 		// services

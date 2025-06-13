@@ -14,14 +14,16 @@
 // memory leak is acceptable in case of crash
 // inconsistent state is never acceptable
 
-namespace Store {
-	//                                                                                             Shared Shared                            Shared
-	template<bool AutoLock> using UniqueLock = ::conditional_t<AutoLock,::Lock<Mutex<MutexLvl::File,true>,false>,NoLock<Mutex<MutexLvl::File,true>>> ;
-	template<bool AutoLock> using SharedLock = ::conditional_t<AutoLock,::Lock<Mutex<MutexLvl::File,true>,true >,NoLock<Mutex<MutexLvl::File,true>>> ;
+namespace Store { //                                                                            Shared
+	template<bool AutoLock> using UniqueMutex = ::conditional_t< AutoLock , Mutex<MutexLvl::File,false> , NoMutex > ;
+	template<bool AutoLock> using SharedMutex = ::conditional_t< AutoLock , Mutex<MutexLvl::File,true > , NoMutex > ;
+	//                                                                                                     Shared          Shared
+	template<bool AutoLock> using UniqueLock       = ::conditional_t< AutoLock , Lock<UniqueMutex<AutoLock>,false> , NoLock<false> > ;
+	template<bool AutoLock> using UniqueSharedLock = ::conditional_t< AutoLock , Lock<SharedMutex<AutoLock>,false> , NoLock<false> > ; // a unique lock of a shared-capable mutex
+	template<bool AutoLock> using SharedLock       = ::conditional_t< AutoLock , Lock<SharedMutex<AutoLock>,true > , NoLock<true > > ;
 
 	template<bool AutoLock,size_t Capacity> struct File {
 		using ULock = UniqueLock<AutoLock> ;
-		using SLock = SharedLock<AutoLock> ;
 		// cxtors & casts
 		File () = default ;
 		File ( NewType                                ) { init(New            ) ; }
@@ -89,10 +91,9 @@ namespace Store {
 		Atomic<size_t> size      = 0       ;               // underlying file size (fake if no file)
 		bool           writable  = false   ;
 		bool           keep_open = false   ;
-	protected :
-		Mutex<MutexLvl::File,true/*Shared*/> mutable _mutex ;
 	private :
-		AcFd _fd ;
+		UniqueMutex<AutoLock> mutable _mutex ;
+		AcFd                          _fd    ;
 	} ;
 
 	template<bool AutoLock,size_t Capacity> File<AutoLock,Capacity>& File<AutoLock,Capacity>::operator=(File&& other) {

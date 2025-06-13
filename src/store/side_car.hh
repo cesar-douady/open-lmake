@@ -13,15 +13,15 @@ namespace Store {
 	:	             AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , NoVoid<Data_,SideCar_> , LinearSz >
 	{	using Base = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , NoVoid<Data_,SideCar_> , LinearSz > ;
 		//
-		using Hdr       = Hdr_                 ;
-		using Idx       = Idx_                 ;
-		using Data      = Data_                ;
-		using SideCar   = SideCar_             ;
-		using DataNv    = NoVoid<Data   >      ;
-		using SideCarNv = NoVoid<SideCar>      ;
-		using Sz        = typename Base::Sz    ;
-		using ULock     = UniqueLock<AutoLock> ;
-		using SLock     = SharedLock<AutoLock> ;
+		using Hdr       = Hdr_                       ;
+		using Idx       = Idx_                       ;
+		using Data      = Data_                      ;
+		using SideCar   = SideCar_                   ;
+		using DataNv    = NoVoid<Data   >            ;
+		using SideCarNv = NoVoid<SideCar>            ;
+		using Sz        = typename Base::Sz          ;
+		using ULock     = UniqueSharedLock<AutoLock> ;
+		using SLock     = SharedLock      <AutoLock> ;
 		//
 		static constexpr bool Multi          = LinearSz                ;
 		static constexpr bool HasData        = !::is_void_v<Data   >   ;
@@ -33,7 +33,6 @@ namespace Store {
 		//
 		using Base::HasDataSz ;
 		using Base::size      ;
-		using Base::_mutex    ;
 		// cxtors
 		/**/                 SideCarFile(                                                        ) = default ;
 		template<class... A> SideCarFile( NewType                              , A&&... hdr_args ) { init(New          ,::forward<A>(hdr_args)...) ; }
@@ -96,6 +95,8 @@ namespace Store {
 		Idx  _dxt_side_car(         Idx idx )       requires(HasBoth) { SWEAR(!_at_end(idx)) ;                              _side_car.pop    (idx) ; return idx ;    }
 		// data
 		StructFile< false/*AutoLock*/ , void , Idx , HasBoth?NIdxBits:0 , ::conditional_t<HasBoth,SideCar,void> , (HasBoth?Multi:false) > _side_car ;
+	private :
+		SharedMutex<AutoLock> mutable _mutex ;
 	} ;
 
 }

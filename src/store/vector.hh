@@ -87,14 +87,12 @@ namespace Store {
 		using VecView = ::span<Item const>        ;
 		using StrView = ::basic_string_view<Char> ;
 		using ULock   = UniqueLock<AutoLock>      ;
-		using SLock   = SharedLock<AutoLock>      ;
 		//
 		void at     (Idx   ) = delete ;
 		void shorten(Idx,Sz) = delete ;
 		//
 		using Base::chk_writable ;
 		using Base::size         ;
-		using Base::_mutex       ;
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
@@ -190,6 +188,9 @@ namespace Store {
 		Idx emplace(      Item const& c0,::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return emplace(  c0,::span<Item const>(s)) ; }
 		Idx assign (Idx i,               ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return assign (i,   ::span<Item const>(s)) ; }
 		Idx append (Idx i,               ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return append (i,   ::span<Item const>(s)) ; }
+		// data
+	private :
+		UniqueMutex<AutoLock> mutable _mutex ;
 	} ;
 
 }

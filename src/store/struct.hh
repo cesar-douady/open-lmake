@@ -37,14 +37,13 @@ namespace Store {
 	template<bool AutoLock,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,bool Multi=false> struct StructFile
 	:	               File<false/*AutoLock*/,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)>              // we manage the mutex
 	{	using Base   = File<false/*AutoLock*/,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)> ;
-		using Hdr    = Hdr_                    ;
-		using Idx    = Idx_                    ;
-		using Data   = Data_                   ;
-		using HdrNv  = NoVoid<Hdr >            ;
-		using DataNv = NoVoid<Data>            ;
-		using Sz     = UintIdx<Idx>            ;
-		using ULock  = UniqueLock<AutoLock>    ;
-		using SLock  = SharedLock<AutoLock>    ;
+		using Hdr    = Hdr_                 ;
+		using Idx    = Idx_                 ;
+		using Data   = Data_                ;
+		using HdrNv  = NoVoid<Hdr >         ;
+		using DataNv = NoVoid<Data>         ;
+		using Sz     = UintIdx<Idx>         ;
+		using ULock  = UniqueLock<AutoLock> ;
 		//
 		static constexpr bool HasHdr    = !::is_void_v<Hdr >       ;
 		static constexpr bool HasData   = !::is_void_v<Data>       ;
@@ -61,14 +60,13 @@ namespace Store {
 		using Base::base         ;
 		using Base::name         ;
 		using Base::writable     ;
-		using Base::_mutex       ;
 		// statics
 	private :
 		static constexpr size_t _Offset0 = Struct::_offset<Hdr,Idx,Data>(0) ;
 		static constexpr size_t _s_offset(Sz idx) requires(HasFile) { SWEAR(idx) ; return Struct::_offset<Hdr,Idx,Data>(idx) ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) requires(HasFile) {
-			Base::expand(_s_offset(1)) ;                                                                          // 1 is the first used idx
+			Base::expand(_s_offset(1)) ;                                                                  // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -109,8 +107,7 @@ namespace Store {
 		template<class... A> Idx  emplace_back( Sz  sz  , A&&... args ) requires(  Multi            ) { chk_writable() ; return _emplace_back(sz,::forward<A>(args)...) ; }
 		template<class... A> Idx  emplace_back(           A&&... args ) requires( !Multi && HasData ) { chk_writable() ; return _emplace_back(1 ,::forward<A>(args)...) ; }
 		void clear() {
-			ULock lock{_mutex} ;
-			_clear() ;
+			Base::clear() ;                                                                               // Base::clear has an argument with a default value, this forces clear to accept no argument
 		}
 		void chk() const requires(HasFile) {
 			Base::chk() ;
@@ -132,16 +129,19 @@ namespace Store {
 			{	ULock lock{_mutex} ;
 				old_sz = size()      ;
 				new_sz = old_sz + sz ;
-				swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;               // ensure no arithmetic overflow before checking capacity
+				swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;       // ensure no arithmetic overflow before checking capacity
 				Base::expand(_s_offset(new_sz)) ;
-				fence() ;                                                                                         // update state when it is legal to do so
-				_size() = new_sz ;                                                                                // once allocation is done, no reason to maintain lock
+				fence() ;                                                                                 // update state when it is legal to do so
+				_size() = new_sz ;                                                                        // once allocation is done, no reason to maintain lock
 			}
 			Idx res { old_sz } ;
-			new(&at(res)) Data(::forward<A>(args)...) ;
+			new(&at(res)) Data{::forward<A>(args)...} ;
 			_chk_sz(res,sz) ;
 			return res ;
 		}
+		// data
+	private :
+		UniqueMutex<AutoLock> mutable _mutex ;
 	} ;
 
 }

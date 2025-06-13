@@ -464,7 +464,7 @@ int main( int argc , char** argv ) {
 	for( int i : iota(1,argc) ) {
 		if (argv[i][0]!='-') goto Bad ;
 		switch (argv[i][1]) {
-			case 'c' : g_startup_dir_s = new ::string(argv[i]+2)     ;                               break ;
+			case 'c' : g_startup_dir_s = new ::string{argv[i]+2}     ;                               break ;
 			case 'd' : _g_is_daemon    = false                       ; if (argv[i][2]!=0) goto Bad ; break ;
 			case 'i' : in_fd           = from_string<int>(argv[i]+2) ;                               break ;
 			case 'o' : out_fd          = from_string<int>(argv[i]+2) ;                               break ;

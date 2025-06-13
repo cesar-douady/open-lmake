@@ -232,9 +232,31 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 	#endif
 } ;
 
+#ifndef NDEBUG
+	struct NoMutex { // check exclusion is guaranteed by caller
+		// services
+		void lock         (MutexLvl&) { SWEAR(!_busy.exchange(true)) ; }
+		void lock_shared  (MutexLvl&) { SWEAR(!_busy               ) ; }
+		void unlock       (MutexLvl&) { _busy = false                ; }
+		void unlock_shared(MutexLvl&) { SWEAR(!_busy               ) ; }
+		void swear_locked (         ) { SWEAR( _busy               ) ; }
+	private :
+		::atomic<bool> _busy { false } ;
+	} ;
+#else
+	struct NoMutex {
+		// services
+		void lock         (MutexLvl&) {}
+		void lock_shared  (MutexLvl&) {}
+		void unlock       (MutexLvl&) {}
+		void unlock_shared(MutexLvl&) {}
+		void swear_locked (         ) {}
+	} ;
+#endif
+
 template<class M,bool S=false> struct Lock {
 	// cxtors & casts
-	Lock (    ) = default ;
+	Lock () = default ;
 	Lock (M& m) : _mutex{&m} { lock  () ; }
 	~Lock(    )              { unlock() ; }
 	// services
@@ -247,9 +269,28 @@ template<class M,bool S=false> struct Lock {
 	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
 } ;
 
-struct NoLock {
-	NoLock(Void) {}
-} ;
+#ifndef NDEBUG
+	template<bool S=false> struct NoLock { // check exclusion is guaranteed by caller
+		// cxtors & casts
+		NoLock () = default ;
+		NoLock (NoMutex& m) : _mutex{&m} { lock  () ; }
+		~NoLock(          )              { unlock() ; }
+		// services
+		void lock  () requires(!S) { _mutex->lock         (::ref(MutexLvl())) ; }
+		void unlock() requires(!S) { _mutex->unlock       (::ref(MutexLvl())) ; }
+		void lock  () requires( S) { _mutex->lock_shared  (::ref(MutexLvl())) ; }
+		void unlock() requires( S) { _mutex->unlock_shared(::ref(MutexLvl())) ; }
+		// data
+		NoMutex* _mutex = nullptr ; // must be !=nullptr to lock
+	} ;
+
+#else
+	template<bool S=false> struct NoLock {
+		NoLock(NoMutex&) {}
+		void lock  () {}
+		void unlock() {}
+	} ;
+#endif
 
 template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	using Base = ::atomic<T> ;
@@ -301,9 +342,9 @@ template<class T> using FenceSave = Save<T,true> ;
 
 template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 private :
-	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , Void   > ;
-	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock > ;
-	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T      > ;
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex  > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock<> > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T        > ;
 	// services
 public :
 	T acquire() {

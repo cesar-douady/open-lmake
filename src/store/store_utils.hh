@@ -22,8 +22,4 @@ namespace Store {
 	template<class I> concept IsIdx     = requires(I i) { { +I{size_t(0)} }->::convertible_to<size_t> ; } ;
 	template<class I> using UintIdx = ::make_unsigned_t< ::conditional_t< ::is_integral_v<I> , I , decltype(+I{}) > > ;
 
-	template<class M> struct NoLock {
-		NoLock(M&) {}
-	} ;
-
 }

@@ -76,8 +76,8 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 // chdir
 template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir( r , Fd(args[0])           , c ) ; ctx = cd ; }
-		else    { Record::Chdir* cd = new Record::Chdir( r , _path<At>(pid,args+0) , c ) ; ctx = cd ; }
+		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])           , c } ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At>(pid,args+0) , c } ; ctx = cd ; }
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -92,7 +92,7 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record
 // chmod
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Chmod( r , _path<At>(pid,args+0) , args[1+At]&S_IXUSR , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+		ctx = new Record::Chmod{ r , _path<At>(pid,args+0) , bool(args[1+At]&S_IXUSR) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -107,7 +107,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 // creat
 [[maybe_unused]] static void _entry_creat( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Open( r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , c ) ;
+		ctx = new Record::Open{ r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , c } ;
 	} catch (int) {}
 }
 // use _exit_open as exit proc
@@ -122,7 +122,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*&
 
 // getdents
 [[maybe_unused]] static void _entry_getdents( void*& ctx , Record& r , pid_t , uint64_t args[6] , Comment c ) {
-	ctx = new Record::ReadDir( r , Fd(args[0]) , c ) ;
+	ctx = new Record::ReadDir{ r , Fd(args[0]) , c } ;
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_getdents( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -139,7 +139,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ct
 	try           { old = _path<At>(pid,args+0) ; }
 	catch (int e) { if (e) return ;               } // if e==0, old is simple, else there is an error and access will not be done
 	try {
-		ctx = new Record::Lnk( r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+		ctx = new Record::Lnk{ r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -168,7 +168,7 @@ template<bool At> [[maybe_unused]] static void _entry_mkdir( void*& /*ctx*/ , Re
 // open
 template<bool At> [[maybe_unused]] static void _entry_open( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Open( r , _path<At>(pid,args+0) , args[1+At]/*flags*/ , c ) ;
+		ctx = new Record::Open{ r , _path<At>(pid,args+0) , int(args[1+At])/*flags*/ , c } ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -187,7 +187,7 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void*& ctx , Rec
 		uint64_t orig_buf = args[At+1]                                             ;
 		size_t   sz       = args[At+2]                                             ;
 		char*    buf      = pid ? new char[sz] : reinterpret_cast<char*>(orig_buf) ;
-		ctx = new RLB( Record::Readlink( r , _path<At>(pid,args+0) , buf , sz , c ) , orig_buf ) ;
+		ctx = new RLB( Record::Readlink{ r , _path<At>(pid,args+0) , buf , sz , c } , orig_buf ) ;
 	} catch (int) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {

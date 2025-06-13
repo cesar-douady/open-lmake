@@ -231,8 +231,8 @@ namespace Engine {
 			using Idx  = typename W::Idx     ;
 			using Info = typename W::ReqInfo ;
 		private :
-			using _Mutex = ::conditional_t< ThreadSafe , Mutex<MutexLvl::ReqInfo> , Void   > ;
-			using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock > ;
+			using _Mutex = ::conditional_t< ThreadSafe , Mutex<MutexLvl::ReqInfo> , NoMutex  > ;
+			using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock<> > ;
 			// cxtors & casts
 		public :
 			InfoMap(            ) = default ;

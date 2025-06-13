@@ -207,7 +207,7 @@ namespace Py {
 
 	Ptr<Module>::Ptr( NewType , ::string const& name , PyMethodDef* funcs ) {
 		Gil::s_swear_locked() ;
-		::string*    nm  = new ::string(name)   ;                                                                    // keep name alive
+		::string*    nm  = new ::string{name}   ;                                                                    // keep name alive
 		size_t       nf1 = 1                    ; for( PyMethodDef* f=funcs ; f->ml_name ; f++ ) nf1++             ; // start at 1 to account for terminating sentinel
 		PyMethodDef* fns = new PyMethodDef[nf1] ; for( size_t i : iota(nf1)                    ) fns[i] = funcs[i] ; // keep funcs alive
 		#if PY_MAJOR_VERSION<3
