@@ -88,6 +88,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- clean LMAKE/reserved
 	- recompute overall size
 	- recompute all lru files
+* add a --no-cache option to lmake
+* add a --no-cache-update option to lmake
+	- use cache entries, but do not update cache
+* add a --check-cache option to lmake
+	- build as with no-cache, then check cache entry
 * implement cache v2 :
 	- use a daemon
 * implement no_target targets

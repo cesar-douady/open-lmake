@@ -32,14 +32,14 @@ struct TestFile {
 	TestFile() {
 		Fd::Stdout.write("check file ...") ;
 		::string file_name = g_dir_s+"file" ;
-		{	File<false,10000> f(file_name,true/*writable*/) ;
+		{	File<0/*ThreadKey*/,10000> f(file_name,true/*writable*/) ;
 			f.expand(1000) ;
 			f.base[100] = 'a' ;
 			f.expand(5000) ;
 			f.base[101] = 'b' ;
 			f.clear(1000) ;
 		}
-		{	File<false,10000> f(file_name,false/*writable*/) ;
+		{	File<0/*ThreadKey*/,10000> f(file_name,false/*writable*/) ;
 			SWEAR(f.base[100]=='a') ;
 			SWEAR(f.base[101]=='b') ;
 		}
@@ -98,7 +98,7 @@ template<bool HasHdr,bool HasData,bool Multi> struct TestStruct {
 	}
 
 	// data
-	StructFile<false,Hdr,Idx,HasData?20:0,Data,Multi> file ;
+	StructFile<0/*ThreadKey*/,Hdr,Idx,HasData?20:0,Data,Multi> file ;
 } ;
 void test_struct() {
 	TestStruct<false/*HasHdr*/,false/*HasData*/,false/*Multi*/>() ;
@@ -214,7 +214,7 @@ template<bool HasHdr,bool HasData,bool HasSideCar,bool Multi,bool HasDataSz> str
 	}
 
 	// data
-	SideCarFile< false , Hdr , Idx , 20 , Data , SideCar , Multi > file ;
+	SideCarFile<0/*ThreadKey*/,Hdr,Idx,20,Data,SideCar,Multi> file ;
 } ;
 void test_side_car() {
 	TestSideCar<false/*HasHdr*/,false/*HasData*/,false/*HasSideCar*/,false/*Multi*/,false/*HasDataSz*/>() ;
@@ -288,7 +288,7 @@ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 	}
 
 	// data
-	SinglePrefixFile<false,Hdr,Idx,20,Char,Data,Reverse> file ;
+	SinglePrefixFile<0/*ThreadKey*/,Hdr,Idx,20,Char,Data,Reverse> file ;
 } ;
 void test_prefix() {
 	TestPrefix<false/*HasHdr*/,false/*HasData*/,false/*Reverse*/>() ;
@@ -303,7 +303,7 @@ void test_prefix() {
 
 void test_lmake() {
 	Fd::Stdout.write("check lmake ...") ;
-	SinglePrefixFile<false,void,uint32_t,20> file(g_dir_s+"lmake",true/*writable*/) ;
+	SinglePrefixFile<0/*ThreadKey*/,void,uint32_t,20> file(g_dir_s+"lmake",true/*writable*/) ;
 	char key ;
 	key = (char)0x28 ; file.insert(::string(&key,1)) ;
 	key = (char)0xb1 ; file.insert(::string(&key,1)) ;

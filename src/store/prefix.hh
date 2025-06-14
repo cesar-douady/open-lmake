@@ -464,17 +464,15 @@ namespace Store {
 	// MultiPrefixFile
 	//
 
-	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
-	:	              AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
-	{	using Base  = AllocFile< false/*AutoLock*/ , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
-		using Item  =                                                                                                Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
+	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
+	:	              AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
+	{	using Base  = AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
+		using Item  =                                                                                        Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
 		//
 		using Hdr   = Hdr_                       ;
 		using Idx   = Idx_                       ;
 		using Char  = Char_                      ;
 		using Data  = Data_                      ;
-		using ULock = UniqueSharedLock<AutoLock> ;
-		using SLock = SharedLock      <AutoLock> ;
 		//
 		static_assert(sizeof(Item)==Item::ItemSizeOf) ;
 		static constexpr bool Reverse = Reverse_ ;
@@ -504,18 +502,13 @@ namespace Store {
 		//
 		template<class... A> Idx emplace(A&&...) = delete ;
 		//
+		using Base::chk_thread   ;
 		using Base::chk_writable ;
-		using Base::clear        ;
 		using Base::size         ;
 
 		struct Lst {
 			using value_type = Idx ;
 			struct Iterator {
-				using iterator_categorie = ::input_iterator_tag ;
-				using value_type         = Idx                  ;
-				using difference_type    = ptrdiff_t            ;
-				using pointer            = value_type*          ;
-				using reference          = value_type&          ;
 				// cxtors & casts
 				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _legalize() ; }
 				// accesses
@@ -523,10 +516,10 @@ namespace Store {
 				Item const& _item() const { return _self->_self->_at(_idx) ; }
 				// services
 			public :
-				bool      operator==(Iterator const& other) const { return _self==other._self && _idx==other._idx ; }
-				Idx       operator* (                     ) const { SWEAR(_item().used) ; return _idx ;             }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;        }
-				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ;     }
+				bool      operator==(Iterator const& other) const = default ;
+				Idx       operator* (                     ) const { SWEAR(_item().used) ;          return _idx ; }
+				Iterator& operator++(                     )       { _advance() ; _legalize() ;     return self ; }
+				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res  ; }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
@@ -550,7 +543,7 @@ namespace Store {
 				Idx        _idx  = {} ;
 			} ;
 			// cxtors & casts
-			Lst( MultiPrefixFile const& s , Idx st ) : _self{&s} , _start{st} , _lock{s._mutex} {}
+			Lst( MultiPrefixFile const& s , Idx st ) : _self{&s} , _start{st} {}
 			// services
 			Iterator begin () const { return Iterator(self,_start) ; }
 			Iterator cbegin() const { return Iterator(self,_start) ; }
@@ -560,7 +553,6 @@ namespace Store {
 		private :
 			MultiPrefixFile const* _self  ;
 			Idx                    _start ;
-			mutable SLock          _lock  ;
 		} ;
 
 		struct DvgDigest {
@@ -619,13 +611,13 @@ namespace Store {
 
 		// accesses
 	public :
-		HdrNv  const& hdr  (       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;                  }
-		HdrNv       & hdr  (       )       requires(HasHdr ) { return Base::hdr(   ).hdr    ;                  }
-		HdrNv  const& c_hdr(       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;                  }
-		DataNv const& at   (Idx idx) const requires(HasData) { return Base::at (idx).data() ;                  }
-		DataNv      & at   (Idx idx)       requires(HasData) { return Base::at (idx).data() ;                  }
-		DataNv const& c_at (Idx idx) const requires(HasData) { return Base::at (idx).data() ;                  }
-		void          clear(Idx idx)       requires(HasData) { ULock{_mutex} ; Base::at(idx).data() = Data() ; }
+		HdrNv  const& hdr  (       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;  }
+		HdrNv       & hdr  (       )       requires(HasHdr ) { return Base::hdr(   ).hdr    ;  }
+		HdrNv  const& c_hdr(       ) const requires(HasHdr ) { return Base::hdr(   ).hdr    ;  }
+		DataNv const& at   (Idx idx) const requires(HasData) { return Base::at (idx).data() ;  }
+		DataNv      & at   (Idx idx)       requires(HasData) { return Base::at (idx).data() ;  }
+		DataNv const& c_at (Idx idx) const requires(HasData) { return Base::at (idx).data() ;  }
+		void          clear(Idx idx)       requires(HasData) { Base::at(idx).data() = Data() ; }
 	private :
 		Item const& _at(Idx idx) const { return Base::at(idx) ; }
 		Item      & _at(Idx idx)       { return Base::at(idx) ; }
@@ -647,19 +639,11 @@ namespace Store {
 			_scheduled_pop    .clear() ;
 			_scheduled_shorten.clear() ;
 		}
-	protected :
-		Idx _emplace_root() {
-			return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ;
-		}
 	public :
 		// globals
-		Idx emplace_root() {
-			ULock lock{_mutex} ;
-			return _emplace_root() ;
-		}
-		Lst lst(Idx root) const {
-			return Lst(self,root) ;
-		}
+		void clear      (        )       { Base::clear() ;                                                              }
+		Idx emplace_root(        )       { return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ; }
+		Lst lst         (Idx root) const { return Lst(self,root)                                                      ; }
 		void chk(Idx root) const {
 			Base::chk() ;
 			if (+root) _chk(root,false/*recurse_backward*/,true/*recurse_forward*/) ;
@@ -684,20 +668,18 @@ namespace Store {
 		void          pop              ( Idx              ) ;
 		Idx           insert_shorten_by( Idx , size_t by  ) ;
 		//
-		bool            empty         ( Idx i                    ) const                               { if (!i) return true ; SLock lock{_mutex} ; return !_at            (i).prev    ; }
-		size_t          key_sz        ( Idx i , size_t psfx_sz=0 ) const                               {                       SLock lock{_mutex} ; return _key_sz         (i,psfx_sz) ; }
-		Vec             key           ( Idx i , size_t psfx_sz=0 ) const                               {                       SLock lock{_mutex} ; return _key     <false>(i,psfx_sz) ; }
-		Vec             prefix        ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) {                       SLock lock{_mutex} ; return _psfx    <false>(i,pfx_sz ) ; }
-		Vec             suffix        ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) {                       SLock lock{_mutex} ; return _psfx    <false>(i,sfx_sz ) ; }
-		::pair<Vec,Vec> key_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) {                       SLock lock{_mutex} ; return _key_psfx<false>(i,pfx_sz ) ; }
-		::pair<Vec,Vec> key_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) {                       SLock lock{_mutex} ; return _key_psfx<false>(i,sfx_sz ) ; }
-		Str             str_key       ( Idx i , size_t psfx_sz=0 ) const requires(             IsStr ) {                       SLock lock{_mutex} ; return _key     <true >(i,psfx_sz) ; }
-		Str             str_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) {                       SLock lock{_mutex} ; return _psfx    <true >(i,pfx_sz ) ; }
-		Str             str_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) {                       SLock lock{_mutex} ; return _psfx    <true >(i,sfx_sz ) ; }
-		::pair<Str,Str> str_key_prefix( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) {                       SLock lock{_mutex} ; return _key_psfx<true >(i,pfx_sz ) ; }
-		::pair<Str,Str> str_key_suffix( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) {                       SLock lock{_mutex} ; return _key_psfx<true >(i,sfx_sz ) ; }
+		bool            empty         ( Idx i                    ) const                               { if (!i) return true ; return !_at            (i).prev    ; }
+		Vec             key           ( Idx i , size_t psfx_sz=0 ) const                               {                       return _key     <false>(i,psfx_sz) ; }
+		Vec             prefix        ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) {                       return _psfx    <false>(i,pfx_sz ) ; }
+		Vec             suffix        ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) {                       return _psfx    <false>(i,sfx_sz ) ; }
+		::pair<Vec,Vec> key_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse          ) {                       return _key_psfx<false>(i,pfx_sz ) ; }
+		::pair<Vec,Vec> key_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse          ) {                       return _key_psfx<false>(i,sfx_sz ) ; }
+		Str             str_key       ( Idx i , size_t psfx_sz=0 ) const requires(             IsStr ) {                       return _key     <true >(i,psfx_sz) ; }
+		Str             str_prefix    ( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) {                       return _psfx    <true >(i,pfx_sz ) ; }
+		Str             str_suffix    ( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) {                       return _psfx    <true >(i,sfx_sz ) ; }
+		::pair<Str,Str> str_key_prefix( Idx i , size_t pfx_sz    ) const requires(  Reverse && IsStr ) {                       return _key_psfx<true >(i,pfx_sz ) ; }
+		::pair<Str,Str> str_key_suffix( Idx i , size_t sfx_sz    ) const requires( !Reverse && IsStr ) {                       return _key_psfx<true >(i,sfx_sz ) ; }
 	private :
-		/**/             size_t                      _key_sz  ( Idx , size_t /*psfx_sz*/=0 ) const ;
 		template<bool S> VecStr<S>                   _key     ( Idx , size_t /*psfx_sz*/=0 ) const ;
 		template<bool S> VecStr<S>                   _psfx    ( Idx , size_t /*psfx_sz*/   ) const ;
 		template<bool S> ::pair<VecStr<S>,VecStr<S>> _key_psfx( Idx , size_t /*psfx_sz*/   ) const ;
@@ -1121,14 +1103,10 @@ namespace Store {
 			}
 		}
 
-		// data
-	protected :
-		SharedMutex<AutoLock> mutable _mutex ;
-
 	} ;
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		void MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx idx ) const {
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		void MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx idx ) const {
 			Item const& item = _at(idx) ;
 			if (item.used) idx_lst.push_back(idx) ;
 			switch (item.kind()) {
@@ -1143,9 +1121,9 @@ namespace Store {
 		}
 
 	// compute both name & suffix in a single pass
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
-		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
+		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
 			static Atomic<size_t> s_psfx_max_sz      = 0 ;
 			static Atomic<size_t> s_name_max_sz      = 0 ;
 			static Atomic<size_t> s_psfx_path_max_sz = 0 ;
@@ -1190,17 +1168,9 @@ namespace Store {
 			return { name , psfx } ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
-		size_t MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_sz( Idx idx , size_t psfx_sz ) const {
-			size_t res = 0 ;
-			for(; +idx ; idx=_at(idx).prev ) res += _at(idx).chunk_sz ;
-			return res-psfx_sz ;
-		}
-
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
-		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
+		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
 			static Atomic<size_t> s_res_max_sz  = 0 ;
 			static Atomic<size_t> s_path_max_sz = 0 ;
 			//
@@ -1241,9 +1211,9 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to get
-		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
+		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
 			static Atomic<size_t> s_res_max_sz  = 0 ;
 			static Atomic<size_t> s_path_max_sz = 0 ;
 			//
@@ -1269,12 +1239,11 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		::vector<Idx> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		::vector<Idx> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
 			static Atomic<size_t> s_res_max_sz = 0 ;
 			//
-			::vector<Idx> res  ;            res.reserve(s_res_max_sz ) ;
-			SLock         lock { _mutex } ;
+			::vector<Idx> res ; res.reserve(s_res_max_sz ) ;
 			while (idx) {
 				Item const& item = _at(idx) ;
 				if (item.used) res.push_back(idx) ;
@@ -1284,47 +1253,45 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::search( Idx root , VecView const& name , VecView const& psfx ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
-			SLock     lock{_mutex}                      ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::search( Idx root , VecView const& name , VecView const& psfx ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
 			DvgDigest dvg { root , self , name , psfx } ;
 			return dvg.dvg==Dvg::Match ? dvg.idx : Idx() ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
-			ULock     lock{_mutex}                      ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
+			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
 			if (dvg.dvg==Dvg::Match) return dvg.idx ;
 			Idx res = _insert( dvg.idx , dvg.chunk_pos , name , psfx , dvg.name_pos ) ; if constexpr (HasData) SWEAR(at(res)==DataNv()) ;
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
-			ULock     lock{_mutex}                      ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
+			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
 			if (!dvg.dvg==Dvg::Match) return Idx() ;
 			_pop(dvg.idx) ;
 			return dvg.idx ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		::pair<Idx,size_t/*size*/> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::longest( Idx root , VecView const& name , VecView const& psfx ) const {
-			SLock     lock{_mutex}                      ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		::pair<Idx,size_t/*size*/> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::longest( Idx root , VecView const& name , VecView const& psfx ) const {
 			DvgDigest dvg { root , self , name , psfx } ;
 			return {dvg.used_idx,dvg.used_pos} ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		void MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::pop(Idx idx) {
-			ULock lock{_mutex} ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		void MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::pop(Idx idx) {
+			chk_thread() ;
 			_pop(idx) ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		::pair<Idx/*top*/,::vector<Idx>/*created*/> MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_chain( Idx root , VecView const& name , Char sep ) {
-			ULock                                       lock { _mutex }                            ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		::pair<Idx/*top*/,::vector<Idx>/*created*/> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_chain( Idx root , VecView const& name , Char sep ) {
+			chk_thread() ;
 			DvgDigest                                   dvg  { root , self , name , {} , 0 , sep } ;
 			::pair<Idx/*top*/,::vector<Idx>/*created*/> res  { dvg.used_idx , {}/*created*/ }      ;
 			if (dvg.dvg!=Dvg::Match) {
@@ -1345,9 +1312,9 @@ namespace Store {
 			return res ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_shorten_by( Idx idx , size_t by ) {
-			ULock lock{_mutex} ;
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_shorten_by( Idx idx , size_t by ) {
+			chk_thread() ;
 			for(; +idx ; idx=_at(idx).prev ) {
 				Item const& item = _at(idx) ;
 				ChunkIdx chunk_sz = item.chunk_sz ;
@@ -1362,9 +1329,9 @@ namespace Store {
 			return {} ;
 		}
 
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		typename MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::IdxSz
-			MultiPrefixFile<AutoLock,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+		typename MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::IdxSz
+			MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
 				throw_unless(+idx      ,"idx ",idx," is null"                     ) ;
 				throw_unless(idx<size(),"idx ",idx," is out of range (",size(),')') ;
 				Item const& item = _at(idx)  ;
@@ -1438,20 +1405,17 @@ namespace Store {
 	// SinglePrefixFile
 	//
 
-	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct SinglePrefixFile
-	:	             MultiPrefixFile< AutoLock , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ >
-	{	using Base = MultiPrefixFile< AutoLock , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ > ;
+	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct SinglePrefixFile
+	:	             MultiPrefixFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ >
+	{	using Base = MultiPrefixFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ > ;
 		using Hdr     = Hdr_                   ;
 		using Idx     = typename Base::Idx     ;
 		using Char    = typename Base::Char    ;
 		using DataNv  = typename Base::DataNv  ;
 		using VecView = typename Base::VecView ;
-		using ULock   = typename Base::ULock   ;
 		using HdrNv   = NoVoid<Hdr>            ;
 		using Base::HasData ;
 		using Base::IsStr   ;
-		using Base::clear   ;
-		using Base::_mutex  ;
 		static constexpr bool HasHdr = !is_void_v<Hdr> ;
 		static constexpr Idx  Root   {1}               ;
 		Idx emplace_root() = delete ;
@@ -1467,17 +1431,21 @@ namespace Store {
 			Base::init( name , writable , ::forward<A>(hdr_args)... ) ;
 			if (!self) _boot() ;
 		}
+		// services
 	private :
 		void _boot() {
-			Idx root = Base::_emplace_root() ;
+			Idx root = Base::emplace_root() ;
 			SWEAR( root==Root , root ) ;
 		}
-		// services
 	public :
+		void clear() {
+			Base::clear() ;
+			_boot() ;
+		}
+		typename Base::Lst lst() const { return Base::lst(Root) ; }
+		void               chk() const {        Base::chk(Root) ; }
 		//
-		void               clear()       { ULock lock{_mutex} ; _clear() ; }
-		typename Base::Lst lst  () const { return Base::lst(Root) ;        }
-		void               chk  () const {        Base::chk(Root) ;        }
+		void clear(Idx idx) { Base::clear(idx) ; }
 		//
 		Idx                                         search      ( VecView const& n , VecView const& psfx={} ) const                   { return Base::search      ( Root , n , psfx ) ; }
 		DataNv      *                               search_at   ( VecView const& n , VecView const& psfx={} )       requires(HasData) { return Base::search_at   ( Root , n , psfx ) ; }
@@ -1487,8 +1455,6 @@ namespace Store {
 		Idx                                         erase       ( VecView const& n , VecView const& psfx={} )                         { return Base::erase       ( Root , n , psfx ) ; }
 		::pair<Idx,size_t/*pos*/>                   longest     ( VecView const& n , VecView const& psfx={} ) const                   { return Base::longest     ( Root , n , psfx ) ; }
 		::pair<Idx/*top*/,::vector<Idx>/*created*/> insert_chain( VecView const& n , Char sep               )                         { return Base::insert_chain( Root , n , sep  ) ; }
-	protected :
-		void _clear() { Base::_clear() ; _boot() ; }
 	} ;
 
 }

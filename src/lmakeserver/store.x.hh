@@ -13,12 +13,10 @@
 #include "idxed.hh"
 
 //
-// There are 12 files :
-// - 1 name file associates a name with either a node or a job :
-//   - This is a prefix-tree to share as much prefixes as possible since names tend to share a lot of prefixes
+// There are 13 files :
+// - 2 name files associate a name with a node and a job :
+//   - These are prefix-trees to share as much prefixes as possible since names tend to share a lot of prefixes
 //   - For jobs, a suffix containing the rule and the positions of the stems is added.
-//   - Before this suffix, a non printable char is inserted to distinguish nodes and jobs.
-//   - A single file is used to store both nodes and jobs as they tend to share the same prefixes.
 // - 2 files for nodes :
 //   - A node data file provides its name (a pointer to the name file) and all pertinent info about a node.
 //   - A job-star file containing vectors of job-star, a job-star is a job index and a marker saying if we refer to a static or a star target
@@ -74,30 +72,59 @@ namespace Engine::Persistent {
 
 	struct RuleTgts ;
 
-	struct Name
-	:	             Idxed<NameIdx>
-	{	using Base = Idxed<NameIdx> ;
+	struct JobName
+	:	             Idxed<JobNameIdx>
+	{	using Base = Idxed<JobNameIdx> ;
 		// cxtors & casts
 		using Base::Base ;
-		void pop() ;
 		// accesses
-		::string str   (size_t sfx_sz=0) const ;
-		size_t   str_sz(size_t sfx_sz=0) const ;
+		::string str(size_t sfx_sz=0) const ;
+		// services
+		void pop() ;
+	} ;
+
+	struct NodeName
+	:	             Idxed<NodeNameIdx>
+	{	using Base = Idxed<NodeNameIdx> ;
+		// cxtors & casts
+		using Base::Base ;
+		// accesses
+		::string str() const ;
 		// services
 	} ;
 
-	struct JobNodeData {                                  // the common part for JobData and NodeData
-		friend struct JobBase  ;
-		friend struct NodeBase ;
+	struct JobDataBase {
+		friend struct JobBase ;
+		friend struct JobName ;
+		// static data
+	private :
+		static Mutex<MutexLvl::Job,true/*Shared*/> _s_mutex ; // jobs are created in main thread but its name may be accessed in other threads
 		// cxtors & casts
-		JobNodeData(      ) = default ;
-		JobNodeData(Name n) : _full_name{n} { fence() ; } // ensure when you reach item by name, its name is the expected one
+	public :
+		JobDataBase() = default ;
+		JobDataBase(JobName n) : _full_name{n} {}
 		// accesses
-		::string full_name   (Disk::FileNameIdx sfx_sz=0) const { return _full_name.str   (sfx_sz) ; }
-		size_t   full_name_sz(Disk::FileNameIdx sfx_sz=0) const { return _full_name.str_sz(sfx_sz) ; }
+		::string full_name(size_t sfx_sz=0) const { return _full_name.str(sfx_sz) ; }
 		// data
 	private :
-		Name _full_name ;
+		JobName _full_name ;
+	} ;
+
+	struct NodeDataBase {
+		friend struct NodeBase ;
+		friend struct NodeName ;
+		// static data
+	private :
+		static Mutex<MutexLvl::Node,true/*Shared*/> _s_mutex ; // nodes can be created from several threads, ensure coherence between names and nodes
+		// cxtors & casts
+	public :
+		NodeDataBase() = default ;
+		NodeDataBase(NodeName n) : _name{n} {}
+		// accesses
+		::string name() const { return _name.str() ; }
+		// data
+	private :
+		NodeName _name ;
 	} ;
 
 	struct JobBase
@@ -152,13 +179,9 @@ namespace Engine::Persistent {
 		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;   // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
-		// static data
-	private :
-		static Mutex<MutexLvl::Node> _s_mutex ;                                         // nodes can be created from several threads, ensure coherence between names and nodes
 		// cxtors & casts
-	public :
 		using Base::Base ;
-		NodeBase( ::string const& name , bool no_dir=false ) ;                          // .
+		NodeBase( ::string const& name , bool no_dir=false ) ;
 		// accesses
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;
@@ -235,28 +258,19 @@ namespace Engine::Persistent {
 		using Base::Base ;
 	} ;
 
-	struct JobNode
-	:	             Idxed<WatcherIdx>   // can index Node or Job (no need to distinguish as Job names are suffixed with rule)
-	{	using Base = Idxed<WatcherIdx> ;
-		// cxtors & casts
-		using Base::Base ;
-		JobNode(JobBase ) ;
-		JobNode(NodeBase) ;
-		Job  job () const ;
-		Node node() const ;
-	} ;
-
 }
 
 namespace Engine {
-	using Name        = Persistent::Name                            ;
-	using JobBase     = Persistent::JobBase                         ;
-	using JobTgtsBase = Vector::Crunch<JobTgtsIdx,JobTgt,StoreMrkr> ;
-	using NodeBase    = Persistent::NodeBase                        ;
-	using RuleBase    = Persistent::RuleBase                        ;
-	using RuleCrcBase = Persistent::RuleCrcBase                     ;
-	using RuleTgts    = Persistent::RuleTgts                        ;
-	using JobNodeData = Persistent::JobNodeData                     ;
+	using JobBase      = Persistent::JobBase                         ;
+	using JobDataBase  = Persistent::JobDataBase                     ;
+	using JobName      = Persistent::JobName                         ;
+	using JobTgtsBase  = Vector::Crunch<JobTgtsIdx,JobTgt,StoreMrkr> ;
+	using NodeBase     = Persistent::NodeBase                        ;
+	using NodeDataBase = Persistent::NodeDataBase                    ;
+	using NodeName     = Persistent::NodeName                        ;
+	using RuleBase     = Persistent::RuleBase                        ;
+	using RuleCrcBase  = Persistent::RuleCrcBase                     ;
+	using RuleTgts     = Persistent::RuleTgts                        ;
 }
 
 #endif
@@ -288,21 +302,22 @@ namespace Engine::Persistent {
 		Targets no_triggers ; // these nodes do not trigger rebuild
 	} ;
 
-	//                                          autolock  header     index             n_index_bits       key       data          misc
+	//                                          ThreadKey  header     index             n_index_bits       key       data          misc
 	// jobs
-	using JobFile      = Store::AllocFile       < false , JobHdr   , Job             , NJobIdxBits      ,           JobData                        > ;
-	using DepsFile     = Store::VectorFile      < false , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
-	using TargetsFile  = Store::VectorFile      < false , void     , Targets         , NTargetsIdxBits  ,           Target                         > ;
+	using JobFile      = Store::AllocFile       < 0     , JobHdr   , Job             , NJobIdxBits      ,           JobData                        > ;
+	using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , Job                            > ; // for Job's & Node's
+	using DepsFile     = Store::VectorFile      < '='   , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
+	using TargetsFile  = Store::VectorFile      < '='   , void     , Targets         , NTargetsIdxBits  ,           Target                         > ;
 	// nodes
-	using NodeFile     = Store::AllocFile       < false , NodeHdr  , Node            , NNodeIdxBits     ,           NodeData                       > ;
-	using JobTgtsFile  = Store::VectorFile      < false , void     , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
+	using NodeFile     = Store::StructFile      < 0     , NodeHdr  , Node            , NNodeIdxBits     ,           NodeData                       > ;
+	using NodeNameFile = Store::SinglePrefixFile< 0     , void     , NodeName        , NNodeNameIdxBits , char    , Node                           > ; // for Job's & Node's
+	using JobTgtsFile  = Store::VectorFile      < '='   , void     , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
 	// rules
-	using RuleCrcFile  = Store::AllocFile       < false , MatchGen , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
-	using RuleTgtsFile = Store::SinglePrefixFile< false , void     , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
-	using SfxFile      = Store::SinglePrefixFile< false , void     , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
-	using PfxFile      = Store::MultiPrefixFile < false , void     , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
+	using RuleCrcFile  = Store::AllocFile       < '='   , MatchGen , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
+	using RuleTgtsFile = Store::SinglePrefixFile< '='   , void     , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
+	using SfxFile      = Store::SinglePrefixFile< '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
+	using PfxFile      = Store::MultiPrefixFile < '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
 	// commons
-	using NameFile     = Store::SinglePrefixFile< true  , void     , Name            , NNameIdxBits     , char    , JobNode                        > ; // for Job's & Node's
 
 	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
 
@@ -312,15 +327,16 @@ namespace Engine::Persistent {
 	extern ::string _g_rules_file_name ;
 	//
 	extern JobFile      _g_job_file       ; // jobs
+	extern JobNameFile  _g_job_name_file  ; // .
 	extern DepsFile     _g_deps_file      ; // .
 	extern TargetsFile  _g_targets_file   ; // .
 	extern NodeFile     _g_node_file      ; // nodes
+	extern NodeNameFile _g_node_name_file ; // .
 	extern JobTgtsFile  _g_job_tgts_file  ; // .
-	extern RuleCrcFile  _g_rule_crc_file  ; // .
+	extern RuleCrcFile  _g_rule_crc_file  ; // rules
 	extern RuleTgtsFile _g_rule_tgts_file ; // .
 	extern SfxFile      _g_sfxs_file      ; // .
 	extern PfxFile      _g_pfxs_file      ; // .
-	extern NameFile     _g_name_file      ; // commons
 	// in memory
 	extern ::uset<Job > _frozen_jobs  ;
 	extern ::uset<Node> _frozen_nodes ;
@@ -356,51 +372,58 @@ namespace Engine::Persistent {
 	}
 
 	//
-	// JobNode
+	// JobName
 	//
 	// cxtors & casts
-	inline      JobNode::JobNode(JobBase  j) : Base(+j) {}
-	inline      JobNode::JobNode(NodeBase n) : Base(+n) {}
-	inline Job  JobNode::job    (          ) const { return +self ; }
-	inline Node JobNode::node   (          ) const { return +self ; }
+	inline void JobName::pop() {
+		Lock lock { JobDataBase::_s_mutex } ;
+		Persistent::_g_job_name_file.pop(+self) ;
+	}
+	// accesses
+	inline ::string JobName::str(size_t sfx_sz) const {
+		SharedLock lock { JobDataBase::_s_mutex } ;
+		return Persistent::_g_job_name_file.str_key(+self,sfx_sz) ;
+	}
 
 	//
-	// Name
+	// NodeName
 	//
-	// cxtors & casts
-	inline void Name::pop() { Persistent::_g_name_file.pop(+self) ; }
-	// accesses
-	inline ::string Name::str   (size_t sfx_sz) const { return Persistent::_g_name_file.str_key(+self,sfx_sz) ; }
-	inline size_t   Name::str_sz(size_t sfx_sz) const { return Persistent::_g_name_file.key_sz (+self,sfx_sz) ; }
+	inline ::string NodeName::str() const {
+		SharedLock lock { NodeDataBase::_s_mutex } ;
+		return Persistent::_g_node_name_file.str_key(+self) ;
+	}
 
 	//
 	// JobBase
 	//
-	inline JobFile::Lst job_lst() { return _g_job_file .lst() ; }
+	inline JobFile::Lst job_lst() { SWEAR(t_thread_key=='=') ; return _g_job_file.lst() ; }
 	// statics
 	inline Job JobBase::s_idx(JobData const& jd) { return _g_job_file.idx(jd) ; }
 	//
-	inline bool          JobBase::s_has_frozens  (                                       ) { return               +_g_job_file.c_hdr().frozens     ;                                  }
-	inline ::vector<Job> JobBase::s_frozens      (                                       ) { return mk_vector<Job>(_g_job_file.c_hdr().frozens   ) ;                                  }
-	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { _s_update(            _g_job_file.hdr  ().frozens   ,_frozen_jobs   ,add,items) ;        }
-	inline void          JobBase::s_clear_frozens(                                       ) {                       _g_job_file.hdr  ().frozens   .clear() ; _frozen_jobs   .clear() ; }
+	inline bool          JobBase::s_has_frozens  (                                       ) { SWEAR(t_thread_key=='=') ; return               +_g_job_file.c_hdr().frozens  ;                 }
+	inline ::vector<Job> JobBase::s_frozens      (                                       ) { SWEAR(t_thread_key=='=') ; return mk_vector<Job>(_g_job_file.c_hdr().frozens) ;                 }
+	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { SWEAR(t_thread_key=='=') ; _s_update(_g_job_file.hdr().frozens,_frozen_jobs,add,items) ;        }
+	inline void          JobBase::s_clear_frozens(                                       ) { SWEAR(t_thread_key=='=') ;           _g_job_file.hdr().frozens.clear() ; _frozen_jobs.clear() ; }
 	// cxtors & casts
 	template<class... A> JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
-		self = _g_job_file.emplace( Name() , ::forward<A>(args)... ) ;
+		SWEAR(t_thread_key=='=') ;
+		self = _g_job_file.emplace( JobName() , ::forward<A>(args)... ) ;
 	}
 	template<class... A> JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
-		Name name_ = _g_name_file.insert(name_sfx.first,name_sfx.second) ;
-		self = _g_name_file.c_at(+name_).job() ;
+		SWEAR(t_thread_key=='=') ;
+		Lock    lock  { JobDataBase::_s_mutex }                                 ;
+		JobName name_ = _g_job_name_file.insert(name_sfx.first,name_sfx.second) ;
+		self = _g_job_name_file.c_at(+name_) ;
 		if (+self) {
-			SWEAR( name_==self->_full_name , name_ , self->_full_name ) ;
-			if (!new_) return ;
-			*self = JobData( name_ , ::forward<A>(args)...) ;
+			SWEAR( name_==self->_full_name , name_,self->_full_name ) ;
+			if (new_) *self = JobData( name_ , ::forward<A>(args)...) ;
 		} else {
-			_g_name_file.at(+name_) = self = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
+			self             = _g_job_name_file.at(+name_) = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
+			self->_full_name =                               name_                                                ;
 		}
-		self->_full_name = name_ ;
 	}
 	inline void JobBase::pop() {
+		SWEAR(t_thread_key=='=') ;
 		if (!self) return ;
 		if (+self->_full_name) self->_full_name.pop() ;
 		_g_job_file.pop(+self) ;
@@ -413,33 +436,40 @@ namespace Engine::Persistent {
 	inline JobData      & JobBase::operator*()       { return _g_job_file.at  (+self) ; }
 	// services
 	inline void JobBase::chk() const {
-		Name fn = self->_full_name ;
-		if (!fn) return ;
-		Job  j  = _g_name_file.c_at(fn).job() ;
+		JobName fn = self->_full_name          ; if (!fn) return ;
+		Job     j  = _g_job_name_file.c_at(fn) ;
 		SWEAR( self==j , self , fn , j ) ;
 	}
 
 	//
 	// NodeBase
 	//
-	inline NodeFile::Lst node_lst() { return _g_node_file.lst() ; }
+	inline NodeFile::Lst node_lst() { SWEAR(t_thread_key=='=') ; return _g_node_file.lst() ; }
 	// statics
-	inline Node NodeBase::s_idx     (NodeData  const& nd  ) { return  _g_node_file.idx   (nd  ) ; }
-	inline bool NodeBase::s_is_known( ::string const& name) { return +_g_name_file.search(name) ; }
+	inline Node NodeBase::s_idx     (NodeData  const& nd  ) {                                              return  _g_node_file.idx        (nd  ) ; }
+	inline bool NodeBase::s_is_known( ::string const& name) { SharedLock lock { NodeDataBase::_s_mutex } ; return +_g_node_name_file.search(name) ; }
 	//
-	inline bool           NodeBase::s_has_frozens      (                                        ) { return                +_g_node_file.c_hdr().frozens       ;                                  }
-	inline bool           NodeBase::s_has_no_triggers  (                                        ) { return                +_g_node_file.c_hdr().no_triggers   ;                                  }
-	inline bool           NodeBase::s_has_srcs         (                                        ) { return                +_g_node_file.c_hdr().srcs          ;                                  }
-	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { return mk_vector<Node>(_g_node_file.c_hdr().frozens     ) ;                                  }
-	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { return mk_vector<Node>(_g_node_file.c_hdr().no_triggers ) ;                                  }
-	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { _s_update(             _g_node_file.hdr  ().frozens    ,_frozen_nodes   ,add,items) ;        }
-	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { _s_update(             _g_node_file.hdr  ().no_triggers,_no_triggers    ,add,items) ;        }
-	inline void           NodeBase::s_clear_frozens    (                                        ) {                        _g_node_file.hdr  ().frozens    .clear() ; _frozen_nodes   .clear() ; }
-	inline void           NodeBase::s_clear_no_triggers(                                        ) {                        _g_node_file.hdr  ().no_triggers.clear() ; _no_triggers    .clear() ; }
-	inline void           NodeBase::s_clear_srcs       (                                        ) {                        _g_node_file.hdr  ().srcs       .clear() ;                          ; }
+	inline bool           NodeBase::s_has_frozens      (                                        ) { SWEAR(t_thread_key=='=') ; return                +_g_node_file.c_hdr().frozens       ;         }
+	inline bool           NodeBase::s_has_no_triggers  (                                        ) { SWEAR(t_thread_key=='=') ; return                +_g_node_file.c_hdr().no_triggers   ;         }
+	inline bool           NodeBase::s_has_srcs         (                                        ) { SWEAR(t_thread_key=='=') ; return                +_g_node_file.c_hdr().srcs          ;         }
+	inline ::vector<Node> NodeBase::s_frozens          (                                        ) { SWEAR(t_thread_key=='=') ; return mk_vector<Node>(_g_node_file.c_hdr().frozens     ) ;         }
+	inline ::vector<Node> NodeBase::s_no_triggers      (                                        ) { SWEAR(t_thread_key=='=') ; return mk_vector<Node>(_g_node_file.c_hdr().no_triggers ) ;         }
+	inline void           NodeBase::s_frozens          ( bool add , ::vector<Node> const& items ) { SWEAR(t_thread_key=='=') ; _s_update(_g_node_file.hdr().frozens    ,_frozen_nodes,add,items) ; }
+	inline void           NodeBase::s_no_triggers      ( bool add , ::vector<Node> const& items ) { SWEAR(t_thread_key=='=') ; _s_update(_g_node_file.hdr().no_triggers,_no_triggers ,add,items) ; }
+	inline void           NodeBase::s_clear_frozens    (                                        ) { SWEAR(t_thread_key=='=') ; _g_node_file.hdr().frozens    .clear() ; _frozen_nodes.clear() ;    }
+	inline void           NodeBase::s_clear_no_triggers(                                        ) { SWEAR(t_thread_key=='=') ; _g_node_file.hdr().no_triggers.clear() ; _no_triggers .clear() ;    }
+	inline void           NodeBase::s_clear_srcs       (                                        ) { SWEAR(t_thread_key=='=') ; _g_node_file.hdr().srcs       .clear() ;                       ;    }
 	//
-	inline Targets const NodeBase::s_srcs( bool dirs                                          ) { NodeHdr const& nh = _g_node_file.c_hdr() ; return     dirs?nh.src_dirs:nh.srcs ;                 }
-	inline void          NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) { NodeHdr      & nh = _g_node_file.hdr  () ; _s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ; }
+	inline Targets const NodeBase::s_srcs(bool dirs) {
+		SWEAR(t_thread_key=='=') ;
+		NodeHdr const& nh = _g_node_file.c_hdr() ;
+		return dirs?nh.src_dirs:nh.srcs ;
+	}
+	inline void NodeBase::s_srcs( bool dirs , bool add , ::vector<Node> const& items ) {
+		SWEAR(t_thread_key=='=') ;
+		NodeHdr& nh = _g_node_file.hdr() ;
+		_s_update( dirs?nh.src_dirs:nh.srcs , add , items ) ;
+	}
 
 	// accesses
 	inline bool NodeBase::frozen    () const { return _frozen_nodes.contains(Node(+self)) ; }
@@ -449,8 +479,8 @@ namespace Engine::Persistent {
 	inline NodeData      & NodeBase::operator*()       { return _g_node_file.at  (+self) ; }
 	// services
 	inline void NodeBase::chk() const {
-		Name fn = self->_full_name             ;
-		Node n  = _g_name_file.c_at(fn).node() ;
+		NodeName fn = self->_name                ;
+		Node     n  = _g_node_name_file.c_at(fn) ;
 		SWEAR( self==n , self , fn , n ) ;
 	}
 
@@ -468,9 +498,13 @@ namespace Engine::Persistent {
 	//
 	// RuleCrcBase
 	//
-	inline RuleCrcFile::Lst rule_crc_lst() { return _g_rule_crc_file.lst() ; }
+	inline RuleCrcFile::Lst rule_crc_lst() {
+		SWEAR(t_thread_key=='=') ;
+		return _g_rule_crc_file.lst() ;
+	}
 	// cxtors & casts
 	inline RuleCrcBase::RuleCrcBase( Crc match , Crc cmd , Crc rsrcs ) {
+		SWEAR(t_thread_key=='=') ;
 		if (!cmd       ) cmd   = match ;                                              // cmd must include match, so if not given, use match
 		if (!rsrcs     ) rsrcs = cmd   ;                                              // rsrcs must include cmd, so if not given, use cmd
 		if (!s_by_rsrcs)                                                              // auto-init s_by_rsrcs
@@ -493,10 +527,19 @@ namespace Engine::Persistent {
 	//
 	// RuleTgts
 	//
-	inline RuleTgtsFile::Lst rule_tgts_lst() { return _g_rule_tgts_file.lst() ; }
+	inline RuleTgtsFile::Lst rule_tgts_lst() {
+		SWEAR(t_thread_key=='=') ;
+		return _g_rule_tgts_file.lst() ;
+	}
 	// cxtors & casts
-	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_g_rule_tgts_file.insert(gs):RuleTgts()} {}
-	inline void RuleTgts::pop() { _g_rule_tgts_file.pop(+self) ; self = RuleTgts() ; }
+	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_g_rule_tgts_file.insert(gs):RuleTgts()} {
+		SWEAR(t_thread_key=='=') ;
+	}
+	inline void RuleTgts::pop() {
+		SWEAR(t_thread_key=='=') ;
+		_g_rule_tgts_file.pop(+self) ;
+		self = RuleTgts() ;
+	}
 	//
 	inline RuleTgts& RuleTgts::operator=(::span<RuleTgt const> const& v) { self = RuleTgts(v) ; return self ; }
 	// accesses

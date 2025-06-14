@@ -197,6 +197,7 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 // level 4
 ,	Autodep1                    // must follow Gil
 ,	Gather                      // must follow Gil
+,	Job                         // must follow Backend, by symetry with Node
 ,	Node                        // must follow NodeCrcDate
 ,	ReqInfo                     // must follow Req
 ,	Time                        // must follow BackendId
@@ -254,39 +255,64 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 	} ;
 #endif
 
-template<class M,bool S=false> struct Lock {
+template<class M> struct Lock {
 	// cxtors & casts
-	Lock () = default ;
+	Lock() = default ;
 	Lock (M& m) : _mutex{&m} { lock  () ; }
 	~Lock(    )              { unlock() ; }
 	// services
-	void lock  () requires(!S) { SWEAR(!_lvl) ; _mutex->lock         (_lvl) ; }
-	void unlock() requires(!S) { SWEAR(+_lvl) ; _mutex->unlock       (_lvl) ; }
-	void lock  () requires( S) { SWEAR(!_lvl) ; _mutex->lock_shared  (_lvl) ; }
-	void unlock() requires( S) { SWEAR(+_lvl) ; _mutex->unlock_shared(_lvl) ; }
+	void lock  () { SWEAR(!_lvl) ; _mutex->lock  (_lvl) ; }
+	void unlock() { SWEAR(+_lvl) ; _mutex->unlock(_lvl) ; }
+	// data
+	M*       _mutex = nullptr            ; // must be !=nullptr to lock
+	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
+} ;
+template<class M> struct SharedLock {
+	// cxtors & casts
+	SharedLock() = default ;
+	SharedLock (M& m) : _mutex{&m} { lock  () ; }
+	~SharedLock(    )              { unlock() ; }
+	// services
+	void lock  () { SWEAR(!_lvl) ; _mutex->lock_shared  (_lvl) ; }
+	void unlock() { SWEAR(+_lvl) ; _mutex->unlock_shared(_lvl) ; }
 	// data
 	M*       _mutex = nullptr            ; // must be !=nullptr to lock
 	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
 } ;
 
 #ifndef NDEBUG
-	template<bool S=false> struct NoLock { // check exclusion is guaranteed by caller
+	struct NoLock {                 // check exclusion is guaranteed by caller
 		// cxtors & casts
-		NoLock () = default ;
+		NoLock() = default ;
 		NoLock (NoMutex& m) : _mutex{&m} { lock  () ; }
 		~NoLock(          )              { unlock() ; }
 		// services
-		void lock  () requires(!S) { _mutex->lock         (::ref(MutexLvl())) ; }
-		void unlock() requires(!S) { _mutex->unlock       (::ref(MutexLvl())) ; }
-		void lock  () requires( S) { _mutex->lock_shared  (::ref(MutexLvl())) ; }
-		void unlock() requires( S) { _mutex->unlock_shared(::ref(MutexLvl())) ; }
+		void lock  () { _mutex->lock  (::ref(MutexLvl())) ; }
+		void unlock() { _mutex->unlock(::ref(MutexLvl())) ; }
 		// data
 		NoMutex* _mutex = nullptr ; // must be !=nullptr to lock
 	} ;
-
+	struct NoSharedLock {           // check exclusion is guaranteed by caller
+		// cxtors & casts
+		NoSharedLock() = default ;
+		NoSharedLock (NoMutex& m) : _mutex{&m} { lock  () ; }
+		~NoSharedLock(          )              { unlock() ; }
+		// services
+		void lock  () { _mutex->lock_shared  (::ref(MutexLvl())) ; }
+		void unlock() { _mutex->unlock_shared(::ref(MutexLvl())) ; }
+		// data
+		NoMutex* _mutex = nullptr ; // must be !=nullptr to lock
+	} ;
 #else
-	template<bool S=false> struct NoLock {
+	struct NoLock {
+		NoLock() = default ;
 		NoLock(NoMutex&) {}
+		void lock  () {}
+		void unlock() {}
+	} ;
+	struct NoSharedLock {
+		NoSharedLock() = default ;
+		NoSharedLock(NoMutex&) {}
 		void lock  () {}
 		void unlock() {}
 	} ;
@@ -342,9 +368,9 @@ template<class T> using FenceSave = Save<T,true> ;
 
 template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 private :
-	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex  > ;
-	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock<> > ;
-	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T        > ;
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T       > ;
 	// services
 public :
 	T acquire() {

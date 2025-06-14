@@ -14,16 +14,9 @@
 // memory leak is acceptable in case of crash
 // inconsistent state is never acceptable
 
-namespace Store { //                                                                            Shared
-	template<bool AutoLock> using UniqueMutex = ::conditional_t< AutoLock , Mutex<MutexLvl::File,false> , NoMutex > ;
-	template<bool AutoLock> using SharedMutex = ::conditional_t< AutoLock , Mutex<MutexLvl::File,true > , NoMutex > ;
-	//                                                                                                     Shared          Shared
-	template<bool AutoLock> using UniqueLock       = ::conditional_t< AutoLock , Lock<UniqueMutex<AutoLock>,false> , NoLock<false> > ;
-	template<bool AutoLock> using UniqueSharedLock = ::conditional_t< AutoLock , Lock<SharedMutex<AutoLock>,false> , NoLock<false> > ; // a unique lock of a shared-capable mutex
-	template<bool AutoLock> using SharedLock       = ::conditional_t< AutoLock , Lock<SharedMutex<AutoLock>,true > , NoLock<true > > ;
+namespace Store {
 
-	template<bool AutoLock,size_t Capacity> struct File {
-		using ULock = UniqueLock<AutoLock> ;
+	template<char ThreadKey,size_t Capacity> struct File {
 		// cxtors & casts
 		File () = default ;
 		File ( NewType                                ) { init(New            ) ; }
@@ -38,7 +31,7 @@ namespace Store { //                                                            
 		void init( ::string const& name_ , bool writable_ ) ;
 		void init( NewType                                ) { init("",true/*writable_*/) ; }
 		void close() {
-			ULock lock{_mutex} ;
+			chk_thread() ;
 			_dealloc() ;
 			_fd.close() ;
 		}
@@ -49,26 +42,24 @@ namespace Store { //                                                            
 			throw_unless( writable , name," is read-only" ) ;
 		}
 		void expand(size_t sz) {
+			chk_thread() ;
 			if (sz<=size) return ;                         // fast path
-			ULock lock{_mutex} ;
-			if ( AutoLock && sz<=size ) return ;           // redo size check, now that we have the lock
 			size_t old_size = size ;
 			_resize_file(::max( sz , size + (size>>2) )) ; // ensure remaps are in log(n)
 			_map(old_size) ;
 		}
 		void clear(size_t sz=0) {
-			ULock lock{_mutex} ;
-			_clear(sz) ;
-		}
-		void chk() const {
-			if (+_fd) SWEAR(base) ;
-		}
-	protected :
-		void _clear(size_t sz=0) {
+			chk_thread() ;
 			_dealloc() ;
 			_resize_file(sz) ;
 			_alloc() ;
 			_map(0) ;
+		}
+		void chk() const {
+			if (+_fd) SWEAR(base) ;
+		}
+		void chk_thread() const {
+			if (ThreadKey) SWEAR(t_thread_key==ThreadKey,t_thread_key) ;
 		}
 	private :
 		void _dealloc() {
@@ -92,11 +83,11 @@ namespace Store { //                                                            
 		bool           writable  = false   ;
 		bool           keep_open = false   ;
 	private :
-		UniqueMutex<AutoLock> mutable _mutex ;
-		AcFd                          _fd    ;
+		AcFd _fd ;
 	} ;
 
-	template<bool AutoLock,size_t Capacity> File<AutoLock,Capacity>& File<AutoLock,Capacity>::operator=(File&& other) {
+	template<char ThreadKey,size_t Capacity> File<ThreadKey,Capacity>& File<ThreadKey,Capacity>::operator=(File&& other) {
+		chk_thread() ;
 		close() ;
 		name      = ::move(other.name     ) ;
 		base      =        other.base       ; other.base      = nullptr ;
@@ -107,11 +98,11 @@ namespace Store { //                                                            
 		return self ;
 	}
 
-	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::init( ::string const& name_ , bool writable_ ) {
+	template<char ThreadKey,size_t Capacity> void File<ThreadKey,Capacity>::init( ::string const& name_ , bool writable_ ) {
+		chk_thread() ;
 		name     = name_     ;
 		writable = writable_ ;
 		//
-		ULock lock { _mutex } ;
 		if (!name) {
 			size = 0 ;
 		} else {
@@ -130,7 +121,7 @@ namespace Store { //                                                            
 		_map(0) ;
 	}
 
-	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_map(size_t old_size) {
+	template<char ThreadKey,size_t Capacity> void File<ThreadKey,Capacity>::_map(size_t old_size) {
 		SWEAR(size>=old_size) ;
 		if (size==old_size) return ;
 		//
@@ -144,7 +135,7 @@ namespace Store { //                                                            
 		if (actual!=base+old_size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),old_size,size,::strerror(errno)) ;
 	}
 
-	template<bool AutoLock,size_t Capacity> void File<AutoLock,Capacity>::_resize_file(size_t sz) {
+	template<char ThreadKey,size_t Capacity> void File<ThreadKey,Capacity>::_resize_file(size_t sz) {
 		static size_t s_page = ::sysconf(_SC_PAGESIZE) ;
 		if (sz>Capacity) {
 			::string err_msg ;

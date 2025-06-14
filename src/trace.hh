@@ -120,14 +120,26 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 #endif
 
-template<class M,bool S=false> struct TraceLock {
-	using Base = Lock<M,S> ;
-	TraceLock ( M& m , Channel channel , const char* tag ) : _trace{channel,tag,"lock",M::Lvl,STR(S)} , lock{m} { _trace("locked") ; }
-	TraceLock ( M& m ,                   const char* tag ) : _trace{        tag,"lock",M::Lvl,STR(S)} , lock{m} { _trace("locked") ; }
+template<class M> struct TraceLock {
+	using Base = Lock<M> ;
+	TraceLock ( M& m , Channel channel , const char* tag ) : _trace{channel,tag,"lock",M::Lvl} , lock{m} { _trace("locked") ; }
+	TraceLock ( M& m ,                   const char* tag ) : _trace{        tag,"lock",M::Lvl} , lock{m} { _trace("locked") ; }
 	~TraceLock() { _trace("unlock") ; }
 	// data
 private :
 	Trace _trace ;
 public :
-	Lock<M,S> lock ;
+	Lock<M> lock ;
+} ;
+
+template<class M> struct TraceSharedLock {
+	using Base = SharedLock<M> ;
+	TraceSharedLock ( M& m , Channel channel , const char* tag ) : _trace{channel,tag,"shared_lock",M::Lvl} , lock{m} { _trace("shared_locked") ; }
+	TraceSharedLock ( M& m ,                   const char* tag ) : _trace{        tag,"shared_lock",M::Lvl} , lock{m} { _trace("shared_locked") ; }
+	~TraceSharedLock() { _trace("unlock") ; }
+	// data
+private :
+	Trace _trace ;
+public :
+	SharedLock<M> lock ;
 } ;

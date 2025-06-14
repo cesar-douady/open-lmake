@@ -47,17 +47,13 @@ namespace Store {
 			return mantissa<<exp ;
 		}
 
-		template<class H,class I,uint8_t Mantissa=0,bool HasData=true> struct Hdr {
+		template<class H,class I,uint8_t Mantissa=0> struct Hdr {
 			static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
 			NoVoid<H>        hdr  ;
 			::array<I,NFree> free ;
 		} ;
-		template<class H,class I,uint8_t Mantissa> struct Hdr<H,I,Mantissa,false> {
-			static constexpr size_t NFree = 0 ;
-			NoVoid<H> hdr ;
-		} ;
 		template<class I,class D> struct Data {
-			static_assert( sizeof(NoVoid<D,I>)>=sizeof(I) ) ;                          // else waste memory
+			static_assert( sizeof(D)>=sizeof(I) ) ;                                    // else waste memory
 			template<class... A> Data(A&&... args) : data{::forward<A>(args)...} {}
 			union {
 				NoVoid<D> data ;                                                       // when data is used
@@ -67,54 +63,45 @@ namespace Store {
 		} ;
 
 	}
-	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile
-	:	                 StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is ...
-	{	using Base     = StructFile< false/*AutoLock*/ , Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ > ; // ... useless but easier ...
-		using BaseHdr  =                                 Alloc::Hdr<Hdr_,Idx_,Mantissa,IsNotVoid<Data_>> ;                                                               // ... to code
-		using BaseData =                                                                                                     Alloc::Data<Idx_,Data_> ;
+	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile //!      Multi
+	:	                 StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true >   // if !Mantissa, Multi is useless but easier to code
+	{	using Base     = StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true > ;
+		using BaseHdr  =                         Alloc::Hdr<Hdr_,Idx_,Mantissa> ;
+		using BaseData =                                                                            Alloc::Data<Idx_,Data_> ;
 		//
-		using Hdr    = Hdr_                       ;
-		using Idx    = Idx_                       ;
-		using Data   = Data_                      ;
-		using HdrNv  = NoVoid<Hdr >               ;
-		using DataNv = NoVoid<Data>               ;
-		using Sz     = typename Base::Sz          ;
-		using ULock  = UniqueSharedLock<AutoLock> ;
-		using SLock  = SharedLock      <AutoLock> ;
+		using Hdr   = Hdr_              ;
+		using Idx   = Idx_              ;
+		using Data  = Data_             ;
+		using HdrNv = NoVoid<Hdr>       ;
+		using Sz    = typename Base::Sz ;
 		//
 		static constexpr bool HasHdr    = !is_void_v<Hdr >         ;
-		static constexpr bool HasData   = !is_void_v<Data>         ;
 		static constexpr bool HasDataSz = ::Store::HasDataSz<Data> ;
-		static constexpr bool Multi     = Mantissa && HasData      ;
+		static constexpr bool Multi     = Mantissa                 ;
 		//
 		template<class... A> Idx emplace_back( Idx n , A&&... args ) = delete ;
+		using Base::chk_thread   ;
 		using Base::chk_writable ;
-		using Base::clear        ;
 		using Base::name         ;
 		using Base::size         ;
 		using Base::writable     ;
 
 		struct Lst {
 			struct Iterator {
-				using iterator_categorie = ::input_iterator_tag ;
-				using value_type         = Idx                  ;
-				using difference_type    = ptrdiff_t            ;
-				using pointer            = value_type*          ;
-				using reference          = value_type&          ;
 				// cxtors & casts
 				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _fix_end() ; _legalize() ; }
 				// services
-				bool      operator==(Iterator const& other) const { return _self==other._self && _idx==other._idx ; }
-				Idx       operator* (                     ) const { return _idx ;                                   }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;        }
-				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ;     }
+				bool      operator==(Iterator const& other) const = default ;
+				Idx       operator* (                     ) const { return _idx ;                               }
+				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;    }
+				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ; }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
 					_idx = Idx(+_idx+1) ;
 					_fix_end() ;
 				}
-                void _fix_end ()       { if (_idx==_self->size()) _idx = {} ;                       }
+				void _fix_end ()       { if (_idx==_self->size()) _idx = {} ;                       }
 				bool _is_legal() const { return !_self->_frees.contains(+_idx) ;                    }
 				bool _at_end  () const { return !_idx                          ;                    }
 				void _legalize()       { for( ; !_at_end() ; _advance() ) if (_is_legal()) return ; }
@@ -123,7 +110,7 @@ namespace Store {
 				Idx        _idx  = {} ;
 			} ;
 			// cxtors & casts
-			Lst( AllocFile const& s ) : _self{&s} , _lock{s._mutex} {
+			Lst( AllocFile const& s ) : _self{&s} {
 				for( Idx i=_self->_free(0) ; +i ; i=_self->Base::at(i).nxt ) _frees.insert(+i) ;
 			}
 			// accesses
@@ -137,7 +124,6 @@ namespace Store {
 		private :
 			AllocFile const*     _self  ;
 			::uset<UintIdx<Idx>> _frees ;
-			SLock  mutable       _lock  ;
 		} ;
 
 		// statics
@@ -148,50 +134,50 @@ namespace Store {
 	public :
 		using Base::Base ;
 		// accesses
-		HdrNv  const& hdr  (       ) const requires(HasHdr ) { return Base::hdr(   ).hdr  ; }
-		HdrNv       & hdr  (       )       requires(HasHdr ) { return Base::hdr(   ).hdr  ; }
-		HdrNv  const& c_hdr(       ) const requires(HasHdr ) { return Base::hdr(   ).hdr  ; }
-		DataNv const& at   (Idx idx) const requires(HasData) { return Base::at (idx).data ; }
-		DataNv      & at   (Idx idx)       requires(HasData) { return Base::at (idx).data ; }
-		DataNv const& c_at (Idx idx) const requires(HasData) { return Base::at (idx).data ; }
+		HdrNv const& hdr  (       ) const requires(HasHdr) { return Base::hdr  (   ).hdr  ; }
+		HdrNv      & hdr  (       )       requires(HasHdr) { return Base::hdr  (   ).hdr  ; }
+		HdrNv const& c_hdr(       ) const requires(HasHdr) { return Base::hdr  (   ).hdr  ; }
+		Data  const& at   (Idx idx) const                  { return Base::at   (idx).data ; }
+		Data       & at   (Idx idx)                        { return Base::at   (idx).data ; }
+		Data  const& c_at (Idx idx) const                  { return Base::at   (idx).data ; }
+		void         clear(Idx idx)                        {        Base::clear(idx)      ; }
 		//
-		Idx idx(DataNv const& at) const requires(HasData) {
+		Idx idx(Data const& at) const {
 			// the fancy following expr does a very simple thing : it transforms at into the corresponding ref for our Base
 			uintptr_t DataOffset = reinterpret_cast<uintptr_t>(&reinterpret_cast<typename Base::Data*>(4096)->data) - 4096 ;                      // cannot use 0 as gcc refuses to "dereference" null
 			typename Base::Data const& base_at = *reinterpret_cast<typename Base::Data const*>( reinterpret_cast<uintptr_t>(&at) - DataOffset ) ;
 			return Base::idx(base_at) ;
 		}
+		Lst lst() const requires(!Multi) { return Lst(self) ; }
 	private :
-		Idx const& _free(Sz bucket) const requires(HasData) { return Base::hdr().free[bucket] ; }
-		Idx      & _free(Sz bucket)       requires(HasData) { return Base::hdr().free[bucket] ; }
-	public :
-		Lst lst() const requires( !Multi && HasData ) { return Lst(self) ; }
+		Idx const& _free(Sz bucket) const { SWEAR(bucket<Base::Hdr::NFree) ; return Base::hdr().free[bucket] ; }
+		Idx      & _free(Sz bucket)       { SWEAR(bucket<Base::Hdr::NFree) ; return Base::hdr().free[bucket] ; }
 		// services
-		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi && !HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ;                   return res ; }
-		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi &&  HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ; _chk_sz(res,sz) ; return res ; }
-		template<class... A> Idx emplace(         A&&... args ) requires( !Multi &&  HasData   ) { Idx res = _emplace(1 ,::forward<A>(args)...) ;                   return res ; }
-		//
-		void shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(  Multi && !HasDataSz ) {                       _shorten( idx , old_sz        , new_sz        ) ; }
-		void shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(  Multi &&  HasDataSz ) { _chk_sz(idx,new_sz) ; _shorten( idx , old_sz        , new_sz        ) ; }
-		void shorten( Idx idx , Sz old_sz             ) requires(  Multi &&  HasDataSz ) {                       _shorten( idx , old_sz        , _n_items(idx) ) ; }
-		void pop    ( Idx idx , Sz sz                 ) requires(  Multi && !HasDataSz ) {                       _pop    ( idx , sz                            ) ; }
-		void pop    ( Idx idx , Sz sz                 ) requires(  Multi &&  HasDataSz ) { _chk_sz(idx,sz    ) ; _pop    ( idx , sz                            ) ; }
-		void pop    ( Idx idx                         ) requires(  Multi &&  HasDataSz ) {                       _pop    ( idx , _n_items(idx)                 ) ; }
-		void pop    ( Idx idx                         ) requires( !Multi &&  HasData   ) {                       _pop    ( idx , 1                             ) ; }
-		//
-		void clear()                                  { ULock lock{_mutex} ; _clear() ; }
-		void chk  () const requires(!HasData        ) {                                 }
-		void chk  () const requires(!is_void_v<Data>) ;                                                                        // XXX! : why cant we use HasData here with clang ?!?
-	protected :
-		void _clear() {
-			Base::_clear() ;
+	public :
+		void clear() {
+			Base::clear() ;
 			for( Idx& f : Base::hdr().free ) f = 0 ;
 		}
+		void chk() const ;
+		//
+		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi && !HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ;                   return res ; }
+		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi &&  HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ; _chk_sz(res,sz) ; return res ; }
+		template<class... A> Idx emplace(         A&&... args ) requires( !Multi               ) { Idx res = _emplace(1 ,::forward<A>(args)...) ;                   return res ; }
+		//
+		void shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(  Multi              ) { _chk_sz(idx,new_sz) ; _shorten( idx , old_sz , new_sz        ) ; }
+		void shorten( Idx idx , Sz old_sz             ) requires(  Multi && HasDataSz ) {                       _shorten( idx , old_sz , _n_items(idx) ) ; }
+		void pop    ( Idx idx , Sz sz                 ) requires(  Multi              ) { _chk_sz(idx,sz    ) ; _pop    ( idx , sz                     ) ; }
+		void pop    ( Idx idx                         ) requires(  Multi && HasDataSz ) {                       _pop    ( idx , _n_items(idx)          ) ; }
+		void pop    ( Idx idx                         ) requires( !Multi              ) {                       _pop    ( idx , 1                      ) ; }
 	private :
-		Sz   _n_items( Idx idx         ) requires(HasDataSz) { if (!idx) return 0 ; return at(idx).n_items() ;  }
-		void _chk_sz ( Idx idx , Sz sz ) requires(HasDataSz) { SWEAR(sz==Idx(_n_items(idx)),sz,_n_items(idx)) ; }
-		template<class... A> Idx _emplace( Sz sz , A&&... args ) requires(HasData) {
-			ULock lock   { _mutex }          ;
+		Sz _n_items(Idx idx) requires(HasDataSz) {
+			if (!idx) return 0                 ;
+			else      return at(idx).n_items() ;
+		}
+		void _chk_sz( Idx     , Sz    ) requires(!HasDataSz) {                                                      }          // nothing to check if size is not available (trust caller)
+		void _chk_sz( Idx idx , Sz sz ) requires( HasDataSz) { SWEAR( sz==Idx(_n_items(idx)) , sz,_n_items(idx) ) ; }
+		template<class... A> Idx _emplace( Sz sz , A&&... args ) {
+			chk_thread() ;
 			Sz    bucket = _s_bucket(sz    ) ;
 			Idx&  free   = _free    (bucket) ;
 			//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -200,17 +186,17 @@ namespace Store {
 			Idx res = free ;
 			free = Base::at(res).nxt ;
 			fence() ;                                                                                                          // ensure free list is always consistent
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Base::emplace(res,::forward<A>(args)...) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Base::_emplace(res,::forward<A>(args)...) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return res ;
 		}
 		void _shorten( Idx idx , Sz old_sz , Sz new_sz ) requires(Multi) {
+			chk_thread() ;
 			if (!new_sz       ) { _pop(idx,old_sz) ; return ; }
 			if (new_sz==old_sz)                      return ;
 			SWEAR( new_sz<=old_sz , new_sz , old_sz ) ;
 			chk_writable() ;
-			ULock lock{_mutex} ;
 			Sz old_bucket = _s_bucket(old_sz) ;
 			Sz new_bucket = _s_bucket(new_sz) ;
 			// deallocate extra room
@@ -227,25 +213,22 @@ namespace Store {
 			}
 			SWEAR( new_bucket<=old_bucket , new_bucket , old_bucket ) ;
 		}
-		void _pop( Idx idx , Sz sz ) requires( HasData) {
+		void _pop( Idx idx , Sz sz ) {
+			chk_thread() ;
 			if (!idx) return ;
 			chk_writable() ;
-			ULock lock{_mutex} ;
-			Base::pop(idx) ;
+			Base::_pop(idx) ;
 			_dealloc(idx,_s_bucket(sz)) ;
 		}
-		void _dealloc( Idx idx , Sz bucket ) requires( HasData) {
+		void _dealloc( Idx idx , Sz bucket ) {
 			chk_writable() ;
 			Idx& free = _free(bucket) ;
 			Base::at(idx).nxt = free ;
 			fence() ;                                                                                                          // ensure free list is always consistent
 			free = idx ;
 		}
-		// data
-	private :
-		SharedMutex<AutoLock> mutable _mutex ;
 	} ;
-	template<bool AutoLock,class Hdr,class Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<AutoLock,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const requires(!is_void_v<Data>) {
+	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const {
 		Base::chk() ;
 		::vector<bool> free_map ;
 		free_map.resize(size()) ;

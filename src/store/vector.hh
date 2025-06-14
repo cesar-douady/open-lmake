@@ -69,10 +69,10 @@ namespace Store {
 
 	}
 
-	template<bool AutoLock,class Hdr_,class Idx_,uint8_t NIdxBits,class Item_,class Sz=UintIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
-	:	              AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa >
-	{	using Base  = AllocFile< false/*AutoLock*/ , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa > ;
-		using Chunk =                                                         Vector::Chunk<Idx_,Item_,Sz,MinSz>              ;
+	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Item_,class Sz=UintIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
+	:	              AllocFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa >
+	{	using Base  = AllocFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa > ;
+		using Chunk =                                                 Vector::Chunk<Idx_,Item_,Sz,MinSz>              ;
 		//
 		using Hdr   = Hdr_  ;
 		using Idx   = Idx_  ;
@@ -86,11 +86,11 @@ namespace Store {
 		using Char    = AsChar<Item>              ;
 		using VecView = ::span<Item const>        ;
 		using StrView = ::basic_string_view<Char> ;
-		using ULock   = UniqueLock<AutoLock>      ;
 		//
 		void at     (Idx   ) = delete ;
 		void shorten(Idx,Sz) = delete ;
 		//
+		using Base::chk_thread   ;
 		using Base::chk_writable ;
 		using Base::size         ;
 		// cxtors & casts
@@ -104,28 +104,29 @@ namespace Store {
 		VecView     view    (Idx idx) const                 { if (!idx) return {}      ; return Base::at(idx)                  ; }
 		StrView     str_view(Idx idx) const requires(IsStr) { VecView res = view(idx) ;  return StrView(res.data(),res.size()) ; }
 		// services
+		void clear() {
+			Base::clear() ;
+		}
 		template<::convertible_to<Item> I> Idx emplace(::span<I> const& v) {
+			chk_thread() ;
 			if (!v) return 0 ;
-			ULock lock{_mutex} ;
 			return Base::emplace( Chunk::s_n_items(v.size()) , v ) ;
 		}
 		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace( I0 const& x0 , ::span<I> const& v) {
-			ULock lock{_mutex} ;
 			return Base::emplace( Chunk::s_n_items(v.size()+1) , x0 , v ) ;
 		}
 		//
 		void pop(Idx idx) {
+			chk_thread() ;
 			if (!idx) return ;
-			ULock lock{_mutex} ;
 			Base::pop(idx) ;
 		}
-		void clear(       ) { Base::clear() ; }
-		void clear(Idx idx) { pop(idx)      ; }
+		void clear(Idx idx) { pop(idx) ; }
 		Idx shorten_by( Idx idx , Sz by ) {
+			chk_thread() ;
 			Sz sz = size(idx) ;
 			SWEAR( by<=sz , by , sz ) ;
 			if (by==sz) { clear(idx) ; return 0 ; }
-			ULock lock{_mutex} ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Base::at(idx).shorten_by(by) ;
 			Base::shorten( idx , Chunk::s_n_items(sz) ) ;
@@ -137,7 +138,6 @@ namespace Store {
 			if (!idx) {            return emplace(v) ; }
 			if (!v  ) { pop(idx) ; return 0          ; }
 			//                            ^^^^^^^^^^
-			ULock lock{_mutex} ;
 			Chunk& chunk = Base::at(idx)              ;
 			IdxSz  old_n = chunk.n_items()            ;
 			IdxSz  new_n = Chunk::s_n_items(v.size()) ;
@@ -158,11 +158,11 @@ namespace Store {
 			return idx ;
 		}
 		template<::convertible_to<Item> I> Idx append( Idx idx , ::span<I> const& v ) {
+			chk_thread() ;
 			//               vvvvvvvvvv
 			if (!idx) return emplace(v) ;
 			if (!v  ) return idx        ;
 			//               ^^^^^^^^^^
-			ULock lock{_mutex} ;
 			Chunk& chunk = Base::at(idx)                       ;
 			IdxSz  old_n = chunk.n_items()                     ;
 			IdxSz  new_n = Chunk::s_n_items(chunk.sz+v.size()) ;
@@ -188,9 +188,6 @@ namespace Store {
 		Idx emplace(      Item const& c0,::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return emplace(  c0,::span<Item const>(s)) ; }
 		Idx assign (Idx i,               ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return assign (i,   ::span<Item const>(s)) ; }
 		Idx append (Idx i,               ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return append (i,   ::span<Item const>(s)) ; }
-		// data
-	private :
-		UniqueMutex<AutoLock> mutable _mutex ;
 	} ;
 
 }

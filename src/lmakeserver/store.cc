@@ -117,38 +117,38 @@ namespace Engine::Persistent {
 	::umap<Crc,RuleCrc> RuleCrcBase::s_by_rsrcs ;
 
 	//
+	// JobBase
+	//
+
+	Mutex<MutexLvl::Job,true/*Shared*/> JobDataBase::_s_mutex ;
+
+	//
 	// NodeBase
 	//
 
-	Mutex<MutexLvl::Node> NodeBase::_s_mutex ;
+	Mutex<MutexLvl::Node,true/*Shared*/> NodeDataBase::_s_mutex ;
 
 	NodeBase::NodeBase( ::string const& name_ , bool no_dir ) {
+		Lock lock { NodeDataBase::_s_mutex } ;
 		SWEAR( +name_ && is_canon(name_) , name_ ) ;
 		if (no_dir) {
-			Name nn = _g_name_file.insert(name_) ;
-			self = _g_name_file.c_at(nn).node() ;
-			if (!self) {
-				Lock lock { _s_mutex } ;
-				JobNode& jn = _g_name_file.at     (nn) ;
-				if (!jn) jn = _g_node_file.emplace(nn) ;                                       // test jn in case it has been created by another thread
-				self = jn.node() ;
-			}
-			SWEAR( +self , name_ ) ;
-		} else {
-			::pair<Name/*top*/,::vector<Name>/*created*/> top_created = _g_name_file.insert_chain(name_,'/') ;
-			SWEAR(+top_created) ;
-			Node n ; if (+top_created.first) n = _g_name_file.c_at(top_created.first).node() ;
-			if (+top_created.second) {                                                         // else fast path : avoid taking the lock
-				Lock lock { _s_mutex } ;
-				for( Name nn : top_created.second ) {                                          // create dir chain from top to bottom
-					JobNode& jn = _g_name_file.at     (nn  ) ;
-					if (!jn) jn = _g_node_file.emplace(nn,n) ;                                 // test jn in case it has been created by another thread since insert_chain
-					n = jn.node() ;
-				}
-			}
+			NodeName nn = _g_node_name_file.insert(name_) ;
+			Node&    n  = _g_node_name_file.at(nn)        ;
+			if (!n) n = _g_node_file.emplace_back(nn) ;
 			self = n ;
-			SWEAR( +self , name_,top_created ) ;
+		} else {
+			::pair<NodeName/*top*/,::vector<NodeName>/*created*/> top_created = _g_node_name_file.insert_chain(name_,'/') ;
+			SWEAR(+top_created) ;
+			Node last_n ;
+			if (+top_created.first)
+				last_n = _g_node_name_file.c_at(top_created.first) ;
+			for( NodeName nn : top_created.second ) {
+				Node& n = _g_node_name_file.at(nn) ; SWEAR( !n , n ) ;
+				last_n = n = _g_node_file.emplace_back(nn,last_n/*dir*/) ; // create dir chain from top to bottom
+			}
+			self = last_n ;
 		}
+		SWEAR( +self , name_,no_dir ) ;
 	}
 
 	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
@@ -170,15 +170,16 @@ namespace Engine::Persistent {
 	::string _g_rules_file_name ;
 	//
 	JobFile      _g_job_file       ; // jobs
+	JobNameFile  _g_job_name_file  ; // .
 	DepsFile     _g_deps_file      ; // .
 	TargetsFile  _g_targets_file   ; // .
 	NodeFile     _g_node_file      ; // nodes
+	NodeNameFile _g_node_name_file ; // .
 	JobTgtsFile  _g_job_tgts_file  ; // .
 	RuleCrcFile  _g_rule_crc_file  ; // rules
 	RuleTgtsFile _g_rule_tgts_file ; // .
 	SfxFile      _g_sfxs_file      ; // .
 	PfxFile      _g_pfxs_file      ; // .
-	NameFile     _g_name_file      ; // commons
 	// in memory
 	::uset<Job > _frozen_jobs  ;
 	::uset<Node> _frozen_nodes ;
@@ -207,18 +208,18 @@ namespace Engine::Persistent {
 		mk_dir_s(dir_s) ;
 		// jobs
 		_g_job_file      .init( dir_s+"job"       , g_writable ) ;
+		_g_job_name_file .init( dir_s+"job_name"  , g_writable ) ;
 		_g_deps_file     .init( dir_s+"deps"      , g_writable ) ;
 		_g_targets_file  .init( dir_s+"targets"   , g_writable ) ;
 		// nodes
 		_g_node_file     .init( dir_s+"node"      , g_writable ) ;
+		_g_node_name_file.init( dir_s+"node_name" , g_writable ) ;
 		_g_job_tgts_file .init( dir_s+"job_tgts"  , g_writable ) ;
 		// rules
 		_g_rule_crc_file .init( dir_s+"rule_crc"  , g_writable ) ; if ( g_writable && !_g_rule_crc_file.c_hdr() ) _g_rule_crc_file.hdr() = 1 ; // hdr is match_gen, 0 is reserved to mean no match
 		_g_rule_tgts_file.init( dir_s+"rule_tgts" , g_writable ) ;
 		_g_sfxs_file     .init( dir_s+"sfxs"      , g_writable ) ;
 		_g_pfxs_file     .init( dir_s+"pfxs"      , g_writable ) ;
-		// commons
-		_g_name_file     .init( dir_s+"name"      , g_writable ) ;
 		// misc
 		if (g_writable) {
 			g_seq_id = &_g_job_file.hdr().seq_id ;
@@ -230,15 +231,16 @@ namespace Engine::Persistent {
 		//
 		SWEAR(RuleBase::s_match_gen>0) ;
 		_g_job_file      .keep_open = true ;               // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
+		_g_job_name_file .keep_open = true ;               // .
 		_g_deps_file     .keep_open = true ;               // .
 		_g_targets_file  .keep_open = true ;               // .
 		_g_node_file     .keep_open = true ;               // .
+		_g_node_name_file.keep_open = true ;               // .
 		_g_job_tgts_file .keep_open = true ;               // .
 		_g_rule_crc_file .keep_open = true ;               // .
 		_g_rule_tgts_file.keep_open = true ;               // .
 		_g_sfxs_file     .keep_open = true ;               // .
 		_g_pfxs_file     .keep_open = true ;               // .
-		_g_name_file     .keep_open = true ;               // .
 		_compile_srcs() ;
 		Rule::s_from_disk() ;
 		for( Job  j : _g_job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
@@ -263,15 +265,16 @@ namespace Engine::Persistent {
 	void chk() {
 		// files
 		/**/                                    _g_job_file      .chk(                      ) ; // jobs
+		/**/                                    _g_job_name_file .chk(                      ) ; // .
 		/**/                                    _g_deps_file     .chk(                      ) ; // .
 		/**/                                    _g_targets_file  .chk(                      ) ; // .
 		/**/                                    _g_node_file     .chk(                      ) ; // nodes
+		/**/                                    _g_node_name_file.chk(                      ) ; // .
 		/**/                                    _g_job_tgts_file .chk(                      ) ; // .
 		/**/                                    _g_rule_crc_file .chk(                      ) ; // .
 		/**/                                    _g_rule_tgts_file.chk(                      ) ; // .
 		/**/                                    _g_sfxs_file     .chk(                      ) ; // .
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
-		/**/                                    _g_name_file     .chk(                      ) ; // commons
 	}
 
 	static void _save_config() {

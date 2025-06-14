@@ -354,7 +354,7 @@ namespace Engine {
 		Bool3                       _dirty     = Maybe ; // if Maybe <=> lazy must be solved, if Yes <=> must be written back to rejected_rule_tgts
 	} ;
 
-	struct NodeData : JobNodeData {
+	struct NodeData : NodeDataBase {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
@@ -366,15 +366,13 @@ namespace Engine {
 		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
 		NodeData() = delete ;                                                                                         // if necessary, we must take care of the union
-		NodeData( Name n             ) : JobNodeData{n} {                }
-		NodeData( Name n , Node dir_ ) : JobNodeData{n} { dir() = dir_ ; }
+		NodeData( NodeName n             ) : NodeDataBase{n} {                }
+		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir() = dir_ ; }
 		~NodeData() {
 			job_tgts().pop() ;
 		}
 		// accesses
-		Node     idx    () const { return Node::s_idx(self) ;                }
-		size_t   name_sz() const { return full_name_sz()    ;                }
-		::string name   () const { ::string res = full_name() ; return res ; }
+		Node idx () const { return Node::s_idx(self) ; }
 		//
 		bool is_decode() const { return buildable==Buildable::Decode ; }
 		bool is_encode() const { return buildable==Buildable::Encode ; }
@@ -555,9 +553,9 @@ namespace Engine {
 			Ddate       log_date ;                       // ~40   < 64 bits,           logical date to detect overwritten
 			Codec::Code code     ;                       //         32 bits,           offset in association file where the association line can be found
 		} ;
-		//Name  name   ;                                 //         32 bits, inherited
-		Watcher asking ;                                 //         32 bits,           last watcher needing this node
-		Crc     crc    = Crc::None ;                     // ~45   < 64 bits,           disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		//NodeName name   ;                              //         32 bits, inherited
+		Watcher    asking ;                              //         32 bits,           last watcher needing this node
+		Crc        crc    = Crc::None ;                  // ~45   < 64 bits,           disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
 	private :
 		union {
 			IfPlain  _if_plain  = {} ;                   //        320 bits

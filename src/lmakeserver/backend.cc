@@ -300,41 +300,39 @@ namespace Backends {
 		if (!jsrr) return false ;                                                                   // if connection is lost, ignore it
 		Trace trace(BeChnl,"_s_handle_job_start",jsrr) ;
 		SWEAR(+fd,jsrr) ;                                                                           // fd is needed to reply
-		Job                      job                   { jsrr.job }                  ;
-		JobExec                  job_exec              ;
-		Rule                     rule                  = job->rule()                 ;
-		RuleData const&          rd                    = *rule                       ;
-		Rule::RuleMatch          match                 = job->rule_match()           ;
-		vmap<Node,FileAction>    pre_actions           ;
-		vmap<Node,FileActionTag> pre_action_warnings   ;
-		StartCmdAttrs            start_cmd_attrs       ;
-		StartRsrcsAttrs          start_rsrcs_attrs     ;
-		StartAncillaryAttrs      start_ancillary_attrs ;
-		MsgStderr                start_msg_err         ;
-		::vector<ReqIdx>         reqs                  ;
-		JobInfoStart             jis                   { .rule_crc_cmd=rd.crc->cmd } ;
-		JobStartRpcReply&        reply                 = jis.start                   ;
-		::string        &        cmd                   = reply.cmd                   ;
-		SubmitAttrs     &        submit_attrs          = jis.submit_attrs            ;
-		::vmap_ss       &        rsrcs                 = jis.rsrcs                   ;
+		Job               job          { jsrr.job }                  ;
+		RuleData const&   rd           = *job->rule()                ;
+		::vector<ReqIdx>  reqs         ;
+		JobInfoStart      jis          { .rule_crc_cmd=rd.crc->cmd } ;
+		JobStartRpcReply& reply        = jis.start                   ;
+		::string        & cmd          = reply.cmd                   ;
+		SubmitAttrs     & submit_attrs = jis.submit_attrs            ;
+		::vmap_ss       & rsrcs        = jis.rsrcs                   ;
 		//
 		// to lock for minimal time, we lock twice
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
 		// because the only thing that can happend between the 2 locks is that entry disappears, we can move info from entry during 1st lock
 		{	TraceLock lock { _s_mutex , BeChnl , "s_handle_job_start1" } ;                          // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			//
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1",job                              ) ; return false/*keep_fd*/ ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
+			//                                                                                                                                                 keep_fd
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1",job                              ) ; return false ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1",job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
 			submit_attrs                = ::move(entry.submit_attrs) ;
 			rsrcs                       = ::move(entry.rsrcs       ) ;
 			reqs                        =        entry.reqs          ;
 			tie(jis.eta,reply.keep_tmp) = entry.req_info()           ;
 		}
 		trace("submit_attrs",submit_attrs) ;
-		::vmap_s<DepDigest>& deps          = submit_attrs.deps              ;                       // these are the deps for dynamic attriute evaluation
-		size_t               n_submit_deps = deps.size()                    ;
-		int                  step          = 0                              ;
-		::vmap_s<DepSpec>    dep_specs     = rd.deps_attrs.dep_specs(match) ;                       // this cannot fail as it was already run to construct job
+		vmap<Node,FileAction>    pre_actions           ;
+		vmap<Node,FileActionTag> pre_action_warnings   ;
+		StartCmdAttrs            start_cmd_attrs       ;
+		StartRsrcsAttrs          start_rsrcs_attrs     ;
+		StartAncillaryAttrs      start_ancillary_attrs ;
+		MsgStderr                start_msg_err         ;
+		Rule::RuleMatch          match                 = job->rule_match()              ;
+		::vmap_s<DepDigest>&     deps                  = submit_attrs.deps              ;                       // these are the deps for dynamic attriute evaluation
+		size_t                   n_submit_deps         = deps.size()                    ;
+		int                      step                  = 0                              ;
+		::vmap_s<DepSpec>        dep_specs             = rd.deps_attrs.dep_specs(match) ;                       // this cannot fail as it was already run to construct job
 		try {
 			try {
 				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
@@ -445,7 +443,8 @@ namespace Backends {
 		}
 		//
 		_s_starting_job = jsrr.job ;                                       // used to ensure _s_handle_job_start is done for this job when _s_handle_job_end is called
-		Lock lock { _s_starting_job_mutex } ;                              // .
+		Lock    lock     { _s_starting_job_mutex } ;                       // .
+		JobExec job_exec ;
 		//
 		{	TraceLock lock { _s_mutex , BeChnl , "s_handle_job_start2" } ; // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
@@ -830,8 +829,8 @@ namespace Backends {
 		SeqId seq_id = (*Engine::g_seq_id)++ ;
 		//
 		_s_mutex.swear_locked() ;
-		SWEAR(!_s_start_tab.contains(job),job) ;
-		StartEntry& entry = _s_start_tab[job] ;     // create entry
+		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ; // ensure entry is created
+		StartEntry& entry       = it_inserted.first->second     ;
 		entry.submit_attrs = ::move(submit_attrs) ;
 		entry.conn.seq_id  =        seq_id        ;
 		entry.spawn_date   =        New           ;

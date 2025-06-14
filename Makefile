@@ -16,12 +16,14 @@ ifneq ($(shell uname),Linux)
 endif
 
 # mandatory
-GNUMAKEFLAGS := -r -R                                                      # dont use default rules, GNUMAKEFLAGS is supported by suse while MAKEFLAGS is not
+MAKEFLAGS := -r -R                                                      # dont use default rules
 # user configurable
-GNUMAKEFLAGS    += -k                                                      # keep making independent jobs in case of error
+MAKEFLAGS    += -k                                                      # keep making independent jobs in case of error
 N_PARALLEL_JOBS := $(shell nproc||echo 1)
 # mandatory
-GNUMAKEFLAGS += $(if $(findstring C,$(LMAKE_FLAGS)),,-j$(N_PARALLEL_JOBS)) # no parallel execution if using coverage
+MAKEFLAGS += $(if $(findstring C,$(LMAKE_FLAGS)),,-j$(N_PARALLEL_JOBS)) # no parallel execution if using coverage
+
+GNUMAKEFLAGS := $(MAKEFLAGS) # GNUMAKEFLAGS is supported by suse while MAKEFLAGS is not
 
 .DEFAULT_GOAL := DFLT
 
