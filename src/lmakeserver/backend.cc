@@ -260,8 +260,8 @@ namespace Backends {
 			OMsgBuf().send( fd , JobMngtRpcReply({.proc=proc,.seq_id=conn.seq_id}) ) ;
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
-			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after network delay
-			_s_deferred_wakeup_thread.emplace_after( g_config->network_delay , DeferredEntry{conn.seq_id,JobExec(job,conn.host,start_date)} ) ;
+			// if job cannot be connected to, assume it is dead and pretend it died if it still exists after 2*network delay (2* to take some margin)
+			_s_deferred_wakeup_thread.emplace_after( g_config->network_delay+g_config->network_delay , DeferredEntry{conn.seq_id,JobExec(job,conn.host,start_date)} ) ;
 		}
 	}
 
@@ -403,22 +403,22 @@ namespace Backends {
 					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
 				}
 				//
-				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt ;
-				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first      ;
-				/**/                            reply.addr                    = fd.peer_addr()                                 ; SWEAR(reply.addr) ;  // 0 means no address
-				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                          ;
-				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                            ;
-				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                  ;
-				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                  ;
-				if (submit_attrs.cache_idx    ) reply.cache_idx               =              submit_attrs.cache_idx            ;
-				if (submit_attrs.cache_idx    ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx]           ;
-				/**/                            reply.ddate_prec              = g_config->ddate_prec                           ;
-				/**/                            reply.key                     = g_config->key                                  ;
-				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)        ;
-				/**/                            reply.live_out                = submit_attrs.live_out                          ;
-				/**/                            reply.network_delay           = g_config->network_delay                        ;
-				/**/                            reply.nice                    = submit_attrs.nice                              ;
-				/**/                            reply.rule                    = rd.user_name()                                 ;
+				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                      ;
+				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                           ;
+				/**/                            reply.addr                    = fd.peer_addr()                                                      ; SWEAR(reply.addr) ;  // 0 means no address
+				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                               ;
+				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                                 ;
+				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                       ;
+				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                                       ;
+				if (submit_attrs.cache_idx    ) reply.cache_idx               =              submit_attrs.cache_idx                                 ;
+				if (submit_attrs.cache_idx    ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx]                                ;
+				/**/                            reply.ddate_prec              = g_config->ddate_prec                                                ;
+				/**/                            reply.key                     = g_config->key                                                       ;
+				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)                             ;
+				/**/                            reply.live_out                = submit_attrs.live_out                                               ;
+				/**/                            reply.network_delay           = g_config->network_delay                                             ;
+				/**/                            reply.nice                    = submit_attrs.nice!=uint8_t(-1) ? submit_attrs.nice : g_config->nice ;
+				/**/                            reply.rule                    = rd.user_name()                                                      ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;

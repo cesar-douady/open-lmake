@@ -26,6 +26,10 @@ else :
 # /!\ default values must stay in sync with src/lmakeserver/config.hh
 config = pdict(
 	disk_date_precision = 0.010                             # in seconds, precisions of dates on disk, must account for date granularity and date discrepancy between executing hosts and disk servers
+,	file_sync           = 'dir'                             # method used to ensure real close-to-open file synchronization :
+#	                                                        # - 'none' or None : none
+#	                                                        # - 'dir'          : close dir after write, open dir before read
+#	                                                        # - 'sync'         : call fsync after write
 ,	heartbeat           = 10                                # in seconds, minimum interval between 2 heartbeat checks (and before first one) for the same job (no heartbeat if None)
 ,	heartbeat_tick      = 0.1                               # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
 ,	link_support        = 'Full'                            # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
@@ -34,11 +38,8 @@ config = pdict(
 ,	max_dep_depth       = 100                               # used to detect infinite recursions and loops
 ,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay       = 1                                 # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
+#,	nice                = 0                                 # nice value to apply to all jobs
 ,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
-,	file_sync           = 'dir'                             # method used to ensure real close-to-open file synchronization :
-#	                                                        # - 'none' or None : none
-#	                                                        # - 'dir'          : close dir after write, open dir before read
-#	                                                        # - 'sync'         : call fsync after write
 ,	sub_repos           = []                                # list of sub_repos
 ,	console = pdict(                                        # tailor output lines
 		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)

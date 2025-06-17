@@ -77,7 +77,6 @@ else :
 
 	for z_lvl in (0,5) :
 		print(f'z_lvl={z_lvl}',file=open('step.py','w'))
-		os.system(f'rm -rf LMAKE CACHE *auto1* mkdir*')
 
 		print('hello'       ,file=open('hello'               ,'w'))
 		print('hello\n#auto',file=open('hello+auto1.hide.ref','w'))
@@ -97,4 +96,6 @@ else :
 		print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
 		ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part, and miss when we depend on hello
 		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check everything is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
+
+		os.system(f'mkdir bck2{z_lvl} ; mv LMAKE CACHE *auto1* mkdir* bck2{z_lvl}')
 

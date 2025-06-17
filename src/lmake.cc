@@ -67,18 +67,19 @@ int main( int argc , char* argv[] ) {
 	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
 	//
 	ReqSyntax syntax {{
-		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated" } }
-	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transient"             } }
-	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                          } }
-	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                     } }
-	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"           } }
-	,	{ ReqFlag::MaxSubmits      , { .short_name='m' , .has_arg=true  , .doc="max sumits on top of rule prescription"      } }
-	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                 } }
-	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                         } }
-	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"             } }
-	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"            } }
-	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"             } }
-	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                   } }
+		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"   } }
+	,	{ ReqFlag::CacheMethod     , { .short_name='c' , .has_arg=true  , .doc="cache method (none, download, check or plain)" } }
+	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transient"               } }
+	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                            } }
+	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                       } }
+	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"             } }
+	,	{ ReqFlag::MaxSubmits      , { .short_name='m' , .has_arg=true  , .doc="max sumits on top of rule prescription"        } }
+	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                   } }
+	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                           } }
+	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"               } }
+	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"              } }
+	,	{ ReqFlag::Verbose         , { .short_name='v' , .has_arg=false , .doc="generate backend execution info"               } }
+	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                     } }
 	}} ;
 	// add args passed in environment
 	SWEAR(argc>0) ;
@@ -91,12 +92,18 @@ int main( int argc , char* argv[] ) {
 	/**/  trace("main",args                    ) ;
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
+	//
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                                                         }
 	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ;                               }
+	//
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                                                 }
 	catch (::string const& e) { syntax.usage("cannot understand retry count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                              }
+	//
 	try                       { uint8_t n = from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::Nice],true/*empty_ok*/) ; throw_unless(n<=20,"must be at most 20") ; }
 	catch (::string const& e) { syntax.usage("cannot understand nice value ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                               }
+	//
+	try                       { if (cmd_line.flags[ReqFlag::CacheMethod]) mk_enum<CacheMethod>(cmd_line.flag_args[+ReqFlag::CacheMethod]) ;                        }
+	catch (::string const& e) { syntax.usage("unexpected cache method : "+cmd_line.flag_args[+ReqFlag::CacheMethod]) ;                                             }
 	// start interrupt handling thread once server is started
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Bool3 ok = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;

@@ -94,35 +94,35 @@ namespace Store {
 		StructFile() = default ;
 		template<class... A> StructFile( NewType                              , A&&... hdr_args ) { init( New             , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> StructFile( ::string const& name , bool writable , A&&... hdr_args ) { init( name , writable , ::forward<A>(hdr_args)... ) ; }
-		//                                                                                                                             writable
-		template<class... A> void init( NewType                                      , A&&... hdr_args ) { init( "" , true , ::forward<A>(hdr_args)... ) ; }
-		template<class... A> void init( ::string const&   name   , bool   writable   , A&&... hdr_args ) {
+		//
+		template<class... A> void init( NewType                              , A&&... hdr_args ) { init( "" , true/*writable*/ , ::forward<A>(hdr_args)... ) ; }
+		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::init( name , writable ) ;
 			if (Base::operator+()) return ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
 		// accesses
-		bool         operator+(               ) const                  { return size()>1                                                        ; }
-		Sz           size     (               ) const                  { return _struct_hdr().sz                                                ; }
-		HdrNv const& hdr      (               ) const requires(HasHdr) { return _struct_hdr().hdr                                               ; }
-		HdrNv      & hdr      (               )       requires(HasHdr) { return _struct_hdr().hdr                                               ; }
-		HdrNv const& c_hdr    (               ) const requires(HasHdr) { return _struct_hdr().hdr                                               ; }
-		Data  const& at       (Idx         idx) const                  { return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Data       & at       (Idx         idx)                        { return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
-		Data  const& c_at     (Idx         idx) const                  { return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Idx          idx      (Data const& at ) const                  { return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0))           ; }
-		void         clear    (Idx         idx)                        { if (+idx) at(idx) = {} ;                                                 }
-		Lst          lst      (               ) const requires(!Multi) { chk_thread() ; return Lst(self) ;                                        }
+		bool         operator+(               ) const                  { xxx() ; return size()>1                                                        ; }
+		Sz           size     (               ) const                  { xxx() ; return _struct_hdr().sz                                                ; }
+		HdrNv const& hdr      (               ) const requires(HasHdr) { xxx() ; return _struct_hdr().hdr                                               ; }
+		HdrNv      & hdr      (               )       requires(HasHdr) { xxx() ; return _struct_hdr().hdr                                               ; }
+		HdrNv const& c_hdr    (               ) const requires(HasHdr) { xxx() ; return _struct_hdr().hdr                                               ; }
+		Data  const& at       (Idx         idx) const                  { xxx() ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Data       & at       (Idx         idx)                        { xxx() ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
+		Data  const& c_at     (Idx         idx) const                  { xxx() ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Idx          idx      (Data const& at ) const                  { xxx() ; return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0))           ; }
+		void         clear    (Idx         idx)                        { xxx() ; if (+idx) at(idx) = {} ;                                                 }
+		Lst          lst      (               ) const requires(!Multi) { xxx() ; chk_thread() ; return Lst(self) ;                                        }
 	private :
 		StructHdr const& _struct_hdr() const { return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
 		StructHdr      & _struct_hdr()       { return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
 		Sz             & _size      ()       { return _struct_hdr().sz                                     ; }
 		// services
 	public :
-		template<class... A> Idx  emplace_back( Sz sz , A&&... args ) requires( Multi) { return _emplace_back(sz,::forward<A>(args)...) ; }
-		template<class... A> Idx  emplace_back(         A&&... args ) requires(!Multi) { return _emplace_back(1 ,::forward<A>(args)...) ; }
-		/**/                 void clear       (                     )                  { Base::clear(sizeof(StructHdr)) ; _size() = 1 ;   }
+		template<class... A> Idx  emplace_back( Sz sz , A&&... args ) requires( Multi) { xxx() ; return _emplace_back(sz,::forward<A>(args)...) ; }
+		template<class... A> Idx  emplace_back(         A&&... args ) requires(!Multi) { xxx() ; return _emplace_back(1 ,::forward<A>(args)...) ; }
+		/**/                 void clear       (                     )                  { xxx() ; Base::clear(sizeof(StructHdr)) ; _size() = 1 ;   }
 		void chk() const {
 			Base::chk() ;
 			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
@@ -146,8 +146,10 @@ namespace Store {
 			Idx res { old_sz } ;
 			_emplace( res , ::forward<A>(args)... ) ;
 			_chk_sz( res , sz ) ;
+xxx() ;
 			return res ;
 		}
+void xxx() const { SWEAR(_struct_hdr().sz) ; } // XXX : suppress when bug is found
 	} ;
 
 }

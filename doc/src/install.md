@@ -71,10 +71,11 @@ It has been tested with the dockers listed in the docker directory.
 			- O[0123] controls the `-O option`                                      (default: 1 if profiling else 3            )
 			- g       controls the absence of `-g option`                           (default: debug                            )
 			- d       controls     `-DNDEBUG`                                       (default: asserts are enabled              )
-			- t       controls     `-DNO_TRACE`                                     (default: traces are enabled               )
-			- SA      controls the `-fsantize=address -fsanitize=undefined` options (exclusive with ST                         )
-			- ST      controls the `-fsantize=thread`                       option  (exclusive with SA                         )
+			- T       controls     `-DTRACE`                                        (default: traces are disabled              )
+			- Sa      controls the `-fsantize=address -fsanitize=undefined` options (exclusive with St                         )
+			- St      controls the `-fsantize=thread`                       option  (exclusive with Sa                         )
 			- P       controls the `-pg`                                    option  (profiling info is in gmon.out.<tool>.<pid>)
+			- C       controls the `--coverage`                             option  (profiling info is in gmon.out.<tool>.<pid>)
 		- the `-j` flag of make is automatically set to the number of processors, you may want to override this, though
 	- this is true the first time you run make. After that, these values are remembered in the file `sys_config.env`.
 	- you can freely modify this file `sys_config.env`, though. It will be taken into account.

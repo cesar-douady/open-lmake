@@ -77,6 +77,16 @@ Pass value to backend (cf. backend documentation for each backend).
 This is used for example to pass a partition or specificities to the slurm backend for a particular command.
 Note that backend only impacts resources and scheduling, not the content of the targets, so specifying such an option does not hurt repeatability.
 
+Item(B(-c) I(method),B(--cache-method)=I(method))
+This options specifies how to manage the cache if any is mentioned in a rule.
+The default value is I(plain).
+.LP
+Values can be:
+Bullet I(none)     : the cache is not accessed at all.
+Bullet I(download) : job results are downloaded from the cache but the cache is not updated when it misses an entry.
+Bullet I(check)    : job results are not downloaded from the cache, but new results are uploaded and if an entry already exists, coherence is checked.
+Bullet I(plain)    : job results are downloaded from the cache in case of hit, and cache is updated in case of miss.
+
 Item(B(-e),B(--forget-old-errors))
 Assume previous errors (before this command) are transicent.
 Contrarily to the B(lforget -e) command, this only concerns this execution, not subsequent ones.

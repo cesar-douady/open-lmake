@@ -577,7 +577,7 @@ namespace Caches {
 		using Sz  = Disk::DiskSz ;
 		using Tag = CacheTag     ;
 		struct Match {
-			bool                completed = true ;                   //                            if false <=> answer is delayed and an action will be post to the main loop when ready
+			bool                completed = true ;                   //                            if false <=> answer is delayed and an action will be posted to the main loop when ready
 			Bool3               hit       = No   ;                   // if completed
 			::vmap_s<DepDigest> new_deps  = {}   ;                   // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
 			::string            key       = {}   ;                   // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
@@ -599,11 +599,11 @@ namespace Caches {
 		virtual void serdes(::string     &  ) {}                     // serialize
 		virtual void serdes(::string_view&  ) {}                     // deserialize
 		//
-		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) { return { .completed=true , .hit=No } ; }
+		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return { .completed=true , .hit=No } ; }
 		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;
-		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {}                            ; }
-		virtual bool/*ok*/                          sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) { return false                         ; }
-		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       ) {                                        }
+		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 )       { return {}                            ; }
+		virtual bool/*ok*/                          sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& )       { return false                         ; }
+		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       )       {                                        }
 	} ;
 
 }
@@ -612,6 +612,7 @@ struct JobSpace {
 	friend ::string& operator+=( ::string& , JobSpace const& ) ;
 	struct ViewDescr {
 		friend ::string& operator+=( ::string& , ViewDescr const& ) ;
+		// accesses
 		bool operator+() const { return +phys ; }
 		// services
 		template<IsStream T> void serdes(T& s) {
@@ -675,7 +676,9 @@ public :
 } ;
 
 struct JobRpcReq {
+	// accesses
 	bool operator+() const { return +seq_id ; }
+	// data
 	// START_OF_VERSIONING
 	SeqId  seq_id = 0 ;
 	JobIdx job    = 0 ;
@@ -700,12 +703,12 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobStartRpcReply {                                                 // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct JobStartRpcReply {                                                    // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// accesses
-	bool operator+() const { return +interpreter ; }                      // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
+	bool operator+() const { return +interpreter ; } // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,addr          ) ;
@@ -760,28 +763,28 @@ struct JobStartRpcReply {                                                 // NOL
 	void exit() ;
 	// data
 	// START_OF_VERSIONING
-	in_addr_t                      addr           = 0                   ; // the address at which server and subproccesses can contact job_exec
+	in_addr_t                      addr           = 0                   ;    // the address at which server and subproccesses can contact job_exec
 	AutodepEnv                     autodep_env    ;
 	Caches::Cache*                 cache          = nullptr             ;
-	CacheIdx                       cache_idx      = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	CacheIdx                       cache_idx      = 0                   ;    // value to be repeated in JobEndRpcReq to ensure it is available when processing
 	::string                       cmd            ;
 	Time::Delay                    ddate_prec     ;
-	::vmap_s<DepDigest>            deps           ;                       // deps already accessed (always includes static deps)
+	::vmap_s<DepDigest>            deps           ;                          // deps already accessed (always includes static deps)
 	::vmap_ss                      env            ;
-	::vector_s                     interpreter    ;                       // actual interpreter used to execute cmd
+	::vector_s                     interpreter    ;                          // actual interpreter used to execute cmd
 	JobSpace                       job_space      ;
 	bool                           keep_tmp       = false               ;
-	::string                       key            ;                       // key used to uniquely identify repo
+	::string                       key            ;                          // key used to uniquely identify repo
 	vector<uint8_t>                kill_sigs      ;
 	bool                           live_out       = false               ;
 	AutodepMethod                  method         = AutodepMethod::Dflt ;
 	Time::Delay                    network_delay  ;
 	uint8_t                        nice           = 0                   ;
 	::vmap_s<FileAction>           pre_actions    ;
-	::string                       rule           ;                       // rule name
+	::string                       rule           ;                          // rule name
 	SmallId                        small_id       = 0                   ;
-	::vmap<Re::Pattern,MatchFlags> star_matches   ;                       // maps regexprs to flags
-	::vmap_s<MatchFlags>           static_matches ;                       // maps individual files to flags
+	::vmap<Re::Pattern,MatchFlags> star_matches   ;                          // maps regexprs to flags
+	::vmap_s<MatchFlags>           static_matches ;                          // maps individual files to flags
 	bool                           stderr_ok      = false               ;
 	::string                       stdin          ;
 	::string                       stdout         ;
@@ -790,7 +793,7 @@ struct JobStartRpcReply {                                                 // NOL
 	uint8_t                        z_lvl          = 0                   ;
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                                 // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                                    // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct ExecTraceEntry {
@@ -939,7 +942,7 @@ struct SubmitAttrs {
 	Tokens1             tokens1      = 0     ;
 	BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
 	bool                live_out     = false ;
-	uint8_t             nice         = 0     ;
+	uint8_t             nice         = -1    ; // -1 means not specified
 	// END_OF_VERSIONING
 } ;
 

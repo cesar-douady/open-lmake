@@ -23,6 +23,26 @@ It must account for file date granularity (generally a few ms) and date discrepa
 
 The default value should be safe in usual cases and user should hardly need to modify it.
 
+### `file_sync` : Static (`'dir'` if non-local backends are used, else `None`)
+
+This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.
+
+Possible values are:
+
+- `'none'` or `None`: the filesystem is deemed reliable an no further protection is needed.
+- `'dir'`: the enclosing dir (and recursively up-hill) of a file is closed after any write (or creation or removal) and open before any read.
+- `'sync'`: `fsync` is called on file after any write.
+
+Recommanded values for known file systems:
+
+| File system | `file_sync` |
+|-------------|-------------|
+| NFS         | `'dir'`     |
+| CEPH        | `None`      |
+
+The expected performance impact is increasing in this order : `None`, `'dir'`, `'sync'`.
+The expected reliability order is the reverse one.
+
 ### `heartbeat` : Static (`10`)
 
 Open-lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
@@ -96,32 +116,21 @@ This attribute provides an approximate upper bound of the time it takes for an e
 
 The default value should fit most cases.
 
+### `nice` : Dynamic (`0`)
+
+This attribute provides the nice value to apply to all jobs.
+It is a value between 0 and 20 that decreases the priority of jobs (cf nice(2)).
+
+If available, the autogroup mecanism (cf sched (7)) is used instead as jobs are launched as sessions.
+
+Note that negative nice values are not supported as these require privileges.
+
 ### `path_max` : Static (`200`)
 
 The [rule selection](rule_selection.html) process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.
 
 The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called `infinite`.
-
-### `file_sync` : Static (`'dir'` if non-local backends are used, else `None`)
-
-This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.
-
-Possible values are:
-
-- `'none'` or `None`: the filesystem is deemed reliable an no further protection is needed.
-- `'dir'`: the enclosing dir (and recursively up-hill) of a file is closed after any write (or creation or removal) and open before any read.
-- `'sync'`: `fsync` is called on file after any write.
-
-Recommanded values for known file systems:
-
-| File system | `file_sync` |
-|-------------|-------------|
-| NFS         | `'dir'`     |
-| CEPH        | `None`      |
-
-The expected performance impact is increasing in this order : `None`, `'dir'`, `'sync'`.
-The expected reliability order is the reverse one.
 
 ### `sub_repos` : Static (`()`)
 

@@ -183,40 +183,40 @@ namespace Caches {
 		return deserialize<Sz>(AcFd(nfs_guard.access(_reserved_file(upload_key,"sz"))).read()) ;
 	}
 
-	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) {
-		Trace trace("DirCache::match",job) ;
+	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , bool do_lock ) const {
+		Trace trace("DirCache::_sub_match",job) ;
 		NfsGuard            nfs_guard    { file_sync }                                ;
 		::string            abs_jn_s     = dir_s+job+'/'                              ;
 		AcFd                dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir } ;
-		LockedFd            lock         { dir_s , false/*exclusive*/ }               ;
-		::umap_s<DepDigest> repo_dep_map ;                                              // lazy evaluated
+		LockedFd            lock         ;                                              if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
+		::umap_s<DepDigest> repo_dep_map ;                                                                                                   // lazy evaluated
 		// deps_hint may point to the right entry (hint only as link is not updated when its target is modified)
 		Hash::Xxh deps_hint_hash ;                                                            deps_hint_hash += repo_deps ;
 		::string  deps_hint      = read_lnk(dfd,"deps_hint-"+deps_hint_hash.digest().hex()) ;
 		//
 		::vector_s repos ;
 		try                       { repos = lst_dir_s(dfd) ;            }
-		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }               // if directory does not exist, it is as it was empty
-		if ( +deps_hint && repos.size()>1 )                                             // reorder is only meaningful if there are several entries
+		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }                                                                    // if directory does not exist, it is as it was empty
+		if ( +deps_hint && repos.size()>1 )                                                                                                  // reorder is only meaningful if there are several entries
 			for( size_t r : iota(repos.size()) )
-				if (repos[r]==deps_hint) {                                              // hint found
-					for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;       // rotate repos to put hint in front
-					repos[0] = ::move(deps_hint) ;                                      // .
+				if (repos[r]==deps_hint) {                                                                                                   // hint found
+					for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                                                            // rotate repos to put hint in front
+					repos[0] = ::move(deps_hint) ;                                                                                           // .
 					break ;
 				}
 		for( ::string const& r : repos ) {
 			::string            deps_file  = abs_jn_s+r+"/deps" ;
 			::vmap_s<DepDigest> cache_deps ;
 			try                       { deserialize( AcFd(nfs_guard.access(deps_file)).read() , cache_deps ) ; }
-			catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ;                             }                                                      // cannot read deps, ignore entry
+			catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ;                             }                                                    // cannot read deps, ignore entry
 			//
 			NodeIdx dvg     = 0     ;
 			bool    has_dvg = false ;
 			for( auto const& [dn,dd] : cache_deps ) {
 				if (!has_dvg) {
-					if      ( dvg>=repo_deps.size() || dn!=repo_deps[dvg].first         ) { has_dvg = true ; if (!repo_dep_map) repo_dep_map = mk_umap(repo_deps) ; } // solve lazy evaluation
-					else if (dd.crc().match( repo_deps[dvg].second.crc() , dd.accesses )) { dvg++ ; continue  ;                                                     }
-					else                                                                            goto Miss ;
+					if      ( dvg>=repo_deps.size() || dn!=repo_deps[dvg].first       ) { has_dvg = true ; if (!repo_dep_map) repo_dep_map = mk_umap(repo_deps) ; } // solve lazy evaluation
+					else if ( dd.crc().match(repo_deps[dvg].second.crc(),dd.accesses) ) { dvg++ ; continue  ;                                                     }
+					else                                                                          goto Miss ;
 				}
 				if      ( auto it=repo_dep_map.find(dn) ; it==repo_dep_map.end() ) continue  ;
 				else if ( dd.crc().match( it->second.crc() , dd.accesses )       ) continue  ;
@@ -224,7 +224,7 @@ namespace Caches {
 			}
 			if (!has_dvg) {
 				trace("hit",r) ;
-				return { .completed=true , .hit=Yes , .key{job+'/'+r} } ;                                                                                             // hit
+				return { .completed=true , .hit=Yes , .key{job+'/'+r} } ;                                                                                           // hit
 			}
 			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {
 				if ( cache_deps[i].second.dflags[Dflag::Critical] && ! repo_dep_map.contains(cache_deps[i].first) ) {
@@ -234,10 +234,14 @@ namespace Caches {
 			}
 			trace("deps",cache_deps) ;
 			return { .completed=true , .hit=Maybe , .new_deps{::move(cache_deps)} } ;
-		Miss : ;                                                                                                                                                      // missed this entry, try next one
+		Miss : ;                                                                                                                                                    // missed this entry, try next one
 		}
 		trace("miss") ;
 		return { .completed=true , .hit=No } ;
+	}
+
+	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
+		return _sub_match( job , repo_deps , true/*do_lock*/ ) ;
 	}
 
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {
@@ -246,7 +250,7 @@ namespace Caches {
 		AcFd                    dfd       { nfs_guard.access_dir(dir_s+key_s) , Fd::Dir } ;
 		AcFd                    info_fd   ;
 		AcFd                    data_fd   ;
-		{	LockedFd lock { dir_s , true /*exclusive*/ }     ;                                           // because we manipulate LRU, need exclusive
+		{	LockedFd lock { dir_s , true /*exclusive*/ }     ;                                           // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( key_s , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_first( key_s , sz , nfs_guard ) ;
 			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                          // _lru_remove worked => everything should be accessible
@@ -291,28 +295,35 @@ namespace Caches {
 		+	deps_str.size()
 		+	FileInfo(nfs_guard.access(_reserved_file(upload_key,"data") )).sz
 		;
-		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard) ;
-		bool     made_room = false                              ;
-		LockedFd lock      { dir_s , true/*exclusive*/ }        ;                                                     // lock as late as possible
-		try {
-			old_sz += _lru_remove(jnid_s,nfs_guard) ;
-			unlnk_inside_s(dfd) ;
-			// store meta-data and data
-			_mk_room( old_sz , new_sz , nfs_guard ) ;
-			made_room = true ;
-			// START_OF_VERSIONING
-			AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
-			AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
-			int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
-			// END_OF_VERSIONING
-			if (rc<0) throw "cannot move data from tmp to final destination"s ;
-			unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
-			_lru_first( jnid_s , new_sz , nfs_guard ) ;
-		} catch (::string const& e) {
-			trace("failed",e) ;
-			unlnk_inside_s(dfd) ;                                                                                     // clean up in case of partial execution
-			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                            // finally, we did not populate the entry
-			return false/*ok*/ ;
+		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard)                                      ;
+		bool     made_room = false                                                                   ;
+		LockedFd lock      { dir_s , true/*exclusive*/ }                                             ;                    // lock as late as possible
+		Bool3    hit       = _sub_match( job , ::ref(::vmap_s<DepDigest>()) , false/*do_lock*/ ).hit ;
+		if (hit==Yes) {
+			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
+			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                // finally, we did not populate the entry
+			throw_unless( AcFd(dfd,"data"s).read()==job_data , "incoherent targets" ) ;                                   // check coherence
+		} else {
+			try {
+				old_sz += _lru_remove(jnid_s,nfs_guard) ;
+				unlnk_inside_s(dfd) ;
+				// store meta-data and data
+				_mk_room( old_sz , new_sz , nfs_guard ) ;
+				made_room = true ;
+				// START_OF_VERSIONING
+				AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
+				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
+				int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
+				// END_OF_VERSIONING
+				if (rc<0) throw "cannot move data from tmp to final destination"s ;
+				unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
+				_lru_first( jnid_s , new_sz , nfs_guard ) ;
+			} catch (::string const& e) {
+				trace("failed",e) ;
+				unlnk_inside_s(dfd) ;                                                                                     // clean up in case of partial execution
+				_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                            // finally, we did not populate the entry
+				return false/*ok*/ ;
+			}
 		}
 		// set a symlink from a name derived from deps to improve match speed in case of hit
 		// this is a hint only as when link target is updated, link is not

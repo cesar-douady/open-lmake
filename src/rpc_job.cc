@@ -1189,19 +1189,19 @@ void JobStartRpcReply::exit() {
 }                                                                                                                      // END_OF_NO_COV
 
 void JobInfoStart::cache_cleanup() {
-	eta                      = {}        ; // cache does not care
-	submit_attrs.cache_idx   = 0         ; // no recursive info
-	submit_attrs.live_out    = false     ; // cache does not care
-	submit_attrs.reason      = {}        ; // .
-	pre_start.seq_id         = SeqId(-1) ; // 0 is reserved to mean no info
-	pre_start.job            = 0         ; // cache does not care
-	pre_start.port           = 0         ; // .
-	start.addr               = 0         ; // .
-	start.cache              = nullptr   ; // no recursive info
-	start.live_out           = false     ; // cache does not care
-	start.small_id           = 0         ; // execution dependent
-	start.pre_actions        = {}        ; // .
-	rsrcs                    = {}        ; // caching resources is meaningless as they have no impact on content
+	eta                    = {}      ; // execution dependent
+	submit_attrs.reason    = {}      ; // .
+	submit_attrs.pressure  = {}      ; // .
+	submit_attrs.cache_idx = {}      ; // no recursive info
+	submit_attrs.live_out  = false   ; // execution dependent
+	submit_attrs.nice      = 0       ; // .
+	pre_start.job          = 0       ; // base dependent
+	pre_start.port         = 0       ; // execution dependent
+	start.cache            = nullptr ; // no recursive info
+	start.key              = {}      ; // .
+	start.live_out         = false   ; // execution dependent
+	start.nice             = 0       ; // .
+	start.pre_actions      = {}      ; // .
 }
 
 //

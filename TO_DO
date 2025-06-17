@@ -15,6 +15,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* StructFile::size() sometimes become 0 (invalid value, 1 when empty) with no apparent reason
 ? seen once : server has been seen blocked
 	- seems to be while taking GIL
 
@@ -84,15 +85,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * implement a nice mecanism
 	- a backend attribute
 	- ensure -b or other way from command line
-* implement cache_repair
+* implement lcache_repair
 	- clean LMAKE/reserved
 	- recompute overall size
 	- recompute all lru files
-* add a --no-cache option to lmake
-* add a --no-cache-update option to lmake
-	- use cache entries, but do not update cache
-* add a --check-cache option to lmake
-	- build as with no-cache, then check cache entry
 * implement cache v2 :
 	- use a daemon
 * implement no_target targets

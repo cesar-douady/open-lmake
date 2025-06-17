@@ -10,6 +10,29 @@
 #include "app.hh"
 #include "serialize.hh"
 
+enum class CacheMethod : uint8_t {
+	None                           // dont access cache
+,	Download                       // download from cache but no update
+,	Check                          // upload to cache but dont download, check coherence if entry already exists
+,	Plain                          // plain download/upload
+// aliases
+,	Dflt = Plain
+} ;
+inline bool has_download(CacheMethod cm) {
+	switch (cm) {
+		case CacheMethod::Download : return true  ;
+		case CacheMethod::Plain    : return true  ;
+		default                    : return false ;
+	}
+}
+inline bool has_upload(CacheMethod cm) {
+	switch (cm) {
+		case CacheMethod::Check : return true  ;
+		case CacheMethod::Plain : return true  ;
+		default                 : return false ;
+	}
+}
+
 enum class ReqProc : uint8_t { // PER_CMD : add a value that represents your command, above or below HasArgs as necessary
 	None                       // must stay first
 ,	Close
@@ -56,6 +79,7 @@ inline bool is_mark_glb(ReqKey key) {
 enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
 	Archive                    // if proc==Make   , all intermediate files are generated
 ,	Backend                    // if proc==Make   , send argument to backends
+,	CacheMethod                // if proc==Make   , whether to download/upload/check cache
 ,	Deps                       // if proc==Forget , forget deps
 ,	Force                      // if proc==Mark   , act if doable, even if awkward
 ,	ForgetOldErrors            // if proc==Make   , assume old errors are transient

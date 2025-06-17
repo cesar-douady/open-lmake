@@ -667,8 +667,9 @@ namespace Engine {
 		jd.status = status ;
 		//^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		MsgStderr msg_stderr ;
-		bool      upload     = jd.run_status==RunStatus::Ok && ok==Yes ;
+		MsgStderr      msg_stderr  ;
+		bool           upload      = jd.run_status==RunStatus::Ok && ok==Yes ;
+		::vector<bool> must_wakeup ;
 		//
 		trace("wrap_up",ok,digest.cache_idx,jd.run_status,STR(upload),digest.upload_key) ;
 		if ( +severe_msg || digest.has_msg_stderr ) {
@@ -700,7 +701,7 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;                                                 // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = done || !has_new_deps             ;                                                       // if not done, does a full report anyway if this is not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -711,9 +712,8 @@ namespace Engine {
 				/**/         job_msg << reason_str(job_reason)<<'\n'   ;
 			}
 			//
-			::string pfx = !done && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
-			// dont report user stderr if analysis made it meaningless
-			JobReport jr = audit_end(
+			::string  pfx = !done && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
+			JobReport jr  = audit_end(
 				ri
 			,	true/*with_stats*/
 			,	pfx
@@ -722,21 +722,30 @@ namespace Engine {
 			,	digest.exec_time
 			,	is_retry(job_reason.tag)
 			) ;
-			if (done) {
-				trace("wakeup_watchers",ri) ;
-				ri.wakeup_watchers() ;
-			} else {
-				upload = false ;
-				req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
-			}
+			upload &= done ;
+			must_wakeup.push_back(done) ;
+			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
 			trace("req_after",ri,job_reason,STR(done)) ;
-			req.chk_end() ;
 		}
 		if (+digest.upload_key) {
 			Cache* cache = Cache::s_tab[digest.cache_idx] ;
-			SWEAR(cache,digest.cache_idx) ;                                                                            // cannot commit/dismiss without cache
-			if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;                       // cache only successful results
-			else        cache->dismiss( digest.upload_key                                    ) ;                       // free up temporary storage copied in job_exec
+			SWEAR(cache,digest.cache_idx) ;                                                          // cannot commit/dismiss without cache
+			try {
+				if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
+				else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
+			} catch (::string const& e) {
+				for( Req req : running_reqs_ ) {
+					req->audit_job( Color::Warning , "bad_cache" , self , true/*at_end*/ ) ;
+					req->audit_stderr( self , {.msg=e} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
+				}
+			}
+		}
+		for( ReqIdx i : iota(running_reqs_.size()) ) {                                           // wakeup only after all messages are reported to user and cache->commit may generate user messages
+			Req      req = running_reqs_[i] ;
+			ReqInfo& ri  = jd.req_info(req) ;
+			trace("wakeup_watchers",ri) ;
+			if (must_wakeup[i]) ri.wakeup_watchers() ;
+			req.chk_end() ;
 		}
 		trace("summary",self) ;
 	}
@@ -747,7 +756,7 @@ namespace Engine {
 		Req            req         = ri.req           ;
 		JobData const& jd          = *self            ;
 		Color          color       = {}/*garbage*/    ;
-		JR             res         = {}/*garbage*/    ; // report if not Rerun
+		JR             res         = {}/*garbage*/    ;     // report if not Rerun
 		::string_view  step        ;
 		bool           with_stderr = true             ;
 		bool           speculate   = ri.speculate!=No ;
@@ -763,12 +772,12 @@ namespace Engine {
 		else if ( ri.modified                                ) { res = JR::Done       ; color = Color::Ok      ;                               }
 		else                                                   { res = JR::Steady     ; color = Color::Ok      ;                               }
 		//
-		JR jr = res ;                                   // report to do now
+		JR jr = res ;                                       // report to do now
 		if (done) {
-			ri.modified_speculate = ri.modified ;       // remember to accumulate stats in the right slot
-			ri.modified           = false       ;       // for the user, this is the base of future modifications
+			ri.modified_speculate = ri.modified ;           // remember to accumulate stats in the right slot
+			ri.modified           = false       ;           // for the user, this is the base of future modifications
 		} else {
-			with_stderr = false                           ;
+			with_stderr = false                           ; // dont report user stderr if analysis made it meaningless
 			step        = {}                              ;
 			color       = ::min( color , Color::Warning ) ;
 			if      (is_lost(jd.status)             ) {                                             }
@@ -786,7 +795,7 @@ namespace Engine {
 		req->audit_job( color , pfx+step , self , true/*at_end*/ , exec_time ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true  ;
-		req->audit_stderr( self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len , 1 ) ;
+		req->audit_stderr( self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len , 1/*lvl*/ ) ;
 		//
 		if ( speculate && done ) jr = JR::Speculative ;
 		if ( with_stats        ) req->stats.add(jr,exec_time) ;
@@ -1339,16 +1348,16 @@ namespace Engine {
 		}
 		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                     // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
 		CacheIdx cache_idx = 0 ;                                                                     // ... just record deps to trigger building on a best effort basis
-		if (+submit_ancillary_attrs.cache) {
+		if ( +req->cache_method && +submit_ancillary_attrs.cache ) {
 			auto it = g_config->cache_idxs.find(submit_ancillary_attrs.cache) ;
 			if (it!=g_config->cache_idxs.end()) {
-				::vmap_s<DepDigest> dns ;
-				for( Dep const& d : deps ) {
-					DepDigest dd = d ; dd.crc(d->crc) ;                                                                           // provide node actual crc as this is the hit criteria
-					dns.emplace_back(d->name(),dd) ;
-				}
 				cache_idx = it->second ;
-				if (cache_idx) {
+				if ( cache_idx && has_download(req->cache_method) ) {
+					::vmap_s<DepDigest> dns ;
+					for( Dep const& d : deps ) {
+						DepDigest dd = d ; dd.crc(d->crc) ;                                                                       // provide node actual crc as this is the hit criteria
+						dns.emplace_back(d->name(),dd) ;
+					}
 					Cache*       cache       = Cache::s_tab[cache_idx]             ;
 					Cache::Match cache_match = cache->match( unique_name() , dns ) ;
 					if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
@@ -1399,6 +1408,7 @@ namespace Engine {
 							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
 							return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter is still a legal iterator
 						case No :
+							trace("hit_miss") ;
 						break ;
 					DF}                                                                                                           // NO_COV
 				}
@@ -1431,6 +1441,7 @@ namespace Engine {
 		ri.inc_wait() ;                              // set before calling submit call back as in case of flash execution, we must be clean
 		ri.step(Step::Queued,idx()) ;
 		backend = submit_rsrcs_attrs.backend ;
+		if (!has_upload(req->cache_method)) cache_idx = 0 ;
 		try {
 			Tokens1 tokens1 = submit_rsrcs_attrs.tokens1() ;
 			SubmitAttrs sa {
