@@ -7,13 +7,18 @@
 
 #include "slurm_api.hh"
 
-namespace Backends::Slurm::SlurmApi { // necessary to ensure all types are different, which is important for LTO
-	#include <slurm/slurm.h>
-}
-
-using namespace Disk ;
-
 namespace Backends::Slurm::SlurmApi {
+
+	namespace SLURM_NAMESPACE {
+		// Because we support several slurm versions, it is important that each type defined here be unique are there are clashes of inlined functions.
+		// Although no inlined functions are defined here, vector allocation is indeed inlined.
+		// For example, ::vector<job_desc_msg_t> would allocate based on the size of a random version, not the particular version as they would all share the same mangled name.
+		// Using a namespace reaches this goal : all names are now different.
+		#include <slurm/slurm.h>
+	}
+	using namespace SLURM_NAMESPACE ; // we do not need the namespace for coding, just for linking
+
+	using namespace Disk ;
 
 	static constexpr int SlurmSpawnTrials  = 15 ;
 	static constexpr int SlurmCancelTrials = 10 ;
@@ -61,39 +66,40 @@ namespace Backends::Slurm::SlurmApi {
 		// first element is treated specially to avoid allocation in the very frequent case of a single element
 		::string                 job_name    = key + job->name()        ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
-		::string                 stderr_file ;                                                                                                 //                 keep alive until slurm is called
-		job_desc_msg_t           job_desc0   ;                                     if(verbose) stderr_file = dir_guard(get_stderr_file(job)) ; // first element   .
-		::string                 gres0       ;                                                                                                 // .             , .
-		::vector<job_desc_msg_t> job_descs   ; job_descs.reserve(rsrcs.size()-1) ;                                                             // other elements  .
-		::vector_s               gress       ; gress    .reserve(rsrcs.size()-1) ;                                                             // .             , .
-		if(verbose) stderr_file = dir_guard(get_stderr_file(job)) ;
-		for( uint32_t i=0 ; RsrcsDataSingle const& r : rsrcs ) {
-			//                            first element            other elements
-			job_desc_msg_t& j    = i==0 ? job_desc0              : job_descs.emplace_back()               ;                                    // keep alive
-			::string      & gres = i==0 ? (gres0="gres:"+r.gres) : gress    .emplace_back("gres:"+r.gres) ;                                    // .
+		::string                 stderr_file ;                                                                                        //                 keep alive until slurm is called
+		job_desc_msg_t           job_desc0   ;                            if(verbose) stderr_file = dir_guard(get_stderr_file(job)) ; // first element   .
+		::string                 gres0       ;                                                                                        // .             , .
+		::vector<job_desc_msg_t> job_descs   ;                            if (rsrcs.size()>1) job_descs.reserve(rsrcs.size()-1) ;     // other elements  .
+		::vector_s               gress       ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;     // .             , .
+		if (verbose) stderr_file = dir_guard(get_stderr_file(job)) ;
+		for( bool first=true ; RsrcsDataSingle const& r : rsrcs ) {
+			//                           first element other elements
+			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                     // keep alive
+			::string      & gres = first ? gres0     : gress    .emplace_back() ;                                                     // .
+			//
+			gres = "gres:"+r.gres ;
 			//
 			_init_job_desc_msg(&j) ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
-			/**/                     j.environment     = const_cast<char**>(env)                                       ;
-			/**/                     j.env_size        = 1                                                             ;
+			/**/                     j.environment     = const_cast<char**>(env)                                       ;              // terminated with an empty string
+			/**/                     j.env_size        = 1                                                             ;              // seems to only work when 1
 			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
-			/**/                     j.pn_min_memory   = r.mem                                                         ;                       //in MB
-			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;                       //in MB
+			/**/                     j.pn_min_memory   = r.mem                                                         ;              //in MB
+			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;              //in MB
 			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
 			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
 			/**/                     j.work_dir        = wd.data()                                                     ;
-			//
-			if(+r.excludes ) j.exc_nodes     = const_cast<char*>(r.excludes .data()) ;
-			if(+r.features ) j.features      = const_cast<char*>(r.features .data()) ;
-			if(+r.licenses ) j.licenses      = const_cast<char*>(r.licenses .data()) ;
-			if(+r.nodes    ) j.req_nodes     = const_cast<char*>(r.nodes    .data()) ;
-			if(+r.partition) j.partition     = const_cast<char*>(r.partition.data()) ;
-			if(+r.qos      ) j.qos           = const_cast<char*>(r.qos      .data()) ;
-			if(+r.reserv   ) j.reservation   = const_cast<char*>(r.reserv   .data()) ;
-			if(+r.gres     ) j.tres_per_node =                   gres       .data()  ;
-			if(i==0        ) j.script        =                   script     .data()  ;
-			/**/             j.nice          = NICE_OFFSET+nice                      ;
-			i++ ;
+			if(+r.excludes         ) j.exc_nodes       = const_cast<char*>(r.excludes .data())                         ;
+			if(+r.features         ) j.features        = const_cast<char*>(r.features .data())                         ;
+			if(+r.licenses         ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;
+			if(+r.nodes            ) j.req_nodes       = const_cast<char*>(r.nodes    .data())                         ;
+			if(+r.partition        ) j.partition       = const_cast<char*>(r.partition.data())                         ;
+			if(+r.qos              ) j.qos             = const_cast<char*>(r.qos      .data())                         ;
+			if(+r.reserv           ) j.reservation     = const_cast<char*>(r.reserv   .data())                         ;
+			if(+r.gres             ) j.tres_per_node   =                   gres       .data()                          ;
+			if(first               ) j.script          =                   script     .data()                          ;
+			/**/                     j.nice            = NICE_OFFSET+nice                                              ;
+			first =false ;
 		}
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
 			submit_response_msg_t* msg = nullptr/*garbage*/ ;
@@ -152,7 +158,8 @@ namespace Backends::Slurm::SlurmApi {
 				break ;
 			DN}
 			trace("spawn_error" ,sav_errno) ;
-			throw "slurm spawn job error : "s+_strerror(sav_errno)+(+err_msg?" (":"")+err_msg+(+err_msg?")":"") ;
+			if (+err_msg) throw cat("slurm spawn job error after ",SlurmSpawnTrials," trials : ",_strerror(sav_errno)," (",err_msg,")") ;
+			else          throw cat("slurm spawn job error after ",SlurmSpawnTrials," trials : ",_strerror(sav_errno)                 ) ;
 		}
 		trace("cannot_spawn") ;
 		throw "cannot connect to slurm daemon"s ;

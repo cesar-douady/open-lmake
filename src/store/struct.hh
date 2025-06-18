@@ -21,8 +21,8 @@ namespace Store {
 			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
 			// also, putting a constraint less than the natural constraint is undefined behavior
 			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
-			[[no_unique_address]] alignas(Data) alignas(HdrNv) HdrNv hdr ;     // no need to allocate space if header is empty
-			[[                 ]]                              Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+			[[no_unique_address]] alignas(Data) alignas(HdrNv) HdrNv        hdr ;     // no need to allocate space if header is empty
+			[[                 ]]                              ::atomic<Sz> sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0, XXX : suppress ::atomic with xxx()
 		} ;
 
 		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {
@@ -117,7 +117,7 @@ namespace Store {
 	private :
 		StructHdr const& _struct_hdr() const {         return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
 		StructHdr      & _struct_hdr()       {         return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
-		Sz             & _size      ()       { xxx() ; return _struct_hdr().sz                                     ; }
+		::atomic<Sz>   & _size      ()       { xxx() ; return _struct_hdr().sz                                     ; } // XXX : suppress ::atomic with xxx()
 		// services
 	public :
 		template<class... A> Idx emplace_back( Sz sz , A&&... args ) requires( Multi) { return _emplace_back(sz,::forward<A>(args)...) ; }
