@@ -26,7 +26,7 @@ namespace Store {
 		} ;
 
 		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {
-			constexpr size_t Offset0 = sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ; // unsigned types handle negative values modulo 2^n, which is ok
+			constexpr size_t Offset0 = sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ;                // unsigned types handle negative values modulo 2^n, which is ok
 			return Offset0 + sizeof(Data)*idx ;
 		}
 
@@ -83,8 +83,8 @@ namespace Store {
 
 		// statics
 	private :
-		static constexpr size_t _Offset0 = Struct::_offset<Hdr,Idx,Data>(0) ;
-		static constexpr size_t _s_offset(Sz idx) { SWEAR(idx) ; return Struct::_offset<Hdr,Idx,Data>(idx) ; }
+		static constexpr size_t _Offset1 = Struct::_offset<Hdr,Idx,Data>(1) ;
+		static constexpr size_t _s_offset(Sz idx) { return Struct::_offset<Hdr,Idx,Data>(idx) ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) {
 			Base::expand(_s_offset(1)) ;                                                                  // 1 is the first used idx
@@ -103,26 +103,31 @@ namespace Store {
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
 		// accesses
-		bool         operator+(               ) const                  { xxx() ; return size()>1                                                        ; }
-		Sz           size     (               ) const                  { xxx() ; return _struct_hdr().sz                                                ; }
-		HdrNv const& hdr      (               ) const requires(HasHdr) { xxx() ; return _struct_hdr().hdr                                               ; }
-		HdrNv      & hdr      (               )       requires(HasHdr) { xxx() ; return _struct_hdr().hdr                                               ; }
-		HdrNv const& c_hdr    (               ) const requires(HasHdr) { xxx() ; return _struct_hdr().hdr                                               ; }
-		Data  const& at       (Idx         idx) const                  { xxx() ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Data       & at       (Idx         idx)                        { xxx() ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
-		Data  const& c_at     (Idx         idx) const                  { xxx() ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Idx          idx      (Data const& at ) const                  { xxx() ; return Idx(&at-reinterpret_cast<Data const*>(base+_Offset0))           ; }
-		void         clear    (Idx         idx)                        { xxx() ; if (+idx) at(idx) = {} ;                                                 }
-		Lst          lst      (               ) const requires(!Multi) { xxx() ; chk_thread() ; return Lst(self) ;                                        }
+		bool         operator+(               ) const                  {                       return size()>1                                                        ; }
+		Sz           size     (               ) const                  { xxx() ;               return _struct_hdr().sz                                                ; }
+		HdrNv const& hdr      (               ) const requires(HasHdr) { xxx() ;               return _struct_hdr().hdr                                               ; }
+		HdrNv      & hdr      (               )       requires(HasHdr) { xxx() ;               return _struct_hdr().hdr                                               ; }
+		HdrNv const& c_hdr    (               ) const requires(HasHdr) { xxx() ;               return _struct_hdr().hdr                                               ; }
+		Data  const& at       (Idx         idx) const                  { xxx() ; SWEAR(+idx) ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Data       & at       (Idx         idx)                        { xxx() ; SWEAR(+idx) ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
+		Data  const& c_at     (Idx         idx) const                  {                       return at(idx)                                                         ; }
+		Idx          idx      (Data const& at_) const                  {                       return Idx((&at_-&at(Idx(1)))+1)                                       ; }
+		void         clear    (Idx         idx)                        {         if (+idx) at(idx) = {} ;                                                               }
+		Lst          lst      (               ) const requires(!Multi) { xxx() ; chk_thread() ; return Lst(self) ;                                                      }
 	private :
-		StructHdr const& _struct_hdr() const { return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
-		StructHdr      & _struct_hdr()       { return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
-		Sz             & _size      ()       { return _struct_hdr().sz                                     ; }
+		StructHdr const& _struct_hdr() const {         return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
+		StructHdr      & _struct_hdr()       {         return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
+		Sz             & _size      ()       { xxx() ; return _struct_hdr().sz                                     ; }
 		// services
 	public :
-		template<class... A> Idx  emplace_back( Sz sz , A&&... args ) requires( Multi) { xxx() ; return _emplace_back(sz,::forward<A>(args)...) ; }
-		template<class... A> Idx  emplace_back(         A&&... args ) requires(!Multi) { xxx() ; return _emplace_back(1 ,::forward<A>(args)...) ; }
-		/**/                 void clear       (                     )                  { xxx() ; Base::clear(sizeof(StructHdr)) ; _size() = 1 ;   }
+		template<class... A> Idx emplace_back( Sz sz , A&&... args ) requires( Multi) { return _emplace_back(sz,::forward<A>(args)...) ; }
+		template<class... A> Idx emplace_back(         A&&... args ) requires(!Multi) { return _emplace_back(1 ,::forward<A>(args)...) ; }
+		void clear() {
+xxx() ;
+			Base::clear(sizeof(StructHdr)) ;
+			_size() = 1 ;
+xxx() ;
+		}
 		void chk() const {
 			Base::chk() ;
 			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
@@ -136,6 +141,7 @@ namespace Store {
 		void _chk_sz( Idx /*idx*/ , Sz /*sz*/ ) requires(!( HasDataSz && Multi )) {                                                                  }
 		//
 		template<class... A> Idx _emplace_back( Sz sz , A&&... args ) {
+xxx() ;
 			chk_thread() ;
 			Sz old_sz = size()      ;
 			Sz new_sz = old_sz + sz ;
@@ -149,7 +155,7 @@ namespace Store {
 xxx() ;
 			return res ;
 		}
-void xxx() const { SWEAR(_struct_hdr().sz) ; } // XXX : suppress when bug is found
+void xxx() const { SWEAR(::launder(reinterpret_cast<StructHdr const*>(base))->sz) ; }                     // XXX : suppress when bug is found
 	} ;
 
 }

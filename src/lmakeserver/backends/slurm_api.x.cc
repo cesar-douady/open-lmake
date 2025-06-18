@@ -241,27 +241,26 @@ namespace Backends::Slurm::SlurmApi {
 	static void _silent_ignore_sig(int /*sig*/) {
 		::siglongjmp( _jmp_env , true/*val*/ ) ;
 	}
-	static Daemon _sense_daemon(void* conf_) {
-		static const ::string SlurmVersion = SLURM_VERSION ;                     // cannot be constexpr with gcc-11
-		Trace trace("_sense_daemon",SlurmVersion) ;
-		//
-		slurm_conf_t* conf = ::launder(reinterpret_cast<slurm_conf_t*>(conf_)) ; // if version mismatch, this may lead to SIGSEGV/SIGBUS handled by caller
-		const char*   cv   = conf->version                                     ;
-		{	WithSigHandler<_silent_ignore_sig> sav_segv { SIGSEGV } ;            // field offsets vary with version, so we may access a bad pointer
-			WithSigHandler<_silent_ignore_sig> sav_bus  { SIGBUS  } ;            // .
-			if (::sigsetjmp( _jmp_env , true/*save_sigs*/ )==0) {                // from direct call
-				// /!\ no RAII here as setjmp/longjmp will not correctly destroy it
-				for( size_t i : iota(SlurmVersion.size()) )
-					if(cv[i]!=SlurmVersion[i]) {
-						trace("mismach") ;
-						goto BadVersion ;
-					}
-			} else {                                                             // signal caught
-				trace("bad_access") ;
-			BadVersion :
-				throw "bad_version"s ;
-			}
+	__attribute__((no_sanitize("address"))) static void _chk_version(slurm_conf_t const* conf) {
+		static const ::string SlurmVersion = SLURM_VERSION ;                                     // cannot be constexpr with gcc-11
+		Trace trace("_chk_version",SlurmVersion) ;
+		const char* cv = conf->version ;
+		if (!cv) { trace("null_access") ; throw "bad_version"s ; }                               // although null dereference is caught, explicitly test cv to allow code to run with address sanitizer
+		WithSigHandler<_silent_ignore_sig> sav_segv { SIGSEGV } ;                                // field offsets vary with version, so we may access a bad pointer
+		WithSigHandler<_silent_ignore_sig> sav_bus  { SIGBUS  } ;                                // .
+		if (::sigsetjmp( _jmp_env , true/*save_sigs*/ )==0) {                                    // from direct call
+			// /!\ no RAII here as setjmp/longjmp will not correctly destroy it
+			for( size_t i : iota(SlurmVersion.size()) )
+				if(cv[i]!=SlurmVersion[i]) { trace("mismatch") ; throw "bad_version"s ; }
+		} else {                                                                                 // signal caught
+			trace("bad_access") ; throw "bad_version"s ;
 		}
+	}
+	static Daemon _sense_daemon(void const* conf_) {
+		Trace trace("_sense_daemon") ;
+		//
+		slurm_conf_t const* conf = ::launder(reinterpret_cast<slurm_conf_t const*>(conf_)) ;     // if version mismatch, this may lead to SIGSEGV/SIGBUS handled by caller
+		_chk_version(conf) ;
 		//
 		_load_func( _free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
 		_load_func( _free_submit_response_response_msg , "slurm_free_submit_response_response_msg" ) ;

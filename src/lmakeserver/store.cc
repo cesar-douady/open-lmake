@@ -575,14 +575,13 @@ namespace Engine::Persistent {
 			if (dyn) nfs_guard.access(src) ;
 			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
 			FileInfo              fi { src }                                  ;
+			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ; // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (is_dir_) {
-				throw_if    ( +sr.lnks                                                          , "source dir ",src,"/ has symbolic link ",sr.lnks[0]," in its path" ) ;
-				throw_unless( fi.tag()==FileTag::Dir                                            , "source dir ",src,"/ is not a directory"                           ) ;
+				throw_unless( fi.tag()==FileTag::Dir                                            , "source dir ",src,"/ is not a directory"                       ) ;
 			} else {
-				throw_if    ( +sr.lnks                                                          , "source ",src," has symbolic link ",sr.lnks[0]," in its path"      ) ;
-				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                    ) ;
-				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"         ) ;
-				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported"     ) ;
+				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                ) ;
+				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"     ) ;
+				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported" ) ;
 				SWEAR(src==sr.real,src,sr.real) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
 			}
 			srcs.emplace_back( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir

@@ -30,8 +30,10 @@ if __name__!='__main__' :
 		,	'DBUS'  : (r'.dbus/{*:.*}' ,'incremental')                               # .
 		}
 		side_deps = {
-			'TOP_DIR'   : ('.'     ,'readdir_ok')                                    # wine seems to sometimes readdir that
-		,	'LOCAL_DIR' : ('.local','readdir_ok')                                    # .
+			'TOP_DIR'    : ('.'            ,'readdir_ok')                            # wine seems to sometimes readdir that
+		,	'LOCAL_DIR'  : ('.local'       ,'readdir_ok')                            # .
+		,	'CONFIG_DIR' : ('.config'      ,'readdir_ok')                            # .
+		,	'MENUS_DIR'  : ('.config/menus','readdir_ok')                            # .
 		}
 		if xvfb : environ_resources = { 'SMALL_ID' : '$SMALL_ID'                   } # display is provided by xvfb-run
 		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display

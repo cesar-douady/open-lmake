@@ -238,10 +238,11 @@ For example, <code>slurm.h</code> will be found as <code>$SLURM_ROOT/include/slu
 <li>O[0123] controls the <code>-O option</code>                                      (default: 1 if profiling else 3            )</li>
 <li>g       controls the absence of <code>-g option</code>                           (default: debug                            )</li>
 <li>d       controls     <code>-DNDEBUG</code>                                       (default: asserts are enabled              )</li>
-<li>t       controls     <code>-DNO_TRACE</code>                                     (default: traces are enabled               )</li>
-<li>SA      controls the <code>-fsantize=address -fsanitize=undefined</code> options (exclusive with ST                         )</li>
-<li>ST      controls the <code>-fsantize=thread</code>                       option  (exclusive with SA                         )</li>
+<li>T       controls     <code>-DTRACE</code>                                        (default: traces are disabled              )</li>
+<li>Sa      controls the <code>-fsantize=address -fsanitize=undefined</code> options (exclusive with St                         )</li>
+<li>St      controls the <code>-fsantize=thread</code>                       option  (exclusive with Sa                         )</li>
 <li>P       controls the <code>-pg</code>                                    option  (profiling info is in gmon.out.<tool>.<pid>)</li>
+<li>C       controls the <code>--coverage</code>                             option  (profiling info is in gmon.out.<tool>.<pid>)</li>
 </ul>
 </li>
 <li>the <code>-j</code> flag of make is automatically set to the number of processors, you may want to override this, though</li>

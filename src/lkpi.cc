@@ -27,8 +27,8 @@ int main( int argc , char* /*argv*/[] ) {
 		n_rules[+r->special]++ ;
 	}
 	for( const Job j : Persistent::job_lst() ) {
-		/**/                                            n_jobs[+j->rule()   ]++ ;
-		for ( [[maybe_unused]] Dep const& d : j->deps ) n_deps[+d->buildable]++ ;
+		/**/                                            n_jobs[bool(+j->rule())]++ ;
+		for ( [[maybe_unused]] Dep const& d : j->deps ) n_deps[+d->buildable   ]++ ;
 	}
 	for( const Node n : Persistent::node_lst() ) {
 		n_nodes[+n->buildable]++ ;

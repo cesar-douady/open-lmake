@@ -308,6 +308,9 @@ For example if specified as <code>tmp_r</code> and the rule of a job contains <c
 <p><code>config</code> : The slurm configuration file to use to contact the slurm controller. By default, <code>/etc/slurm/slurm.conf</code> is used.</p>
 </li>
 <li>
+<p><code>init_timeout</code> : Maximum time allowed to init slurm. By default, 10s.</p>
+</li>
+<li>
 <p><code>lib_slurm</code> : The slurm dynamic library. If no <code>/</code> appears, <code>$LD_LIBRARY_PATH</code> (as compiled in) and system default lib dirs are searched. By default, <code>libslurm.so</code> is used.</p>
 </li>
 <li>

@@ -70,8 +70,8 @@ namespace Backends::Slurm::SlurmApi {
 	using LoadCtlConfFunc = int  (*)( time_t update_time , void** /*out*/ slurm_conf ) ; // slurm_conf_t is not known yet
 	using FreeCtlConfFunc = void (*)( void* slurm_conf                               ) ;
 
-	extern void*                               g_lib_handler      ; // handler for libslurm.so as returned by ::dlsym
-	extern ::umap_s<Daemon(*)(void* /*conf*/)> g_sense_daemon_tab ; // map slurm version to init function, which returns true if version matches else returns false or traps with SIGSEGV/SIGBUS
+	extern void*                                     g_lib_handler      ; // handler for libslurm.so as returned by ::dlsym
+	extern ::umap_s<Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ; // map slurm version to init function, which returns true if version matches else returns false or traps with SIGSEGV/SIGBUS
 	//
 	extern SlurmId (*spawn_job_func)(
 		::stop_token            st
@@ -84,7 +84,7 @@ namespace Backends::Slurm::SlurmApi {
 	,	RsrcsData        const& rsrcs
 	,	bool                    verbose
 	) ;
-	extern ::pair_s<Bool3/*job_ok*/> (*job_state_func)(SlurmId) ;   // Maybe means job has not completed
+	extern ::pair_s<Bool3/*job_ok*/> (*job_state_func)(SlurmId) ;         // Maybe means job has not completed
 	extern void                      (*cancel_func   )(SlurmId) ;
 
 }

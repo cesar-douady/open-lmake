@@ -488,9 +488,10 @@ src/lmakeserver/backends/slurm_api-%.cc :
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
-RPC_JOB_SAN_OBJS := \
-	src/rpc_job$(SAN).o          \
-	src/caches/dir_cache$(SAN).o
+RPC_JOB_OBJS := \
+	src/rpc_job.o \
+	src/caches/dir_cache.o
+RPC_JOB_SAN_OBJS := $(RPC_JOB_OBJS:%.o=%$(SAN).o)
 
 CLIENT_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -632,31 +633,55 @@ BASIC_REMOTE_OBJS := \
 AUTODEP_OBJS := \
 	$(BASIC_REMOTE_OBJS) \
 	src/autodep/syscall_tab.o
+AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
+
 REMOTE_OBJS  := \
 	$(BASIC_REMOTE_OBJS)   \
 	src/app.o              \
 	src/trace.o            \
 	src/autodep/job_support.o
 
-JOB_EXEC_SAN_OBJS := \
-	$(AUTODEP_OBJS:%.o=%$(SAN).o) \
-	$(RPC_JOB_SAN_OBJS)           \
-	src/app$(SAN).o               \
-	src/non_portable$(SAN).o      \
-	src/re$(SAN).o                \
-	src/trace$(SAN).o             \
-	src/autodep/gather$(SAN).o    \
-	src/autodep/ptrace$(SAN).o    \
-	src/autodep/record$(SAN).o
+# XXX : make job_exec compatible with SAN
+#JOB_EXEC_SAN_OBJS := \
+#	$(AUTODEP_SAN_OBJS)        \
+#	$(RPC_JOB_SAN_OBJS)        \
+#	src/app$(SAN).o            \
+#	src/non_portable$(SAN).o   \
+#	src/re$(SAN).o             \
+#	src/trace$(SAN).o          \
+#	src/autodep/gather$(SAN).o \
+#	src/autodep/ptrace$(SAN).o \
+#	src/autodep/record$(SAN).o
 
-_bin/job_exec : $(JOB_EXEC_SAN_OBJS) $(CACHE_SAN_OBJS) src/job_exec$(SAN).o
-bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/py.o          src/autodep/lautodep$(SAN).o
+#_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
+#bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/py$(SAN).o src/autodep/lautodep$(SAN).o
+
+#LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
+#_bin/job_exec bin/lautodep :
+#	@mkdir -p $(@D)
+#	@echo link to $@
+#	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+#	@$(SPLIT_DBG_CMD)
+
+JOB_EXEC_OBJS := \
+	$(AUTODEP_OBJS)      \
+	$(RPC_JOB_OBJS)      \
+	src/app.o            \
+	src/non_portable.o   \
+	src/re.o             \
+	src/trace.o          \
+	src/autodep/gather.o \
+	src/autodep/ptrace.o \
+	src/autodep/record.o
+
+_bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
+bin/lautodep  : $(JOB_EXEC_OBJS) src/py.o src/autodep/lautodep.o
 
 LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
 _bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

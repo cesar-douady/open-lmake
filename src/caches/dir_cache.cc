@@ -95,16 +95,16 @@ namespace Caches {
 		AcFd     head_fd         { nfs_guard.access(head_file) } ;
 		Lru      head            ;                                 if (+head_fd) deserialize(head_fd.read(),head) ;
 		bool     some_removed    = false                         ;
-		::string expected_next_s = HeadS                         ;                                // for assertion only
+		::string expected_next_s = HeadS                         ;                                     // for assertion only
 		//
-		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                             // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                                  // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
-			SWEAR(head.prev_s!=HeadS) ;                                                           // else this would mean an empty cache and we know an empty cache can accept new_sz
+			SWEAR(head.prev_s!=HeadS) ;                                                                // else this would mean an empty cache and we know an empty cache can accept new_sz
 			auto here = deserialize<Lru>(AcFd(nfs_guard.access(_lru_file(head.prev_s))).read()) ;
 			SWEAR( here.next_s==expected_next_s , here.next_s , expected_next_s ) ;
-			SWEAR( head.sz    >=here.sz         , head.sz     , here.sz         ) ;               // total size contains this entry
-			unlnk(nfs_guard.change(dir_s+no_slash(head.prev_s)),true/*dir_ok*/) ;
+			SWEAR( head.sz    >=here.sz         , head.sz     , here.sz         ) ;                    // total size contains this entry
+			unlnk( nfs_guard.change(dir_s+no_slash(head.prev_s)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
 			expected_next_s  = head.prev_s         ;
 			head.sz         -= here.sz             ;
 			head.prev_s      = ::move(here.prev_s) ;

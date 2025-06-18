@@ -172,6 +172,22 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <li>If too high, there is a small impact on performance as open-lmake will consider out of date data that are actually up to date.</li>
 </ul>
 <p>The default value should be safe in usual cases and user should hardly need to modify it.</p>
+<h3 id="file_sync--static-dir-if-non-local-backends-are-used-else-none"><a class="header" href="#file_sync--static-dir-if-non-local-backends-are-used-else-none"><code>file_sync</code> : Static (<code>'dir'</code> if non-local backends are used, else <code>None</code>)</a></h3>
+<p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
+<p>Possible values are:</p>
+<ul>
+<li><code>'none'</code> or <code>None</code>: the filesystem is deemed reliable an no further protection is needed.</li>
+<li><code>'dir'</code>: the enclosing dir (and recursively up-hill) of a file is closed after any write (or creation or removal) and open before any read.</li>
+<li><code>'sync'</code>: <code>fsync</code> is called on file after any write.</li>
+</ul>
+<p>Recommanded values for known file systems:</p>
+<div class="table-wrapper"><table><thead><tr><th>File system</th><th><code>file_sync</code></th></tr></thead><tbody>
+<tr><td>NFS</td><td><code>'dir'</code></td></tr>
+<tr><td>CEPH</td><td><code>None</code></td></tr>
+</tbody></table>
+</div>
+<p>The expected performance impact is increasing in this order : <code>None</code>, <code>'dir'</code>, <code>'sync'</code>.
+The expected reliability order is the reverse one.</p>
 <h3 id="heartbeat--static-10"><a class="header" href="#heartbeat--static-10"><code>heartbeat</code> : Static (<code>10</code>)</a></h3>
 <p>Open-lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
 If such an event occurs, the job will be restarted automatically.</p>
@@ -228,26 +244,15 @@ The purpose is to ease reading.</p>
 <li>If too high, there may be a loss of reactivity.</li>
 </ul>
 <p>The default value should fit most cases.</p>
+<h3 id="nice--dynamic-0"><a class="header" href="#nice--dynamic-0"><code>nice</code> : Dynamic (<code>0</code>)</a></h3>
+<p>This attribute provides the nice value to apply to all jobs.
+It is a value between 0 and 20 that decreases the priority of jobs (cf nice(2)).</p>
+<p>If available, the autogroup mecanism (cf sched (7)) is used instead as jobs are launched as sessions.</p>
+<p>Note that negative nice values are not supported as these require privileges.</p>
 <h3 id="path_max--static-200"><a class="header" href="#path_max--static-200"><code>path_max</code> : Static (<code>200</code>)</a></h3>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
-<h3 id="file_sync--static-dir-if-non-local-backends-are-used-else-none"><a class="header" href="#file_sync--static-dir-if-non-local-backends-are-used-else-none"><code>file_sync</code> : Static (<code>'dir'</code> if non-local backends are used, else <code>None</code>)</a></h3>
-<p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
-<p>Possible values are:</p>
-<ul>
-<li><code>'none'</code> or <code>None</code>: the filesystem is deemed reliable an no further protection is needed.</li>
-<li><code>'dir'</code>: the enclosing dir (and recursively up-hill) of a file is closed after any write (or creation or removal) and open before any read.</li>
-<li><code>'sync'</code>: <code>fsync</code> is called on file after any write.</li>
-</ul>
-<p>Recommanded values for known file systems:</p>
-<div class="table-wrapper"><table><thead><tr><th>File system</th><th><code>file_sync</code></th></tr></thead><tbody>
-<tr><td>NFS</td><td><code>'dir'</code></td></tr>
-<tr><td>CEPH</td><td><code>None</code></td></tr>
-</tbody></table>
-</div>
-<p>The expected performance impact is increasing in this order : <code>None</code>, <code>'dir'</code>, <code>'sync'</code>.
-The expected reliability order is the reverse one.</p>
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
 <p>This attribute provide the list of sub-repos.</p>
 <p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.

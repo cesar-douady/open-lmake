@@ -76,6 +76,7 @@ config = pdict(
 	#,	slurm = pdict(
 	#		interface         = _interface                  # cf sge entry above
 	#	,	config            = '/etc/slurm/slurm.conf'     # config file (this is the default value if not specified)
+	#	,	init_timeout      = 10                          # maximum time allowed for slurm initialization
 	#	,	lib_slurm         = '/usr/lib/slurm.so'         # slurm dynamic lib (this is a typical default value if not specified)
 	#	,	n_max_queued_jobs = 10                          # max number of queued jobs for a given set of asked resources
 	#	,	repo_key          = _osp.basename(_os.getcwd()) # prefix used before job name to name slurm jobs

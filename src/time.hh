@@ -53,7 +53,7 @@ namespace Time {
 		constexpr explicit TimeBase(uint            v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
 		constexpr explicit TimeBase(ulong           v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
 		constexpr explicit TimeBase(double          v )                      : _val{ T(v*TicksPerSecond)                          } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(float           v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
+		constexpr explicit TimeBase(float           v )                      : _val{ T(v*TicksPerSecond)                          } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
 		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
 		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
 		constexpr explicit TimeBase(NewType,Tick    v )                      : _val{   v                                          } {}
@@ -152,14 +152,18 @@ namespace Time {
 	public :
 		constexpr CoarseDelay(       ) = default ;
 		constexpr CoarseDelay(Delay d) {
-			uint32_t t = ::logf(d._val)*(1<<Mantissa)+0.5 ;
-			if      ( t >= (1<<NBits<Val>)+Scale ) _val = -1      ;
-			else if ( t <                  Scale ) _val =  0      ;
-			else                                   _val = t-Scale ;
+			if (!d._val) {
+				_val = 0 ;
+			} else {
+				uint32_t t = ::ldexpf(::logf(d._val),Mantissa)+0.5 ;
+				if      ( t >= (1<<NBits<Val>)+Scale ) _val = -1      ;
+				else if ( t <                  Scale ) _val =  0      ;
+				else                                   _val = t-Scale ;
+			}
 		}
 		constexpr operator Delay() const {
 			if (!_val) return Delay() ;
-			else       return Delay(New,int64_t(::expf(float(_val+Scale)/(1<<Mantissa)))) ;
+			else       return Delay(New,int64_t(::expf(::ldexpf(_val+Scale,-Mantissa)))) ;
 		}
 		constexpr explicit operator double() const { return double(Delay(self)) ; }
 		constexpr explicit operator float () const { return float (Delay(self)) ; }

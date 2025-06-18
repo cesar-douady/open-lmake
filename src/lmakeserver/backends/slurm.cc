@@ -29,8 +29,8 @@ enum class SlurmFlag : uint8_t {
 namespace Backends::Slurm {
 
 	namespace SlurmApi {
-		void*                               g_lib_handler      ;
-		::umap_s<Daemon(*)(void* /*conf*/)> g_sense_daemon_tab ;
+		void*                                     g_lib_handler      ;
+		::umap_s<Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ;
 		//
 		SlurmId (*spawn_job_func)(
 			::stop_token            st
@@ -63,9 +63,9 @@ namespace Backends::Slurm {
 
 	Mutex<MutexLvl::Slurm> slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
-	RsrcsData parse_args        (::string const& args                                     ) ;
-	::string  read_stderr       (Job                                                      ) ;
-	Daemon    slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm ) ;
+	RsrcsData parse_args        (::string const& args                                                                    ) ;
+	::string  read_stderr       (Job                                                                                     ) ;
+	Daemon    slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm , Delay timeout=Delay::Forever ) ;
 	//
 	SlurmId slurm_spawn_job(
 		::stop_token
@@ -124,17 +124,18 @@ namespace Backends::Slurm {
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'c' : if (k=="config"           ) { config_file       =                       v  ; continue ; } break ;
-						case 'l' : if (k=="lib_slurm"        ) { lib_slurm         =                       v  ; continue ; } break ;
-						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
-						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; } break ;
-						case 'u' : if (k=="use_nice"         ) { use_nice          = from_string<bool    >(v) ; continue ; } break ;
+						case 'c' : if (k=="config"           ) { config_file       =                             v   ; continue ; } break ;
+						case 'i' : if (k=="init_timeout"     ) { init_timeout      = Delay(from_string<float   >(v)) ; continue ; } break ;
+						case 'l' : if (k=="lib_slurm"        ) { lib_slurm         =                             v   ; continue ; } break ;
+						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs =       from_string<uint32_t>(v)  ; continue ; } break ;
+						case 'r' : if (k=="repo_key"         ) { repo_key          =                             v   ; continue ; } break ;
+						case 'u' : if (k=="use_nice"         ) { use_nice          =       from_string<bool    >(v)  ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
 				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
 			}
 			if (!dyn) {
-				daemon = slurm_sense_daemon( config_file , lib_slurm ) ;
+				daemon = slurm_sense_daemon( config_file , lib_slurm , init_timeout ) ;
 				_s_slurm_cancel_thread.open('K',SlurmApi::cancel_func) ;
 			}
 			//
@@ -269,6 +270,7 @@ namespace Backends::Slurm {
 		::string            config_file       ;
 		::string            lib_slurm         ;
 		uint32_t            n_max_queued_jobs = 10            ; // by default, limit to 10 the number of jobs waiting for a given set of resources
+		Delay               init_timeout      = Delay(10)     ;
 		bool                use_nice          = false         ;
 		::string            repo_key          ;                 // a short identifier of the repository
 		Daemon              daemon            ;                 // info sensed from slurm daemon
@@ -390,14 +392,20 @@ namespace Backends::Slurm {
 	static void _exit1() {
 		::_exit(1) ;
 	}
-	Daemon slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm ) {
-		Trace trace(BeChnl,"slurm_sense_daemon",config_file,lib_slurm) ;
+	Daemon slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm , Delay init_timeout ) {
+		Trace trace(BeChnl,"slurm_sense_daemon",config_file,lib_slurm,init_timeout) ;
 		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                   // if nothing to try, no backend but no error
 		//
 		::string config_file_ = config_file | "/etc/slurm/slurm.conf"s ;
 		::string lib_slurm_   = lib_slurm   | "libslurm.so"s           ;
 		//
-		SlurmApi::g_lib_handler = ::dlopen(lib_slurm_.c_str(),RTLD_NOW|RTLD_GLOBAL) ; throw_unless( SlurmApi::g_lib_handler , "cannot find ",lib_slurm_ ) ;
+		SlurmApi::g_lib_handler = ::dlopen(lib_slurm_.c_str(),RTLD_NOW|RTLD_GLOBAL) ;
+		if (!SlurmApi::g_lib_handler) {
+			::string msg = "cannot find slurm lib\n" ;
+			if (+lib_slurm) msg << indent(cat("ensure lmake.config.backends.slurm.lib_slurm is adequate : "   ,lib_slurm_  ,'\n'            ),1) ;
+			else            msg << indent(cat("consider setting lmake.config.backends.slurm.lib_slurm (using ",lib_slurm_  ," by default)\n"),1) ;
+			throw msg ;
+		}
 		//
 		SlurmApi::InitFunc        init_func          = reinterpret_cast<SlurmApi::InitFunc       >(::dlsym(SlurmApi::g_lib_handler,"slurm_init"         )) ;
 		SlurmApi::LoadCtlConfFunc load_ctl_conf_func = reinterpret_cast<SlurmApi::LoadCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_load_ctl_conf")) ;
@@ -407,17 +415,19 @@ namespace Backends::Slurm {
 		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
 		if (!AcFd(config_file_)) {
 			::string msg = "cannot find slurm config\n" ;
-			if (+config_file) msg << "ensure lmake.config.backends.slurm.config is adequate : "   <<config_file <<'\n'             ;
-			else              msg << "consider setting lmake.config.backends.slurm.config (using "<<config_file_<<" by default)\n" ;
+			if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "   ,config_file_,'\n'            ),1) ;
+			else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using ",config_file_," by default)\n"),1) ;
 			throw msg ;
 		}
 		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
 		// so the idea here is to fork a process to probe SlurmApi::init
+		int to = ::ceil(float(init_timeout)) ;
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
 			::atexit(_exit1) ;                                           // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
 			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                 // this is just a probe, we want nothing on stderr
 			::dup2(dev_null_fd,2) ;                                      // so redirect to /dev/null
+			::alarm(to) ;                                                // ensure init_func does not block
 			init_func(config_file_.c_str()) ;                            // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
 			::_exit(0) ;                                                 // if we are here, everything went smoothly
 		} else {
@@ -425,11 +435,13 @@ namespace Backends::Slurm {
 			int   wstatus ;
 			pid_t rc      = ::waitpid(child_pid,&wstatus,0) ;            // gather status to know if we were able to call SlurmApi::init
 			if ( rc<=0 || !wstatus_ok(wstatus) ) {                       // no, report error
-				::string msg = "cannot init slurm\n" ;
-				if (+config_file) msg << "ensure lmake.config.backends.slurm.config is adequate : "      <<config_file <<'\n'             ;
-				else              msg << "consider setting lmake.config.backends.slurm.config (using "   <<config_file_<<" by default)\n" ;
-				if (+lib_slurm  ) msg << "ensure lmake.config.backends.slurm.lib_slurm is adequate : "   <<lib_slurm   <<'\n'             ;
-				else              msg << "consider setting lmake.config.backends.slurm.lib_slurm (using "<<lib_slurm_  <<" by default)\n" ;
+				::string msg ;
+				if ( WIFSIGNALED(wstatus) && WTERMSIG(wstatus)==SIGALRM ) msg << "cannot init slurm (timeout after "<<to<<"s)\n" ;
+				else                                                      msg << "cannot init slurm\n"                           ;
+				if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "      ,config_file_,'\n'            ),1) ;
+				else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using "   ,config_file_," by default)\n"),1) ;
+				if (+lib_slurm  ) msg << indent(cat("ensure lmake.config.backends.slurm.lib_slurm is adequate : "   ,lib_slurm_  ,'\n'            ),1) ;
+				else              msg << indent(cat("consider setting lmake.config.backends.slurm.lib_slurm (using ",lib_slurm_  ," by default)\n"),1) ;
 				throw msg ;
 			}
 		}

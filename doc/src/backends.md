@@ -180,6 +180,7 @@ Hence, the command line option must directly contain the priority to pass to `qs
 The configuration is composed of :
 
 - `config` : The slurm configuration file to use to contact the slurm controller. By default, `/etc/slurm/slurm.conf` is used.
+- `init_timeout` : Maximum time allowed to init slurm. By default, 10s.
 - `lib_slurm` : The slurm dynamic library. If no `/` appears, `$LD_LIBRARY_PATH` (as compiled in) and system default lib dirs are searched. By default, `libslurm.so` is used.
 - `n_max_queued_jobs` : open-lmake scatters jobs according to the required resources and only submit a few jobs to slurm for each set of asked resources.
   This is done to decrease the load of the slurm daemon as open-lmake might have millions of jobs to run and the typical case is that they tend require only a small set of different resources

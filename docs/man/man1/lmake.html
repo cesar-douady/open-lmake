@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Fri Jun 13 12:06:30 2025 -->
+<!-- CreationDate: Wed Jun 18 12:43:25 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -517,6 +517,69 @@ backend for a particular command. Note that backend only
 impacts resources and scheduling, not the content of the
 targets, so specifying such an option does not hurt
 repeatability.</p>
+
+<p style="margin-left:9%;"><b>-c</b> <i>method</i>,
+<b>--cache-method</b>=<i>method</i></p>
+
+<p style="margin-left:18%;">This options specifies how to
+manage the cache if any is mentioned in a rule. The default
+value is <i>plain</i>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Values can
+be:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><i>none</i> : the cache is not accessed at all.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><i>download</i> : job results are downloaded from the
+cache but the cache is not updated when it misses an
+entry.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><i>check</i> : job results are not downloaded from the
+cache, but new results are uploaded and if an entry already
+exists, coherence is checked.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="82%">
+
+
+<p><i>plain</i> : job results are downloaded from the cache
+in case of hit, and cache is updated in case of miss.</p></td></tr>
+</table>
 
 <p style="margin-left:9%;"><b>-e</b>,
 <b>--forget-old-errors</b></p>
