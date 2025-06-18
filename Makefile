@@ -4,7 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 VERSION        := 25.04
-TAG            := 28
+TAG            := 29
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -423,8 +423,9 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 
 src/lmakeserver/backends/slurm_api-%.cc :
 	@echo generate $@
-	@(	echo '#define SLURM_VERSION "$*"' \
-	;	echo '#include "slurm_api.x.cc"'  \
+	@(	echo '#define SLURM_VERSION   "$*"'                  \
+	;	echo '#define SLURM_NAMESPACE Slurm_$(subst .,_,$*)' \
+	;	echo '#include "slurm_api.x.cc"'                     \
 	) >$@
 
 #

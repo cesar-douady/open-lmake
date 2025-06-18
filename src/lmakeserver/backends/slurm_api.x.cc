@@ -8,13 +8,14 @@
 
 #include "slurm_api.hh"
 
-namespace Backends::Slurm::SlurmApi { // necessary to ensure all types are different, which is important for LTO
-	#include <slurm/slurm.h>
-}
-
-using namespace Disk ;
-
 namespace Backends::Slurm::SlurmApi {
+
+	namespace SLURM_NAMESPACE { // necessary to ensure all types are different, which is important for linking to avoid inlined function clashes (e.g. allocation of vector's)
+		#include <slurm/slurm.h>
+	}
+	using namespace SLURM_NAMESPACE ;
+
+	using namespace Disk ;
 
 	static constexpr int SlurmSpawnTrials  = 15 ;
 	static constexpr int SlurmCancelTrials = 10 ;

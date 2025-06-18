@@ -113,7 +113,7 @@ namespace Store {
 		}
 		void chk() const requires(HasFile) {
 			Base::chk() ;
-			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
+			throw_unless( size()                        , "incoherent size info"                      ) ;         // size is 1 for an empty file
 			throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
@@ -133,12 +133,19 @@ namespace Store {
 			Sz old_sz ;
 			Sz new_sz ;
 			{	ULock lock{_mutex} ;
+				#ifndef NDEBUG
+					static ::atomic<bool> s_busy = false ;
+					SWEAR(!s_busy.exchange(true)) ;
+				#endif
 				old_sz = size()      ;
 				new_sz = old_sz + sz ;
 				swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;               // ensure no arithmetic overflow before checking capacity
 				Base::expand(_s_offset(new_sz)) ;
 				fence() ;                                                                                         // update state when it is legal to do so
 				_size() = new_sz ;                                                                                // once allocation is done, no reason to maintain lock
+				#ifndef NDEBUG
+					s_busy = false ;
+				#endif
 			}
 			Idx res{old_sz} ;
 			new(&at(res)) Data(::forward<A>(args)...) ;
