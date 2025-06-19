@@ -77,8 +77,8 @@ namespace Disk {
 	// dir_s : a name          ending with /
 	// path  : a name possibly ending with /
 
-	bool     is_canon( ::string const& , bool empty_ok=false , bool has_pfx=false , bool has_sfx=false ) ; // is has_pfx or has_sfx, return false if cannot be canon for any pfx/sfx
-	::string mk_canon( ::string const&                                                                 ) ;
+	bool     is_canon( ::string const& , bool ext_ok=true , bool empty_ok=false , bool has_pfx=false , bool has_sfx=false ) ; // is has_pfx or has_sfx, return false if cannot be canon for any pfx/sfx
+	::string mk_canon( ::string const&                                                                                    ) ;
 	//
 	inline bool has_dir(::string const& path) {
 		if (path.size()<3) return false ;                                                                  // we must have at least 2 components and a / to have a dir component

@@ -477,9 +477,8 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 
 src/lmakeserver/backends/slurm_api-%.cc :
 	@echo generate $@
-	@(	echo '#define SLURM_VERSION   "$*"'                  \
-	;	echo '#define SLURM_NAMESPACE Slurm_$(subst .,_,$*)' \
-	;	echo '#include "slurm_api.x.cc"'                     \
+	@(	echo '#define SLURM_VERSION   "$*"' \
+	;	echo '#include "slurm_api.x.cc"'    \
 	) >$@
 
 #

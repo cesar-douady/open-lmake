@@ -47,7 +47,7 @@ if __name__!='__main__' :
 		targets = { 'EXE' : 'exe/{File:.*}'   }
 		deps    = { 'SRC' : 'src/{File   }.c' }
 		cmd = f'''
-			{gxx.gxx} -I . -o {{EXE}} {{SRC}}
+			{gxx.gxx} -I . -o {{EXE}} -xc {{SRC}}
 		'''
 
 

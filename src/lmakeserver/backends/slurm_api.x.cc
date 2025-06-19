@@ -9,14 +9,13 @@
 
 namespace Backends::Slurm::SlurmApi {
 
-	namespace SLURM_NAMESPACE {
+	inline namespace {
 		// Because we support several slurm versions, it is important that each type defined here be unique are there are clashes of inlined functions.
 		// Although no inlined functions are defined here, vector allocation is indeed inlined.
 		// For example, ::vector<job_desc_msg_t> would allocate based on the size of a random version, not the particular version as they would all share the same mangled name.
-		// Using a namespace reaches this goal : all names are now different.
+		// Using a namespace (even anonymous) reaches this goal : all names are now different.
 		#include <slurm/slurm.h>
 	}
-	using namespace SLURM_NAMESPACE ; // we do not need the namespace for coding, just for linking
 
 	using namespace Disk ;
 

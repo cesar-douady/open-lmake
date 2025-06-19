@@ -19,10 +19,17 @@ namespace Engine {
 	using namespace Time ;
 
 	static ::string/*msg*/ _reject_msg( MatchKind mk , ::string const& file , bool has_pfx=false , bool has_sfx=false ) {
-		if      ( !has_pfx && !has_sfx &&  file=="."               ) { if (mk!=MatchKind::SideDep) return          "is top-level"                                        ; }
-		else if ( !has_pfx && !has_sfx && !file                    )                               return          "is empty"                                            ;
-		else if ( !is_canon(file,true/*empty_ok*/,has_pfx,has_sfx) )                               return cat(file,"is not canonical, consider using : ",mk_canon(file)) ;
-		else if ( !has_sfx && file.back()=='/'                     )                               return cat(file,"ends with /, consider using : "     ,no_slash(file)) ;
+		if ( !has_pfx && !has_sfx && file=="." ) {
+			if (mk!=MatchKind::SideDep) return "is top-level" ;
+		} else if ( !has_pfx && !has_sfx && !file ) {
+			return "is empty" ;
+		} else if ( !is_canon( file , mk==MatchKind::SideDep/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
+			if ( ::string c=mk_canon(file) ; c!=file ) return cat(file," is not canonical, consider using : ",c) ;
+			else                                       return cat(file," is not canonical"                     ) ;
+		} else if ( !has_sfx && file.back()=='/' ) {
+			if ( ::string ns=no_slash(file) ; ns!=file ) return cat(file," ends with /, consider using : ",ns) ;
+			else                                         return cat(file," ends with /"                      ) ;
+		}
 		//
 		return {} ; // ok
 	}
@@ -208,16 +215,22 @@ namespace Engine {
 	::string _subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx& n_unnamed , bool* /*out*/ keep_for_deps=nullptr ) {
 		::string res ;
 		//
-		if (keep_for_deps) *keep_for_deps = true ;                                                                                         // unless found to be external
+		if (keep_for_deps) *keep_for_deps = true ;                                                  // unless found to be external
 		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
 			[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
 				SWEAR(+fixed) ;
 				res.append(fixed) ;
-				if ( !keep_for_deps                                    ) return                                                          ; // not a dep, no check
-				if ( !is_canon(fixed,true/*empty_ok*/,has_pfx,has_sfx) ) throw cat("is not canonical, consider using : ",mk_canon(fstr)) ;
-				if ( !has_sfx && fixed.back()=='/'                     ) throw cat("is ends with /, consider using : "  ,no_slash(fstr)) ;
-				if ( has_pfx                                           ) return                                                          ; // further check only for prefix
-				if ( is_lcl(fixed)                                     ) return                                                          ;
+				if (!keep_for_deps) return ;                                                        // not a dep, no check
+				if ( !is_canon( fixed , true/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
+					if ( ::string c=mk_canon(fstr) ; c!=fstr ) throw cat("is not canonical, consider using : ",c) ;
+					else                                       throw cat("is not canonical"                     ) ;
+				}
+				if ( !has_sfx && fixed.back()=='/' ) {
+					if ( ::string ns=no_slash(fstr) ; ns!=fstr ) throw cat("is ends with /, consider using : ",ns) ;
+					else                                         throw cat("is ends with /"                      ) ;
+				}
+				if (has_pfx      ) return ;                                   // further check only for prefix
+				if (is_lcl(fixed)) return ;
 				//
 				// dep is non-local, check if it lies within a source dirs
 				*keep_for_deps = false ;                                      // unless found in a source dir
@@ -444,13 +457,13 @@ namespace Engine {
 	bool/*keep*/ Rule::s_qualify_dep( ::string const& key , ::string const& dep ) {
 		auto bad = [&] ( ::string const& msg , ::string const& consider={} )->void {
 			::string e = cat("dep ",key," (",dep,") ",msg) ;
-			if (+consider) e <<", consider : "<< consider ;
+			if ( +consider && consider!=dep ) e <<", consider : "<< consider ;
 			throw e ;
 		} ;
-		if (!dep           ) bad( "is empty"                         ) ;
-		if (!is_canon(dep) ) bad( "is not canonical" , mk_canon(dep) ) ;
-		if (dep.back()=='/') bad( "ends with /"      , no_slash(dep) ) ;
-		if (is_lcl(dep)    ) return true/*keep*/ ;
+		if (!dep                         ) bad( "is empty"                         ) ;
+		if (!is_canon(dep,true/*ext_ok*/)) bad( "is not canonical" , mk_canon(dep) ) ;
+		if (dep.back()=='/'              ) bad( "ends with /"      , no_slash(dep) ) ;
+		if (is_lcl(dep)                  ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
 		::string abs_dep = mk_abs( dep , *g_repo_root_s ) ;

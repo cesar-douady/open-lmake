@@ -36,7 +36,7 @@ RepairDigest repair(::string const& from_dir) {
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
-				if ( !is_canon(tn)                                 ) { trace("target_non_canon",jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
+				if ( !is_canon(tn,false/*ext_ok*/)                 ) { trace("target_non_canon",jd,tn) ; goto NextJob ; } // this should never happen, there is a problem with this job
 				if ( td.crc==Crc::None && !static_phony(td.tflags) )                                     continue     ;   // this is not a target
 				if ( !td.crc.valid()                               ) { trace("no_target_crc"   ,jd,tn) ; goto NextJob ; } // XXX? : handle this case (is it worth?)
 				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch"   ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
@@ -51,14 +51,14 @@ RepairDigest repair(::string const& from_dir) {
 			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
 			job_info.update_digest() ;                                                                       // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
-				if ( !is_canon(dn)) goto NextJob ;                                                           // this should never happen, there is a problem with this job
+				if (!is_canon(dn,true/*ext_ok*/)) goto NextJob ;                                             // this should never happen, there is a problem with this job
 				if (!is_lcl(dn)) {
 					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;              // this could be optimized by searching the longest match in the name prefix tree
 					goto NextJob ;                                                                           // this should never happen as src_dirs are part of cmd definition
 				KeepDep : ;
 				}
 				Dep dep { Node(dn) , dd } ;
-				if ( !is_canon(dn)                       ) { trace("dep_non_canon",jd,dn) ; goto NextJob ; } // this should never happen, there is a problem with this job
+				if ( !is_canon(dn,true/*ext_ok*/)        ) { trace("dep_non_canon",jd,dn) ; goto NextJob ; } // this should never happen, there is a problem with this job
 				if ( !dep.is_crc                         ) { trace("no_dep_crc"   ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
 				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep"  ,jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
 				deps.emplace_back(dep) ;

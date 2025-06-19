@@ -615,8 +615,8 @@ namespace Engine {
 			//
 			for( bool search_non_buildable : {true,false} )                               // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
-					if (!is_canon(ds.txt,false/*empty_ok*/)) {
-						if (search_non_buildable  ) continue ;                            // non-canonic deps are detected after non-buidlable ones
+					if (!is_canon(ds.txt,true/*ext_ok*/)) {
+						if (search_non_buildable) continue ;                              // non-canonic deps are detected after non-buidlable ones
 						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
 						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;
 						else         reason = "empty static dep "      +k                 ;

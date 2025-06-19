@@ -25,7 +25,7 @@ bad_target_dep = {
 	,	{ 'tgt':'{File}..'                , 'dep':'{File}/..'               , 'ok':False }
 	,	{ 'tgt':'{File}{File}'            , 'dep':'{File}//{File}'          , 'ok':False }
 	,	{ 'tgt':'{File}.{File}'           , 'dep':'{File}/./{File}'         , 'ok':False }
-	,	{ 'tgt':'{File}..{File}'          , 'dep':'{File}/../{File}'        , 'ok':False }
+	,	{ 'tgt':'{File}..{File}'          , 'dep':'{File}/../{File}'        , 'ok':True  } # File could be .. in which case dep is legal
 	,	{ 'tgt':'{File}../.{File}'        , 'dep':'{File}//.././..//{File}' , 'ok':False }
 	)
 ,	'..' : (

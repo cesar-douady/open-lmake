@@ -13,27 +13,31 @@ namespace Disk {
 	//
 
 	// /!\ this code is derived from mk_canon
-	bool is_canon( ::string const& path , bool empty_ok , bool has_pfx , bool has_sfx ) {
+	bool is_canon( ::string const& path , bool ext_ok , bool empty_ok , bool has_pfx , bool has_sfx ) {
 		if (!path) return empty_ok ;
 		const char* p = path.data() ;
 		//
 		auto handle_slash = [&]()->bool {
-			size_t sz = p - path.data() ;                                     // if test ok, else, [path:p) is (x is single wildcard, y is not /, z is not / nor .) :
-			if (sz==0     ) return true    ;                                  //                *x
-			if (p[-1]=='/') return false   ;                                  //   */           *y
-			if (p[-1]!='.') return true    ;                                  //   *z           *.
-			if (sz==1     ) return has_pfx ;                                  //    .          *x.
-			if (p[-2]=='/') return false   ;                                  //  */.          *y.
-			if (p[-2]!='.') return true    ;                                  //  *z.          *..
-			if (sz==2     ) return true    ;                                  //   ..         *x..
-			if (p[-3]!='/') return true    ;                                  // *y..         */..
-			if (sz==3     ) return false   ;                                  //  /..        *x/.. absolute .. is not canon
-			//
-			return sz>=5 && (sz==5||p[-6]=='/') && p[-4]=='.' && p[-5]=='.' ; // .. after .. is canon
+			size_t sz = p - path.data() ;                         // if test ok, else, [path:p) is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
+			if (sz==0     ) return true              ;            //                *x
+			if (p[-1]=='/') return false             ;            //      */        *y
+			if (p[-1]!='.') return true              ;            //      *z        *.
+			if (sz==1     ) return has_pfx           ;            //       .       *x.
+			if (p[-2]=='/') return false             ;            //     */.       *y.
+			if (p[-2]!='.') return true              ;            //     *z.       *..
+			if (sz==2     ) return            ext_ok ;            //      ..      *x..
+			if (p[-3]!='/') return true              ;            //    *y..      */..
+			if (sz==3     ) return has_pfx && ext_ok ;            //     /..     *x/.. absolute .. is not canon
+			if (p[-4]!='.') return false             ;            //   *y/..     *./..
+			if (sz==4     ) return has_pfx && ext_ok ;            //    ./..    *x./..
+			if (p[-5]!='.') return false             ;            //  *u./..    *../..
+			if (sz==5     ) return            ext_ok ;            //   ../..   *x../.. .. after .. is canon
+			if (p[-6]=='/') return            ext_ok ;            // */../..   *y../.. .. after .. is canon
+			/**/            return false             ;
 		} ;
 		for(; p!=path.data()+path.size() ; p++ ) {
 			char c = *p ;
-			throw_if( c=='\0' , "file contains nul char : ",path ) ;          // file names are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c==0 , "file contains nul char : ",path ) ; // file names are not supposed to contain any nul char, cannot canonicalize
 			if ( c=='/' && !handle_slash() ) return false ;
 		}
 		return path.back()=='/' || has_sfx || handle_slash() ;
@@ -51,29 +55,33 @@ namespace Disk {
 			if (c!='/') return ;
 			size_t      sz  = res.size()-1    ;
 			const char* end = res.data() + sz ;
-			//                                                             // if test ok, else, res[:-1] is (x is single wildcard, y is not /, z is not / nor .) :
-			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return ; } //                *x if not abs, it must have been preceded by ./ which has been suppressed, it is an empty component
-			if (end[-1]=='/') {              res.resize(sz  ) ; return ; } //   */           *y suppress empty component
-			if (end[-1]!='.')                                   return ;   //   *z           *.
-			if (sz==1       ) {              res.resize(sz-1) ; return ; } //    .          *x. suppress leading ., if fragment => could be preceded by z, hence . must be kept
-			if (end[-2]=='/') {              res.resize(sz-1) ; return ; } //  */.          *y. suppress internal .
-			if (end[-2]!='.')                                   return ;   //  *z.          *..
-			if (sz==2       )                                   return ;   //   ..         *x..
-			if (end[-3]!='/')                                   return ;   // *y..         */..
-			if (sz==3       ) {              res.resize(sz-2) ; return ; } //  /..        *x/.. suppress absolute ..
-			//
-			if ( sz>=5 && (sz==5||end[-6]=='/') && end[-4]=='.' && end[-5]=='.' ) return ; // .. after .. is canon
-			size_t pos = res.rfind('/',sz-4) ; if (pos==Npos) pos = 0 ; else pos += 1 ;    // pos is char after / (or 0 if not found)
-			res.resize(pos) ;                                                              // parent dir is plain (not ..), suppress it
+			//                                                                  // if test ok, else, res[:-1] is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
+			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return      ; } //                *x if not abs, it must have been preceded by ./ which has been suppressed, it is an empty component
+			if (end[-1]=='/') {              res.resize(sz  ) ; return      ; } //     */         *y suppress empty component
+			if (end[-1]!='.')                                   return      ;   //     *z         *.
+			if (sz==1       ) {              res.resize(sz-1) ; return      ; } //      .        *x. suppress leading ., if fragment => could be preceded by z, hence . must be kept
+			if (end[-2]=='/') {              res.resize(sz-1) ; return      ; } //    */.        *y. suppress internal .
+			if (end[-2]!='.')                                   return      ;   //    *z.        *..
+			if (sz==2       )                                   return      ;   //     ..       *x..
+			if (end[-3]!='/')                                   return      ;   //   *y..       */..
+			if (sz==3       ) {              res.resize(sz-2) ; return      ; } //    /..      *x/.. suppress absolute ..
+			if (end[-4]!='.')                                   goto DotDot ;   //  *y/..      *./..
+			if (sz==4       )                                   goto DotDot ;   //   ./..     *x./..
+			if (end[-5]!='.')                                   goto DotDot ;   // *u./..     *../..
+			if (sz==5       )                                   return      ;   //  ../..    *x../.. .. after .. is canon
+			if (end[-6]=='/')                                   return      ;   // y../..    */../.. .. after .. is canon
+		DotDot :
+			size_t pos = res.rfind('/',sz-4) ; if (pos==Npos) pos = 0 ; else pos += 1 ; // pos is char after / (or 0 if not found)
+			res.resize(pos) ;                                                           // parent dir is plain (not ..), suppress it
 		} ;
 		for( char c : path ) {
-			throw_if( c=='\0' , "file contains nul char : ",path ) ;                       // file names are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c=='\0' , "file contains nul char : ",path ) ;                    // file names are not supposed to contain any nul char, cannot canonicalize
 			handle(c) ;
 		}
-		if (res.back()!='/') {
+		if (path.back()!='/') {
 			handle('/') ;
-			if (+res) res.pop_back (   ) ;
-			else      res.push_back('.') ;
+			if (+res) res.pop_back() ;
+			else      res = "." ;
 		}
 		return res ;
 	}
@@ -356,14 +364,14 @@ namespace Disk {
 	// RealPath
 	//
 
-	::string& operator+=( ::string& os , RealPathEnv const& rpe ) {       // START_OF_NO_COV
+	::string& operator+=( ::string& os , RealPathEnv const& rpe ) {    // START_OF_NO_COV
 		/**/                 os << "RealPathEnv(" << rpe.lnk_support ;
 		if (+rpe.file_sync ) os <<','<< rpe.file_sync                ;
 		/**/                 os <<','<< rpe.repo_root_s              ;
 		if (+rpe.tmp_dir_s ) os <<','<< rpe.tmp_dir_s                ;
 		if (+rpe.src_dirs_s) os <<','<< rpe.src_dirs_s               ;
 		return               os <<')'                                ;
-	}                                                                     // END_OF_NO_COV
+	}                                                                  // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , RealPath::SolveReport const& sr ) {               // START_OF_NO_COV
 		return os << "SolveReport(" << sr.real <<','<< sr.file_loc <<','<< sr.lnks <<')' ;
@@ -445,21 +453,21 @@ namespace Disk {
 		//
 		SolveReport res           ;
 		::vector_s& lnks          = res.lnks              ;
-		::string  & real          = res.real              ;      // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
-		::string    local_file[2] ;                              // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
-		bool        ping          = false/*garbage*/      ;      // ping-pong state
-		bool        exists        = true                  ;      // if false, we have seen a non-existent component and there cannot be symlinks within it
+		::string  & real          = res.real              ;                        // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
+		::string    local_file[2] ;                                                // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
+		bool        ping          = false/*garbage*/      ;                        // ping-pong state
+		bool        exists        = true                  ;                        // if false, we have seen a non-existent component and there cannot be symlinks within it
 		size_t      pos           = +file && file[0]=='/' ;
-		if (!pos) {                                              // file is relative, meaning relative to at
+		if (!pos) {                                                                // file is relative, meaning relative to at
 			real = at_file(at) ;
 			//
-			if (!real         ) return {} ;                      // user code might use the strangest at, it will be an error but we must support it
-			if (real.size()==1) real.clear() ;                   // if '/', we must substitute the empty string to enforce invariant
+			if (!real         ) return {} ;                                        // user code might use the strangest at, it will be an error but we must support it
+			if (real.size()==1) real.clear() ;                                     // if '/', we must substitute the empty string to enforce invariant
 		}
-		real.reserve(real.size()+1+file.size()) ;                // anticipate no link
-		_Dvg in_repo  { _env->repo_root_s , real } ;             // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
-		_Dvg in_tmp   { tmp_dir_s         , real } ;             // keep track of where we are w.r.t. tmp  , always track symlinks
-		_Dvg in_proc  { "/proc/"          , real } ;             // keep track of where we are w.r.t. /proc, always track symlinks
+		real.reserve(real.size()+1+file.size()) ;                                  // anticipate no link
+		_Dvg in_repo  { _env->repo_root_s , real } ;                               // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
+		_Dvg in_tmp   { tmp_dir_s         , real } ;                               // keep track of where we are w.r.t. tmp  , always track symlinks
+		_Dvg in_proc  { "/proc/"          , real } ;                               // keep track of where we are w.r.t. /proc, always track symlinks
 		// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
 		// when pos>file.size(), we are done and result is real
 		size_t   end      ;
@@ -468,17 +476,17 @@ namespace Disk {
 		for (
 		;	pos <= file.size()
 		;		pos = end + 1
-			,	in_repo.update( _env->repo_root_s , real )       // all domains start only when inside, i.e. the domain root is not part of the domain
-			,	in_tmp .update( tmp_dir_s         , real )       // .
-			,	in_proc.update( "/proc/"          , real )       // .
+			,	in_repo.update( _env->repo_root_s , real )                         // all domains start only when inside, i.e. the domain root is not part of the domain
+			,	in_tmp .update( tmp_dir_s         , real )                         // .
+			,	in_proc.update( "/proc/"          , real )                         // .
 		) {
 			end = file.find( '/' , pos ) ;
 			bool last = end==Npos ;
 			if (last    ) end = file.size() ;
-			if (end==pos) continue ;                             // empty component, ignore
+			if (end==pos) continue ;                                               // empty component, ignore
 			if (file[pos]=='.') {
-				if ( end==pos+1                     ) continue ; // component is .
-				if ( end==pos+2 && file[pos+1]=='.' ) {          // component is ..
+				if ( end==pos+1                     ) continue ;                   // component is .
+				if ( end==pos+2 && file[pos+1]=='.' ) {                            // component is ..
 					if (+real) real.resize(real.rfind('/')) ;
 					continue ;
 				}
@@ -487,11 +495,11 @@ namespace Disk {
 			size_t src_idx        = Npos/*garbage*/ ;
 			real.push_back('/')           ;
 			real.append(file,pos,end-pos) ;
-			if ( !exists             ) continue       ;          // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-			if ( no_follow && last   ) continue       ;          // dont care about last component if no_follow
-			if ( +in_tmp || +in_proc ) goto HandleLnk ;          // note that tmp can lie within repo
+			if ( !exists             ) continue       ;                            // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+			if ( no_follow && last   ) continue       ;                            // dont care about last component if no_follow
+			if ( +in_tmp || +in_proc ) goto HandleLnk ;                            // note that tmp can lie within repo
 			if ( +in_repo            ) {
-				if (real.size()<_repo_root_sz) continue ;        // at repo root, no sym link to handle
+				if (real.size()<_repo_root_sz) continue ;                          // at repo root, no sym link to handle
 			} else {
 				src_idx = _find_src_idx(real) ;
 				if (src_idx==Npos) continue ;
@@ -499,9 +507,9 @@ namespace Disk {
 			//
 			switch (_env->lnk_support) {
 				case LnkSupport::None :                                 continue ;
-				case LnkSupport::File : if (last) goto HandleLnk ; else continue ;                                           // only handle sym links as last component
+				case LnkSupport::File : if (last) goto HandleLnk ; else continue ; // only handle sym links as last component
 				case LnkSupport::Full :           goto HandleLnk ;
-			DF}                                                                                                              // NO_COV
+			DF}                                                                    // NO_COV
 		HandleLnk :
 			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when file is neither local_file's, any buffer is ok
 			nxt = read_lnk(_nfs_guard.access(real)) ;

@@ -39,7 +39,7 @@ if __name__!='__main__' :
 		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display
 
 	class WineInit(WineRule) :
-		target       = '.wine/init'
+		target       = 'wine_init'
 		targets      = { 'WINE' : r'.wine/{*:.*}' }                                                    # for init wine env is not incremental
 		side_targets = { 'WINE' : None            }
 		stderr_ok    = True
@@ -47,17 +47,17 @@ if __name__!='__main__' :
 		environ      = { 'DBUS_SESSION_BUS_ADDRESS' : lmake.user_environ['DBUS_SESSION_BUS_ADDRESS'] } # else a file is created in .dbus/session-bus
 		timeout      = 30                                                                              # actual time should be ~5s for the init rule, ...
 		#                                                                                              # ... but seems to block from time to time when host is loaded
-		if xvfb : cmd = f'{xvfb} wine64 cmd && sleep 1'                                                # do nothing, just to init support files (in targets) (sleep to allow X server to clean up)
-		else    : cmd =  '       wine64 cmd'                                                           # .
+		if xvfb : cmd = f'{xvfb} wine64 cmd && sleep 3'                                                # do nothing, just to init support files (in targets) (sleep to allow wineserver to die)
+		else    : cmd =  '       wine64 cmd && sleep 3'                                                # .
 
 	for ext in ('','64') :
 		class Dut(Base,WineRule) :
 			name    = f'Dut{ext}'
 			target  = f'dut{ext}.{{Method}}'
-			deps    = { 'WINE_INIT' : '.wine/init' }
+			deps    = { 'WINE_INIT' : 'wine_init' }
 			autodep = '{Method}'
-			if xvfb : cmd = f'{xvfb} -n $((50+$SMALL_ID)) wine{ext} hostname && sleep 1' # wine terminates before hostname, so we have to wait to get the result
-			else    : cmd = f'                            wine{ext} hostname && sleep 1' # .
+			if xvfb : cmd = f'{xvfb} -n $((50+$SMALL_ID)) wine{ext} hostname && sleep 3' # wait for wineserver to shutdown (3s by default)
+			else    : cmd = f'                            wine{ext} hostname && sleep 3' # .
 
 	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'

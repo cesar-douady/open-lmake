@@ -565,7 +565,10 @@ namespace Engine::Persistent {
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool is_dir_ = is_dir_name(src) ;
-			if (!is_canon(src)          ) throw cat("source ",is_dir_?"dir ":"",src," canonical form is ",mk_canon(src)                 ) ;
+			if (!is_canon(src)) {
+				if ( ::string c=mk_canon(src) ; c!=src ) throw cat("source ",is_dir_?"dir ":"",src," is not canonical, consider : ",c) ;
+				else                                     throw cat("source ",is_dir_?"dir ":"",src," is not canonical"               ) ;
+			}
 			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within or encompass system directories") ;
 			//
 			if (is_dir_) {
