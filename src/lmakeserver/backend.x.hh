@@ -133,7 +133,9 @@ namespace Backends {
 		static bool            s_ready     (Tag) ;
 		static ::string const& s_config_err(Tag) ;
 		//
-		static void s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) ;             // send warnings on first time only
+		static void s_config       ( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) ;          // send warnings on first time only
+		static void s_record_thread( char thread_key , ::jthread&                                               ) ;
+		static void s_finalize     (                                                                            ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
@@ -150,44 +152,46 @@ namespace Backends {
 		//
 		static Pdate s_submitted_eta(Req r) { return _s_workload.submitted_eta(r) ; }
 		// called by job_exec thread
-		static ::string/*msg*/          s_start    ( Tag , Job          ) ;                                              // called by job_exec  thread, sub-backend lock must have been takend by caller
-		static ::pair_s<bool/*retry*/>  s_end      ( Tag , Job , Status ) ;                                              // .
-		static void                     s_heartbeat( Tag                ) ;                                              // called by heartbeat thread, sub-backend lock must have been takend by caller
-		static ::pair_s<HeartbeatState> s_heartbeat( Tag , Job          ) ;                                              // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::string/*msg*/          s_start    ( Tag , Job          ) ;                                             // called by job_exec  thread, sub-backend lock must have been takend by caller
+		static ::pair_s<bool/*retry*/>  s_end      ( Tag , Job , Status ) ;                                             // .
+		static void                     s_heartbeat( Tag                ) ;                                             // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::pair_s<HeartbeatState> s_heartbeat( Tag , Job          ) ;                                             // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
 			s_tab[+t].reset(&be) ;
 		}
 	private :
-		static void            _s_kill_req               ( Req={}                                                    ) ; // kill all if req==0
-		static void            _s_wakeup_remote          ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
-		static void            _s_heartbeat_thread_func  ( ::stop_token                                              ) ;
-		static bool/*keep_fd*/ _s_handle_job_start       ( JobStartRpcReq&& , SlaveSockFd const& ={}                 ) ;
-		static bool/*keep_fd*/ _s_handle_job_mngt        ( JobMngtRpcReq && , SlaveSockFd const& ={}                 ) ;
-		static bool/*keep_fd*/ _s_handle_job_end         ( JobEndRpcReq  && , SlaveSockFd const& ={}                 ) ;
-		static void            _s_handle_deferred_report ( ::stop_token                                              ) ;
-		static void            _s_handle_deferred_wakeup ( DeferredEntry&&                                           ) ;
-		static void            _s_start_tab_erase        ( ::map<Job,StartEntry>::iterator                           ) ;
+		static void            _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
+		static void            _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
+		static void            _s_heartbeat_thread_func ( ::stop_token                                              ) ;
+		static bool/*keep_fd*/ _s_handle_job_start      ( JobStartRpcReq&& , SlaveSockFd const& ={}                 ) ;
+		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq && , SlaveSockFd const& ={}                 ) ;
+		static bool/*keep_fd*/ _s_handle_job_end        ( JobEndRpcReq  && , SlaveSockFd const& ={}                 ) ;
+		static void            _s_handle_deferred_report( ::stop_token                                              ) ;
+		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
+		static void            _s_start_tab_erase       ( ::map<Job,StartEntry>::iterator                           ) ;
 		// static data
 	public :
 		static ::unique_ptr<Backend> s_tab[N<Tag>] ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
-		static ::string                             _s_job_exec                      ;
-		static WakeupThread<false/*Flush*/>         _s_deferred_report_thread        ;
-		static DeferredThread                       _s_deferred_wakeup_thread        ;
-		static JobStartThread                       _s_job_start_thread              ;
-		static JobMngtThread                        _s_job_mngt_thread               ;
-		static JobEndThread                         _s_job_end_thread                ;
-		static SmallIds<SmallId,true/*ThreadSafe*/> _s_small_ids                     ;
-		static Atomic<JobIdx>                       _s_starting_job                  ;                 // this job is starting when _starting_job_mutex is locked
-		static Mutex<MutexLvl::StartJob>            _s_starting_job_mutex            ;
-		static ::map<Job,StartEntry>                _s_start_tab                     ;                 // use map instead of umap because heartbeat iterates over while tab is moving
-		static Workload                             _s_workload                      ;                 // book keeping of workload
-		static ::map <Pdate,JobExec>                _s_deferred_report_queue_by_date ;
-		static ::umap<Job  ,Pdate  >                _s_deferred_report_queue_by_job  ;
+		static ::string                              _s_job_exec                      ;
+		static ::vmap<char/*thread_key*/,::jthread*> _s_threads                       ;                 // threads to end upon exit
+		static WakeupThread<false/*Flush*/>          _s_deferred_report_thread        ;
+		static DeferredThread                        _s_deferred_wakeup_thread        ;
+		static JobStartThread                        _s_job_start_thread              ;
+		static JobMngtThread                         _s_job_mngt_thread               ;
+		static JobEndThread                          _s_job_end_thread                ;
+		static ::jthread                             _s_heartbeat_thread              ;
+		static SmallIds<SmallId,true/*ThreadSafe*/>  _s_small_ids                     ;
+		static Atomic<JobIdx>                        _s_starting_job                  ;                 // this job is starting when _starting_job_mutex is locked
+		static Mutex<MutexLvl::StartJob>             _s_starting_job_mutex            ;
+		static ::map<Job,StartEntry>                 _s_start_tab                     ;                 // use map instead of umap because heartbeat iterates over while tab is moving
+		static Workload                              _s_workload                      ;                 // book keeping of workload
+		static ::map <Pdate,JobExec>                 _s_deferred_report_queue_by_date ;
+		static ::umap<Job  ,Pdate  >                 _s_deferred_report_queue_by_job  ;
 		// cxtors & casts
 	public :
 		virtual ~Backend() = default ;                                                                 // ensure all fields of sub-backends are correctly destroyed

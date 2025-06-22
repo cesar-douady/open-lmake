@@ -260,7 +260,9 @@ namespace Backends {
 		// services
 		virtual void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) {
 			sub_config(dct,env,dyn) ;
-			if (!dyn) _launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ;
+			if (!dyn) {
+				_launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ; s_record_thread(LaunchThreadKey,_launch_queue.thread) ;
+			}
 		}
 		virtual void open_req( Req req , JobIdx n_jobs ) {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;

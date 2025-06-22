@@ -159,21 +159,23 @@ namespace Backends {
 	// Backend
 	//
 
-	::unique_ptr<Backend>                Backend::s_tab[N<Tag>]                    ;
-	::string                             Backend::_s_job_exec                      ;
-	Mutex<MutexLvl::Backend >            Backend::_s_mutex                         ;
-	WakeupThread<false/*Flush*/>         Backend::_s_deferred_report_thread        ;
-	Backend::DeferredThread              Backend::_s_deferred_wakeup_thread        ;
-	Backend::JobStartThread              Backend::_s_job_start_thread              ;
-	Backend::JobMngtThread               Backend::_s_job_mngt_thread               ;
-	Backend::JobEndThread                Backend::_s_job_end_thread                ;
-	SmallIds<SmallId,true/*ThreadSafe*/> Backend::_s_small_ids                     ;
-	Mutex<MutexLvl::StartJob>            Backend::_s_starting_job_mutex            ;
-	Atomic<JobIdx>                       Backend::_s_starting_job                  ;
-	::map<Job,Backend::StartEntry>       Backend::_s_start_tab                     ;
-	Backend::Workload                    Backend::_s_workload                      ;
-	::map <Pdate,JobExec>                Backend::_s_deferred_report_queue_by_date ;
-	::umap<Job  ,Pdate  >                Backend::_s_deferred_report_queue_by_job  ;
+	::unique_ptr<Backend>                 Backend::s_tab[N<Tag>]                    ;
+	Mutex<MutexLvl::Backend >             Backend::_s_mutex                         ;
+	::string                              Backend::_s_job_exec                      ;
+	::vmap<char/*thread_key*/,::jthread*> Backend::_s_threads                       ;
+	WakeupThread<false/*Flush*/>          Backend::_s_deferred_report_thread        ;
+	Backend::DeferredThread               Backend::_s_deferred_wakeup_thread        ;
+	Backend::JobStartThread               Backend::_s_job_start_thread              ;
+	Backend::JobMngtThread                Backend::_s_job_mngt_thread               ;
+	Backend::JobEndThread                 Backend::_s_job_end_thread                ;
+	::jthread                             Backend::_s_heartbeat_thread              ;
+	SmallIds<SmallId,true/*ThreadSafe*/>  Backend::_s_small_ids                     ;
+	Mutex<MutexLvl::StartJob>             Backend::_s_starting_job_mutex            ;
+	Atomic<JobIdx>                        Backend::_s_starting_job                  ;
+	::map<Job,Backend::StartEntry>        Backend::_s_start_tab                     ;
+	Backend::Workload                     Backend::_s_workload                      ;
+	::map <Pdate,JobExec>                 Backend::_s_deferred_report_queue_by_date ;
+	::umap<Job  ,Pdate  >                 Backend::_s_deferred_report_queue_by_job  ;
 
 	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<DepSpec>&& deps_attrs ) {
 		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
@@ -737,13 +739,14 @@ namespace Backends {
 	}
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) {
-		static ::jthread heartbeat_thread { _s_heartbeat_thread_func } ;
 		if (!dyn) {                                                                                                                       // if dyn, threads are already running
-			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ;
-			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ;
-			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ;
-			_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ;
-			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ;
+			// threads must be stopped while store is still mapped, i.e. before main() returns
+			_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;                          s_record_thread('H',_s_heartbeat_thread             ) ;
+			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ; s_record_thread('S',_s_job_start_thread      .thread) ;
+			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ; s_record_thread('M',_s_job_mngt_thread       .thread) ;
+			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ; s_record_thread('E',_s_job_end_thread        .thread) ;
+			_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ; s_record_thread('R',_s_deferred_report_thread.thread) ;
+			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ; s_record_thread('W',_s_deferred_wakeup_thread.thread) ;
 		}
 		Trace trace(BeChnl,"s_config",STR(dyn)) ;
 		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
@@ -818,6 +821,18 @@ namespace Backends {
 		_s_job_start_thread.wait_started() ;
 		_s_job_mngt_thread .wait_started() ;
 		_s_job_end_thread  .wait_started() ;
+	}
+
+	void Backend::s_record_thread( char thread_key , ::jthread& t ) {
+		_s_threads.emplace_back( thread_key , &t ) ;
+	}
+
+	void Backend::s_finalize() {
+		Trace trace("s_finalize") ;
+		// execute all request_stop() in parallel
+		for( auto [k,t] : _s_threads ) if (t->joinable()) { trace("stop",k) ; t->request_stop() ;                      }
+		for( auto [k,t] : _s_threads ) if (t->joinable()) {                   t->join        () ; trace("stopped",k) ; }
+		trace("done") ;
 	}
 
 	::vector_s Backend::acquire_cmd_line( Tag tag , Job job , ::vector<ReqIdx>&& reqs , ::vmap_ss&& rsrcs , SubmitAttrs&& submit_attrs ) {

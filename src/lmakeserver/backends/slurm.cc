@@ -136,7 +136,7 @@ namespace Backends::Slurm {
 			}
 			if (!dyn) {
 				daemon = slurm_sense_daemon( config_file , lib_slurm , init_timeout ) ;
-				_s_slurm_cancel_thread.open('K',SlurmApi::cancel_func) ;
+				_s_slurm_cancel_thread.open('K',SlurmApi::cancel_func) ; s_record_thread('K',_s_slurm_cancel_thread.thread) ;
 			}
 			//
 			_slurm_env.reset(new const char*[env_.size()+1]) ;

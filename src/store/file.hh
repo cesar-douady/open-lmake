@@ -22,8 +22,7 @@ namespace Store {
 		File ( NewType                                ) { init(New            ) ; }
 		File ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
 		~File() {
-			if      (keep_open) _fd.detach() ;
-			else if (base     ) close()      ;
+			if (base) close() ;
 		}
 		//
 		File& operator=(File&& other) ;
@@ -81,7 +80,6 @@ namespace Store {
 		char*          base      = nullptr ;               // address of mapped file
 		Atomic<size_t> size      = 0       ;               // underlying file size (fake if no file)
 		bool           writable  = false   ;
-		bool           keep_open = false   ;
 	private :
 		AcFd _fd ;
 	} ;
@@ -93,7 +91,6 @@ namespace Store {
 		base      =        other.base       ; other.base      = nullptr ;
 		size      =        other.size       ; other.size      = 0       ;
 		writable  =        other.writable   ; other.writable  = false   ;
-		keep_open =        other.keep_open  ; other.keep_open = false   ;
 		_fd       = ::move(other._fd      ) ;
 		return self ;
 	}

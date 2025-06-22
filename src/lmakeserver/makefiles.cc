@@ -186,7 +186,7 @@ namespace Engine::Makefiles {
 		try                       { py_info = py_eval(deps_str) ; }
 		catch (::string const& e) { FAIL(e) ;                     } // NO_COV
 		for( auto const& [d,ai] : gather.accesses ) {
-			if (ai.digest.write!=No) continue ;
+			if (ai.first_write()<Pdate::Future) continue ;
 			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = cat( m.group(d,1/*dir_s*/) , m.group(d,2/*module*/) , ".py" ) ;
 			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.files.push_back(py) ; }
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.files.push_back(d ) ; }

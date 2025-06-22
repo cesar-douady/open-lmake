@@ -302,7 +302,7 @@ namespace Engine::Persistent {
 		Targets no_triggers ; // these nodes do not trigger rebuild
 	} ;
 
-	//                                          ThreadKey  header     index             n_index_bits       key       data          misc
+	//                                          ThreadKey header     index             n_index_bits       key       data          misc
 	// jobs
 	using JobFile      = Store::AllocFile       < 0     , JobHdr   , Job             , NJobIdxBits      ,           JobData                        > ;
 	using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , Job                            > ; // for Job's & Node's

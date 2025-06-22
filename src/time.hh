@@ -62,8 +62,12 @@ namespace Time {
 		constexpr explicit operator double  () const {                                                               return double(_val)/TicksPerSecond ; }
 		constexpr explicit operator float   () const {                                                               return float (_val)/TicksPerSecond ; }
 		// accesses
-		constexpr bool operator+() const { return _val ; }
-		constexpr Tick val      () const { return _val ; }
+		constexpr bool operator+ (   ) const { return _val ;                     }
+		constexpr Tick val       (   ) const { return _val ;                     }
+		/**/      void operator++(   )       { SWEAR(_val!=Max<Tick>) ; _val++ ; }
+		/**/      void operator++(int)       { SWEAR(_val!=Max<Tick>) ; _val++ ; }
+		/**/      void operator--(   )       { SWEAR(_val!=Min<Tick>) ; _val-- ; }
+		/**/      void operator--(int)       { SWEAR(_val!=Min<Tick>) ; _val-- ; }
 		//
 		constexpr Tick   sec      () const {                       return _val       /TicksPerSecond ; }
 		constexpr Tick   msec     () const {                       return nsec     ()/1000'000       ; }
@@ -233,7 +237,8 @@ namespace Time {
 	struct Pdate : Date {
 		friend ::string& operator+=( ::string& , Pdate const ) ;
 		friend Delay ;
-		static const Pdate Future ;
+		static const Pdate Future  ; // highest date, used as infinity
+		static const Pdate Future1 ; // last date before Future
 		// static data
 	private :
 		#if __cplusplus<202600L
@@ -272,7 +277,8 @@ namespace Time {
 	struct Ddate : Date {
 		friend ::string& operator+=( ::string& , Ddate const ) ;
 		friend Delay ;
-		static const Ddate Future ;
+		static const Ddate Future  ; // highest date, used as infinity
+		static const Ddate Future1 ; // last date before Future
 	private :
 		static constexpr Tick _TagMsk = (1<<NBits<FileTag>)-1 ;
 		// cxtors & casts
@@ -347,7 +353,8 @@ namespace Time {
 	// Pdate
 	//
 
-	constexpr Pdate Pdate::Future { New , Pdate::Tick(-1) } ;
+	constexpr Pdate Pdate::Future  { New , Pdate::Tick(-1) } ;
+	constexpr Pdate Pdate::Future1 { New , Pdate::Tick(-2) } ;
 
 	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
 	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
@@ -359,6 +366,7 @@ namespace Time {
 	// Ddate
 	//
 
-	constexpr Ddate Ddate::Future { New , Ddate::Tick(-1) } ;
+	constexpr Ddate Ddate::Future  { New , Ddate::Tick(-1) } ;
+	constexpr Ddate Ddate::Future1 { New , Ddate::Tick(-2) } ;
 
 }

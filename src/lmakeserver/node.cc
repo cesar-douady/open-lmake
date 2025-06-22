@@ -138,7 +138,7 @@ namespace Engine {
 			}
 			return msg ;
 		} ;
-		Trace trace("refresh_src_anti",STR(report_no_file),reqs_,sig) ;
+		Trace trace("refresh_src_anti",idx(),STR(report_no_file),reqs_,sig) ;
 		if (frozen) for( Req r : reqs_ ) r->frozen_nodes.push(idx()) ;
 		if (!fi.exists()) {
 			if (report_no_file) for( Req r : reqs_  ) r->audit_job( Color::Err , "missing" , lazy_msg() , name_ ) ;

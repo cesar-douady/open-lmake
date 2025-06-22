@@ -21,8 +21,8 @@ namespace Store {
 			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
 			// also, putting a constraint less than the natural constraint is undefined behavior
 			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
-			[[no_unique_address]] alignas(Data) alignas(HdrNv) HdrNv        hdr ;     // no need to allocate space if header is empty
-			[[                 ]]                              ::atomic<Sz> sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0, XXX : suppress ::atomic with xxx()
+			[[no_unique_address]] alignas(Data) alignas(HdrNv) HdrNv hdr ;     // no need to allocate space if header is empty
+			[[                 ]]                              Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
 		} ;
 
 		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {
@@ -87,7 +87,7 @@ namespace Store {
 		static constexpr size_t _s_offset(Sz idx) { return Struct::_offset<Hdr,Idx,Data>(idx) ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) {
-			Base::expand(_s_offset(1)) ;                                                                  // 1 is the first used idx
+			Base::expand(_s_offset(1)) ;                                                                               // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -98,39 +98,45 @@ namespace Store {
 		template<class... A> void init( NewType                              , A&&... hdr_args ) { init( "" , true/*writable*/ , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::init( name , writable ) ;
+if (Base::operator+()) SWEAR(size()) ; // XXX : suppress when bug is found
 			if (Base::operator+()) return ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
+~StructFile() { // XXX : suppress when bug is found
+if ( !base || !Base::name ) return ;
+SWEAR(size()) ;
+Base::close() ;
+::string hdr_str = AcFd(Base::name).read(sizeof(StructHdr)) ;
+SWEAR(::launder(reinterpret_cast<StructHdr const*>(hdr_str.data()))->sz) ;
+}
 		// accesses
-		bool         operator+(               ) const                  {                       return size()>1                                                        ; }
-		Sz           size     (               ) const                  { xxx() ;               return _struct_hdr().sz                                                ; }
-		HdrNv const& hdr      (               ) const requires(HasHdr) { xxx() ;               return _struct_hdr().hdr                                               ; }
-		HdrNv      & hdr      (               )       requires(HasHdr) { xxx() ;               return _struct_hdr().hdr                                               ; }
-		HdrNv const& c_hdr    (               ) const requires(HasHdr) { xxx() ;               return _struct_hdr().hdr                                               ; }
-		Data  const& at       (Idx         idx) const                  { xxx() ; SWEAR(+idx) ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Data       & at       (Idx         idx)                        { xxx() ; SWEAR(+idx) ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
-		Data  const& c_at     (Idx         idx) const                  {                       return at(idx)                                                         ; }
-		Idx          idx      (Data const& at_) const                  {                       return Idx((&at_-&at(Idx(1)))+1)                                       ; }
-		void         clear    (Idx         idx)                        {         if (+idx) at(idx) = {} ;                                                               }
-		Lst          lst      (               ) const requires(!Multi) { xxx() ; chk_thread() ; return Lst(self) ;                                                      }
+		bool         operator+(               ) const                  {               return size()>1                                                        ; }
+		Sz           size     (               ) const                  {               return _struct_hdr().sz                                                ; }
+		HdrNv const& hdr      (               ) const requires(HasHdr) {               return _struct_hdr().hdr                                               ; }
+		HdrNv      & hdr      (               )       requires(HasHdr) {               return _struct_hdr().hdr                                               ; }
+		HdrNv const& c_hdr    (               ) const requires(HasHdr) {               return _struct_hdr().hdr                                               ; }
+		Data  const& at       (Idx         idx) const                  { SWEAR(+idx) ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Data       & at       (Idx         idx)                        { SWEAR(+idx) ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
+		Data  const& c_at     (Idx         idx) const                  {               return at(idx)                                                         ; }
+		Idx          idx      (Data const& at_) const                  {               return Idx((&at_-&at(Idx(1)))+1)                                       ; }
+		void         clear    (Idx         idx)                        { if (+idx) at(idx) = {} ;                                                               }
+		Lst          lst      (               ) const requires(!Multi) { chk_thread() ; return Lst(self) ;                                                      }
 	private :
-		StructHdr const& _struct_hdr() const {         return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
-		StructHdr      & _struct_hdr()       {         return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
-		::atomic<Sz>   & _size      ()       { xxx() ; return _struct_hdr().sz                                     ; } // XXX : suppress ::atomic with xxx()
+		StructHdr const& _struct_hdr() const { return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
+		StructHdr      & _struct_hdr()       { return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }
+		Sz             & _size      ()       { return _struct_hdr().sz                                     ; }
 		// services
 	public :
 		template<class... A> Idx emplace_back( Sz sz , A&&... args ) requires( Multi) { return _emplace_back(sz,::forward<A>(args)...) ; }
 		template<class... A> Idx emplace_back(         A&&... args ) requires(!Multi) { return _emplace_back(1 ,::forward<A>(args)...) ; }
 		void clear() {
-xxx() ;
 			Base::clear(sizeof(StructHdr)) ;
 			_size() = 1 ;
-xxx() ;
 		}
 		void chk() const {
 			Base::chk() ;
-			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
+			throw_unless( size()                        , "incoherent size info"                      ) ;              // size is 1 for an empty file
 			throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
@@ -141,21 +147,18 @@ xxx() ;
 		void _chk_sz( Idx /*idx*/ , Sz /*sz*/ ) requires(!( HasDataSz && Multi )) {                                                                  }
 		//
 		template<class... A> Idx _emplace_back( Sz sz , A&&... args ) {
-xxx() ;
 			chk_thread() ;
 			Sz old_sz = size()      ;
 			Sz new_sz = old_sz + sz ;
-			swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;           // ensure no arithmetic overflow before checking capacity
+			swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;                        // ensure no arithmetic overflow before checking capacity
 			Base::expand(_s_offset(new_sz)) ;
-			fence() ;                                                                                     // update state when it is legal to do so
-			_size() = new_sz ;                                                                            // once allocation is done, no reason to maintain lock
+			fence() ;                                                                                                  // update state when it is legal to do so
+			_size() = new_sz ;                                                                                         // once allocation is done, no reason to maintain lock
 			Idx res { old_sz } ;
 			_emplace( res , ::forward<A>(args)... ) ;
 			_chk_sz( res , sz ) ;
-xxx() ;
 			return res ;
 		}
-void xxx() const { SWEAR(::launder(reinterpret_cast<StructHdr const*>(base))->sz) ; }                     // XXX : suppress when bug is found
 	} ;
 
 }

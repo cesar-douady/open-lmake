@@ -516,6 +516,7 @@ int main( int argc , char** argv ) {
 		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,Fd::Write).write(g_kpi.pretty_str()) ;
 	}
 	//
+	Backend::s_finalize() ;
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;
 }

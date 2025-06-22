@@ -169,7 +169,7 @@ namespace Engine {
 					if (dd->done(self)) continue ;
 					d  = dd                     ;
 					dr = j->rule()->user_name() ;
-					cycle_str << first("(",",")<< mk_py_str(d->name()) ;
+					if (!seen.contains(d)) cycle_str << first("(",",")<<mk_py_str(d->name()) ;
 					goto Next ;
 				}
 				fail_prod("not done but all deps are done :",j->name()) ;       // NO_COV
@@ -193,7 +193,7 @@ namespace Engine {
 			else                                                 prefix = "    " ;
 			self->audit_node( Color::Note , prefix+widen(cycle[i].first,w),cycle[i].second , 1 ) ;
 		}
-		if ( +to_forget || +to_forget || +cycle_str ) {
+		if ( +to_forget || +cycle_str ) {
 			/**/                      self->audit_info( Color::Note , "consider some of :\n"     ) ;
 			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n       , 1 ) ;
 			::set_s sub_repos_s ; for( Rule r : to_raise ) sub_repos_s.insert(r->sub_repo_s) ;

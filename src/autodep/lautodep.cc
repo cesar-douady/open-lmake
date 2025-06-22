@@ -177,33 +177,30 @@ int main( int argc , char* argv[] ) {
 	try                       { jsrr.exit() ;        }
 	catch (::string const& e) { exit(Rc::System,e) ; }
 	//
-	::string deps = "targets :\n" ;
-	for( auto const& [target,ai] : gather.accesses ) switch(ai.digest.write) {
-		case No    :                               break ;
-		case Maybe : deps <<"? "<< target <<'\n' ; break ;
-		case Yes   : deps <<"  "<< target <<'\n' ; break ;
-	}
-	deps += "deps :\n" ;
+	::string files = "targets :\n" ;
+	for( auto const& [target,ai] : gather.accesses )
+		if (ai.first_write()<Pdate::Future) files << target <<'\n' ;
+	files += "deps :\n" ;
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
-	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                        // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                              // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
-			if      ( !prev_parallel && !parallel ) deps += "  "  ;
-			else if ( !prev_parallel &&  parallel ) deps += "/ "  ;
-			else if (  prev_parallel &&  parallel ) deps += "| "  ;
-			else                                    deps += "\\ " ;
-			deps << prev_dep << '\n' ;
+			if      ( !prev_parallel && !parallel ) files += "  "  ;
+			else if ( !prev_parallel &&  parallel ) files += "/ "  ;
+			else if (  prev_parallel &&  parallel ) files += "| "  ;
+			else                                    files += "\\ " ;
+			files << prev_dep << '\n' ;
 		}
 		prev_first_read = first_read ;
 		prev_parallel   = parallel   ;
 		prev_dep        = dep        ;
 	} ;
-	for( auto const& [dep,ai] : gather.accesses ) if (ai.digest.write==No) send(dep,ai.first_read().first) ;
-	/**/                                                                   send(                         ) ; // send last
+	for( auto const& [dep,ai] : gather.accesses ) if (ai.first_write()==Pdate::Future) send(dep,ai.first_read()) ;
+	/**/                                                                               send(                   ) ; // send last
 	//
-	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(deps) ;
-	else                              Fd::Stdout                                     .write(deps) ;
+	if (cmd_line.flags[CmdFlag::Out]) Fd(cmd_line.flag_args[+CmdFlag::Out],Fd::Write).write(files) ;
+	else                              Fd::Stdout                                     .write(files) ;
 	return status!=Status::Ok ;
 }

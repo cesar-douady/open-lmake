@@ -44,10 +44,10 @@ struct AccessDigest {                                                // semantic
 	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return        self      ; }
 	AccessDigest  operator| (Accesses     const& a ) const {                 return ::copy(self)|=a  ; }
 	// data
-	Bool3      write    = No                        ;                // if Maybe, write is not confirmed
-	Accesses   accesses = {}                        ;
+	Bool3      write    = No                        ;              // if Maybe, write is not confirmed
 	bool       read_dir = false                     ;
-	MatchFlags flags    = { .dflags=DflagsDfltDyn } ;                // kind is unused
+	Accesses   accesses = {}                        ;
+	MatchFlags flags    = { .dflags=DflagsDfltDyn } ;              // kind is unused
 } ;
 
 struct JobExecRpcReq {

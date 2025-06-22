@@ -192,7 +192,7 @@ namespace Engine {
 		::string accesses_str() const ;
 		::string dflags_str  () const ;
 		// services
-		bool up_to_date (bool full=false) const ;
+		bool up_to_date () const ;
 		void acquire_crc() ;
 	} ;
 	static_assert(sizeof(Dep)==16) ;
@@ -479,8 +479,8 @@ namespace Engine {
 			if (crc.is_reg()   ) return a[Access::Reg] ;
 			else                 return +a             ;                                                // dont know if file is a link, any access may have perceived a difference
 		}
-		bool up_to_date( DepDigest const& dd , bool full=false ) const {                                // only manage crc, not dates
-			return crc.match( dd.crc() , full?~Accesses():dd.accesses ) ;
+		bool up_to_date(DepDigest const& dd) const {                                                    // only manage crc, not dates
+			return crc.match( dd.crc() , dd.accesses ) ;
 		}
 		//
 		Manual manual_wash( ReqInfo& ri , bool query , bool dangling ) ;
@@ -537,7 +537,7 @@ namespace Engine {
 		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
-			SigDate  date               ;                // ~40+40<128 bits,           p : production date, d : if file mtime is d, crc is valid, 40 bits : 30 years @ms resolution
+			SigDate  date               ;                // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
 			Node     dir                ;                //  31   < 32 bits, shared
 			JobTgts  job_tgts           ;                //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
 			RuleTgts rule_tgts          ;                // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
@@ -683,8 +683,8 @@ namespace Engine {
 	// Dep
 	//
 
-	inline bool Dep::up_to_date(bool full) const {
-		return is_crc && crc().match( self->crc , full?~Accesses():accesses ) ;
+	inline bool Dep::up_to_date() const {
+		return is_crc && crc().match( self->crc , accesses ) ;
 	}
 
 	inline void Dep::acquire_crc() {

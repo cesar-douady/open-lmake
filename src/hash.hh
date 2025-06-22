@@ -87,7 +87,7 @@ namespace Hash {
 			sig  = fi.sig()                 ;
 		}
 	private :
-		constexpr Crc( CrcSpecial special ) : _val{+special} {}
+		constexpr Crc(CrcSpecial special) : _val{+special} {}
 		//
 		constexpr operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
 		// accesses

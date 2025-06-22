@@ -118,12 +118,12 @@ Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
 	if ( !force && !enable )                                  return Sent::NotSent ;
 	if ( s_static_report   ) { _static_report(::move(jerr)) ; return Sent::Static  ; }
 	//
-	OMsgBuf msg  { jerr }                                                                          ;
-	bool    fast = jerr.sync==No && msg.size()<=PIPE_BUF                                           ; // several processes share fast report, so only small messages can be sent
-	Fd fd = fast ?  s_report_fd<true/*Fast*/>(::getpid()) : s_report_fd<false/*Fast*/>(::getpid()) ;
+	OMsgBuf msg  { jerr }                                                                                ;
+	bool    fast = jerr.sync==No && msg.size()<=PIPE_BUF                                                 ; // several processes share fast report, so only small messages can be sent
+	Fd      fd   = fast ? s_report_fd<true/*Fast*/>(::getpid()) : s_report_fd<false/*Fast*/>(::getpid()) ;
 	if (+fd) {
-		try                       { msg.send(fd) ;                                }
-		catch (::string const& e) { FAIL("cannot report",::getpid(),jerr,':',e) ; }                  // NO_COV this justifies panic, but we cannot report panic !
+		try                       { msg.send(fd) ;                                                                                                }
+		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',::getpid(),") : cannot report access to ",jerr.file," : ",e) ; } // NO_COV this justifies panic : do our best
 	}
 	Sent sent = !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 	return sent ;

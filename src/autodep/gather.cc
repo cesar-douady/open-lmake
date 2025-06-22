@@ -20,36 +20,64 @@ using namespace Time ;
 // Gather::AccessInfo
 //
 
-::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {                                                   // START_OF_NO_COV
-	bool  i  = false/*garbage*/ ;
-	Pdate rd = Pdate::Future    ;
-	for( Access a : iota(All<Access>) ) if ( rd>ai.read[+a] ) { rd = ai.read[+a] ; i = !ai.digest.accesses[a] ; }
-	/**/                              os << "AccessInfo("                                         ;
-	if ( rd!=Pdate::Future          ) os << "R:" <<rd<<(i?"~":"")                           <<',' ;
-	if ( ai.digest.flags.is_target()) os << "T:" <<ai.target                                <<',' ;
-	if ( ai.digest.write!=No        ) os << "W:"<<ai.write<<(ai.digest.write==Maybe?"?":"") <<',' ;
-	if (+ai.dep_info                ) os << ai.dep_info                                     <<',' ;
-	/**/                              os << ai.digest                                             ;
-	if ( ai.seen!=Pdate::Future     ) os <<",seen"                                                ;
-	return                            os <<')'                                                    ;
-}                                                                                                                       // END_OF_NO_COV
+::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) { // START_OF_NO_COV
+	Pdate fr = ai.first_read() ;
+	/**/                           os << "AccessInfo("           ;
+	if (fr        !=Pdate::Future) os << "R:" <<fr         <<',' ;
+	if (ai._target!=Pdate::Future) os << "T:" <<ai._target <<',' ;
+	if (ai._write !=Pdate::Future) os << "W:" <<ai._write  <<',' ;
+	if (+ai.dep_info             ) os << ai.dep_info       <<',' ;
+	/**/                           os << ai.flags                ;
+	if (ai._seen!=Pdate::Future  ) os <<",seen"                  ;
+	return                         os <<')'                      ;
+}                                                                     // END_OF_NO_COV
 
-void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di={} ) {
-	digest.flags |= ad.flags ;
+Accesses Gather::AccessInfo::accesses() const {
+	PD       ma  = ::min( _max_read() , _target ) ;
+	Accesses res ;
+	for( Access a : iota(All<Access>) ) if (_read[+a]<=ma) res |= a ;
+	return res ;
+}
+
+Pdate Gather::AccessInfo::first_read() const {
+	PD res = PD::Future ;
+	for( Access a : iota(All<Access>) ) if (_read[+a]<res) res = _read[+a] ;
+	/**/                                if (_read_dir<res) res = _read_dir ;
+	/**/                                if (_required<res) res = _required ;
+	if (res<=::min(_max_read(),_target)) return res           ;
+	else                                 return Pdate::Future ;
+}
+
+Pdate Gather::AccessInfo::first_write() const {
+	if (_write<=_max_write()) return _write     ;
+	else                      return PD::Future ;
+}
+
+::pair<Pdate,bool> Gather::AccessInfo::sort_key() const {
+	PD fr = first_read() ;
+	if (fr<PD::Future) return { fr            , false } ;
+	else               return { first_write() , true  } ;
+}
+
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
+	SWEAR(ad.write!=Maybe) ;                                                                                                      // this must have been solved by caller
+	if (ad.flags.extra_tflags[ExtraTflag::Ignore]) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                  // ignore target implies ignore dep
+	flags |= ad.flags ;
 	//
-	bool tfi =        ad.flags.extra_tflags[ExtraTflag::Ignore] ;
-	bool dfi = tfi || ad.flags.extra_dflags[ExtraDflag::Ignore] ;         // tfi also prevents reads from being visible
-	//
-	for( Access a : iota(All<Access>) ) if (read[+a]<=pd) goto NotFirst ;
-	dep_info = dfi ? DI() : di ;                                          // if ignore, record empty info (which will mask further info)
-NotFirst :
-	/**/                                if ( PD& d=seen     ; pd<d && (dfi||di.seen(ad.accesses)            )  ) { d = pd ; digest_seen     = !dfi              ; }
-	/**/                                if ( PD& d=required ; pd<d && (dfi||ad.flags.dflags[Dflag::Required])  ) { d = pd ; digest_required = !dfi              ; }
-	for( Access a : iota(All<Access>) ) if ( PD& d=read[+a] ; pd<d && (dfi||ad.accesses[a]                  )  ) { d = pd ; digest.accesses.set(a,!dfi)         ; }
-	/**/                                if ( PD& d=read_dir ; pd<d && (dfi||ad.read_dir                     )  ) { d = pd ; digest.read_dir = !dfi              ; }
-	/**/                                if ( PD& d=write    ; pd<d && (tfi||ad.write!=No                    )  ) { d = pd ; digest.write    = (!tfi) & ad.write ; }
-	/**/                                if ( PD& d=target   ; pd<d && ad.flags.is_target()                     )   d = pd ;
-	//
+	if (+di) {
+		for( Access a : iota(All<Access>) ) if (_read[+a]<=pd) goto NotFirst ;
+		dep_info = di ;
+	NotFirst : ;
+	}
+	for( Access a : iota(All<Access>) ) if ( pd<_read[+a] && ad.accesses[a]                   ) _read[+a] = pd ;
+	/**/                                if ( pd<_read_dir && ad.read_dir                      ) _read_dir = pd ;
+	/**/                                if ( pd<_write    && ad.write==Yes                    ) _write    = pd ;
+	/**/                                if ( pd<_target   && ad.flags.is_target()             ) _target   = pd ;
+	/**/                                if ( pd<_required && ad.flags.dflags[Dflag::Required] ) _required = pd ;
+	/**/                                if ( pd<_seen     && di.seen(ad.accesses)             ) _seen     = pd ;
+	if (+pd) pd-- ;                                                                                                               // ignore applies to simultaneous accesses
+	/**/                                if ( pd<_read_ignore  && ad.flags.extra_dflags[ExtraDflag::Ignore] ) _read_ignore  = pd ;
+	/**/                                if ( pd<_write_ignore && ad.flags.extra_tflags[ExtraTflag::Ignore] ) _write_ignore = pd ;
 }
 
 //
@@ -74,6 +102,13 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 		info = &accesses[it->second].second ;
 	}
 	AccessInfo old_info = *info ;                                                                                               // for tracing only
+	if (ad.write==Maybe) {
+		// wait until file state can be safely inspected as in case of interrupted write, syscall may continue past end of process
+		// this may be long, but is exceptionnal
+		(pd+network_delay).sleep_until() ;
+		if (info->dep_info.is_a<DepInfoKind::Crc>()) ad.write = No | (Crc    (file)!=info->dep_info.crc()) ;
+		else                                         ad.write = No | (FileSig(file)!=info->dep_info.sig()) ;
+	}
 	//vvvvvvvvvvvvvvvvvvvvvvvvvv
 	info->update( pd , ad , di ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -401,11 +436,11 @@ Status Gather::exec_child() {
 				_exec_trace( start_date , Comment::startJob ) ;
 				trace("started","wait",_wait,+epoll) ;
 				//
-				if (child_stdout==Child::PipeFd) { epoll.add_read( _child.stdout  , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
-				if (child_stderr==Child::PipeFd) { epoll.add_read( _child.stderr  , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
-				if (+child_fd                  ) { epoll.add_read( child_fd       , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_child     ",child_fd      ,"wait",_wait,+epoll) ; }
-				else                             { epoll.add_pid ( _child.pid     , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
-				/**/                               epoll.add_read( job_master_fd  , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
+				if (child_stdout==Child::PipeFd) { epoll.add_read( _child.stdout , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
+				if (child_stderr==Child::PipeFd) { epoll.add_read( _child.stderr , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
+				if (+child_fd                  ) { epoll.add_read( child_fd      , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_child     ",child_fd      ,"wait",_wait,+epoll) ; }
+				else                             { epoll.add_pid ( _child.pid    , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
+				/**/                               epoll.add_read( job_master_fd , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
 			} else if (!must_wait) {
 				break ;                           // we are done, exit loop
@@ -678,34 +713,34 @@ void Gather::reorder(bool at_end) {
 		auto [date,flags] = date_flags ;
 		for ( auto& [file,ai] : accesses )
 			if (+re.match(file))
-				ai.update( date , { .write=No|flags.is_target() , .flags=flags } ) ;
+				ai.update( date , {.flags=flags} ) ;
 	}
 	//
 	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
-	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b ) -> bool {
-			return a.second.first_read().first < b.second.first_read().first ;
-		}
+	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }
 	) ;
 	// 1st pass (backward) : note dirs immediately preceding sub-files
 	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
 	Pdate                                            last_pd = Pdate::Future ;
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
-		::string const& file   = it->first         ;
-		::AccessDigest& digest = it->second.digest ;
-		if (digest.write!=No                  )                   goto NextDep ;
-		if (digest.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
-		if (!digest.accesses                  )                   goto NextDep ;
-		for( auto last : lasts ) {
-			if (!( last->first.starts_with(file) && last->first[file.size()]=='/' ))                                                                                            continue     ;
-			if (   last->second.dep_info.exists()==Yes                             ) { trace("skip_from_next"  ,file) ; digest.accesses  = {}           ;                       goto NextDep ; }
-			else                                                                     { trace("no_lnk_from_next",file) ; digest.accesses &= ~Access::Lnk ; if (!digest.accesses) goto NextDep ; }
+		{	AccessInfo&     ai       = it->second       ;
+			Pdate           fw       = ai.first_write() ; if (fw<Pdate::Future              )                   goto NextDep ;
+			/**/                                          if (ai.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
+			Accesses        accesses = ai.accesses()    ; if (!accesses                     )                   goto NextDep ;
+			::string const& file     = it->first        ;
+			for( auto last : lasts ) {
+				if (!( last->first.starts_with(file) && last->first[file.size()]=='/' )) continue ;
+				//
+				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
+				else                                     { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
+			}
+			if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
+				lasts.clear() ;                                                     // not a parallel dep => clear old ones that are no more last
+				last_pd = fr ;
+			}
+			lasts.push_back(it) ;
 		}
-		if ( Pdate pd=it->second.first_read().first ; pd<last_pd ) {
-			lasts.clear() ;                                                         // not a parallel dep => clear old ones that are no more last
-			last_pd = pd ;
-		}
-		lasts.push_back(it) ;
 	NextDep : ;
 	}
 	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
@@ -713,21 +748,21 @@ void Gather::reorder(bool at_end) {
 	size_t                            i_dst = 0     ;
 	bool                              cpy   = false ;
 	for( auto& access : accesses ) {
-		::string const& file   = access.first         ;
-		::AccessDigest& digest = access.second.digest ;
-		if ( digest.write==No && digest.flags.dflags==DflagsDfltDyn && !digest.flags.tflags ) {
+		::string   const& file = access.first  ;
+		AccessInfo      & ai   = access.second ;
+		if ( ai.first_write()==Pdate::Future && ai.flags.dflags==DflagsDfltDyn && !ai.flags.tflags ) {
 			auto it = dirs.find(file+'/') ;
 			if (it!=dirs.end()) {
-				if (it->second) { trace("skip_from_prev"  ,file) ; digest.accesses  = {}           ; }
-				else            { trace("no_lnk_from_prev",file) ; digest.accesses &= ~Access::Lnk ; }
+				if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
+				else            { trace("no_lnk_from_prev",file) ; ai.clear_lnk     () ; }
 			}
-			if (!digest) {
+			if (ai.first_read()==PD::Future) {
 				if (!at_end) access_map.erase(file) ;
 				cpy = true ;
 				continue ;
 			}
 		}
-		bool exists = access.second.dep_info.exists()==Yes ;
+		bool exists = ai.dep_info.exists()==Yes ;
 		for( ::string dir_s=dir_name_s(file) ; +dir_s&&dir_s!="/" ; dir_s=dir_name_s(dir_s) ) {
 			auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
 			if (!inserted) {

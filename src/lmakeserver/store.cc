@@ -230,17 +230,6 @@ namespace Engine::Persistent {
 		// END_OF_VERSIONING
 		//
 		SWEAR(RuleBase::s_match_gen>0) ;
-		_g_job_file      .keep_open = true ;               // files may be needed post destruction as there may be alive threads as we do not masterize destruction order
-		_g_job_name_file .keep_open = true ;               // .
-		_g_deps_file     .keep_open = true ;               // .
-		_g_targets_file  .keep_open = true ;               // .
-		_g_node_file     .keep_open = true ;               // .
-		_g_node_name_file.keep_open = true ;               // .
-		_g_job_tgts_file .keep_open = true ;               // .
-		_g_rule_crc_file .keep_open = true ;               // .
-		_g_rule_tgts_file.keep_open = true ;               // .
-		_g_sfxs_file     .keep_open = true ;               // .
-		_g_pfxs_file     .keep_open = true ;               // .
 		_compile_srcs() ;
 		Rule::s_from_disk() ;
 		for( Job  j : _g_job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;

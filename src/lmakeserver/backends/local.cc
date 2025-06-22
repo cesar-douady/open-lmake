@@ -92,7 +92,7 @@ namespace Backends::Local {
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i : iota(capacity_.size()) ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			trace("capacity",capacity()) ;
-			_wait_queue.open( 'T' , _s_wait_job ) ;
+			_wait_queue.open( 'T' , _s_wait_job ) ; s_record_thread('T',_wait_queue.thread) ;
 			//
 			if ( !dyn && rsrc_idxs.contains("cpu") ) {                                                              // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;

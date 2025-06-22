@@ -150,7 +150,7 @@ namespace Backends::Sge {
 			}
 			if (!dyn) {
 				sge_sense_daemon(self) ;
-				_s_sge_cancel_thread.open('C',sge_cancel) ;
+				_s_sge_cancel_thread.open('C',sge_cancel) ; s_record_thread('C',_s_sge_cancel_thread.thread) ;
 			}
 			trace("done") ;
 		}

@@ -45,47 +45,53 @@ enum class KillStep : uint8_t {
 
 struct Gather {                                                        // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , Gather const& ) ;
-	using Kind = GatherKind            ;
-	using Proc = JobExecProc           ;
-	using Jerr = JobExecRpcReq         ;
-	using Crc  = Hash::Crc             ;
-	using PD   = Time::Pdate           ;
-	using DI   = DepInfo               ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ;                // heartbeat to probe server when waiting for it ...
-	struct AccessInfo {                                                // ... dont bother server too much as there may be 1000's job_exec's waiting for it, ...
-		friend ::string& operator+=( ::string& , AccessInfo const& ) ; // ... 100s seems a good compromize
+	using Kind = GatherKind    ;
+	using Proc = JobExecProc   ;
+	using Jerr = JobExecRpcReq ;
+	using Crc  = Hash::Crc     ;
+	using PD   = Time::Pdate   ;
+	using DI   = DepInfo       ;
+	static constexpr Time::Delay HeartbeatTick { 10 } ;                // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
+	struct AccessInfo {
+		friend ::string& operator+=( ::string& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
-		::pair<PD,Accesses> first_read() const {
-			::pair<PD,Accesses> res = {required,{}} ;
-			for( Access a : iota(All<Access>) ) {
-				if (!digest.accesses[a]) continue ;
-				if (read[+a]>res.first ) continue ;
-				if (read[+a]<res.first ) res = {read[+a],a} ;
-				else                     res.second |= a ;
-			}
-			return res ;
-		}
+		PD              first_read () const ;
+		PD              first_write() const ;
+		::pair<PD,bool> sort_key   () const ;
+		Accesses        accesses   () const ;
+		//
+		void clear_accesses() { for( Access a : iota(All<Access>) ) _read[+a          ] = PD::Future ; }
+		void clear_lnk     () {                                     _read[+Access::Lnk] = PD::Future ; }
+		//
+		bool target  () const { return _target  <_max_write() ; }       // if true <=> file has been declared target
+		bool seen    () const { return _seen    <_max_read () ; }       // if true <=> file has been observed existing
+		bool read_dir() const { return _read_dir<_max_read () ; }       // if true <=> file has been read as a dir
+	private :
+		PD _max_read () const { return ::min(_read_ignore ,_write) ; } // max date for a read  to be taken into account, always <Future
+		PD _max_write() const { return       _write_ignore         ; } // max date for a write to be taken into account, always <Future
 		// services
-		void update( PD , AccessDigest , DI const& ) ;
+	public :
+		void update( PD , AccessDigest , DI const& ={} ) ;
 		//
 		void chk() const ;
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		PD           required          = PD::Future                             ;                                 // first required (or ignore) date
-		PD           read[N<Access>]   { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access   (or ignore) date for each access
-		PD           read_dir          = PD::Future                             ;                                 // first date at which file has been read as a dir
-		PD           write             = PD::Future                             ;                                 // first write    (or ignore) date
-		PD           target            = PD::Future                             ;                                 // first date at which file was known to be a target
-		PD           seen              = PD::Future                             ;                                 // first date at which file has been seen existing
-		DI           dep_info          ;                                                                          // state when first read
-		AccessDigest digest            = { .flags{.dflags={}} }                 ;                                 // initially, no dflags, not even default ones (as they accumulate)
-		bool         digest_seen    :1 = false                                  ;                                 // if true <=> not ignored when seen existing
-		bool         digest_required:1 = false                                  ;                                 // if true <=> dep has been required
+		MatchFlags flags    { .dflags={} } ;                           // initially, no dflags, not even default ones (as they accumulate)
+		DI         dep_info ;                                          // state when first read
+	private :
+		PD _read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access date for each access
+		PD _read_dir        = PD::Future                             ;                                 // first date at which file has been read as a dir
+		PD _write           = PD::Future                             ;                                 // first sure write
+		PD _target          = PD::Future                             ;                                 // first date at which file was known to be a target
+		PD _required        = PD::Future                             ;                                 // first date at which file was required
+		PD _seen            = PD::Future                             ;                                 // first date at which file has been seen existing
+		PD _read_ignore     = PD::Future1                            ;                                 // first date at which reads  are ignored, always <Future
+		PD _write_ignore    = PD::Future1                            ;                                 // first date at which writes are ignored, always <Future
 	} ;
 	// statics
 private :
@@ -99,12 +105,12 @@ private :
 	void _new_access( Fd fd , Jerr&& jerr ) {
 		_new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.comment , jerr.comment_exts ) ;
 	}
-	void _new_guard( Fd fd , Jerr&& jerr ) {                                                                      // fd for trace purpose only
+	void _new_guard( Fd fd , Jerr&& jerr ) {                                                           // fd for trace purpose only
 		Trace trace("_new_guards",fd,jerr) ;
 		guards.insert(::move(jerr.file)) ;
 	}
 	void         _kill          ( bool force           ) ;
-	void         _send_to_server( Fd fd , Jerr&&       ) ;                                                        // files are required for DepVerbose and forbidden for other
+	void         _send_to_server( Fd fd , Jerr&&       ) ;                                             // files are required for DepVerbose and forbidden for other
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const& ) ;
 public : //!                                                                                                                                   crc_file_info
 	void new_target( PD pd , ::string const& t , Comment c=Comment::staticTarget , CommentExts ces={} ) { _new_access(pd,::copy(t),{.write=Yes},{}         ,c,ces) ; }
