@@ -125,27 +125,26 @@ else :
 		x,px = lshow( ('-i','--info') ,        'hello+world_sh' )
 		_,e  = lshow( ('-i','--info') , '-J' , 'hello+world_sh' )
 		assert e == px['hello+world_sh']
-		assert all(
-			w in x for w in (
-				'job'         , 'hello+world_sh'
-			,	'ids'
-			,	'required by' , 'dut'
-			,	'reason'      , 'job was never run'
-			,	'host'
-			,	'scheduling'
-			,	'autodep'
-			,	'end date'
-			,	'status'      , 'ok'
-			,	'tmp dir'
-			,	'rc'          , 'ok'
-			,	'cpu time'
-			,	'elapsed in job'
-			,	'elapsed total'
-			,	'used mem'
-			,	'cost'
-			,	'total size'
-			)
-		)
+		for w in (
+			'job'         , 'hello+world_sh'
+		,	'ids'
+		,	'required by' , 'dut'
+		,	'reason'      , 'job was never run'
+		,	'host'
+		,	'scheduling'
+		,	'autodep'
+		,	'end date'
+		,	'status'      , 'ok'
+		,	'tmp dir'
+		,	'rc'          , 'ok'
+		,	'cpu time'
+		,	'elapsed in job'
+		,	'elapsed total'
+		,	'used mem'
+		,	'cost'
+		,	'total size'
+		) :
+			assert w in x , f'in lshow -i : missing {w} in\n{x}'
 		assert e['job']=='hello+world_sh' and len(e['ids'])==3 and e['required by']=='dut' and e['reason']=='job was never run' and e['status']=='ok' and e['rc']=='ok'
 		assert e['required resources']=={'cpu':1} and e['allocated resources']=={'cpu':1}
 
@@ -174,39 +173,37 @@ else :
 		assert all( e[2:]==('DUT','dut') for e in px )
 
 		x,px = lshow( ('-u','--trace') , '-J' , 'hello+world_sh' )
-		assert all(
-			w in x for w in (
-				'start_overhead' , 'start_info(reply)'
-			,	'washed'
-			,	'static_unlnk'   , 'hello+world_sh'
-			,	'static_dep'     , 'hello' , 'world'
-			,	'start_job'
-			,	'open(read)'     , 'hello' , 'world'
-			,	'end_job'        , '0000'
-			,	'analyzed'
-			,	'computed_crcs'
-			,	'end_overhead'   , 'ok'
-			)
-		)
-		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk') )
-		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk') }
+		for w in (
+			'start_overhead' , 'start_info(reply)'
+		,	'washed'
+		,	'static_dep'     , 'hello' , 'world'
+		,	'start_job'
+		,	'open(read)'     , 'hello' , 'world'
+		,	'end_job'        , '0000'
+		,	'analyzed'
+		,	'computed_crcs'
+		,	'end_overhead'   , 'ok'
+		) :
+			assert w in x , f'in lshow -u : missing {w} in\n{x}'
+		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk','static_match') )
+		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk','static_match') }
 		assert y==(
-			( 'start_overhead'    , ''      )
-		,	( 'start_info(reply)' , ''      )
-		,	( 'washed'            , ''      )
-		,	( 'start_job'         , ''      )
-		,	( 'open(read)'        , 'hello' )
-		,	( 'open(read)'        , 'world' )
-		,	( 'end_job'           , '0000'  )
-		,	( 'analyzed'          , ''      )
-		,	( 'computed_crcs'     , ''      )
-		,	( 'end_overhead'      , 'ok'    )
-		)
+			( 'start_overhead'    , ''               )
+		,	( 'start_info(reply)' , ''               )
+		,	( 'washed'            , ''               )
+		,	( 'stdout'            , 'hello+world_sh' )
+		,	( 'start_job'         , ''               )
+		,	( 'open(read)'        , 'hello'          )
+		,	( 'open(read)'        , 'world'          )
+		,	( 'end_job'           , '0000'           )
+		,	( 'analyzed'          , ''               )
+		,	( 'computed_crcs'     , ''               )
+		,	( 'end_overhead'      , 'ok'             )
+		) , f'bad lshow -u : {y}'
 		assert all( e in z for e in (
-			( 'static_unlnk' , 'hello+world_sh' )
-		,	( 'static_dep'   , 'hello'          )
-		,	( 'static_dep'   , 'world'          )
-		) )
+			( 'static_dep'   , 'hello' )
+		,	( 'static_dep'   , 'world' )
+		) ) , f'bad lshow -u : {z}'
 
 	except  : raise
 	finally : assert os.system('chmod u+w -R .')==0 # restore state

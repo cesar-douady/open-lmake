@@ -230,7 +230,11 @@ So open-lmake reverts to letting the user deal with this question, using an opt-
 In the latter case, it is not a target until the point where it becomes one.
 A file cannot stop being a target: once it has become a target, this is until the end of the job execution.</p>
 <p>A file is a target from the begining of the job execution if it matches a <code>targets</code> or <code>side_targets</code> entry.</p>
-<p>A file becomes a target when it is written to (with the meaning mentioned above) or when <code>lmake.target</code> or <code>ltarget</code> is called.</p>
+<p>A file becomes a target when :</p>
+<ul>
+<li>It is written to (with the meaning mentioned above)..</li>
+<li><code>lmake.target</code> or <code>ltarget</code> is called unless the flag <code>source_ok</code> is finally set (i.e. including if set independently).</li>
+</ul>
 <h3 id="being-a-dep"><a class="header" href="#being-a-dep">Being a dep</a></h3>
 <p>A file may be a dep from the begining of the job execution, or it may become a dep during job execution.</p>
 <p>A file cannot stop being a dep : once it has become a dep, this is until the end of the job execution.</p>
@@ -244,13 +248,20 @@ In the latter case, and including the static deps listed in <code>deps</code>, t
 It is an error if the same file is listed several times as a static entry.</p>
 <p>The second case is when a file is both a dep and a target.
 You may have noticed that the definition above does not preclude this case, mostly because a file may start its life as a dep and become a target.
-This is an error unless the file is finally unlinked (or was never created).</p>
+This is an error unless either:</p>
+<ul>
+<li>The file is finally unlinked (or was never created).</li>
+<li>Its <code>source_ok</code> flag has been set and its <code>incremental</code> one is not.<br />
+This allows rules that alter sources to choose between handling any previous content without impact on final value (<code>incremental</code>)
+or compute value based on previous one (in which case it must be a dep).
+In this latter case, the job will rerun if such dep-target is actually modified.</li>
+</ul>
 <p>The third case is when a target was not declared as such.
 <code>foo</code> can be declared as target by:</p>
 <ul>
-<li>matching a <code>targets</code> or <code>side_targets</code> entry.</li>
-<li>calling <code>lmake.target('foo',allow=True)</code> (which is the default value for the <code>allow</code> arg).</li>
-<li>executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
+<li>Matching a <code>targets</code> or <code>side_targets</code> entry.</li>
+<li>Calling <code>lmake.target('foo')</code> (unless <code>allow=False</code> is passed).</li>
+<li>Executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
 </ul>
 <p>A target that is not declared is an error.</p>
 <h3 id="processing-a-target"><a class="header" href="#processing-a-target">Processing a target</a></h3>

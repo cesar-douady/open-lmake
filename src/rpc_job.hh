@@ -703,12 +703,12 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobStartRpcReply {                                                    // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct JobStartRpcReply {                                                          // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// accesses
-	bool operator+() const { return +interpreter ; } // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
+	bool operator+() const { return +interpreter ; }                               // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,addr          ) ;
@@ -763,37 +763,37 @@ struct JobStartRpcReply {                                                    // 
 	void exit() ;
 	// data
 	// START_OF_VERSIONING
-	in_addr_t                      addr           = 0                   ;    // the address at which server and subproccesses can contact job_exec
-	AutodepEnv                     autodep_env    ;
-	Caches::Cache*                 cache          = nullptr             ;
-	CacheIdx                       cache_idx      = 0                   ;    // value to be repeated in JobEndRpcReq to ensure it is available when processing
-	::string                       cmd            ;
-	Time::Delay                    ddate_prec     ;
-	::vmap_s<DepDigest>            deps           ;                          // deps already accessed (always includes static deps)
-	::vmap_ss                      env            ;
-	::vector_s                     interpreter    ;                          // actual interpreter used to execute cmd
-	JobSpace                       job_space      ;
-	bool                           keep_tmp       = false               ;
-	::string                       key            ;                          // key used to uniquely identify repo
-	vector<uint8_t>                kill_sigs      ;
-	bool                           live_out       = false               ;
-	AutodepMethod                  method         = AutodepMethod::Dflt ;
-	Time::Delay                    network_delay  ;
-	uint8_t                        nice           = 0                   ;
-	::vmap_s<FileAction>           pre_actions    ;
-	::string                       rule           ;                          // rule name
-	SmallId                        small_id       = 0                   ;
-	::vmap<Re::Pattern,MatchFlags> star_matches   ;                          // maps regexprs to flags
-	::vmap_s<MatchFlags>           static_matches ;                          // maps individual files to flags
-	bool                           stderr_ok      = false               ;
-	::string                       stdin          ;
-	::string                       stdout         ;
-	Time::Delay                    timeout        ;
-	bool                           use_script     = false               ;
-	uint8_t                        z_lvl          = 0                   ;
+	in_addr_t                               addr           = 0                   ; // the address at which server and subproccesses can contact job_exec
+	AutodepEnv                              autodep_env    ;
+	Caches::Cache*                          cache          = nullptr             ;
+	CacheIdx                                cache_idx      = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	::string                                cmd            ;
+	Time::Delay                             ddate_prec     ;
+	::vmap_s<::pair<DepDigest,ExtraDflags>> deps           ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+	::vmap_ss                               env            ;
+	::vector_s                              interpreter    ;                       // actual interpreter used to execute cmd
+	JobSpace                                job_space      ;
+	bool                                    keep_tmp       = false               ;
+	::string                                key            ;                       // key used to uniquely identify repo
+	vector<uint8_t>                         kill_sigs      ;
+	bool                                    live_out       = false               ;
+	AutodepMethod                           method         = AutodepMethod::Dflt ;
+	Time::Delay                             network_delay  ;
+	uint8_t                                 nice           = 0                   ;
+	::vmap_s<FileAction>                    pre_actions    ;
+	::string                                rule           ;                       // rule name
+	SmallId                                 small_id       = 0                   ;
+	::vmap<Re::Pattern,MatchFlags>          star_matches   ;                       // maps regexprs to flags
+	::vmap_s<MatchFlags>                    static_matches ;                       // maps individual files to flags
+	bool                                    stderr_ok      = false               ;
+	::string                                stdin          ;
+	::string                                stdout         ;
+	Time::Delay                             timeout        ;
+	bool                                    use_script     = false               ;
+	uint8_t                                 z_lvl          = 0                   ;
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                                    // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                                          // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct ExecTraceEntry {

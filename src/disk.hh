@@ -147,21 +147,22 @@ namespace Disk {
 	// disk access library
 	//
 
+	using FileStat = struct ::stat ;
+
 	struct FileSig ;
 
 	struct FileInfo {
 		friend ::string& operator+=( ::string& , FileInfo const& ) ;
-		using Stat = struct ::stat ;
 	private :
 		// statics
-		static FileTag _s_tag(Stat const& st) ;
+		static FileTag _s_tag(FileStat const& st) ;
 		// cxtors & casts
 	public :
 		FileInfo( FileTag tag=FileTag::Unknown                       ) : date{tag}                        {}
 		FileInfo( Fd at                                              ) : FileInfo{at     ,{}            } {}
 		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
 		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
-		FileInfo( Stat const&                                        ) ;
+		FileInfo( FileStat const&                                    ) ;
 		// accesses
 		bool    operator==(FileInfo const&) const = default ;
 		bool    operator+ (               ) const { return tag()!=FileTag::Unknown ; }

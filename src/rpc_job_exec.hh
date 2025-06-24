@@ -32,11 +32,11 @@ enum class JobExecProc : uint8_t {
 ,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
 } ;
 
-struct AccessDigest {                                                // semantic access order is first read, first write, last write, unlink
+struct AccessDigest {                                                                    // semantic access order is first read, first write, last write, unlink
 	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
-	bool has_read () const { return +accesses || read_dir   ; }      // true if some access of some sort is done
-	bool operator+() const { return has_read() || write!=No ; }      // true if some access of some sort is done
+	bool has_read () const { return +accesses || read_dir   ; }                          // true if some access of some sort is done
+	bool operator+() const { return has_read() || write!=No ; }                          // true if some access of some sort is done
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&   ) ;
@@ -44,10 +44,10 @@ struct AccessDigest {                                                // semantic
 	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return        self      ; }
 	AccessDigest  operator| (Accesses     const& a ) const {                 return ::copy(self)|=a  ; }
 	// data
-	Bool3      write    = No                        ;              // if Maybe, write is not confirmed
-	bool       read_dir = false                     ;
-	Accesses   accesses = {}                        ;
-	MatchFlags flags    = { .dflags=DflagsDfltDyn } ;              // kind is unused
+	Bool3      write    = No                                                           ; // if Maybe, write is not confirmed
+	bool       read_dir = false                                                        ;
+	Accesses   accesses = {}                                                           ;
+	MatchFlags flags    = { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn } ; // kind is unused
 } ;
 
 struct JobExecRpcReq {

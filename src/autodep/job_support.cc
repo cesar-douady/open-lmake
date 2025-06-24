@@ -27,6 +27,7 @@ namespace JobSupport {
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
 			throw_if( verbose      , "regexpr and verbose are exclusive"         ) ;
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                             // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		_chk_files(files) ;
 		::vmap_s<FileInfo> deps       ;
@@ -83,9 +84,10 @@ namespace JobSupport {
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool regexpr ) {
+		SWEAR(ad.write!=Maybe) ;                                                                                                    // useless, but if necessary, implement a confirmation mecanism
 		if (regexpr) {
-			throw_if( ad.write!=No , "regexpr and write are exclusive" ) ;
-			ad.write = Yes ;
+			throw_unless( ad.write==No , "regexpr and write are exclusive" ) ;
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                                                          // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		_chk_files(files) ;
 		::vmap_s<FileInfo> targets ;

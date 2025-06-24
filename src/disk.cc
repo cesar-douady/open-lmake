@@ -293,7 +293,7 @@ namespace Disk {
 		return   os << ')'                   ;
 	}                                                           // END_OF_NO_COV
 
-	FileTag FileInfo::_s_tag(Stat const& st) {
+	FileTag FileInfo::_s_tag(FileStat const& st) {
 		if (S_ISREG(st.st_mode)) {
 			if (st.st_mode&S_IXUSR) return FileTag::Exe   ;
 			if (!st.st_size       ) return FileTag::Empty ;
@@ -304,14 +304,14 @@ namespace Disk {
 		/**/                     return FileTag::None ; // awkward file, ignore
 	}
 
-	FileInfo::FileInfo(Stat const& st) {
+	FileInfo::FileInfo(FileStat const& st) {
 		FileTag tag = _s_tag(st) ;
 		if (tag==FileTag::Dir)   date = Ddate(   tag) ;
 		else                   { date = Ddate(st,tag) ; sz = st.st_size ; }
 	}
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
-		Stat st ;
+		FileStat st ;
 		if (+name) { if (::fstatat( at , name.c_str() , &st , no_follow?AT_SYMLINK_NOFOLLOW:0 )<0) return ; }
 		else       { if (::fstat  ( at ,                &st                                   )<0) return ; }
 		self = st ;
@@ -465,9 +465,9 @@ namespace Disk {
 			if (real.size()==1) real.clear() ;                                     // if '/', we must substitute the empty string to enforce invariant
 		}
 		real.reserve(real.size()+1+file.size()) ;                                  // anticipate no link
-		_Dvg in_repo  { _env->repo_root_s , real } ;                               // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
-		_Dvg in_tmp   { tmp_dir_s         , real } ;                               // keep track of where we are w.r.t. tmp  , always track symlinks
-		_Dvg in_proc  { "/proc/"          , real } ;                               // keep track of where we are w.r.t. /proc, always track symlinks
+		_Dvg in_repo { _env->repo_root_s , real } ;                                // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
+		_Dvg in_tmp  { tmp_dir_s         , real } ;                                // keep track of where we are w.r.t. tmp  , always track symlinks
+		_Dvg in_proc { "/proc/"          , real } ;                                // keep track of where we are w.r.t. /proc, always track symlinks
 		// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
 		// when pos>file.size(), we are done and result is real
 		size_t   end      ;
@@ -491,8 +491,8 @@ namespace Disk {
 					continue ;
 				}
 			}
-			size_t prev_real_size = real.size()     ;
-			size_t src_idx        = Npos/*garbage*/ ;
+			size_t prev_real_size = real.size() ;
+			size_t src_idx        = Npos        ; // Npos means not in a source dir
 			real.push_back('/')           ;
 			real.append(file,pos,end-pos) ;
 			if ( !exists             ) continue       ;                            // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
@@ -522,8 +522,9 @@ namespace Disk {
 				continue ;
 			}
 			if ( !in_tmp && !in_proc ) {
-				if (+in_repo) lnks.push_back(                              real.c_str()+_repo_root_sz                    ) ;
-				else          lnks.push_back( _env->src_dirs_s[src_idx] + (real.c_str()+_abs_src_dirs_s[src_idx].size()) ) ; // real lie in a source dir
+				// if not in repo, real lie in a source dir
+				if      (!in_repo                                                    ) lnks.push_back( _env->src_dirs_s[src_idx] + substr_view(real,_abs_src_dirs_s[src_idx].size()) ) ;
+				else if (_lcl_file_loc(substr_view(real,_repo_root_sz))<=FileLoc::Dep) lnks.push_back( real.substr(_repo_root_sz)                                                    ) ;
 			}
 			if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;          // link loop detected, same check as system
 			if (!last             )   nxt << '/'<<(file.data()+end+1) ; // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon

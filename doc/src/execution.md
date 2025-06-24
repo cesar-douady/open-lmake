@@ -98,7 +98,10 @@ A file cannot stop being a target: once it has become a target, this is until th
 
 A file is a target from the begining of the job execution if it matches a `targets` or `side_targets` entry.
 
-A file becomes a target when it is written to (with the meaning mentioned above) or when `lmake.target` or `ltarget` is called.
+A file becomes a target when :
+
+- It is written to (with the meaning mentioned above)..
+- `lmake.target` or `ltarget` is called unless the flag `source_ok` is finally set (i.e. including if set independently).
 
 ### Being a dep
 
@@ -121,14 +124,20 @@ It is an error if the same file is listed several times as a static entry.
 
 The second case is when a file is both a dep and a target.
 You may have noticed that the definition above does not preclude this case, mostly because a file may start its life as a dep and become a target.
-This is an error unless the file is finally unlinked (or was never created).
+This is an error unless either:
+
+- The file is finally unlinked (or was never created).
+- Its `source_ok` flag has been set and its `incremental` one is not.  
+  This allows rules that alter sources to choose between handling any previous content without impact on final value (`incremental`)
+  or compute value based on previous one (in which case it must be a dep).
+  In this latter case, the job will rerun if such dep-target is actually modified.
 
 The third case is when a target was not declared as such.
 `foo` can be declared as target by:
 
-- matching a `targets` or `side_targets` entry.
-- calling `lmake.target('foo',allow=True)` (which is the default value for the `allow` arg).
-- executing `ltarget foo` in which the `-a` option is not passed.
+- Matching a `targets` or `side_targets` entry.
+- Calling `lmake.target('foo')` (unless `allow=False` is passed).
+- Executing `ltarget foo` in which the `-a` option is not passed.
 
 A target that is not declared is an error.
 

@@ -148,7 +148,7 @@ Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 			entry = ~CacheEntry() ;                                                   // from now on, read accesses need not be reported as file has been written
 		}
 	}
-	return report_direct(::move(jerr)) ;
+	return report_direct(::move(jerr),force) ;
 }
 
 JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {

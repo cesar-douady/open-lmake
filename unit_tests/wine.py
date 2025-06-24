@@ -56,8 +56,8 @@ if __name__!='__main__' :
 			deps    = { 'WINE_INIT' : 'wine_init' }
 			autodep = '{Method}'
 			# wine sends err messages, that do occur, to stdout !
-			if xvfb : cmd = f'set -o pipefail ; {xvfb} -n $((50+$SMALL_ID)) wine{ext} hostname | head -1 && sleep 1' # wine exists before hostname has finished !
-			else    : cmd = f'set -o pipefail ;                             wine{ext} hostname | head -1 && sleep 1' # .
+			if xvfb : cmd = f'set -o pipefail ; {xvfb} -n $((50+$SMALL_ID)) wine{ext} hostname | head -1 && sleep 2' # wine exists before hostname has finished !
+			else    : cmd = f'set -o pipefail ;                             wine{ext} hostname | head -1 && sleep 2' # .
 
 	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'

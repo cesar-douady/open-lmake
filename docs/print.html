@@ -610,7 +610,7 @@ For example, some default values may be modified and if they are used before thi
 <p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
 <p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
-<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False )</code></a></h3>
+<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></h3>
 <p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
 <p>If <code>follow_symlinks</code>, <code>deps</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
 <p>Each dep is associated with an access pattern.
@@ -642,13 +642,14 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <p>If <code>read</code>, report an actual read of <code>deps</code>. Default is just to alter associated flags.</p>
 <p>If <code>regexpr</code>, pass flags to all deps matching <code>deps</code> interpreted as regexprs, much like the <code>side_deps</code> rule attribute.
 However, the <code>ignore</code> flag only applies to deps following this call.</p>
-<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code>, <code>readdir_ok</code> and <code>required</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
+<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code>, <code>readdir_ok</code>, <code>required</code> and <code>no_star</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
 <ul>
 <li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
 <li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
 <li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
-<li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
+<li>If not <code>required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
+<li>If not <code>no_star</code>,  accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
 </ul>
 <p>Flags accumulate and are never reset.</p>
@@ -677,7 +678,7 @@ and open-lmake anticipates this by building these deps speculatively.
 But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</li>
 </ul>
-<h3 id="target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse-"><a class="header" href="#target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse-"><code>target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False )</code></a></h3>
+<h3 id="target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a class="header" href="#target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><code>target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )</code></a></h3>
 <p>Declare <code>targets</code> as targets and alter associated flags.
 Note that the <code>allow</code> argument default value is <code>True</code>.</p>
 <p>Also, calling this function does not make <code>targets</code> official targets of the job, i.e. <code>targets</code> are side targets.
@@ -685,13 +686,14 @@ The official job of a target is the one selected if needing its content, it must
 <p>If <code>write</code>, report that <code>targets</code> were written to.</p>
 <p>If <code>regexpr</code>, pass flags to all targets matching <code>targets</code> interpreted as regexprs, much like the <code>side_targets</code> rule attribute.
 However, the <code>ignore</code> flag only applies to targets following this call.</p>
-<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code>, <code>source_ok</code> and <code>no_star</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
 <ul>
 <li>If <code>essential</code>,   show when generating user oriented graphs.</li>
 <li>If <code>incremental</code>, <code>targets</code> are not unlinked before job execution and read accesses to them are ignored.</li>
 <li>If <code>no_warning</code>,  no warning is emitted if <code>targets</code> are either uniquified or unlinked while generated by another job.</li>
 <li>If <code>ignore</code>,      from now on, ignore all reads and writes to <code>targets</code>.</li>
-<li>If <code>not allow</code>,   do not make <code>targets</code> valid targets.</li>
+<li>If not <code>allow</code>,   do not make <code>targets</code> valid targets.</li>
+<li>If not <code>no_star</code>, accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>source_ok</code>,   accept that <code>targets</code> be sources. Else, writing to a source is an error.</li>
 </ul>
 <p>In case passed targets turn out to be deps, the deps flags are also available: <code>critical</code>, <code>ignore_error</code>, <code>readdir_ok</code> and <code>required</code>:</p>
@@ -1347,8 +1349,9 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>Optional</code></td><td><code>optional</code></td><td>No</td><td>If this target is not generated, it is not deemed to be produced by the job. Open-lmake will try to find an alternative rule. This is equivalent to being a star target, except that there is no star stem.</td></tr>
 <tr><td><code>Phony</code></td><td><code>phony</code></td><td>No</td><td>Accept that this target is not generated, this target is deemed generated even not physically on disk. If a star target, do not search for an alternative rule to produce the file.</td></tr>
 <tr><td><code>SourceOk</code></td><td><code>source_ok</code></td><td>No</td><td>Do not generate an error if target is actually a source</td></tr>
+<tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
 <tr><td><code>NoWarning</code></td><td><code>no_warning</code></td><td>No</td><td>Warning is not reported if a target is either uniquified or unlinked before job execution while generated by another job.</td></tr>
-<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>target pattern is interpreted relative to the root dir of the repo, else it is relative to the <code>cwd</code> of the rule.</td></tr>
+<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Target pattern is interpreted relative to the root dir of the repo, else it is relative to the <code>cwd</code> of the rule.</td></tr>
 </tbody></table>
 </div>
 <p>All targets must have the same set of static stems (i.e. stems with no <code>*</code> in its name).</p>
@@ -1394,7 +1397,8 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>IgnoreError</code></td><td><code>ignore_error</code></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
 <tr><td><code>ReaddirOk</code></td><td><code>readdir_ok</code></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
-<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>dep pattern is interpreted relative to the top-level repo, else to the local repo (cf <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
+<tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
+<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
 </tbody></table>
 </div>
 <p>Flag order and dep order are not significative.</p>
@@ -1826,7 +1830,11 @@ So open-lmake reverts to letting the user deal with this question, using an opt-
 In the latter case, it is not a target until the point where it becomes one.
 A file cannot stop being a target: once it has become a target, this is until the end of the job execution.</p>
 <p>A file is a target from the begining of the job execution if it matches a <code>targets</code> or <code>side_targets</code> entry.</p>
-<p>A file becomes a target when it is written to (with the meaning mentioned above) or when <code>lmake.target</code> or <code>ltarget</code> is called.</p>
+<p>A file becomes a target when :</p>
+<ul>
+<li>It is written to (with the meaning mentioned above)..</li>
+<li><code>lmake.target</code> or <code>ltarget</code> is called unless the flag <code>source_ok</code> is finally set (i.e. including if set independently).</li>
+</ul>
 <h3 id="being-a-dep"><a class="header" href="#being-a-dep">Being a dep</a></h3>
 <p>A file may be a dep from the begining of the job execution, or it may become a dep during job execution.</p>
 <p>A file cannot stop being a dep : once it has become a dep, this is until the end of the job execution.</p>
@@ -1840,13 +1848,20 @@ In the latter case, and including the static deps listed in <code>deps</code>, t
 It is an error if the same file is listed several times as a static entry.</p>
 <p>The second case is when a file is both a dep and a target.
 You may have noticed that the definition above does not preclude this case, mostly because a file may start its life as a dep and become a target.
-This is an error unless the file is finally unlinked (or was never created).</p>
+This is an error unless either:</p>
+<ul>
+<li>The file is finally unlinked (or was never created).</li>
+<li>Its <code>source_ok</code> flag has been set and its <code>incremental</code> one is not.<br />
+This allows rules that alter sources to choose between handling any previous content without impact on final value (<code>incremental</code>)
+or compute value based on previous one (in which case it must be a dep).
+In this latter case, the job will rerun if such dep-target is actually modified.</li>
+</ul>
 <p>The third case is when a target was not declared as such.
 <code>foo</code> can be declared as target by:</p>
 <ul>
-<li>matching a <code>targets</code> or <code>side_targets</code> entry.</li>
-<li>calling <code>lmake.target('foo',allow=True)</code> (which is the default value for the <code>allow</code> arg).</li>
-<li>executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
+<li>Matching a <code>targets</code> or <code>side_targets</code> entry.</li>
+<li>Calling <code>lmake.target('foo')</code> (unless <code>allow=False</code> is passed).</li>
+<li>Executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
 </ul>
 <p>A target that is not declared is an error.</p>
 <h3 id="processing-a-target"><a class="header" href="#processing-a-target">Processing a target</a></h3>

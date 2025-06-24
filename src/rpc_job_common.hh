@@ -42,21 +42,28 @@ static constexpr Dflags DflagsDfltDyn    = DflagsDflt                           
 static constexpr Dflags DflagsDfltDepend = DflagsDflt|Dflag::Required                ;
 
 // START_OF_VERSIONING
-enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book-keeping
+enum class ExtraDflag : uint8_t {   // flags for deps, not recorded in server book-keeping
 	Top
 ,	Ignore
 ,	ReaddirOk
-,	NRule                         // all flags allowed
+,	NoStar                          // exclude flags from star patterns (common info for dep and target)
+// aliases
+,	NRule                           // all flags allowed
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
 	{ ExtraDflag::Top       , 0   }
 ,	{ ExtraDflag::Ignore    , 'I' }
 ,	{ ExtraDflag::ReaddirOk , 'D' }
-,	{ ExtraDflag::NRule     , 0   }
+,	{ ExtraDflag::NoStar    , 'x' }
+,	{ ExtraDflag::NRule     , 0   } // artifical entry as all flags are allowed
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 static_assert(chk_enum_tab(ExtraDflagChars)) ;
+static constexpr ExtraDflags ExtraDflagsDflt       = {}                                 ;
+static constexpr ExtraDflags ExtraDflagsDfltStatic = ExtraDflagsDflt|ExtraDflag::NoStar ;
+static constexpr ExtraDflags ExtraDflagsDfltDyn    = ExtraDflagsDflt                    ;
+static constexpr ExtraDflags ExtraDflagsDfltDepend = ExtraDflagsDflt|ExtraDflag::NoStar ;
 
 // START_OF_VERSIONING
 enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
@@ -94,7 +101,7 @@ enum class ExtraTflag : uint8_t { // flags for targets, not recorded in server b
 ,	Optional
 ,	SourceOk                      // ok to overwrite source files
 ,	Allow                         // writing to this target is allowed (for use in clmake.target and ltarget)
-,	Wash                          // target was unlinked when washing before job execution
+,	Late                          // target was written for real, not during washing
 //
 // aliases
 ,	NRule = Allow                 // number of Tflag's allowed in rule definition
@@ -106,7 +113,7 @@ static constexpr ::amap<ExtraTflag,char,N<ExtraTflag>> ExtraTflagChars {{
 ,	{ ExtraTflag::Optional , 0   }
 ,	{ ExtraTflag::SourceOk , 's' }
 ,	{ ExtraTflag::Allow    , 'a' }
-,	{ ExtraTflag::Wash     , 0   }
+,	{ ExtraTflag::Late     , 0   }
 }} ;
 using ExtraTflags = BitMap<ExtraTflag> ;
 static_assert(chk_enum_tab(ExtraTflagChars)) ;
@@ -123,10 +130,11 @@ struct MatchFlags {
 	// accesses
 	bool operator==(MatchFlags const&) const = default ;
 	bool operator+ (                 ) const { return +tflags || +dflags || +extra_tflags || +extra_dflags ; }
-	// services
-	bool is_target() const { return extra_tflags[ExtraTflag::Allow]                                                         ; }
-	Kind kind     () const { return !is_target() ? Kind::SideDep : !tflags[Tflag::Target] ? Kind::SideTarget : Kind::Target ; }
 	//
+	bool is_target        () const { return extra_tflags[ExtraTflag::Allow]                                                         ; }
+	Kind kind             () const { return !is_target() ? Kind::SideDep : !tflags[Tflag::Target] ? Kind::SideTarget : Kind::Target ; }
+	bool dep_and_target_ok() const { return extra_tflags[ExtraTflag::SourceOk] && !tflags[Tflag::Incremental]                       ; }
+	// services
 	MatchFlags& operator|=(MatchFlags mfs) {
 		tflags       |= mfs.tflags       ;
 		dflags       |= mfs.dflags       ;
@@ -242,6 +250,7 @@ enum class Comment : uint8_t {
 ,	staticDep
 ,	staticDepAndTarget
 ,	staticExec
+,	staticMatch
 ,	staticTarget
 ,	staticUnlnk
 ,	stderr
@@ -254,6 +263,7 @@ enum class Comment : uint8_t {
 ,	trace
 ,	unstable
 ,	uploadedToCache
+,	wash
 ,	washed
 } ;
 // END_OF_VERSIONING

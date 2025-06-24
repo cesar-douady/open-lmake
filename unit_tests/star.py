@@ -19,12 +19,12 @@ if __name__!='__main__' :
 
 	class Opt(Rule) :
 		targets = { 'DST' : (r'{File:.*}.opt','Optional') }
-		cmd     = '[ {File} != ok ] || echo 1 > {DST}'
+		cmd     = '[ {File} != ok ] || echo 1 >{DST}'
 
 	class Opt2(Rule) :
 		prio    = -1
 		targets = { 'DST' : r'{File:.*}.opt' }
-		cmd     = 'echo 2 > {DST}'
+		cmd     = 'echo 2 >{DST}'
 
 	class Star(PyRule) :
 		targets = { 'DST' : (r'{File:.*}.star{D*:\d+}',) }
@@ -45,7 +45,7 @@ if __name__!='__main__' :
 			'DUT' : '{File}'
 		,	'REF' : '{File}.ref'
 		}
-		cmd = 'diff {REF} {DUT}>&2'
+		cmd = 'diff {REF} {DUT} >&2'
 
 else :
 

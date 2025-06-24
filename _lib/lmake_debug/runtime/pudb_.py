@@ -40,7 +40,7 @@ def run_py(dbg_dir,deps,func,*args,**kwds) :
 				,	code.co_filename
 				,	code.co_name
 				,	code.co_firstlineno
-				,	code.co_lnotab
+				,	code.co_lnotab                           # co_lnotab is deprecated since 3.12 (but used before 3.10)
 				,	code.co_freevars
 				,	code.co_cellvars
 				]

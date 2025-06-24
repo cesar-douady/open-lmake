@@ -177,9 +177,9 @@ namespace Backends {
 	::map <Pdate,JobExec>                 Backend::_s_deferred_report_queue_by_date ;
 	::umap<Job  ,Pdate  >                 Backend::_s_deferred_report_queue_by_job  ;
 
-	static ::vmap_s<DepDigest> _mk_digest_deps( ::vmap_s<DepSpec>&& deps_attrs ) {
-		::vmap_s<DepDigest> res ; res.reserve(deps_attrs.size()) ;
-		for( auto& [_,d] : deps_attrs ) res.emplace_back( ::move(d.txt) , DepDigest( {} , d.dflags , true/*parallel*/ ) ) ;
+	static ::vmap_s<::pair<DepDigest,ExtraDflags>> _mk_digest_deps( ::vmap_s<DepSpec>&& deps_attrs ) {
+		::vmap_s<::pair<DepDigest,ExtraDflags>> res ; res.reserve(deps_attrs.size()) ;
+		for( auto& [_,d] : deps_attrs ) res.emplace_back( ::move(d.txt) , ::pair( DepDigest(Accesses(),d.dflags,true/*parallel*/) , d.extra_dflags ) ) ;
 		return res ;
 	}
 
@@ -407,7 +407,7 @@ namespace Backends {
 				//
 				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                      ;
 				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                           ;
-				/**/                            reply.addr                    = fd.peer_addr()                                                      ; SWEAR(reply.addr) ; // 0 means no address
+				/**/                            reply.addr                    = fd.peer_addr()                                                      ; SWEAR(reply.addr) ;   // 0 means no address
 				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                               ;
 				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                                 ;
 				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                       ;
@@ -424,7 +424,7 @@ namespace Backends {
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
-		DF}                                                                                                                                                               // NO_COV
+		DF}                                                                                                                                                                 // NO_COV
 		//
 		jis.stems     =                 ::move(match.stems)  ;
 		jis.pre_start =                 ::move(jsrr       )  ;
@@ -432,8 +432,8 @@ namespace Backends {
 		if (+deps) {
 			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
-				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second |= dd ;                       // update existing dep
-				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,dd) ;      }                     // create new dep
+				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second.first |= dd ;                   // update existing dep
+				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,::pair(dd,ExtraDflagsDfltDyn)) ; } // create new dep
 		}
 		bool deps_done = false ;                                                // true if all deps are done for at least one non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
@@ -466,20 +466,23 @@ namespace Backends {
 						start_msg_err = {}                   ;
 					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					s_end( entry.tag , +job , status ) ;                                                                                    // dont care about backend, job is dead for other reasons
+					s_end( entry.tag , +job , status ) ;                                                             // dont care about backend, job is dead for other reasons
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("early",start_msg_err) ;
 					//
 					JobEndRpcReq jerr { jsrr } ;
-					jerr.digest     = { .deps=reply.deps , .max_stderr_len=entry.max_stderr_len , .status=status , .has_msg_stderr=true } ;
-					jerr.end_date   = New                                                                                                 ;
-					jerr.msg_stderr = ::move(start_msg_err)                                                                               ;
-					JobDigest<Node> jd = jerr.digest ;                                                                                      // before jerr is moved
+					/**/                                 jerr.end_date              = New                   ;
+					/**/                                 jerr.digest.max_stderr_len = entry.max_stderr_len  ;
+					/**/                                 jerr.digest.status         = status                ;
+					/**/                                 jerr.digest.has_msg_stderr = true                  ;
+					/**/                                 jerr.msg_stderr            = ::move(start_msg_err) ;
+					for( auto& [d,dd_edf] : reply.deps ) jerr.digest.deps.emplace_back( ::move(d) , dd_edf.first ) ;
+					JobDigest<Node> jd = jerr.digest ;                                                               // before jerr is moved
 					//
 					Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 					Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 					//
-					job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                          // job starts and ends
+					job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                   // job starts and ends
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 					g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
@@ -491,7 +494,7 @@ namespace Backends {
 				//
 				reply.small_id = _s_small_ids.acquire() ;
 				//    vvvvvvvvvvvvvvvvvvvvvvvv
-				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {} // send reply ASAP to minimize overhead, failure will be caught by heartbeat
+				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                        // send reply ASAP to minimize overhead, failure will be caught by heartbeat
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^
 				job_exec = { job , entry.tag!=Tag::Local?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 				//

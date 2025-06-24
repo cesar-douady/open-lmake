@@ -581,7 +581,7 @@ namespace Engine {
 				continue ;
 			}
 			VarIdx     n_unnamed = 0                                                                          ;
-			MatchFlags mfs       = { .dflags=DflagsDfltStatic }                                               ; SWEAR(!(mfs.extra_dflags&~ExtraDflag::Top)) ; // or we must review side_deps in DepSpec
+			MatchFlags mfs       = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflagsDfltStatic }         ;
 			::string   dep       = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , mfs , true/*dep_only*/ ) ;
 			dep  = rd.add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
 			try {
@@ -629,7 +629,7 @@ namespace Engine {
 						if (py_val==None) continue ;
 						::string key = py_key.as_a<Str>() ;
 						try {
-							MatchFlags mfs = { .dflags=DflagsDfltStatic }                                               ; SWEAR(!(mfs.extra_dflags&~ExtraDflag::Top)) ; // or we must review side_deps
+							MatchFlags mfs = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflagsDfltStatic }         ;
 							::string   dep = _split_flags( "dep "+key , py_val , 1/*n_skip*/ , mfs , true/*dep_only*/ ) ;
 							dep = match.rule->add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
 							DepSpec ds { dep , mfs.dflags , mfs.extra_dflags } ;
@@ -919,10 +919,11 @@ namespace Engine {
 							}
 						) ;
 					}
-					if (             kind==MatchKind::Target  ) flags.tflags       |= Tflag::Target     ;
-					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential  ;             // static targets are essential by default
-					if ( !is_star                             ) flags.tflags       |= Tflag::Static     ;
-					if (             kind!=MatchKind::SideDep ) flags.extra_tflags |= ExtraTflag::Allow ;
+					if (             kind==MatchKind::Target  ) flags.tflags       |= Tflag::Target      ;
+					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential   ;            // static targets are essential by default
+					if ( !is_star                             ) flags.tflags       |= Tflag::Static      ;
+					if (             kind!=MatchKind::SideDep ) flags.extra_tflags |= ExtraTflag::Allow  ;
+					if ( !is_star                             ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , flags , kind==MatchKind::SideDep ) ;
 					// check
 					if ( target.starts_with(*g_repo_root_s)                                        ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;

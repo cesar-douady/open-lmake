@@ -23,45 +23,17 @@ using namespace Hash   ;
 using namespace Re     ;
 using namespace Time   ;
 
-struct PatternDict {
-	static constexpr MatchFlags NotFound = {} ;
-	// services
-	MatchFlags at(::string const& x) const {
-		if ( auto it=knowns.find(x) ; it==knowns.end() ) {
-			for( auto const& [p,mf] : patterns ) if (+p.match(x)) return mf       ;
-			/**/                                                  return NotFound ;
-		} else if (it->second.first) {
-			return it->second.second ;                                                                   // if a dep, dont check patterns
-		} else {
-			MatchKind mk = it->second.second.kind() ;
-			for( auto const& [p,mf] : patterns ) {
-				if (mf.kind()>=mk) break     ;                                                           // only check patterns of higher precedence (at same level, static has priority over pattern)
-				if (+p.match(x)  ) return mf ;                                                           // found matching pattern
-			}
-			return it->second.second ;                                                                   // no higher precedence pattern found, found static entry
-		}
-	} //!                                                                                  is_dep
-	void add_dep ( ::string const& key , MatchFlags const& mf ) { knowns.try_emplace( key , true ,mf ) ; }
-	void add_side( ::string const& key , MatchFlags const& mf ) { knowns.try_emplace( key , false,mf ) ; }
-	void add_star( Pattern  const& key , MatchFlags const& mf ) {
-		if (+patterns) SWEAR( mf.kind()>=patterns.back().second.kind() , mf , patterns.back().second ) ; // check decreasing precedence (else entries should be sorted)
-		patterns.emplace_back( RegExpr(key) , mf ) ;                                                     // XXX : transport pattern as a vector rather than as a string
-	}
-	// data
-	::umap_s<::pair<bool/*is_dep*/,MatchFlags>> knowns   = {} ;
-	::vmap<RegExpr,MatchFlags>                  patterns = {} ;
-} ;
-
 ::vector<ExecTraceEntry>* g_exec_trace      = nullptr      ;
 Gather                    g_gather          ;
 JobIdx                    g_job             = 0/*garbage*/ ;
-PatternDict               g_match_dct       ;
 SeqId                     g_seq_id          = 0/*garbage*/ ;
 ::string                  g_phy_repo_root_s ;
 ::string                  g_service_start   ;
 ::string                  g_service_mngt    ;
 ::string                  g_service_end     ;
-JobStartRpcReply          g_start_info      ;
+::vector<RegExpr>         g_star_targets    ; // the Target flag cannot be processed as the other ones : it must be completely predictible, independently of execution as it has an impact on ...
+JobStartRpcReply          g_start_info      ; // ... rule selection
+::uset_s                  g_static_targets  ;                // .
 SeqId                     g_trace_id        = 0/*garbage*/ ;
 ::vector_s                g_washed          ;
 
@@ -103,7 +75,9 @@ Digest analyze(Status status=Status::New) {                                     
 	bool   readdir_warned  = false         ;
 	//
 	for( auto& [file,info] : g_gather.accesses ) {
-		info.update( Pdate() , {.flags=g_match_dct.at(file)} ) ;                                                                  // process flags passed in rule
+		constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ; //!                                           started
+		if (g_static_targets.contains(file))                                { trace("mk_target",file) ; info.update( Pdate() , {.flags=TargetFlags} , false ) ;         }
+		else for( RegExpr const& re : g_star_targets ) if (+re.match(file)) { trace("mk_target",file) ; info.update( Pdate() , {.flags=TargetFlags} , false ) ; break ; }
 		//
 		MatchFlags flags       = info.flags                       ;
 		Pdate      first_read  = info.first_read()                ;
@@ -125,50 +99,56 @@ Digest analyze(Status status=Status::New) {                                     
 				readdir_warned = true ;
 			}
 		}
-		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                    // . is only reported when reading dir but otherwise is an external file
+		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                  // . is only reported when reading dir but otherwise is an external file
 		//
 		bool is_dep = +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
 		bool is_tgt = was_written || info.target()                                         ;
+		//
+		if ( !is_dep && !is_tgt ) {
+			trace("ignore ",file) ;
+			continue ;
+		}
 		// handle deps
 		if (is_dep) {
-			DepDigest dd { accesses , info.dep_info , flags.dflags } ;
+			DepDigest dd       { accesses , info.dep_info , flags.dflags } ;
+			bool      unstable = false                                     ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.is_a<DepInfoKind::Info>() && !info.dep_info.info().date.avail_at(first_read,g_start_info.ddate_prec) ;
 			dd.parallel     = first_read<Pdate::Future && first_read==prev_first_read                                                            ;
 			prev_first_read = first_read                                                                                                         ;
 			// try to transform date into crc as far as possible
-			bool unstable = false ;
 			if      ( dd.is_crc                         )   {}                                       // already a crc => nothing to do
 			else if ( !accesses                         )   {}                                       // no access     => nothing to do
 			else if ( !info.seen()                      ) { dd.crc(Crc::None) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
 			else if ( !dd.sig()                         ) { dd.crc({}       ) ; unstable = true  ; } // file was not present initially but was seen, it is incoherent even if not present finally
 			else if ( was_written                       )   {}                                       // cannot check stability as we wrote to it, clash will be detected in server if any
 			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.crc({}       ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, dont know what has been read
-			else if ( !sig                              ) { dd.crc({}       ) ; unstable = true  ; } // file is awkward
 			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.crc(sig.tag()) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.deps.emplace_back(file,dd) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (status!=Status::New) {                                                               // only trace for user at end of job as intermediate analyses are of marginal interest for user
-				//                                          date                     comment_exts
-				if      (unstable) g_exec_trace->push_back({ New , Comment::unstable , {}       , file }) ;
-				else if (dd.hot  ) g_exec_trace->push_back({ New , Comment::hot      , {}       , file }) ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.deps.emplace_back( file , dd ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (status!=Status::New) {                                                             // only trace for user at end of job as intermediate analyses are of marginal interest for user
+				//                                          Pdate                    CommentExt
+				if      (unstable) g_exec_trace->push_back({ New , Comment::unstable , {}     , file }) ;
+				else if (dd.hot  ) g_exec_trace->push_back({ New , Comment::hot      , {}     , file }) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
 		}
-		if (status==Status::New) continue ;                                                          // we are handling chk_deps and we only care about deps
+		if (status==Status::New) continue ;                                                        // we are handling chk_deps and we only care about deps
 		// handle targets
 		if (is_tgt) {
-			FileSig      sig   { file }                                                    ;
-			TargetDigest td    { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags } ;
-			bool         unlnk = !sig                                                      ;
+			FileStat     st         ;
+			FileSig      sig        ;                                                                                                  if (::lstat(file.c_str(),&st)==0) sig = {st} ;
+			TargetDigest td         { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags }                                      ;
+			bool         unlnk      = !sig                                                                                           ;
+			bool         compulsery = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
 			//
-			if (is_dep                        ) td.tflags    |= Tflag::Incremental ;                                       // if is_dep, previous target state is guaranteed by being a dep, use it
-			if (!td.tflags[Tflag::Incremental]) td.pre_exist  = info.seen()        ;
-			if (is_dep                        ) {
-				const char* written_msg = was_written ? "written to" : "declared as target" ;
+			if ( is_dep                               ) td.tflags    |= Tflag::Incremental ;                       // if is_dep, previous target state is guaranteed by being a dep, use it
+			if ( !td.tflags[Tflag::Incremental]       ) td.pre_exist  = info.seen()        ;
+			if ( is_dep && !flags.dep_and_target_ok() ) {                                                          // if SourceOk => ok to simultaneously be a dep and a target
+				const char* written_msg = unlnk ? "unlinked" : was_written ? "written to" : "declared as target" ;
 				if (flags.dflags[Dflag::Static]) { //!  date
 					if (unlnk) g_exec_trace->push_back({ New , Comment::staticDepAndTarget , CommentExt::Unlnk , file }) ;
 					else       g_exec_trace->push_back({ New , Comment::staticDepAndTarget , {}                , file }) ;
@@ -180,34 +160,22 @@ Digest analyze(Status status=Status::New) {                                     
 					else if (accesses[Access::Stat]       ) read = "stat'ed"     ;
 					else if (flags.dflags[Dflag::Required]) read = "required"    ;
 					else                                    read = "accessed"    ;
-					g_exec_trace->push_back({ New/*date*/ , Comment::depAndTarget , {}/*comment_exts*/ , file }) ;
-					res.msg << "file was "<<read<<" and later "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
+					g_exec_trace->push_back({ New/*date*/ , Comment::depAndTarget , CommentExt() , file }) ;
+					res.msg << "file was "<<read<<" and later "<<written_msg<<" : "<<mk_file(file)<<'\n'   ;
 				}
 			}
-			if (was_written) {
+			if ( was_written || (+sig&&st.st_nlink>1) ) { // file may change even if not written in case of hard links (another link may have been written)
 				if      ( unlnk                                               )                  td.crc = Crc::None    ;
-				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ; } // no crc if meaningless
-				//
-				if (!td.crc.valid()) res.crcs.emplace_back(res.targets.size()) ;                                           // record index in res.targets for deferred (parallel) crc computation
+				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
+				else                                                              res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
-			if (
-				td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.tflags[Tflag::Phony] && !td.extra_tflags[ExtraTflag::Optional] // target is expected
-			&&	unlnk                                                                                                                      // but not produced
-			&&	status==Status::Ok                                                                                                         // and there is no more important reason
-			)
-				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                                // warn specifically
+			if ( compulsery && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                        // target is expected, not produced and no more important reason
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                     // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			trace("target ",td,STR(unlnk),file) ;
+			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
-		if ( !is_dep && !is_tgt ) trace("ignore ",file) ;
-	}
-	for( ::string const& t : g_washed ) if (!g_gather.access_map.contains(t)) {
-		trace("wash",t) ;
-		MatchFlags flags = g_match_dct.at(t) ;
-		if      (!flags.is_target()                     ) res.targets.emplace_back( t , TargetDigest{                        .extra_tflags=                   ExtraTflag::Wash , .crc=Crc::None } ) ;
-		else if (!flags.extra_tflags[ExtraTflag::Ignore]) res.targets.emplace_back( t , TargetDigest{ .tflags=flags.tflags , .extra_tflags=flags.extra_tflags|ExtraTflag::Wash , .crc=Crc::None } ) ;
 	}
 	g_exec_trace->push_back({ New/*date*/ , Comment::analyzed }) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
@@ -493,10 +461,6 @@ int main( int argc , char* argv[] ) {
 		//
 		NfsGuard nfs_guard { g_start_info.autodep_env.file_sync } ;
 		//
-		for( auto const& [d ,digest] : g_start_info.deps           ) if (digest.dflags[Dflag::Static]) g_match_dct.add_dep ( d  , {.dflags=digest.dflags} ) ;
-		for( auto const& [dt,mf    ] : g_start_info.static_matches )                                   g_match_dct.add_side( dt , mf                      ) ;
-		for( auto const& [p ,mf    ] : g_start_info.star_matches   )                                   g_match_dct.add_star( p  , mf                      ) ;
-		//
 		try {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , nfs_guard )) ;
 		} catch (::string const& e) {                                                                                                   // START_OF_NO_COV defensive programming
@@ -596,16 +560,45 @@ int main( int argc , char* argv[] ) {
 		g_gather.service_mngt     =        g_service_mngt              ;
 		g_gather.timeout          =        g_start_info.timeout        ;
 		//
-		if (!g_start_info.method)                                                               // if no autodep, consider all static deps are fully accessed as we have no precise report
-			for( auto& [d,digest] : g_start_info.deps ) if (digest.dflags[Dflag::Static]) {
-				digest.accesses = ~Accesses() ;
-				if ( digest.is_crc && !digest.crc().valid() ) digest.sig(FileSig(d)) ;
+		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
+			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
+				DepDigest& dd = dd_edf.first ;
+				dd.accesses = ~Accesses() ;
+				if ( dd.is_crc && !dd.crc().valid() ) dd.sig(FileSig(d)) ;
 			}
 		//
-		for( auto& [d,dd] : g_start_info.deps ) g_gather.new_dep( washed , ::move(d) , ::move(dd) , g_start_info.stdin ) ;
-		for( auto const& [t,id_mf] : g_match_dct.knowns )
-			if ( id_mf.second.is_target() && !id_mf.second.extra_tflags[ExtraTflag::Optional] )
-				g_gather.new_unlnk(washed,t) ;                                                  // always report non-optional static targets
+		for( auto& [d,dd_edf] : g_start_info.deps ) {
+			DepDigest  & dd       = dd_edf.first          ;
+			ExtraDflags& edf      = dd_edf.second         ;
+			bool         is_stdin = d==g_start_info.stdin ;
+			if (is_stdin) {                                                                                   // stdin is read
+				if (!dd.accesses) dd.sig(FileInfo(d)) ;                                                       // record now if not previously accessed
+				dd.accesses |= Access::Reg ;
+			}
+			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::stdin:Comment::staticDep ) ;
+		}
+		for( auto& [dt,mf] : g_start_info.static_matches ) {
+			if (mf.tflags[Tflag::Target]) {
+				g_static_targets.insert(dt) ;
+				mf.tflags       &= ~Tflag     ::Target ;
+				mf.extra_tflags &= ~ExtraTflag::Allow  ;
+			}
+			if (mf.extra_tflags[ExtraTflag::Optional]) {                                                      // consider Optional as a star target with a fixed pattern
+				if (+mf) g_gather.pattern_flags.emplace_back( Re::escape(dt) , ::pair(washed,mf) ) ;          // fast path : no need to match against a pattern that brings nothing
+			} else {
+				g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::staticMatch ) ; // always insert an entry for static targets, even with no flags
+			}
+		}
+		for( auto& [p ,mf] : g_start_info.star_matches ) {
+			if (mf.tflags[Tflag::Target]) {
+				g_star_targets.push_back(p) ;                                       // XXX : find a way to compile p only once when put in both g_star_targets and g_gather.pattern_flags
+				mf.tflags       &= ~Tflag     ::Target ;
+				mf.extra_tflags &= ~ExtraTflag::Allow  ;
+			}
+			if (+mf) g_gather.pattern_flags.emplace_back( p , ::pair(washed,mf) ) ; // fast path : no need to match against a pattern that brings nothing
+		}
+		for( ::string& t : g_washed )
+			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , Comment::wash ) ;
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
 		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
@@ -623,10 +616,10 @@ int main( int argc , char* argv[] ) {
 		//                                   vvvvvvvvvvvvvvvvvvvvv
 		try                       { status = g_gather.exec_child() ;            }
 		//                                   ^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }               // NO_COV defensive programming
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }   // NO_COV defensive programming
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                    // XXX> : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                        // XXX> : suppress when CentOS7 bug is fixed
 		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -640,7 +633,7 @@ int main( int argc , char* argv[] ) {
 			trace("cache",upload_key) ;
 		}
 		//
-		if (+g_start_info.autodep_env.file_sync) {                                              // fast path : avoid listing targets & guards if !file_sync
+		if (+g_start_info.autodep_env.file_sync) {                                  // fast path : avoid listing targets & guards if !file_sync
 			for( auto const& [t,_] : digest.targets  ) nfs_guard.change(t) ;
 			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
 		}

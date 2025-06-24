@@ -36,7 +36,7 @@ if __name__!='__main__' :
 		elif step==2      : autodep = 'ptrace'
 		if   has_jemalloc : environ = { 'LD_PRELOAD' : 'libjemalloc.so' }
 		stderr_ok = True
-		cmd       = 'cd  {Dir}{Module} ; cargo build'
+		cmd       = 'cd {Dir}{Module} ; cargo build'
 
 	class RunRust(RustRule) :
 		targets = { 'OUT' : r'{Dir:.+/|}{Module:[^/]+}.out'                   }

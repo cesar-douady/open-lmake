@@ -33,19 +33,22 @@ using namespace Time ;
 }                                                                     // END_OF_NO_COV
 
 Accesses Gather::AccessInfo::accesses() const {
-	PD       ma  = ::min( _max_read() , _target ) ;
+	PD       ma  = _max_read(false/*phys*/) ;
 	Accesses res ;
 	for( Access a : iota(All<Access>) ) if (_read[+a]<=ma) res |= a ;
 	return res ;
 }
 
 Pdate Gather::AccessInfo::first_read() const {
-	PD res = PD::Future ;
+	PD    res = PD::Future  ;
+	Pdate mr  = _max_read(false/*phys*/) ;
+	//
 	for( Access a : iota(All<Access>) ) if (_read[+a]<res) res = _read[+a] ;
 	/**/                                if (_read_dir<res) res = _read_dir ;
 	/**/                                if (_required<res) res = _required ;
-	if (res<=::min(_max_read(),_target)) return res           ;
-	else                                 return Pdate::Future ;
+	//
+	if (res<=mr) return res           ;
+	else         return Pdate::Future ;
 }
 
 Pdate Gather::AccessInfo::first_write() const {
@@ -59,9 +62,10 @@ Pdate Gather::AccessInfo::first_write() const {
 	else               return { first_write() , true  } ;
 }
 
-void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool started , DI const& di ) {
 	SWEAR(ad.write!=Maybe) ;                                                                                                      // this must have been solved by caller
-	if (ad.flags.extra_tflags[ExtraTflag::Ignore]) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                  // ignore target implies ignore dep
+	if ( ad.flags.extra_tflags[ExtraTflag::Ignore] ) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                // ignore target implies ignore dep
+	if ( ad.write==Yes && started                  ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
 	flags |= ad.flags ;
 	//
 	if (+di) {
@@ -90,7 +94,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	return           os << ')'                      ;
 }                                                         // END_OF_NO_COV
 
-void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Comment c , CommentExts ces ) {
+void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Comment c , CommentExts ces ) {
 	SWEAR( +file , c , ces        ) ;
 	SWEAR( +pd   , c , ces , file ) ;
 	AccessInfo* info        = nullptr/*garbage*/                       ;
@@ -101,7 +105,7 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 	} else {
 		info = &accesses[it->second].second ;
 	}
-	AccessInfo old_info = *info ;                                                                                               // for tracing only
+	AccessInfo old_info = *info ;                                                                                              // for tracing only
 	if (ad.write==Maybe) {
 		// wait until file state can be safely inspected as in case of interrupted write, syscall may continue past end of process
 		// this may be long, but is exceptionnal
@@ -109,32 +113,23 @@ void Gather::_new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI
 		if (info->dep_info.is_a<DepInfoKind::Crc>()) ad.write = No | (Crc    (file)!=info->dep_info.crc()) ;
 		else                                         ad.write = No | (FileSig(file)!=info->dep_info.sig()) ;
 	}
-	//vvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update( pd , ad , di ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	info->update( pd , ad , +start_date , di ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) {
 		if (+c) {
-			if (is_new) _exec_trace( pd , c , ces , accesses.back().first ) ;                                                   // file has been ::move()'ed
+			if (is_new) _exec_trace( pd , c , ces , accesses.back().first ) ;                                                  // file has been ::move()'ed
 			else        _exec_trace( pd , c , ces , file                  ) ;
 		}
-		Trace("_new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , *info , it->first ) ; // only trace if something changes
+		Trace("new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , *info , it->first ) ; // only trace if something changes
 	}
-}
-
-void Gather::new_dep( PD pd , ::string&& dep , DepDigest&& dd , ::string const& stdin ) {
-		bool is_stdin = dep==stdin ;
-		if (is_stdin) {                               // stdin is read
-			if (!dd.accesses) dd.sig(FileInfo(dep)) ; // record now if not previously accessed
-			dd.accesses |= Access::Reg ;
-		}
-		_new_access( pd , ::move(dep) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags}} , dd , is_stdin?Comment::stdin:Comment::staticDep ) ;
 }
 
 void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 	RealPath              rp       { autodep_env }                    ;
 	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(sr) )
-		if (!Record::s_is_simple(f)) _new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
+		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
 bool/*sent*/ Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
@@ -177,7 +172,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.deps.reserve(files.size()) ;
 			for( auto& [f,fi] : files ) {
 				_exec_trace( jerr.date , jerr.comment , jerr.comment_exts , f ) ;
-				_new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.comment , jerr.comment_exts ) ;
+				new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.comment , jerr.comment_exts ) ;
 				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
 			}
 			_dep_verboses.erase(it) ;
@@ -386,7 +381,7 @@ Status Gather::exec_child() {
 			else if (              kill_step==kill_sigs.size() ) set_status(Status::Err,cat("still alive after having been killed ",kill_sigs.size()," times followed by a SIGKILL")) ;
 			else if ( timeout_fired                            ) set_status(Status::Err,cat("still alive after having timed out and been killed with SIGKILL"                      )) ;
 			else                                                 FAIL("dont know why still active") ;                                                                                   // NO_COV
-			break ;
+			break ;                                                                                                                                                                     // exit loop
 		}
 		if (now>=end_kill) {
 			kill(true/*next*/) ;
@@ -549,7 +544,7 @@ Status Gather::exec_child() {
 								_exec_trace( New , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode , CommentExt::Reply , jmrr.txt ) ;
 								auto it = _codec_files.find(jmrr.fd) ;
 								SWEAR(it!=_codec_files.end(),jmrr,_codec_files) ;
-								_new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode ) ;
+								new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode ) ;
 								_codec_files.erase(it) ;
 							} break ;
 							case JobMngtProc::AddLiveOut : {
@@ -655,7 +650,7 @@ Status Gather::exec_child() {
 								break ;
 								case Proc::AccessPattern :
 									trace("access_pattern",kind,fd,jerr.date,jerr.digest,jerr.file) ;
-									access_patterns.emplace_back( jerr.file/*pattern*/ , ::pair<PD,MatchFlags>(jerr.date,jerr.digest.flags) ) ; break ;
+									pattern_flags.emplace_back( jerr.file/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
 								break ;
 								case Proc::Tmp :
 									if (!seen_tmp) {
@@ -705,17 +700,18 @@ Status Gather::exec_child() {
 // - suppress dir when one of its sub-files appears before            (and condition above is satisfied)
 // - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
 void Gather::reorder(bool at_end) {
-	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	Trace trace("reorder") ;
-	// update accesses to take access_patterns into account
-	for ( auto const& [re,date_flags] : access_patterns ) {
-		trace("pattern",date_flags) ;
-		auto [date,flags] = date_flags ;
-		for ( auto& [file,ai] : accesses )
-			if (+re.match(file))
-				ai.update( date , {.flags=flags} ) ;
-	}
-	//
+	// update accesses to take pattern_flags into account
+	if (+pattern_flags)                                                             // fast path : if no patterns, nothing to do
+		for ( auto& [file,ai] : accesses ) {
+			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+			for ( auto const& [re,date_flags] : pattern_flags )
+				if (+re.match(file)) {
+					trace("pattern_flags",file,date_flags) ;
+					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
+				}
+		}
+	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }

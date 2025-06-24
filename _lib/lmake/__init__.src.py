@@ -102,12 +102,14 @@ def run_cc(*cmd_line,**kwds) :
 	)
 
 try :
-	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1) # check if we have the replace method
+	# python version >= 3.10 (simpler, more reliable as we do not need the exact order of arguments)
+	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)
 	def _sourcify(func,module,qualname,file_name,firstlineno) :
 		func.__code__     = func.__code__.replace( co_filename=file_name , co_firstlineno=firstlineno )
 		func.__module__   = module
 		func.__qualname__ = qualname
-except :                                                            # else revert to heavy old-fashioned code
+except :
+	# python version < 3.10 (fall back to more fragile code if we have no choice)
 	def _sourcify(func,module,qualname,file_name,firstlineno) :
 		c    = func.__code__
 		args = [c.co_argcount]
@@ -118,7 +120,7 @@ except :                                                            # else rever
 		,	file_name
 		,	c.co_name
 		,	firstlineno
-		,	c.co_lnotab,c.co_freevars,c.co_cellvars
+		,	c.co_lnotab,c.co_freevars,c.co_cellvars  # co_lnotab is deprecated since 3.12 (but used before 3.10)
 		)
 		func.__code__     = c.__class__(*args)
 		func.__module__   = module

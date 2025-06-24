@@ -16,5 +16,5 @@ date +%T.%N >&2
 echo 'Wait.stems["Wait"] = "("+Wait.stems["Wait"]+")"' >> Lmakefile.py
 wait %1 || :
 date +%T.%N >&2
-ut_launch -done 1 -steady 2 -manual 0 lmake $TARGET
+ut_launch -done 2 -manual 0 lmake $TARGET
 date +%T.%N >&2
