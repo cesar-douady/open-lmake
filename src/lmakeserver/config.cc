@@ -265,8 +265,9 @@ namespace Engine {
 		// dynamic
 		//
 		/**/               res << "dynamic :\n"                                  ;
-		if (max_err_lines) res << "\tmax_error_lines : " << max_err_lines <<'\n' ;
 		/**/               res << "\tfile_sync       : " << file_sync     <<'\n' ;
+		if (max_err_lines) res << "\tmax_error_lines : " << max_err_lines <<'\n' ;
+		if (nice         ) res << "\tnice            : " << size_t(nice)  <<'\n' ;
 		//
 		res << "\tconsole :\n" ;
 		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;

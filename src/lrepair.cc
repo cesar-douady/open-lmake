@@ -122,14 +122,14 @@ int main( int argc , char* /*argv*/[] ) {
 	if (is_target(ServerMrkr))                                                exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
 	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,true/*dir_ok*/) ;                            // if last lrepair was interrupted, admin_dir contains no useful information
-	if (is_dir(bck_admin_dir)) {
-		if (is_dir(admin_dir)) {
+	if (is_dir_s(bck_admin_dir_s)) {
+		if (is_dir_s(admin_dir_s)) {
 			mk_lad() ;
 			exit(Rc::Format,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
 		}
 		if (::rename(bck_admin_dir.c_str(),admin_dir.c_str())!=0) FAIL("cannot rename",bck_admin_dir,"to",admin_dir) ;
 	}
-	if (!is_dir(cat(PrivateAdminDirS,"local_admin/job_data"))) exit(Rc::Fail,"nothing to repair") ;
+	if (!is_dir_s(cat(PrivateAdminDirS,"local_admin/job_data/"))) exit(Rc::Fail,"nothing to repair") ;
 	//
 	g_trace_file = New ;
 	block_sigs({SIGCHLD}) ;

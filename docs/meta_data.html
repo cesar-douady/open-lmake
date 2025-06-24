@@ -170,10 +170,21 @@
 <li><code>!</code>: line contains a non-existing file that was accessed</li>
 </ul>
 <p>These contents are then used to determine if each section must be refreshed when a new <code>lmake</code> command is run.</p>
+<h3 id="lmakeauto_tmp"><a class="header" href="#lmakeauto_tmp"><code>LMAKE/auto_tmp</code></a></h3>
+<p>This dir contains the default tmp dirs of jobs.</p>
 <h3 id="lmakeconfig"><a class="header" href="#lmakeconfig"><code>LMAKE/config</code></a></h3>
 <p>This file contains a description of the <code>lmake.config</code> <code>dict</code> as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmakedebug"><a class="header" href="#lmakedebug"><code>LMAKE/debug</code></a></h3>
+<p>This dir contains a sub-dir for each job <code>ldebug</code> was used for.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
 <h3 id="lmakeenviron"><a class="header" href="#lmakeenviron"><code>LMAKE/environ</code></a></h3>
 <p>This file contains the list of environment variables actually used in <code>Lmakefile.py</code> in the form of lines containing <code>&lt;key&gt;=&lt;value&gt;</code>.</p>
+<h3 id="lmakelast_output"><a class="header" href="#lmakelast_output"><code>LMAKE/last_output</code></a></h3>
+<p>This file is a symbolic link to the last transcript.</p>
+<h3 id="lmakelmakefile_tmp"><a class="header" href="#lmakelmakefile_tmp"><code>LMAKE/lmakefile_tmp</code></a></h3>
+<p>This dir contains the tmp dirs used when reading <code>Lmakefile.py</code>.
+When several passes are used, each pass has its own tmp dir.
+These are kept after reading for debugging purpose.</p>
 <h3 id="lmakemanifest"><a class="header" href="#lmakemanifest"><code>LMAKE/manifest</code></a></h3>
 <p>This file contains a description of the sources as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
 <h3 id="lmakematching"><a class="header" href="#lmakematching"><code>LMAKE/matching</code></a></h3>
@@ -188,28 +199,23 @@ Files matching the prefix and suffix are matched against the rules listed undern
 <li>Its name.</li>
 <li>The target corresponding to this prefix/suffix pair.</li>
 </ul>
-<h3 id="lmakerules"><a class="header" href="#lmakerules"><code>LMAKE/rules</code></a></h3>
-<p>This file contains a description of the rules as they have been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
 <h3 id="lmakeoutputsdatetime"><a class="header" href="#lmakeoutputsdatetime"><code>LMAKE/outputs/&lt;date&gt;/&lt;time&gt;</code></a></h3>
 <p>This file contains a transcript of the <code>lmake</code> command that has been run at <code>&lt;time&gt;</code> on <code>&lt;day&gt;</code>.
 Such logs are kept for a number of days given in <code>lmake.config.console.history_days</code>.</p>
-<h3 id="lmakelast_output"><a class="header" href="#lmakelast_output"><code>LMAKE/last_output</code></a></h3>
-<p>This file is a symbolic link to the last transcript.</p>
-<h3 id="lmaketargets"><a class="header" href="#lmaketargets"><code>LMAKE/targets</code></a></h3>
-<p>This file contains the targets that have been required by <code>lmake</code> commands in chronological order (with duplicates removed).</p>
-<h3 id="lmakeversion"><a class="header" href="#lmakeversion"><code>LMAKE/version</code></a></h3>
-<p>This file contains a state-recording version of open-lmake.
-If the recorded version does not match the used version, none of the open-lmake commands can be used.</p>
-<h3 id="lmakedebug"><a class="header" href="#lmakedebug"><code>LMAKE/debug</code></a></h3>
-<p>This dir contains a sub-dir for each job <code>ldebug</code> was used for.
-These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
-<h3 id="lmaketmp"><a class="header" href="#lmaketmp"><code>LMAKE/tmp</code></a></h3>
-<p>This dir contains a sub-dir for each job which was run while keeping its tmp dir.
-These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
 <h3 id="lmakequarantine"><a class="header" href="#lmakequarantine"><code>LMAKE/quarantine</code></a></h3>
 <p>This dir contains all files that have been quarantined.
 A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
 In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.</p>
+<h3 id="lmakerules"><a class="header" href="#lmakerules"><code>LMAKE/rules</code></a></h3>
+<p>This file contains a description of the rules as they have been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmaketargets"><a class="header" href="#lmaketargets"><code>LMAKE/targets</code></a></h3>
+<p>This file contains the targets that have been required by <code>lmake</code> commands in chronological order (with duplicates removed).</p>
+<h3 id="lmaketmp"><a class="header" href="#lmaketmp"><code>LMAKE/tmp</code></a></h3>
+<p>This dir contains a sub-dir for each job which was run while keeping its tmp dir.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
+<h3 id="lmakeversion"><a class="header" href="#lmakeversion"><code>LMAKE/version</code></a></h3>
+<p>This file contains a state-recording version of open-lmake.
+If the recorded version does not match the used version, none of the open-lmake commands can be used.</p>
 
                     </main>
 

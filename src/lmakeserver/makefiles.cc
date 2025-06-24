@@ -29,7 +29,8 @@ namespace Engine::Makefiles {
 
 	static ::string _deps_file(::string const& action) { return AdminDirS+action+"_deps" ; }
 
-	static ::map_ss _g_env ;
+	static ::map_ss _g_env       ;
+	static ::string _g_tmp_dir_s = cat(AdminDirS,"lmakefile_tmp/") ;
 
 	// dep file line format :
 	// - first dep is special, marked with *, and provide lmake_root
@@ -161,6 +162,11 @@ namespace Engine::Makefiles {
 		//
 		::string data_file = PrivateAdminDirS+action+"_data.py" ;
 		Gather   gather    ;
+		::string tmp_dir_s = _g_tmp_dir_s+action+'/'            ;
+		//
+		_g_env["TMPDIR"] = no_slash(cat(*g_repo_root_s,tmp_dir_s)) ;
+		mk_dir_empty_s(tmp_dir_s) ;                                  // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
+		//
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                   ;
 		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                          ;
 		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , PrivateEnvironFile , '.'+action+".top." , sub_repos } ;
@@ -184,7 +190,7 @@ namespace Engine::Makefiles {
 		::string   deps_str = AcFd(data_file).read() ;
 		::uset_s   dep_set  ;
 		try                       { py_info = py_eval(deps_str) ; }
-		catch (::string const& e) { FAIL(e) ;                     } // NO_COV
+		catch (::string const& e) { FAIL(e) ;                     }  // NO_COV
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.first_write()<Pdate::Future) continue ;
 			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = cat( m.group(d,1/*dir_s*/) , m.group(d,2/*module*/) , ".py" ) ;
@@ -297,10 +303,10 @@ namespace Engine::Makefiles {
 				AcFd( PrivateEnvironFile , Fd::Write ).write(user_env_str) ;
 			}
 			/**/                          _g_env["HOME"           ] = no_slash(*g_repo_root_s)      ;
+			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
 			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
 			/**/                          _g_env["UID"            ] = to_string(getuid())           ;
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
-			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
 			//
 			if (!FileInfo(EnvironFile ).exists()) AcFd(EnvironFile ,Fd::Write) ; // these are sources, they must exist
 			if (!FileInfo(ManifestFile).exists()) AcFd(ManifestFile,Fd::Write) ; // .

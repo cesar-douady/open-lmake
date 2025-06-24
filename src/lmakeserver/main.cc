@@ -495,8 +495,8 @@ int main( int argc , char** argv ) {
 	if (!_g_is_daemon) ::setpgid(0,0) ;                                                      // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
-	mk_dir_s(PrivateAdminDirS+"tmp/"s         ,true/*unlnk_ok*/) ;                           // prepare job execution so no dir_guard is necessary for each job
-	mk_dir_s(PrivateAdminDirS+"fast_reports/"s,true/*unlnk_ok*/) ;                           // .
+	mk_dir_s(cat(AdminDirS       ,"auto_tmp/"    ),true/*unlnk_ok*/) ;                       // prepare job execution so no dir_guard is necessary for each job
+	mk_dir_s(cat(PrivateAdminDirS,"fast_reports/"),true/*unlnk_ok*/) ;                       // .
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
@@ -510,8 +510,8 @@ int main( int argc , char** argv ) {
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
-		try                       { unlnk_inside_s(PrivateAdminDirS+"tmp/"s,false/*abs_ok*/,true/*force*/,true/*ignore_errs*/) ; } // cleanup
-		catch (::string const& e) { exit(Rc::System,e) ;                                                                         }
+		try                       { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/,true/*ignore_errs*/) ; } // cleanup
+		catch (::string const& e) { exit(Rc::System,e) ;                                                                           }
 		//
 		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,Fd::Write).write(g_kpi.pretty_str()) ;
 	}

@@ -221,24 +221,24 @@ namespace Disk {
 	static size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard , bool unlnk_ok ) {
 		::vector_s  to_mk_s { dir_s }              ;
 		const char* msg     = nullptr              ;
-		size_t      res     = dir_s[0]=='/'?0:Npos ;                                                           // return the pos of the / between existing and new components
+		size_t      res     = dir_s[0]=='/'?0:Npos ;                                                                  // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string const& d_s = to_mk_s.back() ;                                                             // parents are after children in to_mk
+			::string const& d_s = to_mk_s.back() ;                                                                    // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d_s) ; }
 			if (::mkdirat(at,no_slash(d_s).c_str(),0777)==0) {
 				res++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                  // done
+			}                                                                                                         // done
 			switch (errno) {
 				case EEXIST :
-					if ( unlnk_ok && !is_dir(at,no_slash(d_s)) )   unlnk(at,no_slash(d_s)) ;                   // retry
-					else                                         { res = d_s.size()-1 ; to_mk_s.pop_back() ; } // done
+					if ( unlnk_ok && !is_dir_s(at,d_s) )   unlnk(at,no_slash(d_s),false/*dir_ok*/,true/*abs_ok*/) ;   // retry
+					else                                 { res = d_s.size()-1 ; to_mk_s.pop_back() ;                } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;                                   // retry after parent is created
-					else              { msg = "cannot create top dir" ; goto Bad ; }                           // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;                                          // retry after parent is created
+					else              { msg = "cannot create top dir" ; goto Bad ; }                                  // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
 					msg = "cannot create dir" ;
@@ -251,6 +251,11 @@ namespace Disk {
 	}
 	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s ,                       bool unlnk_ok ) { return _mk_dir_s(at,dir_s,nullptr   ,unlnk_ok) ; }
 	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , NfsGuard& nfs_guard , bool unlnk_ok ) { return _mk_dir_s(at,dir_s,&nfs_guard,unlnk_ok) ; }
+
+	void mk_dir_empty_s( Fd at , ::string const& dir_s , bool abs_ok ) {
+		try                     { unlnk_inside_s(at,dir_s,abs_ok) ; }
+		catch (::string const&) { mk_dir_s(at,dir_s)              ; } // ensure tmp dir exists
+	}
 
 	void dir_guard( Fd at , ::string const& file ) {
 		if (has_dir(file)) mk_dir_s(at,dir_name_s(file)) ;
@@ -492,7 +497,7 @@ namespace Disk {
 				}
 			}
 			size_t prev_real_size = real.size() ;
-			size_t src_idx        = Npos        ; // Npos means not in a source dir
+			size_t src_idx        = Npos        ;                                  // Npos means not in a source dir
 			real.push_back('/')           ;
 			real.append(file,pos,end-pos) ;
 			if ( !exists             ) continue       ;                            // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
@@ -511,7 +516,7 @@ namespace Disk {
 				case LnkSupport::Full :           goto HandleLnk ;
 			DF}                                                                    // NO_COV
 		HandleLnk :
-			::string& nxt = local_file[ping] ;                                                                               // bounce, initially, when file is neither local_file's, any buffer is ok
+			::string& nxt = local_file[ping] ;                          // bounce, initially, when file is neither local_file's, any buffer is ok
 			nxt = read_lnk(_nfs_guard.access(real)) ;
 			if (!nxt) {
 				if (errno==ENOENT) exists = false ;

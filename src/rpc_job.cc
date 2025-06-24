@@ -813,10 +813,10 @@ bool JobSpace::enter(
 	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw "non top-level repo_view " +no_slash(super_repo_view_s)+" not yet implemented" ;
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw "non top-level tmp_view "  +no_slash(tmp_view_s       )+" not yet implemented" ;
 	//
-	::string chroot_dir        = chroot_dir_s                                                          ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
-	bool     must_create_lmake = +lmake_view_s      && !is_dir(chroot_dir+no_slash(lmake_view_s     )) ;
-	bool     must_create_repo  = +super_repo_view_s && !is_dir(chroot_dir+no_slash(super_repo_view_s)) ;
-	bool     must_create_tmp   = +tmp_view_s        && !is_dir(chroot_dir+no_slash(tmp_view_s       )) ;
+	::string chroot_dir        = chroot_dir_s                                                  ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
+	bool     must_create_lmake = +lmake_view_s      && !is_dir_s(chroot_dir+lmake_view_s     ) ;
+	bool     must_create_repo  = +super_repo_view_s && !is_dir_s(chroot_dir+super_repo_view_s) ;
+	bool     must_create_tmp   = +tmp_view_s        && !is_dir_s(chroot_dir+tmp_view_s       ) ;
 	//
 	if (must_create_tmp) SWEAR(+phy_tmp_dir_s) ;
 	trace("create",STR(must_create_lmake),STR(must_create_repo),STR(must_create_tmp)) ;
@@ -873,6 +873,7 @@ bool JobSpace::enter(
 	for( auto const& [view,descr] : views ) if (+descr) {                                                                      // empty descr does not represent a view
 		::string   abs_view = mk_abs(view,top_repo_root_s) ;
 		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ;
+		//
 		for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,top_repo_root_s)) ;
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
@@ -896,7 +897,7 @@ bool JobSpace::enter(
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,top_repo_root_s) ) ;
 		}
-		if (+tmp_view_s) {
+		if (+tmp_view_s) {                                                // curiously, we have permission to mount, but not to unmount, so avoid unlinking mounted dirs to avoid a catastroph
 			if (view  .starts_with(tmp_view_s)) no_unlnk.insert(view  ) ;
 			if (work_s.starts_with(tmp_view_s)) no_unlnk.insert(work_s) ;
 		}
@@ -1070,13 +1071,9 @@ bool/*entered*/ JobStartRpcReply::enter(
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
 	if (+phy_tmp_dir_s) {
-		_tmp_dir_s = autodep_env.tmp_dir_s ;                                       // for use in exit (autodep.tmp_dir_s may be moved)
-		try {
-			unlnk_inside_s(phy_tmp_dir_s,true/*abs_ok*/) ;                         // ensure tmp dir is clean
-		} catch (::string const&) {
-			try                       { mk_dir_s(phy_tmp_dir_s) ;            }     // ensure tmp dir exists
-			catch (::string const& e) { throw "cannot create tmp dir : "+e ; }
-		}
+		_tmp_dir_s = autodep_env.tmp_dir_s ;                                             // for use in exit (autodep.tmp_dir_s may be moved)
+		try                       { mk_dir_empty_s( phy_tmp_dir_s , true/*abs_ok*/ ) ; }
+		catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
 	} else {
 		if (+job_space.tmp_view_s) throw "cannot map tmp dir "+job_space.tmp_view_s+" to nowhere" ;
 	}
@@ -1101,10 +1098,10 @@ bool/*entered*/ JobStartRpcReply::enter(
 		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
 		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
 		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-		static constexpr uint32_t FirstPid = 300                                 ; // apparently, pid's wrap around back to 300
-		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ; // number of available pid's
-		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
-		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;   // DeltaPid on 64 bits to avoid rare overflow in multiplication
+		static constexpr uint32_t FirstPid = 300                                 ;       // apparently, pid's wrap around back to 300
+		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;       // number of available pid's
+		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;       // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;         // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
 	trace("done",actions,cmd_env,dyn_env,first_pid,top_repo_root_s) ;
 	return entered ;

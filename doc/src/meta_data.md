@@ -24,13 +24,32 @@ They contain several types of lines, depending on the first char:
 
 These contents are then used to determine if each section must be refreshed when a new `lmake` command is run.
 
+### `LMAKE/auto_tmp`
+
+This dir contains the default tmp dirs of jobs.
+
 ### `LMAKE/config`
 
 This file contains a description of the `lmake.config` `dict` as it has been understood by open-lmake after having processed `Lmakefile.py`.
 
+### `LMAKE/debug`
+
+This dir contains a sub-dir for each job `ldebug` was used for.
+These sub-dirs are named after the job id as displayed by `lshow -i`.
+
 ### `LMAKE/environ`
 
 This file contains the list of environment variables actually used in `Lmakefile.py` in the form of lines containing `<key>=<value>`.
+
+### `LMAKE/last_output`
+
+This file is a symbolic link to the last transcript.
+
+### `LMAKE/lmakefile_tmp`
+
+This dir contains the tmp dirs used when reading `Lmakefile.py`.
+When several passes are used, each pass has its own tmp dir.
+These are kept after reading for debugging purpose.
 
 ### `LMAKE/manifest`
 
@@ -53,37 +72,10 @@ The listed rules are provided as:
 - Its name.
 - The target corresponding to this prefix/suffix pair.
 
-### `LMAKE/rules`
-
-This file contains a description of the rules as they have been understood by open-lmake after having processed `Lmakefile.py`.
-
 ### `LMAKE/outputs/<date>/<time>`
 
 This file contains a transcript of the `lmake` command that has been run at `<time>` on `<day>`.
 Such logs are kept for a number of days given in `lmake.config.console.history_days`.
-
-### `LMAKE/last_output`
-
-This file is a symbolic link to the last transcript.
-
-### `LMAKE/targets`
-
-This file contains the targets that have been required by `lmake` commands in chronological order (with duplicates removed).
-
-### `LMAKE/version`
-
-This file contains a state-recording version of open-lmake.
-If the recorded version does not match the used version, none of the open-lmake commands can be used.
-
-### `LMAKE/debug`
-
-This dir contains a sub-dir for each job `ldebug` was used for.
-These sub-dirs are named after the job id as displayed by `lshow -i`.
-
-### `LMAKE/tmp`
-
-This dir contains a sub-dir for each job which was run while keeping its tmp dir.
-These sub-dirs are named after the job id as displayed by `lshow -i`.
 
 ### `LMAKE/quarantine`
 
@@ -91,3 +83,20 @@ This dir contains all files that have been quarantined.
 A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
 In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.
 
+### `LMAKE/rules`
+
+This file contains a description of the rules as they have been understood by open-lmake after having processed `Lmakefile.py`.
+
+### `LMAKE/targets`
+
+This file contains the targets that have been required by `lmake` commands in chronological order (with duplicates removed).
+
+### `LMAKE/tmp`
+
+This dir contains a sub-dir for each job which was run while keeping its tmp dir.
+These sub-dirs are named after the job id as displayed by `lshow -i`.
+
+### `LMAKE/version`
+
+This file contains a state-recording version of open-lmake.
+If the recorded version does not match the used version, none of the open-lmake commands can be used.

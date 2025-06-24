@@ -30,7 +30,7 @@ SearchRootResult search_root(::string const& cwd_s_) {
 		case 1 : repo_root_s = candidates[0] ; break ;
 		default : {
 			::vector_s candidates2 ;
-			for( ::string const& c : candidates ) if (is_dir(no_slash(c+AdminDirS))) candidates2.push_back(c) ;
+			for( ::string const& c : candidates ) if (is_dir_s(c+AdminDirS)) candidates2.push_back(c) ;
 			switch (candidates2.size()) {
 				case 0 : {
 					::string msg = "ambiguous root dir, to disambiguate, consider one of :\n" ;

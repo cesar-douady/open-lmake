@@ -152,8 +152,8 @@ namespace Engine {
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
 		// START_OF_VERSIONING
-		size_t                                                                  max_err_lines = 0              ; // unlimited
 		FileSync                                                                file_sync     = FileSync::Dflt ; // if true => dirs coherence is enforced when files are modified
+		size_t                                                                  max_err_lines = 0              ; // unlimited
 		uint8_t                                                                 nice          = 0              ; // nice value applied to jobs
 		Console                                                                 console       ;
 		::array<Backend,N<BackendTag>>                                          backends      ;                  // backend may refuse dynamic modification
