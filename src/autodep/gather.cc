@@ -22,15 +22,25 @@ using namespace Time ;
 
 ::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) { // START_OF_NO_COV
 	Pdate fr = ai.first_read() ;
-	/**/                           os << "AccessInfo("           ;
-	if (fr        !=Pdate::Future) os << "R:" <<fr         <<',' ;
-	if (ai._target!=Pdate::Future) os << "T:" <<ai._target <<',' ;
-	if (ai._write !=Pdate::Future) os << "W:" <<ai._write  <<',' ;
-	if (+ai.dep_info             ) os << ai.dep_info       <<',' ;
-	/**/                           os << ai.flags                ;
-	if (ai._seen!=Pdate::Future  ) os <<",seen"                  ;
-	return                         os <<')'                      ;
+	/**/                          os << "AccessInfo("           ;
+	if (fr       !=Pdate::Future) os << "R:" <<fr         <<',' ;
+	if (ai._allow!=Pdate::Future) os << "A:" <<ai._allow  <<',' ;
+	if (ai._write!=Pdate::Future) os << "W:" <<ai._write  <<',' ;
+	if (+ai.dep_info            ) os << ai.dep_info       <<',' ;
+	/**/                          os << ai.flags                ;
+	if (ai._seen!=Pdate::Future ) os <<",seen"                  ;
+	return                        os <<')'                      ;
 }                                                                     // END_OF_NO_COV
+
+Pdate Gather::AccessInfo::_max_read(bool phys) const {
+	if (_washed) {
+		if (phys                       ) return {} ;                                  // washing has a physical impact
+		if (flags.tflags[Tflag::Target]) return {} ;                                  // if a target, washing is a logical write
+	}
+	PD                                         res = ::min( _read_ignore , _write ) ;
+	if ( !phys && !flags.dep_and_target_ok() ) res = ::min( res          , _allow ) ; // logically, once file is a target, reads are ignored, unless it is also a dep
+	return res ;
+}
 
 Accesses Gather::AccessInfo::accesses() const {
 	PD       ma  = _max_read(false/*phys*/) ;
@@ -40,7 +50,7 @@ Accesses Gather::AccessInfo::accesses() const {
 }
 
 Pdate Gather::AccessInfo::first_read() const {
-	PD    res = PD::Future  ;
+	PD    res = PD::Future               ;
 	Pdate mr  = _max_read(false/*phys*/) ;
 	//
 	for( Access a : iota(All<Access>) ) if (_read[+a]<res) res = _read[+a] ;
@@ -52,8 +62,9 @@ Pdate Gather::AccessInfo::first_read() const {
 }
 
 Pdate Gather::AccessInfo::first_write() const {
-	if (_write<=_max_write()) return _write     ;
-	else                      return PD::Future ;
+	if ( _washed && flags.tflags[Tflag::Target] ) return {}         ;
+	if ( _write<=_max_write()                   ) return _write     ;
+	else                                          return PD::Future ;
 }
 
 ::pair<Pdate,bool> Gather::AccessInfo::sort_key() const {
@@ -62,10 +73,10 @@ Pdate Gather::AccessInfo::first_write() const {
 	else               return { first_write() , true  } ;
 }
 
-void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool started , DI const& di ) {
-	SWEAR(ad.write!=Maybe) ;                                                                                                      // this must have been solved by caller
-	if ( ad.flags.extra_tflags[ExtraTflag::Ignore] ) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                // ignore target implies ignore dep
-	if ( ad.write==Yes && started                  ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const& di ) {
+	SWEAR(ad.write!=Maybe) ;                                                                                                        // this must have been solved by caller
+	if ( ad.flags.extra_tflags[ExtraTflag::Ignore] ) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                  // ignore target implies ignore dep
+	if ( ad.write==Yes && late                     ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
 	flags |= ad.flags ;
 	//
 	if (+di) {
@@ -73,15 +84,16 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool started , DI con
 		dep_info = di ;
 	NotFirst : ;
 	}
-	for( Access a : iota(All<Access>) ) if ( pd<_read[+a] && ad.accesses[a]                   ) _read[+a] = pd ;
-	/**/                                if ( pd<_read_dir && ad.read_dir                      ) _read_dir = pd ;
-	/**/                                if ( pd<_write    && ad.write==Yes                    ) _write    = pd ;
-	/**/                                if ( pd<_target   && ad.flags.is_target()             ) _target   = pd ;
-	/**/                                if ( pd<_required && ad.flags.dflags[Dflag::Required] ) _required = pd ;
-	/**/                                if ( pd<_seen     && di.seen(ad.accesses)             ) _seen     = pd ;
-	if (+pd) pd-- ;                                                                                                               // ignore applies to simultaneous accesses
-	/**/                                if ( pd<_read_ignore  && ad.flags.extra_dflags[ExtraDflag::Ignore] ) _read_ignore  = pd ;
-	/**/                                if ( pd<_write_ignore && ad.flags.extra_tflags[ExtraTflag::Ignore] ) _write_ignore = pd ;
+	for( Access a : iota(All<Access>) )   if ( pd<_read[+a] && ad.accesses[a]                           ) _read[+a] = pd   ;
+	/**/                                  if ( pd<_read_dir && ad.read_dir                              ) _read_dir = pd   ;
+	if (late)                           { if ( pd<_write    && ad.write==Yes                            ) _write    = pd   ; }
+	else                                { if (                 ad.write==Yes                            ) _washed   = true ; }
+	/**/                                  if ( pd<_allow    && ad.flags.extra_tflags[ExtraTflag::Allow] ) _allow    = pd   ;
+	/**/                                  if ( pd<_required && ad.flags.dflags[Dflag::Required]         ) _required = pd   ;
+	/**/                                  if ( pd<_seen     && di.seen(ad.accesses)                     ) _seen     = pd   ;
+	if (+pd) pd-- ;                                                                                                                 // ignore applies to simultaneous accesses
+	/**/                                  if ( pd<_read_ignore  && ad.flags.extra_dflags[ExtraDflag::Ignore] ) _read_ignore  = pd ;
+	/**/                                  if ( pd<_write_ignore && ad.flags.extra_tflags[ExtraTflag::Ignore] ) _write_ignore = pd ;
 }
 
 //
@@ -94,9 +106,10 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool started , DI con
 	return           os << ')'                      ;
 }                                                         // END_OF_NO_COV
 
-void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Comment c , CommentExts ces ) {
+void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
 	SWEAR( +file , c , ces        ) ;
 	SWEAR( +pd   , c , ces , file ) ;
+	if (late==Maybe) SWEAR( ad.write==No ) ;                                                                                   // when writing, we must know if job is started
 	AccessInfo* info        = nullptr/*garbage*/                       ;
 	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
 	if (is_new) {
@@ -114,7 +127,7 @@ void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI 
 		else                                         ad.write = No | (FileSig(file)!=info->dep_info.sig()) ;
 	}
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update( pd , ad , +start_date , di ) ;
+	info->update( pd , ad , late==Yes , di ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || *info!=old_info ) {
 		if (+c) {
@@ -126,8 +139,8 @@ void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI 
 }
 
 void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
-	RealPath              rp       { autodep_env }                    ;
-	RealPath::SolveReport sr       = rp.solve(exe,false/*no_follow*/) ;
+	RealPath              rp { autodep_env }                    ;
+	RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(sr) )
 		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
@@ -155,14 +168,14 @@ bool/*sent*/ Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
 void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
-	if (!jerr.sync) fd = {} ;                                                                                            // dont reply if not sync
+	if (!jerr.sync) fd = {} ;                                                                                                  // dont reply if not sync
 	JobMngtRpcReq jmrr { .proc=JobMngtProc::None , .seq_id=seq_id , .job=job , .fd=fd } ;
 	//
 	switch (jerr.proc) {
 		case Proc::ChkDeps :
 			_exec_trace( jerr.date , jerr.comment , jerr.comment_exts ) ;
 			jmrr.proc = JobMngtProc::ChkDeps ;
-			reorder(false/*at_end*/) ;                                                                                   // ensure server sees a coherent view
+			reorder(false/*at_end*/) ;                                                                                         // ensure server sees a coherent view
 			jmrr.deps = cur_deps_cb() ;
 		break ;
 		case Proc::DepVerbose : {
@@ -172,8 +185,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.deps.reserve(files.size()) ;
 			for( auto& [f,fi] : files ) {
 				_exec_trace( jerr.date , jerr.comment , jerr.comment_exts , f ) ;
-				new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , jerr.comment , jerr.comment_exts ) ;
-				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ; // no need for flags to ask info
+				new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , Yes/*late*/ , jerr.comment , jerr.comment_exts ) ;
+				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ;       // no need for flags to ask info
 			}
 			_dep_verboses.erase(it) ;
 		} break ;
@@ -190,9 +203,9 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.txt  = ::move(jerr.file) ;
 			_codecs.erase(it) ;
 		} break ;
-	DF}                                                                                                                  // NO_COV
+	DF}                                                                                                                        // NO_COV
 	if (_send_to_server(jmrr)) { _n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ; }
-	else                         sync(fd,{}) ;                                                                           // send an empty reply, job will invent something reasonable
+	else                         sync(fd,{}) ;                                                                                 // send an empty reply, job will invent something reasonable
 }
 
 void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
@@ -544,7 +557,7 @@ Status Gather::exec_child() {
 								_exec_trace( New , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode , CommentExt::Reply , jmrr.txt ) ;
 								auto it = _codec_files.find(jmrr.fd) ;
 								SWEAR(it!=_codec_files.end(),jmrr,_codec_files) ;
-								new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode ) ;
+								new_access( rfd , PD(New) , ::move(it->second) , {.accesses=Access::Reg} , jmrr.crc , Yes/*late*/ , jmrr.proc==JobMngtProc::Encode?Comment::encode:Comment::decode ) ;
 								_codec_files.erase(it) ;
 							} break ;
 							case JobMngtProc::AddLiveOut : {

@@ -69,33 +69,30 @@ struct Gather {                                                       // NOLINT(
 		//                                                  phys
 		bool seen    () const { return _seen    <_max_read (true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
 		bool read_dir() const { return _read_dir<_max_read (true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
-		bool target  () const { return _target  <_max_write(    ) ; } // if true <=> file has been declared target
+		bool allow   () const { return _allow   <_max_write(    ) ; } // if true <=> file has been declared target
 	private :
-		PD _max_write(         ) const { return _write_ignore ; }                                             // max date for a write to be taken into account, always <Future
-		PD _max_read (bool phys) const {                                                                      // max date for a read  to be taken into account, always <Future
-			PD                                         res = ::min( _read_ignore , _write  ) ;
-			if ( !phys && !flags.dep_and_target_ok() ) res = ::min( res          , _target ) ;
-			return res ;
-		}
+		PD _max_write(         ) const { return _write_ignore ; }     // max date for a write to be taken into account, always <Future
+		PD _max_read (bool phys) const ;                              // max date for a read  to be taken into account, always <Future
 		// services
 	public :
-		void update( PD , AccessDigest , bool started , DI const& ={} ) ;
+		void update( PD , AccessDigest , bool late , DI const& ={} ) ;
 		//
 		void chk() const ;
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		MatchFlags flags    { .dflags={} } ;                                                                  // initially, no dflags, not even default ones (as they accumulate)
-		DI         dep_info ;                                                                                 // state when first read
+		MatchFlags flags    { .dflags={} } ;                          // initially, no dflags, not even default ones (as they accumulate)
+		DI         dep_info ;                                         // state when first read
 	private :
-		PD _read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ;        // first access date for each access
-		PD _read_dir        = PD::Future                             ;                                        // first date at which file has been read as a dir
-		PD _write           = PD::Future                             ;                                        // first sure write
-		PD _target          = PD::Future                             ;                                        // first date at which file was known to be a target
-		PD _required        = PD::Future                             ;                                        // first date at which file was required
-		PD _seen            = PD::Future                             ;                                        // first date at which file has been seen existing
-		PD _read_ignore     = PD::Future1                            ;                                        // first date at which reads  are ignored, always <Future
-		PD _write_ignore    = PD::Future1                            ;                                        // first date at which writes are ignored, always <Future
+		PD   _read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ;      // first access date for each access
+		PD   _read_dir        = PD::Future                             ;                                      // first date at which file has been read as a dir
+		PD   _write           = PD::Future                             ;                                      // first sure write
+		PD   _allow           = PD::Future                             ;                                      // first date at which file was known to be a target
+		PD   _required        = PD::Future                             ;                                      // first date at which file was required
+		PD   _seen            = PD::Future                             ;                                      // first date at which file has been seen existing
+		PD   _read_ignore     = PD::Future1                            ;                                      // first date at which reads  are ignored, always <Future
+		PD   _write_ignore    = PD::Future1                            ;                                      // first date at which writes are ignored, always <Future
+		bool _washed          = false                                  ;
 	} ;
 	// statics
 private :
@@ -109,18 +106,17 @@ private :
 		guards.insert(::move(jerr.file)) ;
 	}
 	void _new_access( Fd fd , Jerr&& jerr ) {
-		new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , jerr.comment , jerr.comment_exts ) ;
+		new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
 	}
 public :
 	// Fd for trace purpose only
-	void new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , Comment  =Comment::None , CommentExts    ={} ) ;
-	void new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , Comment c=Comment::None , CommentExts ces={} ) { new_access({},pd,::move(f),ad,di,c,ces) ; }
+	void new_access( Fd , PD    , ::string&& file , AccessDigest    , DI const&    , Bool3 late , Comment  =Comment::None , CommentExts    ={} ) ; //!        Fd                    late
+	void new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , Bool3 l    , Comment c=Comment::None , CommentExts ces={} ) { new_access({},pd,::move(f),ad,di,l    ,c,ces) ; }
+	void new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di ,              Comment c=Comment::None , CommentExts ces={} ) { new_access({},pd,::move(f),ad,di,Maybe,c,ces) ; }
 	//
-	void new_target( PD pd , ::string const& t , Comment c=Comment::staticTarget , CommentExts ces={} ) { new_access(pd,::copy(t),{.write=Yes},{}/*DepInfo*/,c,ces) ; }
-	void new_guard (         ::string const& f                                                        ) { guards.insert(f) ;                                          }
+	void new_exec  ( PD , ::string const& exe , Comment=Comment::staticExec ) ;
 	//
-	void new_exec( PD    , ::string const& exe ,              Comment  =Comment::staticExec                      ) ;
-	void new_dep ( PD pd , ::string&&      dep , Accesses a , Comment c=Comment::staticDep  , CommentExts ces={} ) { new_access(pd,::move(dep),{.accesses=a},Disk::FileInfo(dep),c,ces) ; }
+	void new_guard (::string const& f) { guards.insert(f) ; }
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;

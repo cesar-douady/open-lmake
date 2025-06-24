@@ -39,7 +39,7 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
 	,	{ Flag::Essential     , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .doc="ask that deps be seen in graphical flow" } }
 	,	{ Flag::IgnoreError   , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .doc="ignore if deps are in error"             } }
-	,	{ Flag::NoExcludeStar , { .short_name=ExtraDflagChars[+ExtraDflag::NoStar     ].second , .doc="accept regexpr based flags"              } }
+	,	{ Flag::NoExcludeStar , { .short_name=ExtraDflagChars[+ExtraDflag::NoStar     ].second , .doc="accept regexpr-based flags"              } }
 	,	{ Flag::NoRequired    , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .doc="ignore if deps cannot be built"          } }
 	,	{ Flag::Ignore        , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .doc="ignore deps"                             } }
 	,	{ Flag::ReaddirOk     , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                           } }

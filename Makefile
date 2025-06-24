@@ -820,6 +820,7 @@ lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp    ; \
 	wait $$!                                          ; \
 	rm -rf LMAKE.bck                                  ; \
+	sleep 1 ; : ensure lmakeserver has gone           ; \
 	$(REPO_ROOT)/bin/lrepair >>$(@F).tmp              ; \
 	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp2   ; \
 	grep -q 'was already up to date' $(@F).tmp2 && {    \

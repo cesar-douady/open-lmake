@@ -41,7 +41,7 @@ if __name__!='__main__' :
 			'DUT' : '{File}'
 		}
 		side_deps = {
-			'REF'  : '{File}.ref' # Set as side_deps to be optionnal, so that it is possible to add new ref
+			'REF' : '{File}.ref' # Set as side_deps to be optionnal, so that it is possible to add new ref
 		}
 		def cmd() :
 			try                      : ref_crc = open(REF).read().strip()

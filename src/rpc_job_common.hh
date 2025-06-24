@@ -131,9 +131,8 @@ struct MatchFlags {
 	bool operator==(MatchFlags const&) const = default ;
 	bool operator+ (                 ) const { return +tflags || +dflags || +extra_tflags || +extra_dflags ; }
 	//
-	bool is_target        () const { return extra_tflags[ExtraTflag::Allow]                                                         ; }
-	Kind kind             () const { return !is_target() ? Kind::SideDep : !tflags[Tflag::Target] ? Kind::SideTarget : Kind::Target ; }
-	bool dep_and_target_ok() const { return extra_tflags[ExtraTflag::SourceOk] && !tflags[Tflag::Incremental]                       ; }
+	Kind kind             () const { return !extra_tflags[ExtraTflag::Allow] ? Kind::SideDep : !tflags[Tflag::Target] ? Kind::SideTarget : Kind::Target ; }
+	bool dep_and_target_ok() const { return extra_tflags[ExtraTflag::SourceOk] && !tflags[Tflag::Incremental]                                           ; }
 	// services
 	MatchFlags& operator|=(MatchFlags mfs) {
 		tflags       |= mfs.tflags       ;
@@ -261,6 +260,7 @@ enum class Comment : uint8_t {
 ,	target
 ,	tmp
 ,	trace
+,	unexpectedTarget
 ,	unstable
 ,	uploadedToCache
 ,	wash

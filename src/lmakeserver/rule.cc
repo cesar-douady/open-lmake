@@ -1537,7 +1537,7 @@ namespace Engine {
 	::uset<Node> Rule::RuleMatch::target_dirs() const {
 		::uset<Node> dirs ;
 		for( auto const& [k,me] : rule->matches ) {
-			if (!me.flags.is_target()) continue ;
+			if (!me.flags.extra_tflags[ExtraTflag::Allow]) continue ;
 			::string target = _subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string { return stems[s] ; }
