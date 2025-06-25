@@ -141,9 +141,9 @@ template<UEnum E> inline bool can_mk_enum(::string const& x) {
 }
 
 template<UEnum E> inline E mk_enum(::string const& x) {
-	::pair<E,bool/*ok*/> res = EnumHelper::mk_enum<E>(x) ;
-	throw_unless( res.second , "cannot make enum ",EnumHelper::EnumName<E>," from ",x ) ;
-	return res.first ;
+	::pair<E,bool/*ok*/> res_ok = EnumHelper::mk_enum<E>(x) ;
+	throw_unless( res_ok.second , "cannot make enum ",EnumHelper::EnumName<E>," from ",x ) ;
+	return res_ok.first ;
 }
 
 template<Enum E> inline constexpr EnumHelper::EnumInt<E> operator+(E e) { return EnumHelper::EnumInt<E>(e) ; }

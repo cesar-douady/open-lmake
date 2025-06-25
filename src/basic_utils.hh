@@ -305,10 +305,10 @@ template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>        
 template<_CanDoBool    B> inline ::string& operator+=( ::string& s , B         b ) { return s +=  b?"true":"false"                                           ; }
 template<_CanDoToHex   T> inline ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
 template<_CanDoToChars N> inline ::string& operator+=( ::string& s , N         n ) {
-	size_t sz = s.size() ;
-	s.resize(sz+30) ;
-	::string res ( 30 , 0 ) ;
-	::to_chars_result rc = ::to_chars( s.data()+sz , s.data()+s.size() , n ) ; SWEAR(rc.ec==::errc()) ;
+	size_t old_sz = s.size()  ;
+	size_t new_sz = old_sz+30 ;                                                        // more than enough to print a number
+	s.resize(new_sz) ;
+	::to_chars_result rc = ::to_chars( s.data()+old_sz , s.data()+new_sz , n ) ; SWEAR(rc.ec==::errc()) ; SWEAR(rc.ptr<=s.data()+new_sz) ;
 	s.resize(rc.ptr-s.data()) ;
 	return s ;
 }

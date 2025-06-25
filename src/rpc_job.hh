@@ -991,7 +991,7 @@ struct JobInfo {
 
 namespace Codec {
 
-	static constexpr char CodecPfx[] = ADMIN_DIR_S "codec/" ;
+	static constexpr char CodecPfxS[] = ADMIN_DIR_S "codec/" ;
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) ;
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val  ) ;

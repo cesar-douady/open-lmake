@@ -1292,8 +1292,8 @@ namespace Store {
 	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::pair<Idx/*top*/,::vector<Idx>/*created*/> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_chain( Idx root , VecView const& name , Char sep ) {
 			chk_thread() ;
-			DvgDigest                                   dvg  { root , self , name , {} , 0 , sep } ;
-			::pair<Idx/*top*/,::vector<Idx>/*created*/> res  { dvg.used_idx , {}/*created*/ }      ;
+			DvgDigest                 dvg         { root , self , name , {} , 0 , sep } ;
+			::pair<Idx,::vector<Idx>> top_created { dvg.used_idx , {}/*created*/ }      ;
 			if (dvg.dvg!=Dvg::Match) {
 				SWEAR(dvg.used_pos<name.size(),dvg.used_pos,name) ; // else we should have a match
 				//
@@ -1306,10 +1306,10 @@ namespace Store {
 					if (Reverse) dvg = { idx , ChunkIdx(_at(idx).chunk_sz) , self , n , {} , prev_sep_pos , sep } ;
 					else         dvg = { idx , ChunkIdx(_at(idx).chunk_sz) , self , n , {} , prev_sep_pos , sep } ;
 					idx = _insert( dvg.idx , dvg.chunk_pos , n , {} , dvg.name_pos ) ; if constexpr (HasData) SWEAR(at(idx)==DataNv()) ;
-					res.second.push_back(idx) ;
+					top_created.second.push_back(idx) ;
 				}
 			}
-			return res ;
+			return top_created ;
 		}
 
 	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>

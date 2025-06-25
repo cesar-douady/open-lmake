@@ -170,8 +170,7 @@ namespace Backends::Sge {
 		virtual RsrcsData import_( ::vmap_ss     && rsa , Req , Job ) const { return {::move(rsa)} ; }
 		//
 		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
-			bool res = spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
-			return res ;
+			return spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 		}
 		virtual void acquire_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.inc(rs) ;

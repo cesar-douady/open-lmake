@@ -742,18 +742,18 @@ namespace Engine {
 		Trace trace("Nforget",idx(),STR(targets),STR(deps),STR(waiting()),conform_job_tgts()) ;
 		if (waiting()) return false ;
 		//
-		bool    res  = true ;
+		bool    ok   = true ;
 		RuleIdx k    = 0    ;
 		RuleIdx prio = 0    ;
 		for( Job j : job_tgts().subvec(0,n_job_tgts) ) {
 			RuleIdx p = j->rule()->prio ;
 			if (p<prio) break ;              // all jobs above or besides conform job(s)
-			res &= j->forget(targets,deps) ;
+			ok &= j->forget(targets,deps) ;
 			if (k==conform_idx()) prio = p ;
 			k++ ;
 		}
 		match_gen = 0 ;
-		return res ;
+		return ok ;
 	}
 
 	void NodeData::mk_old() {

@@ -38,6 +38,7 @@ else :
 
 	import os
 	import os.path as osp
+	import time
 
 	import ut
 
@@ -54,6 +55,7 @@ else :
 	assert os.system('ldump_job LMAKE/lmake/local_admin/job_data/2')==0 # check no crash
 	assert os.system('lkpi'                                        )==0 # check no crash
 
+	while osp.exists('LMAKE/server') : time.sleep(1)         # ensure server has gone
 	assert           os.system('chmod -w -R .'          )==0 # check we can interrogate a read-only repo
 	try     : assert os.system('lshow -i hello+world_sh')==0
 	finally : assert os.system('chmod u+w -R .'         )==0 # restore state

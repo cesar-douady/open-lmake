@@ -358,7 +358,8 @@ namespace Engine::Persistent {
 	bool/*invalidate*/ new_rules       ( Rules  && , bool dyn                                 ) ;
 	void               invalidate_match( bool force_physical=false                            ) ;
 	//
-	void chk() ;
+	void chk     () ;
+	void finalize() ; // XXX : suppress when bug is found
 
 	template<class Disk,class Item> void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
 		bool modified = false ;

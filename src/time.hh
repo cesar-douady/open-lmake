@@ -334,8 +334,8 @@ namespace Time {
 		Mutex<MutexLvl::Time>       m   ;
 		Lock<Mutex<MutexLvl::Time>> lck { m } ;
 		::condition_variable_any cv  ;
-		bool res = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
-		return res ;
+		bool slept = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
+		return slept ;
 	}
 	inline bool/*slept*/ Delay::sleep_for( ::stop_token tkn , bool flush ) const {                      // if flush, consider we slept if asked to stop but we do not have to wait
 		return _s_sleep( tkn , self , Pdate(New)+self , flush ) ;

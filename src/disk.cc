@@ -187,8 +187,10 @@ namespace Disk {
 		if (!abs_ok                         ) SWEAR( !file || is_lcl(file) , file           ) ;                      // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
 		if (errno==ENOENT                   ) return false/*done*/ ;
-		if (!dir_ok                         ) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink "     +file ; }
-		if (errno!=EISDIR                   ) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink file "+file ; }
+		if ( !dir_ok || errno!=EISDIR       ) {
+			if (ignore_errs) return false/*done*/                                     ;
+			else             throw "cannot unlink file "+file+" : "+::strerror(errno) ;
+		}
 		//
 		unlnk_inside_s(at,with_slash(file),abs_ok,force,ignore_errs) ;
 		//
@@ -221,19 +223,19 @@ namespace Disk {
 	static size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard , bool unlnk_ok ) {
 		::vector_s  to_mk_s { dir_s }              ;
 		const char* msg     = nullptr              ;
-		size_t      res     = dir_s[0]=='/'?0:Npos ;                                                                  // return the pos of the / between existing and new components
+		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                                                  // return the pos of the / between existing and new components
 		while (+to_mk_s) {
 			::string const& d_s = to_mk_s.back() ;                                                                    // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d_s) ; }
 			if (::mkdirat(at,no_slash(d_s).c_str(),0777)==0) {
-				res++ ;
+				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
 			}                                                                                                         // done
 			switch (errno) {
 				case EEXIST :
 					if ( unlnk_ok && !is_dir_s(at,d_s) )   unlnk(at,no_slash(d_s),false/*dir_ok*/,true/*abs_ok*/) ;   // retry
-					else                                 { res = d_s.size()-1 ; to_mk_s.pop_back() ;                } // done
+					else                                 { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
@@ -247,7 +249,7 @@ namespace Disk {
 					else             throw cat(msg," @",at.fd,':',no_slash(d_s)) ;
 			}
 		}
-		return res ;
+		return pos ;
 	}
 	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s ,                       bool unlnk_ok ) { return _mk_dir_s(at,dir_s,nullptr   ,unlnk_ok) ; }
 	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , NfsGuard& nfs_guard , bool unlnk_ok ) { return _mk_dir_s(at,dir_s,&nfs_guard,unlnk_ok) ; }

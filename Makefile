@@ -241,6 +241,7 @@ LMAKE_SERVER_BIN_FILES := \
 	bin/lmake                    \
 	bin/lmark                    \
 	bin/lrepair                  \
+	bin/ldircache_repair         \
 	bin/lrun_cc                  \
 	bin/lshow                    \
 	bin/xxhsum
@@ -562,6 +563,15 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
+
+bin/ldircache_repair : \
+	$(LMAKE_BASIC_SAN_OBJS) \
+	src/ldircache_repair$(SAN).o
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(Z_LIB) $(LINK_LIB)
+	@$(SPLIT_DBG_CMD)
+
 
 bin/lmake   : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
 bin/lshow   : $(CLIENT_SAN_OBJS) src/lshow$(SAN).o

@@ -21,9 +21,7 @@ namespace Store {
 		File () = default ;
 		File ( NewType                                ) { init(New            ) ; }
 		File ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
-		~File() {
-			if (base) close() ;
-		}
+		~File(                                        ) { close()               ; }
 		//
 		File& operator=(File&& other) ;
 		//
@@ -31,6 +29,7 @@ namespace Store {
 		void init( NewType                                ) { init("",true/*writable_*/) ; }
 		void close() {
 			chk_thread() ;
+			if (!base) return ;
 			_dealloc() ;
 			_fd.close() ;
 		}

@@ -386,7 +386,6 @@ namespace Engine {
 	}
 
 	void DynBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
-		::string         res                 ;
 		RuleData const&  rd                  = *( +j ? j->rule() : m.rule )                        ;
 		::vmap_ss const& rsrcs_spec          = rd.submit_rsrcs_attrs.spec.rsrcs                    ;
 		::vector_s       mtab                ;
@@ -606,15 +605,16 @@ namespace Engine {
 
 	::pair_s</*msg*/::vmap_s<DepSpec>> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
 		try {
-			::pair_s</*msg*/::vmap_s<DepSpec>> res       ;
-			/**/            ::vmap_s<DepSpec>& dep_specs = res.second ;
+			::pair_s<::vmap_s<DepSpec>> msg_ds    ;
+			::string         &          msg       = msg_ds.first  ;
+			::vmap_s<DepSpec>&          dep_specs = msg_ds.second ;
 			for( auto const& [k,ds] : spec.deps ) {
 				dep_specs.emplace_back( k , DepSpec{ {} , ds.dflags , ds.extra_dflags } ) ; // create an entry for each dep so that indexes stored in other attributes (e.g. cmd) are correct
 				if (!ds.txt) continue ;                                                     // entry is dynamic
 				::string  d   = s_parse_fstr(ds.txt,match)  ;
 				::string& txt = dep_specs.back().second.txt ;
-				try                      { if (Rule::s_qualify_dep(k,d)) txt       = ::move(d) ; }
-				catch(::string const& e) { if (!res.first              ) res.first = e         ; }
+				try                      { if (Rule::s_qualify_dep(k,d)) txt = ::move(d) ; }
+				catch(::string const& e) { if (!msg                    ) msg = e         ; }
 			}
 			//
 			if (is_dyn()) {
@@ -643,7 +643,7 @@ namespace Engine {
 									ds2 = ::move(ds) ;                                  // if not full dyn, all deps must be listed in spec
 								}
 							} catch(::string const& e) {
-								if (!res.first) res.first = e ;
+								if (!msg) msg = e ;
 							}
 						} catch (::string const& e) {
 							throw cat("while processing dep ",key," : ",e) ;
@@ -651,7 +651,7 @@ namespace Engine {
 					}
 			}
 			//
-			return res  ;
+			return msg_ds ;
 		} catch (::string const& e) {                                                   // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
 			throw ::pair(e,""s) ;
 		}
@@ -700,7 +700,7 @@ namespace Engine {
 		return res ;
 	}
 
-	string DynCmd::eval( bool&/*inout*/ use_script , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& start_cmd_attrs ) const {
+	::string DynCmd::eval( bool&/*inout*/ use_script , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& start_cmd_attrs ) const {
 		Rule     r   = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		::string res ;
 		// if script is large (roughly >64k), force use_script to ensure reasonable debug experience and no Linux resources overrun (max 2M for script+env if not use_script)

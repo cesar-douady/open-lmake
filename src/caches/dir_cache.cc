@@ -66,10 +66,11 @@ namespace Caches {
 		if ( auto it=config_map.find("dir") ; it!=config_map.end() ) dir_s = with_slash(it->second) ;
 		else                                                         throw "dir not found"s ;
 		//
-		Hash::Xxh key_hash ;
-		if ( auto it=config_map.find("key") ; it!=config_map.end() ) key_hash += it->second ;
-		else                                                         throw "key not found"s ;
-		key_s = "key-"+key_hash.digest().hex()+'/' ;
+		if ( auto it=config_map.find("key") ; it!=config_map.end() ) {
+			Hash::Xxh key_hash ;
+			key_hash += it->second ;
+			key_s = "key-"+key_hash.digest().hex()+'/' ;
+		}
 		//
 		if ( auto it=config_map.find("file_sync") ; it!=config_map.end() ) {
 			if      (it->second=="None"                ) file_sync = FileSync::None ;
@@ -198,12 +199,12 @@ namespace Caches {
 		try                       { repos = lst_dir_s(dfd) ;            }
 		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }                                                                    // if directory does not exist, it is as it was empty
 		if ( +deps_hint && repos.size()>1 )                                                                                                  // reorder is only meaningful if there are several entries
-			for( size_t r : iota(repos.size()) )
-				if (repos[r]==deps_hint) {                                                                                                   // hint found
-					for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                                                            // rotate repos to put hint in front
-					repos[0] = ::move(deps_hint) ;                                                                                           // .
-					break ;
-				}
+			for( size_t r : iota(repos.size()) ) {
+				if (repos[r]!=deps_hint) continue ;
+				for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                                                                // rotate repos to put hint in front
+				repos[0] = ::move(deps_hint) ;                                                                                               // .
+				break ;
+			}
 		for( ::string const& r : repos ) {
 			::string            deps_file  = abs_jn_s+r+"/deps" ;
 			::vmap_s<DepDigest> cache_deps ;
@@ -224,7 +225,7 @@ namespace Caches {
 			}
 			if (!has_dvg) {
 				trace("hit",r) ;
-				return { .completed=true , .hit=Yes , .key{job+'/'+r} } ;                                                                                           // hit
+				return { .completed=true , .hit=Yes , .key{job+'/'+r+'/'} } ;                                                                                       // hit
 			}
 			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {
 				if ( cache_deps[i].second.dflags[Dflag::Critical] && ! repo_dep_map.contains(cache_deps[i].first) ) {
@@ -244,17 +245,17 @@ namespace Caches {
 		return _sub_match( job , repo_deps , true/*do_lock*/ ) ;
 	}
 
-	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {
-		NfsGuard                nfs_guard { file_sync }                                   ;
-		::string                key_s     = match_key+'/'                                 ;
-		AcFd                    dfd       { nfs_guard.access_dir(dir_s+key_s) , Fd::Dir } ;
+	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {                                 // match_key is returned by sub_match()
+		SWEAR(match_key.back()=='/') ;
+		NfsGuard                nfs_guard { file_sync }                                       ;
+		AcFd                    dfd       { nfs_guard.access_dir(dir_s+match_key) , Fd::Dir } ;
 		AcFd                    info_fd   ;
 		AcFd                    data_fd   ;
-		{	LockedFd lock { dir_s , true /*exclusive*/ }     ;                                           // because we manipulate LRU, we need exclusive
-			Sz       sz   = _lru_remove( key_s , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
-			_lru_first( key_s , sz , nfs_guard ) ;
-			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                          // _lru_remove worked => everything should be accessible
-			data_fd = AcFd( dfd , "data"s ) ; SWEAR(+data_fd) ;                                          // .
+		{	LockedFd lock { dir_s , true /*exclusive*/ }      ;                                              // because we manipulate LRU, we need exclusive
+			Sz       sz   = _lru_remove( match_key , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
+			_lru_first( match_key , sz , nfs_guard ) ;
+			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                              // _lru_remove worked => everything should be accessible
+			data_fd = AcFd( dfd , "data"s ) ; SWEAR(+data_fd) ;                                              // .
 		}
 		 ;
 		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;

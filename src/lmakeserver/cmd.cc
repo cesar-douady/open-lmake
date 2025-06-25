@@ -250,14 +250,14 @@ namespace Engine {
 	}
 
 	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
-		bool                                        has_end = +job_info.end                 ;
-		::umap_ss                                   de      = mk_umap(job_info.end.dyn_env) ;
-		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> res     ;
+		bool                                        has_end  = +job_info.end                 ;
+		::umap_ss                                   de       = mk_umap(job_info.end.dyn_env) ;
+		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> set_keep ;
 		for( auto const& [k,v] : job_info.start.start.env )
-			if      (v!=PassMrkr   ) res.first .emplace_back(k,v       ) ;
-			else if (!has_end      ) res.second.push_back   (k         ) ;
-			else if (de.contains(k)) res.first .emplace_back(k,de.at(k)) ;
-		return res ;
+			if      (v!=PassMrkr   ) set_keep.first .emplace_back(k,v       ) ;
+			else if (!has_end      ) set_keep.second.push_back   (k         ) ;
+			else if (de.contains(k)) set_keep.first .emplace_back(k,de.at(k)) ;
+		return set_keep ;
 	}
 
 	static ::string _mk_gen_script_line( Job job , ReqOptions const& ro , JobInfo&& job_info , ::string const& dbg_dir_s , ::string const& key ) {

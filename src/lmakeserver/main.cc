@@ -42,7 +42,7 @@ static ::pair_s<int> _get_mrkr_host_pid() {
 		::string const& server_pid = lines[1] ;
 		return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
 	catch (::string const&) {
-		return {{},0} ;
+		return { {}/*host*/ , 0/*pid*/ } ;
 	}
 }
 
@@ -314,7 +314,7 @@ static bool/*interrupted*/ _engine_loop() {
 						//       vvvvvvvvvvvv
 						Backend::s_kill_all() ;
 						//       ^^^^^^^^^^^^
-						return true ;
+						return true/*interrupted*/ ;
 					case GlobalProc::Wakeup :
 						trace("wakeup") ;
 					break ;
@@ -439,7 +439,7 @@ static bool/*interrupted*/ _engine_loop() {
 		DF}                                                                                                   // NO_COV
 	}
 	trace("done") ;
-	return false ;
+	return false/*interrupted*/ ;
 }
 
 int main( int argc , char** argv ) {
@@ -517,6 +517,7 @@ int main( int argc , char** argv ) {
 	}
 	//
 	Backend::s_finalize() ;
+	Persistent::finalize() ; // XXX : suppress when bug is found
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;
 }

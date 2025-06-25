@@ -252,7 +252,6 @@ namespace Engine::Persistent {
 	}
 
 	void chk() {
-		// files
 		/**/                                    _g_job_file      .chk(                      ) ; // jobs
 		/**/                                    _g_job_name_file .chk(                      ) ; // .
 		/**/                                    _g_deps_file     .chk(                      ) ; // .
@@ -264,6 +263,21 @@ namespace Engine::Persistent {
 		/**/                                    _g_rule_tgts_file.chk(                      ) ; // .
 		/**/                                    _g_sfxs_file     .chk(                      ) ; // .
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
+	}
+
+	void finalize() { // XXX : suppress when bug is found
+		_g_job_file      .close() ;
+		_g_job_name_file .close() ;
+		_g_deps_file     .close() ;
+		_g_targets_file  .close() ;
+		_g_node_file     .close() ;
+		_g_node_name_file.close() ;
+		_g_job_tgts_file .close() ;
+		_g_rule_crc_file .close() ;
+		_g_rule_tgts_file.close() ;
+		_g_sfxs_file     .close() ;
+		_g_pfxs_file     .close() ;
+		//Delay(1).sleep_for() ;
 	}
 
 	static void _save_config() {

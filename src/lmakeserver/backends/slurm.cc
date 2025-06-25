@@ -206,8 +206,7 @@ namespace Backends::Slurm {
 		virtual RsrcsData import_( ::vmap_ss     && rsa , Req req , Job j ) const { return blend( {::move(rsa),daemon,+j} ,req_forces[+req] ) ; }
 		//
 		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
-			bool res = spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
-			return res ;
+			return spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 		}
 		virtual void acquire_rsrcs(Rsrcs const& rs) const {
 			spawned_rsrcs.inc(rs) ;
