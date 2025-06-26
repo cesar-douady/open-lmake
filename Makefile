@@ -566,10 +566,15 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 
 bin/ldircache_repair : \
 	$(LMAKE_BASIC_SAN_OBJS) \
+	$(RPC_JOB_SAN_OBJS)     \
+	src/app$(SAN).o         \
+	src/autodep/env$(SAN).o \
+	src/re$(SAN).o          \
+	src/trace$(SAN).o       \
 	src/ldircache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 
@@ -598,12 +603,13 @@ _bin/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS) \
 	$(RPC_JOB_SAN_OBJS)     \
 	src/app$(SAN).o         \
+	src/re$(SAN).o          \
 	src/trace$(SAN).o       \
 	src/autodep/env$(SAN).o \
 	src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/align_comments

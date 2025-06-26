@@ -202,21 +202,22 @@ namespace Disk {
 		if (::unlinkat(at,no_slash(dir_s).c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
 	}
 
-	static void _walk( ::vector_s& res , Fd at , ::string const& file , ::string const& prefix ) {
-		if (FileInfo(at,file).tag()!=FileTag::Dir) {
-			res.push_back(prefix) ;
-			return ;
-		}
+	static void _walk( ::vmap_s<FileTag>& res , Fd at , ::string const& file , FileTags file_tags , ::string const& prefix ) {
+		FileTag tag = FileInfo(at,file).tag() ;
+		//
+		if (file_tags[tag]   ) res.emplace_back(prefix,tag) ;
+		if (tag!=FileTag::Dir) return ;
+		//
 		::vector_s lst    ;
 		::string   file_s = with_slash(file) ;
 		try                     { lst = lst_dir_s(at,file_s) ; }
 		catch (::string const&) { return ;                     } // list only accessible files
 		::string prefix_s = prefix+'/' ;
-		for( ::string const& f : lst ) _walk( res , at,file_s+f , prefix_s+f ) ;
+		for( ::string const& f : lst ) _walk( res , at,file_s+f , file_tags , prefix_s+f ) ;
 	}
-	::vector_s walk( Fd at , ::string const& file , ::string const& prefix ) {
-		::vector_s res ;
-		_walk( res , at , file , prefix ) ;
+	::vmap_s<FileTag> walk( Fd at , ::string const& file , FileTags file_tags , ::string const& prefix ) {
+		::vmap_s<FileTag> res ;
+		_walk( res , at , file , file_tags , prefix ) ;
 		return res ;
 	}
 
@@ -416,6 +417,16 @@ namespace Disk {
 		for( ::string const& sd_s : src_dirs_s )
 			if ((is_abs_s(sd_s)?abs_real:lcl_real).starts_with(sd_s)) return FileLoc::SrcDir ;
 		return FileLoc::Ext ;
+	}
+
+	void RealPathEnv::chk(bool for_cache) const {
+		/**/                                     throw_unless( lnk_support<All<LnkSupport>             , "bad link_support" ) ;
+		/**/                                     throw_unless( file_sync  <All<FileSync  >             , "bad file_sync"    ) ;
+		/**/                                     throw_unless( !tmp_dir_s   || tmp_dir_s  .back()=='/' , "bad tmp_dir"      ) ;
+		for( ::string const& sd_s : src_dirs_s ) throw_unless( +sd_s        && sd_s       .back()=='/' , "bad src dir"      ) ;
+		//
+		if (for_cache) throw_unless( !repo_root_s                            , "bad repo_root" ) ;
+		else           throw_unless( !repo_root_s || repo_root_s.back()=='/' , "bad repo_root" ) ;
 	}
 
 	void RealPath::_Dvg::update( ::string_view domain_s , ::string const& chk ) {

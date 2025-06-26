@@ -285,9 +285,9 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comme
 	dst.report_update( r , Access::Stat , c , CommentExt::Write , now ) ; // writing to dst is sensitive to existence
 }
 
-Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : SolveModify { r , ::move(path) , true/*no_follow*/ , false/*read*/ , false/*create*/ , c } {
-	r.report_guard( file_loc , ::copy(real) ) ;
-	report_update( r , Access::Stat , c ) ;     // fails if file exists, hence sensitive to existence
+Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve{ r , ::move(path) , true/*no_follow*/ , false/*read*/ , false/*create*/ , c } {
+	r.report_guard( file_loc , ::copy(real) ) ; // although dirs are not considered targets, it stays that disk has been modified and we want to propagate
+	report_dep( r , Access::Stat , c ) ;        // fails if file exists, hence sensitive to existence
 }
 
 Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , Comment c ) :
@@ -299,11 +299,6 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , Comment c ) :
 	if (dst.file_loc<=FileLoc::Dep) r.report_panic("mount to "  +dst.real) ;
 }
 
-// note : in case the file is open WR_ONLY w/o O_TRUNC, it is true that the final content depends on the initial content.
-// However :
-// - if it is an official target, it is not a dep, whether you declare reading it or not
-// - else, we do not compute a CRC on it and its actual content is not guaranteed. What is important in this case is that the execution of the job does not see the content.
-//
 static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                                                        ; }
 static bool _do_stat  (int flags) { return (flags&O_PATH)     || ( (flags&O_CREAT) && (flags&O_EXCL) ) || ( !(flags&O_CREAT) && (flags&O_ACCMODE)!=O_RDONLY ) ; }
 static bool _do_read  (int flags) { return !(flags&O_PATH) && !(flags&O_TRUNC)                                                                                ; }
@@ -327,8 +322,8 @@ Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveMod
 	if (do_read          ) { ces |= CommentExt::Read     ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
 	if (do_write         )   ces |= CommentExt::Write    ;
 	//
-	if (do_write) report_update( r , {} , c , ces ) ;
-	else          report_dep   ( r , {} , c , ces ) ;
+	if (do_write) report_update( r , Accesses() , c , ces ) ;
+	else          report_dep   ( r , Accesses() , c , ces ) ;
 }
 
 Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , Comment c ) : Solve{r,::move(path),true/*no_follow*/,true/*read*/,false/*create*/,c} , buf{buf_} , sz{sz_} {
@@ -360,7 +355,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	::umap_s<bool/*read*/> unlnks ;                                                                    // files listed here are read and unlinked
 	::vector_s             writes ;
 	auto do1 = [&]( Solve const& src , Solve const& dst )->void {
-		for( ::string const& f : walk(s_repo_root_fd(),src.real) ) {
+		for( auto const& [f,_] : walk(s_repo_root_fd(),src.real,TargetTags) ) {
 			if (+src.real0) {
 				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ; // real is read, real0 is unlinked
 				if      (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f              ) ;

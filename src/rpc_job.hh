@@ -10,6 +10,7 @@
 #include "re.hh"
 #include "serialize.hh"
 #include "time.hh"
+#include "trace.hh"
 
 #include "autodep/env.hh"
 
@@ -321,6 +322,7 @@ struct JobReason {
 		if (tag<Tag::HasNode) SWEAR(!node,tag,node) ;
 		return JobReasonTagStrs[+tag].second ;
 	}
+	void chk() const ;
 	// data
 	// START_OF_VERSIONING
 	NodeIdx node = 0                  ;
@@ -553,6 +555,7 @@ template<class Key=::string> struct JobDigest {             // Key may be ::stri
 		for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(k),v) ;
 		return res ;
 	}
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	uint64_t                 upload_key     = {}          ;
@@ -568,6 +571,17 @@ template<class Key=::string> struct JobDigest {             // Key may be ::stri
 template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                                                            // START_OF_NO_COV
 	return os << "JobDigest(" << to_hex(jd.upload_key) <<','<< jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() <<')' ;
 }                                                                                                                                                                // END_OF_NO_COV
+template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
+	if constexpr (::is_same_v<Key,::string>) { //!                       ext_ok
+		for( auto const& [t,_] : targets ) throw_unless( Disk::is_canon(t,false) , "bad target" ) ;
+		for( auto const& [d,_] : deps    ) throw_unless( Disk::is_canon(d,true ) , "bad dep"    ) ;
+	}
+	throw_unless( status<All<Status> , "bad status" ) ;
+	if (for_cache) {
+		/**/                            throw_unless( !cache_idx , "bad cache_idx" ) ;
+		for( auto const& [_,d] : deps ) throw_unless( d.is_crc   , "dep not crc"   ) ;
+	}
+}
 
 struct JobInfo ;
 
@@ -577,10 +591,10 @@ namespace Caches {
 		using Sz  = Disk::DiskSz ;
 		using Tag = CacheTag     ;
 		struct Match {
-			bool                completed = true ;                   //                            if false <=> answer is delayed and an action will be posted to the main loop when ready
-			Bool3               hit       = No   ;                   // if completed
-			::vmap_s<DepDigest> new_deps  = {}   ;                   // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
-			::string            key       = {}   ;                   // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
+			bool                completed = true ; //                            if false <=> answer is delayed and an action will be posted to the main loop when ready
+			Bool3               hit       = No   ; // if completed
+			::vmap_s<DepDigest> new_deps  = {}   ; // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
+			::string            key       = {}   ; // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
 		} ;
 		// statics
 		static Cache* s_new   ( Tag                               ) ;
@@ -594,10 +608,11 @@ namespace Caches {
 		bool/*ok*/             commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
 		void                   dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		// default implementation : no caching, but enforce protocol
-		virtual void config(::vmap_ss const&) {}
-		virtual Tag  tag   (                ) { return Tag::None ; }
-		virtual void serdes(::string     &  ) {}                     // serialize
-		virtual void serdes(::string_view&  ) {}                     // deserialize
+		virtual void config( ::vmap_ss const& , bool /*may_init*/=false ) {}
+		virtual void repair(                                            ) {}
+		virtual Tag  tag   (                                            ) { return Tag::None ; }
+		virtual void serdes( ::string     &                             ) {}                     // serialize
+		virtual void serdes( ::string_view&                             ) {}                     // deserialize
 		//
 		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return { .completed=true , .hit=No } ; }
 		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;
@@ -660,6 +675,7 @@ struct JobSpace {
 	::vmap_s<::vector_s> flat_phys() const ; // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void mk_canon(::string const& phy_repo_root_s) ;
+	void chk     (                               ) const ;
 private :
 	bool           _is_lcl_tmp( ::string const&                                                              ) const ;
 	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>& report , ::string const& dst , ::string const& src={} ) const ;
@@ -678,6 +694,9 @@ public :
 struct JobRpcReq {
 	// accesses
 	bool operator+() const { return +seq_id ; }
+	// services
+	void cache_cleanup() ;
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	SeqId  seq_id = 0 ;
@@ -696,6 +715,8 @@ struct JobStartRpcReq : JobRpcReq {
 		::serdes(s,port                         ) ;
 		::serdes(s,msg                          ) ;
 	}
+	void cache_cleanup() ;
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	in_port_t port = 0 ; // port at which job_exec can be contacted
@@ -761,6 +782,8 @@ struct JobStartRpcReply {                                                       
 	,	SeqId
 	) ;
 	void exit() ;
+	void cache_cleanup() ;
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	in_addr_t                               addr           = 0                   ; // the address at which server and subproccesses can contact job_exec
@@ -833,6 +856,7 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes(s,wstatus                      ) ;
 	}
 	void cache_cleanup() ;                   // clean up info before uploading to cache
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	JobDigest<>              digest        ;
@@ -849,7 +873,7 @@ struct JobEndRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobMngtRpcReq {
+struct JobMngtRpcReq : JobRpcReq {
 	using JMMR = JobMngtRpcReq       ;
 	using Proc = JobMngtProc         ;
 	using SI   = SeqId               ;
@@ -858,9 +882,8 @@ struct JobMngtRpcReq {
 	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,proc  ) ;
-		::serdes(s,seq_id) ;
-		::serdes(s,job   ) ;
+		::serdes(s,static_cast<JobRpcReq&>(self)) ;
+		::serdes(s,proc                         ) ;
 		switch (proc) {
 			case Proc::None       :
 			case Proc::Heartbeat  :                                                                                               break ;
@@ -874,8 +897,6 @@ struct JobMngtRpcReq {
 	}
 	// data
 	Proc                proc    = Proc::None ;
-	SI                  seq_id  = 0          ;
-	JI                  job     = 0          ;
 	Fd                  fd      = {}         ;                                                                                            // fd to which reply must be forwarded
 	::vmap_s<DepDigest> deps    = {}         ;                                                                                            // proc==ChkDeps|DepVerbose
 	::string            ctx     = {}         ;                                                                                            // proc==                           Decode|Encode
@@ -933,6 +954,8 @@ struct SubmitAttrs {
 		res |= other ;
 		return res ;
 	}
+	void cache_cleanup() ;
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	::vmap_s<DepDigest> deps         = {}    ;
@@ -951,7 +974,8 @@ struct JobInfoStart {
 	// accesses
 	bool operator+() const { return +pre_start ; }
 	// services
-	void cache_cleanup() ; // clean up info before uploading to cache
+	void cache_cleanup() ;                 // clean up info before uploading to cache
+	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	Hash::Crc        rule_crc_cmd = {} ;
@@ -975,13 +999,14 @@ struct JobInfo {
 	}
 	void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
 	//
-	void cache_cleanup() { start.cache_cleanup() ; end.cache_cleanup() ; } // clean up info before uploading to cache
-	void update_digest() ;                                                 // update crc in digest from dep_crcs
+	void update_digest(                    ) ;       // update crc in digest from dep_crcs
+	void cache_cleanup(                    ) ;       // clean up info before uploading to cache
+	void chk          (bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
 	JobInfoStart        start    ;
 	JobEndRpcReq        end      ;
-	::vector<Hash::Crc> dep_crcs ;                                         // optional, if not provided in end.digest.deps
+	::vector<Hash::Crc> dep_crcs ;                   // optional, if not provided in end.digest.deps
 	// END_OF_VERSIONING
 } ;
 

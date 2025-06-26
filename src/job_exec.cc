@@ -75,15 +75,11 @@ Digest analyze(Status status=Status::New) {                                     
 	bool   readdir_warned  = false         ;
 	//
 	for( auto& [file,info] : g_gather.accesses ) {
-		constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ; //!                                           started
-		if (g_static_targets.contains(file))                                { trace("mk_target",file) ; info.update( Pdate() , {.flags=TargetFlags} , false ) ;         }
-		else for( RegExpr const& re : g_star_targets ) if (+re.match(file)) { trace("mk_target",file) ; info.update( Pdate() , {.flags=TargetFlags} , false ) ; break ; }
+		constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ; //!                 started
+		if (g_static_targets.contains(file))                                  info.update( Pdate() , {.flags=TargetFlags} , false ) ;
+		else for( RegExpr const& re : g_star_targets ) if (+re.match(file)) { info.update( Pdate() , {.flags=TargetFlags} , false ) ; break ; }
 		//
-		MatchFlags flags       = info.flags                       ;
-		Pdate      first_read  = info.first_read()                ;
-		Accesses   accesses    = info.accesses  ()                ;
-		bool       was_read    = first_read        <Pdate::Future ;
-		bool       was_written = info.first_write()<Pdate::Future ;
+		MatchFlags flags = info.flags ;
 		//
 		// handle read_dir
 		if ( info.read_dir() && !(flags.extra_dflags[ExtraDflag::ReaddirOk]||flags.tflags[Tflag::Incremental]) ) {                // if incremental, user handle previous values
@@ -98,12 +94,19 @@ Digest analyze(Status status=Status::New) {                                     
 				res.msg << "  - set  : "<<g_start_info.rule<<".readdir_ok = True\n"                                             ;
 				readdir_warned = true ;
 			}
+			info.clear_readdir() ;
 		}
+		//
+		Accesses accesses    = info.accesses()                  ;
+		bool     was_written = info.first_write()<Pdate::Future ;
+		//
 		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                    // . is only reported when reading dir but otherwise is an external file
 		//
-		bool is_dep = +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
-		bool allow  = info.allow()                                                         ;
-		bool is_tgt = was_written || allow                                                 ;
+		Pdate first_read = info.first_read()                                                    ;
+		bool  was_read   = first_read        <Pdate::Future                                     ;
+		bool  is_dep     = +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
+		bool  allow      = info.allow()                                                         ;
+		bool  is_tgt     = was_written || allow                                                 ;
 		//
 		if ( !is_dep && !is_tgt ) {
 			trace("ignore ",file) ;

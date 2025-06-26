@@ -22,9 +22,10 @@ if __name__!='__main__' :
 	)
 
 	class CompileRust(RustRule) :
-		targets = { 'EXE' : r'{File:.*}'    }
-		deps    = { 'SRC' :  '{File   }.rs' }
-		cmd     = 'rustc -g -o {EXE} {SRC}'   # adequate path is set up by RustRule from $RUSTUP_HOME
+		targets    = { 'EXE' : r'{File:.*}'    }
+		deps       = { 'SRC' :  '{File   }.rs' }
+		readdir_ok = True                        # trust rustc not to be sensitive to dir content
+		cmd        = 'rustc -g -o {EXE} {SRC}'   # adequate path is set up by RustRule from $RUSTUP_HOME
 
 	class AntiRustRust(AntiRule) :
 		target = r'{:.*}.rs.rs'

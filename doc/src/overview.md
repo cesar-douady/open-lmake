@@ -33,7 +33,8 @@ Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while 
 But special attention has been devoted in its design to ensure that it is never optimistic (a job not being rerun while it should have been).
 In case of any adverse event (lmake crashes or spurious system reboot),
 open-lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
-In extreme cases, there is a `lrepair` tool that can recover all safe parts of a damaged repository.
+In extreme cases, there is a `lrepair` command that can recover all safe parts of a damaged repository.
+Similarly the `ldircache_repair` command is able to recover a damaged (or manually manipulated) cache directory.
 
 Note that open-lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
 This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or jobs spuriously disappearing.

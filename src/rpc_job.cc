@@ -7,6 +7,7 @@
 
 #include "disk.hh"
 #include "hash.hh"
+#include "time.hh"
 #include "trace.hh"
 #include "caches/dir_cache.hh" // PER_CACHE : add include line for each cache method
 
@@ -21,6 +22,7 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Time ;
 
 //
 // FileAction
@@ -165,6 +167,10 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	return os << ')' ;
 }                                                            // END_OF_NO_COV
 
+void JobReason::chk() const {
+	if (tag<JobReasonTag::HasNode) throw_unless( !node , "bad node" ) ;
+}
+
 //
 // MsgStderr
 //
@@ -184,6 +190,22 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 		case DepInfoKind::Info : return os <<'('<< di.info() <<')' ;
 	DF}                                                              // NO_COV
 }                                                                    // END_OF_NO_COV
+
+//
+// JobRpcReq
+//
+
+void JobRpcReq::cache_cleanup() {
+	seq_id = -1 ;                 // execution dependnt, 0 is reserved to mean no info but we want a stable info
+	job    = 0  ;                 // base dependent
+}
+
+void JobRpcReq::chk(bool for_cache) const {
+	if (for_cache) {
+		throw_unless( seq_id==SeqId(-1) , "bad seq_id",' ',seq_id ) ;
+		throw_unless( !job              , "bad job"    ) ;
+	}
+}
 
 //
 // Cache
@@ -486,8 +508,8 @@ namespace Caches {
 		Cache*& cache = grow(s_tab,idx) ; SWEAR(!cache) ;
 		if (+tag) {
 			Cache* c = s_new(tag) ;
-			c->config(dct) ;
-			cache = c ;      // only record cache once we are sure config is ok
+			c->config( dct , true/*may_init*/ ) ;
+			cache = c ;                           // only record cache once we are sure config is ok
 		}
 	}
 
@@ -514,10 +536,12 @@ namespace Caches {
 				::string const& tn    = entry.first            ;
 				FileTag         tag   = entry.second.sig.tag() ;
 				Sz              sz    = target_szs[ti]         ;
-				n_copied = ti+1 ;
-				repo_nfs_guard.change(tn) ;
-				unlnk(dir_guard(tn),true/*dir_ok*/) ;
+				n_copied = ti+1 ;                                                                  // this is a protection, so record n_copied *before* action occurs
+				repo_nfs_guard.change(tn) ; //!               dir_ok  abs_ok   force ignore_errs
+				if (tag==FileTag::None) unlnk(           tn  , false , false , false , true    ) ; // if we do not want the target, avoid unlinking potentially existing sub-files
+				else                    unlnk( dir_guard(tn) , true                            ) ;
 				switch (tag) {
+					case FileTag::None  :                                                                                                            break ;
 					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) )                                       ; break ;
 					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , mode(tag) )) ; break ;
 					case FileTag::Exe   :
@@ -533,7 +557,7 @@ namespace Caches {
 			trace("done") ;
 			return job_info ;
 		} catch(::string const& e) {
-			trace("failed",e,n_copied,targets) ;
+			trace("failed",e,n_copied) ;
 			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ; // clean up partial job
 			throw e ;
 		}
@@ -599,13 +623,13 @@ namespace Caches {
 		//
 		job_info.update_digest() ;                   // ensure cache has latest crc available
 		// check deps
-		for( auto const& [dn,dd] : job_info.end.digest.deps ) if (!dd.is_crc) {
-			trace("not_a_crc_dep",dn,dd) ;
-			dismiss(upload_key) ;
-			return false/*ok*/ ;
-		}
-		// defensive programming : remove useless/meaningless info
-		job_info.cache_cleanup() ;
+		for( auto const& [dn,dd] : job_info.end.digest.deps )
+			if (!dd.is_crc) {
+				trace("not_a_crc_dep",dn,dd) ;
+				dismiss(upload_key) ;
+				return false/*ok*/ ;
+			}
+		job_info.cache_cleanup() ;                   // defensive programming : remove useless/meaningless info
 		//
 		return sub_commit( upload_key , job , ::move(job_info) ) ;
 	}
@@ -641,6 +665,18 @@ namespace Caches {
 		if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
 			throw "cannot bind mount "+src+" onto "+dst+" : "+::strerror(errno) ;                                             // NO_COV defensive programming
 	}
+
+void JobSpace::chk() const {
+	throw_unless( !chroot_dir_s || (chroot_dir_s.front()=='/'&&chroot_dir_s.back()=='/'                       ) , "bad chroot_dir" ) ;
+	throw_unless( !lmake_view_s || (lmake_view_s.front()=='/'&&lmake_view_s.back()=='/'                       ) , "bad lmake_view" ) ;
+	throw_unless( !repo_view_s  || (repo_view_s .front()=='/'&&repo_view_s .back()=='/'&&is_canon(repo_view_s)) , "bad repo_view"  ) ;
+	throw_unless( !tmp_view_s   || (tmp_view_s  .front()=='/'&&tmp_view_s  .back()=='/'&&is_canon(tmp_view_s )) , "bad tmp_view"   ) ;
+	for( auto const& [view,phys] : views ) {
+		/**/                                     throw_unless( is_canon(view) , "bad views"        ) ;
+		for( ::string const& p  : phys.phys    ) throw_unless( is_canon(p )   , "bad view phys"    ) ;
+		for( ::string const& cu : phys.copy_up ) throw_unless( is_canon(cu)   , "bad view copy_up" ) ;
+	}
+}
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
 	SWEAR(+srcs_s) ;
@@ -769,8 +805,8 @@ bool JobSpace::enter(
 		return false/*entered*/ ;
 	}
 	//
-	int uid = ::getuid() ;                                                          // must be done before unshare that invents a new user
-	int gid = ::getgid() ;                                                          // .
+	int uid = ::getuid() ;                                                                                                                // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                                                                                                // .
 	//
 	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw "cannot create namespace : "s+::strerror(errno) ;
 	//
@@ -782,18 +818,18 @@ bool JobSpace::enter(
 			highest_s  = d_s ;
 		}
 	//
-	::string phy_super_repo_root_s ;                                                // dir englobing all relative source dirs
-	::string super_repo_view_s     ;                                                // .
+	::string phy_super_repo_root_s ;                                                                                                      // dir englobing all relative source dirs
+	::string super_repo_view_s     ;                                                                                                      // .
 	::string top_repo_view_s       ;
 	if (+repo_view_s) {
-		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 )) // ensure repo_view_s has at least one more level than cwd_s
+		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 ))                                                       // ensure repo_view_s has at least one more level than cwd_s
 			throw
 				"cannot map local repository dir to "+no_slash(repo_view_s)+" appearing as "+no_slash(cwd_s)+" in top-level repository, "
 				"consider setting <rule>.repo_view="+mk_py_str("/repo/"+no_slash(cwd_s))
 			;
 		phy_super_repo_root_s = phy_repo_root_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_repo_root_s = dir_name_s(phy_super_repo_root_s) ;
 		super_repo_view_s     = repo_view_s     ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_repo_view_s     = dir_name_s(super_repo_view_s    ) ;
-		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;              // this should have been checked earlier
+		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;                                                                    // this should have been checked earlier
 		if (!super_repo_view_s)
 			throw
 				"cannot map repository dir to "+no_slash(repo_view_s)+" with relative source dir "+no_slash(highest_s)
@@ -985,6 +1021,18 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.port <<','<< jsrr.msg <<')' ;
 }                                                                                                             // END_OF_NO_COV
 
+void JobStartRpcReq::cache_cleanup() {
+	JobRpcReq::cache_cleanup() ;
+	port = 0 ;                   // execution dependent
+}
+
+void JobStartRpcReq::chk(bool for_cache) const {
+	JobRpcReq::chk(for_cache) ;
+	if (for_cache) {
+		throw_unless( !port , "bad port" ) ;
+	}
+}
+
 //
 // JobEndRpcReq
 //
@@ -1009,14 +1057,22 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 }                                                                                                                                            // END_OF_NO_COV
 
 void JobEndRpcReq::cache_cleanup() {
-	seq_id                     = SeqId(-1) ; // 0 is reserved to mean no info
-	job                        = 0         ; // cache does not care
-	digest.upload_key          = {}        ; // no recursive info
-	phy_tmp_dir_s              = {}        ; // execution dependent
+	JobRpcReq::cache_cleanup() ;
+	digest.cache_idx  = 0  ;               // no recursive info
+	digest.upload_key = {} ;               // .
+	phy_tmp_dir_s     = {} ;               // execution dependent
 	for( auto& [_,td] : digest.targets ) {
-		SWEAR(!td.pre_exist) ;               // else cannot be a candidate for upload as this must have failed
-		td.sig = td.sig.tag() ;              // forget date, just keep tag
+		SWEAR(!td.pre_exist) ;             // else cannot be a candidate for upload as this must have failed
+		td.sig = td.sig.tag() ;            // forget date, just keep tag
 	}
+}
+
+void JobEndRpcReq::chk(bool for_cache) const {
+	JobRpcReq::chk(for_cache) ;
+	digest.    chk(for_cache) ;
+	/**/             throw_unless( !phy_tmp_dir_s || (phy_tmp_dir_s.front()=='/'&&phy_tmp_dir_s.back()=='/'&&is_canon(phy_tmp_dir_s)) , "bad phy_tmp_dir"       ) ;
+	/**/             throw_unless( end_date<=New                                                                                      , "bad end_date"          ) ;
+	if (+msg_stderr) throw_unless( digest.has_msg_stderr                                                                              , "incoherent msg/stderr" ) ;
 }
 
 //
@@ -1130,6 +1186,37 @@ void JobStartRpcReply::exit() {
 	job_space.exit() ;
 }
 
+void JobStartRpcReply::cache_cleanup() {
+	autodep_env.fast_report_pipe = {}      ; // .
+	cache                        = nullptr ; // no recursive info
+	cache_idx                    = {}      ; // .
+	key                          = {}      ; // .
+	live_out                     = false   ; // execution dependent
+	nice                         = -1      ; // .
+	pre_actions                  = {}      ; // .
+}
+
+void JobStartRpcReply::chk(bool for_cache) const {
+	autodep_env.chk(for_cache) ;
+	job_space  .chk(         ) ;
+	/**/                                      throw_unless( method<All<AutodepMethod>      , "bad autoded_method" ) ;
+	/**/                                      throw_unless( network_delay>=Delay()         , "bad networkd_delay" ) ;
+	for( auto const& [f,_] : pre_actions    ) throw_unless( is_canon(f)                    , "bad file_action"    ) ;
+	for( auto const& [t,_] : static_matches ) throw_unless( is_canon(t)                    , "bad target"         ) ;
+	//                                                                     ext_ok empty_ok
+	/**/                                      throw_unless( is_canon(stdin ,true ,true   ) , "bad stdin"          ) ;
+	/**/                                      throw_unless( is_canon(stdout,false,true   ) , "bad stdout"         ) ;
+	/**/                                      throw_unless( timeout>=Delay()               , "bad timeout"        ) ;
+	if (for_cache) {
+		throw_unless( !cache             , "bad cache"       ) ;
+		throw_unless( !cache_idx         , "bad cache_idx"   ) ;
+		throw_unless( !key               , "bad key"         ) ;
+		throw_unless( !live_out          , "bad live_out"    ) ;
+		throw_unless(  nice==uint8_t(-1) , "bad nice"        ) ;
+		throw_unless( !pre_actions       , "bad pre_actions" ) ;
+	}
+}
+
 //
 // JobMngtRpcReq
 //
@@ -1177,6 +1264,27 @@ void JobStartRpcReply::exit() {
 	return                os <<')'                             ;
 }                                                                // END_OF_NO_COV
 
+void SubmitAttrs::cache_cleanup() {
+	reason    = {}    ;             // execution dependent
+	pressure  = {}    ;             // .
+	cache_idx = {}    ;             // no recursive info
+	live_out  = false ;             // execution dependent
+	nice      = -1    ;             // .
+}
+
+void SubmitAttrs::chk(bool for_cache) const {
+	throw_unless(  used_backend<All<BackendTag> , "bad backend tag" ) ;
+	if (for_cache) {
+		throw_unless( !reason            , "bad reason"    ) ;
+		throw_unless( !pressure          , "bad pressure"  ) ;
+		throw_unless( !cache_idx         , "bad cache_idx" ) ;
+		throw_unless( !live_out          , "bad live_out"  ) ;
+		throw_unless(  nice==uint8_t(-1) , "bad nice"      ) ;
+	} else {
+		reason.chk() ;
+	}
+}
+
 //
 // JobInfoStart
 //
@@ -1186,19 +1294,19 @@ void JobStartRpcReply::exit() {
 }                                                                                                                      // END_OF_NO_COV
 
 void JobInfoStart::cache_cleanup() {
-	eta                    = {}      ; // execution dependent
-	submit_attrs.reason    = {}      ; // .
-	submit_attrs.pressure  = {}      ; // .
-	submit_attrs.cache_idx = {}      ; // no recursive info
-	submit_attrs.live_out  = false   ; // execution dependent
-	submit_attrs.nice      = 0       ; // .
-	pre_start.job          = 0       ; // base dependent
-	pre_start.port         = 0       ; // execution dependent
-	start.cache            = nullptr ; // no recursive info
-	start.key              = {}      ; // .
-	start.live_out         = false   ; // execution dependent
-	start.nice             = 0       ; // .
-	start.pre_actions      = {}      ; // .
+	submit_attrs.cache_cleanup() ;
+	pre_start   .cache_cleanup() ;
+	start       .cache_cleanup() ;
+	eta = {} ;                     // execution dependent
+}
+
+void JobInfoStart::chk(bool for_cache) const {
+	submit_attrs.chk(for_cache) ;
+	pre_start   .chk(for_cache) ;
+	start       .chk(for_cache) ;
+	if (for_cache) {
+		throw_unless( !eta , "bad eta" ) ;
+	}
 }
 
 //
@@ -1219,11 +1327,28 @@ void JobInfo::fill_from(::string const& file_name , JobInfoKinds need ) {
 }
 
 void JobInfo::update_digest() {
-	if (!dep_crcs) return ;                                                   // nothing to update
+	Trace trace("update_digest",dep_crcs.size()) ;
+	if (!dep_crcs) return ;                                                                                            // nothing to update
 	SWEAR( dep_crcs.size()==end.digest.deps.size() ) ;
 	for( size_t i : iota(end.digest.deps.size()) )
-		if (dep_crcs[i].valid()) end.digest.deps[i].second.crc(dep_crcs[i]) ;
-	dep_crcs.clear() ;                                                        // now useless as info is recorded in digest
+		if ( dep_crcs[i].valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.crc(dep_crcs[i]) ;
+	dep_crcs.clear() ;                                                                                                 // now useless as info is recorded in digest
+}
+
+void JobInfo::cache_cleanup() {
+	start.cache_cleanup() ;
+	end  .cache_cleanup() ;
+}
+
+void JobInfo::chk(bool for_cache) const {
+	start.chk(for_cache) ;
+	end  .chk(for_cache) ;
+	for( size_t i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ;
+	if (for_cache) {
+		throw_unless( !dep_crcs , "bad dep_crcs" ) ;
+	} else {
+		throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size() , "incoherent deps" ) ;
+	}
 }
 
 //

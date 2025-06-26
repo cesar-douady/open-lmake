@@ -48,6 +48,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 		swear_prod( +res , "cannot open report fd" , Fast?"fast":"plain" , Fast?fast_report_pipe:service ) ;
 		return res ;
 	}
+	void chk(bool for_cache=false) const ;
 	// data
 	bool                 auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 	bool                 enable           = true  ; // if false <=> no automatic report

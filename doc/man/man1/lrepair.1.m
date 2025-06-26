@@ -12,7 +12,7 @@ B(lrepair)
 .SH DESCRIPTION
 .LP
 B(lrepair) is meant to repair internal OpenLmake book-keeping in case of catastrophic crash, either because of system failure or a bug in OpenLmake.
-Most of the time, OpenLmake does not require to resort to heavy reparation as its internal book-keeping is fairly robust, but in some rare cases, this may be necessary.
+Most of the time, OpenLmake does not require to resort to heavy reparations as its internal book-keeping is fairly robust, but in some rare cases, this may be necessary.
 In such a case, OpenLmake will suggest the use of B(lrepair).
 .LP
 In case of incoherent behavior, the user may decide to run B(lrepair).

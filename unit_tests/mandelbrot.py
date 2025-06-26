@@ -75,3 +75,13 @@ else :
 
 	os.symlink('../mandelbrot.zip','mandelbrot.zip')
 	ut.lmake( 'ok' , done=3 , new=1 )
+
+	os.system('find mandelbrot -type d -o -print | sort >before_cache')
+
+	os.system('mv LMAKE LMAKE.1 ; mv mandelbrot mandelbrot.1')
+
+	ut.lmake( 'ok' , unlinked=1 , hit_done=2 , done=1 , new=1 ) # ok is unlinked
+
+	os.system('find mandelbrot -type d -o -print | sort >after_cache')
+
+	assert os.system('set -x ; diff before_cache after_cache')==0

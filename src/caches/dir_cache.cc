@@ -28,15 +28,35 @@
 using namespace Disk ;
 using namespace Time ;
 
+enum class RepairTag : uint8_t {
+	Data
+,	Deps
+,	Info
+,	Lru
+} ;
+using RepairTags = BitMap<RepairTag> ;
+
 namespace Caches {
 
 	// START_OF_VERSIONING
-
 	struct Lru {
-		::string     prev_s      = DirCache::HeadS ;
-		::string     next_s      = DirCache::HeadS ;
+		// accesses
+		bool operator==(Lru const&) const = default ;
+		// data
+		::string     prev_s      = DirCache::HeadS ; // newer
+		::string     next_s      = DirCache::HeadS ; // older
 		DirCache::Sz sz          = 0               ; // size of entry, or overall size for head
-		Pdate        last_access ;
+		Pdate        last_access = {}              ;
+	} ;
+	// END_OF_VERSIONING
+
+	struct RepairEntry {
+		// accesses
+		bool operator+() const { return sz ; }
+		// data
+		RepairTags tags    ;
+		size_t     sz      = 0 ;
+		Lru        old_lru ;
 	} ;
 
 	void DirCache::chk(ssize_t delta_sz) const {                          // START_OF_NO_COV debug only
@@ -58,9 +78,7 @@ namespace Caches {
 		SWEAR(head.sz    ==total_sz+delta_sz,head.sz,total_sz,delta_sz) ;
 	}                                                                     // END_OF_NO_COV
 
-	// END_OF_VERSIONING
-
-	void DirCache::config(::vmap_ss const& dct) {
+	void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
 		::umap_ss config_map = mk_umap(dct) ;
 		//
 		if ( auto it=config_map.find("dir") ; it!=config_map.end() ) dir_s = with_slash(it->second) ;
@@ -78,15 +96,176 @@ namespace Caches {
 			else                                         file_sync = mk_enum<FileSync>(it->second) ;
 		}
 		//
-		try                     { chk_version(true/*may_init*/,dir_s+AdminDirS) ;                    }
-		catch (::string const&) { throw "cache version mismatch, running without "+no_slash(dir_s) ; }
-		//
 		::string sz_file = cat(dir_s,AdminDirS,"size") ;
 		AcFd     sz_fd   { sz_file }                   ;
 		throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
 		try                       { sz = from_string_with_unit(strip(sz_fd.read())) ; }
 		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;            }
-		mk_dir_s( cat(dir_s,AdminDirS,"reserved") ) ;
+		//
+		try                     { chk_version(may_init,dir_s+AdminDirS) ;                   }
+		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
+		//
+		mk_dir_s(cat(dir_s,AdminDirS,"reserved/")) ;
+	}
+
+	template<class T> T _full_deserialize( size_t& sz , ::string const& file ) {
+		::string      data = AcFd(file).read()             ;
+		::string_view view { data }                        ;
+		T             res  = deserialize<T>(/*inout*/view) ;
+		throw_unless( !view , "superfluous data" ) ;
+		sz += data.size() ;
+		return res ;
+	}
+	void _qualify_entry( RepairEntry&/*inout*/ entry , ::string const& dir_s , ::string const& f_s ) {
+		try {
+			if (entry.tags!=~RepairTags()) throw "incomplete"s ;
+			//
+			::string df_s     = dir_s + f_s                                                               ;
+			size_t   entry_sz = sizeof(Lru) + 2*f_s.size()                                                ;        // an estimate of the lru file size
+			auto     job_info = _full_deserialize<JobInfo            >( /*inout*/entry_sz , df_s+"info" ) ;
+			auto     deps     = _full_deserialize<::vmap_s<DepDigest>>( /*inout*/entry_sz , df_s+"deps" ) ;
+			size_t   data_sz  = FileInfo(df_s+"data").sz                                                  ; entry_sz += data_sz ;
+			//
+			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t(0)) , df_s+"lru" ) ; } // lru file size is already estimated
+			catch (::string const&) { entry.old_lru = {}                                                      ; } // avoid partial info
+			//
+			// check coherence
+			//
+			throw_unless( entry.old_lru.last_access<New  , "bad date" ) ;
+			throw_unless( deps==job_info.end.digest.deps , "bad deps" ) ;
+			// XXX : check coherence between rule_crc_cmd,stems and f
+			job_info.chk(true/*for_cache*/) ;
+			throw_unless( FileInfo(df_s+"data").sz!=job_info.end.compressed_sz , "bad data size" ) ;
+			//
+			entry.sz = entry_sz ;
+			SWEAR(+entry) ;
+		} catch (::string const& e) {
+			Fd::Stdout.write(cat("erase entry (",e,") : ",no_slash(f_s),'\n')) ;
+			SWEAR(!entry) ;
+		}
+	}
+	void DirCache::repair() {
+		static Re::RegExpr const entry_re { "((.*)/(\\d+-\\d+\\+)*rule-[\\dabcdef]{16}/key-[\\dabcdef]{16}/)(data|deps|info|lru)" } ;
+		static Re::RegExpr const key_re   {                                           "key-[\\dabcdef]{16}"                       } ;
+		static Re::RegExpr const hint_re  {  "(.*)/(\\d+-\\d+\\+)*rule-[\\dabcdef]{16}/deps_hint-[\\dabcdef]{16}"                 } ;
+		//
+		::umap_s<bool/*keep*/> dirs_s   { {"",true/*keep*/} , {HeadS,true/*keep*/} , {cat(HeadS,"reserved/"),true/*keep*/} } ;
+		::uset_s               to_unlnk ;
+		::umap_s<RepairEntry>  entries  ;
+		::umap_ss              hints    ;
+		//
+		auto uphill = [&](::string const& d)->void {
+			for( ::string u = d ;; u=dir_name_s(u) ) {
+				auto [it,inserted] = dirs_s.try_emplace(u,true/*keep*/) ;
+				if (!inserted) {
+					if (it->second) break ;
+					it->second = true ;
+				}
+				SWEAR(+u) ;
+			}
+		} ;
+		//
+		for( auto const& [af,t] : walk(dir_s) ) {
+			if (!af) continue ;
+			::string f = af.substr(1) ;                                                             // suppress leading /
+			switch (t) {
+				case FileTag::Dir :
+					dirs_s.try_emplace(with_slash(f),false/*keep*/) ;
+					continue ;
+				break ;
+				case FileTag::Reg   :
+				case FileTag::Empty :
+					if (f.starts_with(HeadS)) {
+						::string_view sv = substr_view(f,sizeof(HeadS)-1) ;                         // -1 to account for terminating null
+						if (sv=="lru"    ) continue ;
+						if (sv=="size"   ) continue ;
+						if (sv=="version") continue ;
+					}
+					if ( Re::Match m=entry_re.match(f) ; +m )
+						if ( ::string tag{m.group(f,4)} ; can_mk_enum<RepairTag>(tag)) {
+							entries[::string(m.group(f,1))].tags |= mk_enum<RepairTag>(tag) ;
+							continue ;
+						}
+				break ;
+				case FileTag::Lnk :
+					if ( Re::Match m=hint_re.match(f) ; +m )
+						if ( ::string k=read_lnk(dir_s+f) ; +key_re.match(k)) {
+							hints.try_emplace(f,dir_name_s(f)+k+'/') ;
+							continue ;
+						}
+				break ;
+			DN}
+			to_unlnk.insert(f) ;
+		}
+		//
+		for( auto& [f_s,e] : entries ) {
+			_qualify_entry( /*inout*/e , dir_s , f_s ) ;
+			if (+e)
+				uphill(f_s) ;
+			else
+				for( RepairTag t : iota(All<RepairTag>) )
+					if (e.tags[t]) to_unlnk.insert(f_s+snake(t)) ;
+		}
+		//
+		for( auto& [f,h] : hints ) {
+			auto it = entries.find(h) ;
+			if ( it!=entries.end() && +it->second ) uphill(dir_name_s(f)) ;
+			else                                    to_unlnk.insert  (f)  ;
+		}
+		//
+		SWEAR_PROD(+dir_s) ;                                                                        // avoid unlinking random files
+		for( ::string const& f : to_unlnk ) {
+			::string df = dir_s+f ;
+			Fd::Stdout.write(cat("rm ",df,'\n')) ;
+			unlnk( df , false/*dir_ok*/ , true/*abs_ok*/ ) ;
+		}
+		//
+		::vector_s to_rmdir ;
+		for( auto const& [d_s,k] : dirs_s ) { if (!k) to_rmdir.push_back(d_s) ; }
+		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;   // sort to ensure subdirs are rmdir'ed before their parent
+		for( ::string const& d_s : to_rmdir ) {
+			::string dd = no_slash(dir_s+d_s) ;
+			Fd::Stdout.write(cat("rmdir ",dd,'\n')) ;
+			::rmdir(dd.c_str()) ;
+		}
+		//
+		::vmap_s<RepairEntry> to_mk_lru ;
+		for( auto const& f_e : entries ) if (+f_e.second) to_mk_lru.push_back(f_e) ;
+		::sort(                                                                                     // sort in LRU order, newer first
+			to_mk_lru
+		,	[]( ::pair_s<RepairEntry> const& a , ::pair_s<RepairEntry> const& b )->bool { return a.second.old_lru.last_access>b.second.old_lru.last_access ; }
+		) ;
+		size_t total_sz = 0 ;
+		size_t w        = 0 ; for ( auto const& [_,e] : to_mk_lru ) w = ::max(w,cat(e.sz).size()) ; // not perfect as this handles all entries, not printed ones, but would be too expensive otherwise
+		for( size_t i : iota(to_mk_lru.size()) ) {
+			RepairEntry const& here     = to_mk_lru[i].second           ;
+			Lru         const& old_lru  = here.old_lru                  ;
+			::string           lru_file = _lru_file(to_mk_lru[i].first) ;
+			Lru new_lru {
+				.prev_s      = i==0                  ? HeadS : to_mk_lru[i-1].first
+			,	.next_s      = i==to_mk_lru.size()-1 ? HeadS : to_mk_lru[i+1].first
+			,	.sz          = here.sz
+			,	.last_access = old_lru.last_access
+			} ;
+			total_sz += new_lru.sz ;
+			if (new_lru!=old_lru) {
+				Fd::Stdout.write(cat("rebuild lru (",widen(cat(new_lru.sz),w,true/*right*/)," bytes, last accessed ",new_lru.last_access.str(),") to ",lru_file,'\n')) ;
+				AcFd(lru_file,Fd::Write).write(serialize(new_lru)) ;
+			}
+		}
+		::string head_lru_file = _lru_file(HeadS) ;
+		Lru      old_head_lru  ;
+		try                     { old_head_lru = deserialize<Lru>(AcFd(head_lru_file).read()) ; }
+		catch (::string const&) { old_head_lru = {} ;                                           }   // ensure no partial info
+		Lru new_head_lru {
+			.prev_s = to_mk_lru.back ().first
+		,	.next_s = to_mk_lru.front().first
+		,	.sz     = total_sz
+		} ;
+		if (new_head_lru!=old_head_lru) {
+			Fd::Stdout.write(cat("rebuild head lru (total ",new_head_lru.sz," bytes) to ",head_lru_file,'\n')) ;
+			AcFd(head_lru_file,Fd::Write).write(serialize(new_head_lru)) ;
+		}
 	}
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard& nfs_guard ) {
@@ -247,11 +426,11 @@ namespace Caches {
 
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {                                 // match_key is returned by sub_match()
 		SWEAR(match_key.back()=='/') ;
-		NfsGuard                nfs_guard { file_sync }                                       ;
-		AcFd                    dfd       { nfs_guard.access_dir(dir_s+match_key) , Fd::Dir } ;
-		AcFd                    info_fd   ;
-		AcFd                    data_fd   ;
-		{	LockedFd lock { dir_s , true /*exclusive*/ }      ;                                              // because we manipulate LRU, we need exclusive
+		NfsGuard nfs_guard { file_sync }                                       ;
+		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , Fd::Dir } ;
+		AcFd     info_fd   ;
+		AcFd     data_fd   ;
+		{	LockedFd lock { dir_s , true /*exclusive*/ }         ;                                           // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( match_key , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_first( match_key , sz , nfs_guard ) ;
 			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                              // _lru_remove worked => everything should be accessible
@@ -292,9 +471,10 @@ namespace Caches {
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
 		Sz new_sz =
-			job_info_str.size()
-		+	deps_str.size()
-		+	FileInfo(nfs_guard.access(_reserved_file(upload_key,"data") )).sz
+			FileInfo(nfs_guard.access(_reserved_file(upload_key,"data"))).sz
+		+	deps_str    .size()
+		+	job_info_str.size()
+		+	sizeof(Lru) + 2*jnid_s.size()                                                                                 // an estimate of the lru file size
 		;
 		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard)                                      ;
 		bool     made_room = false                                                                   ;

@@ -35,16 +35,17 @@ This has no semantic impact as these jobs will be considered out-of-date and wil
 These commands are meant to be run by the user outside jobs.
 They are:
 
-| Command                              | Short description                                                  |
-|--------------------------------------|--------------------------------------------------------------------|
-| [`lautodep`](man/man1/lautodep.html) | run a script in an execution environmeent while recording accesses |
-| [`ldebug`](man/man1/ldebug.html)     | run a job in a debug environement                                  |
-| [`lforget`](man/man1/lforget.html)   | forget history of a job                                            |
-| [`lmake`](man/man1/lmake.html)       | run necessary jobs to ensure a target is up-to-date                |
-| [`lmark`](man/man1/lmark.html)       | mark a job to alter its behavior w.r.t. `lmake`                    |
-| [`lrepair`](man/man1/lrepair.html)   | repair a broken repo                                               |
-| [`lshow`](man/man1/lshow.html)       | show various informations of a job                                 |
-| [`xxhsum`](man/man1/xxhsum.html)     | compute a checksum on a file                                       |
+| Command                                              | Short description                                                  |
+|------------------------------------------------------|--------------------------------------------------------------------|
+| [`lautodep`](man/man1/lautodep.html)                 | run a script in an execution environmeent while recording accesses |
+| [`ldebug`](man/man1/ldebug.html)                     | run a job in a debug environement                                  |
+| [`ldircache_repair`](man/man1/ldircache_repair.html) | repair a broken repo                                               |
+| [`lforget`](man/man1/lforget.html)                   | forget history of a job                                            |
+| [`lmake`](man/man1/lmake.html)                       | run necessary jobs to ensure a target is up-to-date                |
+| [`lmark`](man/man1/lmark.html)                       | mark a job to alter its behavior w.r.t. `lmake`                    |
+| [`lrepair`](man/man1/lrepair.html)                   | repair a broken repo                                               |
+| [`lshow`](man/man1/lshow.html)                       | show various informations of a job                                 |
+| [`xxhsum`](man/man1/xxhsum.html)                     | compute a checksum on a file                                       |
 
 ## commands to interact with open-lmake from within jobs
 

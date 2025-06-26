@@ -3,9 +3,15 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "utils.hh"
+#include "caches/dir_cache.hh"
 
-int main( int argc , char* /*argv*/[] ) {
+using namespace Caches ;
+
+int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(Rc::Usage ,"ldircache_repair dir" ) ;
-	return 0 ;
+	DirCache cache ;
+	try                       { cache.config( {{"dir",with_slash(argv[1])}} ) ; }
+	catch (::string const& e) { exit(Rc::Fail,"cannot configure cache : ",e) ;  }
+	//
+	cache.repair() ;
 }

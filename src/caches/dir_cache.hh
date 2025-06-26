@@ -12,10 +12,11 @@ namespace Caches {
 	struct DirCache : Cache {                                        // PER_CACHE : inherit from Cache and provide implementation
 		static constexpr char HeadS[] = ADMIN_DIR_S ;
 		// services
-		void config(::vmap_ss const& ) override ;
-		Tag  tag   (                 ) override { return Tag::Dir ; }
-		void serdes(::string     & os) override { _serdes(os) ;     } // serialize  , cannot be a template as it is a virtual method
-		void serdes(::string_view& is) override { _serdes(is) ;     } // deserialize, .
+		void config( ::vmap_ss const&  , bool may_init=false ) override ;
+		void repair(                                         ) override ;
+		Tag  tag   (                                         ) override { return Tag::Dir ; }
+		void serdes( ::string     & os                       ) override { _serdes(os) ;     } // serialize  , cannot be a template as it is a virtual method
+		void serdes( ::string_view& is                       ) override { _serdes(is) ;     } // deserialize, .
 		//
 		Match                               sub_match   ( ::string const& job , ::vmap_s<DepDigest> const&          ) const override ;
 		::pair<JobInfo,AcFd>                sub_download( ::string const& match_key                                 )       override ;

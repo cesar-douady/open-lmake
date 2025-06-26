@@ -27,6 +27,12 @@ enum class FileTag : uint8_t {
 ,	Target = Lnk // >=Target means file can be generated as a target
 } ;
 // END_OF_VERSIONING
+using FileTags = BitMap<FileTag> ;
+constexpr FileTags TargetTags = []()->FileTags {
+	FileTags res ;
+	for( FileTag t : iota(All<FileTag>) ) if (t>=FileTag::Target) res |= t ;
+	return res ;
+}() ;
 
 namespace Time {
 

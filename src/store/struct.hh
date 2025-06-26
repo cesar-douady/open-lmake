@@ -19,10 +19,10 @@ namespace Store {
 			// data
 			// we need to force alignment for subsequent data
 			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
-			// also, putting a constraint less than the natural constraint is undefined behavior
+			// also, putting a constraint less than the natural constraint is not supported
 			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
-			[[no_unique_address]] alignas(Data) alignas(HdrNv) HdrNv hdr ;     // no need to allocate space if header is empty
-			[[                 ]]                              Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+			alignas(Data) alignas(Sz) Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+			[[no_unique_address]]     HdrNv hdr ;     // no need to allocate space if header is empty
 		} ;
 
 		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {
@@ -46,7 +46,7 @@ namespace Store {
 		//
 		static_assert( !::is_void_v<Data> ) ;
 		//
-		using StructHdr = Struct::Hdr<Hdr,Idx,Data> ;
+		using StructHdr = Struct::Hdr<Hdr,Idx,Data> ; static_assert(alignof(StructHdr)%alignof(Data)==0) ; // check alignment constraints
 		void expand(size_t) = delete ;
 		//
 		using Base::chk_thread   ;

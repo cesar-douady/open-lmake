@@ -60,7 +60,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-! suppres recycling of tmp dir
+* suppress recycling of tmp dir
 	- difficult because in some cases with namespace, we create mount point in there
 	- and there is no known ways to do unmount, preventing tmp dir deletion
 	- tmp dir is then cleaned up when next job starts with the same tmp dir
@@ -83,9 +83,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * implement lcache_repair
-	- clean LMAKE/reserved
-	- recompute overall size
-	- recompute all lru files
 	- check target crcs
 * implement cache v2 :
 	- use a daemon

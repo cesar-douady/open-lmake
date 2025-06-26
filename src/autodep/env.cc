@@ -108,3 +108,16 @@ AutodepEnv::operator ::string() const {
 	res <<':'<<      mk_printable     (views      ,false )      ;
 	return res ;
 }
+
+void AutodepEnv::chk(bool for_cache) const {
+	RealPathEnv::chk(for_cache) ;
+	throw_unless( !sub_repo_s || sub_repo_s.back()=='/'                , "bad sub_repo" ) ;
+	throw_unless( is_canon(sub_repo_s,false/*ext_ok*/,true/*empy_ok*/) , "bad sub_repo" ) ;
+	for( auto const& [view,phys] : views ) {
+		/**/                            throw_unless( is_canon(view) , "bad view" ) ;
+		for( ::string const& p : phys ) throw_unless( is_canon(p) , "bad view phys" ) ;
+	}
+	if (for_cache) {
+		throw_unless( !fast_report_pipe , "bad report info" ) ;
+	}
+}

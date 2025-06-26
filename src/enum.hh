@@ -146,8 +146,7 @@ template<UEnum E> inline E mk_enum(::string const& x) {
 	return res_ok.first ;
 }
 
-template<Enum E> inline constexpr EnumHelper::EnumInt<E> operator+(E e) { return EnumHelper::EnumInt<E>(e) ; }
-//
+template<Enum E> inline constexpr EnumHelper::EnumInt <E> operator+ (E  e                          ) {                       return EnumHelper::EnumInt<E>(e    ) ; }
 template<Enum E> inline constexpr E                       operator+ (E  e,EnumHelper::EnumSInt<E> i) {                       return E(+e+i)                       ; }
 template<Enum E> inline constexpr E&                      operator+=(E& e,EnumHelper::EnumSInt<E> i) {             e = e+i ; return e                             ; }
 template<Enum E> inline constexpr E                       operator- (E  e,EnumHelper::EnumSInt<E> i) {                       return E(+e-i)                       ; }

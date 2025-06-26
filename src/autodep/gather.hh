@@ -66,6 +66,7 @@ struct Gather {                                                       // NOLINT(
 		//
 		void clear_accesses() { for( Access a : iota(All<Access>) ) _read[+a          ] = PD::Future ; }
 		void clear_lnk     () {                                     _read[+Access::Lnk] = PD::Future ; }
+		void clear_readdir () {                                     _read_dir           = PD::Future ; }
 		//                                                  phys
 		bool seen    () const { return _seen    <_max_read (true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
 		bool read_dir() const { return _read_dir<_max_read (true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error

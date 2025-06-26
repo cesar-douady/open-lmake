@@ -364,9 +364,10 @@ public :
 		Solve       src ;
 		SolveModify dst ;
 	} ;
-	struct Mkdir : SolveModify {
+	struct Mkdir : Solve {
 		Mkdir() = default ;
 		Mkdir( Record& , Path&& , Comment ) ;
+		int operator()( Record& , int rc ) { return rc ; }
 	} ;
 	struct Mount {
 		Mount() = default ;

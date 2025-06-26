@@ -44,8 +44,9 @@ else :
 	open('dut.ref','w').write('hello\n')
 	open('dut'    ,'w').write('hello\n\n')
 
-	ut.lmake( 'dut.ok' , new=2 , rerun=1 , done=2 ) # check reformat occurs (rerun because dep has changed during first run)
-	ut.lmake( 'dut.ok'                            ) # check build is stable
+	cnt = ut.lmake( 'dut.ok' , new=2 , rerun=... , done=2 ) # check reformat occurs (rerun because dep has changed during first run)
+	assert 1<=cnt.rerun and cnt.rerun<=2                    # there may be a spurious rerun on dut.ok because dut may be hot
+	ut.lmake( 'dut.ok'                                    ) # check build is stable
 
 	open('dut','a').write('\n')                           # mimic an edit session
 	ut.lmake( 'dut.ok' , changed=1 , rerun=1 , steady=2 ) # check reformat is redone

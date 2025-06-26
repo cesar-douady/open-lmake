@@ -63,7 +63,7 @@ template<class T> requires( ::is_trivially_copyable_v<T> && !::is_empty_v<T> ) s
 	}
 	template<IsIStream S> static void s_serdes( S& is , T& x ) {
 		static_assert(!IsOStream<S>) ;                                                    // there is an ambiguity about the direction
-		if (is.size()<sizeof(x)) throw 0 ;
+		if (is.size()<sizeof(x)) throw "truncated stream"s ;
 		is.copy         ( ::launder(reinterpret_cast<char*>(&x)) , sizeof(x) ) ;
 		is.remove_prefix(                                          sizeof(x) ) ;
 	}
@@ -196,7 +196,7 @@ template<> struct Serdeser<::string> {
 	template<IsOStream S> static void s_serdes( S& os , ::string const& s ) { uint32_t sz=_sz32(s) ; serdes(os,sz) ; os += ::string_view(s) ; }
 	template<IsIStream S> static void s_serdes( S& is , ::string      & s ) {
 		uint32_t sz ; serdes(is,sz) ;
-		if (is.size()<sz) throw 0 ;
+		if (is.size()<sz) throw "truncated stream"s ;
 		s.resize(sz) ;
 		is.copy         ( s.data() , sz ) ;
 		is.remove_prefix(            sz ) ;
@@ -219,14 +219,14 @@ template<class T,size_t N> struct Serdeser<::array<T,N>> {
 } ;
 
 template<class T> struct Serdeser<::vector<T>> {
-	template<IsOStream S> static void s_serdes( S& os , ::vector<T> const& v ) { serdes(os,_sz32(v)) ;                 for( T const& x : v ) serdes(os,x) ; }
-	template<IsIStream S> static void s_serdes( S& is , ::vector<T>      & v ) { v.resize(deserialize<uint32_t>(is)) ; for( T      & x : v ) serdes(is,x) ; }
+	template<IsOStream S> static void s_serdes( S& os , ::vector<T> const& v ) { serdes(os,_sz32(v)) ; for( T const& x : v ) serdes(os,x) ;                                           }
+	template<IsIStream S> static void s_serdes( S& is , ::vector<T>      & v ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) v.push_back(deserialize<T>(is)) ; }
 } ;
 
 // special case vector<bool> as it is special cased in std (operator[] returns a fancy type)
 template<> struct Serdeser<::vector<bool>> {
-	template<IsOStream S> static void s_serdes( S& os , ::vector<bool> const& v ) { serdes(os,_sz32(v)) ;                 for( bool   x : v              )            serdes(os,x) ;              }
-	template<IsIStream S> static void s_serdes( S& is , ::vector<bool>      & v ) { v.resize(deserialize<uint32_t>(is)) ; for( size_t i : iota(v.size()) ) { bool b ; serdes(is,b) ; v[i] = b ; } }
+	template<IsOStream S> static void s_serdes( S& os , ::vector<bool> const& v ) { serdes(os,_sz32(v)) ; for( bool x : v ) serdes(os,x) ;                                                  }
+	template<IsIStream S> static void s_serdes( S& is , ::vector<bool>      & v ) { for( [[maybe_unused]] size_t _ : iota(deserialize<uint32_t>(is)) ) v.push_back(deserialize<bool>(is)) ; }
 } ;
 
 template<class T> struct Serdeser<::set<T>> {

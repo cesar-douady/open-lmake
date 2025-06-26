@@ -83,6 +83,9 @@ void chk_version( bool may_init , ::string const& admin_dir_s ) {
 		::string stored = version_fd.read() ;
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 		stored.pop_back() ;
-		if (stored!=VersionMrkr) throw "version mismatch, "+git_clean_msg() ;
+		if (stored!=VersionMrkr) {
+			if (+g_repo_root_s) throw "version mismatch, "+git_clean_msg() ;
+			else                throw "version mismatch"s                  ;
+		}
 	}
 }
