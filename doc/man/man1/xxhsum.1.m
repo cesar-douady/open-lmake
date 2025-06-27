@@ -6,7 +6,7 @@ Comment(
 )
 
 Title(xxhsum,compute a fast *non crypto-robust* message digest)
-.SH SYNOPSYS
+.SH SYNOPSIS
 B(xxhsum) I(file)
 
 .SH DESCRIPTION

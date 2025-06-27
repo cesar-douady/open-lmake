@@ -6,7 +6,7 @@ Comment(
 )
 
 Title(lencode,encode a (long) value into a (short) code for retrieval with C(ldecode) within a OpenLmake job)
-.SH SYNOPSYS
+.SH SYNOPSIS
 B(lencode) I(association_file) I(context) [I(min_length)]
 
 .SH DESCRIPTION

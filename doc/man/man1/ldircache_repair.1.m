@@ -6,8 +6,8 @@ Comment(
 )
 
 Title(ldircache_repair,repair a OpenLmake repo)
-.SH SYNOPSYS
-B(ldircache_repair) I(dir)
+.SH SYNOPSIS
+B(ldircache_repair) [I(-n)|I(--dry-run)] I(dir)
 
 .SH DESCRIPTION
 .LP
@@ -27,6 +27,10 @@ Item(rmdir)       Any empty dir, possibly resulting from the I(rm) actions, are 
 Item(erase entry) Any incomplete or otherwise incoherent cache entry is removed.
 Item(rebuild lru) The book-keeping information to ensure proper LRU evection is rebuilt.
 If the LRU data is missing, the corresponding entry will be deemed to have been accessed and will be preferred candidates for eviction.
+
+.SH OPTIONS
+.LP
+Item(B(-n),B(--dry-run)) Report actions to carry out but do not actually perform them.
 
 ClientGeneralities()
 

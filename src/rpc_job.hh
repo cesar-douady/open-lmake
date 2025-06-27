@@ -609,7 +609,7 @@ namespace Caches {
 		void                   dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		// default implementation : no caching, but enforce protocol
 		virtual void config( ::vmap_ss const& , bool /*may_init*/=false ) {}
-		virtual void repair(                                            ) {}
+		virtual void repair( bool /*dry_run*/                           ) {}
 		virtual Tag  tag   (                                            ) { return Tag::None ; }
 		virtual void serdes( ::string     &                             ) {}                     // serialize
 		virtual void serdes( ::string_view&                             ) {}                     // deserialize

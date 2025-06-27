@@ -6,7 +6,7 @@ Comment(
 )
 
 Title(ldecode,retrieve the original content encoded with C(lencode) within a OpenLmake job)
-.SH SYNOPSYS
+.SH SYNOPSIS
 B(ldecode) I(association_file) I(context) I(code)
 
 .SH DESCRIPTION

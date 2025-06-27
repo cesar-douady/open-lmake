@@ -6,7 +6,7 @@ Comment(
 )
 
 Title(lrun_cc,run a C/C++ compiler protecting include dirs)
-.SH SYNOPSYS
+.SH SYNOPSIS
 B(lrun_cc) [-m I(marker)] I(compiler) I(args)...
 
 .SH DESCRIPTION

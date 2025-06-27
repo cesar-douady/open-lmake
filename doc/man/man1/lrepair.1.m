@@ -6,7 +6,7 @@ Comment(
 )
 
 Title(lrepair,repair a OpenLmake repo)
-.SH SYNOPSYS
+.SH SYNOPSIS
 B(lrepair)
 
 .SH DESCRIPTION

@@ -84,6 +84,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * implement lcache_repair
 	- check target crcs
+	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :
 	- use a daemon
 ? implement target priority

@@ -7,7 +7,7 @@ Comment(
 
 Title(lautodep,mimic OpenLmake job prelude)
 
-.SH SYNOPSYS
+.SH SYNOPSIS
 B(lautodep) [I(OPTION)]... I(cmd) I(args)...
 
 .SH DESCRIPTION
