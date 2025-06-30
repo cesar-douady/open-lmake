@@ -8,6 +8,7 @@
 // PER_BACKEND : there must be a file describing each backend (providing the sub-backend class, deriving from GenericBackend if possible (simpler), else Backend)
 
 using namespace Disk ;
+using namespace Hash ;
 
 namespace Backends::Local {
 
@@ -31,7 +32,7 @@ namespace Backends::Local {
 		RsrcsData& operator-=(RsrcsData const& rsrcs) { SWEAR(size()==rsrcs.size(),size(),rsrcs.size()) ; for( size_t i : iota(size()) ) self[i] -= rsrcs[i] ; return self ; }
 		RsrcsData round(Backend const&) const ;
 		size_t    hash (              ) const {
-			return +Hash::Xxh(static_cast<::vector<Backends::Local::Rsrc> const&>(self)).digest() ;
+			return +Crc( New , static_cast<::vector<Backends::Local::Rsrc> const&>(self) ) ;
 		}
 	} ;
 
@@ -63,11 +64,11 @@ namespace Backends::Local {
 
 		// accesses
 	public :
-		virtual bool call_launch_after_end() const { return true ; }
+		bool call_launch_after_end() const override { return true ; }
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
+		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) override {
 			// add an implicit resource <single> to manage jobs localized from remote backends
 			Trace trace(BeChnl,"Local::config",STR(dyn),dct) ;
 			//
@@ -115,39 +116,39 @@ namespace Backends::Local {
 			}
 			trace("done") ;
 		}
-		virtual ::vmap_s<size_t> const& capacity() const {
+		::vmap_s<size_t> const& capacity() const override {
 			return public_capacity ;
 		}
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const {       // START_OF_NO_COV defensive programming (cannot make local local)
+		::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const override {       // START_OF_NO_COV defensive programming (cannot make local local)
 			return ::move(rsrcs) ;
 		}                                                                                                           // END_OF_NO_COV
 		//
-		virtual ::vmap_ss  export_   ( RsrcsData const& rs             ) const { return rs.mk_vmap(rsrc_keys)           ; }
-		virtual RsrcsData  import_   ( ::vmap_ss     && rs , Req , Job ) const { return RsrcsData(::move(rs),rsrc_idxs) ; }
-		virtual ::string lacking_rsrc( RsrcsData const& rs             ) const {
+		::vmap_ss  export_   ( RsrcsData const& rs             ) const override { return rs.mk_vmap(rsrc_keys)           ; }
+		RsrcsData  import_   ( ::vmap_ss     && rs , Req , Job ) const override { return RsrcsData(::move(rs),rsrc_idxs) ; }
+		::string lacking_rsrc( RsrcsData const& rs             ) const override {
 			for( size_t i : iota(rs.size()) ) if (rs[i]>capacity_[i]) return cat("not enough resource ",rsrc_keys[i]," (asked ",rs[i]," but only ",capacity_[i]," available)") ;
 			return {} ;
 		}
-		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+		bool/*ok*/ fit_now(Rsrcs const& rs) const override {
 			RsrcsData const& rds = *rs ;
 			for( size_t i : iota(occupied.size()) ) if ( occupied[i]+rds[i] > capacity_[i] ) return false ;
 			return true ;
 		}
-		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+		void acquire_rsrcs(Rsrcs const& rs) const override {
 			occupied += *rs ;
 			Trace trace(BeChnl,"occupied_rsrcs",rs,'+',occupied) ;
 			for( size_t i : iota(occupied.size()) ) SWEAR(occupied[i]<=capacity_[i]) ;
 		}
-		virtual void end_rsrcs(Rsrcs const& rs) const {
+		void end_rsrcs(Rsrcs const& rs) const override {
 			occupied -= *rs ;
 			Trace trace(BeChnl,"occupied_rsrcs",rs,'-',occupied) ;
 			for( size_t i : iota(occupied.size()) ) SWEAR(occupied[i]<=capacity_[i]) ;
 		}
 		//
-		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
+		::string start_job( Job , SpawnedEntry const& se ) const override {
 			return cat("pid:",se.id.load()) ;
 		}
-		virtual ::pair_s<bool/*retry*/> end_job( Job job , SpawnedEntry const& se , Status status ) const {
+		::pair_s<bool/*retry*/> end_job( Job job , SpawnedEntry const& se , Status status ) const override {
 			_wait_queue.push(se.id) ;                                                                       // defer wait in case job_exec process does some time consuming book-keeping
 			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                             // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::string msg ;
@@ -156,7 +157,7 @@ namespace Backends::Local {
 			catch (::string const& e) { msg = e                                 ; }
 			return { ::move(msg) , status==Status::Ok/*retry*/ } ;                                          // retry if garbage
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const {   // called after job_exec has had time to start
+		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {   // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
 			if (::waitpid(se.id,&wstatus,WNOHANG)==0) return { {}/*msg*/ , HeartbeatState::Alive } ;        // process is still alive
@@ -167,12 +168,12 @@ namespace Backends::Local {
 			if (wstatus_ok(wstatus)) return { ::move(msg) , HeartbeatState::Lost } ;                        // process died long before (already waited) or just died with no error
 			else                     return { ::move(msg) , HeartbeatState::Err  } ;                        // process just died with an error
 		}
-		virtual void kill_queued_job(SpawnedEntry const& se) const {
+		void kill_queued_job(SpawnedEntry const& se) const override {
 			if (se.zombie) return ;
 			kill_process(se.id,SIGHUP) ;                                                                    // jobs killed here have not started yet, so we just want to kill job_exec
 			_wait_queue.push(se.id) ;                                                                       // defer wait in case job_exec process does some time consuming book-keeping
 		}
-		virtual SpawnId launch_job( ::stop_token , Job job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
+		SpawnId launch_job( ::stop_token , Job job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
 			::vector<const char*> cmd_line_ ; cmd_line_.reserve(cmd_line.size()+1) ;
 			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
 			/**/                                cmd_line_.push_back(nullptr  ) ;

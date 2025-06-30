@@ -1362,7 +1362,7 @@ namespace Codec {
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return CodecPfxS+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+"/encode-"+Xxh(val).digest().hex() ;
+		return CodecPfxS+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+"/encode-"+Crc(New,val).hex() ;
 	}
 
 	::string mk_file(::string const& node) {

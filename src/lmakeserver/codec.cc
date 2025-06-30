@@ -43,7 +43,7 @@ namespace Codec {
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
-		Crc  crc    = Xxh(txt).digest() ;
+		Crc  crc    = Crc(New,txt)               ;
 		bool mk_new = node->buildable!=buildable ;
 		if      (mk_new        ) node->buildable = buildable ;
 		else if (node->crc==crc) return ;
@@ -87,7 +87,7 @@ namespace Codec {
 	}
 
 	static ::string _mk_new_code( ::string const& code , ::string const& val , ::map_ss const& codes ) {
-		::string crc = Xxh(val).digest().hex()       ;
+		::string crc = Crc(val).hex()                ;
 		uint8_t  d   = ::min(code.size(),crc.size()) ; while (!code.ends_with(substr_view(crc,0,d))) d-- ;
 		::string res = code                          ; res.reserve(code.size()+1) ;                        // most of the time, adding a single char is enough
 		for( char c : substr_view(crc,d) ) {
@@ -137,7 +137,7 @@ namespace Codec {
 				if (it->second==code) {
 					trace("duplicate",line) ;
 				} else {
-					::string crc = Xxh(val).digest().hex() ;
+					::string crc = Crc(New,val).hex() ;
 					if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ; // keep best code
 					trace("val_conflict",prev_code,code,it->second) ;
 				}
@@ -245,7 +245,7 @@ namespace Codec {
 			return { .proc=JobMngtProc::Encode , .txt=code , .crc=encode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
 		}
 		//
-		::string crc         = Xxh(txt).digest().hex() ;
+		::string crc         = Crc(New,txt).hex()      ;
 		::string code        = crc.substr(0,min_len()) ;
 		Node     decode_node ;
 		for(; code.size()<=crc.size() ; code.push_back(crc[code.size()]) ) {

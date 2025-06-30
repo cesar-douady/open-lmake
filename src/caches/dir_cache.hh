@@ -21,15 +21,15 @@ namespace Caches {
 	using RepairTag  = CacheRepairTag  ;
 	using RepairTags = CacheRepairTags ;
 
-	struct DirCache : Cache {                                                                 // PER_CACHE : inherit from Cache and provide implementation
+	struct DirCache : Cache {                                                                                                // PER_CACHE : inherit from Cache and provide implementation
 		// START_OF_VERSIONING
 		struct Lru {
 			// accesses
 			bool operator==(Lru const&) const = default ;
 			// data
-			::string     newer_s     = DirCache::HeadS ;                                      // newer
-			::string     older_s     = DirCache::HeadS ;                                      // older
-			DirCache::Sz sz          = 0               ;                                      // size of entry, or overall size for head
+			::string     newer_s     = DirCache::HeadS ;                                                                     // newer
+			::string     older_s     = DirCache::HeadS ;                                                                     // older
+			DirCache::Sz sz          = 0               ;                                                                     // size of entry, or overall size for head
 			Time::Pdate  last_access = {}              ;
 		} ;
 		// END_OF_VERSIONING
@@ -43,11 +43,12 @@ namespace Caches {
 		} ;
 		static constexpr char HeadS[] = ADMIN_DIR_S ;
 		// services
-		void config( ::vmap_ss const&  , bool may_init=false ) override ;
-		void repair( bool dry_run                            ) override ;
-		Tag  tag   (                                         ) override { return Tag::Dir ; }
-		void serdes( ::string     & os                       ) override { _serdes(os) ;     } // serialize  , cannot be a template as it is a virtual method
-		void serdes( ::string_view& is                       ) override { _serdes(is) ;     } // deserialize, .
+		void      config( ::vmap_ss const&  , bool may_init=false ) override ;
+		::vmap_ss descr (                                         ) override { return { {"key_checksum",key_crc.hex()} } ; }
+		void      repair( bool dry_run                            ) override ;
+		Tag       tag   (                                         ) override { return Tag::Dir                           ; }
+		void      serdes( ::string     & os                       ) override { _serdes(os) ;                               } // serialize  , cannot be a template as it is a virtual method
+		void      serdes( ::string_view& is                       ) override { _serdes(is) ;                               } // deserialize, .
 		//
 		Match                               sub_match   ( ::string const& job , ::vmap_s<DepDigest> const&          ) const override ;
 		::pair<JobInfo,AcFd>                sub_download( ::string const& match_key                                 )       override ;
@@ -68,17 +69,17 @@ namespace Caches {
 		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const& , bool do_lock ) const ;
 		//
 		template<IsStream T> void _serdes(T& s) {
-			::serdes(s,key_s    ) ;
+			::serdes(s,key_crc  ) ;
 			::serdes(s,dir_s    ) ;
 			::serdes(s,sz       ) ;
 			::serdes(s,file_sync) ;
 		}
 		// data
 	public :
-		::string key_s     ;
-		::string dir_s     ;
-		Sz       sz        = 0              ;
-		FileSync file_sync = FileSync::Dflt ;
+		Hash::Crc key_crc   = Hash::Crc::None ;
+		::string  dir_s     ;
+		Sz        sz        = 0               ;
+		FileSync  file_sync = FileSync::Dflt  ;
 	} ;
 
 }

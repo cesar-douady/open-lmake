@@ -111,11 +111,11 @@ namespace Backends::Sge {
 
 		// accesses
 
-		virtual bool call_launch_after_start() const { return true ; }
+		bool call_launch_after_start() const override { return true ; }
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
+		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) override {
 			Trace trace(BeChnl,"Sge::config",STR(dyn),dct) ;
 			//
 			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
@@ -155,41 +155,41 @@ namespace Backends::Sge {
 			trace("done") ;
 		}
 
-		virtual void open_req( Req req , JobIdx n_jobs ) {
+		void open_req( Req req , JobIdx n_jobs ) override {
 			Base::open_req(req,n_jobs) ;
 			::string const& prio = req->options.flag_args[+ReqFlag::Backend] ;
 			grow(req_prios,+req) = +prio ? from_string<int16_t>(prio) : dflt_prio ;
 		}
 
-		virtual void close_req(Req req) {
+		void close_req(Req req) override {
 			Base::close_req(req) ;
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs              ) const { return rs.mk_vmap()  ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , Req , Job ) const { return {::move(rsa)} ; }
+		::vmap_ss export_( RsrcsData const& rs              ) const override { return rs.mk_vmap()  ; }
+		RsrcsData import_( ::vmap_ss     && rsa , Req , Job ) const override { return {::move(rsa)} ; }
 		//
-		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+		bool/*ok*/ fit_now(Rsrcs const& rs) const override {
 			return spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 		}
-		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+		void acquire_rsrcs(Rsrcs const& rs) const override {
 			spawned_rsrcs.inc(rs) ;
 		}
-		virtual void start_rsrcs(Rsrcs const& rs) const {
+		void start_rsrcs(Rsrcs const& rs) const override {
 			spawned_rsrcs.dec(rs) ;
 		}
-		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
+		::string start_job( Job , SpawnedEntry const& se ) const override {
 			SWEAR(+se.rsrcs) ;
 			return cat("sge_id:",se.id.load()) ;
 		}
-		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const {
+		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const override {
 			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                        // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::string msg ;
 			try                       { msg = AcFd(get_stderr_file(j)).read() ; }
 			catch (::string const& e) { msg = e                               ; }
 			return { ::move(msg) , true/*retry*/  } ;
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const {
+		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {
 			if (sge_exec_client({"qstat","-j",::to_string(se.id)})) return { {}/*msg*/ , HeartbeatState::Alive } ;
 			::string msg ;
 			if (se.verbose)
@@ -199,10 +199,10 @@ namespace Backends::Sge {
 				msg = "lost job "+::to_string(se.id) ;
 			return { ::move(msg) , HeartbeatState::Lost } ;                                            // XXX! : try to distinguish between Lost and Err
 		}
-		virtual void kill_queued_job(SpawnedEntry const& se) const {
+		void kill_queued_job(SpawnedEntry const& se) const override {
 			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                     // asynchronous (as faster and no return value) cancel
 		}
-		virtual SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
+		SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
 			::string stderr = se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s ;
 			::vector_s sge_cmd_line = {
 				"qsub"

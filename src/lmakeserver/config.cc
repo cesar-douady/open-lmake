@@ -248,13 +248,13 @@ namespace Engine {
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
-			for( auto const& [key,idx] : cache_idxs ) {
+			for( auto const& [k,idx] : cache_idxs ) {
 				Cache const& cache = caches[idx] ;
-				size_t w = 3 ;                                                  // room for tag
-				for( auto const& [k,v] : cache.dct ) w = ::max(w,k.size()) ;
-				res <<"\t\t"<< key <<" :\n" ;
-				/**/                                 res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
-				for( auto const& [k,v] : cache.dct ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
+				::map_ss descr = mk_map(cache.dct) ; for( auto const& [k,v] : ::Cache::s_tab[idx]->descr() ) descr[k] = v                 ;
+				size_t    w     = 3                ; for( auto const& [k,v] : descr                        ) w        = ::max(w,k.size()) ; // 3 : room for tag
+				res <<"\t\t"<< k <<" :\n" ;
+				/**/                             res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
+				for( auto const& [k,v] : descr ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
 			}
 		}
 		if (+sub_repos_s) {
@@ -278,11 +278,11 @@ namespace Engine {
 		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) {                         // local backend is always present
+		for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                                     // local backend is always present
 			Backend           const& be  = backends[+t]                       ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
-			if (!bbe                          ) continue ;                      // not implemented
-			if (!be.configured                ) continue ;                      // not configured
+			if (!bbe                          ) continue ;                                                                                  // not implemented
+			if (!be.configured                ) continue ;                                                                                  // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;

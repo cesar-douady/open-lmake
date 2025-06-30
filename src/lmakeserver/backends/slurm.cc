@@ -113,11 +113,11 @@ namespace Backends::Slurm {
 
 		// accesses
 
-		virtual bool call_launch_after_start() const { return true ; }
+		bool call_launch_after_start() const override { return true ; }
 
 		// services
 
-		virtual void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) {
+		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) override {
 			Trace trace(BeChnl,"Slurm::config",STR(dyn),dct) ;
 			//
 			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
@@ -151,7 +151,7 @@ namespace Backends::Slurm {
 			trace("done") ;
 		}
 
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ji ) const { // transform remote resources into local resources
+		::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ji ) const override { // transform remote resources into local resources
 			Trace trace(BeChnl,"mk_lcl",rsrcs,ji) ;
 			::umap_s<size_t> capa   = mk_umap(capacity)             ;
 			RsrcsData        rd     { ::move(rsrcs) , daemon , ji } ;
@@ -184,7 +184,7 @@ namespace Backends::Slurm {
 			return res ;
 		}
 
-		virtual ::vmap_ss descr() const {
+		::vmap_ss descr() const override {
 			::vmap_ss res {
 				{ "manage memory" , daemon.manage_mem?"true":"false" }
 			} ;
@@ -192,33 +192,33 @@ namespace Backends::Slurm {
 			return res ;
 		}
 
-		virtual void open_req( Req req , JobIdx n_jobs ) {
+		void open_req( Req req , JobIdx n_jobs ) override {
 			Base::open_req(req,n_jobs) ;
 			grow(req_forces,+req) = parse_args(Req(req)->options.flag_args[+ReqFlag::Backend]) ;
 		}
 
-		virtual void close_req(Req req) {
+		void close_req(Req req) override {
 			Base::close_req(req) ;
 			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
 		}
 
-		virtual ::vmap_ss export_( RsrcsData const& rs                    ) const { return rs.mk_vmap()                                       ; }
-		virtual RsrcsData import_( ::vmap_ss     && rsa , Req req , Job j ) const { return blend( {::move(rsa),daemon,+j} ,req_forces[+req] ) ; }
+		::vmap_ss export_( RsrcsData const& rs                    ) const override { return rs.mk_vmap()                                       ; }
+		RsrcsData import_( ::vmap_ss     && rsa , Req req , Job j ) const override { return blend( {::move(rsa),daemon,+j} ,req_forces[+req] ) ; }
 		//
-		virtual bool/*ok*/ fit_now(Rsrcs const& rs) const {
+		bool/*ok*/ fit_now(Rsrcs const& rs) const override {
 			return spawned_rsrcs.n_spawned(rs) < n_max_queued_jobs ;
 		}
-		virtual void acquire_rsrcs(Rsrcs const& rs) const {
+		void acquire_rsrcs(Rsrcs const& rs) const override {
 			spawned_rsrcs.inc(rs) ;
 		}
-		virtual void start_rsrcs(Rsrcs const& rs) const {
+		void start_rsrcs(Rsrcs const& rs) const override {
 			spawned_rsrcs.dec(rs) ;
 		}
-		virtual ::string start_job( Job , SpawnedEntry const& se ) const {
+		::string start_job( Job , SpawnedEntry const& se ) const override {
 			SWEAR(+se.rsrcs) ;
 			return cat("slurm_id:",se.id.load()) ;
 		}
-		virtual ::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const {
+		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const override {
 			if ( !se.verbose && s==Status::Ok ) return {{}/*msg*/,true/*retry*/} ;                   // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c : iota(2) ) {
@@ -241,7 +241,7 @@ namespace Backends::Slurm {
 			}
 			return { info.first , info.second!=No } ;
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat_queued_job( Job j , SpawnedEntry const& se ) const {
+		::pair_s<HeartbeatState> heartbeat_queued_job( Job j , SpawnedEntry const& se ) const override {
 			::pair_s<Bool3/*job_ok*/> info = SlurmApi::job_state_func(se.id) ;
 			if (info.second==Maybe) return {{}/*msg*/,HeartbeatState::Alive} ;
 			//
@@ -252,10 +252,10 @@ namespace Backends::Slurm {
 			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
 			else                  return { info.first , HeartbeatState::Err  } ;
 		}
-		virtual void kill_queued_job(SpawnedEntry const& se) const {
+		void kill_queued_job(SpawnedEntry const& se) const override {
 			if (!se.zombie) _s_slurm_cancel_thread.push(se.id) ;                                        // asynchronous (as faster and no return value) cancel
 		}
-		virtual SpawnId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& se ) const {
+		SpawnId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                                        // slurm will not accept negative values, default values overflow in ... 2091
 			SlurmId id = SlurmApi::spawn_job_func( st , repo_key , j , reqs , nice , cmd_line , _slurm_env.get() , *se.rsrcs , se.verbose ) ;

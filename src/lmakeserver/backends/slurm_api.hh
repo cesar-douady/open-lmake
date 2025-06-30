@@ -57,7 +57,7 @@ namespace Backends::Slurm {
 			return res ;
 		}
 		size_t hash() const {
-			return +Hash::Xxh(static_cast<::vector<Backends::Slurm::RsrcsDataSingle> const&>(self)).digest() ;
+			return +Hash::Crc( New , static_cast<::vector<Backends::Slurm::RsrcsDataSingle> const&>(self) ) ;
 		}
 	} ;
 

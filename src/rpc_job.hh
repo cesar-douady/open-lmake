@@ -608,11 +608,12 @@ namespace Caches {
 		bool/*ok*/             commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
 		void                   dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		// default implementation : no caching, but enforce protocol
-		virtual void config( ::vmap_ss const& , bool /*may_init*/=false ) {}
-		virtual void repair( bool /*dry_run*/                           ) {}
-		virtual Tag  tag   (                                            ) { return Tag::None ; }
-		virtual void serdes( ::string     &                             ) {}                     // serialize
-		virtual void serdes( ::string_view&                             ) {}                     // deserialize
+		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false ) {}
+		virtual ::vmap_ss descr (                                            ) { return {}        ; }
+		virtual void      repair( bool /*dry_run*/                           ) {}
+		virtual Tag       tag   (                                            ) { return Tag::None ; }
+		virtual void      serdes( ::string     &                             ) {}                     // serialize
+		virtual void      serdes( ::string_view&                             ) {}                     // deserialize
 		//
 		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return { .completed=true , .hit=No } ; }
 		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;

@@ -227,7 +227,7 @@ namespace Engine {
 			Ptr<Tuple> py_t { py_sys_path->size() } ; for( size_t i : iota(py_sys_path->size()) ) py_t->set_item( i , (*py_sys_path)[i] ) ;
 			py_sys_path = ::move(py_t) ;
 		}
-		sys_path_crc = Xxh(::string(*py_sys_path->str())).digest() ;
+		sys_path_crc = Crc( New , ::string(*py_sys_path->str()) ) ;
 		for( Object const& py_rule : py_d["rules"].as_a<Sequence>() ) emplace_back( self , py_rule.as_a<Dict>() ) ;
 	}
 

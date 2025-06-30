@@ -242,7 +242,7 @@ namespace Backends {
 		//
 		virtual SpawnId launch_job( ::stop_token , Job , ::vector<ReqIdx> const& , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& ) const = 0 ;
 		//
-		virtual ::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ) const { // START_OF_NO_COV system dependent, transform remote resources into local resources
+		::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& capacity , JobIdx ) const override { // START_OF_NO_COV system dependent, transform remote resources into local resources
 			::umap_s<size_t> capa   = mk_umap(capacity) ;
 			::vmap_ss        res    ;
 			bool             single = false             ;
@@ -258,20 +258,20 @@ namespace Backends {
 		}                                                                                                 // END_OF_NO_COV
 
 		// services
-		virtual void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) {
+		void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) override {
 			sub_config(dct,env,dyn) ;
 			if (!dyn) {
 				_launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ; s_record_thread(LaunchThreadKey,_launch_queue.thread) ;
 			}
 		}
-		virtual void open_req( Req req , JobIdx n_jobs ) {
+		void open_req( Req req , JobIdx n_jobs ) override {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
 			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
 			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                     // check no overflow
 			SWEAR(inserted) ;
 		}
-		virtual void close_req(Req req) {
+		void close_req(Req req) override {
 			auto it = reqs.find(req) ;
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
 			if (it==reqs.end()) return ;                                                                       // req has been killed
@@ -285,7 +285,7 @@ namespace Backends {
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
-		virtual void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) {
+		void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
 			SWEAR(!waiting_jobs.contains(job),job) ;                                                                                                            // job must be a new one
@@ -301,7 +301,7 @@ namespace Backends {
 			if (!_oldest_submitted_job     ) _oldest_submitted_job = New ;
 			if (re.waiting_jobs.size()>1000) launch() ;                                                        // if too many jobs are waiting, ensure launch process is running
 		}
-		virtual void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
+		void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) override {
 			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
 			ReqEntry& re  = reqs.at(req)           ;
 			auto      wit = waiting_jobs.find(job) ;
@@ -327,7 +327,7 @@ namespace Backends {
 			we.verbose      |= re.verbose   ;
 			we.n_reqs++ ;
 		}
-		virtual void set_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) {
+		void set_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) override {
 			ReqEntry& re = reqs.at(req)           ;                                                            // req must be known to already know job
 			auto      it = waiting_jobs.find(job) ;
 			//
@@ -343,7 +343,7 @@ namespace Backends {
 			old_pressure = pressure ;
 		}
 	protected :
-		virtual ::string start(Job job) {
+		::string start(Job job) override {
 			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
 			se.id.wait(StartingId) ;                                                                           // ensure job being launched has been recorded
@@ -353,7 +353,7 @@ namespace Backends {
 			if (call_launch_after_start()) _launch_queue.wakeup() ;
 			return msg ;
 		}
-		virtual ::pair_s<bool/*retry*/> end( Job j , Status s ) {
+		::pair_s<bool/*retry*/> end( Job j , Status s ) override {
 			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return {{},false/*retry*/} ; // job was killed in the mean time
 			SpawnedEntry& se = it->second           ; SWEAR(se.started) ;
 			se.id.wait(StartingId) ;                                                                           // in case of immediate execution, can be starting at the time end is received
@@ -362,10 +362,10 @@ namespace Backends {
 			if ( n_n_jobs || call_launch_after_end() ) _launch_queue.wakeup() ;                                // if we have a Req limited by n_jobs, we may have to launch a job
 			return digest ;
 		}
-		virtual void heartbeat() {
+		void heartbeat() override {
 			if ( _oldest_submitted_job.load()+g_config->heartbeat < Pdate(New) ) launch() ;                    // prevent jobs from being accumulated for too long
 		}
-		virtual ::pair_s<HeartbeatState> heartbeat(Job j) {                                                    // called on jobs that did not start after at least newwork_delay time
+		::pair_s<HeartbeatState> heartbeat(Job j) override {                                                   // called on jobs that did not start after at least newwork_delay time
 			auto          it = spawned_jobs.find(j) ; SWEAR(it!=spawned_jobs.end()  ) ;
 			SpawnedEntry& se = it->second           ; SWEAR(!se.started           ,j) ;                        // we should not be called on started jobs
 			SpawnId       id = se.id                ;
@@ -395,7 +395,7 @@ namespace Backends {
 			}
 		}
 		// kill all if req==0
-		virtual ::vector<Job> kill_waiting_jobs(Req req={}) {
+		::vector<Job> kill_waiting_jobs(Req req={}) override {
 			::vector<Job> res ;
 			Trace trace(BeChnl,"kill_waiting_jobs",T,req,reqs.size()) ;
 			if ( !req || reqs.size()<=1 ) {
@@ -421,7 +421,7 @@ namespace Backends {
 			}
 			return res ;
 		}
-		virtual void kill_job(Job j) {
+		void kill_job(Job j) override {
 			Trace trace(BeChnl,"kill_job",j) ;
 			auto          it = spawned_jobs.find(j) ; if (it==spawned_jobs.end()) return ;                     // job was not actually spawned
 			SpawnedEntry& se = it->second           ; SWEAR(!se.started) ;                                     // if job is started, it is not our responsibility any more
@@ -429,7 +429,7 @@ namespace Backends {
 			if (se.id>=0) kill_queued_job(se) ;
 			spawned_jobs.end(self,::move(it)) ;
 		}
-		virtual void launch() {
+		void launch() override {
 			if (!_oldest_submitted_job) return ;
 			_oldest_submitted_job = Pdate() ;
 			_launch_queue.wakeup() ;

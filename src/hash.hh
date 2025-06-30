@@ -86,6 +86,7 @@ namespace Hash {
 			self = Crc(file_name,/*out*/fi) ;
 			sig  = fi.sig()                 ;
 		}
+		template<class T> Crc( NewType , T const& x ) ;
 	private :
 		constexpr Crc(CrcSpecial special) : _val{+special} {}
 		//
@@ -141,7 +142,7 @@ namespace Hash {
 	public :
 		Xxh(         ) ;
 		Xxh(FileTag t) ;
-		template<class T> Xxh( T const& x) : Xxh{} { self += x ; }
+		template<class T> Xxh( NewType , T const& x ) : Xxh{} { self += x ; }
 		// services
 		Crc digest() const ;
 		//
@@ -151,8 +152,8 @@ namespace Hash {
 			self += ::string_view( ::launder(reinterpret_cast<const char*>(&x)) , sizeof(x) ) ;
 			return self ;
 		}
-		/**/                                                                      Xxh& operator+=(::string const& s) { self += s.size() ; self +=::string_view(s) ; return self ; }
-		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& operator+=(T        const& x) { serialize(self,x) ;                          return self ; }
+		/**/                                                                      Xxh& operator+=(::string const& s) { self += s.size() ; self += ::string_view(s) ; return self ; }
+		template<class T> requires( !_SimpleUpdate<T> && !IsUnstableIterable<T> ) Xxh& operator+=(T        const& x) { serialize(self,x) ;                           return self ; }
 		template<class T> requires(                       IsUnstableIterable<T> ) Xxh& operator+=(T        const& x) = delete ;
 		// data
 	public :
@@ -173,6 +174,8 @@ namespace Hash {
 	constexpr Crc Crc::Reg    {CrcSpecial::Reg    } ;
 	constexpr Crc Crc::None   {CrcSpecial::None   } ;
 	constexpr Crc Crc::Empty  {CrcSpecial::Empty  } ;
+
+	template<class T> Crc::Crc( NewType , T const& x ) { self = Xxh(New,x).digest() ; }
 
 	inline bool Crc::never_match(Accesses a) const {
 		switch (self) {

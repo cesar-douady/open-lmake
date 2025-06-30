@@ -27,6 +27,7 @@
 #include "dir_cache.hh"
 
 using namespace Disk ;
+using namespace Hash ;
 using namespace Time ;
 
 namespace Caches {
@@ -66,11 +67,7 @@ namespace Caches {
 		if ( auto it=config_map.find("dir") ; it!=config_map.end() ) dir_s = with_slash(it->second) ;
 		else                                                         throw "dir not found"s ;
 		//
-		if ( auto it=config_map.find("key") ; it!=config_map.end() ) {
-			Hash::Xxh key_hash ;
-			key_hash += it->second ;
-			key_s = "key-"+key_hash.digest().hex()+'/' ;
-		}
+		if ( auto it=config_map.find("key") ; it!=config_map.end() ) key_crc = Crc(New,it->second) ;
 		//
 		if ( auto it=config_map.find("file_sync") ; it!=config_map.end() ) {
 			if      (it->second=="None"                ) file_sync = FileSync::None ;
@@ -109,8 +106,8 @@ namespace Caches {
 			auto     job_info = _full_deserialize<JobInfo            >( /*out*/info_sz , df_s+"info" ) ;
 			Sz       entry_sz = _entry_sz( entry_s , df_s+"data" , deps_sz , info_sz ) ;
 			//
-			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }    // lru file size is already estimated
-			catch (::string const&) { entry.old_lru = {}                                                     ; }    // avoid partial info
+			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }          // lru file size is already estimated
+			catch (::string const&) { entry.old_lru = {}                                                     ; }          // avoid partial info
 			//
 			// check coherence
 			//
@@ -150,7 +147,7 @@ namespace Caches {
 		//
 		for( auto const& [af,t] : walk(dir_s) ) {
 			if (!af) continue ;
-			::string f = af.substr(1) ;                                                                             // suppress leading /
+			::string f = af.substr(1) ;                                                                                   // suppress leading /
 			switch (t) {
 				case FileTag::Dir :
 					dirs_s.try_emplace(with_slash(f),false/*keep*/) ;
@@ -159,7 +156,7 @@ namespace Caches {
 				case FileTag::Reg   :
 				case FileTag::Empty :
 					if (f.starts_with(HeadS)) {
-						::string_view sv = substr_view(f,sizeof(HeadS)-1) ;                                         // -1 to account for terminating null
+						::string_view sv = substr_view(f,sizeof(HeadS)-1) ;                                               // -1 to account for terminating null
 						if (sv=="lru"    ) continue ;
 						if (sv=="size"   ) continue ;
 						if (sv=="version") continue ;
@@ -196,7 +193,7 @@ namespace Caches {
 			else                                    to_unlnk.insert  (f)  ;
 		}
 		//
-		SWEAR_PROD(+dir_s) ;                                                                                        // avoid unlinking random files
+		SWEAR_PROD(+dir_s) ;                                                                                              // avoid unlinking random files
 		for( ::string const& f : to_unlnk ) {
 			::string df = dir_s+f ;
 			Fd::Stdout.write(cat("rm ",df,'\n')) ;
@@ -205,7 +202,7 @@ namespace Caches {
 		//
 		::vector_s to_rmdir ;
 		for( auto const& [d_s,k] : dirs_s ) { if (!k) to_rmdir.push_back(d_s) ; }
-		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;                   // sort to ensure subdirs are rmdir'ed before their parent
+		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;                         // sort to ensure subdirs are rmdir'ed before their parent
 		for( ::string const& d_s : to_rmdir ) {
 			::string dd = no_slash(dir_s+d_s) ;
 			Fd::Stdout.write(cat("rmdir ",dd,'\n')) ;
@@ -214,7 +211,7 @@ namespace Caches {
 		//
 		::vmap_s<RepairEntry> to_mk_lru ;
 		for( auto const& f_e : entries ) if (+f_e.second) to_mk_lru.push_back(f_e) ;
-		::sort(                                                                                                     // sort in LRU order, newer first
+		::sort(                                                                                                           // sort in LRU order, newer first
 			to_mk_lru
 		,	[]( ::pair_s<RepairEntry> const& a , ::pair_s<RepairEntry> const& b )->bool { return a.second.old_lru.last_access>b.second.old_lru.last_access ; }
 		) ;
@@ -239,7 +236,7 @@ namespace Caches {
 		::string head_lru_file = _lru_file(HeadS) ;
 		Lru      old_head_lru  ;
 		try                     { old_head_lru = deserialize<Lru>(AcFd(head_lru_file).read()) ; }
-		catch (::string const&) { old_head_lru = {} ;                                           }                   // ensure no partial info
+		catch (::string const&) { old_head_lru = {} ;                                           }                         // ensure no partial info
 		Lru new_head_lru {
 			.newer_s = to_mk_lru.back ().first
 		,	.older_s = to_mk_lru.front().first
@@ -348,23 +345,22 @@ namespace Caches {
 
 	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , bool do_lock ) const {
 		Trace trace("DirCache::_sub_match",job) ;
-		NfsGuard            nfs_guard    { file_sync }                                ;
-		::string            abs_jn_s     = dir_s+job+'/'                              ;
-		AcFd                dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir } ;
-		LockedFd            lock         ;                                              if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
-		::umap_s<DepDigest> repo_dep_map ;                                                                                                   // lazy evaluated
-		// deps_hint may point to the right entry (hint only as link is not updated when its target is modified)
-		Hash::Xxh deps_hint_hash ;                                                            deps_hint_hash += repo_deps ;
-		::string  deps_hint      = read_lnk(dfd,"deps_hint-"+deps_hint_hash.digest().hex()) ;
 		//
-		::vector_s repos ;
+		NfsGuard                    nfs_guard    { file_sync }                                         ;
+		::string                    abs_jn_s     = dir_s+job+'/'                                       ;
+		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir }          ;
+		LockedFd                    lock         ;                                                       if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
+		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
+		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
+		::vector_s                  repos        ;
+		//
 		try                       { repos = lst_dir_s(dfd) ;            }
-		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }                                                                    // if directory does not exist, it is as it was empty
-		if ( +deps_hint && repos.size()>1 )                                                                                                  // reorder is only meaningful if there are several entries
+		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }                                // if directory does not exist, it is as it was empty
+		if ( +deps_hint && repos.size()>1 )                                                              // reorder is only meaningful if there are several entries
 			for( size_t r : iota(repos.size()) ) {
 				if (repos[r]!=deps_hint) continue ;
-				for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                                                                // rotate repos to put hint in front
-				repos[0] = ::move(deps_hint) ;                                                                                               // .
+				for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                            // rotate repos to put hint in front
+				repos[0] = ::move(deps_hint) ;                                                           // .
 				break ;
 			}
 		for( ::string const& r : repos ) {
@@ -438,9 +434,10 @@ namespace Caches {
 	}
 
 	bool/*ok*/ DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		NfsGuard nfs_guard { file_sync } ;
-		::string jn_s      = job+'/'     ;
-		::string jnid_s    = jn_s+key_s  ;
+		NfsGuard nfs_guard { file_sync }                   ;
+		::string jn_s      = job+'/'                       ;
+		::string key_s     = cat("key-",key_crc.hex(),'/') ;
+		::string jnid_s    = jn_s+key_s                    ;
 		Trace trace("DirCache::sub_commit",upload_key,job) ;
 		//
 		// START_OF_VERSIONING
@@ -486,7 +483,7 @@ namespace Caches {
 		}
 		// set a symlink from a name derived from deps to improve match speed in case of hit
 		// this is a hint only as when link target is updated, link is not
-		Hash::Xxh deps_hash ; deps_hash += deps_str ;
+		Xxh deps_hash ; deps_hash += deps_str ;
 		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+deps_hash.digest().hex() ;
 		unlnk( abs_deps_hint , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 		lnk  ( abs_deps_hint , no_slash(key_s) ) ;

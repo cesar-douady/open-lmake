@@ -575,6 +575,8 @@ namespace Engine {
 	struct RuleCrcData {
 		friend ::string& operator+=( ::string& , RuleCrcData const& ) ;
 		using State = RuleCrcState ;
+		// services
+		::vmap_ss descr() const;
 		// data
 		// START_OF_VERSIONING
 		Crc   match ;

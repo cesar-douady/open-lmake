@@ -1404,7 +1404,10 @@ namespace Engine {
 			if ( start_rsrcs_attrs    .spec.use_script             ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs     .spec.use_script             ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
-		//
+		// checksums
+		SWEAR( crc->state==RuleCrcState::Ok , name , crc ) ;
+		SWEAR( &*crc->rule==this            , name , crc ) ;
+		res << indent( _pretty_vmap( "checksums :" , crc->descr() ) , 1 ) ;
 		// then composite static attrs
 		{	res << indent( _pretty_vmap   ("stems :",stems,true/*uniq*/) , 1 ) ;
 			res << indent( _pretty_matches(                            ) , 1 ) ;
@@ -1502,6 +1505,14 @@ namespace Engine {
 	::string& operator+=( ::string& os , RuleCrcData const& rcd ) {                                                    // START_OF_NO_COV
 		return os << "RCD(" << rcd.rule <<','<< rcd.state <<','<< rcd.match <<','<< rcd.cmd <<','<< rcd.rsrcs << ')' ;
 	}                                                                                                                  // END_OF_NO_COV
+
+	::vmap_ss RuleCrcData::descr() const {
+		return {
+			{ "match"     , match.hex() }
+		,	{ "cmd"       , cmd  .hex() }
+		,	{ "resources" , rsrcs.hex() }
+		} ;
+	}
 
 	//
 	// Rule::RuleMatch
