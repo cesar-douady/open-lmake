@@ -43,7 +43,7 @@ Depends:
  zlib1g-dev,
  libzstd-dev
 Recommends:
- libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64 | libslurm41t64 | libslurm42t64
+ libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64 | libslurm41t64 | libslurm42t64 | libslurm43t64
 Description: pythonic workflow management system
  Build systems like GNU Make are frequently used to create complicated
  workflows. This project aims to reduce the complexity of creating workflows
