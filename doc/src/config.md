@@ -258,6 +258,9 @@ This attribute specifies the dir in which the cache puts its data.
 The dir must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (`k`, `M`, `G`, `T`, `P` or `E`). These refer to base 1024.
 
+Also, an adequate default ACL (cf. *acl(5)*) must most probably be set for this dir to give adequate permissions to files created in it.
+Typically, the command `setfacl -m d:g::rw,d:o::r CACHE` can be used to set up the dir `CACHE`.
+
 ### `caches.<dir>.file_sync` : Static (`'dir'`)
 
 Same meaning as `config.file_sync` for accesses in the cache.

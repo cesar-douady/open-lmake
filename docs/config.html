@@ -329,6 +329,8 @@ In the current version, only 2 tags may be used:</p>
 <p>This attribute specifies the dir in which the cache puts its data.</p>
 <p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
+<p>Also, an adequate default ACL (cf. <em>acl(5)</em>) must most probably be set for this dir to give adequate permissions to files created in it.
+Typically, the command <code>setfacl -m d:g::rw,d:o::r CACHE</code> can be used to set up the dir <code>CACHE</code>.</p>
 <h3 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h3>
 <p>Same meaning as <code>config.file_sync</code> for accesses in the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>

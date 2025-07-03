@@ -238,8 +238,8 @@ namespace Caches {
 		try                     { old_head_lru = deserialize<Lru>(AcFd(head_lru_file).read()) ; }
 		catch (::string const&) { old_head_lru = {} ;                                           }                         // ensure no partial info
 		Lru new_head_lru {
-			.newer_s = to_mk_lru.back ().first
-		,	.older_s = to_mk_lru.front().first
+			.newer_s = +to_mk_lru ? to_mk_lru.back ().first : HeadS
+		,	.older_s = +to_mk_lru ? to_mk_lru.front().first : HeadS
 		,	.sz      = total_sz
 		} ;
 		if (new_head_lru!=old_head_lru) {

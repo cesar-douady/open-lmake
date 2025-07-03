@@ -248,14 +248,20 @@ namespace Engine {
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
-			for( auto const& [k,idx] : cache_idxs ) {
-				Cache const& cache = caches[idx] ;
-				::map_ss descr = mk_map(cache.dct) ; for( auto const& [k,v] : ::Cache::s_tab[idx]->descr() ) descr[k] = v                 ;
-				size_t    w     = 3                ; for( auto const& [k,v] : descr                        ) w        = ::max(w,k.size()) ; // 3 : room for tag
-				res <<"\t\t"<< k <<" :\n" ;
-				/**/                             res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
-				for( auto const& [k,v] : descr ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
-			}
+			for( auto const& [k,idx] : cache_idxs )
+				if (!idx) {
+					res <<"\t\t"<<k<<"(unavailable)\n" ;
+				} else {
+					Cache const& cache = caches[idx] ;
+					::string avail ;
+					::map_ss descr = mk_map(cache.dct) ;
+					size_t   w     = 3                 ; for( auto const& [k,v] : descr ) w = ::max(w,k.size()) ; // 3 : room for tag
+					if ( Caches::Cache* c = Caches::Cache::s_tab[idx] ) for( auto const& [k,v] : c->descr() ) { descr[k] = v ; w = ::max(w,k.size()) ; }
+					else                                                avail = "(unvailable)" ;
+					res <<"\t\t"<<k<<avail<<" :\n" ;
+					/**/                             res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
+					for( auto const& [k,v] : descr ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
+				}
 		}
 		if (+sub_repos_s) {
 			res << "\tsub_repos :\n" ;
