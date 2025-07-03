@@ -86,7 +86,7 @@ static bool/*crashed*/ _start_server() {
 	} else {
 		_g_server_fd.listen() ;
 		::string tmp = cat(ServerMrkr,'.',_g_host,'.',pid) ;
-		AcFd(tmp,Fd::Write).write(cat(
+		AcFd(tmp,FdAction::Create).write(cat(
 			_g_server_fd.service() , '\n'
 		,	getpid()               , '\n'
 		)) ;
@@ -141,7 +141,7 @@ static void _record_targets(Job job) {
 		known_targets.push_back(tn) ;
 	}
 	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
-	AcFd(targets_file,Fd::Write).write(content) ;
+	AcFd(targets_file,FdAction::Create).write(content) ;
 }
 
 static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
@@ -513,7 +513,7 @@ int main( int argc , char** argv ) {
 		try                       { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/,true/*ignore_errs*/) ; } // cleanup
 		catch (::string const& e) { exit(Rc::System,e) ;                                                                           }
 		//
-		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,Fd::Write).write(g_kpi.pretty_str()) ;
+		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,FdAction::Create).write(g_kpi.pretty_str()) ;
 	}
 	//
 	Backend::s_finalize() ;

@@ -699,7 +699,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	AcFd fd { file , Fd::Write } ;
+	AcFd fd { file , FdAction::Write } ;
 	if (!fd) throw "cannot open "+file+" for writing : "+::strerror(errno) ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
 	if (cnt<0                  ) throw cat("cannot write atomically ",data.size()," bytes to ",file," : ",::strerror(errno)        ) ;
@@ -725,7 +725,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 		if ((dst_ok=+cpy(dst,src))) deps.emplace_back(dst,MountAction::Write) ;
 		else                        dst_ok = false ;
 	} else {
-		AcFd fd { dir_guard(dst) , Fd::Write } ;
+		AcFd fd { dir_guard(dst) , FdAction::Create } ;
 		if ((dst_ok=+fd)) deps.emplace_back(dst,MountAction::Write) ;
 	}
 	return dst_ok ;
@@ -878,12 +878,12 @@ bool JobSpace::enter(
 		for( ::string const& f : top_lvls ) {
 			::string src_f     = (chroot_dir_s|"/"s) + f ;
 			::string private_f = work_root_s         + f ;
-			switch (FileInfo(src_f).tag()) {                                                                                   // exclude weird files
+			switch (FileInfo(src_f).tag()) {                                                                                    // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : AcFd    (        private_f    ,Fd::Write      ) ; _mount_bind(private_f,src_f) ; break ; // create file
-				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                ) ; _mount_bind(private_f,src_f) ; break ; // create dir
-				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)) ;                                break ; // copy symlink
+				case FileTag::Exe   : AcFd    (        private_f    ,FdAction::Create) ; _mount_bind(private_f,src_f) ; break ; // create file
+				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                 ) ; _mount_bind(private_f,src_f) ; break ; // create dir
+				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f) ) ;                                break ; // copy symlink
 			DN}
 		}
 		if (must_create_lmake) mk_dir_s(work_root+lmake_view_s     ) ;
@@ -892,7 +892,7 @@ bool JobSpace::enter(
 		chroot_dir = ::move(work_root) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                                        // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                                         // necessary to be allowed to write the gid_map (if desirable)
 	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;
 	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;
 	//
@@ -906,7 +906,7 @@ bool JobSpace::enter(
 	else if (+chroot_dir ) _chdir(phy_repo_root_s) ;
 	//
 	size_t work_idx = 0 ;
-	for( auto const& [view,descr] : views ) if (+descr) {                                                                      // empty descr does not represent a view
+	for( auto const& [view,descr] : views ) if (+descr) {                                                                       // empty descr does not represent a view
 		::string   abs_view = mk_abs(view,top_repo_root_s) ;
 		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ;
 		//
@@ -929,7 +929,7 @@ bool JobSpace::enter(
 		if (sz==1) {
 			_mount_bind( abs_view , abs_phys[0] ) ;
 		} else {
-			work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ;                  // if not in the repo, it must be in tmp
+			work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ;                   // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,top_repo_root_s) ) ;
 		}

@@ -34,7 +34,7 @@ Bullet
 Bullet
 	Deps are acquired all at once (cf. note (4)).
 Bullet
-	Flags can be passed in (cf OPTIONS below).
+	Flags can be passed in (cf. OPTIONS below).
 	Flags accumulate and will apply even if the file is independently accessed.
 Bullet
 	Deps are reported even if the autodep method (the I(autodep) rule attribute) is I(none).

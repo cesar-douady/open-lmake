@@ -451,9 +451,8 @@ namespace Engine {
 			gen_script << _mk_gen_script_line(job,ro,::move(job_info),dbg_dir_s,key)                                             ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n"                                      ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                                                       ;
-			AcFd(gen_script_file,Fd::Write).write(gen_script) ;
+			AcFd(gen_script_file,FdAction::CreateExe).write(gen_script) ;
 		}                                                                                                                          // ensure gen_script is closed before launching it
-		::chmod(gen_script_file.c_str(),0755) ;
 		{	SavPyLdLibraryPath spllp ;
 			Child              child ;
 			child.stdin    = {}                ;                                                                                   // no input

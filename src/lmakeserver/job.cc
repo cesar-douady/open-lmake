@@ -307,10 +307,10 @@ namespace Engine {
 		::string jaf    ;
 		FdAction action ;
 		switch (ji.kind()) {
-			case JobInfoKind::Start   : serialize( jaf , ji.start   () ) ; action = Fd::Write  ; break ; // start event write to file (new record)
-			case JobInfoKind::End     : serialize( jaf , ji.end     () ) ; action = Fd::Append ; break ; // other events append to it
-			case JobInfoKind::DepCrcs : serialize( jaf , ji.dep_crcs() ) ; action = Fd::Append ; break ; // .
-		DF}                                                                                              // NO_COV ensure something to record
+			case JobInfoKind::Start   : serialize( jaf , ji.start   () ) ; action = FdAction::Create ; break ; // start event write to file (new record)
+			case JobInfoKind::End     : serialize( jaf , ji.end     () ) ; action = FdAction::Append ; break ; // other events append to it
+			case JobInfoKind::DepCrcs : serialize( jaf , ji.dep_crcs() ) ; action = FdAction::Append ; break ; // .
+		DF}                                                                                                    // NO_COV ensure something to record
 		AcFd( ancillary_file() , action ).write(jaf) ;
 	}
 
@@ -320,7 +320,7 @@ namespace Engine {
 		serialize( jaf , ji.start    ) ;
 		serialize( jaf , ji.end      ) ;
 		serialize( jaf , ji.dep_crcs ) ;
-		AcFd( ancillary_file() , Fd::Write ).write(jaf) ;
+		AcFd( ancillary_file() , FdAction::Create ).write(jaf) ;
 	}
 
 	//

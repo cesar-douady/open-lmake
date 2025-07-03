@@ -34,7 +34,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd(_g_rules_file_name,Fd::Write).write(serialize(*Rule::s_rules)) ;
+		AcFd(_g_rules_file_name,FdAction::Create).write(serialize(*Rule::s_rules)) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -265,7 +265,7 @@ namespace Engine::Persistent {
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
 	}
 
-	void finalize() { // XXX : suppress when bug is found
+	void finalize() {               // XXX : suppress when bug is found
 		_g_job_file      .close() ;
 		_g_job_name_file .close() ;
 		_g_deps_file     .close() ;
@@ -281,8 +281,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() {
-		AcFd( PrivateAdminDirS+"config_store"s , Fd::Write ).write(serialize(*g_config)  ) ;
-		AcFd( AdminDirS+"config"s              , Fd::Write ).write(g_config->pretty_str()) ;
+		AcFd( PrivateAdminDirS+"config_store"s , FdAction::Create ).write(serialize(*g_config)  ) ;
+		AcFd( AdminDirS+"config"s              , FdAction::Create ).write(g_config->pretty_str()) ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dyn ) {
@@ -532,7 +532,7 @@ namespace Engine::Persistent {
 				match_report_str << key <<" :\n" ;
 				for( RuleTgt rt : rts ) match_report_str <<'\t'<< widen(cat(rt->rule->user_prio),w_prio) <<' '<< widen(rt->rule->user_name(),w_name) <<' '<< rt.key() <<'\n' ;
 			}
-			AcFd( ADMIN_DIR_S "matching" , Fd::Write ).write(match_report_str) ;
+			AcFd( ADMIN_DIR_S "matching" , FdAction::Create ).write(match_report_str) ;
 		}
 		// rule report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
@@ -546,7 +546,7 @@ namespace Engine::Persistent {
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
-			AcFd( ADMIN_DIR_S "rules" , Fd::Write ).write(content) ;
+			AcFd( ADMIN_DIR_S "rules" , FdAction::Create ).write(content) ;
 		}
 		trace("done") ;
 		return invalidate ;
@@ -644,7 +644,7 @@ namespace Engine::Persistent {
 				Node(n)->mk_no_src() ;
 				trace2('-',t==FileTag::Dir?"dir":"",n) ;
 			}
-			for( Node d : old_src_dirs ) d->mk_no_src()           ;
+			for( Node d : old_src_dirs ) d->mk_no_src() ;
 			for( auto [n,t] : new_srcs ) {
 				switch (n->buildable) {
 					case Buildable::Unknown :                                                                         // if node was not observed   , making it a source cannot change matching
@@ -660,7 +660,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::string content ;
 			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( manifest , Fd::Write ).write(content) ;
+			AcFd( manifest , FdAction::Create ).write(content) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return invalidate ;

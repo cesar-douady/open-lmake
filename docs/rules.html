@@ -249,7 +249,7 @@ In that case, it is only used as a base class to define other rules.</p>
 </div>
 <p>Default value is 0 if inheriting from <code>lmake.Rule</code>, else <code>+inf</code>.</p>
 <p>This attribute is used to order matching priority.
-Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf <a href="rule_selection.html">rule selection</a>).</p>
+Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf. <a href="rule_selection.html">rule selection</a>).</p>
 <h3 id="stems"><a class="header" href="#stems"><code>stems</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td><code>{'File':r'.*'}</code></td></tr>
@@ -273,7 +273,7 @@ If it contains star stems, they will be replaced by <code>*</code>'s in the repo
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td><code>{ 'OBJ' : '{File}.o' }</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute is used to define the regular expression which targets must match to select this rule (cf <a href="rule_selection.html">rule selection</a>).</p>
+<p>This attribute is used to define the regular expression which targets must match to select this rule (cf. <a href="rule_selection.html">rule selection</a>).</p>
 <p>Keys must be python identifiers.
 Values are <code>list</code>'s or <code>tuple</code>'s whose first item defines the target regular expression and following items define flags.
 They may also be a simple <code>str</code> in which case it is as if there were no associated flags.</p>
@@ -339,7 +339,7 @@ Its syntax is the same as any target entry except that it may not be <code>incre
 <p>This attribute defines the static deps.
 It is a <code>dict</code> which associates python identifiers to files computed from the available environment.</p>
 <p>They are f-strings, i.e. their value follow the python f-string syntax and semantic
-but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf <a href="rule_selection.html">rule selection</a>).
+but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf. <a href="rule_selection.html">rule selection</a>).
 Hence they lack the initial <code>f</code> in front of the string.</p>
 <p>Alternatively, values can also be <code>list</code> or <code>tuple</code> whose first item is as described above, followed by flags.</p>
 <p>The flags may be any combination of the following flags, optionally preceded by - to turn it off.
@@ -351,7 +351,7 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>ReaddirOk</code></td><td><code>readdir_ok</code></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
-<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
+<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
 </tbody></table>
 </div>
 <p>Flag order and dep order are not significative.</p>
@@ -391,7 +391,7 @@ However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used 
 </tbody></table>
 </div>
 <p>This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">namespaces</a>).</p>
+This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <p>As of now, this attribute must be a top level dir, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
@@ -400,7 +400,7 @@ This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">na
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf <a href="namespaces.html">namespaces</a>).</p>
+<p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted.
 Else, it must be an absolute path.</p>
 <p>As of now, this attribute must be a top level dir, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
@@ -412,7 +412,7 @@ Else, it must be an absolute path.</p>
 <p>This attribute defines a mapping from logical views to physical dirs.</p>
 <p>Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a <code>/</code> or not.
 Files must be mapped to files and dirs to dirs.</p>
-<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf <a href="namespaces.html">namespaces</a>).</p>
+<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
@@ -516,7 +516,7 @@ In the latter case, a file that contains the script is created and its name is p
 </tbody></table>
 </div>
 <h4 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h4>
-<p>In that case, this attribute is called to run the job (cf <a href="job_execution.html">job execution</a>).
+<p>In that case, this attribute is called to run the job (cf. <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
 The first (i.e. the most basic) one must have no non-defaulted arguments and will be called with no argument.
@@ -545,7 +545,7 @@ There are mostly 2 practical possibilities:</p>
 <li>Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.</li>
 </ul>
 <h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str">if it is a <code>f-str</code></a></h4>
-<p>In that case, this attribute is executed as a shell command to run the job (cf <a href="job_execution.html">job execution</a>).
+<p>In that case, this attribute is executed as a shell command to run the job (cf. <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine <code>str</code>'s and functions because they use different paradigms.
@@ -675,7 +675,7 @@ i.e. independent of the history (the repo is not constantly maintained without s
 These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...</p>
 <p>Values must <code>f-str</code>.</p>
 <p>The syntax is the same as for <code>deps</code>.</p>
-<p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf @pxref{local-backend} for the local backend).</p>
+<p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf. <a href="config.html">local backend</a> for the local backend).</p>
 <h3 id="start_delay"><a class="header" href="#start_delay"><code>start_delay</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>

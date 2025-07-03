@@ -5,7 +5,7 @@
 
 include sys_config.mk
 
-VERSION        := 25.07
+VERSION        := 25.08
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
@@ -18,12 +18,10 @@ endif
 # mandatory
 MAKEFLAGS := -r -R                                                      # dont use default rules
 # user configurable
-MAKEFLAGS    += -k                                                      # keep making independent jobs in case of error
+MAKEFLAGS       += -k                                                   # keep making independent jobs in case of error
 N_PARALLEL_JOBS := $(shell nproc||echo 1)
 # mandatory
 MAKEFLAGS += $(if $(findstring C,$(LMAKE_FLAGS)),,-j$(N_PARALLEL_JOBS)) # no parallel execution if using coverage
-
-GNUMAKEFLAGS := $(MAKEFLAGS) # GNUMAKEFLAGS is supported by suse while MAKEFLAGS is not
 
 .DEFAULT_GOAL := DFLT
 

@@ -78,7 +78,7 @@ void chk_version( bool may_init , ::string const& admin_dir_s ) {
 	AcFd     version_fd   { version_file }        ;
 	if (!version_fd) {
 		throw_unless( may_init , "repo not initialized, consider : lmake" ) ;
-		AcFd(dir_guard(version_file),Fd::Write).write(cat(VersionMrkr,'\n')) ;
+		AcFd(dir_guard(version_file),FdAction::Create).write(cat(VersionMrkr,'\n')) ;
 	} else {
 		::string stored = version_fd.read() ;
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;

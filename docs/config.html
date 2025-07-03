@@ -217,7 +217,7 @@ If <code>None</code> (discouraged), it is equivalent to 0.</p>
 <li>If set to network dir, there is no performance gain and only added complexity.</li>
 </ul>
 <h3 id="link_support--clean-full"><a class="header" href="#link_support--clean-full"><code>link_support</code> : Clean (<code>'full'</code>)</a></h3>
-<p>Open-lmake fully handle symbolic links (cf <a href="data_model.html">data model</a>).</p>
+<p>Open-lmake fully handle symbolic links (cf. <a href="data_model.html">data model</a>).</p>
 <p>However, there is an associated cost which may be useless in some situations.</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Support level</th></tr></thead><tbody>
 <tr><td><code>'full'</code></td><td>symbolic links are fully supported</td></tr>
@@ -246,8 +246,8 @@ The purpose is to ease reading.</p>
 <p>The default value should fit most cases.</p>
 <h3 id="nice--dynamic-0"><a class="header" href="#nice--dynamic-0"><code>nice</code> : Dynamic (<code>0</code>)</a></h3>
 <p>This attribute provides the nice value to apply to all jobs.
-It is a value between 0 and 20 that decreases the priority of jobs (cf nice(2)).</p>
-<p>If available, the autogroup mecanism (cf sched (7)) is used instead as jobs are launched as sessions.</p>
+It is a value between 0 and 20 that decreases the priority of jobs (cf. <em>nice(2)</em>).</p>
+<p>If available, the autogroup mecanism (cf. <em>sched(7)</em>) is used instead as jobs are launched as sessions.</p>
 <p>Note that negative nice values are not supported as these require privileges.</p>
 <h3 id="path_max--static-200"><a class="header" href="#path_max--static-200"><code>path_max</code> : Static (<code>200</code>)</a></h3>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
@@ -256,7 +256,7 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
 <p>This attribute provide the list of sub-repos.</p>
 <p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
-Inside such sub-repos, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
+Inside such sub-repos, the applied flow is the one described in it (cf. <a href="experimental_subrepos.html">Subrepos</a>).</p>
 <h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If <code>None</code>, no timestamp is generated.</p>
@@ -284,13 +284,13 @@ The larger the trace, the more probable the root cause of a potential problem is
 <p>The execution trace @lmake generates is split into channels to better control what to trace.</p>
 <p>This attributes contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
 <h3 id="colors--dynamic-reasonably-readable"><a class="header" href="#colors--dynamic-reasonably-readable"><code>colors</code> : Dynamic (reasonably readable)</a></h3>
-<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf <a href="video_mode.html">video-mode</a>).</p>
+<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. <a href="video_mode.html">video-mode</a>).</p>
 <p>This attribute is a <code>pdict</code> with one entry for each symbolic color.
 Each entry is a 2-tuple of 3-tuple's.
 The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
 Each color is a triplet RGB of values between 0 and 255.</p>
 <h3 id="backends--dynamic"><a class="header" href="#backends--dynamic"><code>backends</code> : Dynamic</a></h3>
-<p>This attribute is a <code>pdict</code> with one entry for each active backend (cf <a href="backends.html">backends</a>).</p>
+<p>This attribute is a <code>pdict</code> with one entry for each active backend (cf. <a href="backends.html">backends</a>).</p>
 <p>Each entry is a <code>pdict</code> providing resources. Such resources are backend specific.</p>
 <h3 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h3>
 <p>When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
@@ -329,6 +329,8 @@ In the current version, only 2 tags may be used:</p>
 <p>This attribute specifies the dir in which the cache puts its data.</p>
 <p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
+<p>Also, an adequate default ACL (cf. <em>acl(5)</em>) must most probably be set for this dir to give adequate permissions to files created in it.
+Typically, the command <code>setfacl -m d:g::rw,d:o::r CACHE</code> can be used to set up the dir <code>CACHE</code>.</p>
 <h3 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h3>
 <p>Same meaning as <code>config.file_sync</code> for accesses in the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
@@ -339,7 +341,7 @@ No more than a single entry can be stored for any job with a given key.</p>
 <p>By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.</p>
 <h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>
 <p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
-<p>It maps debug keys to modules to import to implement the debug method (cf man ldebug).
+<p>It maps debug keys to modules to import to implement the debug method (cf. <em>ldebug(1)</em>).
 Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
 
                     </main>

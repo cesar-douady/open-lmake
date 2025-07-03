@@ -156,7 +156,7 @@ More precisely, it maintains a dependency to "`dir1/my_lib.h` must not exist nor
 CMake is front-end tool only.
 It generates configurations for `make` ou `ninja`.
 
-In addition to flaws inherited from its backends (cf above), CMake syntax is rather obscure and it is difficult to debug.
+In addition to flaws inherited from its backends (cf. above), CMake syntax is rather obscure and it is difficult to debug.
 
 Also, CMake contains a lot of predefined commands to manage a lot of specific situations.
 Such commands should not be part of the build system itself and they participate to the overall complexisty of this tool.

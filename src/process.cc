@@ -37,22 +37,22 @@ using namespace Disk ;
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 // /!\ this function must not modify anything outside its local frame as it may be called as pre_exec under ::vfork()
 [[noreturn]] void Child::_do_child_trampoline() {
-	if (as_session) ::setsid() ;                 // if we are here, we are the init process and we must be in the new session to receive the kill signal
+	if (as_session) ::setsid() ;                  // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	if (nice) {
-		[[maybe_unused]] int nice_val ;                                                            // ignore error if any, as we cant do much about it
+		[[maybe_unused]] int nice_val ;                                                                  // ignore error if any, as we cant do much about it
 		if (!as_session)
 			/**/                       nice_val = ::nice(nice) ;
 		else
-			try                      { AcFd("/proc/self/autogroup",Fd::Write).write(cat(nice)) ; } // as_session creates a new autogroup : apply nice_val to it, not locally between processes within it
-			catch (::string const&e) { nice_val = ::nice(nice) ;                                 } // best effort
+			try                      { AcFd("/proc/self/autogroup",FdAction::Write).write(cat(nice)) ; } // as_session creates a new autogroup : apply nice_val to it, not between processes within it
+			catch (::string const&e) { nice_val = ::nice(nice) ;                                       } // best effort
 	}
 	//
-	sigset_t full_mask ; ::sigfillset(&full_mask) ;                                                // sig fillset may be a macro
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                                                // restore default behavior
+	sigset_t full_mask ; ::sigfillset(&full_mask) ;                          // sig fillset may be a macro
+	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                          // restore default behavior
 	//
-	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; }                       // could be optimized, but too complex to manage
-	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; }                       // .
-	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; }                       // .
+	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
+	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; } // .
+	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; } // .
 	// set up std fd
 	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (                      _p2c .read !=Fd::Stdin  ) ::dup2(_p2c .read ,Fd::Stdin ) ;
 	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if ( stdout_fd!=JoinFd && _c2po.write!=Fd::Stdout ) ::dup2(_c2po.write,Fd::Stdout) ;
@@ -61,43 +61,43 @@ using namespace Disk ;
 	if      (stdout_fd==JoinFd) { SWEAR(stderr_fd!=JoinFd) ; ::dup2(Fd::Stderr,Fd::Stdout) ; }
 	else if (stderr_fd==JoinFd)                              ::dup2(Fd::Stdout,Fd::Stderr) ;
 	//
-	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;                                                // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                                                // .
-	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                                                // .
+	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;                          // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
+	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                          // .
+	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                          // .
 	//
 	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"    ) ; }
 	//
 	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                                               // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
+		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                         // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
 	if (first_pid) {
-		SWEAR(first_pid>1,first_pid) ;                                                                  // START_OF_NO_COV coverage recording does not work in isolated namespace
+		SWEAR(first_pid>1,first_pid) ;                                                                        // START_OF_NO_COV coverage recording does not work in isolated namespace
 		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
 		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
 			::perror("cannot mount /proc ") ;
 			_exit(Rc::System,"cannot mount /proc") ;
 		}
-		{	char                     first_pid_buf[30] ;                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
-			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )    ; // /!\ .
-			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , Fd::Write } ;
-			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)       ; // dont care about errors, this is best effort
+		{	char                     first_pid_buf[30] ;                                                      // /!\ cannot use ::string as we are only allowed signal-safe functions
+			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )          ; // /!\ .
+			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , FdAction::Write } ;
+			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)             ; // dont care about errors, this is best effort
 		}
-		pid_t pid = ::vfork() ;                                                                         // NOLINT(clang-analyzer-security.insecureAPI.vfork) faster than anything else
-		if (pid==0 ) _do_child() ;                                                                      // in child
+		pid_t pid = ::vfork() ;                                                                               // NOLINT(clang-analyzer-security.insecureAPI.vfork) faster than anything else
+		if (pid==0 ) _do_child() ;                                                                            // in child
 		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
 		//
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {                                                                       // XXX! : find a way to simulate a caught signal rather than exit 128+sig (mimic bash)
-				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                           // exit as transparently as possible
-				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                           // cannot kill self to be transparent as we are process 1, mimic bash
-				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                       // ensure we have not forgotten a case
+			if (child_pid==pid) {                                                                             // XXX! : find a way to simulate a caught signal rather than exit 128+sig (mimic bash)
+				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                                 // exit as transparently as possible
+				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                                 // cannot kill self to be transparent as we are process 1, mimic bash
+				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                             // ensure we have not forgotten a case
 			}
-		}                                                                                               // END_OF_NO_COV
+		}                                                                                                     // END_OF_NO_COV
 	} else {
 		_do_child() ;
 	}

@@ -81,7 +81,7 @@ It is guaranteed that all such accesses are performed by the host, hence a dir i
 
 ### `link_support` : Clean (`'full'`)
 
-Open-lmake fully handle symbolic links (cf [data model](data_model.html)).
+Open-lmake fully handle symbolic links (cf. [data model](data_model.html)).
 
 However, there is an associated cost which may be useless in some situations.
 
@@ -119,9 +119,9 @@ The default value should fit most cases.
 ### `nice` : Dynamic (`0`)
 
 This attribute provides the nice value to apply to all jobs.
-It is a value between 0 and 20 that decreases the priority of jobs (cf nice(2)).
+It is a value between 0 and 20 that decreases the priority of jobs (cf. *nice(2)*).
 
-If available, the autogroup mecanism (cf sched (7)) is used instead as jobs are launched as sessions.
+If available, the autogroup mecanism (cf. *sched(7)*) is used instead as jobs are launched as sessions.
 
 Note that negative nice values are not supported as these require privileges.
 
@@ -137,7 +137,7 @@ The search stops if any file with a name longer than the value of this attribute
 This attribute provide the list of sub-repos.
 
 Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a `Lmakefile.py`.
-Inside such sub-repos, the applied flow is the one described in it (cf [Subrepos](experimental_subrepos.html)).
+Inside such sub-repos, the applied flow is the one described in it (cf. [Subrepos](experimental_subrepos.html)).
 
 ### `console.date_precision` : Dynamic (`None`)
 
@@ -189,7 +189,7 @@ This attributes contains a `list` or `tuple` of the channels to trace.
 
 ### `colors` : Dynamic (reasonably readable)
 
-Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf [video-mode](video_mode.html)).
+Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. [video-mode](video_mode.html)).
 
 This attribute is a `pdict` with one entry for each symbolic color.
 Each entry is a 2-tuple of 3-tuple's.
@@ -198,7 +198,7 @@ Each color is a triplet RGB of values between 0 and 255.
 
 ### `backends` : Dynamic
 
-This attribute is a `pdict` with one entry for each active backend (cf [backends](backends.html)).
+This attribute is a `pdict` with one entry for each active backend (cf. [backends](backends.html)).
 
 Each entry is a `pdict` providing resources. Such resources are backend specific.
 
@@ -258,6 +258,9 @@ This attribute specifies the dir in which the cache puts its data.
 The dir must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (`k`, `M`, `G`, `T`, `P` or `E`). These refer to base 1024.
 
+Also, an adequate default ACL (cf. *acl(5)*) must most probably be set for this dir to give adequate permissions to files created in it.
+Typically, the command `setfacl -m d:g::rw,d:o::r CACHE` can be used to set up the dir `CACHE`.
+
 ### `caches.<dir>.file_sync` : Static (`'dir'`)
 
 Same meaning as `config.file_sync` for accesses in the cache.
@@ -277,5 +280,5 @@ By default, it is made after the absolute root dir of the repo and the current g
 
 When `ldebug` is used, it consults this `dict`.
 
-It maps debug keys to modules to import to implement the debug method (cf man ldebug).
+It maps debug keys to modules to import to implement the debug method (cf. *ldebug(1)*).
 Values contain the module name optionnaly followed by a human description (that will appear with `ldebug -h`) separated with spaces.

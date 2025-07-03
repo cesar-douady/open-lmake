@@ -479,10 +479,12 @@ inline ::string no_slash(::string const& path) {
 
 enum class FdAction : uint8_t {
 	Read
+,	Dir
 ,	Write
 ,	Append
+,	Create
+,	CreateExe
 ,	CreateReadOnly
-,	Dir
 } ;
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;
@@ -491,20 +493,17 @@ struct Fd {
 	static const Fd Stdout ;
 	static const Fd Stderr ;
 	static const Fd Std    ;                                                                              // the highest standard fd
-	static constexpr FdAction Read           = FdAction::Read           ;
-	static constexpr FdAction Write          = FdAction::Write          ;
-	static constexpr FdAction Append         = FdAction::Append         ;
-	static constexpr FdAction CreateReadOnly = FdAction::CreateReadOnly ;
-	static constexpr FdAction Dir            = FdAction::Dir            ;
 	// cxtors & casts
 private :
-	static int _s_mk_fd( Fd at , ::string const& file , FdAction action=Read ) {
+	static int _s_mk_fd( Fd at , ::string const& file , FdAction action=FdAction::Read ) {
 		switch (action) {
-			case Read           : return ::openat( at ,          file .c_str() , O_RDONLY                      | O_CLOEXEC        ) ;
-			case Write          : return ::openat( at ,          file .c_str() , O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC , 0666 ) ;
-			case Append         : return ::openat( at ,          file .c_str() , O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC , 0666 ) ;
-			case CreateReadOnly : return ::openat( at ,          file .c_str() , O_WRONLY | O_CREAT | O_TRUNC  | O_CLOEXEC , 0444 ) ;
-			case Dir            : return ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY        | O_CLOEXEC , 0666 ) ;
+			case FdAction::Read           : return ::openat( at ,          file .c_str() , O_RDONLY                     | O_CLOEXEC        ) ;
+			case FdAction::Dir            : return ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY       | O_CLOEXEC        ) ;
+			case FdAction::Write          : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC           | O_CLOEXEC        ) ;
+			case FdAction::Append         : return ::openat( at ,          file .c_str() , O_WRONLY | O_APPEND          | O_CLOEXEC        ) ;
+			case FdAction::Create         : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC , 0666 ) ;
+			case FdAction::CreateExe      : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC , 0777 ) ;
+			case FdAction::CreateReadOnly : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC , 0444 ) ;
 		DF}
 	}
 public :
@@ -512,8 +511,8 @@ public :
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,action) , no_std_ } {}
-	Fd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ Cwd , file , action      , no_std_ } {}
+	Fd( Fd at , ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,action) , no_std_ } {}
+	Fd(         ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , action      , no_std_ } {}
 	//
 	constexpr operator int  () const { return fd    ; }
 	constexpr bool operator+() const { return fd>=0 ; }
@@ -544,12 +543,12 @@ constexpr Fd Fd::Std   {2            } ;
 struct AcFd : Fd {
 	friend ::string& operator+=( ::string& , AcFd const& ) ;
 	// cxtors & casts
-	AcFd(                                                                          ) = default ;
-	AcFd( Fd fd_                                                                   ) : Fd{fd_                            } {              }
-	AcFd( AcFd&& acfd                                                              )                                       { swap(acfd) ; }
-	AcFd( int fd_                                             , bool no_std_=false ) : Fd{fd_,no_std_                    } {              }
-	AcFd(         ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{       file , action , no_std_ } {              }
-	AcFd( Fd at , ::string const& file , FdAction action=Read , bool no_std_=false ) : Fd{ at  , file , action , no_std_ } {              }
+	AcFd(                                                                                    ) = default ;
+	AcFd( Fd fd_                                                                             ) : Fd{fd_                            } {              }
+	AcFd( AcFd&& acfd                                                                        )                                       { swap(acfd) ; }
+	AcFd( int fd_                                                       , bool no_std_=false ) : Fd{fd_,no_std_                    } {              }
+	AcFd(         ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{       file , action , no_std_ } {              }
+	AcFd( Fd at , ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ at  , file , action , no_std_ } {              }
 	//
 	~AcFd() { close() ; }
 	//

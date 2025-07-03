@@ -166,7 +166,7 @@ namespace Codec {
 			for( auto const& [ctx,d_entry] : decode_tab )
 				for( auto const& [code,val] : d_entry )
 					lines << _codec_line(ctx,code,val,true/*with_nl*/) ;
-			AcFd(file,Fd::Write).write(lines) ;
+			AcFd(file,FdAction::Create).write(lines) ;
 			for( ReqIdx r : reqs ) Req(r)->audit_node(Color::Note,"refresh",Node(file)) ;
 		}
 		for( auto const& [ctx,e_entry] : encode_tab )
@@ -256,7 +256,7 @@ namespace Codec {
 		return { .proc=JobMngtProc::Encode , .txt="checksum clash" , .ok=No } ;                  // this is a true full crc clash, seq_id and fd will be filled in later
 	NewCode :
 		trace("new_code",code) ;
-		AcFd(file,Fd::Append).write(_codec_line(ctx,code,txt,true/*with_nl*/)) ;                 // Maybe means append
+		AcFd(file,FdAction::Append).write(_codec_line(ctx,code,txt,true/*with_nl*/)) ;           // Maybe means append
 		Entry& entry = s_tab.at(file) ;
 		Pdate  now   { New }          ;
 		_create_pair( file , decode_node , txt , encode_node , code ) ;

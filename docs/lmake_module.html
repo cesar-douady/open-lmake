@@ -214,7 +214,7 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The value is a <code>dict</code> composed of:
 <ul>
 <li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <code>xxhsum</code> (1)).</li>
+<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <em>xxhsum(1)</em>).</li>
 <li><code>rule</code>:     The rule name of the job that has generated the dep one exists.</li>
 <li><code>special</code>:  The special nature (e.g. <code>src</code>).</li>
 <li><code>stems</code>:    A <code>dict</code> mapping stem names to stem values if the rule is a plain rule.</li>
@@ -332,14 +332,14 @@ Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
 </ul>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
 <h3 id="xxhsumtextis_linkfalse"><a class="header" href="#xxhsumtextis_linkfalse"><code>xxhsum(text,is_link=False)</code></a></h3>
 <p>Return a checksum of provided text.</p>
 <p>It is a 16-digit hex value with no suffix.</p>
 <p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
 <p>Note : this checksum is not the same as the checksum of a file with same content.</p>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
 <h3 id="report_importmodule_namenonepathnonemodule_suffixesnone"><a class="header" href="#report_importmodule_namenonepathnonemodule_suffixesnone"><code>report_import(module_name=None,path=None,module_suffixes=None)</code></a></h3>
 <p>Does necessary reporting when a module has been imported.</p>
 <p><code>module_name</code> is the name of the imported module.

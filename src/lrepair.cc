@@ -21,7 +21,7 @@ struct RepairDigest {
 RepairDigest repair(::string const& from_dir) {
 	Trace trace("repair",from_dir) ;
 	RepairDigest res           ;
-	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , Fd::Write } ;
+	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , FdAction::Create } ;
 	//
 	::umap<Crc,Rule> rule_tab ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
 	//
@@ -120,7 +120,7 @@ int main( int argc , char* /*argv*/[] ) {
 	if (+startup_s)                                                           exit(Rc::Usage ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
 	if (is_target(ServerMrkr))                                                exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
-	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,true/*dir_ok*/) ;                            // if last lrepair was interrupted, admin_dir contains no useful information
+	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,true/*dir_ok*/) ;                                  // if last lrepair was interrupted, admin_dir contains no useful information
 	if (is_dir_s(bck_admin_dir_s)) {
 		if (is_dir_s(admin_dir_s)) {
 			mk_lad() ;
@@ -141,7 +141,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	if (::rename(admin_dir.c_str(),bck_admin_dir.c_str())!=0) FAIL("cannot rename",admin_dir,"to",bck_admin_dir) ;
 	//
-	if ( AcFd fd { dir_guard(repair_mrkr) , Fd::Write } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( AcFd fd { dir_guard(repair_mrkr) , FdAction::Create } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
 	//
 	mk_dir_s(PrivateAdminDirS) ;
@@ -168,7 +168,7 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_version(true/*may_init*/) ;                                                                             // mark repo as initialized
+	chk_version(true/*may_init*/) ;                                                                                   // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

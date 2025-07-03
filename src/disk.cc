@@ -153,7 +153,7 @@ namespace Disk {
 	//
 
 	vector_s lst_dir_s( Fd at , ::string const& dir_s , ::string const& prefix ) {
-		Fd dir_fd { at , dir_s , Fd::Dir } ;
+		Fd dir_fd { at , dir_s , FdAction::Dir } ;
 		if (!dir_fd) throw cat("cannot open dir ",at==Fd::Cwd?""s:cat("@",at.fd,':'),dir_s," : ",::strerror(errno)) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;

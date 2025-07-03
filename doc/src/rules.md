@@ -97,7 +97,7 @@ In that case, it is only used as a base class to define other rules.
 Default value is 0 if inheriting from `lmake.Rule`, else `+inf`.
 
 This attribute is used to order matching priority.
-Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf [rule selection](rule_selection.html)).
+Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf. [rule selection](rule_selection.html)).
 
 ### `stems`
 
@@ -131,7 +131,7 @@ If defined, this attribute must have the same set of static stems (i.e. stems th
 |-------------|--------|---------|---------|--------------------------|
 | Combined    | `dict` | `{}`    | No      | `{ 'OBJ' : '{File}.o' }` |
 
-This attribute is used to define the regular expression which targets must match to select this rule (cf [rule selection](rule_selection.html)).
+This attribute is used to define the regular expression which targets must match to select this rule (cf. [rule selection](rule_selection.html)).
 
 Keys must be python identifiers.
 Values are `list`'s or `tuple`'s whose first item defines the target regular expression and following items define flags.
@@ -212,7 +212,7 @@ This attribute defines the static deps.
 It is a `dict` which associates python identifiers to files computed from the available environment.
 
 They are f-strings, i.e. their value follow the python f-string syntax and semantic
-but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf [rule selection](rule_selection.html)).
+but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf. [rule selection](rule_selection.html)).
 Hence they lack the initial `f` in front of the string.
 
 Alternatively, values can also be `list` or `tuple` whose first item is as described above, followed by flags.
@@ -220,15 +220,15 @@ Alternatively, values can also be `list` or `tuple` whose first item is as descr
 The flags may be any combination of the following flags, optionally preceded by - to turn it off.
 Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 
-| CamelCase     | snake\_case    | Default | Description                                                                                                                    |
-|---------------|----------------|---------|--------------------------------------------------------------------------------------------------------------------------------|
-| `Essential`   | `essential`    | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                            |
-| `Critical`    | `critical`     | No      | This dep is [critical](critical_deps.html).                                                                                    |
-| `IgnoreError` | `ignore_error` | No      | This dep may be in error, job will be launched anyway.                                                                         |
-| `ReaddirOk`   | `readdir_ok`   | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                                             |
-| `Required`    | `required`     | No      | This dep is deemed to be read, even if not actually read by the job.                                                           |
-| `NoStar`      | `no_star`      | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                                      |
-| `Top`         | `top`          | No      | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf [subrepos](experimental_subrepos.html ). |
+| CamelCase     | snake\_case    | Default | Description                                                                                                                     |
+|---------------|----------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
+| `Essential`   | `essential`    | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                             |
+| `Critical`    | `critical`     | No      | This dep is [critical](critical_deps.html).                                                                                     |
+| `IgnoreError` | `ignore_error` | No      | This dep may be in error, job will be launched anyway.                                                                          |
+| `ReaddirOk`   | `readdir_ok`   | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                                              |
+| `Required`    | `required`     | No      | This dep is deemed to be read, even if not actually read by the job.                                                            |
+| `NoStar`      | `no_star`      | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                                       |
+| `Top`         | `top`          | No      | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html ). |
 
 Flag order and dep order are not significative.
 
@@ -277,7 +277,7 @@ However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
 | python      | `f-str` | `None`  | Full    | `'/repo'` |
 
 This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using `mount -rbind` (cf [namespaces](namespaces.html)).
+This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)).
 
 It must be an absolute path not lying in the temporary dir.
 
@@ -291,7 +291,7 @@ As of now, this attribute must be a top level dir, i.e. `'/a'` is ok, but `'/a/b
 |-------------|---------|---------|---------|----------|
 | python      | `f-str` | `None`  | Full    | `'/tmp'` |
 
-This attribute defines the name which the temporary dir available for job execution is mounted on (cf [namespaces](namespaces.html)).
+This attribute defines the name which the temporary dir available for job execution is mounted on (cf. [namespaces](namespaces.html)).
 
 If `None`, `''` or not specified, this dir is not mounted.
 Else, it must be an absolute path.
@@ -309,7 +309,7 @@ This attribute defines a mapping from logical views to physical dirs.
 Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a `/` or not.
 Files must be mapped to files and dirs to dirs.
 
-Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf [namespaces](namespaces.html)).
+Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf. [namespaces](namespaces.html)).
 
 Physical description may be :
 
@@ -450,7 +450,7 @@ If simple enough (i.e. if it can be recognized as a static dep), it is made a st
 
 #### if it is a function
 
-In that case, this attribute is called to run the job (cf [job execution](job_execution.html)).
+In that case, this attribute is called to run the job (cf. [job execution](job_execution.html)).
 Combined inheritance is a special case for `cmd`.
 
 If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
@@ -483,7 +483,7 @@ There are mostly 2 practical possibilities:
 
 #### if it is a `f-str`
 
-In that case, this attribute is executed as a shell command to run the job (cf [job execution](job_execution.html)).
+In that case, this attribute is executed as a shell command to run the job (cf. [job execution](job_execution.html)).
 Combined inheritance is a special case for `cmd`.
 
 While walking the MRO, if for a base class `cmd` is defined as a function and it has a `shell` attribute, the value of this attribute is used instead.
@@ -651,7 +651,7 @@ Values must `f-str`.
 
 The syntax is the same as for `deps`.
 
-After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf @pxref{local-backend} for the local backend).
+After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf. [local backend](config.html) for the local backend).
 
 ### `start_delay`
 

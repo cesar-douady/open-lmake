@@ -219,7 +219,7 @@ namespace Backends::Slurm {
 			return cat("slurm_id:",se.id.load()) ;
 		}
 		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status s ) const override {
-			if ( !se.verbose && s==Status::Ok ) return {{}/*msg*/,true/*retry*/} ;                   // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			if ( !se.verbose && s==Status::Ok ) return {{}/*msg*/,true/*retry*/} ;                    // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::pair_s<Bool3/*job_ok*/> info ;
 			for( int c : iota(2) ) {
 				Delay d { 0.01 }                                               ;
@@ -393,7 +393,7 @@ namespace Backends::Slurm {
 	}
 	Daemon slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm , Delay init_timeout ) {
 		Trace trace(BeChnl,"slurm_sense_daemon",config_file,lib_slurm,init_timeout) ;
-		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                   // if nothing to try, no backend but no error
+		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                                // if nothing to try, no backend but no error
 		//
 		::string config_file_ = config_file | "/etc/slurm/slurm.conf"s ;
 		::string lib_slurm_   = lib_slurm   | "libslurm.so"s           ;
@@ -423,17 +423,17 @@ namespace Backends::Slurm {
 		int to = ::ceil(float(init_timeout)) ;
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
-			::atexit(_exit1) ;                                           // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
-			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                 // this is just a probe, we want nothing on stderr
-			::dup2(dev_null_fd,2) ;                                      // so redirect to /dev/null
-			::alarm(to) ;                                                // ensure init_func does not block
-			init_func(config_file_.c_str()) ;                            // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
-			::_exit(0) ;                                                 // if we are here, everything went smoothly
+			::atexit(_exit1) ;                                 // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
+			Fd dev_null_fd { "/dev/null" , FdAction::Write } ; // this is just a probe, we want nothing on stderr
+			::dup2(dev_null_fd,2) ;                            // so redirect to /dev/null
+			::alarm(to) ;                                      // ensure init_func does not block
+			init_func(config_file_.c_str()) ;                  // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
+			::_exit(0) ;                                       // if we are here, everything went smoothly
 		} else {
 			// in parent
 			int   wstatus ;
-			pid_t rc      = ::waitpid(child_pid,&wstatus,0) ;            // gather status to know if we were able to call SlurmApi::init
-			if ( rc<=0 || !wstatus_ok(wstatus) ) {                       // no, report error
+			pid_t rc      = ::waitpid(child_pid,&wstatus,0) ;  // gather status to know if we were able to call SlurmApi::init
+			if ( rc<=0 || !wstatus_ok(wstatus) ) {             // no, report error
 				::string msg ;
 				if ( WIFSIGNALED(wstatus) && WTERMSIG(wstatus)==SIGALRM ) msg << "cannot init slurm (timeout after "<<to<<"s)\n" ;
 				else                                                      msg << "cannot init slurm\n"                           ;
@@ -444,7 +444,7 @@ namespace Backends::Slurm {
 				throw msg ;
 			}
 		}
-		init_func(config_file_.c_str()) ;                                // this should be safe now that we have checked it works in a child
+		init_func(config_file_.c_str()) ;                      // this should be safe now that we have checked it works in a child
 		//
 		void* conf = nullptr ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
@@ -463,7 +463,7 @@ namespace Backends::Slurm {
 				daemon = sense_daemon_func(conf) ;
 				found  = true                    ;
 				break ;
-			} catch (::string const&) {}                                 // ignore errors as well
+			} catch (::string const&) {}                       // ignore errors as well
 		}
 		//
 		free_ctl_conf_func(conf) ;

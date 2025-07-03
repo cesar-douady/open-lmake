@@ -230,7 +230,7 @@ namespace Caches {
 			total_sz += new_lru.sz ;
 			if (new_lru!=old_lru) {
 				Fd::Stdout.write(cat("rebuild lru (",widen(to_short_string_with_unit(new_lru.sz),w),"B, last accessed ",new_lru.last_access.str(),") to ",lru_file,'\n')) ;
-				if (!dry_run) AcFd(lru_file,Fd::Write).write(serialize(new_lru)) ;
+				if (!dry_run) AcFd(lru_file,FdAction::Create).write(serialize(new_lru)) ;
 			}
 		}
 		::string head_lru_file = _lru_file(HeadS) ;
@@ -238,13 +238,13 @@ namespace Caches {
 		try                     { old_head_lru = deserialize<Lru>(AcFd(head_lru_file).read()) ; }
 		catch (::string const&) { old_head_lru = {} ;                                           }                         // ensure no partial info
 		Lru new_head_lru {
-			.newer_s = to_mk_lru.back ().first
-		,	.older_s = to_mk_lru.front().first
+			.newer_s = +to_mk_lru ? to_mk_lru.back ().first : HeadS
+		,	.older_s = +to_mk_lru ? to_mk_lru.front().first : HeadS
 		,	.sz      = total_sz
 		} ;
 		if (new_head_lru!=old_head_lru) {
 			Fd::Stdout.write(cat("rebuild head lru (total ",to_short_string_with_unit(new_head_lru.sz),"B) to ",head_lru_file,'\n')) ;
-			if (!dry_run) AcFd(head_lru_file,Fd::Write).write(serialize(new_head_lru)) ;
+			if (!dry_run) AcFd(head_lru_file,FdAction::Write).write(serialize(new_head_lru)) ;
 		}
 	}
 
@@ -280,10 +280,10 @@ namespace Caches {
 				::string last_file = _lru_file(head.newer_s)                                    ;
 				auto     last      = deserialize<Lru>(AcFd(nfs_guard.access(last_file)).read()) ;
 				last.older_s = HeadS ;
-				AcFd(last_file,Fd::Write).write(serialize(last)) ;
+				AcFd(last_file,FdAction::Write).write(serialize(last)) ;
 			}
 		}
-		AcFd(nfs_guard.change(dir_guard(head_file)),Fd::Write).write(serialize(head)) ;
+		AcFd(nfs_guard.change(dir_guard(head_file)),FdAction::Create).write(serialize(head)) ;
 	}
 
 	DirCache::Sz DirCache::_lru_remove( ::string const& entry_s , NfsGuard& nfs_guard ) {
@@ -298,7 +298,7 @@ namespace Caches {
 			newer_older.older_s = here.older_s ;
 			newer_older.newer_s = here.newer_s ;
 			//
-			AcFd(nfs_guard.change(newer_older_file),Fd::Write).write(serialize(newer_older)) ;
+			AcFd(nfs_guard.change(newer_older_file),FdAction::Write).write(serialize(newer_older)) ;
 		} else {
 			::string newer_file = _lru_file(here.newer_s)                                     ;
 			::string older_file = _lru_file(here.older_s)                                     ;
@@ -308,8 +308,8 @@ namespace Caches {
 			newer.older_s = here.older_s ;
 			older.newer_s = here.newer_s ;
 			//
-			AcFd(nfs_guard.change(newer_file),Fd::Write).write(serialize(newer)) ;
-			AcFd(nfs_guard.change(older_file),Fd::Write).write(serialize(older)) ;
+			AcFd(nfs_guard.change(newer_file),FdAction::Write).write(serialize(newer)) ;
+			AcFd(nfs_guard.change(older_file),FdAction::Write).write(serialize(older)) ;
 		}
 		return here.sz ;
 	}
@@ -329,10 +329,10 @@ namespace Caches {
 			auto     newest      = deserialize<Lru>(AcFd(nfs_guard.access(newest_file)).read()) ;
 			head  .older_s = entry_s ;
 			newest.newer_s = entry_s ;
-			AcFd(nfs_guard.change(newest_file),Fd::Write).write(serialize(newest)) ;
+			AcFd(nfs_guard.change(newest_file),FdAction::Create).write(serialize(newest)) ;
 		}
-		AcFd(nfs_guard.change(head_file),Fd::Write).write(serialize(head)) ;
-		AcFd(nfs_guard.change(here_file),Fd::Write).write(serialize(here)) ;
+		AcFd(nfs_guard.change(head_file),FdAction::Create).write(serialize(head)) ;
+		AcFd(nfs_guard.change(here_file),FdAction::Create).write(serialize(here)) ;
 	}
 
 	::string DirCache::_reserved_file( uint64_t upload_key , ::string const& sfx ) const {
@@ -348,7 +348,7 @@ namespace Caches {
 		//
 		NfsGuard                    nfs_guard    { file_sync }                                         ;
 		::string                    abs_jn_s     = dir_s+job+'/'                                       ;
-		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir }          ;
+		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , FdAction::Dir }    ;
 		LockedFd                    lock         ;                                                       if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
@@ -405,8 +405,8 @@ namespace Caches {
 
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {                                 // match_key is returned by sub_match()
 		SWEAR(match_key.back()=='/') ;
-		NfsGuard nfs_guard { file_sync }                                       ;
-		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , Fd::Dir } ;
+		NfsGuard nfs_guard { file_sync }                                             ;
+		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , FdAction::Dir } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
 		{	LockedFd lock { dir_s , true /*exclusive*/ }         ;                                           // because we manipulate LRU, we need exclusive
@@ -427,8 +427,8 @@ namespace Caches {
 		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
 			_mk_room( 0 , max_sz , nfs_guard ) ;
 		}
-		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , Fd::CreateReadOnly ).write(serialize(max_sz)) ;
-		AcFd data_fd { nfs_guard.change(_reserved_file(upload_key,"data")) , Fd::CreateReadOnly } ;
+		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , FdAction::CreateReadOnly ).write(serialize(max_sz)) ;
+		AcFd data_fd { nfs_guard.change(_reserved_file(upload_key,"data")) , FdAction::CreateReadOnly } ;
 		trace(data_fd,upload_key) ;
 		return { upload_key , ::move(data_fd) } ;
 	}
@@ -446,7 +446,7 @@ namespace Caches {
 		// END_OF_VERSIONING
 		::string abs_jnid_s = dir_s + jnid_s ;
 		mk_dir_s(nfs_guard.change(abs_jnid_s)) ;
-		AcFd dfd { nfs_guard.access_dir(abs_jnid_s) , Fd::Dir } ;
+		AcFd dfd { nfs_guard.access_dir(abs_jnid_s) , FdAction::Dir } ;
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
@@ -483,8 +483,7 @@ namespace Caches {
 		}
 		// set a symlink from a name derived from deps to improve match speed in case of hit
 		// this is a hint only as when link target is updated, link is not
-		Xxh deps_hash ; deps_hash += deps_str ;
-		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+deps_hash.digest().hex() ;
+		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+Crc(New,deps_str).hex() ;
 		unlnk( abs_deps_hint , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 		lnk  ( abs_deps_hint , no_slash(key_s) ) ;
 		//

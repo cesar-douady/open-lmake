@@ -406,13 +406,13 @@ namespace Engine {
 					}
 				}
 			}
-			log_fd = Fd( log_file , Fd::Write ) ;
+			log_fd = Fd( log_file , FdAction::Create ) ;
 			try         { lnk(Last,lcl_log_file) ;                                             }
 			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
 			start_ddate = file_date(log_file) ;                                                  // use log_file as a date marker
 		} else {
 			trace("no_log") ;
-			AcFd(Last,Fd::Write) ;                                                               // use Last as a marker, just to gather its date
+			AcFd(Last,FdAction::Create) ;                                                        // use Last as a marker, just to gather its date
 			start_ddate = file_date(Last) ;
 			unlnk(Last) ;
 		}

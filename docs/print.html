@@ -633,7 +633,7 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The value is a <code>dict</code> composed of:
 <ul>
 <li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <code>xxhsum</code> (1)).</li>
+<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <em>xxhsum(1)</em>).</li>
 <li><code>rule</code>:     The rule name of the job that has generated the dep one exists.</li>
 <li><code>special</code>:  The special nature (e.g. <code>src</code>).</li>
 <li><code>stems</code>:    A <code>dict</code> mapping stem names to stem values if the rule is a plain rule.</li>
@@ -751,14 +751,14 @@ Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
 </ul>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
 <h3 id="xxhsumtextis_linkfalse"><a class="header" href="#xxhsumtextis_linkfalse"><code>xxhsum(text,is_link=False)</code></a></h3>
 <p>Return a checksum of provided text.</p>
 <p>It is a 16-digit hex value with no suffix.</p>
 <p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
 <p>Note : this checksum is not the same as the checksum of a file with same content.</p>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf <code>man xxhsum</code> for a description of the algorithm.</p>
+<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
 <h3 id="report_importmodule_namenonepathnonemodule_suffixesnone"><a class="header" href="#report_importmodule_namenonepathnonemodule_suffixesnone"><code>report_import(module_name=None,path=None,module_suffixes=None)</code></a></h3>
 <p>Does necessary reporting when a module has been imported.</p>
 <p><code>module_name</code> is the name of the imported module.
@@ -1076,7 +1076,7 @@ If <code>None</code> (discouraged), it is equivalent to 0.</p>
 <li>If set to network dir, there is no performance gain and only added complexity.</li>
 </ul>
 <h3 id="link_support--clean-full"><a class="header" href="#link_support--clean-full"><code>link_support</code> : Clean (<code>'full'</code>)</a></h3>
-<p>Open-lmake fully handle symbolic links (cf <a href="data_model.html">data model</a>).</p>
+<p>Open-lmake fully handle symbolic links (cf. <a href="data_model.html">data model</a>).</p>
 <p>However, there is an associated cost which may be useless in some situations.</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Support level</th></tr></thead><tbody>
 <tr><td><code>'full'</code></td><td>symbolic links are fully supported</td></tr>
@@ -1105,8 +1105,8 @@ The purpose is to ease reading.</p>
 <p>The default value should fit most cases.</p>
 <h3 id="nice--dynamic-0"><a class="header" href="#nice--dynamic-0"><code>nice</code> : Dynamic (<code>0</code>)</a></h3>
 <p>This attribute provides the nice value to apply to all jobs.
-It is a value between 0 and 20 that decreases the priority of jobs (cf nice(2)).</p>
-<p>If available, the autogroup mecanism (cf sched (7)) is used instead as jobs are launched as sessions.</p>
+It is a value between 0 and 20 that decreases the priority of jobs (cf. <em>nice(2)</em>).</p>
+<p>If available, the autogroup mecanism (cf. <em>sched(7)</em>) is used instead as jobs are launched as sessions.</p>
 <p>Note that negative nice values are not supported as these require privileges.</p>
 <h3 id="path_max--static-200"><a class="header" href="#path_max--static-200"><code>path_max</code> : Static (<code>200</code>)</a></h3>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
@@ -1115,7 +1115,7 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><code>sub_repos</code> : Static (<code>()</code>)</a></h3>
 <p>This attribute provide the list of sub-repos.</p>
 <p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
-Inside such sub-repos, the applied flow is the one described in it (cf <a href="experimental_subrepos.html">Subrepos</a>).</p>
+Inside such sub-repos, the applied flow is the one described in it (cf. <a href="experimental_subrepos.html">Subrepos</a>).</p>
 <h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
 <p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
 If <code>None</code>, no timestamp is generated.</p>
@@ -1143,13 +1143,13 @@ The larger the trace, the more probable the root cause of a potential problem is
 <p>The execution trace @lmake generates is split into channels to better control what to trace.</p>
 <p>This attributes contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
 <h3 id="colors--dynamic-reasonably-readable"><a class="header" href="#colors--dynamic-reasonably-readable"><code>colors</code> : Dynamic (reasonably readable)</a></h3>
-<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf <a href="video_mode.html">video-mode</a>).</p>
+<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. <a href="video_mode.html">video-mode</a>).</p>
 <p>This attribute is a <code>pdict</code> with one entry for each symbolic color.
 Each entry is a 2-tuple of 3-tuple's.
 The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
 Each color is a triplet RGB of values between 0 and 255.</p>
 <h3 id="backends--dynamic"><a class="header" href="#backends--dynamic"><code>backends</code> : Dynamic</a></h3>
-<p>This attribute is a <code>pdict</code> with one entry for each active backend (cf <a href="backends.html">backends</a>).</p>
+<p>This attribute is a <code>pdict</code> with one entry for each active backend (cf. <a href="backends.html">backends</a>).</p>
 <p>Each entry is a <code>pdict</code> providing resources. Such resources are backend specific.</p>
 <h3 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h3>
 <p>When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
@@ -1188,6 +1188,8 @@ In the current version, only 2 tags may be used:</p>
 <p>This attribute specifies the dir in which the cache puts its data.</p>
 <p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
+<p>Also, an adequate default ACL (cf. <em>acl(5)</em>) must most probably be set for this dir to give adequate permissions to files created in it.
+Typically, the command <code>setfacl -m d:g::rw,d:o::r CACHE</code> can be used to set up the dir <code>CACHE</code>.</p>
 <h3 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h3>
 <p>Same meaning as <code>config.file_sync</code> for accesses in the cache.</p>
 <h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
@@ -1198,7 +1200,7 @@ No more than a single entry can be stored for any job with a given key.</p>
 <p>By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.</p>
 <h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>
 <p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
-<p>It maps debug keys to modules to import to implement the debug method (cf man ldebug).
+<p>It maps debug keys to modules to import to implement the debug method (cf. <em>ldebug(1)</em>).
 Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
@@ -1297,7 +1299,7 @@ In that case, it is only used as a base class to define other rules.</p>
 </div>
 <p>Default value is 0 if inheriting from <code>lmake.Rule</code>, else <code>+inf</code>.</p>
 <p>This attribute is used to order matching priority.
-Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf <a href="rule_selection.html">rule selection</a>).</p>
+Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf. <a href="rule_selection.html">rule selection</a>).</p>
 <h3 id="stems"><a class="header" href="#stems"><code>stems</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td><code>{'File':r'.*'}</code></td></tr>
@@ -1321,7 +1323,7 @@ If it contains star stems, they will be replaced by <code>*</code>'s in the repo
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td><code>{ 'OBJ' : '{File}.o' }</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute is used to define the regular expression which targets must match to select this rule (cf <a href="rule_selection.html">rule selection</a>).</p>
+<p>This attribute is used to define the regular expression which targets must match to select this rule (cf. <a href="rule_selection.html">rule selection</a>).</p>
 <p>Keys must be python identifiers.
 Values are <code>list</code>'s or <code>tuple</code>'s whose first item defines the target regular expression and following items define flags.
 They may also be a simple <code>str</code> in which case it is as if there were no associated flags.</p>
@@ -1387,7 +1389,7 @@ Its syntax is the same as any target entry except that it may not be <code>incre
 <p>This attribute defines the static deps.
 It is a <code>dict</code> which associates python identifiers to files computed from the available environment.</p>
 <p>They are f-strings, i.e. their value follow the python f-string syntax and semantic
-but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf <a href="rule_selection.html">rule selection</a>).
+but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf. <a href="rule_selection.html">rule selection</a>).
 Hence they lack the initial <code>f</code> in front of the string.</p>
 <p>Alternatively, values can also be <code>list</code> or <code>tuple</code> whose first item is as described above, followed by flags.</p>
 <p>The flags may be any combination of the following flags, optionally preceded by - to turn it off.
@@ -1399,7 +1401,7 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>ReaddirOk</code></td><td><code>readdir_ok</code></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
-<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
+<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
 </tbody></table>
 </div>
 <p>Flag order and dep order are not significative.</p>
@@ -1439,7 +1441,7 @@ However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used 
 </tbody></table>
 </div>
 <p>This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">namespaces</a>).</p>
+This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <p>As of now, this attribute must be a top level dir, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
@@ -1448,7 +1450,7 @@ This is done by using <code>mount -rbind</code> (cf <a href="namespaces.html">na
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf <a href="namespaces.html">namespaces</a>).</p>
+<p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted.
 Else, it must be an absolute path.</p>
 <p>As of now, this attribute must be a top level dir, i.e. <code>'/a'</code> is ok, but <code>'/a/b'</code> is not.</p>
@@ -1460,7 +1462,7 @@ Else, it must be an absolute path.</p>
 <p>This attribute defines a mapping from logical views to physical dirs.</p>
 <p>Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a <code>/</code> or not.
 Files must be mapped to files and dirs to dirs.</p>
-<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf <a href="namespaces.html">namespaces</a>).</p>
+<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
@@ -1564,7 +1566,7 @@ In the latter case, a file that contains the script is created and its name is p
 </tbody></table>
 </div>
 <h4 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h4>
-<p>In that case, this attribute is called to run the job (cf <a href="job_execution.html">job execution</a>).
+<p>In that case, this attribute is called to run the job (cf. <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
 The first (i.e. the most basic) one must have no non-defaulted arguments and will be called with no argument.
@@ -1593,7 +1595,7 @@ There are mostly 2 practical possibilities:</p>
 <li>Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.</li>
 </ul>
 <h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str">if it is a <code>f-str</code></a></h4>
-<p>In that case, this attribute is executed as a shell command to run the job (cf <a href="job_execution.html">job execution</a>).
+<p>In that case, this attribute is executed as a shell command to run the job (cf. <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
 The purpose is that it is impossible to combine <code>str</code>'s and functions because they use different paradigms.
@@ -1723,7 +1725,7 @@ i.e. independent of the history (the repo is not constantly maintained without s
 These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...</p>
 <p>Values must <code>f-str</code>.</p>
 <p>The syntax is the same as for <code>deps</code>.</p>
-<p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf @pxref{local-backend} for the local backend).</p>
+<p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf. <a href="config.html">local backend</a> for the local backend).</p>
 <h3 id="start_delay"><a class="header" href="#start_delay"><code>start_delay</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>

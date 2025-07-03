@@ -32,6 +32,9 @@ else :
 
 	import ut
 
+	# cache dir must be writable by all users having access to the cache
+	# use setfacl(1) with adequate rights in the default ACL, e.g. :
+	# os.system('setfacl -m d:g::rw,d:o::r CACHE')
 	os.makedirs('CACHE/LMAKE')
 	print('1M',file=open('CACHE/LMAKE/size','w'))
 
