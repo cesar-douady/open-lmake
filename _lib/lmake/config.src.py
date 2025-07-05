@@ -41,14 +41,6 @@ config = pdict(
 #,	nice                = 0                                 # nice value to apply to all jobs
 ,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
 ,	sub_repos           = []                                # list of sub_repos
-,	console = pdict(                                        # tailor output lines
-		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
-	,	has_exec_time  = True                               # if True, output the exec_time field
-	,	history_days   = 7                                  # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
-	,	host_len       = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
-	,	show_eta       = False
-	,	show_ete       = True                               # if True, the title includes the ETA of the lmake command
-	)
 ,	backends = pdict(                                       # PER_BACKEND : provide a default configuration for each backend
 		local = pdict(                                      # entries mention the total availability of resources
 			cpu =     _cpu                                  # total number of cpus available for the process, and hence for all jobs launched locally
@@ -84,6 +76,39 @@ config = pdict(
 	#		                                                # requires slurm configuration collaboration
 	#	)
 	)
+,	caches = pdict(                                         # PER_CACHE : provide an explanation for each cache method
+	#	dir = pdict(                                        # when rule specifies cache = 'dir' , this cache is selected
+	#		tag   = 'dir'                                   # specify the caching method, must be one of the supported method
+	#	,	key   = repo_root/git-sha1                      # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
+	#	,	dir   = '/cache_dir'                            # the directory in which cached results are stored
+	#	,	group = _group                                  # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
+	#	)
+	)
+,	collect = pdict(
+	#	stems  = pdict(Stem1=r'.*')                         # defines stems as regexprs for use in ignore
+	#,	ignore = pdict(                                     # patterns used to prevent lcollect from removing files
+	#		STATIC = ('file1','file2')                      # several files/patterns can be provided for a single key
+	#	,	STAR   = 'file{Stem1}'                          # mimic Rule.targets attribute (except several patterns can be defined using tuple/list)
+	#	)
+	)
+,	colors = pdict(
+		#                 normal video    reverse video
+		hidden_note   = [ [192,192,192] , [ 96, 96, 96] ]   # gray
+	,	hidden_ok     = [ [176,208,176] , [ 80,112, 80] ]   # greenish gray
+	,	note          = [ [  0,  0,255] , [ 64,160,255] ]   # blue
+	,	ok            = [ [  0,128,  0] , [128,255,128] ]   # green
+	,	warning       = [ [155,  0,255] , [255,  0,255] ]   # magenta
+	,	err           = [ [180,  0,  0] , [255, 60, 60] ]   # red
+	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ]   # red
+	)
+,	console = pdict(                                        # tailor output lines
+		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
+	,	has_exec_time  = True                               # if True, output the exec_time field
+	,	history_days   = 7                                  # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
+	,	host_len       = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
+	,	show_eta       = False
+	,	show_ete       = True                               # if True, the title includes the ETA of the lmake command
+	)
 ,	debug = pdict({
 		''  : 'lmake_debug.default (pdb for python, set -x for bash)' # use pdb  as the default debugger
 	,	'u' : 'lmake_debug.pudb    (python only)'                     # use pudb as the default graphic debugger
@@ -92,24 +117,6 @@ config = pdict(
 	,	'c' : 'lmake_debug.vscode  (launch job under vscode control)'
 	,	'g' : 'lmake_debug.gdb     (launch interpreter under gdb)'
 	})
-,	caches = pdict(                                                   # PER_CACHE : provide an explanation for each cache method
-	#	dir = pdict(                                                  # when rule specifies cache = 'dir' , this cache is selected
-	#		tag   = 'dir'                                             # specify the caching method, must be one of the supported method
-	#	,	key   = repo_root/git-sha1                                # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
-	#	,	dir   = '/cache_dir'                                      # the directory in which cached results are stored
-	#	,	group = _group                                            # the group used to write to the cache. If user does not belong to this group, read-only access is still possible
-	#	)
-	)
-,	colors = pdict(
-		#                 normal video    reverse video
-		hidden_note   = [ [192,192,192] , [ 96, 96, 96] ]             # gray
-	,	hidden_ok     = [ [176,208,176] , [ 80,112, 80] ]             # greenish gray
-	,	note          = [ [  0,  0,255] , [ 64,160,255] ]             # blue
-	,	ok            = [ [  0,128,  0] , [128,255,128] ]             # green
-	,	warning       = [ [155,  0,255] , [255,  0,255] ]             # magenta
-	,	err           = [ [180,  0,  0] , [255, 60, 60] ]             # red
-	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ]             # red
-	)
 ,	trace = pdict(
 #		size     = 100<20                                             # overall size of lmakeserver trace
 #	,	n_jobs   = 1000                                               # number of kept job traces

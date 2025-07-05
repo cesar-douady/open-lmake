@@ -33,7 +33,7 @@ namespace Codec {
 		//
 		static bool/*ok*/ s_refresh( ::string const& file , NodeIdx , ::vector<ReqIdx> const& ) ;
 	private :
-		static void _s_canonicalize( ::string const& file ,           ::vector<ReqIdx> const& ) ;
+		static void _s_canonicalize( ::string const& file , ::vector<ReqIdx> const& ) ;
 		// static data
 	public :
 		static ::umap_s<Entry> s_tab ;

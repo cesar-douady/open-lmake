@@ -234,6 +234,7 @@ LMAKE_SERVER_BIN_FILES := \
 	_bin/lmakeserver             \
 	_bin/find_cc_ld_library_path \
 	bin/lautodep                 \
+	bin/lcollect                 \
 	bin/ldebug                   \
 	bin/lforget                  \
 	bin/lmake                    \
@@ -575,15 +576,15 @@ bin/ldircache_repair : \
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
+bin/lcollect : $(CLIENT_SAN_OBJS) src/lcollect$(SAN).o
+bin/ldebug   : $(CLIENT_SAN_OBJS) src/ldebug$(SAN).o src/py$(SAN).o
+bin/lforget  : $(CLIENT_SAN_OBJS) src/lforget$(SAN).o
+bin/lmake    : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
+bin/lmark    : $(CLIENT_SAN_OBJS) src/lmark$(SAN).o
+bin/lshow    : $(CLIENT_SAN_OBJS) src/lshow$(SAN).o
 
-bin/lmake   : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
-bin/lshow   : $(CLIENT_SAN_OBJS) src/lshow$(SAN).o
-bin/lforget : $(CLIENT_SAN_OBJS) src/lforget$(SAN).o
-bin/lmark   : $(CLIENT_SAN_OBJS) src/lmark$(SAN).o
-bin/ldebug  : $(CLIENT_SAN_OBJS) src/ldebug$(SAN).o src/py$(SAN).o
-
-LMAKE_DBG_FILES += bin/lmake bin/lshow bin/lforget bin/lmark
-bin/lmake bin/lshow bin/lforget bin/lmark :
+LMAKE_DBG_FILES += bin/lcollect bin/lforget bin/lmake bin/lmark bin/lshow
+bin/lcollect bin/lforget bin/lmake bin/lmark bin/lshow :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)

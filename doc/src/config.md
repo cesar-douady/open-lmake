@@ -13,6 +13,15 @@ Depending on when each field can be modified, they are said:
 
 The default value is mentioned in ().
 
+### `colors` : Dynamic (reasonably readable)
+
+Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. [video-mode](video_mode.html)).
+
+This attribute is a `pdict` with one entry for each symbolic color.
+Each entry is a 2-tuple of 3-tuple's.
+The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
+Each color is a triplet RGB of values between 0 and 255.
+
 ### `disk_date_precision` : Static (`0.010`)
 
 This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
@@ -42,6 +51,13 @@ Recommanded values for known file systems:
 
 The expected performance impact is increasing in this order : `None`, `'dir'`, `'sync'`.
 The expected reliability order is the reverse one.
+
+### `debug` : Static
+
+When `ldebug` is used, it consults this `dict`.
+
+It maps debug keys to modules to import to implement the debug method (cf. *ldebug(1)*).
+Values contain the module name optionnaly followed by a human description (that will appear with `ldebug -h`) separated with spaces.
 
 ### `heartbeat` : Static (`10`)
 
@@ -139,70 +155,13 @@ This attribute provide the list of sub-repos.
 Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a `Lmakefile.py`.
 Inside such sub-repos, the applied flow is the one described in it (cf. [Subrepos](experimental_subrepos.html)).
 
-### `console.date_precision` : Dynamic (`None`)
-
-This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
-If `None`, no timestamp is generated.
-
-### `console.has_exec_time` : Dynamic (`True`)
-
-If this attribute is true, execution time is reported each time a job is completed.
-
-### `console.history_days` : Dynamic (`7`)
-
-This attribute specifies the number of days the output log history is kept in the `LMAKE/outputs` dir.
-
-### `console.host_len` : Dynamic (`None`)
-
-This attribute specifies the width of the field showing the host that executed or is about to execute the job.
-If `None`, the host is not shown.
-Note that no host is shown for local execution.
-
-### `console.show_eta` : Dynamic (`False`)
-
-If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.
-
-### `console.show_ete` : Dynamic (`True`)
-
-If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.
-
-### `trace.size` : Static (`100_000_000`)
-
-While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose.
-
-The trace is handled as a ring buffer, storing only the last events when the size overflows.
-The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.
-
-This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).
-
-### `trace.n_jobs` : Static (`1000`)
-
-While open-lmake runs, it generates execution traces for all jobs.
-
-This attributes contains the overall number of such traces that are kept.
-
-### `trace.channels` : Static (all)
-
-The execution trace @lmake generates is split into channels to better control what to trace.
-
-This attributes contains a `list` or `tuple` of the channels to trace.
-
-### `colors` : Dynamic (reasonably readable)
-
-Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. [video-mode](video_mode.html)).
-
-This attribute is a `pdict` with one entry for each symbolic color.
-Each entry is a 2-tuple of 3-tuple's.
-The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
-Each color is a triplet RGB of values between 0 and 255.
-
 ### `backends` : Dynamic
 
 This attribute is a `pdict` with one entry for each active backend (cf. [backends](backends.html)).
 
 Each entry is a `pdict` providing resources. Such resources are backend specific.
 
-### `backends.*.interface` : Dynamic (best guess)
+#### `backends.*.interface` : Dynamic (best guess)
 
 When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
 The same is true if the job is launche locally but it launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
@@ -214,22 +173,22 @@ This value may be empty (using `hostname` for addresse look up), given in standa
 or the name of a host (looked up as for `ping`).
 In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.
 
-### `backends.*.environ` : Dynamic (`{}`)
+#### `backends.*.environ` : Dynamic (`{}`)
 
 Environment to pass when launching job in backend.
 This environment is accessed when the value mentioned in the rule is `...`.
 
-### `backends.local.cpu` : Dynamic (number of phyical CPU's)
+#### `backends.local.cpu` : Dynamic (number of phyical CPU's)
 
 This is a normal resource that rules can require (by default, rule require 1 cpu).
 
-### `backends.local.mem` : Dynamic (size of physical memory in MB)
+#### `backends.local.mem` : Dynamic (size of physical memory in MB)
 
 This is the pysical memory necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as `k`,  `M` or `G`.
 Internally, the granularity is forced to MB.
 
-### `backends.local.tmp` : Dynamic (`0`)
+#### `backends.local.tmp` : Dynamic (`0`)
 
 This is the disk size in the temporary dir necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as `k`,  `M` or `G`.
@@ -243,7 +202,7 @@ Caches are named with an arbitrary `str` and are referenced in rules using this 
 
 By default, no cache is configured, but an example can be found in [lib/lmake/config.py](../../lib/lmake/config.py), commented out.
 
-### `caches.*.tag` : Static (-)
+#### `caches.*.tag` : Static (-)
 
 This attribute specifies the method used by open-lmake to cache values.
 In the current version, only 2 tags may be used:
@@ -251,7 +210,7 @@ In the current version, only 2 tags may be used:
 - `none` is a fake cache that cache nothing.
 - `dir` is a cache working without daemon, data are stored in a dir.
 
-### `caches.<dir>.dir` : Static
+#### `caches.<dir>.dir` : Static
 
 This attribute specifies the dir in which the cache puts its data.
 
@@ -261,24 +220,91 @@ The size may be suffixed by a unit suffix (`k`, `M`, `G`, `T`, `P` or `E`). Thes
 Also, an adequate default ACL (cf. *acl(5)*) must most probably be set for this dir to give adequate permissions to files created in it.
 Typically, the command `setfacl -m d:g::rw,d:o::r CACHE` can be used to set up the dir `CACHE`.
 
-### `caches.<dir>.file_sync` : Static (`'dir'`)
+#### `caches.<dir>.file_sync` : Static (`'dir'`)
 
 Same meaning as `config.file_sync` for accesses in the cache.
 
-### `caches.<dir>.group` : Static (default group of user)
+#### `caches.<dir>.group` : Static (default group of user)
 
 This attribute specifies the group used when creating entries.
 
-### `caches.<dir>.key` : Static (repo root dir/git sha1)
+#### `caches.<dir>.key` : Static (repo root dir/git sha1)
 
 A key used to avoid cache pollution.
 No more than a single entry can be stored for any job with a given key.
 
 By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.
 
-### `debug`
+### `collect` : Dynamic
 
-When `ldebug` is used, it consults this `dict`.
+This attributes specifies files and dirs to be ignored (and hence kept) when `lcollect` is run.
+Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.
 
-It maps debug keys to modules to import to implement the debug method (cf. *ldebug(1)*).
-Values contain the module name optionnaly followed by a human description (that will appear with `ldebug -h`) separated with spaces.
+By default, no files are ignored when `lcollect` is run.
+
+#### `collect.stems` : Dynamic
+
+This attributes provides a `dict` as the `stems` `Rule` attribute.
+
+#### `collect.ignore` : Dynamic
+
+This attributes provides a `dict` as the `targets` `Rule` attribute.
+However, contrarily to `Rule`s, several targets can be provided as a `list`/`tuple` for each key, and no flags can be passed in.
+
+### `console` : Dynamic
+
+This is a sub-configuration for all attributes pertaining to the console output of `lmake`.
+
+#### `console.date_precision` : Dynamic (`None`)
+
+This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
+If `None`, no timestamp is generated.
+
+#### `console.has_exec_time` : Dynamic (`True`)
+
+If this attribute is true, execution time is reported each time a job is completed.
+
+#### `console.history_days` : Dynamic (`7`)
+
+This attribute specifies the number of days the output log history is kept in the `LMAKE/outputs` dir.
+
+#### `console.host_len` : Dynamic (`None`)
+
+This attribute specifies the width of the field showing the host that executed or is about to execute the job.
+If `None`, the host is not shown.
+Note that no host is shown for local execution.
+
+#### `console.show_eta` : Dynamic (`False`)
+
+If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.
+
+#### `console.show_ete` : Dynamic (`True`)
+
+If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.
+
+### `trace` : Dynamic
+
+This is a sub-configuration for all attributes pertaining to the optional tracing facility of open-lmake.
+
+For tracing to be active, it must be compiled in (cf. INSTALLATION), which is off by default as performances can be severly degraded.
+
+#### `trace.size` : Static (`100_000_000`)
+
+While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose.
+
+The trace is handled as a ring buffer, storing only the last events when the size overflows.
+The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.
+
+This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).
+
+#### `trace.n_jobs` : Static (`1000`)
+
+While open-lmake runs, it generates execution traces for all jobs.
+
+This attributes contains the overall number of such traces that are kept.
+
+#### `trace.channels` : Static (all)
+
+The execution trace @lmake generates is split into channels to better control what to trace.
+
+This attributes contains a `list` or `tuple` of the channels to trace.

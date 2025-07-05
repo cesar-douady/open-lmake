@@ -5,6 +5,7 @@
 
 #ifdef STRUCT_DECL
 
+#include "disk.hh"
 #include "serialize.hh"
 
 #include "rpc_client.hh"
@@ -23,21 +24,21 @@ enum class GlobalProc : uint8_t {
 } ;
 
 enum class JobEvent : uint8_t {
-	Submit     // job is submitted
-,	Add        // add a Req monitoring job
-,	Start      // job execution starts
-,	Done       // job done successfully
-,	Steady     // job done successfully
-,	Rerun      // job must rerun
-,	Killed     // job has been killed
-,	Del        // delete a Req monitoring job
-,	Err        // job done in error
+	Submit                      // job is submitted
+,	Add                         // add a Req monitoring job
+,	Start                       // job execution starts
+,	Done                        // job done successfully
+,	Steady                      // job done successfully
+,	Rerun                       // job must rerun
+,	Killed                      // job has been killed
+,	Del                         // delete a Req monitoring job
+,	Err                         // job done in error
 } ;
 
 enum class NodeEvent : uint8_t {
-	Done        // node was modified
-,	Steady      // node was remade w/o modification
-,	Uphill      // uphill dir was makable
+	Done                         // node was modified
+,	Steady                       // node was remade w/o modification
+,	Uphill                       // uphill dir was makable
 } ;
 
 enum class ReportBool : uint8_t {
@@ -111,7 +112,33 @@ namespace Engine {
 
 namespace Engine {
 
+	using ParsePyFuncStem      = ::function<void    ( ::string const& key , bool star , bool unnamed , ::string const* re )> ;
+	using ParsePyFuncFixed     = ::function<void    ( ::string const& fixed , bool has_pfx , bool has_sfx                 )> ;
+	using SubstTargetFuncStem  = ::function<::string( Disk::FileNameIdx pos , VarIdx stem                                 )> ;
+	using SubstTargetFuncFixed = ::function<::string( ::string const&                                                     )> ;
+
 	extern Kpi g_kpi ;
+
+	::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) ;
+
+	void parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem , ParsePyFuncFixed const& cb_fixed ) ;
+	inline void parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
+		parse_py( str , unnamed_star_idx , cb_stem , [](::string const&,bool/*has_pfx*/,bool/*has_sfx*/)->void{} ) ;
+	}
+
+	// star stems are represented by a StemMrkr followed by the stem idx
+	// return str with stems substituted with the return values of cb_stem and fixed parts replaced by the values of cb_fixed
+	::string subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) ;
+	// provide shortcut when pos or cb_fixed are unused
+	inline ::string subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) {
+		return subst_target( str , [&](Disk::FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , cb_fixed                                       , stop_above ) ;
+	}
+	inline ::string subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
+		return subst_target( str , cb_stem                                                           , [](::string const& s)->::string { return s ; } , stop_above ) ;
+	}
+	inline ::string subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
+		return subst_target( str , [&](Disk::FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , [](::string const& s)->::string { return s ; } , stop_above ) ;
+	}
 
 	struct EngineClosureGlobal {
 		GlobalProc proc = {} ;
@@ -125,15 +152,40 @@ namespace Engine {
 			else                             {                                return false ; }
 		}
 		// services
-		::vector<Node> targets(::string const& startup_dir_s={}) const ; // startup_dir_s for error reporting only
-		Job            job    (::string const& startup_dir_s={}) const ; // .
+		Job            job        (                  ) const ;
+		::vector<Node> targets    (bool root_ok=false) const { return _targets<Node    >(root_ok) ; }
+		::vector_s     target_strs(bool root_ok=false) const { return _targets<::string>(root_ok) ; }
+	private :
+		template<class T> ::vector<T> _targets(bool root_ok=false) const {
+			SWEAR(!is_job()) ;
+			Disk::RealPathEnv rpe           { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
+			Disk::RealPath    real_path     { rpe                                                              } ;
+			::vector<T>       targets       ; targets.reserve(files.size()) ;                                      // typically, there is no bads
+			::string          err_ext_str   ;
+			::string          err_admin_str ;
+			for( ::string const& target : files ) {
+				static constexpr bool NeedNew = requires(::string s) { T(New,s) ; } ;
+				//
+				Disk::RealPath::SolveReport rp           = real_path.solve(target,true/*no_follow*/) ;             // we may refer to a sym link
+				bool                        is_repo_root = rp.file_loc==FileLoc::RepoRoot            ;
+				::string                    real         = is_repo_root ? "."s : ::move(rp.real)     ;
+				//
+				if ( rp.file_loc!=FileLoc::Repo && !(root_ok&&is_repo_root) ) throw cat("file is outside repo : ",Disk::mk_file(target)) ;
+				if ( with_slash(real).starts_with(AdminDirS)                ) throw cat("file is in admin dir : ",Disk::mk_file(target)) ;
+				//
+				if constexpr (NeedNew) targets.emplace_back( New , real ) ;
+				else                   targets.emplace_back(       real ) ;
+			}
+			return targets ;
+		}
 		// data
+	public :
 		ReqProc    proc    = ReqProc::None ;
-		Req        req     = {}            ;                             // if proc==Close | Kill | Make
-		Fd         in_fd   = {}            ;                             // if proc!=Close
-		Fd         out_fd  = {}            ;                             // .
-		::vector_s files   = {}            ;                             // if proc>=HasHargs
-		ReqOptions options = {}            ;                             // .
+		Req        req     = {}            ;                                                                       // if proc==Close | Kill | Make
+		Fd         in_fd   = {}            ;                                                                       // if proc!=Close
+		Fd         out_fd  = {}            ;                                                                       // .
+		::vector_s files   = {}            ;                                                                       // if proc>=HasHargs
+		ReqOptions options = {}            ;                                                                       // .
 	} ;
 
 	struct EngineClosureJobStart {

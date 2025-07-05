@@ -64,12 +64,14 @@ define(`ClientOptions',`
 	Bullet Version as described above.
 	Bullet A line for each supported option with its short name, long name, whether it has an argument and a short explanation.
 	.RE
-	Item(B(-J),B(--job))
-	Passed arguments are interpreted as job names rather than as file names.
-	Job names are the names that appear, for example, on start and done lines when B(lmake) executes a job.
-	Item(B(-R) I(rule),B(--rule)=I(rule))
-	When the I(--job) option is used, this options allows the specification of a rule, given by its name.
-	This is necessary when the job name is ambiguous as several rules may lead to the same job name.
+	ifelse(`$1',job,`
+		Item(B(-J),B(--job))
+		Passed arguments are interpreted as job names rather than as file names.
+		Job names are the names that appear, for example, on start and done lines when B(lmake) executes a job.
+		Item(B(-R) I(rule),B(--rule)=I(rule))
+		When the I(--job) option is used, this options allows the specification of a rule, given by its name.
+		This is necessary when the job name is ambiguous as several rules may lead to the same job name.
+	')
 	Item(B(-q),B(--quiet))
 	Do not generate user oriented messages.
 	Strictly generate what is asked.
@@ -79,7 +81,7 @@ define(`ClientOptions',`
 	This is exceptionally useful in scripts that modify I(Lmakefile.py).
 	Item(B(-v),B(--verbose))
 	Generate more prolix output.
-	ifelse(`$1',color,`
+	ifelse(`$2',color,`
 		Item(B(-V) I(mode),B(--video)=I(mode))
 		Explicitly ask for a video mode instead of interrogating connected terminal.
 		If mode starts with B(n) or B(N), normal video (black on white) is assumed.
@@ -114,6 +116,7 @@ define(`SeeAlsoSection',`
 	.LP
 	ifelse(Name,lautodep,        ,`C(lautodep),'                      )
 	ifelse(Name,lcheck_deps,     ,`C(lcheck_deps),'                   )
+	ifelse(Name,lcollect,        ,`C(lcollect),'                      )
 	ifelse(Name,ldebug,          ,`C(ldebug),'                        )
 	ifelse(Name,ldecode,         ,`C(ldecode),'                       )
 	ifelse(Name,ldepend,         ,`C(ldepend),'                       )

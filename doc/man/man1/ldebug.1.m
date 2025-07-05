@@ -23,7 +23,7 @@ When B(ldebug) is run, the debug script is generated in a file within the I(LMAK
 
 ClientGeneralities()
 
-ClientOptions()
+ClientOptions(job)
 
 SpecificOptions
 

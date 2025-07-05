@@ -443,10 +443,10 @@ namespace Py {
 	template<> struct Ptr<Tuple> : PtrBase<Tuple> {
 		using Base = PtrBase<Tuple> ;
 		using Base::Base ;
-		Ptr( NewType                 ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(0 ) ) } { SWEAR(ptr) ;                                               }
-		Ptr( size_t sz               ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(sz) ) } { SWEAR(ptr) ;                                               }
-		Ptr( Object& i0              ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(1 ) ) } { SWEAR(ptr) ; self->set_item(0,i0) ;                        }
-		Ptr( Object& i0 , Object& i1 ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(2 ) ) } { SWEAR(ptr) ; self->set_item(0,i0) ; self->set_item(1,i1) ; }
+		Ptr( NewType                             ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(0 ) ) } { SWEAR(ptr) ;                                               }
+		Ptr( size_t sz                           ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(sz) ) } { SWEAR(ptr) ;                                               }
+		Ptr( Object const& i0                    ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(1 ) ) } { SWEAR(ptr) ; self->set_item(0,i0) ;                        }
+		Ptr( Object const& i0 , Object const& i1 ) : Base{ ( Gil::s_swear_locked() , PyTuple_New(2 ) ) } { SWEAR(ptr) ; self->set_item(0,i0) ; self->set_item(1,i1) ; }
 	} ;
 
 	//

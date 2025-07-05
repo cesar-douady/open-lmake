@@ -34,136 +34,8 @@ namespace Engine {
 		return {} ; // ok
 	}
 
-	using ParsePyFuncFixed     = ::function<void    ( ::string const& fixed , bool has_pfx , bool has_sfx                 )> ; // first is Yes is first, Maybe if in the middle, No if last
-	using ParsePyFuncStem      = ::function<void    ( ::string const& key , bool star , bool unnamed , ::string const* re )> ;
-	using SubstTargetFuncStem  = ::function<::string( FileNameIdx pos , VarIdx stem                                       )> ;
-	using SubstTargetFuncFixed = ::function<::string( ::string const&                                                     )> ;
-	using ParseTargetFunc      = ::function<void    ( FileNameIdx pos , VarIdx stem                                       )> ;
+	using ParseTargetFunc = ::function<void( FileNameIdx pos , VarIdx stem )> ;
 
-	// str has the same syntax as python f-strings
-	// cb_fixed is called on each fixed part found
-	// cb_stem  is called on each stem       found
-	// stems are of the form {<identifier>\*?} or {<identifier>?\*?:.*} (where .* after : must have matching {})
-	// cb_stem is called with :
-	// - the <identifier>
-	// - true if <identifier> is followed by a *
-	// - the regular expression that follows the : or nullptr for the first case
-	// /!\ : this function is also implemented in read_makefiles.py:add_stems, both must stay in sync
-	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncFixed const& cb_fixed , ParsePyFuncStem const& cb_stem ) {
-		enum State { Literal , SeenStart , Key , Re , SeenStop } ;
-		State    state       = Literal ;
-		::string fixed       ;
-		::string key         ;
-		::string re          ;
-		size_t   unnamed_idx = 1       ;
-		size_t   depth       = 0       ;
-		bool     has_pfx     = false   ;
-		for( char c : str ) {
-			bool with_re = false ;
-			switch (state) {
-				case Literal :
-					if      (c=='{') state = SeenStart ;
-					else if (c=='}') state = SeenStop  ;
-					else             fixed.push_back(c) ;
-				break ;
-				case SeenStop :
-					if (c!='}') goto End ;
-					state = Literal ;
-					fixed.push_back(c) ;                                                                             // }} are transformed into }
-				break ;
-				case SeenStart :
-					if (c=='{') {
-						state = Literal ;
-						fixed.push_back(c) ;                                                                         // {{ are transformed into {
-						break ;
-					}
-					if (+fixed) { cb_fixed(fixed,has_pfx,true/*has_sfx*/) ; fixed.clear() ; }
-					state = Key ;
-				[[fallthrough]] ;
-				case Key :
-					if (c!='}') {
-						if (c==':') state = Re ;
-						else        key.push_back(c) ;
-						break ;
-					}
-					goto Call ;
-				break ;
-				case Re :
-					if (!( c=='}' && depth==0 )) {
-						if      (c=='{') depth++ ;
-						else if (c=='}') depth-- ;
-						re.push_back(c) ;
-						break ;
-					}
-					with_re = true ;
-				Call :
-					// trim key
-					size_t start = 0          ; while( start<key.size() && is_space(key[start]) ) start++ ;
-					size_t end   = key.size() ; while( end>start        && is_space(key[end-1]) ) end  -- ;
-					if (end<=start) key.clear() ;
-					else            key = key.substr(start,end-start) ;
-					bool star = +key && key.back()=='*' ;
-					if (star) key.pop_back() ;
-					bool unnamed = !key ;
-					if (unnamed) {
-						throw_unless( unnamed_star_idx , "no auto-stem allowed in ",str ) ;
-						if (star) { throw_unless( with_re , "unnamed star stems must be defined in ",str ) ; key = cat("<star_stem",(*unnamed_star_idx)++,'>') ; }
-						else                                                                                 key = cat("<stem"     ,  unnamed_idx      ++,'>') ;
-					} else {
-						throw_unless( is_identifier(key) , "bad key ",key," must be empty or an identifier" ) ;
-					}
-					if (with_re) { cb_stem(key,star,unnamed,&re    ) ; re .clear() ; }
-					else         { cb_stem(key,star,unnamed,nullptr) ;               }
-					key.clear() ;
-					state   = Literal ;
-					has_pfx = true    ;
-				break ;
-			}
-		}
-	End :
-		switch (state) {
-			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_pfx*/) ; } break                      ; // trailing fixed
-			case SeenStop  :                                                            throw "spurious } in "+str ;
-			case SeenStart :
-			case Key       :
-			case Re        :                                                            throw "spurious { in "+str ;
-		DF}                                                                                                          // NO_COV
-	}
-	static void _parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem ) {
-		_parse_py( str , unnamed_star_idx , [](::string const&,bool/*has_pfx*/,bool/*has_sfx*/)->void{} , cb_stem ) ;
-	}
-
-	// star stems are represented by a StemMrkr followed by the stem idx
-	// return str with stems substituted with the return values of cb_stem and fixed parts replaced by the values of cb_fixed
-	static ::string _subst_target_func_fixed_cp(::string const& s) { return s ; }
-	static ::string _subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) {
-		::string res   ;
-		::string fixed ;
-		for( size_t i=0 ; i<str.size() ; i++ ) { // /!\ not a iota
-			char c = str[i] ;
-			if (c!=Rule::StemMrkr) { fixed += c ; continue ;                  }
-			if (+fixed           ) { res += cb_fixed(fixed) ; fixed.clear() ; }
-			//
-			VarIdx stem = decode_int<VarIdx>(&str[i+1]) ;
-			i += sizeof(VarIdx) ;
-			if (stem>=stop_above) return res ;
-			res += cb_stem(res.size(),stem) ;
-		}
-		if (+fixed) res += cb_fixed(fixed) ;
-		return res ;
-	}
-	// provide shortcut when pos or cb_fixed are unused
-	inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) {
-		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , cb_fixed , stop_above ) ;
-	}
-	inline ::string _subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
-		return _subst_target( str , cb_stem , _subst_target_func_fixed_cp , stop_above ) ;
-	}
-	inline ::string _subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
-		return _subst_target( str , [&](FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , _subst_target_func_fixed_cp , stop_above ) ;
-	}
-
-	// same as above, except pos is position in input and no result
 	static void _parse_target( ::string const& str , ParseTargetFunc const& cb ) {
 		for( size_t i=0 ; i<str.size() ; i++ ) {                                   // /!\ not a iota
 			char c = str[i] ;
@@ -216,8 +88,21 @@ namespace Engine {
 		::string res ;
 		//
 		if (keep_for_deps) *keep_for_deps = true ;                                                  // unless found to be external
-		_parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
-			[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
+		parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
+			[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
+				SWEAR(var_idxs.contains(k)) ;
+				SWEAR(!star               ) ;
+				SWEAR(!def                ) ;
+				size_t sz = res.size() ;
+				res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
+				char* p = res.data()+sz    ;
+				auto it = var_idxs.find(k) ;
+				p[0] = Rule::StemMrkr ;
+				encode_enum( p+1                , it->second.bucket ) ;
+				encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
+				n_unnamed += unnamed ;
+			}
+		,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
 				SWEAR(+fixed) ;
 				res.append(fixed) ;
 				if (!keep_for_deps) return ;                                                        // not a dep, no check
@@ -264,19 +149,6 @@ namespace Engine {
 					*keep_for_deps = true ;
 					break ;
 				}
-			}
-		,	[&]( ::string const& k , bool star , bool unnamed , ::string const* def )->void {
-				SWEAR(var_idxs.contains(k)) ;
-				SWEAR(!star               ) ;
-				SWEAR(!def                ) ;
-				size_t sz = res.size() ;
-				res.resize(sz+1+sizeof(VarCmd)+sizeof(VarIdx)) ;
-				char* p = res.data()+sz ;
-				auto it = var_idxs.find(k)    ;
-				p[0] = Rule::StemMrkr ;
-				encode_enum( p+1                , it->second.bucket ) ;
-				encode_int ( p+1+sizeof(VarCmd) , it->second.idx    ) ;
-				n_unnamed += unnamed ;
 			}
 		) ;
 		return res ;
@@ -488,7 +360,7 @@ namespace Engine {
 			return true/*keep*/ ;
 		}
 		if ( key=="python" || key=="shell" ) return false/*keep*/ ;                                           // accept external dep for interpreter (but ignore it)
-		bad( "is outside repository and all source dirs" , "suppress dep" ) ;
+		bad( "is outside repo and all source dirs" , "suppress dep" ) ;
 		return false/*garbage*/ ;                                                                             // NO_COV, to please compiler
 	}
 
@@ -571,7 +443,7 @@ namespace Engine {
 	//
 
 	void DepsAttrs::init( Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		SWEAR(!dyn_deps) ;                                                                                                                                    // init should not be called in that case
+		SWEAR(!dyn_deps) ;                                                                               // init should not be called in that case
 		//
 		for( auto const& [py_key,py_val] : py_src.as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
@@ -587,7 +459,7 @@ namespace Engine {
 				bool     keep       = false/*garbage*/                                                          ;
 				::string parsed_dep = _subst_fstr( dep , var_idxs , n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
 				if (!keep) {
-					if ( key=="python" || key=="shell" ) continue             ;             // accept external dep for interpreter (but ignore it)
+					if ( key=="python" || key=="shell" ) continue             ;                          // accept external dep for interpreter (but ignore it)
 					else                                 throw "is external"s ;
 				}
 				//
@@ -600,7 +472,7 @@ namespace Engine {
 				throw cat("dep ",key," (",dep,") ",e) ;
 			}
 		}
-		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ; // -1 to leave some room to the interpreter, if any
+		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ;              // -1 to leave some room to the interpreter, if any
 	}
 
 	::pair_s</*msg*/::vmap_s<DepSpec>> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
@@ -639,8 +511,8 @@ namespace Engine {
 									dep_specs.emplace_back( key , ::move(ds) ) ;
 								} else {
 									DepSpec& ds2 = dep_specs[dep_idxs.at(key)].second ;
-									SWEAR(!ds2.txt) ;                                   // dep cannot be both static and dynamic
-									ds2 = ::move(ds) ;                                  // if not full dyn, all deps must be listed in spec
+									SWEAR(!ds2.txt) ;                                       // dep cannot be both static and dynamic
+									ds2 = ::move(ds) ;                                      // if not full dyn, all deps must be listed in spec
 								}
 							} catch(::string const& e) {
 								if (!msg) msg = e ;
@@ -652,7 +524,7 @@ namespace Engine {
 			}
 			//
 			return msg_ds ;
-		} catch (::string const& e) {                                                   // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
+		} catch (::string const& e) {                                                       // convention here is to report (msg,sterr), if we have a single string, it is from us and it is a msg
 			throw ::pair(e,""s) ;
 		}
 	}
@@ -681,7 +553,7 @@ namespace Engine {
 		Rule           r    = +m ? m.rule : j->rule() ;
 		::vector_s     args ;
 		::uset<VarIdx> seen ;
-		::string   expr = _subst_target(
+		::string   expr = subst_target(
 			matches[i].second.pattern
 		,	[&](VarIdx s)->::string {
 				bool first = seen.insert(s).second ;
@@ -776,9 +648,9 @@ namespace Engine {
 				force          = true         ;
 				allow_ext      = true         ;                                                 // sources may lie outside repo
 				n_static_stems = 1            ;
-				stems         .emplace_back("",".*"                ) ;
-				stem_mark_cnts.push_back   (0                      ) ;
-				matches       .emplace_back("",MatchEntry{job_name}) ;
+				stems       .emplace_back("",".*"                ) ;
+				stem_n_marks.push_back   (0                      ) ;
+				matches     .emplace_back("",MatchEntry{job_name}) ;
 				matches_iotas[false/*star*/][+MatchKind::Target] = {0,1} ;
 			break ;
 		DF}                                                                                     // NO_COV
@@ -838,7 +710,7 @@ namespace Engine {
 			field = "job_name" ;
 			throw_unless( dct.contains(field) , "not found" ) ;
 			job_name = dct[field].as_a<Str>() ;
-			_parse_py( job_name , &unnamed_star_idx ,
+			parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void { augment_stems(k,star,re,false/*star_only*/) ; }
 			) ;
 			field = "matches" ;
@@ -851,7 +723,7 @@ namespace Engine {
 				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                      // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
-					_parse_py( target , &unnamed_star_idx ,
+					parse_py( target , &unnamed_star_idx ,
 						// static stems are declared in job_name, but error will be caught later on, when we can generate a sound message
 						[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) -> void {
 							augment_stems(k,star,re,true/*star_only*/) ;
@@ -870,9 +742,9 @@ namespace Engine {
 			bool   job_name_is_star       = false ;
 			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
 				const char* stem = star ? "star stem" : "stem" ;
-				return unnamed ? "unnamed "s+stem : ""s+stem+' '+k ;
+				return unnamed ? cat("unnamed ",stem) : cat(stem,' ',k) ;
 			} ;
-			_parse_py( job_name , &unnamed_star_idx ,
+			parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
 					if      (!stem_defs.contains(k)) throw cat("found undefined ",stem_words(k,star,unnamed)," in ",job_name_kind,' ',job_name_key) ;
 					if      (star                  ) job_name_is_star = true ;
@@ -902,7 +774,7 @@ namespace Engine {
 						if (job_name_is_star) is_star = true ;
 					} else {
 						if (kind==MatchKind::Target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
-						_parse_py( target , &unnamed_star_idx ,
+						parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
 								if (!stem_defs.contains(k)) throw "found undefined "+stem_words(k,star,unnamed)+" in "+kind ;
 								//
@@ -960,8 +832,8 @@ namespace Engine {
 					::string const& s = stem_defs.at(k) ;
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
 					stems    .emplace_back( k            , s                    ) ;
-					try         { stem_mark_cnts.push_back(Re::RegExpr(s,true/*cache*/).mark_count()) ; }
-					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                             }
+					try         { stem_n_marks.push_back(Re::RegExpr(s,true/*cache*/).n_marks()) ; }
+					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                        }
 				}
 				if (!star) n_static_stems = stems.size() ;
 			}
@@ -996,7 +868,7 @@ namespace Engine {
 			}                                                                                                         // if job_name is a target, canon must be checked
 			unnamed_star_idx = 1 ;                                                                                    // reset free running at each pass over job_name+targets
 			mk_tgt.clear() ;
-			_parse_py( job_name , &unnamed_star_idx , mk_fixed , mk_stem ) ;
+			parse_py( job_name , &unnamed_star_idx , mk_stem , mk_fixed ) ;
 			::string new_job_name = ::move(mk_tgt) ;
 			for( VarIdx mi : iota<VarIdx>(matches.size()) ) {
 				/**/        field = matches[mi].first  ;
@@ -1009,7 +881,7 @@ namespace Engine {
 					ensure_canon = &me.pattern     ;
 					kind         = me.flags.kind() ;                                                                  // providing . as side_deps may be useful to pass readdir_ok flag
 					mk_tgt.clear() ;
-					_parse_py( me.pattern , &unnamed_star_idx , mk_fixed , mk_stem ) ;
+					parse_py( me.pattern , &unnamed_star_idx , mk_stem , mk_fixed ) ;
 					me.set_pattern(::move(mk_tgt),stems.size()) ;
 				}
 			}
@@ -1083,7 +955,7 @@ namespace Engine {
 		VarIdx        cur_group = 1 ;
 		Re::Pattern   pattern   ;
 		res.groups = ::vector<uint32_t>(stems.size()) ;
-		res.txt    = _subst_target(
+		res.txt    = subst_target(
 			me.pattern
 		,	[&](VarIdx s)->::string {
 				if ( s>=n_static_stems && for_name ) {
@@ -1093,14 +965,14 @@ namespace Engine {
 					pattern.emplace_back(r,Maybe/*capture*/) ;
 					return Re::escape(r) ;
 				}
-				if (res.groups[s]) {                                // already seen, we must protect against following text potentially containing numbers
+				if (res.groups[s]) {                                      // already seen, we must protect against following text potentially containing numbers
 					::string r = cat('\\',res.groups[s]) ;
 					pattern.emplace_back( r , No/*capture*/ ) ;
 					return cat("(?:",r,')') ;
 				}
-				bool capture = s<n_static_stems || me.captures[s] ; // star stems are only captured if back referenced
+				bool capture = s<n_static_stems || me.captures[s] ;       // star stems are only captured if back referenced
 				if (capture) res.groups[s] = cur_group ;
-				cur_group += capture+stem_mark_cnts[s] ;
+				cur_group += capture+stem_n_marks[s] ;
 				pattern.emplace_back( stems[s].second , No|capture ) ;
 				return (capture?"(":"(?:")+stems[s].second+')' ;
 			}
@@ -1109,7 +981,7 @@ namespace Engine {
 				return Re::escape(s) ;
 			}
 		) ;
-		res.re = {pattern,true/*cache*/} ;                          // stem regexprs have been validated, normally there is no error here
+		res.re = {pattern,true/*cache*/} ;                                // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -1249,7 +1121,7 @@ namespace Engine {
 			//
 			for( bool star : {false,true} )
 				for( VarIdx mi : matches_iotas[star][+mk] ) {
-					::string p = _subst_target(
+					::string p = subst_target(
 						matches[mi].second.pattern
 					,	[&](VarIdx s)->::string { return '{' + stems[s].first + (s<n_static_stems?"":"*") + '}' ; }
 					,	py_fstr_escape
@@ -1549,14 +1421,14 @@ namespace Engine {
 		::uset<Node> dirs ;
 		for( auto const& [k,me] : rule->matches ) {
 			if (!me.flags.extra_tflags[ExtraTflag::Allow]) continue ;
-			::string target = _subst_target(
+			::string target = subst_target(
 				me.pattern
 			,	[&](VarIdx s)->::string { return stems[s] ; }
 			,	rule->n_static_stems/*stop_above*/
 			) ;
 			if ( size_t sep=target.rfind('/') ; sep!=Npos ) {
-				target.resize(sep)        ;
-				dirs.insert(Node(target)) ;
+				target.resize(sep)       ;
+				dirs.emplace(New,target) ;
 			}
 		}
 		return dirs ;
@@ -1573,14 +1445,14 @@ namespace Engine {
 				VarIdx                      nss       = rd.n_static_stems     ;
 				::vector<uint32_t>          groups    ( rd.stems.size()-nss ) ; // used to set back references
 				Re::Pattern                 pattern   ;
-				_subst_target(
+				subst_target(
 					me.pattern
 				,	[&](VarIdx s)->::string {
 						if (s<nss        ) { pattern.emplace_back( stems[s]                , Maybe/*capture*/ ) ; return {} ; }
 						if (groups[s-nss]) { pattern.emplace_back( cat('\\',groups[s-nss]) , No   /*capture*/ ) ; return {} ; }
 						bool capture = me.captures[s] ;
 						if (capture) groups[s-nss] = cur_group ;
-						cur_group += capture+rd.stem_mark_cnts[s] ;
+						cur_group += capture+rd.stem_n_marks[s] ;
 						pattern.emplace_back( rd.stems[s].second , No|capture ) ;
 						return {} ;
 					}
@@ -1603,7 +1475,7 @@ namespace Engine {
 			for( [[maybe_unused]] VarIdx _  : rd.matches_iotas[false/*star*/][+mk] ) res.push_back(::move(ms[i++])) ;
 			for(                  VarIdx mi : rd.matches_iotas[true /*star*/][+mk] ) {
 				::uset<VarIdx> seen_stems ;
-				res.push_back(_subst_target(
+				res.push_back(subst_target(
 					rd.matches[mi].second.pattern
 				,	[&](VarIdx s)->::string {
 						if (s<rd.n_static_stems) return Re::escape(stems[s]) ;
@@ -1627,7 +1499,7 @@ namespace Engine {
 		::vector_s       res     ;                                                               res.reserve(n) ;
 		for( MatchKind mk : iota_mk )
 			for( VarIdx mi : rd.matches_iotas[star][+mk] )
-				res.push_back(_subst_target(
+				res.push_back(subst_target(
 					rd.matches[mi].second.pattern
 				,	[&](VarIdx s)->::string {
 						if (!star                 ) SWEAR(s<rd.n_static_stems) ;
@@ -1640,7 +1512,7 @@ namespace Engine {
 
 	::pair_ss Rule::RuleMatch::full_name() const {
 		::vector<FileNameIdx> poss(rule->n_static_stems) ;
-		::string name = _subst_target( rule->job_name ,
+		::string name = subst_target( rule->job_name ,
 			[&]( FileNameIdx p , VarIdx s ) -> ::string {
 				if (s<rule->n_static_stems) {
 					poss[s] = p ;

@@ -75,7 +75,7 @@ Digest analyze(Status status=Status::New) {                                     
 	bool   readdir_warned  = false         ;
 	//
 	for( auto& [file,info] : g_gather.accesses ) {
-		constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ; //!                 started
+		static constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ; //!          started
 		if (g_static_targets.contains(file))                                  info.update( Pdate() , {.flags=TargetFlags} , false ) ;
 		else for( RegExpr const& re : g_star_targets ) if (+re.match(file)) { info.update( Pdate() , {.flags=TargetFlags} , false ) ; break ; }
 		//

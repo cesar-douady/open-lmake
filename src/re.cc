@@ -14,7 +14,7 @@ namespace Re {
 	RegExpr::Cache RegExpr::s_cache ;
 
 	::string escape(::string const& s) {
-		constexpr ::array<bool,256> IsSpecial = []() {
+		static constexpr ::array<bool,256> IsSpecial = []() {
 			::array<bool,256> res = {} ;
 			for( char const* p = "()[.*+?|\\{^$" ; *p ; p++ ) res[*p] = true ; // list from https://www.pcre.org/current/doc/html/pcre2pattern.html, under chapter CHARACTERS AND METACHARACTERS
 			return res ;

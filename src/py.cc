@@ -157,7 +157,7 @@ namespace Py {
 	Ptr<Dict> py_run ( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<true /*Run*/>( expr , glbs , sys_path ) ; }
 
 	::string py_fstr_escape(::string const& s) {
-		constexpr ::array<bool,256> IsSpecial = []() {
+		static constexpr ::array<bool,256> IsSpecial = []() {
 			::array<bool,256> res = {} ;
 			for( char const* p = "{}" ; *p ; p++ ) res[*p] = true ;
 			return res ;

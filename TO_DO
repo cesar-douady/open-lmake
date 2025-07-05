@@ -60,7 +60,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* suppress recycling of tmp dir
+! suppress recycling of tmp dir
 	- difficult because in some cases with namespace, we create mount point in there
 	- and there is no known ways to do unmount, preventing tmp dir deletion
 	- tmp dir is then cleaned up when next job starts with the same tmp dir
@@ -82,11 +82,13 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* implement lcache_repair
+* in lcache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :
 	- use a daemon
+? add option to lcollect
+	- unlink all out-of-date files
 ? implement target priority
 	- to control target matching order within a rule
 	- use int or float as a target flag to signal priority

@@ -45,7 +45,7 @@ Bullet When you are satisfied with the new feature, suppress the no-trigger mark
 
 ClientGeneralities()
 
-ClientOptions()
+ClientOptions(job)
 
 SubCommands
 Item(B(-a),B(--add))    mark mentioned jobs or files.

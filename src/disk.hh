@@ -311,8 +311,6 @@ namespace Disk {
 
 	// list files within dir with prefix in front of each entry
 	::vector_s lst_dir_s( Fd at , ::string const& dir_s={} , ::string const& prefix={} ) ;
-	// deep list files whose tag matches FileTags within dir with prefix in front of each entry, return a single entry {prefix} if file is not a dir (including if file does not exist)
-	::vmap_s<FileTag> walk( Fd at , ::string const& file , FileTags=~FileTags() , ::string const& prefix={} ) ;
 	//
 	size_t/*pos*/ mk_dir_s ( Fd at , ::string const& dir_s ,             bool unlnk_ok=false ) ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
 	size_t/*pos*/ mk_dir_s ( Fd at , ::string const& dir_s , NfsGuard& , bool unlnk_ok=false ) ; // .
@@ -342,19 +340,35 @@ namespace Disk {
 	inline bool  is_exe   ( Fd at , ::string const& file ={} , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).tag()==FileTag::Exe ; }
 	inline Ddate file_date( Fd at , ::string const& file ={} , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).date                ; }
 
-	inline ::vector_s        lst_dir_s( ::string const& dir_s ,                            ::string const& prefix={} ) { return lst_dir_s(Fd::Cwd,dir_s    ,prefix)  ;               }
-	inline ::vmap_s<FileTag> walk     ( ::string const& path  , FileTags fts=~FileTags() , ::string const& prefix={} ) { return walk     (Fd::Cwd,path ,fts,prefix)  ;               }
-	inline size_t/*pos*/     mk_dir_s ( ::string const& dir_s ,                bool unlnk_ok=false                   ) { return mk_dir_s (Fd::Cwd,dir_s,   unlnk_ok) ;               }
-	inline size_t/*pos*/     mk_dir_s ( ::string const& dir_s , NfsGuard& ng , bool unlnk_ok=false                   ) { return mk_dir_s (Fd::Cwd,dir_s,ng,unlnk_ok) ;               }
-	inline ::string const&   dir_guard( ::string const& path                                                         ) {        dir_guard(Fd::Cwd,path             ) ; return path ; }
-	inline void              rmdir_s  ( ::string const& dir_s                                                        ) {        rmdir_s  (Fd::Cwd,dir_s            ) ;               }
-	inline void              lnk      ( ::string const& file  , ::string const& target                               ) {        lnk      (Fd::Cwd,file ,target     ) ;               }
-	inline ::string          read_lnk ( ::string const& file                                                         ) { return read_lnk (Fd::Cwd,file             ) ;               }
-	inline bool              is_dir_s ( ::string const& dir_s , bool no_follow=true                                  ) { return is_dir_s (Fd::Cwd,dir_s,no_follow  ) ;               }
-	inline bool              is_target( ::string const& file  , bool no_follow=true                                  ) { return is_target(Fd::Cwd,file ,no_follow  ) ;               }
-	inline bool              is_exe   ( ::string const& file  , bool no_follow=true                                  ) { return is_exe   (Fd::Cwd,file ,no_follow  ) ;               }
-	inline Ddate             file_date( ::string const& file  , bool no_follow=true                                  ) { return file_date(Fd::Cwd,file ,no_follow  ) ;               }
-	//
+	inline ::vector_s        lst_dir_s( ::string const& dir_s ,                            ::string const& pfx={} ) { return lst_dir_s(Fd::Cwd,dir_s,pfx        ) ;               }
+	inline size_t/*pos*/     mk_dir_s ( ::string const& dir_s ,                bool unlnk_ok=false                ) { return mk_dir_s (Fd::Cwd,dir_s,   unlnk_ok) ;               }
+	inline size_t/*pos*/     mk_dir_s ( ::string const& dir_s , NfsGuard& ng , bool unlnk_ok=false                ) { return mk_dir_s (Fd::Cwd,dir_s,ng,unlnk_ok) ;               }
+	inline ::string const&   dir_guard( ::string const& path                                                      ) {        dir_guard(Fd::Cwd,path             ) ; return path ; }
+	inline void              rmdir_s  ( ::string const& dir_s                                                     ) {        rmdir_s  (Fd::Cwd,dir_s            ) ;               }
+	inline void              lnk      ( ::string const& file  , ::string const& target                            ) {        lnk      (Fd::Cwd,file ,target     ) ;               }
+	inline ::string          read_lnk ( ::string const& file                                                      ) { return read_lnk (Fd::Cwd,file             ) ;               }
+	inline bool              is_dir_s ( ::string const& dir_s , bool no_follow=true                               ) { return is_dir_s (Fd::Cwd,dir_s,no_follow  ) ;               }
+	inline bool              is_target( ::string const& file  , bool no_follow=true                               ) { return is_target(Fd::Cwd,file ,no_follow  ) ;               }
+	inline bool              is_exe   ( ::string const& file  , bool no_follow=true                               ) { return is_exe   (Fd::Cwd,file ,no_follow  ) ;               }
+	inline Ddate             file_date( ::string const& file  , bool no_follow=true                               ) { return file_date(Fd::Cwd,file ,no_follow  ) ;               }
+
+	// deep list files whose tag matches FileTags within dir with pfx in front of each entry, return a single entry {pfx} if file is not a dir (including if file does not exist)
+	::vmap_s<FileTag> walk(
+		Fd                                at
+	,	::string const&                   path
+	,	FileTags                          fts   = ~FileTags()
+	,	::string const&                   pfx   = {}
+	,	::function<bool(::string const&)> prune = [](::string const&)->bool { return false ; }
+	) ;
+	inline ::vmap_s<FileTag> walk(
+		::string const&                   path
+	,	FileTags                          fts   = ~FileTags()
+	,	::string const&                   pfx   = {}
+	,	::function<bool(::string const&)> prune = [](::string const&)->bool { return false ; }
+	) {
+		return walk( Fd::Cwd , path , fts , pfx , prune )  ;
+	}
+
 	inline void unlnk_inside_s( Fd at , bool force=false , bool ignore_errs=false ) {
 		unlnk_inside_s( at , {} , false , force , ignore_errs ) ;
 	}

@@ -37,14 +37,15 @@ enum class ReqProc : uint8_t { // PER_CMD : add a value that represents your com
 	None                       // must stay first
 ,	Close
 ,	Kill
+// with args
+,	Collect
 ,	Debug
 ,	Forget
 ,	Make
 ,	Mark
 ,	Show
-//
 // aliases
-,	HasArgs = Debug            // >=HasArgs means command has arguments
+,	HasArgs = Collect          // >=HasArgs means command has arguments
 } ;
 
 enum class ReqKey : uint8_t {                // PER_CMD : add key as necessary (you may share with other commands) : there must be a single key on the command line
@@ -77,34 +78,35 @@ inline bool is_mark_glb(ReqKey key) {
 }
 
 enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
-	Archive                    // if proc==Make   , all intermediate files are generated
-,	Backend                    // if proc==Make   , send argument to backends
-,	CacheMethod                // if proc==Make   , whether to download/upload/check cache
-,	Deps                       // if proc==Forget , forget deps
-,	Force                      // if proc==Mark   , act if doable, even if awkward
-,	ForgetOldErrors            // if proc==Make   , assume old errors are transient
-,	Freeze                     // if proc==Mark   , prevent job rebuild
-,	Job                        //                   interpret (unique) arg as job name
-,	Jobs                       // if proc==Make   , max number of jobs
-,	KeepTmp                    // if proc==Make   , keep tmp dir after job execution
-,	Key                        // if proc==Debug  , key used to look up into config.debug to find helper module used to debug
-,	LiveOut                    // if proc==Make   , generate live output for last job
-,	Local                      // if proc==Make   , lauch all jobs locally
-,	MaxSubmits                 // if proc==Make   , max submit count, on top of rule prescription
-,	Nice                       // if proc==Make   , dont execute, just generate files
-,	NoExec                     // if proc==Debug  , dont execute, just generate files
-,	NoTrigger                  // if proc==Mark   , prevent lmake from rebuilding dependent jobs
-,	Porcelaine                 //                   generate easy to parse output
-,	Quiet                      //                   do not generate user oriented messages
-,	RetryOnError               // if proc==Make   , retry jobs in error
-,	Rule                       //                   rule name when interpreting arg as job name
-,	SourceOk                   // if proc==Make   , allow lmake to overwrite source files
-,	StdTmp                     // if proc==Debug  , use standard tmp dir, not the one provided in job
-,	Sync                       //                   force synchronous operation (start server and wait for its end)
-,	Targets                    // if proc==Forget , forget targets
-,	TmpDir                     // if proc==Debug  , tmp dir to use in case TMPDIR is specified as ... in job
-,	Verbose                    //                   generate generous output
-,	Video                      //                 , assume output video : n(ormal), r(everse) or f(ile)
+	Archive                    // if proc==Make    , all intermediate files are generated
+,	Backend                    // if proc==Make    , send argument to backends
+,	CacheMethod                // if proc==Make    , whether to download/upload/check cache
+,	Deps                       // if proc==Forget  , forget deps
+,	DryRun                     // if proc==Collect , dont execute, just report
+,	Force                      // if proc==Mark    , act if doable, even if awkward
+,	ForgetOldErrors            // if proc==Make    , assume old errors are transient
+,	Freeze                     // if proc==Mark    , prevent job rebuild
+,	Job                        //                    interpret (unique) arg as job name
+,	Jobs                       // if proc==Make    , max number of jobs
+,	KeepTmp                    // if proc==Make    , keep tmp dir after job execution
+,	Key                        // if proc==Debug   , key used to look up into config.debug to find helper module used to debug
+,	LiveOut                    // if proc==Make    , generate live output for last job
+,	Local                      // if proc==Make    , lauch all jobs locally
+,	MaxSubmits                 // if proc==Make    , max submit count, on top of rule prescription
+,	Nice                       // if proc==Make    , dont execute, just generate files
+,	NoExec                     // if proc==Debug   , dont execute, just generate files
+,	NoTrigger                  // if proc==Mark    , prevent lmake from rebuilding dependent jobs
+,	Porcelaine                 //                    generate easy to parse output
+,	Quiet                      //                    do not generate user oriented messages
+,	RetryOnError               // if proc==Make    , retry jobs in error
+,	Rule                       //                    rule name when interpreting arg as job name
+,	SourceOk                   // if proc==Make    , allow lmake to overwrite source files
+,	StdTmp                     // if proc==Debug   , use standard tmp dir, not the one provided in job
+,	Sync                       //                    force synchronous operation (start server and wait for its end)
+,	Targets                    // if proc==Forget  , forget targets
+,	TmpDir                     // if proc==Debug   , tmp dir to use in case TMPDIR is specified as ... in job
+,	Verbose                    //                    generate generous output
+,	Video                      //                  , assume output video : n(ormal), r(everse) or f(ile)
 } ;
 using ReqFlags = BitMap<ReqFlag> ;
 
@@ -118,14 +120,16 @@ enum class ReqRpcReplyProc : uint8_t {
 
 struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 	ReqSyntax() = default ;
-	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs    ) : ReqSyntax{{},fs} {}
-	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs={} ) : Syntax   {ks,fs} {
+	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{{},fs,with_flags} {}
+	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks                                      , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{ks,{},with_flags} {}
+	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : Syntax   {ks,fs           } {
 		// add standard options
-		flags[+ReqFlag::Quiet  ] = { .short_name='q' , .has_arg=false , .doc="do not generate user oriented messages"              } ;
-		flags[+ReqFlag::Job    ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"                } ;
-		flags[+ReqFlag::Sync   ] = { .short_name='S' , .has_arg=false , .doc="synchronous : start server and wait for its end"     } ;
-		flags[+ReqFlag::Rule   ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job"             } ;
-		flags[+ReqFlag::Video  ] = { .short_name='V' , .has_arg=true  , .doc="assume output video : n(ormal), r(everse) or f(ile)" } ;
+		if (with_flags[ReqFlag::Quiet  ]) flags[+ReqFlag::Quiet  ] = { .short_name='q' , .has_arg=false , .doc="generate fewer user oriented messages"               } ;
+		if (with_flags[ReqFlag::Verbose]) flags[+ReqFlag::Verbose] = { .short_name='v' , .has_arg=false , .doc="generate more user oriented messages"                } ;
+		if (with_flags[ReqFlag::Job    ]) flags[+ReqFlag::Job    ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"                } ;
+		if (with_flags[ReqFlag::Job    ]) flags[+ReqFlag::Rule   ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job"             } ;
+		if (with_flags[ReqFlag::Sync   ]) flags[+ReqFlag::Sync   ] = { .short_name='S' , .has_arg=false , .doc="synchronous : start server and wait for its end"     } ;
+		if (with_flags[ReqFlag::Video  ]) flags[+ReqFlag::Video  ] = { .short_name='V' , .has_arg=true  , .doc="assume output video : n(ormal), r(everse) or f(ile)" } ;
 	}
 
 } ;
@@ -191,8 +195,8 @@ struct ReqRpcReq {
 	using Proc = ReqProc ;
 	// cxtors & casts
 	ReqRpcReq() = default ;
-	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(proc< Proc::HasArgs) ; }
-	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR(proc>=Proc::HasArgs) ; }
+	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(proc< Proc::HasArgs,proc) ; }
+	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR(proc>=Proc::HasArgs,proc) ; }
 	// services
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,proc) ;

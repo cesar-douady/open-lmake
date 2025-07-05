@@ -174,7 +174,7 @@ namespace Re {
 			Match match( ::string const& subject , Bool3 chk_psfx=Yes ) const { // chk_psfx=Maybe means check size only
 				return { self , subject , chk_psfx } ;
 			}
-			size_t mark_count() const {
+			size_t n_marks() const {
 				uint32_t cnt ;
 				pcre2_pattern_info( _code , PCRE2_INFO_CAPTURECOUNT , &cnt ) ;
 				return cnt ;
@@ -242,7 +242,7 @@ namespace Re {
 				::regex_match(subject,res,self) ;
 				return res ;
 			}
-			size_t mark_count() const {
+			size_t n_marks() const {
 				return ::regex::mark_count() ;
 			}
 		} ;

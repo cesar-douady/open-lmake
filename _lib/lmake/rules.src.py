@@ -47,10 +47,10 @@ class _RuleBase :
 	}
 #	name                         # must be specific for each rule, defaults to class name
 #	job_name                     # defaults to first target
-	stems   = {}                 # defines stems as regexprs for use in targets & deps, e.g. {'File':'.*'}
+	stems   = {}                 # defines stems as regexprs for use in targets & deps, e.g. {'File':r'.*'}
 	targets = {}                 # patterns used to trigger rule execution, refers to stems above through {} notation, e.g. {'OBJ':'{File}.o'}
 	#                            # in case of multiple matches, first matching entry is considered, others are ignored
-	#                            # targets may have flags (use - to reset), e.g. {'TMP' : ('{File}.tmp/{Tmp*}','Incremental','-Essential') }, flags may be :
+	#                            # targets may have flags (use - to reset), e.g. { 'TMP' : ('{File}.tmp/{Tmp*}','Incremental','-Essential') }, flags may be :
 	#                            #   flag         | default   | description
 	#                            #   -------------+-----------+--------------------------------------------------------------------------------------------
 	#                            #   Essential    | if static | show in graphic flow

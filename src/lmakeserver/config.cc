@@ -5,10 +5,13 @@
 
 #include "core.hh" // /!\ must be first to include Python.h first
 
+#include "re.hh"
+
 using namespace Caches ;
 using namespace Disk   ;
 using namespace Hash   ;
 using namespace Py     ;
+using namespace Re     ;
 using namespace Time   ;
 
 namespace Engine {
@@ -65,7 +68,7 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Dict const& py_map) : booted{true} {                                                                                // if config is read from makefiles, it is booted
+	Config::Config(Dict const& py_map) : booted{true} {                                                                               // if config is read from makefiles, it is booted
 		key = to_hex(random<uint64_t>()) ;
 		//
 		::vector_s fields = {{}} ;
@@ -84,7 +87,7 @@ namespace Engine {
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_path_max = py_map[fields[0]] ;
-				if (py_path_max==None) path_max = size_t(-1                     ) ;                                                    // deactivate
+				if (py_path_max==None) path_max = size_t(-1                     ) ;                                                   // deactivate
 				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
 			}
 			fields[0] = "link_support" ;
@@ -101,52 +104,15 @@ namespace Engine {
 				else               file_sync = mk_enum<FileSync>(py_file_sync.as_a<Str>()) ;
 			}
 			//
-			fields[0] = "console" ;
-			if (py_map.contains(fields[0])) {
-				Dict const& py_console = py_map[fields[0]].as_a<Dict>() ;
-				fields.emplace_back() ;
-				fields[1] = "has_exec_time" ; if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
-				fields[1] = "show_eta"      ; if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
-				fields[1] = "show_ete"      ; if (py_console.contains(fields[1])) console.show_ete      = +py_console[fields[1]] ;
-				fields[1] = "date_precision" ;
-				if (py_console.contains(fields[1])) {
-					Object const& py_date_prec = py_console[fields[1]] ;
-					if (py_date_prec==None)   console.date_prec = uint8_t(-1                      ) ;
-					else                    { console.date_prec = uint8_t(py_date_prec.as_a<Int>()) ; throw_unless(console.date_prec<=9,"must be at most 9") ; }
-				}
-				fields[1] = "history_days" ;
-				if (py_console.contains(fields[1])) {
-					Object const& py_history_days = py_console[fields[1]] ;
-					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
-				}
-				fields[1] = "host_len" ;
-				if (py_console.contains(fields[1])) {
-					Object const& py_host_len = py_console[fields[1]] ;
-					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
-				}
-				//
-				fields.pop_back() ;
-			}
-			//
-			fields[0] = "debug" ;
-			if (py_map.contains(fields[0])) {
-				fields.emplace_back() ;
-				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
-					fields[1] = py_key.as_a<Str>() ;
-					dbg_tab[fields[1]] = py_val.as_a<Str>() ;
-				}
-				fields.pop_back() ;
-			}
-			//
 			fields[0] = "backends" ;
 			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is always present
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
 				fields[1] = snake(t) ;
 				Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
-				if (!bbe                            ) continue ;                                                                       // not implemented
-				if (!py_backends.contains(fields[1])) continue ;                                                                       // not configured
+				if (!bbe                            ) continue ;                                                                      // not implemented
+				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
 				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
 				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
 			}
@@ -155,7 +121,7 @@ namespace Engine {
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
-				caches.resize(1) ;                                                                                                     // idx 0 is reserved to mean no cache
+				caches.resize(1) ;                                                                                 // idx 0 is reserved to mean no cache
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
 					fields[1] = py_key.as_a<Str>() ;
 					cache_idxs[fields[1]] = caches.size() ;
@@ -190,6 +156,113 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			fields.pop_back() ;
+			//
+			fields[0] = "collect" ;
+			if (py_map.contains(fields[0])) {
+				Dict const&      py_collect = py_map[fields[0]].as_a<Dict>() ;
+				::umap_s<VarIdx> stem_idxs  ;
+				fields.emplace_back() ;
+				fields[1] = "stems" ;
+				if (py_collect.contains(fields[1])) {
+					Dict const& py_stems = py_collect[fields[1]].as_a<Dict>() ;
+					fields.emplace_back() ;
+					for( auto const& [py_key,py_val] : py_stems ) {
+						fields[2] = py_key.as_a<Str>() ;
+						::string key = fields[2]          ;
+						::string val = py_val.as_a<Str>() ;
+						stem_idxs           .try_emplace ( key , collect.stems.size() ) ;
+						collect.stems       .emplace_back( key , val                  ) ;
+						collect.stem_n_marks.push_back   ( RegExpr(val).n_marks()     ) ;
+					}
+					fields.pop_back() ;
+				}
+				fields[1] = "ignore" ;
+				if (py_collect.contains(fields[1])) {
+					Dict const& py_ignore = py_collect[fields[1]].as_a<Dict>() ;
+					fields.emplace_back() ;
+					for( auto const& [py_key,py_val] : py_ignore ) {
+						fields[2] = py_key.as_a<Str>() ;
+						Ptr<Sequence> py_seq ;
+						if (py_val.is_a<Str>()) py_seq = Ptr<Tuple>(py_val) ;
+						else                    py_seq = &py_val            ;
+						for( Object const& py_item : *py_seq ) {
+							::string item       = py_item.as_a<Str>() ;
+							bool     found_stem = false               ;
+							::string target     ;
+							parse_py( item , &::ref(size_t()) ,                                                        // unused unnamed_star_idx, but passed to allow presence of unnamed star stems
+								[&]( ::string const& k , bool /*star*/ , bool unnamed , ::string const* re ) -> void {
+									auto [it,inserted] = stem_idxs.try_emplace( k , collect.stems.size() ) ;
+									if (!re) {
+										throw_if    ( unnamed   , "unnamed stems must be defined in ",item ) ;
+										throw_unless( !inserted , "found undefined stem ",k," in "   ,item ) ;
+									} else {
+										if (inserted) {
+											collect.stems       .emplace_back( k , *re                ) ;
+											collect.stem_n_marks.push_back   ( RegExpr(*re).n_marks() ) ;
+										} else {
+											throw_unless( *re==collect.stems[it->second].second , "2 different definitions for stem ",k," : ",collect.stems[it->second].second," and ",*re ) ;
+										}
+									}
+									char* p = target.data()+target.size() ;
+									target.resize(target.size()+1+sizeof(VarIdx)) ;
+									p[0] = Rule::StemMrkr ;
+									encode_int( p+1 , it->second ) ;
+									found_stem = true ;
+								}
+							,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
+									if ( !is_canon( fixed , false/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
+										if ( ::string c=mk_canon(item) ; c!=item ) throw cat("is not canonical, consider using : ",c) ;
+										else                                       throw cat("is not canonical"                     ) ;
+									}
+									target << fixed ;
+								}
+							) ;
+							if (found_stem) collect.star_ignore  .emplace_back( fields[2] , target ) ;
+							else            collect.static_ignore.emplace_back( fields[2] , target ) ;
+						}
+					}
+					fields.pop_back() ;
+				}
+				fields.pop_back() ;
+			}
+			//
+			fields[0] = "console" ;
+			if (py_map.contains(fields[0])) {
+				Dict const& py_console = py_map[fields[0]].as_a<Dict>() ;
+				fields.emplace_back() ;
+				fields[1] = "has_exec_time" ; if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
+				fields[1] = "show_eta"      ; if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
+				fields[1] = "show_ete"      ; if (py_console.contains(fields[1])) console.show_ete      = +py_console[fields[1]] ;
+				fields[1] = "date_precision" ;
+				if (py_console.contains(fields[1])) {
+					Object const& py_date_prec = py_console[fields[1]] ;
+					if (py_date_prec==None)   console.date_prec = uint8_t(-1                      ) ;
+					else                    { console.date_prec = uint8_t(py_date_prec.as_a<Int>()) ; throw_unless(console.date_prec<=9,"must be at most 9") ; }
+				}
+				fields[1] = "history_days" ;
+				if (py_console.contains(fields[1])) {
+					Object const& py_history_days = py_console[fields[1]] ;
+					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
+				}
+				fields[1] = "host_len" ;
+				if (py_console.contains(fields[1])) {
+					Object const& py_host_len = py_console[fields[1]] ;
+					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
+				}
+				//
+				fields.pop_back() ;
+			}
+			//
+			fields[0] = "debug" ;
+			if (py_map.contains(fields[0])) {
+				Dict const& py_debug = py_map[fields[0]].as_a<Dict>() ;
+				fields.emplace_back() ;
+				for( auto const& [py_key,py_val] : py_debug ) {
+					fields[1] = py_key.as_a<Str>() ;
+					dbg_tab[fields[1]] = py_val.as_a<Str>() ;
+				}
+				fields.pop_back() ;
+			}
 			//
 			fields[0] = "sub_repos" ;
 			if (py_map.contains(fields[0])) {
@@ -255,7 +328,7 @@ namespace Engine {
 					Cache const& cache = caches[idx] ;
 					::string avail ;
 					::map_ss descr = mk_map(cache.dct) ;
-					size_t   w     = 3                 ; for( auto const& [k,v] : descr ) w = ::max(w,k.size()) ; // 3 : room for tag
+					size_t   w     = 3                 ; for( auto const& [k,v] : descr ) w = ::max(w,k.size()) ;                                        // 3 : room for tag
 					if ( Caches::Cache* c = Caches::Cache::s_tab[idx] ) for( auto const& [k,v] : c->descr() ) { descr[k] = v ; w = ::max(w,k.size()) ; }
 					else                                                avail = "(unvailable)" ;
 					res <<"\t\t"<<k<<avail<<" :\n" ;
@@ -275,20 +348,12 @@ namespace Engine {
 		if (max_err_lines) res << "\tmax_error_lines : " << max_err_lines <<'\n' ;
 		if (nice         ) res << "\tnice            : " << size_t(nice)  <<'\n' ;
 		//
-		res << "\tconsole :\n" ;
-		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
-		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
-		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
-		if (console.host_len              ) res << "\t\thost_len       : " << console.host_len      <<'\n' ;
-		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
-		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
-		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                                     // local backend is always present
+		for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                                                  // local backend is always present
 			Backend           const& be  = backends[+t]                       ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
-			if (!bbe                          ) continue ;                                                                                  // not implemented
-			if (!be.configured                ) continue ;                                                                                  // not configured
+			if (!bbe                          ) continue ;                                                                                               // not implemented
+			if (!be.configured                ) continue ;                                                                                               // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;
@@ -311,6 +376,36 @@ namespace Engine {
 				for( auto const& [k,v] : be.env ) res <<"\t\t\t\t"<< widen(k,w2) <<" : "<< v <<'\n' ;
 			}
 		}
+		//
+		if (+collect) {
+			res << "\tcollect :\n" ;
+			if (+collect.stems) {
+				res << "\t\tstems :\n" ;
+				size_t w = 0 ; for( auto const& [k,_] : collect.stems ) w = ::max( w , k.size() ) ;
+				for( auto const& [k,v] : collect.stems ) res <<"\t\t\t"<< widen(k,w) <<" : "<< v <<'\n' ;
+			}
+			size_t w = 0 ; for( auto const& [k,_] : collect.static_ignore ) w = ::max( w , k.size() ) ;
+			/**/           for( auto const& [k,_] : collect.star_ignore   ) w = ::max( w , k.size() ) ;
+			res << "\t\tignore :\n" ;
+			for( auto const& [k,v] : collect.static_ignore )
+				res <<"\t\t\t"<< widen(k,w) <<" : "<< py_fstr_escape(v) <<'\n' ;
+			for( auto const& [k,v] : collect.star_ignore ) {
+				::string p = subst_target(
+					v
+				,	[&](VarIdx s)->::string { return '{'+collect.stems[s].first+'}' ; }
+				,	py_fstr_escape
+				) ;
+				res <<"\t\t\t"<< widen(k,w) <<" : "<< p <<'\n' ;
+			}
+		}
+		//
+		res << "\tconsole :\n" ;
+		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
+		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
+		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
+		if (console.host_len              ) res << "\t\thost_len       : " << console.host_len      <<'\n' ;
+		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
+		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
 		//
 		if (trace!=TraceConfig()) {
 			res << "\ttrace :\n" ;

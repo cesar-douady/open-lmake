@@ -622,7 +622,7 @@ namespace Engine {
 						else         reason = "empty static dep "      +k                 ;
 						goto Report ;
 					}
-					Node d { ds.txt } ;
+					Node d { ds.txt } ; SWEAR( +d , ds.txt ) ;
 					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 					missing_dep = d ;
 					SWEAR(+missing_dep) ;                                                 // else why wouldn't it apply ?!?

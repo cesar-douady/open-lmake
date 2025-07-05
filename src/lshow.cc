@@ -27,9 +27,8 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Trace      , { .short_name='u' , .doc="show execution trace of jobs leading to files" } }
 	},{
 		{ ReqFlag::Porcelaine , { .short_name='p' , .doc="generate output as an easy to parse python object" } }
-	,	{ ReqFlag::Verbose    , { .short_name='v' , .doc="generate info for non-existent deps/targts"        } }
 	}} ;
-	ReqCmdLine cmd_line{syntax,argc,argv} ;
+	ReqCmdLine cmd_line { syntax , argc , argv } ;
 	//
 	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"    ) ;
 	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs") ;

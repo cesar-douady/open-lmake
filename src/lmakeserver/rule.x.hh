@@ -556,7 +556,7 @@ namespace Engine {
 		uint8_t                   n_losts                = 0     ;                 // max number of times a job can be lost
 		uint8_t                   n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
 		// derived data
-		::vector<uint32_t> stem_mark_cnts                         ;                // number of capturing groups within each stem
+		::vector<uint32_t> stem_n_marks                           ;                // number of capturing groups within each stem
 		RuleCrc            crc                                    ;
 		VarIdx             n_static_stems                         = 0  ;
 		Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;
@@ -908,7 +908,7 @@ namespace Engine {
 		::serdes(s,stdout_idx      ) ;
 		::serdes(s,stdin_idx       ) ;
 		::serdes(s,allow_ext       ) ;
-		::serdes(s,stem_mark_cnts  ) ;
+		::serdes(s,stem_n_marks    ) ;
 		::serdes(s,crc             ) ;
 		::serdes(s,n_static_stems  ) ;
 		if (special==Special::Plain) {

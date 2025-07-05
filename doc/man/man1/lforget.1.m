@@ -19,7 +19,7 @@ Bullet An error is transient. Another option is to launch B(lmake -e) which asks
 
 ClientGeneralities()
 
-ClientOptions()
+ClientOptions(job)
 
 SpecificOptions
 

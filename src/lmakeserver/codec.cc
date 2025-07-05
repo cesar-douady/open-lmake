@@ -106,8 +106,8 @@ namespace Codec {
 		::vector_s                         lines      = AcFd(file).read_lines(true/*no_file_ok*/) ;
 		//
 		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val )->void {
-			Node dn { mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;
-			Node en { mk_encode_node(file,ctx,val ) , true/*no_dir*/ } ; nodes.emplace_back(en) ;
+			Node dn { New , mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;
+			Node en { New , mk_encode_node(file,ctx,val ) , true/*no_dir*/ } ; nodes.emplace_back(en) ;
 			_create_pair( file , dn , val , en , code ) ;
 		} ;
 		Trace trace("_s_canonicalize",file,lines.size()) ;
@@ -167,7 +167,7 @@ namespace Codec {
 				for( auto const& [code,val] : d_entry )
 					lines << _codec_line(ctx,code,val,true/*with_nl*/) ;
 			AcFd(file,FdAction::Create).write(lines) ;
-			for( ReqIdx r : reqs ) Req(r)->audit_node(Color::Note,"refresh",Node(file)) ;
+			for( ReqIdx r : reqs ) Req(r)->audit_info( Color::Note , "refresh" , file ) ;
 		}
 		for( auto const& [ctx,e_entry] : encode_tab )
 			for( auto const& [val,code] : e_entry )
@@ -188,7 +188,7 @@ namespace Codec {
 	Refresh :
 		Trace trace("refresh",file,reqs) ;
 		//
-		Node file_node{file} ;
+		Node file_node { New , file } ;
 		file_node->set_buildable() ;
 		if (file_node->buildable!=Buildable::Src) {
 			for( ReqIdx r : reqs ) {
@@ -201,22 +201,22 @@ namespace Codec {
 		Ddate phy_date = file_date(file) ;
 		entry.sample_date = New ;
 		if (inserted) {
-			Node node{ni} ;
+			Node node { ni } ;
 			if ( inserted && node->buildable==Buildable::Decode ) entry.phy_date = entry.log_date  = node->log_date() ; // initialize from known info
 		}
 		if (phy_date==entry.phy_date) return true/*ok*/ ;                                                               // file has not changed, nothing to do
 		entry.log_date = phy_date ;
 		//
-		_s_canonicalize(file,reqs) ;
+		_s_canonicalize( file , reqs ) ;
 		return true/*ok*/ ;
 	}
 
 	JobMngtRpcReply Closure::decode() const {
 		Trace trace("decode",self) ;
 		SWEAR(proc==JobMngtProc::Decode,proc) ;
-		Node             decode_node { mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
-		::vector<ReqIdx> reqs        ;                                                 ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
-		bool             refreshed   = s_refresh( file , +decode_node , reqs )         ;
+		Node             decode_node { New , mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
+		::vector<ReqIdx> reqs        ;                                                       ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
+		bool             refreshed   = s_refresh( file , +decode_node , reqs )               ;
 		if (refreshed) {                                                                            // else codec file not available
 			if (_buildable_ok(file,decode_node)) {
 				::string val { decode_node->codec_val().str_view() } ;
@@ -231,9 +231,9 @@ namespace Codec {
 	JobMngtRpcReply Closure::encode() const {
 		Trace trace("encode",self) ;
 		SWEAR(proc==JobMngtProc::Encode,proc) ;
-		Node             encode_node { mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
-		::vector<ReqIdx> reqs        ;                                                 ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
-		bool             refreshed   = s_refresh( file , +encode_node , reqs )         ;
+		Node             encode_node { New , mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
+		::vector<ReqIdx> reqs        ;                                                       ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
+		bool             refreshed   = s_refresh( file , +encode_node , reqs )               ;
 		if (!refreshed) {
 			trace("no_refresh") ;
 			return { .proc=JobMngtProc::Encode , .crc=Crc::None , .ok=No } ;                     // codec file not available, seq_id and fd will be filled in later
@@ -249,7 +249,7 @@ namespace Codec {
 		::string code        = crc.substr(0,min_len()) ;
 		Node     decode_node ;
 		for(; code.size()<=crc.size() ; code.push_back(crc[code.size()]) ) {
-			decode_node = { mk_decode_node(file,ctx,code) , true/*no_dir*/ } ;
+			decode_node = { New , mk_decode_node(file,ctx,code) , true/*no_dir*/ } ;
 			if (!_buildable_ok(file,decode_node)) goto NewCode ;
 		}
 		trace("clash") ;
@@ -269,8 +269,8 @@ namespace Codec {
 	}
 
 	bool/*ok*/ refresh( NodeIdx ni , ReqIdx r ) {
-		Node     node { ni }                  ; SWEAR( node->is_decode() || node->is_encode() ) ;
-		::string file = mk_file(node->name()) ;
+		Node     node { ni }                         ; SWEAR( node->is_decode() || node->is_encode() ) ;
+		::string file = Codec::mk_file(node->name()) ;
 		if ( !Closure::s_refresh( file , ni , {r} ) ) {
 			node->refresh(Crc::None) ;
 			return false/*ok*/ ;

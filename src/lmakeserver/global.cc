@@ -16,7 +16,7 @@ namespace Engine {
 	bool                                                    g_writable     = false ;
 	Kpi                                                     g_kpi          ;
 
-	static ::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) {
+	::string _audit_indent( ::string&& t , DepDepth l , char sep ) {
 		if (!l) {
 			SWEAR(!sep) ;      // cannot have a sep if we have no room to put it
 			return ::move(t) ;
@@ -74,6 +74,115 @@ namespace Engine {
 			catch (::string const& e) { Trace("audit_ctrl_c","lost_log",e) ; }                                         // NO_COV defensive programming
 	}
 
+	// str has the same syntax as python f-strings
+	// cb_fixed is called on each fixed part found
+	// cb_stem  is called on each stem       found
+	// stems are of the form {<identifier>\*?} or {<identifier>?\*?:.*} (where .* after : must have matching {})
+	// cb_stem is called with :
+	// - the <identifier>
+	// - true if <identifier> is followed by a *
+	// - the regular expression that follows the : or nullptr for the first case
+	// /!\ : this function is also implemented in read_makefiles.py:add_stems, both must stay in sync
+	void parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem , ParsePyFuncFixed const& cb_fixed ) {
+		enum State { Literal , SeenStart , Key , Re , SeenStop } ;
+		State    state       = Literal ;
+		::string fixed       ;
+		::string key         ;
+		::string re          ;
+		size_t   unnamed_idx = 1       ;
+		size_t   depth       = 0       ;
+		bool     has_pfx     = false   ;
+		for( char c : str ) {
+			bool with_re = false ;
+			switch (state) {
+				case Literal :
+					if      (c=='{') state = SeenStart ;
+					else if (c=='}') state = SeenStop  ;
+					else             fixed.push_back(c) ;
+				break ;
+				case SeenStop :
+					if (c!='}') goto End ;
+					state = Literal ;
+					fixed.push_back(c) ;                                                                             // }} are transformed into }
+				break ;
+				case SeenStart :
+					if (c=='{') {
+						state = Literal ;
+						fixed.push_back(c) ;                                                                         // {{ are transformed into {
+						break ;
+					}
+					if (+fixed) { cb_fixed(fixed,has_pfx,true/*has_sfx*/) ; fixed.clear() ; }
+					state = Key ;
+				[[fallthrough]] ;
+				case Key :
+					if (c!='}') {
+						if (c==':') state = Re ;
+						else        key.push_back(c) ;
+						break ;
+					}
+					goto Call ;
+				break ;
+				case Re :
+					if (!( c=='}' && depth==0 )) {
+						if      (c=='{') depth++ ;
+						else if (c=='}') depth-- ;
+						re.push_back(c) ;
+						break ;
+					}
+					with_re = true ;
+				Call :
+					// trim key
+					size_t start = 0          ; while( start<key.size() && is_space(key[start]) ) start++ ;
+					size_t end   = key.size() ; while( end>start        && is_space(key[end-1]) ) end  -- ;
+					if (end<=start) key.clear() ;
+					else            key = key.substr(start,end-start) ;
+					bool star = +key && key.back()=='*' ;
+					if (star) key.pop_back() ;
+					bool unnamed = !key ;
+					if (unnamed) {
+						throw_unless( unnamed_star_idx , "no auto-stem allowed in ",str ) ;
+						if (star) { throw_unless( with_re , "unnamed star stems must be defined in ",str ) ; key = cat("<star_stem",(*unnamed_star_idx)++,'>') ; }
+						else                                                                                 key = cat("<stem"     ,  unnamed_idx      ++,'>') ;
+					} else {
+						throw_unless( is_identifier(key) , "bad key ",key," must be empty or an identifier" ) ;
+					}
+					if (with_re) { cb_stem(key,star,unnamed,&re    ) ; re.clear() ; }
+					else         { cb_stem(key,star,unnamed,nullptr) ;              }
+					key.clear() ;
+					state   = Literal ;
+					has_pfx = true    ;
+				break ;
+			}
+		}
+	End :
+		switch (state) {
+			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_pfx*/) ; } break                      ; // trailing fixed
+			case SeenStop  :                                                            throw "spurious } in "+str ;
+			case SeenStart :
+			case Key       :
+			case Re        :                                                            throw "spurious { in "+str ;
+		DF}                                                                                                          // NO_COV
+	}
+
+	// star stems are represented by a StemMrkr followed by the stem idx
+	// return str with stems substituted with the return values of cb_stem and fixed parts replaced by the values of cb_fixed
+	::string subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above ) {
+		::string res   ;
+		::string fixed ;
+		for( size_t i=0 ; i<str.size() ; i++ ) { // /!\ not a iota
+			char c = str[i] ;
+			if (c!=Rule::StemMrkr) { fixed += c ; continue ;                  }
+			if (+fixed           ) { res += cb_fixed(fixed) ; fixed.clear() ; }
+			//
+			VarIdx stem = decode_int<VarIdx>(&str[i+1]) ;
+			i += sizeof(VarIdx) ;
+			if (stem>=stop_above) return res ;
+			res += cb_stem(res.size(),stem) ;
+		}
+		if (+fixed) res += cb_fixed(fixed) ;
+		return res ;
+	}
+
 	//
 	// EngineClosure
 	//
@@ -82,20 +191,21 @@ namespace Engine {
 		return os << "Glb(" << ecg.proc <<')' ;
 	}                                                                       // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {                                                               // START_OF_NO_COV
+	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {                                                                // START_OF_NO_COV
 		os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
-			case ReqProc::Debug  :                                                                                                     // PER_CMD : format for tracing
-			case ReqProc::Forget :
-			case ReqProc::Mark   :
-			case ReqProc::Show   : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Make   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Kill   :
-			case ReqProc::None   : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
-			case ReqProc::Close  : os << ecr.req                                                                             ; break ;
-		DF}                                                                                                                            // NO_COV
+			case ReqProc::None    :
+			case ReqProc::Kill    : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
+			case ReqProc::Close   : os << ecr.req                                                                             ; break ;
+			case ReqProc::Collect :                                                                                                     // PER_CMD : format for tracing
+			case ReqProc::Debug   :                                                                                                     // PER_CMD : format for tracing
+			case ReqProc::Forget  :
+			case ReqProc::Mark    :
+			case ReqProc::Show    : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
+			case ReqProc::Make    : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
+		DF}                                                                                                                             // NO_COV
 		return os <<')' ;
-	}                                                                                                                                  // END_OF_NO_COV
+	}                                                                                                                                   // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) { // START_OF_NO_COV
 		First first ;
@@ -150,23 +260,7 @@ namespace Engine {
 		return                                  os << ')' ;
 	}                                                                                       // END_OF_NO_COV
 
-	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
-		SWEAR(!is_job()) ;
-		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
-		RealPath       real_path { rpe                                                              } ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                      // typically, there is no bads
-		::string       err_str   ;
-		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                      // we may refer to a symbolic link
-			if (rp.file_loc==FileLoc::Repo) targets.emplace_back(rp.real) ;
-			else                            err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
-		}
-		//
-		throw_unless( !err_str , "files are outside repo :\n",err_str ) ;
-		return targets ;
-	}
-
-	Job EngineClosureReq::job(::string const& startup_dir_s) const {
+	Job EngineClosureReq::job() const {
 		SWEAR(is_job()) ;
 		::vector<Job> candidates ;
 		for( Rule r : Persistent::rule_lst() ) {
@@ -175,8 +269,8 @@ namespace Engine {
 			if ( options.flags[ReqFlag::Rule] && r->user_name()!=options.flag_args[+ReqFlag::Rule] ) continue ;
 			candidates.push_back(j) ;
 		}
-		if      (candidates.size()==1) return candidates[0]                                    ;
-		else if (!candidates         ) throw "cannot find job "+mk_rel(files[0],startup_dir_s) ;
+		if      (candidates.size()==1) return candidates[0]                       ;
+		else if (!candidates         ) throw "cannot find job "+mk_file(files[0]) ;
 		else {
 			SWEAR(!options.flags[ReqFlag::Rule]) ;                   // impossible to have several candidates if the rule is specified
 			::string err_str = "several rules match, consider :\n" ;

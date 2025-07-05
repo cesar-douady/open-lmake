@@ -104,7 +104,7 @@ namespace Engine::Makefiles {
 			if (line[0]!='+') continue ;                                                                              // not an existing file
 			::string d = line.substr(1) ;
 			if (is_abs(d)) continue ;                                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
-			Node n{d} ;
+			Node n { New , d } ;
 			n->set_buildable() ;                                                                                      // this is mandatory before is_src_anti() can be called
 			if ( !n->is_src_anti() ) throw "while reading "+action+", dangling makefile : "+mk_rel(d,startup_dir_s) ;
 		}
@@ -316,19 +316,19 @@ namespace Engine::Makefiles {
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                                   // invalidate because of config
+		bool  invalidate    = false ;                                                  // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old) {                                                                 // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                 // Maybe means new
-				changed_rules = Maybe ;                                                 // .
+			if (!old) {                                                                // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                                // Maybe means new
+				changed_rules = Maybe ;                                                // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_) return ;                                                         // no new config means we keep old config, no modification
+			if (!new_) return ;                                                        // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
 			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                      // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                     // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -377,22 +377,22 @@ namespace Engine::Makefiles {
 		}
 	}
 
-	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                              // msg may be updated even if throwing
+	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                             // msg may be updated even if throwing
 		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexpr_cache" ;
-		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                // load from persistent cache
-		catch (...) {                                                                                }                // perf only, dont care of errors (e.g. first time)
+		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }               // load from persistent cache
+		catch (...) {                                                                                }               // perf only, dont care of errors (e.g. first time)
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;    // dir_s is \1, module is \2, matches both python 2 & 3
+		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;   // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		_refresh( msg , rescue , refresh_ , false/*dyn*/ , mk_environ() , *g_startup_dir_s ) ;
 		//
 		if (!RegExpr::s_cache.steady()) {
-			try         { AcFd( dir_guard(reg_exprs_file) , FdAction::Create ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
-			catch (...) {                                                                                           } // perf only, dont care of errors (e.g. we are read-only)
+			try         { AcFd( dir_guard(reg_exprs_file) , FdAction::Write ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
+			catch (...) {                                                                                          } // perf only, dont care of errors (e.g. we are read-only)
 		}
 	}
-	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) {                 // msg may be updated even if throwing
+	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) {                // msg may be updated even if throwing
 		_refresh( msg , false/*rescue*/  , true/*refresh*/ , true/*dyn*/ , env , startup_dir_s ) ;
 	}
 

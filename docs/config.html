@@ -164,6 +164,12 @@
 <li>Dynamic : field can be changed any time.</li>
 </ul>
 <p>The default value is mentioned in ().</p>
+<h3 id="colors--dynamic-reasonably-readable"><a class="header" href="#colors--dynamic-reasonably-readable"><code>colors</code> : Dynamic (reasonably readable)</a></h3>
+<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. <a href="video_mode.html">video-mode</a>).</p>
+<p>This attribute is a <code>pdict</code> with one entry for each symbolic color.
+Each entry is a 2-tuple of 3-tuple's.
+The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
+Each color is a triplet RGB of values between 0 and 255.</p>
 <h3 id="disk_date_precision--static-0010"><a class="header" href="#disk_date_precision--static-0010"><code>disk_date_precision</code> : Static (<code>0.010</code>)</a></h3>
 <p>This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
 It must account for file date granularity (generally a few ms) and date discrepancy between executing hosts and disk servers (generally a few ms when using NTP).</p>
@@ -188,6 +194,10 @@ It must account for file date granularity (generally a few ms) and date discrepa
 </div>
 <p>The expected performance impact is increasing in this order : <code>None</code>, <code>'dir'</code>, <code>'sync'</code>.
 The expected reliability order is the reverse one.</p>
+<h3 id="debug--static"><a class="header" href="#debug--static"><code>debug</code> : Static</a></h3>
+<p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
+<p>It maps debug keys to modules to import to implement the debug method (cf. <em>ldebug(1)</em>).
+Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
 <h3 id="heartbeat--static-10"><a class="header" href="#heartbeat--static-10"><code>heartbeat</code> : Static (<code>10</code>)</a></h3>
 <p>Open-lmake has a heartbeat mechanism to ensure a job does not suddenly disappear (for example if killed by the user, or if a remote host reboots).
 If such an event occurs, the job will be restarted automatically.</p>
@@ -257,42 +267,10 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 <p>This attribute provide the list of sub-repos.</p>
 <p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
 Inside such sub-repos, the applied flow is the one described in it (cf. <a href="experimental_subrepos.html">Subrepos</a>).</p>
-<h3 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h3>
-<p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
-If <code>None</code>, no timestamp is generated.</p>
-<h3 id="consolehas_exec_time--dynamic-true"><a class="header" href="#consolehas_exec_time--dynamic-true"><code>console.has_exec_time</code> : Dynamic (<code>True</code>)</a></h3>
-<p>If this attribute is true, execution time is reported each time a job is completed.</p>
-<h3 id="consolehistory_days--dynamic-7"><a class="header" href="#consolehistory_days--dynamic-7"><code>console.history_days</code> : Dynamic (<code>7</code>)</a></h3>
-<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> dir.</p>
-<h3 id="consolehost_len--dynamic-none"><a class="header" href="#consolehost_len--dynamic-none"><code>console.host_len</code> : Dynamic (<code>None</code>)</a></h3>
-<p>This attribute specifies the width of the field showing the host that executed or is about to execute the job.
-If <code>None</code>, the host is not shown.
-Note that no host is shown for local execution.</p>
-<h3 id="consoleshow_eta--dynamic-false"><a class="header" href="#consoleshow_eta--dynamic-false"><code>console.show_eta</code> : Dynamic (<code>False</code>)</a></h3>
-<p>If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.</p>
-<h3 id="consoleshow_ete--dynamic-true"><a class="header" href="#consoleshow_ete--dynamic-true"><code>console.show_ete</code> : Dynamic (<code>True</code>)</a></h3>
-<p>If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.</p>
-<h3 id="tracesize--static-100_000_000"><a class="header" href="#tracesize--static-100_000_000"><code>trace.size</code> : Static (<code>100_000_000</code>)</a></h3>
-<p>While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose.</p>
-<p>The trace is handled as a ring buffer, storing only the last events when the size overflows.
-The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.</p>
-<p>This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).</p>
-<h3 id="tracen_jobs--static-1000"><a class="header" href="#tracen_jobs--static-1000"><code>trace.n_jobs</code> : Static (<code>1000</code>)</a></h3>
-<p>While open-lmake runs, it generates execution traces for all jobs.</p>
-<p>This attributes contains the overall number of such traces that are kept.</p>
-<h3 id="tracechannels--static-all"><a class="header" href="#tracechannels--static-all"><code>trace.channels</code> : Static (all)</a></h3>
-<p>The execution trace @lmake generates is split into channels to better control what to trace.</p>
-<p>This attributes contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
-<h3 id="colors--dynamic-reasonably-readable"><a class="header" href="#colors--dynamic-reasonably-readable"><code>colors</code> : Dynamic (reasonably readable)</a></h3>
-<p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. <a href="video_mode.html">video-mode</a>).</p>
-<p>This attribute is a <code>pdict</code> with one entry for each symbolic color.
-Each entry is a 2-tuple of 3-tuple's.
-The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
-Each color is a triplet RGB of values between 0 and 255.</p>
 <h3 id="backends--dynamic"><a class="header" href="#backends--dynamic"><code>backends</code> : Dynamic</a></h3>
 <p>This attribute is a <code>pdict</code> with one entry for each active backend (cf. <a href="backends.html">backends</a>).</p>
 <p>Each entry is a <code>pdict</code> providing resources. Such resources are backend specific.</p>
-<h3 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h3>
+<h4 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h4>
 <p>When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
 The same is true if the job is launche locally but it launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
 This is done by connecting to a socket open-lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
@@ -301,16 +279,16 @@ There is no generic way to determine this address, so in general, open-lmake can
 <p>This value may be empty (using <code>hostname</code> for addresse look up), given in standard dot notation, as the name of an interface (as shown by <code>ifconfig</code>)
 or the name of a host (looked up as for <code>ping</code>).
 In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.</p>
-<h3 id="backendsenviron--dynamic-"><a class="header" href="#backendsenviron--dynamic-"><code>backends.*.environ</code> : Dynamic (<code>{}</code>)</a></h3>
+<h4 id="backendsenviron--dynamic-"><a class="header" href="#backendsenviron--dynamic-"><code>backends.*.environ</code> : Dynamic (<code>{}</code>)</a></h4>
 <p>Environment to pass when launching job in backend.
 This environment is accessed when the value mentioned in the rule is <code>...</code>.</p>
-<h3 id="backendslocalcpu--dynamic-number-of-phyical-cpus"><a class="header" href="#backendslocalcpu--dynamic-number-of-phyical-cpus"><code>backends.local.cpu</code> : Dynamic (number of phyical CPU's)</a></h3>
+<h4 id="backendslocalcpu--dynamic-number-of-phyical-cpus"><a class="header" href="#backendslocalcpu--dynamic-number-of-phyical-cpus"><code>backends.local.cpu</code> : Dynamic (number of phyical CPU's)</a></h4>
 <p>This is a normal resource that rules can require (by default, rule require 1 cpu).</p>
-<h3 id="backendslocalmem--dynamic-size-of-physical-memory-in-mb"><a class="header" href="#backendslocalmem--dynamic-size-of-physical-memory-in-mb"><code>backends.local.mem</code> : Dynamic (size of physical memory in MB)</a></h3>
+<h4 id="backendslocalmem--dynamic-size-of-physical-memory-in-mb"><a class="header" href="#backendslocalmem--dynamic-size-of-physical-memory-in-mb"><code>backends.local.mem</code> : Dynamic (size of physical memory in MB)</a></h4>
 <p>This is the pysical memory necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
 Internally, the granularity is forced to MB.</p>
-<h3 id="backendslocaltmp--dynamic-0"><a class="header" href="#backendslocaltmp--dynamic-0"><code>backends.local.tmp</code> : Dynamic (<code>0</code>)</a></h3>
+<h4 id="backendslocaltmp--dynamic-0"><a class="header" href="#backendslocaltmp--dynamic-0"><code>backends.local.tmp</code> : Dynamic (<code>0</code>)</a></h4>
 <p>This is the disk size in the temporary dir necessary for jobs.
 It can be specified as a number or a string representing a number followed by a standard suffix such as <code>k</code>,  <code>M</code> or <code>G</code>.
 Internally, the granularity is forced to MB.</p>
@@ -318,31 +296,67 @@ Internally, the granularity is forced to MB.</p>
 <p>This attribute is a <code>pdict</code> with one entry for each cache.</p>
 <p>Caches are named with an arbitrary <code>str</code> and are referenced in rules using this name.</p>
 <p>By default, no cache is configured, but an example can be found in <a href="../../lib/lmake/config.py">lib/lmake/config.py</a>, commented out.</p>
-<h3 id="cachestag--static--"><a class="header" href="#cachestag--static--"><code>caches.*.tag</code> : Static (-)</a></h3>
+<h4 id="cachestag--static--"><a class="header" href="#cachestag--static--"><code>caches.*.tag</code> : Static (-)</a></h4>
 <p>This attribute specifies the method used by open-lmake to cache values.
 In the current version, only 2 tags may be used:</p>
 <ul>
 <li><code>none</code> is a fake cache that cache nothing.</li>
 <li><code>dir</code> is a cache working without daemon, data are stored in a dir.</li>
 </ul>
-<h3 id="cachesdirdir--static"><a class="header" href="#cachesdirdir--static"><code>caches.&lt;dir&gt;.dir</code> : Static</a></h3>
+<h4 id="cachesdirdir--static"><a class="header" href="#cachesdirdir--static"><code>caches.&lt;dir&gt;.dir</code> : Static</a></h4>
 <p>This attribute specifies the dir in which the cache puts its data.</p>
 <p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
 <p>Also, an adequate default ACL (cf. <em>acl(5)</em>) must most probably be set for this dir to give adequate permissions to files created in it.
 Typically, the command <code>setfacl -m d:g::rw,d:o::r CACHE</code> can be used to set up the dir <code>CACHE</code>.</p>
-<h3 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h3>
+<h4 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h4>
 <p>Same meaning as <code>config.file_sync</code> for accesses in the cache.</p>
-<h3 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h3>
+<h4 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h4>
 <p>This attribute specifies the group used when creating entries.</p>
-<h3 id="cachesdirkey--static-repo-root-dirgit-sha1"><a class="header" href="#cachesdirkey--static-repo-root-dirgit-sha1"><code>caches.&lt;dir&gt;.key</code> : Static (repo root dir/git sha1)</a></h3>
+<h4 id="cachesdirkey--static-repo-root-dirgit-sha1"><a class="header" href="#cachesdirkey--static-repo-root-dirgit-sha1"><code>caches.&lt;dir&gt;.key</code> : Static (repo root dir/git sha1)</a></h4>
 <p>A key used to avoid cache pollution.
 No more than a single entry can be stored for any job with a given key.</p>
 <p>By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.</p>
-<h3 id="debug"><a class="header" href="#debug"><code>debug</code></a></h3>
-<p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
-<p>It maps debug keys to modules to import to implement the debug method (cf. <em>ldebug(1)</em>).
-Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
+<h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><code>collect</code> : Dynamic</a></h3>
+<p>This attributes specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
+Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>
+<p>By default, no files are ignored when <code>lcollect</code> is run.</p>
+<h4 id="collectstems--dynamic"><a class="header" href="#collectstems--dynamic"><code>collect.stems</code> : Dynamic</a></h4>
+<p>This attributes provides a <code>dict</code> as the <code>stems</code> <code>Rule</code> attribute.</p>
+<h4 id="collectignore--dynamic"><a class="header" href="#collectignore--dynamic"><code>collect.ignore</code> : Dynamic</a></h4>
+<p>This attributes provides a <code>dict</code> as the <code>targets</code> <code>Rule</code> attribute.
+However, contrarily to <code>Rule</code>s, several targets can be provided as a <code>list</code>/<code>tuple</code> for each key, and no flags can be passed in.</p>
+<h3 id="console--dynamic"><a class="header" href="#console--dynamic"><code>console</code> : Dynamic</a></h3>
+<p>This is a sub-configuration for all attributes pertaining to the console output of <code>lmake</code>.</p>
+<h4 id="consoledate_precision--dynamic-none"><a class="header" href="#consoledate_precision--dynamic-none"><code>console.date_precision</code> : Dynamic (<code>None</code>)</a></h4>
+<p>This attribute specifies the precision (as the number of digit after the second field, for example 3 means we see milli-seconds) with which timestamps are generated on the console output.
+If <code>None</code>, no timestamp is generated.</p>
+<h4 id="consolehas_exec_time--dynamic-true"><a class="header" href="#consolehas_exec_time--dynamic-true"><code>console.has_exec_time</code> : Dynamic (<code>True</code>)</a></h4>
+<p>If this attribute is true, execution time is reported each time a job is completed.</p>
+<h4 id="consolehistory_days--dynamic-7"><a class="header" href="#consolehistory_days--dynamic-7"><code>console.history_days</code> : Dynamic (<code>7</code>)</a></h4>
+<p>This attribute specifies the number of days the output log history is kept in the <code>LMAKE/outputs</code> dir.</p>
+<h4 id="consolehost_len--dynamic-none"><a class="header" href="#consolehost_len--dynamic-none"><code>console.host_len</code> : Dynamic (<code>None</code>)</a></h4>
+<p>This attribute specifies the width of the field showing the host that executed or is about to execute the job.
+If <code>None</code>, the host is not shown.
+Note that no host is shown for local execution.</p>
+<h4 id="consoleshow_eta--dynamic-false"><a class="header" href="#consoleshow_eta--dynamic-false"><code>console.show_eta</code> : Dynamic (<code>False</code>)</a></h4>
+<p>If this attribute is true, the title shows the ETA of the command, in addition to statistics about number of jobs.</p>
+<h4 id="consoleshow_ete--dynamic-true"><a class="header" href="#consoleshow_ete--dynamic-true"><code>console.show_ete</code> : Dynamic (<code>True</code>)</a></h4>
+<p>If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.</p>
+<h3 id="trace--dynamic"><a class="header" href="#trace--dynamic"><code>trace</code> : Dynamic</a></h3>
+<p>This is a sub-configuration for all attributes pertaining to the optional tracing facility of open-lmake.</p>
+<p>For tracing to be active, it must be compiled in (cf. INSTALLATION), which is off by default as performances can be severly degraded.</p>
+<h4 id="tracesize--static-100_000_000"><a class="header" href="#tracesize--static-100_000_000"><code>trace.size</code> : Static (<code>100_000_000</code>)</a></h4>
+<p>While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose.</p>
+<p>The trace is handled as a ring buffer, storing only the last events when the size overflows.
+The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.</p>
+<p>This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).</p>
+<h4 id="tracen_jobs--static-1000"><a class="header" href="#tracen_jobs--static-1000"><code>trace.n_jobs</code> : Static (<code>1000</code>)</a></h4>
+<p>While open-lmake runs, it generates execution traces for all jobs.</p>
+<p>This attributes contains the overall number of such traces that are kept.</p>
+<h4 id="tracechannels--static-all"><a class="header" href="#tracechannels--static-all"><code>trace.channels</code> : Static (all)</a></h4>
+<p>The execution trace @lmake generates is split into channels to better control what to trace.</p>
+<p>This attributes contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
 
                     </main>
 

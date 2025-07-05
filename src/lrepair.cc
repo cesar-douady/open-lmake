@@ -42,7 +42,7 @@ RepairDigest repair(::string const& from_dir) {
 				if ( !td.crc.valid()                               ) { trace("no_target_crc",jd,tn) ; goto NextJob ; } // XXX? : handle this case (is it worth?)
 				if ( td.sig!=FileSig(tn)                           ) { trace("disk_mismatch",jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
 				//
-				Node t { tn } ;
+				Node t { New , tn } ;
 				t->refresh( td.crc , {td.sig,{}} ) ;                                                                   // if file does not exist, the Epoch as a date is fine
 				targets.emplace_back( t , td.tflags ) ;
 			}
@@ -57,7 +57,7 @@ RepairDigest repair(::string const& from_dir) {
 					goto NextJob ;                                                                                     // this should never happen as src_dirs are part of cmd definition
 				KeepDep : ;
 				}
-				Dep dep { Node(dn) , dd } ;
+				Dep dep { Node(New,dn) , dd } ;
 				if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; }             // dep could not be identified when job ran, hum, better not to repair that
 				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; }             // no valid crc, no interest to repair as job will rerun anyway
 				deps.emplace_back(dep) ;

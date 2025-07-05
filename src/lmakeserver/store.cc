@@ -128,9 +128,17 @@ namespace Engine::Persistent {
 
 	Mutex<MutexLvl::Node,true/*Shared*/> NodeDataBase::_s_mutex ;
 
-	NodeBase::NodeBase( ::string const& name_ , bool no_dir ) {
-		Lock lock { NodeDataBase::_s_mutex } ;
+	NodeBase::NodeBase(::string const& name_) {
 		SWEAR( +name_ && is_canon(name_) , name_ ) ;
+		SharedLock lock { NodeDataBase::_s_mutex }        ;
+		NodeName   nn   = _g_node_name_file.search(name_) ; if (!nn) return ;
+		self = _g_node_name_file.at(nn) ;
+		SWEAR(+self) ;
+	}
+
+	NodeBase::NodeBase( NewType , ::string const& name_ , bool no_dir ) {
+		SWEAR( +name_ && is_canon(name_) , name_ ) ;
+		Lock lock { NodeDataBase::_s_mutex } ;
 		if (no_dir) {
 			NodeName nn = _g_node_name_file.insert(name_) ;
 			Node&    n  = _g_node_name_file.at(nn)        ;
@@ -588,9 +596,9 @@ namespace Engine::Persistent {
 				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                ) ;
 				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"     ) ;
 				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported" ) ;
-				SWEAR(src==sr.real,src,sr.real) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
+				SWEAR(src==sr.real,src,sr.real) ;                                  // src is local, canonic and there are no links, what may justify real from being different ?
 			}
-			srcs.emplace_back( Node(src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
+			srcs.emplace_back( Node(New,src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
 		}
 		// format old srcs
 		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                 // dont care whether we delete a regular file or a link

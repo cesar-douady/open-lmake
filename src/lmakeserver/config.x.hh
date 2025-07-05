@@ -133,6 +133,17 @@ namespace Engine {
 			// END_OF_VERSIONING
 		} ;
 		//
+		struct Collect {
+			bool operator==(Collect const&) const = default ;
+			bool operator+() const { return +static_ignore || +star_ignore ; }
+			// START_OF_VERSIONING
+			::vmap_ss          stems         ;
+			::vector<uint32_t> stem_n_marks  ;
+			::vmap_ss          static_ignore ;
+			::vmap_ss          star_ignore   ;
+			// END_OF_VERSIONING
+		} ;
+		//
 		struct Console {
 			bool operator==(Console const&) const = default ;
 			// /!\ default values must stay in sync with _lib/lmake/config.src.py
@@ -155,6 +166,7 @@ namespace Engine {
 		FileSync                                                                file_sync     = FileSync::Dflt ; // if true => dirs coherence is enforced when files are modified
 		size_t                                                                  max_err_lines = 0              ; // unlimited
 		uint8_t                                                                 nice          = 0              ; // nice value applied to jobs
+		Collect                                                                 collect       ;
 		Console                                                                 console       ;
 		::array<Backend,N<BackendTag>>                                          backends      ;                  // backend may refuse dynamic modification
 		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}             ;

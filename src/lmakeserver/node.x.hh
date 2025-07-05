@@ -11,21 +11,21 @@
 
 // START_OF_VERSIONING
 enum class Buildable : uint8_t {
-	Anti                         //                                   match independent
-,	SrcDir      //                                   match independent dir of a Src or SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
-,	SubSrc      //                                   match independent sub-file of a Src listed in manifest
-,	PathTooLong //                                   match dependent (as limit may change with config)
-,	DynAnti     //                                   match dependent
-,	No          // <=No means node is not buildable
-,	Maybe       //                                   buildability is data dependent (maybe converted to Yes by further analysis)
-,	SubSrcDir   //                                   sub-file of a SrcDir
+	Anti                         //                                   match independent, include uphill dirs of Src/SrcDir listed in manifest
+,	SrcDir                       //                                   match independent SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
+,	SubSrc                       //                                   match independent sub-file of a Src listed in manifest
+,	PathTooLong                  //                                   match dependent (as limit may change with config)
+,	DynAnti                      //                                   match dependent
+,	No                           // <=No means node is not buildable
+,	Maybe                        //                                   buildability is data dependent (maybe converted to Yes by further analysis)
+,	SubSrcDir                    //                                   sub-file of a SrcDir
 ,	Unknown
-,	Yes         // >=Yes means node is buildable
-,	DynSrc      //                                   match dependent
-,	Src         //                                   file listed in manifest, match independent
-,	Decode      //                                   file name representing a code->val association
-,	Encode      //                                   file name representing a val->code association
-,	Loop        //                                   node is being analyzed, deemed buildable so as to block further analysis
+,	Yes                          // >=Yes means node is buildable
+,	DynSrc                       //                                   match dependent
+,	Src                          //                                   file listed in manifest, match independent
+,	Decode                       //                                   file name representing a code->val association
+,	Encode                       //                                   file name representing a val->code association
+,	Loop                         //                                   node is being analyzed, deemed buildable so as to block further analysis
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<Buildable,::pair<Bool3,bool>,N<Buildable>> BuildableAttrs {{
@@ -169,7 +169,7 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , Target const ) ;
 		// cxtors & casts
 		Target(                       ) = default ;
-		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} {}
+		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} { SWEAR(+self) ; }
 		// accesses
 		bool static_phony() const { return ::static_phony(tflags) ; }
 		// services

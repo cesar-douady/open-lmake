@@ -551,8 +551,14 @@ template<class Key=::string> struct JobDigest {             // Key may be ::stri
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
 		} ;
-		for( auto const& [k,v] : targets ) res.targets.emplace_back(KeyTo(k),v) ;
-		for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(k),v) ;
+		static constexpr bool NeedNew = requires(Key k) { KeyTo(New,k) ; } ;
+		if constexpr (NeedNew) {
+			for( auto const& [k,v] : targets ) res.targets.emplace_back(KeyTo(New,k),v) ;
+			for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(New,k),v) ;
+		} else {
+			for( auto const& [k,v] : targets ) res.targets.emplace_back(KeyTo(    k),v) ;
+			for( auto const& [k,v] : deps    ) res.deps   .emplace_back(KeyTo(    k),v) ;
+		}
 		return res ;
 	}
 	void chk(bool for_cache=false) const ;

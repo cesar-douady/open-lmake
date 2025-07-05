@@ -236,7 +236,7 @@ namespace Engine {
 		for( auto const& k_ds : dep_specs_holes ) {
 			DepSpec const& ds = k_ds.second ;
 			if (!ds.txt) continue ;                                                                                                           // filter out holes
-			Node           d  { ds.txt }                                                       ;
+			Node           d  { New , ds.txt }                                                 ;
 			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			d->set_buildable( req , lvl , true/*throw_if_infinite*/ ) ;
@@ -850,7 +850,7 @@ namespace Engine {
 		for( VarIdx mi : r->matches_iotas[false/*star*/][+MatchKind::Target] ) {
 			::string const& t = sts[i++] ;
 			if (!seens.insert(t).second) continue ;                                                                                      // remove duplicates
-			ts.emplace_back(t,r->tflags(mi)) ;
+			ts.emplace_back( Node(New,t) , r->tflags(mi) ) ;
 		}
 		::sort(ts) ;                                                                                                                     // ease search in targets
 		targets.assign(ts) ;
@@ -1410,7 +1410,7 @@ namespace Engine {
 							}                                                                                                     // if we cant download result, it is like a miss
 						break ;
 						case Maybe : {
-							::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back(dn,dd) ;
+							::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 							deps.assign(ds) ;
 							status = Status::CacheMatch ;
 							trace("hit_deps") ;
@@ -1439,7 +1439,7 @@ namespace Engine {
 		}
 		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;                 // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
-			Node         d   { dn }             ;
+			Node         d   { New , dn }       ;
 			NodeReqInfo& dri = d->req_info(req) ;
 			d->make(dri,NodeMakeAction::Dsk) ;
 			if (dri.waiting()) d->add_watcher(dri,idx(),ri,pressure) ;

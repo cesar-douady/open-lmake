@@ -14,7 +14,7 @@ Else, information about the job that actually produced the job (a.k.a the pollut
 
 ClientGeneralities(color)
 
-ClientOptions(color)
+ClientOptions(job,color)
 
 SubCommands
 

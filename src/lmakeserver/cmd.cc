@@ -11,6 +11,124 @@ using namespace Re   ;
 
 namespace Engine {
 
+	static bool/*ok*/ _collect(EngineClosureReq const& ecr) {
+		SWEAR(!ecr.is_job()) ;                                                // targets are typically dirs, passing a job is non-sense
+		Fd                        fd            = ecr.out_fd                ;
+		ReqOptions const&         ro            = ecr.options               ;
+		ConfigDyn::Collect const& collect       = g_config->collect         ;
+		::umap_s<bool/*keep*/>    dirs          ;
+		bool                      dry_run       = ro.flags[ReqFlag::DryRun] ;
+		bool                      is_repo_root  = false/*garbage*/          ;                                                                                       // set in loop over target_dir
+		::umap_ss                 static_ignore ;                             for( auto const& [k,v] : collect.static_ignore ) static_ignore.try_emplace( v , k ) ;
+		::vmap<RegExpr,::string>  star_ignore   ;
+		//
+		auto keep = [&](::string const& dir_s)->void {
+			for( ::string d_s=dir_s ; +d_s ; d_s=dir_name_s(d_s) ) {          // mark uphill dirs as kept
+				auto [it,inserted] = dirs.try_emplace(d_s,true/*keep*/) ;
+				if (!inserted) {
+					if (it->second) break ;
+					it->second = true/*keep*/ ;
+				}
+			}
+		} ;
+		auto ignore = [&](::string const& path)->::string const* {
+			auto it = static_ignore.find(path) ;    if (it!=static_ignore.end()) return &it->second ;
+			for( auto const& [re,k] : star_ignore ) if (+re.match(path)        ) return &k          ;
+			/**/                                                                 return nullptr     ;
+		} ;
+		auto prune = [&](::string const& dir_s)->bool {
+			::string const* key = nullptr ;
+			{	/**/                         if ( !dir_s                           ) goto Keep  ;
+				/**/                         if ( is_repo_root && dir_s==AdminDirS ) goto Prune ;
+				/**/                         if ( (key=ignore(dir_s))              ) goto Prune ;
+				Node n { no_slash(dir_s) } ; if ( !n                               ) goto Keep  ;
+				/**/                         if ( n->buildable==Buildable::SrcDir  ) goto Prune ;
+			}
+		Keep :
+			return false ;
+		Prune :
+			if ( key && ro.flags[ReqFlag::Verbose] ) audit( fd , ro , Color::HiddenNote , cat("prune ",*key," : ",mk_file(no_slash(dir_s))) ) ;
+			keep(dir_s) ;
+			return true ;
+		} ;
+		//
+		for( auto const& [k,v] : collect.star_ignore ) {
+			Pattern            pattern   ;
+			::vector<VarIdx  > n_seen    ( collect.stems.size() ) ;           // indexed by stem index, number of time stem is seen
+			::vector<uint32_t> groups    ( collect.stems.size() ) ;           // indexed by stem index, provide the corresponding group number in pattern
+			VarIdx             cur_group = 1                                ;
+			subst_target( v , [&](VarIdx s)->::string { n_seen[s]++ ; return {} ; } ) ;
+			subst_target(
+				v
+			,	[&](VarIdx s)->::string {
+					if (groups[s]) { //!                                                 capture
+						/**/               pattern.emplace_back( cat('\\',groups[s])     , No  ) ;
+					} else {
+						if (n_seen[s]>1) { pattern.emplace_back( collect.stems[s].second , Yes ) ; groups[s] = cur_group ; cur_group++ ; }
+						else               pattern.emplace_back( collect.stems[s].second , No  ) ;
+						cur_group += collect.stem_n_marks[s] ;
+					}
+					return {} ;
+				}
+			,	[&](::string const& s)->::string {
+					pattern.emplace_back( s , Maybe/*capture*/ ) ;            // Maybe means fixed
+					return {} ;
+				}
+			) ;
+			star_ignore.emplace_back( pattern , k ) ;
+		}
+		//
+		for( ::string const& target_dir : ecr.target_strs(true/*root_ok*/) ) {
+			is_repo_root = target_dir=="." ;
+			//
+			for( auto& [target,tag] : walk( target_dir , TargetTags|FileTag::Dir , target_dir , prune ) ) {
+				if (is_repo_root) {
+					if (target==".") continue ;
+					SWEAR( target.starts_with("./") , target_dir ) ;
+					target.erase(0,2) ;
+				}
+				//
+				if (tag==FileTag::Dir) {
+					dirs.try_emplace(with_slash(target),false/*keep*/) ;
+				} else {
+					::string const* key = nullptr ;
+					{	/**/                           if ((key=ignore(target))          ) goto Keep       ;
+						Node    n  { target }        ; if (!n                            ) goto Quarantine ;
+						/**/                           if (n->buildable==Buildable::Src  ) goto Keep       ;
+						/**/                           if (n->date().sig!=FileSig(target)) goto Quarantine ;
+						Job     j  = n->actual_job() ; if (!j                            ) goto Quarantine ;
+						RuleCrc rc = j->rule_crc     ; if (!rc                           ) goto Quarantine ;
+						/**/                           if (rc->state>RuleCrcState::CmdOk ) goto Unlnk      ;
+					}
+				Keep :
+					if ( key && ro.flags[ReqFlag::Verbose] ) audit( fd , ro , Color::HiddenNote , cat("ignore ",*key," : ",mk_file(target)) ) ;
+					keep(dir_name_s(target)) ;
+					continue ;
+				Quarantine :
+					{	int rc = dry_run ? 0 : ::rename( target.c_str() , dir_guard(QuarantineDirS+target).c_str() ) ;
+						if (rc==0) audit( fd , ro ,              cat("quarantine "       ,mk_file(target)) ) ;
+						else       audit( fd , ro , Color::Err , cat("cannot quarantine ",mk_file(target)) ) ;
+						continue ;
+					}
+				Unlnk :
+					{	int rc = dry_run ? 0 : ::unlink(target.c_str()) ;
+						if (rc==0) audit( fd , ro ,              cat("rm "       ,mk_file(target)) ) ;
+						else       audit( fd , ro , Color::Err , cat("cannot rm ",mk_file(target)) ) ;
+						continue ;
+					}
+				}
+			}
+		}
+		for( auto const& [d_s,k] : dirs ) {
+			if (k) continue ;
+			::string d  = no_slash(d_s)                    ;
+			int      rc = dry_run ? 0 : ::rmdir(d.c_str()) ;
+			if (rc==0) audit( fd , ro ,              cat("rmdir "       ,mk_file(d)) ) ;
+			else       audit( fd , ro , Color::Err , cat("cannot rmdir ",mk_file(d)) ) ;
+		}
+		return true ;
+	}
+
 	static bool _is_mark_glb(ReqKey key) {
 		switch (key) {
 			case ReqKey::Clear  :
@@ -1205,11 +1323,12 @@ namespace Engine {
 	}
 
 	CmdFunc g_cmd_tab[N<ReqProc>] ;
-	static bool _inited = (                  // PER_CMD : add an entry to point to the function actually executing your command (use show as a template)
-		g_cmd_tab[+ReqProc::Debug ] = _debug
-	,	g_cmd_tab[+ReqProc::Forget] = _forget
-	,	g_cmd_tab[+ReqProc::Mark  ] = _mark
-	,	g_cmd_tab[+ReqProc::Show  ] = _show
+	static bool _inited = (                     // PER_CMD : add an entry to point to the function actually executing your command (use show as a template)
+		g_cmd_tab[+ReqProc::Collect] = _collect
+	,	g_cmd_tab[+ReqProc::Debug  ] = _debug
+	,	g_cmd_tab[+ReqProc::Forget ] = _forget
+	,	g_cmd_tab[+ReqProc::Mark   ] = _mark
+	,	g_cmd_tab[+ReqProc::Show   ] = _show
 	,	true
 	) ;
 

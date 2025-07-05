@@ -181,7 +181,8 @@ namespace Engine::Persistent {
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
 		using Base::Base ;
-		NodeBase( ::string const& name , bool no_dir=false ) ;
+		NodeBase(           ::string const& name                     ) ; // dont create node if does not already exist
+		NodeBase( NewType , ::string const& name , bool no_dir=false ) ;
 		// accesses
 		NodeData const& operator* () const ;
 		NodeData      & operator* () ;

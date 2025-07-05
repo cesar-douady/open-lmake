@@ -38,6 +38,7 @@ They are:
 | Command                                              | Short description                                                  |
 |------------------------------------------------------|--------------------------------------------------------------------|
 | [`lautodep`](man/man1/lautodep.html)                 | run a script in an execution environmeent while recording accesses |
+| [`lcollect`](man/man1/lcollect.html)                 | remove obsolete files and dirs                                     |
 | [`ldebug`](man/man1/ldebug.html)                     | run a job in a debug environement                                  |
 | [`ldircache_repair`](man/man1/ldircache_repair.html) | repair a broken repo                                               |
 | [`lforget`](man/man1/lforget.html)                   | forget history of a job                                            |

@@ -64,7 +64,7 @@ For example, a user may like to systematically pass the I(--archive) and I(--kee
 
 ClientGeneralities(color)
 
-ClientOptions(color)
+ClientOptions(job,color)
 
 SpecificOptions
 

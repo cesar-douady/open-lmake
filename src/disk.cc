@@ -202,22 +202,33 @@ namespace Disk {
 		if (::unlinkat(at,no_slash(dir_s).c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
 	}
 
-	static void _walk( ::vmap_s<FileTag>& res , Fd at , ::string const& file , FileTags file_tags , ::string const& prefix ) {
-		FileTag tag = FileInfo(at,file).tag() ;
+	// path and pfx are restored after execution
+	static void _walk( ::vmap_s<FileTag>& res , Fd at , ::string& path , FileTags file_tags , ::string& pfx , ::function<bool(::string const&)> prune ) {
+		FileTag tag = FileInfo(at,path).tag() ;
 		//
-		if (file_tags[tag]   ) res.emplace_back(prefix,tag) ;
+		if (file_tags[tag]   ) res.emplace_back(pfx,tag) ;
 		if (tag!=FileTag::Dir) return ;
 		//
-		::vector_s lst    ;
-		::string   file_s = with_slash(file) ;
-		try                     { lst = lst_dir_s(at,file_s) ; }
-		catch (::string const&) { return ;                     } // list only accessible files
-		::string prefix_s = prefix+'/' ;
-		for( ::string const& f : lst ) _walk( res , at,file_s+f , file_tags , prefix_s+f ) ;
+		path += '/' ;
+		::vector_s lst ;
+		try                     { lst = lst_dir_s(at,path) ; }
+		catch (::string const&) { path.pop_back() ; return ; } // list only accessible files
+		pfx += '/' ;
+		size_t path_sz = path.size() ;
+		size_t pfx_sz  = pfx .size() ;
+		for( ::string const& f : lst ) {
+			path += f ;
+			pfx  += f ;
+			_walk( res , at,path , file_tags , pfx , prune ) ;
+			path.resize(path_sz) ;
+			pfx .resize(pfx_sz ) ;
+		}
+		path.pop_back() ;
+		pfx .pop_back() ;
 	}
-	::vmap_s<FileTag> walk( Fd at , ::string const& file , FileTags file_tags , ::string const& prefix ) {
+	::vmap_s<FileTag> walk( Fd at , ::string const& path , FileTags file_tags , ::string const& pfx , ::function<bool(::string const&)> prune ) {
 		::vmap_s<FileTag> res ;
-		_walk( res , at , file , file_tags , prefix ) ;
+		_walk( res , at , ::ref(::copy(path)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
 		return res ;
 	}
 

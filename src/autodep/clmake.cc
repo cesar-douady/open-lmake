@@ -331,7 +331,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 			::string file   = base + sfx              ;
 			bool     exists = FileInfo(file).exists() ;
 			if (is_lcl) {
-				constexpr AccessDigest AccessDigestDfltDyn { .accesses=~Accesses() , .flags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflagsDfltDyn} } ;
+				static constexpr AccessDigest AccessDigestDfltDyn { .accesses=~Accesses() , .flags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflagsDfltDyn} } ;
 				try                       { JobSupport::depend( *_g_record , {file} , AccessDigestDfltDyn , false/*no_follow*/ ) ; }
 				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                }
 			}

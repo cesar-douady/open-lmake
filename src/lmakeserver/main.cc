@@ -232,9 +232,10 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							trace("make",r) ;
 						} break ;
-						case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
-						case ReqProc::Forget :
-						case ReqProc::Mark   :
+						case ReqProc::Collect : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+						case ReqProc::Debug   :
+						case ReqProc::Forget  :
+						case ReqProc::Mark    :
 							SWEAR(g_writable) ;
 						[[fallthrough]] ;
 						case ReqProc::Show :
@@ -325,10 +326,11 @@ static bool/*interrupted*/ _engine_loop() {
 				Req               req           = ecr.req                   ;
 				::string const&   startup_dir_s = ecr.options.startup_dir_s ;
 				switch (ecr.proc) {
-					case ReqProc::Debug  : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
-					case ReqProc::Forget :
-					case ReqProc::Mark   :
-					case ReqProc::Show   : {
+					case ReqProc::Collect : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+					case ReqProc::Debug   :
+					case ReqProc::Forget  :
+					case ReqProc::Mark    :
+					case ReqProc::Show    : {
 						trace(ecr) ;
 						bool ok = true/*garbage*/ ;
 						if ( !ecr.options.flags[ReqFlag::Quiet] && +startup_dir_s )

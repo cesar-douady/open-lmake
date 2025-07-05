@@ -437,8 +437,10 @@ namespace Backends {
 		}
 		bool deps_done = false ;                                                // true if all deps are done for at least one non-zombie req
 		for( Req r : reqs ) if (!r.zombie()) {
-			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) )
-				if (!Node(dn)->done(r,NodeGoal::Dsk)) { trace("dep_not_done",r,dn) ; goto NextReq ; }
+			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) ) {
+				Node d { dn } ;
+				if ( !d || !d->done(r,NodeGoal::Dsk)) { trace("dep_not_done",r,dn) ; goto NextReq ; }
+			}
 			deps_done = true ;
 			break ;
 		NextReq : ;
@@ -557,7 +559,7 @@ namespace Backends {
 				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
 				case JobMngtProc::ChkDeps    : //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				case JobMngtProc::DepVerbose : {
-					::vector<Dep> deps ; deps.reserve(jmrr.deps.size()) ; for( auto const& [d,dd] : jmrr.deps ) deps.emplace_back(Node(d),dd) ;
+					::vector<Dep> deps ; deps.reserve(jmrr.deps.size()) ; for( auto const& [d,dd] : jmrr.deps ) deps.emplace_back( Node(New,d) , dd ) ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , ::move(deps) ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
