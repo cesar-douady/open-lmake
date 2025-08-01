@@ -19,11 +19,11 @@ assert sys.path[0]==lmake_private_lib # normal python behavior : put script dir 
 sys.path[0:0] = [lmake_lib]
 
 if len(sys.argv)!=5 :
-	print('usage : python read_makefiles.py <out_file> <environ_file> .(<actions>.)* sub_repos_s sub_repo_s',file=sys.stderr)
+	print('usage : python read_makefiles.py <out_file> <user_environ> .(<actions>.)* sub_repos_s sub_repo_s',file=sys.stderr)
 	sys.exit(1)
 
 out_file     =      sys.argv[1]
-environ_file =      sys.argv[2]
+user_environ = eval(sys.argv[2])
 actions      =      sys.argv[3]
 sub_repos_s  = eval(sys.argv[4])
 is_top       = '.top.' in actions
@@ -41,8 +41,7 @@ import fmt_rule
 if is_top : lmake.sub_repo = '.'
 else      : lmake.sub_repo = cwd[len(top_cwd)+1:]
 
-pdict        = lmake.pdict
-user_environ = eval(open(environ_file).read()) # make original user env available while reading config
+pdict = lmake.pdict
 
 class UserEnvironDict(pdict) :
 	AccessedKeys = set()
@@ -177,7 +176,7 @@ for sub_repo_s in sub_repos_s :
 	if not isinstance(sub_repo_s,str)                        : raise TypeError (f'in {cwd}, sub-repo ({sub_repo_s}) must be a str')
 	if any(w in '/'+sub_repo_s for w in ('//','/./','/../')) : raise ValueError(f'in {cwd}, sub-repo ({sub_repo_s}) must be local and canonical')
 	os.chdir(sub_repo_s[:-1])
-	rc = sp.run(( sys.executable , sys.argv[0] , osp.join(cwd,out_file) , osp.join(cwd,environ_file) , actions , str(sub_sub_repos_s) )).returncode
+	rc = sp.run(( sys.executable , sys.argv[0] , osp.join(cwd,out_file) , repr(user_environ) , actions , repr(sub_sub_repos_s) )).returncode
 	if rc : sys.exit(rc)
 	os.chdir(cwd)
 	sub_infos = pdict.mk_deep(eval(open(out_file).read()))
