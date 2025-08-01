@@ -23,14 +23,14 @@ namespace Engine::Makefiles {
 		::vmap_s<::pair_s<bool/*exists*/>> user_env ;
 	} ;
 
-	static constexpr const char* PrivateEnvironFile = PRIVATE_ADMIN_DIR_S "environ"  ; // provided to Lmakefile.py so it can initialize lmake.user_environ
-	static constexpr const char* EnvironFile        = ADMIN_DIR_S         "environ"  ; // provided to user, contains only variables used in Lmakefile.py
-	static constexpr const char* ManifestFile       = ADMIN_DIR_S         "manifest" ; // provided to user, contains the list of source files
+	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"  ; // provided to user, contains only variables used in Lmakefile.py
+	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest" ; // provided to user, contains the list of source files
 
 	static ::string _deps_file(::string const& action) { return AdminDirS+action+"_deps" ; }
 
-	static ::map_ss _g_env       ;
-	static ::string _g_tmp_dir_s = cat(AdminDirS,"lmakefile_tmp/") ;
+	static ::map_ss _g_env          ;
+	static ::string _g_tmp_dir_s    = cat(AdminDirS,"lmakefile_tmp/") ;
+	static ::string _g_user_env_str ;
 
 	// dep file line format :
 	// - first dep is special, marked with *, and provide lmake_root
@@ -128,7 +128,6 @@ namespace Engine::Makefiles {
 		;
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
-			if (d==PrivateEnvironFile) continue ;                                                        // PrivateEnvironFile is generated before reading makefile
 			char pfx = FileInfo(d).exists() ? '+' : '!' ;
 			if (is_abs(d)) {
 				for( auto const& [sd_s,a] : glb_sds_s ) {
@@ -167,13 +166,13 @@ namespace Engine::Makefiles {
 		_g_env["TMPDIR"] = no_slash(cat(*g_repo_root_s,tmp_dir_s)) ;
 		mk_dir_empty_s(tmp_dir_s) ;                                  // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
-		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                   ;
-		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                          ;
-		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , PrivateEnvironFile , '.'+action+".top." , sub_repos } ;
-		gather.env                     = &_g_env                                                                                                                 ;
-		gather.child_stdin             = Child::NoneFd                                                                                                           ;
-		gather.child_stdout            = Child::PipeFd                                                                                                           ;
-		gather.child_stderr            = Child::JoinFd                                                                                                           ;
+		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                ;
+		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                       ;
+		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , '.'+action+".top." , sub_repos } ;
+		gather.env                     = &_g_env                                                                                                              ;
+		gather.child_stdin             = Child::NoneFd                                                                                                        ;
+		gather.child_stdout            = Child::PipeFd                                                                                                        ;
+		gather.child_stderr            = Child::JoinFd                                                                                                        ;
 		//
 		{	SavPyLdLibraryPath spllp ;
 			//              vvvvvvvvvvvvvvvvvvv
@@ -292,15 +291,11 @@ namespace Engine::Makefiles {
 		WithGil<Ptr<Dict>> py_info     ;
 		//
 		if (!dyn) {
-			{	::string user_env_str ;
-				First    first        ;
-				size_t   w            = 0 ;
-				for( auto const& [k,v] : user_env ) w = ::max(w,mk_py_str(k).size()) ;
-				user_env_str << '{' ;
+			{	First first ;
+				_g_user_env_str << "{ " ;
 				for( auto const& [k,v] : user_env )
-					user_env_str << first("",",")<<'\t'<< widen(mk_py_str(k),w) <<" : "<< mk_py_str(v) << '\n' ;
-				user_env_str << "}\n" ;
-				AcFd( PrivateEnvironFile , FdAction::Create ).write(user_env_str) ;
+					_g_user_env_str << first(""," , ")<< mk_py_str(k) <<":"<< mk_py_str(v) ;
+				_g_user_env_str << " }" ;
 			}
 			/**/                          _g_env["HOME"           ] = no_slash(*g_repo_root_s)      ;
 			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
@@ -316,19 +311,19 @@ namespace Engine::Makefiles {
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                                  // invalidate because of config
+		bool  invalidate    = false ;                                                   // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old) {                                                                // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                // Maybe means new
-				changed_rules = Maybe ;                                                // .
+			if (!old) {                                                                 // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                                 // Maybe means new
+				changed_rules = Maybe ;                                                 // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_) return ;                                                        // no new config means we keep old config, no modification
+			if (!new_) return ;                                                         // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
 			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                     // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                      // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

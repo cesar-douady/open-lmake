@@ -16,6 +16,9 @@ items (also used in XXX comments) :
 ****************************************************************************************************
 
 * StructFile::size() sometimes become 0 (invalid value, 1 when empty) with no apparent reason
+* Autodep seems to be inoperant
+	- see Thomas's use to fsync files
+	- at least regarding readdir signalling
 ? seen once : server has been seen blocked
 	- seems to be while taking GIL
 
@@ -82,11 +85,18 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* auto_check_deps
+	- execute lcheck_deps as soon as no new deps for a given duration
+* add target check to check_deps
+* add PrevRegOk and PrevLnkOk to ExtraTflag
+	- to allow target to pre-exist as reg/lnk
+	- so as to reduce reruns due to target existence
 * in lcache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :
 	- use a daemon
+? add dep to link target when generating a sym link as target
 ? add option to lcollect
 	- unlink all out-of-date files
 ? implement target priority
