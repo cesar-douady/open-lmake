@@ -641,10 +641,10 @@ namespace Engine::Persistent {
 			::vector<Node>              ss   ;                             ss.reserve(srcs.size()) ;                  // typically, there are very few src dirs
 			::vector<Node>              sds  ;                                                                        // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
-			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;
 			Node::s_srcs(true /*dirs*/,add,sds) ;
-			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		bool invalidate = true || +old_srcs ;
 		{	Trace trace2 ;

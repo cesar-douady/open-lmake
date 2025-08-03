@@ -312,9 +312,9 @@ static bool/*interrupted*/ _engine_loop() {
 				switch (closure.ecg().proc) {
 					case GlobalProc::Int :
 						trace("int") ;
-						//       vvvvvvvvvvvv
+						//vvvvvvvvvvvvvvvvvvv
 						Backend::s_kill_all() ;
-						//       ^^^^^^^^^^^^
+						//^^^^^^^^^^^^^^^^^^^
 						return true/*interrupted*/ ;
 					case GlobalProc::Wakeup :
 						trace("wakeup") ;

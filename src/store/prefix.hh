@@ -423,7 +423,7 @@ namespace Store {
 			void restore(Item_& to) const {
 				static_cast<Base&>(to) = self ;
 				for( bool is_eq : Nxt(kind()) ) to.nxt_if (is_eq) = _nxt[is_eq] ;
-				if ( kind()==Kind::Split ) to.cmp_val(     ) = _cmp_val    ;
+				if ( kind()==Kind::Split )      to.cmp_val(     ) = _cmp_val    ;
 				_restore_data(to) ;
 			}
 		private :
@@ -465,14 +465,14 @@ namespace Store {
 	//
 
 	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
-	:	              AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
-	{	using Base  = AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
-		using Item  =                                                                                        Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
+	:	             AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
+	{	using Base = AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
+		using Item =                                                                                        Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
 		//
-		using Hdr   = Hdr_                       ;
-		using Idx   = Idx_                       ;
-		using Char  = Char_                      ;
-		using Data  = Data_                      ;
+		using Hdr  = Hdr_  ;
+		using Idx  = Idx_  ;
+		using Char = Char_ ;
+		using Data = Data_ ;
 		//
 		static_assert(sizeof(Item)==Item::ItemSizeOf) ;
 		static constexpr bool Reverse = Reverse_ ;

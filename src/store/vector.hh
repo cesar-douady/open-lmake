@@ -128,14 +128,14 @@ namespace Store {
 			SWEAR( by<=sz , by , sz ) ;
 			if (by==sz) { clear(idx) ; return 0 ; }
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Base::at(idx).shorten_by(by) ;
+			Base::at(idx).shorten_by(by)                ;
 			Base::shorten( idx , Chunk::s_n_items(sz) ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return idx ;
 		}
 		template<::convertible_to<Item> I> Idx assign( Idx idx , ::span<I> const& v ) {
 			//                            vvvvvvvvvv
-			if (!idx) {            return emplace(v) ; }
+			if (!idx)              return emplace(v) ;
 			if (!v  ) { pop(idx) ; return 0          ; }
 			//                            ^^^^^^^^^^
 			Chunk& chunk = Base::at(idx)              ;
@@ -143,17 +143,17 @@ namespace Store {
 			IdxSz  new_n = Chunk::s_n_items(v.size()) ;
 			// reallocate
 			if (new_n!=old_n) {
-				//           vvvvvvvvvvvvvvvv
+				//     vvvvvvvvvvvvvvvvvvvvvv
 				/**/   Base::pop    (idx    ) ;
 				return Base::emplace(new_n,v) ;
-				//           ^^^^^^^^^^^^^^^^
+				//     ^^^^^^^^^^^^^^^^^^^^^^
 			}
 			// in place
 			chk_writable() ;
 			Item* items = chunk.items() ;
-			for( size_t i : iota(::min(v.size(),size_t(chunk.sz))) ) items[i] = v[i] ;
-			if (v.size()<chunk.sz) for( size_t i : iota( v.size() , chunk.sz ) ) items[i].~Item()        ;
-			else                   for( size_t i : iota( chunk.sz , v.size() ) ) new(items+i) Item{v[i]} ;
+			/**/                   for( size_t i : iota(            ::min(v.size(),size_t(chunk.sz)) ) ) items[i] = v[i] ;
+			if (v.size()<chunk.sz) for( size_t i : iota( v.size() , chunk.sz                         ) ) items[i].~Item() ;
+			else                   for( size_t i : iota( chunk.sz , v.size()                         ) ) new(items+i) Item{v[i]} ;
 			chunk.sz = v.size() ;
 			return idx ;
 		}
@@ -170,10 +170,10 @@ namespace Store {
 			if (new_n>old_n) {
 				::vector<Item> both = mk_vector<Item>(view(idx)) ;
 				for( Item const& x : v ) both.emplace_back(x) ;
-				//           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				/**/   Base::pop    (idx                     ) ;
 				return Base::emplace(new_n,::span<Item>(both)) ;
-				//           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			// in place
 			Item* items = chunk.items()+chunk.sz ;
@@ -184,10 +184,10 @@ namespace Store {
 			return idx ;
 		}
 		//
-		Idx emplace(                     ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return emplace(     ::span<Item const>(s)) ; }
-		Idx emplace(      Item const& c0,::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return emplace(  c0,::span<Item const>(s)) ; }
-		Idx assign (Idx i,               ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return assign (i,   ::span<Item const>(s)) ; }
-		Idx append (Idx i,               ::basic_string_view<Item> const& s) requires( !::is_const_v<Item> && IsStr ) { return append (i,   ::span<Item const>(s)) ; }
+		Idx emplace(                          ::basic_string_view<Item> const& s ) requires( !::is_const_v<Item> && IsStr ) { return emplace(     ::span<Item const>(s)) ; }
+		Idx emplace(         Item const& c0 , ::basic_string_view<Item> const& s ) requires( !::is_const_v<Item> && IsStr ) { return emplace(  c0,::span<Item const>(s)) ; }
+		Idx assign ( Idx i ,                  ::basic_string_view<Item> const& s ) requires( !::is_const_v<Item> && IsStr ) { return assign (i,   ::span<Item const>(s)) ; }
+		Idx append ( Idx i ,                  ::basic_string_view<Item> const& s ) requires( !::is_const_v<Item> && IsStr ) { return append (i,   ::span<Item const>(s)) ; }
 	} ;
 
 }

@@ -14,6 +14,8 @@
 // memory leak is acceptable in case of crash
 // inconsistent state is never acceptable
 
+#define NO_HOLE 1 // if true => avoid creating file holes
+
 namespace Store {
 
 	template<char ThreadKey,size_t Capacity> struct File {
@@ -28,10 +30,12 @@ namespace Store {
 		void init( ::string const& name_ , bool writable_ ) ;
 		void init( NewType                                ) { init("",true/*writable_*/) ; }
 		void close() {
-			chk_thread() ;
 			if (!base) return ;
-			_dealloc() ;
-			_fd.close() ;
+			chk_thread() ;
+			::msync( base , size , MS_SYNC ) ;             // XXX> : suppress when bug is found
+			_dealloc()                       ;
+			::fsync(_fd)                     ;             // XXX> : suppress when bug is found
+			_fd.close()                      ;
 		}
 		// accesses
 		bool operator+() const { return size ; }
@@ -47,11 +51,11 @@ namespace Store {
 			_map(old_size) ;
 		}
 		void clear(size_t sz=0) {
-			chk_thread() ;
-			_dealloc() ;
+			chk_thread()     ;
+			_dealloc()       ;
 			_resize_file(sz) ;
-			_alloc() ;
-			_map(0) ;
+			_alloc()         ;
+			_map(0)          ;
 		}
 		void chk() const {
 			if (+_fd) SWEAR(base) ;
@@ -86,11 +90,11 @@ namespace Store {
 	template<char ThreadKey,size_t Capacity> File<ThreadKey,Capacity>& File<ThreadKey,Capacity>::operator=(File&& other) {
 		chk_thread() ;
 		close() ;
-		name      = ::move(other.name     ) ;
-		base      =        other.base       ; other.base      = nullptr ;
-		size      =        other.size       ; other.size      = 0       ;
-		writable  =        other.writable   ; other.writable  = false   ;
-		_fd       = ::move(other._fd      ) ;
+		name      = ::move(other.name    ) ;
+		base      =        other.base      ; other.base     = nullptr ;
+		size      =        other.size      ; other.size     = 0       ;
+		writable  =        other.writable  ; other.writable = false   ;
+		_fd       = ::move(other._fd     ) ;
 		return self ;
 	}
 
@@ -105,9 +109,12 @@ namespace Store {
 			int open_flags = O_CLOEXEC ;
 			if (writable) { open_flags |= O_RDWR | O_CREAT ; Disk::dir_guard(name) ; }
 			else            open_flags |= O_RDONLY         ;
-			//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			_fd = ::open( name.c_str() , open_flags , 0644 ) ; // mode is only used if created, which implies writable
-			//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			#if NO_HOLE
+				::lseek( _fd , 0/*offset*/ , SEEK_END ) ;      // ensure writes are done at end of file when resizing
+			#endif
 			SWEAR_PROD(+_fd) ;
 			Disk::FileInfo fi{_fd} ;
 			SWEAR(fi.tag()>=FileTag::Reg) ;
@@ -140,14 +147,22 @@ namespace Store {
 			exit(Rc::Param,err_msg) ;
 		}
 		chk_writable() ;
-		sz += s_page-1 ; sz = sz-sz%s_page ;   // round up
+		sz += s_page-1 ; sz = sz-sz%s_page ;                                                                             // round up
 		if (+_fd) {
-			//         vvvvvvvvvvvvvvvvvvvvv
-			int rc = ::ftruncate( _fd , sz ) ; // may increase file size
-			//         ^^^^^^^^^^^^^^^^^^^^^
+			int rc ;
+			#if NO_HOLE
+				//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				if (sz>size) rc = ::write    ( _fd , ::string(sz-size,1).data() , sz-size )==ssize_t(sz-size) ? 0 : -1 ; // expand by writing instead of truncate to ensure no file hole ...
+				else         rc = ::ftruncate( _fd ,                              sz      )                            ; // ... (and write anything else than full 0)
+				//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			#else
+				//   vvvvvvvvvvvvvvvvvvvvvvv
+				rc = ::ftruncate( _fd , sz ) ;                                                                           // may increase file size
+				//   ^^^^^^^^^^^^^^^^^^^^^^^
+			#endif
 			if (rc!=0) FAIL_PROD(rc,::strerror(errno)) ;
 		}
-		fence() ;                              // update state when it is legal to do so
+		fence() ;                                                                                                        // update state when it is legal to do so
 		size = sz ;
 	}
 

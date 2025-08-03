@@ -279,9 +279,9 @@ namespace Engine::Makefiles {
 		Trace trace("_refresh",STR(rescue),STR(refresh_),STR(dyn),startup_dir_s) ;
 		if (!refresh_) {
 			SWEAR(!dyn) ;
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( Config() , dyn , rescue ) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return ;
 		}
 		Deps               config_deps ;
@@ -326,9 +326,9 @@ namespace Engine::Makefiles {
 			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                      // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
-			//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( ::move(config) , dyn , rescue , diff_config ) ;
-			//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
 			throw "cannot "s+(dyn?"dynamically ":"")+"update config : "+e ;
 		}
@@ -338,17 +338,17 @@ namespace Engine::Makefiles {
 		Sources       srcs        ; //!                IsRule   out   out    out
 		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false>( msg , srcs , srcs_deps , changed_srcs , py_info , user_env , startup_dir_s ) ;    // Maybe means not split
 		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                  ;
-		if (new_srcs) //!                                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (new_srcs) //!                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn , ManifestFile ) ; }
-			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update sources : "+e ;          }
 		//
 		Rules         rules        ; //!                IsRule  out   out     out
 		Bool3/*done*/ rules_digest = _refresh_rules_srcs<true>( msg , rules , rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
 		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
-		if (new_rules) //!                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (new_rules) //!                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;   }
-			//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update rules : "+e ; }
 		//
 		if (invalidate) Persistent::invalidate_match() ;
