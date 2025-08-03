@@ -30,8 +30,9 @@ namespace Store {
 		void close() {
 			chk_thread() ;
 			if (!base) return ;
-			_dealloc() ;
-			_fd.close() ;
+			_dealloc()   ;
+			::fsync(_fd) ; // XXX> : suppress when bug is found
+			_fd.close()  ;
 		}
 		// accesses
 		bool operator+() const { return size ; }

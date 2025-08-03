@@ -98,12 +98,12 @@ namespace Store {
 		template<class... A> void init( NewType                              , A&&... hdr_args ) { init( "" , true/*writable*/ , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::init( name , writable ) ;
-if (Base::operator+()) SWEAR(size(),Base::name) ; // XXX : suppress when bug is found
+if (Base::operator+()) SWEAR(size(),Base::name) ; // XXX> : suppress when bug is found
 			if (Base::operator+()) return ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
-~StructFile() { // XXX : suppress when bug is found
+~StructFile() { // XXX> : suppress when bug is found
 if (base) SWEAR(size(),Base::name) ; // check size before close
 Base::close() ;
 if (+Base::name) SWEAR(::launder(reinterpret_cast<StructHdr const*>(AcFd(Base::name).read(sizeof(StructHdr)).data()))->sz,Base::name) ; // check size after close
