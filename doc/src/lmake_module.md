@@ -173,8 +173,11 @@ Flags accumulate and are never reset.
 
 ### `check_deps(sync=False)`
 
-Ensure that all previously seen deps are up-to-date.
-Job will be killed in case some deps are not up-to-date.
+Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
+Job will be killed in case condition above is not met.
+
+This means that rerun reasons are checked.
+This can be usefully called before heavy computation so that such heavy computation is run only once.
 
 If `sync`, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,

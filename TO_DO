@@ -87,10 +87,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * auto_check_deps
 	- execute lcheck_deps as soon as no new deps for a given duration
-* add target check to check_deps
-* add PrevRegOk and PrevLnkOk to ExtraTflag
-	- to allow target to pre-exist as reg/lnk
-	- so as to reduce reruns due to target existence
 * in lcache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

@@ -287,8 +287,10 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 </ul>
 <p>Flags accumulate and are never reset.</p>
 <h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
-<p>Ensure that all previously seen deps are up-to-date.
-Job will be killed in case some deps are not up-to-date.</p>
+<p>Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
+Job will be killed in case condition above is not met.</p>
+<p>This means that rerun reasons are checked.
+This can be usefully called before heavy computation so that such heavy computation is run only once.</p>
 <p>If <code>sync</code>, wait for server reply. Return value is False if at least a dep is in error.
 This is necessary, even without checking return value, to ensure that after this call,
 the dirs of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>

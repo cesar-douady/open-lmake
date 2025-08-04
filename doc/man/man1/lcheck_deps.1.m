@@ -10,7 +10,8 @@ Header(lcheck_deps,ensure deps collected so far in a OpenLmake job are up-to-dat
 .SH DESCRIPTION
 .LP
 B(lcheck_deps) ensures that all deps accessed so far are up-to-date.
-If this not the case, the job is killed, generating a rerun report, the deps are rebuilt and the job is rerun.
+It also ensures that no pre-existing targets have been seen so far.
+If this is not the case, the job is killed, generating a rerun report, the deps are rebuilt (and the necessary targets are unlinked) and the job is rerun.
 .LP
 This is useful before starting a heavy computation. Typically, deps are computed and accessed before the heavy sequence and calling B(check_deps) allows to avoid
 running a heavy computation with bad inputs. It is not a semantic problem as OpenLmake will realize the situation, rebuild the deps and rerun the job, but it may be a performance problem.
@@ -24,6 +25,8 @@ It will then rebuild I(generated.h) and rerun the compilation to I(heavy.o), ano
 .LP
 Suppose now that your compilation script separates the preprocessor (say 10 secondes) phase from the compilation (10 minutes) phase and call B(lcheck_deps) inbetween.
 In that case, the first run will stop after preprocessing as B(lcheck_deps) will kill the job at that moment and the overall time will be 10 minutes 10 secondes instead of 20 minutes.
+.LP
+Note that to be imunised against pre-existing targets (only pertinent for star-targets), such targets must be written before B(lcheck_deps) is called.
 
 .SH OPTIONS
 .LP

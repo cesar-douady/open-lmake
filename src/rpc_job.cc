@@ -1225,9 +1225,9 @@ void JobStartRpcReply::chk(bool for_cache) const {
 	/**/                               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
 	switch (jmrr.proc) {
 		case JobMngtProc::LiveOut    : os <<','<< jmrr.txt.size() ;                             break ;
-		case JobMngtProc::ChkDeps    :
-		case JobMngtProc::DepVerbose : os <<','<< jmrr.deps       ;                             break ;
-		case JobMngtProc::Encode     : os <<','<< jmrr.min_len    ;                             [[fallthrough]] ;
+		case JobMngtProc::ChkDeps    : os <<','<< jmrr.targets <<','<<jmrr.deps ;               break ;
+		case JobMngtProc::DepVerbose : os <<','<< jmrr.deps ;                                   break ;
+		case JobMngtProc::Encode     : os <<','<< jmrr.min_len           ;                      [[fallthrough]] ;
 		case JobMngtProc::Decode     : os <<','<< jmrr.ctx <<','<< jmrr.file <<','<< jmrr.txt ; break ;
 		default                      :                                                          break ;
 	}

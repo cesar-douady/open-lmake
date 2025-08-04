@@ -349,7 +349,7 @@ namespace Engine {
 	}
 
 	// answer to job execution requests
-	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vector<Dep> const& deps ) const {
+	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vmap<Node,TargetDigest> const& targets , ::vector<Dep> const& deps ) const {
 		::vector<Req> reqs = self->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_analysis",proc,deps.size(),reqs.size()) ;
 		//
@@ -388,6 +388,18 @@ namespace Engine {
 			break ;
 			case JobMngtProc::ChkDeps :
 				res.ok = Yes ;
+				for( auto const& [t,td] : targets ) {
+					if (td.pre_exist) {
+						Node(t)->set_buildable() ;
+						if (!( t->is_src_anti() && t->buildable>Buildable::No )) {
+							trace("pre_exist",t) ;
+							res.ok  = No        ;
+							res.txt = t->name() ;
+							goto StopChk ;
+						}
+					}
+					trace("target",t) ;
+				}
 				for( Dep const& dep : deps ) {
 					Node(dep)->full_refresh(false/*report_no_file*/,{}) ;                      // dep is const
 					Bool3 dep_ok = Yes ;
@@ -401,10 +413,11 @@ namespace Engine {
 					if (dep_ok!=Yes) {
 						res.ok  = dep_ok      ;
 						res.txt = dep->name() ;
-						break ;
+						goto StopChk ;
 					}
-					trace("ok",dep) ;
+					trace("dep",dep) ;
 				}
+			StopChk :
 			break ;
 		DF}                                                                                    // NO_COV
 		trace("done") ;

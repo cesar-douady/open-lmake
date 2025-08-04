@@ -140,7 +140,6 @@ Digest analyze(Status status=Status::New) {                                     
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
 		}
-		if (status==Status::New) continue ;                                                          // we are handling chk_deps and we only care about deps
 		// handle targets
 		if (is_tgt) {
 			FileStat     st         ;
@@ -201,7 +200,11 @@ Digest analyze(Status status=Status::New) {                                     
 	return res ;
 }
 
-::vmap_s<DepDigest> cur_deps_cb() { return analyze().deps ; }
+void chk_deps_cb( ::vmap_s<TargetDigest>&/*out*/ targets , ::vmap_s<DepDigest>&/*out*/ deps ) {
+	Digest digest = analyze() ;
+	targets = ::move(digest.targets) ;
+	deps    = ::move(digest.deps   ) ;
+}
 
 static const ::string StdPath = STD_PATH ;
 static const ::uset_s SpecialWords {
@@ -564,7 +567,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.as_session       =        true                        ;
 		g_gather.nice             =        g_start_info.nice           ;
 		g_gather.autodep_env      = ::move(g_start_info.autodep_env  ) ;
-		g_gather.cur_deps_cb      =        cur_deps_cb                 ;
+		g_gather.chk_deps_cb      =        chk_deps_cb                 ;
 		g_gather.env              =        &cmd_env                    ;
 		g_gather.exec_trace       =        g_exec_trace                ;
 		g_gather.job              =        g_job                       ;

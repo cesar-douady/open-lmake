@@ -468,7 +468,7 @@ namespace Backends {
 						start_msg_err = {}                   ;
 					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					s_end( entry.tag , +job , status ) ;                                                             // dont care about backend, job is dead for other reasons
+					s_end( entry.tag , +job , status ) ;                                                                          // dont care about backend, job is dead for other reasons
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("early",start_msg_err) ;
 					//
@@ -479,12 +479,12 @@ namespace Backends {
 					/**/                                 jerr.digest.has_msg_stderr = true                  ;
 					/**/                                 jerr.msg_stderr            = ::move(start_msg_err) ;
 					for( auto& [d,dd_edf] : reply.deps ) jerr.digest.deps.emplace_back( ::move(d) , dd_edf.first ) ;
-					JobDigest<Node> jd = jerr.digest ;                                                               // before jerr is moved
+					JobDigest<Node> jd = jerr.digest ;                                                                            // before jerr is moved
 					//
 					Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 					Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 					//
-					job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                   // job starts and ends
+					job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                // job starts and ends
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 					g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
@@ -496,7 +496,7 @@ namespace Backends {
 				//
 				reply.small_id = _s_small_ids.acquire() ;
 				//    vvvvvvvvvvvvvvvvvvvvvvvv
-				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                        // send reply ASAP to minimize overhead, failure will be caught by heartbeat
+				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {} // send reply ASAP to minimize overhead, failure will be caught by heartbeat
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^
 				job_exec = { job , entry.tag!=Tag::Local?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 				//
@@ -554,10 +554,17 @@ namespace Backends {
 			switch (jmrr.proc) {
 				case JobMngtProc::LiveOut    : //!vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				case JobMngtProc::AddLiveOut : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , ::move(jmrr.txt) ) ; break ;
-				//
-				case JobMngtProc::Decode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
-				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
-				case JobMngtProc::ChkDeps    : //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                          vvv^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvv
+				case JobMngtProc::Decode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
+				case JobMngtProc::Encode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
+				//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				case JobMngtProc::ChkDeps : {
+					::vmap<Node,TargetDigest> targets ; targets.reserve(jmrr.targets.size()) ; for( auto const& [t,td] : jmrr.targets ) targets.emplace_back( Node(New,t) , td ) ;
+					::vector<Dep>             deps    ; deps   .reserve(jmrr.deps   .size()) ; for( auto const& [d,dd] : jmrr.deps    ) deps   .emplace_back( Node(New,d) , dd ) ;
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , ::move(targets) , ::move(deps) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				} break ;
 				case JobMngtProc::DepVerbose : {
 					::vector<Dep> deps ; deps.reserve(jmrr.deps.size()) ; for( auto const& [d,dd] : jmrr.deps ) deps.emplace_back( Node(New,d) , dd ) ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

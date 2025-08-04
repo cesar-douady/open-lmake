@@ -178,8 +178,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 		case Proc::ChkDeps :
 			_exec_trace( jerr.date , jerr.comment , jerr.comment_exts ) ;
 			jmrr.proc = JobMngtProc::ChkDeps ;
-			reorder(false/*at_end*/) ;                                                                                         // ensure server sees a coherent view
-			jmrr.deps = cur_deps_cb() ;
+			reorder(false/*at_end*/)                              ;                                                            // ensure server sees a coherent view
+			chk_deps_cb( /*out*/jmrr.targets , /*out*/jmrr.deps ) ;
 		break ;
 		case Proc::DepVerbose : {
 			auto                it    = _dep_verboses.find(fd) ; SWEAR(it!=_dep_verboses.end(),fd,_dep_verboses) ;
@@ -187,9 +187,9 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr ) {
 			jmrr.proc = JobMngtProc::DepVerbose ;
 			jmrr.deps.reserve(files.size()) ;
 			for( auto& [f,fi] : files ) {
-				_exec_trace( jerr.date , jerr.comment , jerr.comment_exts , f ) ;
+				_exec_trace( jerr.date , jerr.comment , jerr.comment_exts , f )                                              ;
 				new_access( fd , jerr.date , ::copy(f) , jerr.digest , fi , Yes/*late*/ , jerr.comment , jerr.comment_exts ) ;
-				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) ) ;       // no need for flags to ask info
+				jmrr.deps.emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,{}/*dflags*/,true/*parallel*/) )       ; // no need for flags to ask info
 			}
 			_dep_verboses.erase(it) ;
 		} break ;
@@ -551,7 +551,18 @@ Status Gather::exec_child() {
 							case JobMngtProc::Heartbeat :                                                                                                      break ;
 							case JobMngtProc::Kill      : _exec_trace( New , Comment::kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
 							case JobMngtProc::None      : _exec_trace( New , Comment::lostServer                     ) ; set_status(Status::Killed) ; kill() ; break ;
-							case JobMngtProc::ChkDeps :
+							case JobMngtProc::ChkDeps    :
+								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
+								if (jmrr.ok!=Yes) {
+									_exec_trace( New , Comment::chkTargets , {CommentExt::Reply,CommentExt::Killed} , jmrr.txt ) ;
+									set_status( Status::ChkDeps , "pre-exiting target : "+jmrr.txt ) ;
+									kill() ;
+									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
+								} else {
+									_exec_trace( New , Comment::chkTargets , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
+								}
+							break ;
+							case JobMngtProc::ChkTargets :
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								if (jmrr.ok==Maybe) {
 									_exec_trace( New , Comment::chkDeps , {CommentExt::Reply,CommentExt::Killed} , jmrr.txt ) ;

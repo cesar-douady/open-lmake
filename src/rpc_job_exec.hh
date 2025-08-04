@@ -53,11 +53,8 @@ struct AccessDigest {                                                           
 struct JobExecRpcReq {
 	friend ::string& operator+=( ::string& , JobExecRpcReq const& ) ;
 	// make short lines
-	using Pdate = Time::Pdate    ;
-	using FI    = Disk::FileInfo ;
-	using AD    = AccessDigest   ;
-	using Proc  = JobExecProc    ;
-	using Id    = uint64_t       ;
+	using Proc = JobExecProc ;
+	using Id   = uint64_t    ;
 	//
 	static const size_t MaxSz ;
 	// accesses
@@ -101,15 +98,15 @@ struct JobExecRpcReq {
 		DN}
 	}
 	// data
-	Proc        proc         = {}            ;
-	Bool3       sync         = No            ;                           // Maybe means transport as sync (not using fast_report), but not actually sync
-	Comment     comment      = Comment::None ;
-	CommentExts comment_exts = {}            ;
-	AD          digest       = {}            ;
-	Id          id           = 0             ;                           // used to distinguish flows from different processes when muxed on fast report fd
-	Pdate       date         = {}            ;                           // access date to reorder accesses during analysis
-	::string    file         = {}            ;                           // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
-	FI          file_info    = {}            ;
+	Proc           proc         = {}            ;
+	Bool3          sync         = No            ;                        // Maybe means transport as sync (not using fast_report), but not actually sync
+	Comment        comment      = Comment::None ;
+	CommentExts    comment_exts = {}            ;
+	AccessDigest   digest       = {}            ;
+	Id             id           = 0             ;                        // used to distinguish flows from different processes when muxed on fast report fd
+	Time::Pdate    date         = {}            ;                        // access date to reorder accesses during analysis
+	::string       file         = {}            ;                        // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
+	Disk::FileInfo file_info    = {}            ;
 } ;
 constexpr size_t JobExecRpcReq::MaxSz = PATH_MAX+sizeof(JobExecRpcReq) ; // maximum size of a message : a file + overhead
 

@@ -230,31 +230,26 @@ enum class Comment : uint8_t {
 ,	__xstat                , __xstat64
 // lmake functions
 ,	analyzed
-,	chkDeps
+,	chkDeps            , chkTargets
 ,	computedCrcs
 ,	decode
 ,	depAndTarget
 ,	depend
 ,	encode
-,	endJob
-,	endOverhead
+,	endJob             , endOverhead
 ,	enteredNamespace
 ,	hot
 ,	kill
 ,	lostServer
 ,	panic
 ,	startInfo
-,	startJob
-,	startOverhead
-,	staticDep
-,	staticDepAndTarget
+,	startJob           , startOverhead
+,	staticDep          , staticDepAndTarget
 ,	staticExec
 ,	staticMatch
 ,	staticTarget
 ,	staticUnlnk
-,	stderr
-,	stdin
-,	stdout
+,	stderr             , stdin              , stdout
 ,	stillAlive
 ,	timeout
 ,	target
@@ -263,8 +258,7 @@ enum class Comment : uint8_t {
 ,	unexpectedTarget
 ,	unstable
 ,	uploadedToCache
-,	wash
-,	washed
+,	wash               , washed
 } ;
 // END_OF_VERSIONING
 

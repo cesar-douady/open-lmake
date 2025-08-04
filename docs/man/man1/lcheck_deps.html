@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Jul  5 18:04:55 2025 -->
+<!-- CreationDate: Mon Aug  4 20:23:14 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -57,9 +57,11 @@ up-to-date</p>
 
 
 <p style="margin-left:9%; margin-top: 1em"><b>lcheck_deps</b>
-ensures that all deps accessed so far are up-to-date. If
-this not the case, the job is killed, generating a rerun
-report, the deps are rebuilt and the job is rerun.</p>
+ensures that all deps accessed so far are up-to-date. It
+also ensures that no pre-existing targets have been seen so
+far. If this is not the case, the job is killed, generating
+a rerun report, the deps are rebuilt (and the necessary
+targets are unlinked) and the job is rerun.</p>
 
 <p style="margin-left:9%; margin-top: 1em">This is useful
 before starting a heavy computation. Typically, deps are
@@ -93,6 +95,11 @@ call <b>lcheck_deps</b> inbetween. In that case, the first
 run will stop after preprocessing as <b>lcheck_deps</b> will
 kill the job at that moment and the overall time will be 10
 minutes 10 secondes instead of 20 minutes.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Note that to be
+imunised against pre-existing targets (only pertinent for
+star-targets), such targets must be written before
+<b>lcheck_deps</b> is called.</p>
 
 <h2>OPTIONS
 <a name="OPTIONS"></a>

@@ -11,8 +11,12 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dut(Rule) :
-		target = 'dut'
-		cmd    = 'cat dep ; lcheck_deps ; sleep 1' # sleep 1 to ensure job is killed when lcheck_deps fails
+		targets = {
+			'OUT'  : r'dut{D:\d+}'
+		,	'STAR' : 'dut{D}.dir/{*:.*}'
+		}
+		stderr_ok = True
+		cmd = 'cat dep > {OUT} ; cat {OUT}.dir/1 || echo star > {OUT}.dir/1 ; lcheck_deps ; sleep 2' # sleep to ensure job is killed when lcheck_deps fails
 
 	class Dep(Rule) :
 		target = 'dep'
@@ -20,7 +24,13 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+
 	import ut
 
-	ut.lmake( 'dep' , done=1 )
-	ut.lmake( 'dut' , done=1 ) # ensure no rerun
+	ut.lmake( 'dut1' , rerun=1 , done=2 ) # ensure rerun
+	ut.lmake( 'dut2' ,           done=1 ) # ensure no rerun
+
+	os.makedirs('dut3.dir',exist_ok=True)
+	print('manual',file=open('dut3.dir/1','w'))
+	ut.lmake( 'dut3' , rerun=1 , done=1 )       # ensure rerun because of target pre-existence
