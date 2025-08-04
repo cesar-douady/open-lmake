@@ -87,7 +87,7 @@ namespace Store {
 		static constexpr size_t _s_offset(Sz idx) { return Struct::_offset<Hdr,Idx,Data>(idx) ; }
 		// cxtors & casts
 		template<class... A> void _alloc_hdr(A&&... hdr_args) {
-			Base::expand(_s_offset(1)) ;                                                                               // 1 is the first used idx
+			Base::expand(_s_offset(1)) ;                                                                                                    // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 	public :
@@ -98,15 +98,16 @@ namespace Store {
 		template<class... A> void init( NewType                              , A&&... hdr_args ) { init( "" , true/*writable*/ , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> void init( ::string const& name , bool writable , A&&... hdr_args ) {
 			Base::init( name , writable ) ;
-if (Base::operator+()) SWEAR(size(),Base::name) ; // XXX> : suppress when bug is found
+if (Base::operator+()) SWEAR(size(),Base::name) ;                                                                                           // XXX> : suppress when bug is found
 			if (Base::operator+()) return ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
 			_alloc_hdr(::forward<A>(hdr_args)...) ;
 		}
-~StructFile() { // XXX> : suppress when bug is found
-if (base) SWEAR(size(),Base::name) ; // check size before close
-Base::close() ;
-if (+Base::name) SWEAR(::launder(reinterpret_cast<StructHdr const*>(AcFd(Base::name).read(sizeof(StructHdr)).data()))->sz,Base::name) ; // check size after close
+~StructFile() {                                                                                                                             // XXX> : suppress when bug is found
+	if (!base) return ;
+	SWEAR(size(),Base::name) ;                                                                                                              // check size before close
+	Base::close() ;
+	if (+Base::name) SWEAR(::launder(reinterpret_cast<StructHdr const*>(AcFd(Base::name).read(sizeof(StructHdr)).data()))->sz,Base::name) ; // check size after close
 }
 		// accesses
 		bool         operator+(               ) const                  {               return size()>1                                                        ; }
@@ -134,7 +135,7 @@ if (+Base::name) SWEAR(::launder(reinterpret_cast<StructHdr const*>(AcFd(Base::n
 		}
 		void chk() const {
 			Base::chk() ;
-			throw_unless( size()                        , "incoherent size info"                      ) ;              // size is 1 for an empty file
+			throw_unless( size()                        , "incoherent size info"                      ) ;                                   // size is 1 for an empty file
 			throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
 		}
 	protected :
@@ -148,10 +149,10 @@ if (+Base::name) SWEAR(::launder(reinterpret_cast<StructHdr const*>(AcFd(Base::n
 			chk_thread() ;
 			Sz old_sz = size()      ;
 			Sz new_sz = old_sz + sz ;
-			swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;                        // ensure no arithmetic overflow before checking capacity
+			swear( new_sz>=old_sz && new_sz<(size_t(1)<<NIdxBits) ,"index overflow on ",name) ;                                             // ensure no arithmetic overflow before checking capacity
 			Base::expand(_s_offset(new_sz)) ;
-			fence() ;                                                                                                  // update state when it is legal to do so
-			_size() = new_sz ;                                                                                         // once allocation is done, no reason to maintain lock
+			fence() ;                                                                                                                       // update state when it is legal to do so
+			_size() = new_sz ;                                                                                                              // once allocation is done, no reason to maintain lock
 			Idx res { old_sz } ;
 			_emplace( res , ::forward<A>(args)... ) ;
 			_chk_sz( res , sz ) ;
