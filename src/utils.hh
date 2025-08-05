@@ -136,9 +136,13 @@ using span_s = ::span<::string> ;
 // math
 //
 
-template<size_t D,class N> inline constexpr N round_down(N n) { return n - n%D              ; }
-template<size_t D,class N> inline constexpr N round_up  (N n) { return round_down<D>(n+D-1) ; }
-template<size_t D,class N> inline constexpr N div_up    (N n) { return (n+D-1)/D            ; }
+template<size_t D,class N> inline constexpr N round_down(N n) { return n - N(n%D)              ; }
+template<size_t D,class N> inline constexpr N round_up  (N n) { return round_down<D>(N(n+D-1)) ; }
+template<size_t D,class N> inline constexpr N div_up    (N n) { return N(n+D-1)/D              ; }
+
+template<class N> inline constexpr N round_down( N n , N d ) { return n - N(n%d)             ; }
+template<class N> inline constexpr N round_up  ( N n , N d ) { return round_down(N(n+d-1),d) ; }
+template<class N> inline constexpr N div_up    ( N n , N d ) { return N(n+d-1)/d             ; }
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
