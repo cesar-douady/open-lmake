@@ -120,6 +120,7 @@ namespace Store {
 			_fd = ::open( name.c_str() , open_flags , 0644 ) ; // mode is only used if created, which implies writable
 			//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			SWEAR_PROD(+_fd) ;
+			::lseek( _fd , 0/*offset*/ , SEEK_END ) ;          // ensure writes are done at end of file when resizing
 			Disk::FileInfo fi{_fd} ;
 			SWEAR(fi.tag()>=FileTag::Reg) ;
 			size = fi.sz ;
@@ -151,14 +152,16 @@ namespace Store {
 			err_msg<<"consider to recompile open-lmake with increased corresponding parameter in src/types.hh\n" ;
 			exit(Rc::Param,err_msg) ;
 		}
-		sz += s_page-1 ; sz = sz-sz%s_page ;   // round up
+		sz += s_page-1 ; sz = sz-sz%s_page ;                                              // round up
 		if (+_fd) {
-			//         vvvvvvvvvvvvvvvvvvvvv
-			int rc = ::ftruncate( _fd , sz ) ; // may increase file size
-			//         ^^^^^^^^^^^^^^^^^^^^^
-			if (rc!=0) FAIL_PROD(rc,::strerror(errno)) ;
+			int rc ;
+			//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			if (sz>size) rc = ::write    ( _fd , ::string(sz-size,0).data() , sz-size ) ; // expand by writing instead of truncate to ensure no race in kernel ...
+			else         rc = ::ftruncate( _fd ,                              sz      ) ; // ... with page write back after writing to mapped regions
+			//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (rc<0) FAIL_PROD(rc,::strerror(errno)) ;
 		}
-		fence() ;                              // update state when it is legal to do so
+		fence() ;                                                                         // update state when it is legal to do so
 		size = sz ;
 	}
 
