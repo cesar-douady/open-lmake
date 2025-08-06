@@ -174,7 +174,7 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 		case Proc::Decode :
 		case Proc::Encode :
 			// /!\ format must stay in sync with Codec::_s_canonicalize
-			for( ::string const& line : AcFd(codec_file).read_lines(true/*no_file_ok*/) ) {
+			for( ::string const& line : AcFd(codec_file,true/*err_ok*/).read_lines() ) {
 				size_t pos = 0 ;
 				/**/                                             if ( line[pos++]!=' '                   ) continue ; // bad format
 				::string ctx  = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' ' || ctx!=codec_ctx ) continue ; // .          or bad ctx

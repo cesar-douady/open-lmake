@@ -30,6 +30,7 @@ void crash_handler( int sig , void* addr ) {
 static void _terminate() {
 	try                          { ::rethrow_exception(::current_exception()) ;       }
 	catch (::string    const& e) { crash(4,SIGABRT,"uncaught exception :",e       ) ; }
+	catch (int         const& e) { crash(4,SIGABRT,"uncaught exception :",e       ) ; }
 	catch (::exception const& e) { crash(4,SIGABRT,"uncaught exception :",e.what()) ; }
 	catch (...                 ) { crash(4,SIGABRT,"uncaught exception"           ) ; }
 }
@@ -74,8 +75,8 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 }
 
 void chk_version( bool may_init , ::string const& admin_dir_s ) {
-	::string version_file = admin_dir_s+"version" ;
-	AcFd     version_fd   { version_file }        ;
+	::string version_file = admin_dir_s+"version"           ;
+	AcFd     version_fd   { version_file , true/*err_ok*/ } ;
 	if (!version_fd) {
 		throw_unless( may_init , "repo not initialized, consider : lmake" ) ;
 		AcFd(dir_guard(version_file),FdAction::Create).write(cat(VersionMrkr,'\n')) ;

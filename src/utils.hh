@@ -489,6 +489,11 @@ enum class FdAction : uint8_t {
 ,	Create
 ,	CreateExe
 ,	CreateReadOnly
+,	CreateExeReadOnly
+,	CreateNoFollow
+,	CreateNoFollowExe
+,	CreateNoFollowReadOnly
+,	CreateNoFollowExeReadOnly
 } ;
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;
@@ -499,24 +504,19 @@ struct Fd {
 	static const Fd Std    ;                                                                              // the highest standard fd
 	// cxtors & casts
 private :
-	static int _s_mk_fd( Fd at , ::string const& file , FdAction action=FdAction::Read ) {
-		switch (action) {
-			case FdAction::Read           : return ::openat( at ,          file .c_str() , O_RDONLY                     | O_CLOEXEC        ) ;
-			case FdAction::Dir            : return ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY       | O_CLOEXEC        ) ;
-			case FdAction::Write          : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC           | O_CLOEXEC        ) ;
-			case FdAction::Append         : return ::openat( at ,          file .c_str() , O_WRONLY | O_APPEND          | O_CLOEXEC        ) ;
-			case FdAction::Create         : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC , 0666 ) ;
-			case FdAction::CreateExe      : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC , 0777 ) ;
-			case FdAction::CreateReadOnly : return ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC , 0444 ) ;
-		DF}
-	}
+	static int _s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read ) ;
 public :
 	constexpr Fd(                        ) = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd( Fd at , ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,action) , no_std_ } {}
-	Fd(         ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , action      , no_std_ } {}
+	Fd( Fd at , const char* file ) : Fd{at,::string(file)} {}                                             // ensure no confusion
+	Fd(         const char* file ) : Fd{   ::string(file)} {}                                             // .
+	//
+	Fd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,err_ok,action) , no_std_ } {}
+	Fd(         ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , err_ok , action , no_std_    } {}
+	Fd( Fd at , ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ at  , file , false  , action , no_std_    } {}
+	Fd(         ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , false  , action , no_std_    } {}
 	//
 	constexpr operator int  () const { return fd    ; }
 	constexpr bool operator+() const { return fd>=0 ; }
@@ -527,7 +527,7 @@ public :
 	/**/      ::strong_ordering operator<=>( Fd const&                                ) const = default ;
 	/**/      void              write      ( ::string_view data                       ) const ;           // writing does not modify the Fd object
 	/**/      ::string          read       ( size_t sz=Npos   , bool no_file_ok=false ) const ;           // read sz bytes or to eof
-	/**/      ::vector_s        read_lines (                    bool no_file_ok=false ) const ;
+	/**/      ::vector_s        read_lines (                                          ) const ;
 	/**/      size_t            read_to    ( ::span<char> dst , bool no_file_ok=false ) const ;
 	/**/      Fd                dup        (                                          ) const { return ::dup(fd) ;                     }
 	constexpr Fd                detach     (                                          )       { Fd res = self ; fd = -1 ; return res ; }
@@ -547,12 +547,18 @@ constexpr Fd Fd::Std   {2            } ;
 struct AcFd : Fd {
 	friend ::string& operator+=( ::string& , AcFd const& ) ;
 	// cxtors & casts
-	AcFd(                                                                                    ) = default ;
-	AcFd( Fd fd_                                                                             ) : Fd{fd_                            } {              }
-	AcFd( AcFd&& acfd                                                                        )                                       { swap(acfd) ; }
-	AcFd( int fd_                                                       , bool no_std_=false ) : Fd{fd_,no_std_                    } {              }
-	AcFd(         ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{       file , action , no_std_ } {              }
-	AcFd( Fd at , ::string const& file , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ at  , file , action , no_std_ } {              }
+	AcFd(                              ) = default ;
+	AcFd( Fd fd_                       ) : Fd{fd_        } {              }
+	AcFd( AcFd&& acfd                  )                   { swap(acfd) ; }
+	AcFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }
+	//
+	AcFd( Fd at , const char* file ) : AcFd{at,::string(file)} {} // ensure no confusion
+	AcFd(         const char* file ) : AcFd{   ::string(file)} {} // .
+	//
+	AcFd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ at  , file , err_ok , action , no_std_   } {}
+	AcFd(         ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : AcFd{ Cwd , file , err_ok , action , no_std_ } {}
+	AcFd( Fd at , ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : AcFd{ at  , file , false  , action , no_std_ } {}
+	AcFd(         ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : AcFd{ Cwd , file , false  , action , no_std_ } {}
 	//
 	~AcFd() { close() ; }
 	//
@@ -560,6 +566,12 @@ struct AcFd : Fd {
 	AcFd& operator=(Fd const& fd_ ) { self = fd_ .fd ;                      return self ; }
 	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
 } ;
+
+inline ::string file_msg( Fd at , ::string file ) {
+	if      (at==Fd::Cwd) return                   file  ;
+	else if (+at        ) return cat('@',at.fd,':',file) ;
+	else                  return cat("@<nowhere>:",file) ;
+}
 
 //
 // miscellaneous

@@ -295,7 +295,7 @@ namespace Engine {
 			Info            _dflt  ;
 			Idx             _sz    = 0 ;
 		} ;
-		static constexpr size_t StepSz = 14 ;                    // size of the field representing step in output
+		static constexpr size_t StepSz = 16 ;                    // size of the field representing step in output
 		// static data
 	private :
 		static Mutex<MutexLvl::Audit> _s_audit_mutex ;           // should not be static, but if per ReqData, this would prevent ReqData from being movable

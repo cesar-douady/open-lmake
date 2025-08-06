@@ -154,7 +154,6 @@ namespace Disk {
 
 	vector_s lst_dir_s( Fd at , ::string const& dir_s , ::string const& prefix ) {
 		Fd dir_fd { at , dir_s , FdAction::Dir } ;
-		if (!dir_fd) throw cat("cannot open dir ",at==Fd::Cwd?""s:cat("@",at.fd,':'),dir_s," : ",::strerror(errno)) ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
 		if (!dir_fp) throw cat("cannot list dir ",at==Fd::Cwd?""s:cat("@",at.fd,':'),dir_s," : ",::strerror(errno)) ;
@@ -285,14 +284,19 @@ namespace Disk {
 			case FileTag::Dir   : break ;    // dirs are like no file
 			case FileTag::Empty :            // fast path : no need to access empty src
 				dir_guard(dst_at,dst_file) ;
-				AcFd(::openat( dst_at , dst_file.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0666 & ~(mk_read_only?0222:0000) )) ;
+				AcFd( dst_at , dst_file , mk_read_only?FdAction::CreateNoFollowReadOnly:FdAction::CreateNoFollow ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
+				FdAction action =
+					tag==FileTag::Exe
+					?	( mk_read_only ? FdAction::CreateNoFollowExeReadOnly : FdAction::CreateNoFollowExe )
+					:	( mk_read_only ? FdAction::CreateNoFollowReadOnly    : FdAction::CreateNoFollow    )
+				;
 				dir_guard(dst_at,dst_file) ;
-				AcFd rfd {             src_at , src_file }                                                                                                                             ;
-				AcFd wfd { ::openat( dst_at , dst_file.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_TRUNC , 0777 & ~(tag==FileTag::Exe?0000:0111) & ~(mk_read_only?0222:0000) ) } ;
-				::sendfile( wfd , rfd , nullptr , fi.sz ) ;
+				AcFd rfd { src_at , src_file          }              ;
+				AcFd wfd { dst_at , dst_file , action }              ;
+				int  rc  = ::sendfile( wfd , rfd , nullptr , fi.sz ) ; if (rc<0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
 			} break ;
 			case FileTag::Lnk :
 				dir_guard(dst_at,dst_file) ;
@@ -365,7 +369,7 @@ namespace Disk {
 	//
 
 	FileMap::FileMap( Fd at , ::string const& file_name ) {
-		_fd = Fd(at,file_name) ;
+		_fd = Fd( at , file_name , true/*err_ok*/ ) ;
 		if (!_fd) return ;
 		sz = FileInfo(_fd,{},false/*no_follow*/).sz ;
 		if (sz) {
@@ -599,11 +603,11 @@ namespace Disk {
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
 			//
 			try {
-				AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) } ; if    ( !hdr_fd                                               ) break ;
-				::string hdr    = hdr_fd.read(256)                    ; if    ( !hdr.starts_with("#!")                                ) break ;
-				size_t   eol    = hdr.find('\n')                      ; if    ( eol!=Npos                                             ) hdr.resize(eol) ;
-				size_t   pos1   = 2                                   ; while ( pos1<hdr.size() &&  (hdr[pos1]==' '||hdr[pos1]=='\t') ) pos1++ ;
-				size_t   pos2   = pos1                                ; while ( pos2<hdr.size() && !(hdr[pos2]==' '||hdr[pos2]=='\t') ) pos2++ ;
+				AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) , true/*err_ok*/ } ; if    ( !hdr_fd                                               ) break ;
+				::string hdr    = hdr_fd.read(256)                                     ; if    ( !hdr.starts_with("#!")                                ) break ;
+				size_t   eol    = hdr.find('\n')                                       ; if    ( eol!=Npos                                             ) hdr.resize(eol) ;
+				size_t   pos1   = 2                                                    ; while ( pos1<hdr.size() &&  (hdr[pos1]==' '||hdr[pos1]=='\t') ) pos1++ ;
+				size_t   pos2   = pos1                                                 ; while ( pos2<hdr.size() && !(hdr[pos2]==' '||hdr[pos2]=='\t') ) pos2++ ;
 				//
 				if (pos1!=pos2) sr = solve( ::string_view(hdr).substr(pos1,pos2-pos1) , false/*no_follow*/ ) ; // interpreter is first word
 				// recurse by looping

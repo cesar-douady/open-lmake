@@ -42,11 +42,12 @@ namespace Engine::Makefiles {
 	static ::string _chk_deps( ::string const& action , ::umap_ss const& user_env , ::string const& startup_dir_s , FileSync file_sync=FileSync::Dflt ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		NfsGuard   nfs_guard { file_sync }                                    ;
-		::string   deps_file = _deps_file(action)                             ;
-		Ddate      deps_date = file_date(deps_file)                           ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
-		::vector_s deps      = AcFd(deps_file).read_lines(true/*no_file_ok*/) ;
-		::string   reason    ;
+		NfsGuard nfs_guard { file_sync }          ;
+		::string deps_file = _deps_file(action)   ;
+		Ddate    deps_date = file_date(deps_file) ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
+		::string reason    ;
+		//
+		::vector_s deps = AcFd(deps_file,true/*err_ok*/).read_lines() ;
 		for( ::string const& line : deps ) {
 			SWEAR(+line) ;
 			::string d = line.substr(1) ;
@@ -81,7 +82,7 @@ namespace Engine::Makefiles {
 	static void _recall_env( ::umap_ss&/*out*/ user_env , ::string const& action ) {
 		Trace trace("_recall_env",action) ;
 		//
-		::vector_s deps = AcFd(_deps_file(action)).read_lines(true/*no_file_ok*/) ;
+		::vector_s deps = AcFd(_deps_file(action),true/*err_ok*/).read_lines() ;
 		for( ::string const& line : deps ) {
 			SWEAR(+line) ;
 			/**/                            if (line[0]!='=') continue ;                         // not an env var definition
@@ -99,7 +100,7 @@ namespace Engine::Makefiles {
 	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {                 // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
-		::vector_s deps = AcFd(_deps_file(action,new_)).read_lines(true/*no_file_ok*/) ;
+		::vector_s deps = AcFd(_deps_file(action,new_),true/*err_ok*/).read_lines() ;
 		for( ::string const& line : deps ) {
 			if (line[0]!='+') continue ;                                                                              // not an existing file
 			::string d = line.substr(1) ;
@@ -311,19 +312,19 @@ namespace Engine::Makefiles {
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                                   // invalidate because of config
+		bool  invalidate    = false ;                                                         // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old) {                                                                 // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                 // Maybe means new
-				changed_rules = Maybe ;                                                 // .
+			if (!old) {                                                                       // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                                       // Maybe means new
+				changed_rules = Maybe ;                                                       // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_) return ;                                                         // no new config means we keep old config, no modification
+			if (!new_) return ;                                                               // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
 			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                      // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                            // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -141,7 +141,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	if (::rename(admin_dir.c_str(),bck_admin_dir.c_str())!=0) FAIL("cannot rename",admin_dir,"to",bck_admin_dir) ;
 	//
-	if ( AcFd fd { dir_guard(repair_mrkr) , FdAction::Create } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( AcFd fd { dir_guard(repair_mrkr) , true/*err_ok*/ , FdAction::Create } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
 	//
 	mk_dir_s(PrivateAdminDirS) ;

@@ -28,12 +28,12 @@ size_t   g_tab_width    = 0/*garbage*/ ;
 size_t   g_max_line_sz  = 0/*garbage*/ ;
 ::string g_comment_sign ;
 
-::vector<Line> get_lines(const char* file) {
+::vector<Line> get_lines(::string const& file) {
 	::vector<Line> res   ;
 	::vector_s     lines ;
 	//
-	if (file) lines = AcFd(file).read_lines() ;
-	else      lines = Fd::Stdin .read_lines() ;
+	if (+file) lines = AcFd(file).read_lines() ;
+	else       lines = Fd::Stdin .read_lines() ;
 	//
 	for( ::string const& l : lines ) {
 		size_t   lvl   = 0               ;
@@ -160,7 +160,7 @@ int main( int argc , char* argv[] ) {
 	g_max_line_sz  = from_string<size_t>(argv[2]) ;
 	g_comment_sign =                     argv[3]  ;
 	//
-	::vector<Line> lines = get_lines(argc==5?argv[4]:nullptr) ;
+	::vector<Line> lines = get_lines(argc==5?argv[4]:"") ;
 	if (!lines) return 0 ;
 	//
 	optimize(lines) ;

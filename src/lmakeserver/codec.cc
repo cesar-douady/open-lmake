@@ -102,8 +102,8 @@ namespace Codec {
 		::string                           prev_ctx   ;
 		::string                           prev_code  ;
 		::vector<Node>                     nodes      ;
-		bool                               is_canonic = true                                      ;
-		::vector_s                         lines      = AcFd(file).read_lines(true/*no_file_ok*/) ;
+		bool                               is_canonic = true                                   ;
+		::vector_s                         lines      = AcFd(file,true/*err_ok*/).read_lines() ;
 		//
 		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val )->void {
 			Node dn { New , mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;

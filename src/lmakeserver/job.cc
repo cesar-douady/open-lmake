@@ -758,8 +758,10 @@ namespace Engine {
 				if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
 				else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
+				if (upload) trace("cache_commit_throw" ,e) ;
+				else        trace("cache_dismiss_throw",e) ;
 				for( Req req : running_reqs_ ) {
-					req->audit_job( Color::Warning , "bad_cache" , self , true/*at_end*/ ) ;
+					req->audit_job( Color::Warning , "bad_cache_upload" , self , true/*at_end*/ ) ;
 					req->audit_stderr( self , {.msg=e} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
 				}
 			}
@@ -1336,42 +1338,43 @@ namespace Engine {
 
 	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
 		using Step = JobStep ;
-		Rule            r     = rule()  ;
-		Req             req   = ri.req  ;
-		Rule::RuleMatch match { idx() } ;
-		Trace trace("_submit_plain",idx(),ri,pressure) ;
+		Rule            r     = rule() ;
+		Req             req   = ri.req ;
+		Job             job   = idx()  ;
+		Rule::RuleMatch match { job }  ;
+		Trace trace("_submit_plain",job,ri,pressure) ;
 		SWEAR(!ri.waiting(),ri) ;
 		SWEAR(!ri.running(),ri) ;
 		for( Req rr : running_reqs(false/*with_zombies*/) ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
-			ri.step(cri.step(),idx()) ;                                                  // Exec or Queued, same as other reqs
+			ri.step(cri.step(),job) ;                                                  // Exec or Queued, same as other reqs
 			ri.inc_wait() ;
-			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",idx()) ;
+			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",job) ;
 			SubmitAttrs sa = {
 				.pressure = pressure
 			,	.live_out = ri.live_out
 			,	.nice     = rr->nice
 			} ;
-			//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			ri.miss_live_out = Backend::s_add_pressure( backend , +idx() , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
-			//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			ri.miss_live_out = Backend::s_add_pressure( backend , +job , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
+			//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",rr,ri) ;
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		for( Node t : targets ) t->set_buildable() ;                                     // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		for( Node t : targets ) t->set_buildable() ;                                   // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		::vmap_s<DepDigest>  early_deps             ;
 		SubmitAncillaryAttrs submit_ancillary_attrs ;
 		try {
-			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( idx() , match , &early_deps ) ; // dont care about dependencies as these attributes have no impact on result
+			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( job , match , &early_deps ) ; // dont care about dependencies as these attributes have no impact on result
 		} catch (MsgStderr const& msg_err) {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.spec ;
-			req->audit_job(Color::Note,"no_dynamic",idx()) ;
-			req->audit_stderr( idx() , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } , 0/*max_stderr_len*/ , 1 ) ;
+			req->audit_job(Color::Note,"no_dynamic",job) ;
+			req->audit_stderr( job , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } , 0/*max_stderr_len*/ , 1 ) ;
 		}
-		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                     // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
-		CacheIdx cache_idx = 0 ;                                                                     // ... just record deps to trigger building on a best effort basis
+		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                   // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
+		CacheIdx cache_idx = 0 ;                                                                   // ... just record deps to trigger building on a best effort basis
 		if ( +req->cache_method && +submit_ancillary_attrs.cache ) {
 			auto it = g_config->cache_idxs.find(submit_ancillary_attrs.cache) ;
 			if (it!=g_config->cache_idxs.end()) {
@@ -1379,12 +1382,19 @@ namespace Engine {
 				if ( cache_idx && has_download(req->cache_method) ) {
 					::vmap_s<DepDigest> dns ;
 					for( Dep const& d : deps ) {
-						DepDigest dd = d ; dd.crc(d->crc) ;                                                                       // provide node actual crc as this is the hit criteria
+						DepDigest dd = d ; dd.crc(d->crc) ;                                                                     // provide node actual crc as this is the hit criteria
 						dns.emplace_back(d->name(),dd) ;
 					}
-					Cache*       cache       = Cache::s_tab[cache_idx]             ;
-					Cache::Match cache_match = cache->match( unique_name() , dns ) ;
-					if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
+					Cache*       cache       = Cache::s_tab[cache_idx] ;
+					Cache::Match cache_match ;
+					try {
+						cache_match = cache->match( unique_name() , dns ) ;
+						if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
+					} catch (::string const& e) {
+						trace("cache_match_throw",e) ;
+						req->audit_job( Color::Warning , "bad_cache_match" , job , true/*at_end*/ ) ;
+						req->audit_stderr( job , {.msg=e} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
+					}
 					switch (cache_match.hit) {
 						case Yes :
 							try {
@@ -1395,32 +1405,34 @@ namespace Engine {
 								::string              dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
 								//
 								if (+dfa_msg) {
-									req->audit_job ( Color::Note , "wash"  , idx()     ) ;
-									req->audit_info( Color::Note , dfa_msg         , 1 ) ;
+									req->audit_job ( Color::Note , "wash"  , job     ) ;
+									req->audit_info( Color::Note , dfa_msg       , 1 ) ;
 									trace("hit_msg",dfa_msg,ri) ;
 								}
 								//
-								JobExec je       { idx() , New }                              ;                                   // job starts and ends, no host
+								JobExec je       { job , New }                                ;                                 // job starts and ends, no host
 								JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
-								job_info.start.pre_start.job       = +idx()    ;                                                  // repo dependent
-								job_info.start.submit_attrs.reason = ri.reason ;                                                  // context dependent
-								job_info.end  .end_date            = New       ;                                                  // execution dependnt
+								job_info.start.pre_start.job       = +job      ;                                                // repo dependent
+								job_info.start.submit_attrs.reason = ri.reason ;                                                // context dependent
+								job_info.end  .end_date            = New       ;                                                // execution dependnt
 								//
-								JobDigest<Node> digest = job_info.end.digest ;                                                    // gather info before being moved
-								Job::s_record_thread.emplace(idx(),::move(job_info.start)) ;
-								Job::s_record_thread.emplace(idx(),::move(job_info.end  )) ;
+								JobDigest<Node> digest = job_info.end.digest ;                                                  // gather info before being moved
+								Job::s_record_thread.emplace(job,::move(job_info.start)) ;
+								Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
 								//
 								if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
 								//
-								ri.step(Step::Hit,idx()) ;
+								ri.step(Step::Hit,job) ;
 								trace("hit_result") ;
 								je.end(::move(digest)) ;
 								req->stats.add(JobReport::Hit) ;
-								req->missing_audits[idx()] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
+								req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
 								goto ResetReqInfo ;
 							} catch (::string const&e) {
-								trace("hit_throw",e) ;
-							}                                                                                                     // if we cant download result, it is like a miss
+								trace("cache_hit_throw",e) ;
+								req->audit_job( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
+								req->audit_stderr( job , {.msg=e} , 0/*max_stderr_len*/ , 1/*lvl*/ ) ;
+							}                                                                                                   // if we cant download result, it is like a miss
 						break ;
 						case Maybe : {
 							::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back( Node(New,dn) , dd ) ;
@@ -1429,12 +1441,12 @@ namespace Engine {
 							trace("hit_deps") ;
 						}
 						ResetReqInfo :
-							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(idx(),true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
-							return true/*maybe_new_deps*/ ;                                                                       // ... so we have to ensure ri.iter is still a legal iterator
+							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
+							return true/*maybe_new_deps*/ ;                                                                     // ... so we have to ensure ri.iter is still a legal iterator
 						case No :
 							trace("hit_miss") ;
 						break ;
-					DF}                                                                                                           // NO_COV
+					DF}                                                                                                         // NO_COV
 				}
 			}
 		}
@@ -1442,20 +1454,20 @@ namespace Engine {
 		SubmitRsrcsAttrs submit_rsrcs_attrs ;
 		size_t           n_ancillary_deps   = early_deps.size() ;
 		try {
-			submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( idx() , match , &early_deps ) ;
+			submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( job , match , &early_deps ) ;
 		} catch (MsgStderr const& msg_err) {
-			req->audit_job   ( Color::Err  , "failed" , idx()                                                                                                       ) ;
-			req->audit_stderr( idx() , { ensure_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } , 0/*max_stderr_len*/ , 1 ) ;
+			req->audit_job   ( Color::Err  , "failed" , job                                                                                                       ) ;
+			req->audit_stderr( job , { ensure_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } , 0/*max_stderr_len*/ , 1 ) ;
 			run_status = RunStatus::Error ;
 			trace("no_rsrcs",ri) ;
 			return false/*maybe_new_deps*/ ;
 		}
-		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;                 // mark new deps as resources only
+		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;               // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
 			Node         d   { New , dn }       ;
 			NodeReqInfo& dri = d->req_info(req) ;
 			d->make(dri,NodeMakeAction::Dsk) ;
-			if (dri.waiting()) d->add_watcher(dri,idx(),ri,pressure) ;
+			if (dri.waiting()) d->add_watcher(dri,job,ri,pressure) ;
 		}
 		if (ri.waiting()) {
 			trace("waiting_rsrcs") ;
@@ -1463,7 +1475,7 @@ namespace Engine {
 		}
 		//
 		ri.inc_wait() ;                              // set before calling submit call back as in case of flash execution, we must be clean
-		ri.step(Step::Queued,idx()) ;
+		ri.step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
 		if (!has_upload(req->cache_method)) cache_idx = 0 ;
 		try {
@@ -1478,16 +1490,16 @@ namespace Engine {
 			,	.nice      =        req->nice
 			} ;
 			estimate_stats(tokens1) ;                // refine estimate with best available info just before submitting
-			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Backend::s_submit( backend , +idx() , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
-			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Backend::s_submit( backend , +job , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			for( Node t : targets ) t->busy = true ; // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
 			ri.dec_wait() ;                          // restore n_wait as we prepared to wait
-			ri.step(Step::None,idx()) ;
+			ri.step(Step::None,job) ;
 			status  = Status::EarlyErr ;
-			req->audit_job ( Color::Err  , "failed" , idx()     ) ;
-			req->audit_info( Color::Note , e                , 1 ) ;
+			req->audit_job ( Color::Err  , "failed" , job     ) ;
+			req->audit_info( Color::Note , e              , 1 ) ;
 			trace("submit_err",ri) ;
 			return false/*maybe_new_deps*/ ;
 		} ;

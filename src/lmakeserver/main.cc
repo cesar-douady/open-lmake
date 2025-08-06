@@ -37,9 +37,9 @@ static Fd           _g_watch_fd       ;          // watch LMAKE/server
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	try {
-		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
-		::string const& service    = lines[0] ;
-		::string const& server_pid = lines[1] ;
+		::vector_s      lines      = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		::string const& service    = lines[0]                      ;
+		::string const& server_pid = lines[1]                      ;
 		return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
 	catch (::string const&) {
 		return { {}/*host*/ , 0/*pid*/ } ;
@@ -115,7 +115,7 @@ static bool/*crashed*/ _start_server() {
 }
 static void _chk_os() {
 	static constexpr const char* ReleaseFile = "/etc/os-release" ;
-	::vector_s lines      = AcFd(ReleaseFile).read_lines(true/*no_file_ok*/) ;
+	::vector_s lines      = AcFd(ReleaseFile,true/*err_ok*/).read_lines() ;
 	::string   id         ;
 	::string   version_id ;
 	if (!lines) exit(Rc::System,"cannot find",ReleaseFile) ;
@@ -133,8 +133,8 @@ static void _chk_os() {
 }
 
 static void _record_targets(Job job) {
-	::string   targets_file  = AdminDirS+"targets"s                              ;
-	::vector_s known_targets = AcFd(targets_file).read_lines(true/*no_file_ok*/) ;
+	::string   targets_file  = AdminDirS+"targets"s                           ;
+	::vector_s known_targets = AcFd(targets_file,true/*err_ok*/).read_lines() ;
 	for( Node t : job->deps ) {
 		::string tn = t->name() ;
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
@@ -515,11 +515,10 @@ int main( int argc , char** argv ) {
 		try                       { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/,true/*ignore_errs*/) ; } // cleanup
 		catch (::string const& e) { exit(Rc::System,e) ;                                                                           }
 		//
-		if (_g_seen_make) AcFd(PrivateAdminDirS+"kpi"s,FdAction::Create).write(g_kpi.pretty_str()) ;
+		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , FdAction::Create ).write(g_kpi.pretty_str()) ;
 	}
 	//
 	Backend::s_finalize() ;
-	Persistent::finalize() ; // XXX : suppress when bug is found
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;
 }

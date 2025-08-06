@@ -38,10 +38,10 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
 			// try to connect to an existing server
-			AcFd            server_mrkr_fd     { ServerMrkr }                ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
-			::vector_s      lines              = server_mrkr_fd.read_lines() ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
-			::string const& server_service_str = lines[0]                    ;
-			::string const& pid_str            = lines[1]                    ;
+			AcFd            server_mrkr_fd     { ServerMrkr , true/*err_ok*/ } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
+			::vector_s      lines              = server_mrkr_fd.read_lines()   ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
+			::string const& server_service_str = lines[0]                      ;
+			::string const& pid_str            = lines[1]                      ;
 			try {
 				if (host()==SockFd::s_host(server_service_str)) {
 					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary

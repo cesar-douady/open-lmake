@@ -73,7 +73,7 @@ namespace Engine::Persistent {
 		Trace trace("s_from_disk") ;
 		//
 		try        { s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_file_name).read())} ; }
-		catch(...) { s_rules = nullptr ;                                                        }
+		catch(...) { s_rules = nullptr                                                        ; }
 		_s_set_rules() ;
 		//
 		trace("done") ;
@@ -201,8 +201,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _init_config() {
-		try         { g_config = new Config{deserialize<Config>(AcFd(PrivateAdminDirS+"config_store"s).read())} ; g_config->booted = true ; } // work around clang-tidy bug thinking booted is garbage
-		catch (...) { g_config = new Config                                                                     ;                           }
+		try         { g_config = new Config{deserialize<Config>(AcFd(cat(PrivateAdminDirS,"config_store")).read())} ; g_config->booted = true ; } // buggy clang-tidy sees booted as garbage
+		catch (...) { g_config = new Config                                                                         ;                           }
 	}
 
 	static void _init_srcs_rules(bool rescue) {
@@ -273,24 +273,9 @@ namespace Engine::Persistent {
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
 	}
 
-	void finalize() {               // XXX : suppress when bug is found
-		_g_job_file      .close() ;
-		_g_job_name_file .close() ;
-		_g_deps_file     .close() ;
-		_g_targets_file  .close() ;
-		_g_node_file     .close() ;
-		_g_node_name_file.close() ;
-		_g_job_tgts_file .close() ;
-		_g_rule_crc_file .close() ;
-		_g_rule_tgts_file.close() ;
-		_g_sfxs_file     .close() ;
-		_g_pfxs_file     .close() ;
-		//Delay(1).sleep_for() ;
-	}
-
 	static void _save_config() {
-		AcFd( PrivateAdminDirS+"config_store"s , FdAction::Create ).write(serialize(*g_config)  ) ;
-		AcFd( AdminDirS+"config"s              , FdAction::Create ).write(g_config->pretty_str()) ;
+		AcFd( cat(PrivateAdminDirS,"config_store") , FdAction::Create ).write(serialize(*g_config)  ) ;
+		AcFd( cat(AdminDirS,"config"             ) , FdAction::Create ).write(g_config->pretty_str()) ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dyn ) {

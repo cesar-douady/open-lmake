@@ -43,11 +43,11 @@ namespace Caches {
 	}
 
 	void DirCache::chk(ssize_t delta_sz) const {                               // START_OF_NO_COV debug only
-		AcFd     head_fd          { _lru_file(HeadS) } ;
-		Lru      head             ;                      if (+head_fd) deserialize(head_fd.read(),head) ;
+		AcFd     head_fd          { _lru_file(HeadS) , true/*err_ok*/ } ;
+		Lru      head             ;                                       if (+head_fd) deserialize(head_fd.read(),head) ;
 		::uset_s seen             ;
-		::string expected_newer_s = HeadS              ;
-		Sz       total_sz         = 0                  ;
+		::string expected_newer_s = HeadS                               ;
+		Sz       total_sz         = 0                                   ;
 		for( ::string entry_s=head.older_s ; entry_s!=HeadS ;) {
 			auto here = deserialize<Lru>(AcFd(_lru_file(entry_s)).read()) ;
 			//
@@ -76,8 +76,7 @@ namespace Caches {
 		}
 		//
 		::string sz_file = cat(dir_s,AdminDirS,"size") ;
-		AcFd     sz_fd   { sz_file }                   ;
-		throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
+		AcFd     sz_fd   { sz_file , true/*err_ok*/ }  ; throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
 		try                       { sz = from_string_with_unit(strip(sz_fd.read())) ; }
 		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;            }
 		//
@@ -251,11 +250,11 @@ namespace Caches {
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard& nfs_guard ) {
 		throw_unless( new_sz<=sz , "cannot store entry of size ",new_sz," in cache of size ",sz ) ;
 		//
-		::string head_file        = _lru_file(HeadS)              ;
-		AcFd     head_fd          { nfs_guard.access(head_file) } ;
-		Lru      head             ;                                 if (+head_fd) deserialize(head_fd.read(),head) ;
-		bool     some_removed     = false                         ;
-		::string expected_older_s = HeadS                         ;                                     // for assertion only
+		::string head_file        = _lru_file(HeadS)                               ;
+		AcFd     head_fd          { nfs_guard.access(head_file) , true/*err_ok*/ } ;
+		Lru      head             ;                                                  if (+head_fd) deserialize(head_fd.read(),head) ;
+		bool     some_removed     = false                                          ;
+		::string expected_older_s = HeadS                                          ;                    // for assertion only
 		//
 		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                                   // total size contains old_sz
 		head.sz -= old_sz ;
@@ -289,8 +288,8 @@ namespace Caches {
 	DirCache::Sz DirCache::_lru_remove( ::string const& entry_s , NfsGuard& nfs_guard ) {
 		SWEAR(entry_s!=HeadS) ;
 		//
-		AcFd here_fd { nfs_guard.access(_lru_file(entry_s)) } ; if (!here_fd) return 0 ; // nothing to remove
-		auto here    = deserialize<Lru>(here_fd.read())       ;
+		AcFd here_fd { nfs_guard.access(_lru_file(entry_s)) , true/*err_ok*/ } ; if (!here_fd) return 0 ; // nothing to remove
+		auto here    = deserialize<Lru>(here_fd.read())                        ;
 		if (here.newer_s==here.older_s) {
 			::string newer_older_file = _lru_file(here.newer_s)                                           ;
 			auto     newer_older      = deserialize<Lru>(AcFd(nfs_guard.access(newer_older_file)).read()) ;
@@ -346,10 +345,10 @@ namespace Caches {
 	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , bool do_lock ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
-		NfsGuard                    nfs_guard    { file_sync }                                         ;
-		::string                    abs_jn_s     = dir_s+job+'/'                                       ;
-		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , FdAction::Dir }    ;
-		LockedFd                    lock         ;                                                       if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
+		NfsGuard                    nfs_guard    { file_sync }                                                       ;
+		::string                    abs_jn_s     = dir_s+job+'/'                                                     ;
+		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
+		LockedFd                    lock         ;                                                                     if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
 		::vector_s                  repos        ;
@@ -412,10 +411,10 @@ namespace Caches {
 		{	LockedFd lock { dir_s , true /*exclusive*/ }         ;                                           // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( match_key , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_mk_newest( match_key , sz , nfs_guard ) ;
-			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                              // _lru_remove worked => everything should be accessible
-			data_fd = AcFd( dfd , "data"s ) ; SWEAR(+data_fd) ;                                              // .
+			//                            err_ok
+			info_fd = AcFd( dfd , "info" , true ) ; SWEAR(+info_fd) ;                                        // _lru_remove worked => everything should be accessible
+			data_fd = AcFd( dfd , "data" , true ) ; SWEAR(+data_fd) ;                                        // .
 		}
-		 ;
 		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
 	}
 
@@ -458,7 +457,7 @@ namespace Caches {
 		if (hit==Yes) {
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
 			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                // finally, we did not populate the entry
-			throw_unless( AcFd(dfd,"data"s).read()==job_data , "incoherent targets" ) ;                                   // check coherence
+			throw_unless( AcFd(dfd,"data").read()==job_data , "incoherent targets" ) ;                                    // check coherence
 		} else {
 			try {
 				old_sz += _lru_remove(jnid_s,nfs_guard) ;

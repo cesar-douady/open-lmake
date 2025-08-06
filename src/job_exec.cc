@@ -620,15 +620,15 @@ int main( int argc , char* argv[] ) {
 		}
 		for( ::string& t : g_washed )
 			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , No/*late*/ , Comment::wash ) ;
-		//
-		if (+g_start_info.stdin) g_gather.child_stdin = Fd(g_start_info.stdin) ;
-		else                     g_gather.child_stdin = Fd("/dev/null"       ) ;
+		//                                                                      err_ok
+		if (+g_start_info.stdin) g_gather.child_stdin = Fd( g_start_info.stdin , true  ) ;
+		else                     g_gather.child_stdin = Fd( "/dev/null"        , false ) ;
 		g_gather.child_stdin.no_std() ;
 		g_gather.child_stderr = Child::PipeFd ;
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = Fd(dir_guard(g_start_info.stdout),FdAction::Create) ;
+			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , FdAction::Create ) ;
 			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::stdout ) ; // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}

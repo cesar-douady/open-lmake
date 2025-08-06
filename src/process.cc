@@ -43,7 +43,8 @@ using namespace Disk ;
 		if (!as_session)
 			/**/                       nice_val = ::nice(nice) ;
 		else
-			try                      { AcFd("/proc/self/autogroup",FdAction::Write).write(cat(nice)) ; } // as_session creates a new autogroup : apply nice_val to it, not between processes within it
+			// as_session creates a new autogroup, apply nice_val to it, not between processes within it
+			try                      { AcFd("/proc/self/autogroup",FdAction::Write).write(cat(nice)) ; }
 			catch (::string const&e) { nice_val = ::nice(nice) ;                                       } // best effort
 	}
 	//

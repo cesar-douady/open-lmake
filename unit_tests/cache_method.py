@@ -45,7 +45,7 @@ else :
 
 	os.system(f'mkdir bck ; mv LMAKE bck ; rm -f *stable*')
 
-	ut.lmake( '-cnone'     , 'stable1' , 'stable5' , 'stable9'  , 'stable13' , 'unstable1' , 'unstable5' , 'unstable9'  , 'unstable13' , hit_done=0 , done=8               )
-	ut.lmake( '-cdownload' , 'stable2' , 'stable6' , 'stable10' , 'stable14' , 'unstable2' , 'unstable6' , 'unstable10' , 'unstable14' , hit_done=4 , done=4               )
-	ut.lmake( '-ccheck'    , 'stable3' , 'stable7' , 'stable11' , 'stable15' , 'unstable3' , 'unstable7' , 'unstable11' , 'unstable15' , hit_done=0 , done=8 , bad_cache=2 )
-	ut.lmake( '-cplain'    , 'stable4' , 'stable8' , 'stable12' , 'stable16' , 'unstable4' , 'unstable8' , 'unstable12' , 'unstable16' , hit_done=4 , done=4               )
+	ut.lmake( '-cnone'     , 'stable1' , 'stable5' , 'stable9'  , 'stable13' , 'unstable1' , 'unstable5' , 'unstable9'  , 'unstable13' , hit_done=0 , done=8                      )
+	ut.lmake( '-cdownload' , 'stable2' , 'stable6' , 'stable10' , 'stable14' , 'unstable2' , 'unstable6' , 'unstable10' , 'unstable14' , hit_done=4 , done=4                      )
+	ut.lmake( '-ccheck'    , 'stable3' , 'stable7' , 'stable11' , 'stable15' , 'unstable3' , 'unstable7' , 'unstable11' , 'unstable15' , hit_done=0 , done=8 , bad_cache_upload=2 )
+	ut.lmake( '-cplain'    , 'stable4' , 'stable8' , 'stable12' , 'stable16' , 'unstable4' , 'unstable8' , 'unstable12' , 'unstable16' , hit_done=4 , done=4                      )

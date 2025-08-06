@@ -163,6 +163,8 @@ namespace Disk {
 		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
 		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
 		FileInfo( FileStat const&                                    ) ;
+		//
+		FileInfo(const char* name) : FileInfo{::string(name)} {} // ensure no confusion
 		// accesses
 		bool    operator==(FileInfo const&) const = default ;
 		bool    operator+ (               ) const { return tag()!=FileTag::Unknown ; }
@@ -184,10 +186,12 @@ namespace Disk {
 		FileSig( Fd at , ::string const& name , bool no_follow=true ) : FileSig{FileInfo(at,name,no_follow)} {}
 		FileSig( FileInfo const&                                    ) ;
 		FileSig( FileTag tag                                        ) : _val{+tag}                           {}
+		//
+		FileSig(const char* name) : FileSig{::string(name)} {} // ensure no confusion
 		// accesses
 	public :
 		bool    operator==(FileSig const& fs) const {
-			if( !self && !fs ) return true          ;  // consider Dir and None as identical
+			if( !self && !fs ) return true          ;          // consider Dir and None as identical
 			else                return _val==fs._val ;
 		}
 		//
@@ -195,7 +199,7 @@ namespace Disk {
 		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
 		// data
 	private :
-		uint64_t _val = 0 ;                            // by default, no file
+		uint64_t _val = 0 ;                                    // by default, no file
 	} ;
 
 	inline FileSig FileInfo::sig() const { return FileSig(self) ; }
@@ -265,7 +269,7 @@ namespace Disk {
 		::string const& access_dir(::string const& dir_s) {                         return dir_s ; }
 		::string const& change    (::string const& file ) { to_stamp.insert(file) ; return file  ; }
 		void close() {
-			for( ::string const& f : to_stamp ) if ( AcFd fd{f} ; +fd ) ::fsync(fd) ;
+			for( ::string const& f : to_stamp ) if ( AcFd fd{f,true/*err_ok*/} ; +fd ) ::fsync(fd) ;
 			to_stamp.clear() ;
 		}
 		// data
@@ -335,10 +339,10 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	inline bool  is_dir_s ( Fd at , ::string const& dir_s={} , bool no_follow=true ) { return FileInfo(at,no_slash(dir_s),no_follow).tag()==FileTag::Dir ; }
-	inline bool  is_target( Fd at , ::string const& file ={} , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).exists()            ; }
-	inline bool  is_exe   ( Fd at , ::string const& file ={} , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).tag()==FileTag::Exe ; }
-	inline Ddate file_date( Fd at , ::string const& file ={} , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).date                ; }
+	inline bool  is_dir_s ( Fd at , ::string const& dir_s , bool no_follow=true ) { return FileInfo(at,no_slash(dir_s),no_follow).tag()==FileTag::Dir ; }
+	inline bool  is_target( Fd at , ::string const& file  , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).exists()            ; }
+	inline bool  is_exe   ( Fd at , ::string const& file  , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).tag()==FileTag::Exe ; }
+	inline Ddate file_date( Fd at , ::string const& file  , bool no_follow=true ) { return FileInfo(at,file           ,no_follow).date                ; }
 
 	inline ::vector_s        lst_dir_s( ::string const& dir_s ,                            ::string const& pfx={} ) { return lst_dir_s(Fd::Cwd,dir_s,pfx        ) ;               }
 	inline size_t/*pos*/     mk_dir_s ( ::string const& dir_s ,                bool unlnk_ok=false                ) { return mk_dir_s (Fd::Cwd,dir_s,   unlnk_ok) ;               }

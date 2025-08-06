@@ -412,7 +412,7 @@ namespace Backends::Slurm {
 		throw_unless( init_func          , "cannot find function slurm_init in "         ,lib_slurm_ ) ;
 		throw_unless( load_ctl_conf_func , "cannot find function slurm_load_ctl_conf in ",lib_slurm_ ) ;
 		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
-		if (!AcFd(config_file_)) {
+		if (!AcFd(config_file_,true/*err_ok*/)) {
 			::string msg = "cannot find slurm config\n" ;
 			if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "   ,config_file_,'\n'            ),1) ;
 			else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using ",config_file_," by default)\n"),1) ;
@@ -425,7 +425,7 @@ namespace Backends::Slurm {
 			// in child
 			::atexit(_exit1) ;                                 // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
 			Fd dev_null_fd { "/dev/null" , FdAction::Write } ; // this is just a probe, we want nothing on stderr
-			::dup2(dev_null_fd,2) ;                            // so redirect to /dev/null
+			::dup2(dev_null_fd,Fd::Stderr) ;                   // so redirect to /dev/null
 			::alarm(to) ;                                      // ensure init_func does not block
 			init_func(config_file_.c_str()) ;                  // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
 			::_exit(0) ;                                       // if we are here, everything went smoothly

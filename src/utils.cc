@@ -31,6 +31,26 @@ using namespace Time ;
 ::string& operator+=( ::string& os , Fd   const& fd ) { return os <<"Fd("  << fd.fd <<')' ; }
 ::string& operator+=( ::string& os , AcFd const& fd ) { return os <<"AcFd("<< fd.fd <<')' ; }
 
+int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action ) {
+	int res ;
+	switch (action) {
+		case FdAction::Read                      : res = ::openat( at ,          file .c_str() , O_RDONLY                     | O_CLOEXEC                     ) ; break ;
+		case FdAction::Dir                       : res = ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY       | O_CLOEXEC                     ) ; break ;
+		case FdAction::Write                     : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC           | O_CLOEXEC                     ) ; break ;
+		case FdAction::Append                    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_APPEND          | O_CLOEXEC                     ) ; break ;
+		case FdAction::Create                    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0666 ) ; break ;
+		case FdAction::CreateExe                 : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0777 ) ; break ;
+		case FdAction::CreateReadOnly            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0444 ) ; break ;
+		case FdAction::CreateExeReadOnly         : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0555 ) ; break ;
+		case FdAction::CreateNoFollow            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0666 ) ; break ;
+		case FdAction::CreateNoFollowExe         : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0777 ) ; break ;
+		case FdAction::CreateNoFollowReadOnly    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0444 ) ; break ;
+		case FdAction::CreateNoFollowExeReadOnly : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0555 ) ; break ;
+	DF}
+	if ( !err_ok && res<0 ) throw cat("cannot open for ",action," (",::strerror(errno),") : ",file_msg(at,file)) ;
+	return res ;
+}
+
 void Fd::write(::string_view data) const {
 	for( size_t cnt=0 ; cnt<data.size() ;) {
 		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ; throw_unless( c>0 , "cannot write to fd ",fd ) ;
@@ -68,8 +88,8 @@ size_t Fd::read_to( ::span<char> dst , bool no_file_ok ) const {
 	return dst.size() ;
 }
 
-::vector_s Fd::read_lines(bool no_file_ok) const {
-	::string content = read(Npos/*sz*/,no_file_ok) ;
+::vector_s Fd::read_lines() const {
+	::string content = read( Npos/*sz*/ , true/*no_file_ok*/ ) ;
 	if (!content            ) return {} ;
 	if (content.back()=='\n') content.pop_back() ;
 	return split(content,'\n') ;
