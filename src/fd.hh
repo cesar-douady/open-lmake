@@ -177,52 +177,30 @@ struct BlockedSig {
 // Pipe
 //
 
-struct Pipe {
+template<class F> struct _Pipe {
 	// cxtors & casts
-	Pipe(                                    ) = default ;
-	Pipe( NewType                            ) { open(             ) ; }
-	Pipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
+	_Pipe(                                    ) = default ;
+	_Pipe( NewType                            ) { open(             ) ; }
+	_Pipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
 	// services
 	void open(                          ) { open(0,false) ; }
 	void open( int flags , bool no_std_ ) {
 		int fds[2] ;
-		swear_prod( ::pipe2(fds,flags)==0 , "cannot create pipes" ) ;
-		read  = {fds[0],no_std_} ;
-		write = {fds[1],no_std_} ;
-	}
-	void close() {
-		read .close() ;
-		write.close() ;
-	}
-	void no_std() {
-		read .no_std() ;
-		write.no_std() ;
-	}
-	// data
-	Fd read  ; // read  side of the pipe
-	Fd write ; // write side of the pipe
-} ;
-
-struct AcPipe {
-	// cxtors & casts
-	AcPipe(                                    ) = default ;
-	AcPipe( NewType                            ) { open(             ) ; }
-	AcPipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
-	// services
-	void open(                          ) { open(0,false) ; }
-	void open( int flags , bool no_std_ ) {
-		int fds[2] ;
-		swear_prod( ::pipe2(fds,flags)==0 , "cannot create pipes" ) ;
-		read  = AcFd(fds[0],no_std_) ;
-		write = AcFd(fds[1],no_std_) ;
+		int rc = ::pipe2(fds,flags) ;
+		if (rc<0) fail_prod( "cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",::strerror(errno) ) ;
+		read  = F(fds[0],no_std_) ;
+		write = F(fds[1],no_std_) ;
 	}
 	void close () { read.close () ; write.close () ; }
-	void detach() { read.detach() ; write.detach() ; }
 	void no_std() { read.no_std() ; write.no_std() ; }
+	void detach() { read.detach() ; write.detach() ; }
 	// data
-	AcFd read  ; // read  side of the pipe
-	AcFd write ; // write side of the pipe
+	F read  ; // read  side of the pipe
+	F write ; // write side of the pipe
 } ;
+
+using Pipe   = _Pipe<Fd  > ;
+using AcPipe = _Pipe<AcFd> ;
 
 //
 // EventFd

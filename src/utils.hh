@@ -483,6 +483,9 @@ inline ::string no_slash(::string const& path) {
 
 enum class FdAction : uint8_t {
 	Read
+,	ReadNonBlock
+,	ReadNoFollow
+,	ReadNoFollowNonBlock
 ,	Dir
 ,	Write
 ,	Append
@@ -501,7 +504,7 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                                              // the highest standard fd
+	static const Fd Std    ;                                                           // the highest standard fd
 	// cxtors & casts
 private :
 	static int _s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read ) ;
@@ -510,8 +513,8 @@ public :
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd( Fd at , const char* file ) : Fd{at,::string(file)} {}                                             // ensure no confusion
-	Fd(         const char* file ) : Fd{   ::string(file)} {}                                             // .
+	Fd( Fd at , const char* file ) : Fd{at,::string(file)} {}                          // ensure no confusion
+	Fd(         const char* file ) : Fd{   ::string(file)} {}                          // .
 	//
 	Fd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,err_ok,action) , no_std_ } {}
 	Fd(         ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , err_ok , action , no_std_    } {}
@@ -523,18 +526,18 @@ public :
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
-	/**/      bool              operator== ( Fd const&                                ) const = default ;
-	/**/      ::strong_ordering operator<=>( Fd const&                                ) const = default ;
-	/**/      void              write      ( ::string_view data                       ) const ;           // writing does not modify the Fd object
-	/**/      ::string          read       ( size_t sz=Npos   , bool no_file_ok=false ) const ;           // read sz bytes or to eof
-	/**/      ::vector_s        read_lines (                                          ) const ;
-	/**/      size_t            read_to    ( ::span<char> dst , bool no_file_ok=false ) const ;
-	/**/      Fd                dup        (                                          ) const { return ::dup(fd) ;                     }
-	constexpr Fd                detach     (                                          )       { Fd res = self ; fd = -1 ; return res ; }
-	constexpr void              close      (                                          ) ;
-	/**/      void              no_std     (                                          ) ;
-	/**/      void              cloexec    (bool set=true                             ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
-	/**/      size_t            hash       (                                          ) const { return fd ;                            }
+	constexpr bool              operator== (Fd const&              ) const = default ;
+	constexpr ::strong_ordering operator<=>(Fd const&              ) const = default ;
+	/**/      void              write      (::string_view data     ) const ;           // writing does not modify the Fd object
+	/**/      ::string          read       (size_t        sz  =Npos) const ;           // read sz bytes or to eof
+	/**/      ::vector_s        read_lines (                       ) const ;
+	/**/      size_t            read_to    (::span<char>  dst      ) const ;
+	/**/      Fd                dup        (                       ) const { return ::dup(fd) ;                     }
+	constexpr Fd                detach     (                       )       { Fd res = self ; fd = -1 ; return res ; }
+	constexpr void              close      (                       ) ;
+	/**/      void              no_std     (                       ) ;
+	/**/      void              cloexec    (bool          set =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
+	constexpr size_t            hash       (                       ) const { return fd ;                            }
 	// data
 	int fd = -1 ;
 } ;

@@ -313,24 +313,24 @@ Status Gather::exec_child() {
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
 	ServerSockFd             job_master_fd      { New }       ;
-	AcFd                     fast_report_fd     ;                                                     // always open, never waited for
+	AcFd                     fast_report_fd     ;                                                         // always open, never waited for
 	AcFd                     child_fd           ;
 	Epoll<Kind>              epoll              { New }       ;
 	Status                   status             = Status::New ;
-	::umap<Fd,Jerr>          delayed_check_deps ;                                                     // check_deps events are delayed to ensure all previous deps are received
+	::umap<Fd,Jerr>          delayed_check_deps ;                                                         // check_deps events are delayed to ensure all previous deps are received
 	size_t                   live_out_pos       = 0           ;
 	::umap<Fd,IMsgBuf      > server_slaves      ;
-	::umap<Fd,JobSlaveEntry> job_slaves         ;                                                     // Jerr's are waiting for confirmation
+	::umap<Fd,JobSlaveEntry> job_slaves         ;                                                         // Jerr's are waiting for confirmation
 	bool                     panic_seen         = false       ;
 	PD                       end_timeout        = PD::Future  ;
 	PD                       end_child          = PD::Future  ;
 	PD                       end_kill           = PD::Future  ;
-	PD                       end_heartbeat      = PD::Future  ;                                       // heartbeat to probe server when waiting for it
+	PD                       end_heartbeat      = PD::Future  ;                                           // heartbeat to probe server when waiting for it
 	bool                     timeout_fired      = false       ;
 	size_t                   kill_step          = 0           ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
-		if (status==Status::New) status = status_ ;                                                   // only record first status
+		if (status==Status::New) status = status_ ;                                                       // only record first status
 		if (+msg_              ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false)->void {
@@ -354,7 +354,7 @@ Status Gather::exec_child() {
 	} ;
 	auto open_fast_report_fd = [&]()->void {
 		SWEAR(+autodep_env.fast_report_pipe) ;
-		fast_report_fd = ::open(autodep_env.fast_report_pipe.c_str(),O_RDONLY|O_CLOEXEC|O_NONBLOCK) ; // O_NONBLOCK is important to avoid blocking waiting for child, no impact on epoll-controled ops
+		fast_report_fd = AcFd( autodep_env.fast_report_pipe , true/*err_ok*/ , FdAction::ReadNonBlock ) ; // avoid blocking waiting for child, no impact on epoll-controled ops
 		//
 		if (+fast_report_fd) {                                                         // work w/o fast report if it does not work, XXX! : seen on some instances of Centos7
 			trace("open_fast_report_fd",autodep_env.fast_report_pipe,fast_report_fd) ;

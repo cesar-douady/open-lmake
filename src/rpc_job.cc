@@ -526,7 +526,6 @@ namespace Caches {
 			#endif
 			//
 			NodeIdx   n_targets = targets.size()                                              ;
-			auto      mode      = [](FileTag t)->int { return t==FileTag::Exe?0777:0666 ; }   ;
 			InflateFd data_fd   { ::move(info_fd.second) , bool(job_info.start.start.z_lvl) } ;
 			//
 			::string     target_szs_str = data_fd.read(n_targets*sizeof(Sz)) ;
@@ -541,24 +540,25 @@ namespace Caches {
 				if (tag==FileTag::None) unlnk(           tn  , false , false , false , true    ) ; // if we do not want the target, avoid unlinking potentially existing sub-files
 				else                    unlnk( dir_guard(tn) , true                            ) ;
 				switch (tag) {
-					case FileTag::None  :                                                                                                            break ;
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) )                                       ; break ;
-					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC , mode(tag) )) ; break ;
+					case FileTag::None  :                                                                      break ;
+					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) ) ; break ;
+					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , FdAction::CreateNoFollow )    ; break ;
 					case FileTag::Exe   :
-					case FileTag::Reg   :
-						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag) )) , sz ) ; }
-						else    { trace("no_data_to",tn   ) ;                     AcFd(::open( tn.c_str() , O_WRONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC,mode(tag) ))        ; } // may be an empty exe
-					break ;
+					case FileTag::Reg   : {
+						AcFd fd { tn , tag==FileTag::Exe?FdAction::CreateNoFollowExe:FdAction::CreateNoFollow } ;
+						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
+						else      trace("no_data_to",tn   ) ;                                      // empty exe are Exe, not Empty
+					} break ;
 				DN}
-				entry.second.sig = FileSig(tn) ;                          // target digest is not stored in cache
+				entry.second.sig = FileSig(tn) ;                                                   // target digest is not stored in cache
 			}
-			job_info.end.end_date = New ;                                 // date must be after files are copied
+			job_info.end.end_date = New ;                                                          // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 			return job_info ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
-			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ; // clean up partial job
+			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                          // clean up partial job
 			throw e ;
 		}
 	}
@@ -590,7 +590,7 @@ namespace Caches {
 					case FileTag::Exe   :
 						if (sz) {
 							trace("read_from",tn,sz) ;
-							data_fd.send_from( {::open(tn.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOATIME)} , sz ) ;
+							data_fd.send_from( AcFd(::open(tn.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOATIME)) , sz ) ;
 							goto ChkSig ;
 						} else {
 							trace("empty_from",tn) ;
