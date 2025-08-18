@@ -311,7 +311,6 @@ namespace Backends::Sge {
 				throw msg ;
 			}                                                                                         // END_OF_NO_COV
 			::string cmd_out(100,0) ;                                                                 // 100 is plenty for a job id
-			c2p.write.close() ;
 			trace("wait_cmd_out",c2p.read) ;
 			ssize_t cnt = ::read( c2p.read , cmd_out.data() , cmd_out.size() ) ;
 			if (cnt==0                     ) FAIL("no data from"         ,cmd_line[0]                          ) ;

@@ -827,7 +827,7 @@ lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 	@[ -f lmake_env-cache/LMAKE/size ] || {       \
 		echo init lmake_env-cache               ; \
 		mkdir -p lmake_env-cache/LMAKE          ; \
-		echo '300M' >lmake_env-cache/LMAKE/size ; \
+		echo '100M' >lmake_env-cache/LMAKE/size ; \
 	}
 	@set -e ; cd lmake_env                            ; \
 	export CXX=$(CXX)                                 ; \

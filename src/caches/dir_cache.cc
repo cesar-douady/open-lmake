@@ -248,21 +248,26 @@ namespace Caches {
 	}
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard& nfs_guard ) {
+		Trace trace("DirCache::_mk_room",old_sz,new_sz) ;
 		throw_unless( new_sz<=sz , "cannot store entry of size ",new_sz," in cache of size ",sz ) ;
 		//
 		::string head_file        = _lru_file(HeadS)                               ;
 		AcFd     head_fd          { nfs_guard.access(head_file) , true/*err_ok*/ } ;
 		Lru      head             ;                                                  if (+head_fd) deserialize(head_fd.read(),head) ;
+		Sz       old_head_sz      = head.sz                                        ;                                                  // for trace only
 		bool     some_removed     = false                                          ;
-		::string expected_older_s = HeadS                                          ;                    // for assertion only
+		::string expected_older_s = HeadS                                          ;               // for assertion only
 		//
-		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                                   // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                              // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
-			SWEAR(head.newer_s!=HeadS) ;                                                                // else this would mean an empty cache and we know an empty cache can accept new_sz
+			SWEAR(head.newer_s!=HeadS) ;                                                           // else this would mean an empty cache and we know an empty cache can accept new_sz
 			auto here = deserialize<Lru>(AcFd(nfs_guard.access(_lru_file(head.newer_s))).read()) ;
+			//
 			SWEAR( here.older_s==expected_older_s , here.older_s,expected_older_s ) ;
-			SWEAR( head.sz     >=here.sz          , head.sz     ,here.sz          ) ;                   // total size contains this entry
+			SWEAR( head.sz     >=here.sz          , head.sz     ,here.sz          ) ;              // total size contains this entry
+			trace("evict",here.sz,head.newer_s) ;
+			//
 			unlnk( nfs_guard.change(dir_s+no_slash(head.newer_s)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
 			expected_older_s  =        head.newer_s  ;
 			head.sz          -=        here.sz       ;
@@ -283,6 +288,7 @@ namespace Caches {
 			}
 		}
 		AcFd(nfs_guard.change(dir_guard(head_file)),FdAction::Create).write(serialize(head)) ;
+		trace("total_sz",old_head_sz,"->",head.sz) ;
 	}
 
 	DirCache::Sz DirCache::_lru_remove( ::string const& entry_s , NfsGuard& nfs_guard ) {
@@ -437,7 +443,7 @@ namespace Caches {
 		::string jn_s      = job+'/'                       ;
 		::string key_s     = cat("key-",key_crc.hex(),'/') ;
 		::string jnid_s    = jn_s+key_s                    ;
-		Trace trace("DirCache::sub_commit",upload_key,job) ;
+		Trace trace("DirCache::sub_commit",upload_key,jnid_s) ;
 		//
 		// START_OF_VERSIONING
 		::string job_info_str = serialize(job_info                ) ;
@@ -449,16 +455,16 @@ namespace Caches {
 		//
 		// upload is the only one to take several locks and it starts with the global lock
 		// this way, we are sure to avoid deadlocks
-		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard)                                                                                ;
-		Sz       new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
-		bool     made_room = false                                                                                                             ;
-		LockedFd lock      { dir_s , true/*exclusive*/ }                                                                                       ; // lock as late as possible
-		Bool3    hit       = _sub_match( job , ::ref(::vmap_s<DepDigest>()) , false/*do_lock*/ ).hit                                           ;
+		Sz       old_sz = _reserved_sz(upload_key,nfs_guard)                                                                                ;
+		Sz       new_sz = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
+		LockedFd lock   { dir_s , true/*exclusive*/ }                                                                                       ; // lock as late as possible
+		Bool3    hit    = _sub_match( job , ::ref(::vmap_s<DepDigest>()) , false/*do_lock*/ ).hit                                           ;
 		if (hit==Yes) {
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
-			_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                // finally, we did not populate the entry
-			throw_unless( AcFd(dfd,"data").read()==job_data , "incoherent targets" ) ;                                    // check coherence
+			_dismiss( upload_key , old_sz , nfs_guard ) ;                                                                                     // finally, we did not populate the entry
+			throw_unless( AcFd(dfd,"data").read()==job_data , "incoherent targets" ) ;                                                        // check coherence
 		} else {
+			bool made_room = false ;
 			try {
 				old_sz += _lru_remove(jnid_s,nfs_guard) ;
 				unlnk_inside_s(dfd) ;
@@ -467,7 +473,7 @@ namespace Caches {
 				made_room = true ;
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
-				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
+				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                               // store deps in a compact format so that matching is fast
 				int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
 				// END_OF_VERSIONING
 				if (rc<0) throw "cannot move data from tmp to final destination"s ;
@@ -475,8 +481,8 @@ namespace Caches {
 				_lru_mk_newest( jnid_s , new_sz , nfs_guard ) ;
 			} catch (::string const& e) {
 				trace("failed",e) ;
-				unlnk_inside_s(dfd) ;                                                                                     // clean up in case of partial execution
-				_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                            // finally, we did not populate the entry
+				unlnk_inside_s(dfd) ;                                                                                                         // clean up in case of partial execution
+				_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                                // finally, we did not populate the entry
 				return false/*ok*/ ;
 			}
 		}
