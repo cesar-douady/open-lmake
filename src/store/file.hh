@@ -33,10 +33,38 @@ namespace Store {
 		File ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
 		~File(                                        ) { close()               ; }
 		//
-		File& operator=(File&& other) ;
+		File& operator=(File&& other) {
+			close() ;
+			name     = ::move(other.name    ) ;
+			base     =        other.base      ; other.base     = nullptr ;
+			size     =        other.size      ; other.size     = 0       ;
+			writable =        other.writable  ; other.writable = false   ;
+			_fd      = ::move(other._fd     ) ;
+			return self ;
+		}
 		//
-		void init( ::string const& name_ , bool writable_ ) ;
-		void init( NewType                                ) { init("",true/*writable_*/) ; }
+		void init( NewType                                ) { init({},true/*writable_*/) ; }
+		void init( ::string const& name_ , bool writable_ ) {
+			name     = name_     ;
+			writable = writable_ ;
+			//
+			chk_thread() ;
+			//
+			_alloc() ;
+			if (+name) {
+				int open_flags = O_CLOEXEC ;
+				if (writable) { open_flags |= O_RDWR | O_CREAT ; Disk::dir_guard(name) ; }
+				else            open_flags |= O_RDONLY         ;
+				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				_fd = ::open( name.c_str() , open_flags , 0644 ) ;                   // mode is only used if created, which implies writable
+				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if (writable) _s_chk_rc( ::lseek( _fd , 0/*offset*/ , SEEK_END ) ) ; // ensure writes (when expanding) are done at end of file when resizing
+				SWEAR_PROD(+_fd) ;
+				Disk::FileInfo fi{_fd} ;
+				SWEAR(fi.tag()>=FileTag::Reg) ;
+				_map(fi.sz) ;
+			}
+		}
 		void close() {
 			chk_thread() ;
 			//
@@ -80,9 +108,9 @@ namespace Store {
 			_alloc() ;
 			_map(sz) ;
 		}
-		void chk         () const { if (+_fd     ) SWEAR( base                                             ) ; }
-		void chk_thread  () const { if (ThreadKey) SWEAR( t_thread_key==ThreadKey , ThreadKey,t_thread_key ) ; }
-		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                          }
+		void chk         () const { if (+_fd     ) SWEAR( base                                                  ) ; }
+		void chk_thread  () const { if (ThreadKey) SWEAR( t_thread_key==ThreadKey , ThreadKey,t_thread_key,name ) ; }
+		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
 		void _dealloc() {
 			SWEAR(base) ;
@@ -95,7 +123,20 @@ namespace Store {
 			if (base==MAP_FAILED) FAIL_PROD(::strerror(errno)) ;
 			size = 0 ;
 		}
-		void _map(size_t sz) ;
+		void _map(size_t sz) {
+			SWEAR(sz>=size) ;
+			if (sz==size) return ;
+			//
+			int map_prot  = PROT_READ ;
+			int map_flags = 0         ;
+			if (writable) map_prot  |= PROT_WRITE                  ;
+			if (!name   ) map_flags |= MAP_PRIVATE | MAP_ANONYMOUS ;
+			else          map_flags |= MAP_SHARED                  ;
+			//
+			void* actual = ::mmap( base+size , sz-size , map_prot , MAP_FIXED|map_flags , _fd , size ) ;
+			if (actual!=base+size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),size,sz,::strerror(errno)) ;
+			size = sz ;
+		}
 		// data
 	public :
 		::string       name     ;
@@ -105,53 +146,5 @@ namespace Store {
 	private :
 		AcFd _fd ;
 	} ;
-
-	template<char ThreadKey,size_t Capacity> File<ThreadKey,Capacity>& File<ThreadKey,Capacity>::operator=(File&& other) {
-		chk_thread() ;
-		close() ;
-		name     = ::move(other.name    ) ;
-		base     =        other.base      ; other.base     = nullptr ;
-		size     =        other.size      ; other.size     = 0       ;
-		writable =        other.writable  ; other.writable = false   ;
-		_fd      = ::move(other._fd     ) ;
-		return self ;
-	}
-
-	template<char ThreadKey,size_t Capacity> void File<ThreadKey,Capacity>::init( ::string const& name_ , bool writable_ ) {
-		chk_thread() ;
-		//
-		name     = name_     ;
-		writable = writable_ ;
-		//
-		_alloc() ;
-		if (+name) {
-			int open_flags = O_CLOEXEC ;
-			if (writable) { open_flags |= O_RDWR | O_CREAT ; Disk::dir_guard(name) ; }
-			else            open_flags |= O_RDONLY         ;
-			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_fd = ::open( name.c_str() , open_flags , 0644 ) ;                   // mode is only used if created, which implies writable
-			//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (writable) _s_chk_rc( ::lseek( _fd , 0/*offset*/ , SEEK_END ) ) ; // ensure writes (when expanding) are done at end of file when resizing
-			SWEAR_PROD(+_fd) ;
-			Disk::FileInfo fi{_fd} ;
-			SWEAR(fi.tag()>=FileTag::Reg) ;
-			_map(fi.sz) ;
-		}
-	}
-
-	template<char ThreadKey,size_t Capacity> void File<ThreadKey,Capacity>::_map( size_t sz ) {
-		SWEAR(sz>=size) ;
-		if (sz==size) return ;
-		//
-		int map_prot  = PROT_READ ;
-		int map_flags = 0         ;
-		if (writable) map_prot  |= PROT_WRITE                  ;
-		if (!name   ) map_flags |= MAP_PRIVATE | MAP_ANONYMOUS ;
-		else          map_flags |= MAP_SHARED                  ;
-		//
-		void* actual = ::mmap( base+size , sz-size , map_prot , MAP_FIXED|map_flags , _fd , size ) ;
-		if (actual!=base+size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),size,sz,::strerror(errno)) ;
-		size = sz ;
-	}
 
 }

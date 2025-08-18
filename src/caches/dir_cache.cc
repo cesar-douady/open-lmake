@@ -86,6 +86,10 @@ namespace Caches {
 		mk_dir_s(cat(dir_s,AdminDirS,"reserved/")) ;
 	}
 
+	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard& nfs_guard ) const {
+		return deserialize<Sz>(AcFd(nfs_guard.access(_reserved_file(upload_key,"sz"))).read()) ;
+	}
+
 	template<class T> T _full_deserialize( size_t&/*out*/ sz , ::string const& file ) {
 		::string      data = AcFd(file).read()             ;
 		::string_view view { data }                        ;
@@ -340,21 +344,13 @@ namespace Caches {
 		AcFd(nfs_guard.change(here_file),FdAction::Create).write(serialize(here)) ;
 	}
 
-	::string DirCache::_reserved_file( uint64_t upload_key , ::string const& sfx ) const {
-		return cat(dir_s,AdminDirS,"reserved/",to_hex(upload_key),'.',sfx) ;
-	}
-
-	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard& nfs_guard ) const {
-		return deserialize<Sz>(AcFd(nfs_guard.access(_reserved_file(upload_key,"sz"))).read()) ;
-	}
-
 	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , bool do_lock ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
 		NfsGuard                    nfs_guard    { file_sync }                                                       ;
 		::string                    abs_jn_s     = dir_s+job+'/'                                                     ;
-		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
 		LockedFd                    lock         ;                                                                     if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
+		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
 		::vector_s                  repos        ;

@@ -36,6 +36,8 @@ static void _terminate() {
 }
 
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_root ) {
+    t_thread_key = '=' ;                                                                             // we are the main thread
+	//
 	if (cd_root==No) SWEAR( chk_version_==No && read_only_ok ) ;                                     // cannot check repo without a repo dir
 	::set_terminate(_terminate) ;
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;        // catch all synchronous signals so as to generate a backtrace
@@ -66,7 +68,6 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
 		catch (::string const& e) { exit(Rc::Format,e) ;                               }
 	//
-    t_thread_key = '=' ;                                                                             // we are the main thread
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }

@@ -19,19 +19,19 @@
 ::string host() ;
 ::string fqdn() ; // fully qualified domain name (includes hostname)
 
-struct LockedFd : Fd {
+struct LockedFd : AcFd {
 	friend ::string& operator+=( ::string& , LockedFd const& ) ;
 	// cxtors & casts
-	LockedFd(                         ) = default ;
-	LockedFd( Fd fd_ , bool exclusive ) : Fd{fd_}         { lock(exclusive) ; }
-	LockedFd(LockedFd&& lfd           ) : Fd{::move(lfd)} { lfd.detach() ;    }
+	LockedFd() = default ;
 	//
-	~LockedFd() { unlock() ; }
+	LockedFd ( Fd fd_ , bool exclusive ) : AcFd{fd_} { lock  (exclusive) ; }
+	~LockedFd(                         )             { unlock(         ) ; }
 	//
-	LockedFd& operator=(LockedFd&& lfd) { fd = lfd.fd ; lfd.detach() ; return self ; }
+	LockedFd           (LockedFd&&) = default ;
+	LockedFd& operator=(LockedFd&&) = default ;
 	//
-	void lock  (bool e) { if (fd>=0) flock(fd,e?LOCK_EX:LOCK_SH) ; }
-	void unlock(      ) { if (fd>=0) flock(fd,  LOCK_UN        ) ; }
+	void lock  (bool e) { if (fd>=0) ::flock(fd,e?LOCK_EX:LOCK_SH) ; }
+	void unlock(      ) { if (fd>=0) ::flock(fd,  LOCK_UN        ) ; }
 } ;
 
 struct SockFd : AcFd {
