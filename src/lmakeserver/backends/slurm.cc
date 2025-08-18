@@ -391,7 +391,7 @@ namespace Backends::Slurm {
 		::_exit(1) ;
 	}
 	Daemon slurm_sense_daemon( ::string const& lib_slurm , ::string const& config_file ) {
-		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                        // if nothing to try, no backend but no error
+		if (!SlurmApi::g_sense_daemon_tab) throw ""s ;                                     // if nothing to try, no backend but no error
 		Trace trace(BeChnl,"slurm_sense_daemon",lib_slurm,config_file) ;
 		//
 		SlurmApi::g_lib_handler = ::dlopen(lib_slurm.c_str(),RTLD_NOW|RTLD_GLOBAL) ; throw_unless( SlurmApi::g_lib_handler , "cannot find ",lib_slurm ) ;
@@ -410,6 +410,7 @@ namespace Backends::Slurm {
 			::atexit(_exit1) ;                                                // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
 			Fd dev_null_fd { "/dev/null" , Fd::Write } ;                      // this is just a probe, we want nothing on stderr
 			::dup2(dev_null_fd,2) ;                                           // so redirect to /dev/null
+			::alarm(10) ;                                                     // ensure timeout as init_func may block (this is a quick fix, newer versions have a configurable timeout)
 			init_func(cf) ;                                                   // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)
 			::_exit(0) ;                                                      // if we are here, everything went smoothly
 		} else {
