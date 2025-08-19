@@ -142,7 +142,7 @@ if __name__!='__main__' :
 
 else :
 
-	from lmake.utils import multi_strip
+	import textwrap
 
 	import ut
 
@@ -158,9 +158,9 @@ else :
 	for ad in lmake.autodeps : print('hello',file=open(f'autodep.{ad}.ref','w'))
 	open('auto_mkdir.no.ref','w')
 	#
-	print(multi_strip('''
+	print(textwrap.dedent('''
 		def local_func(f) : return f
-	'''),file=open('local_module.py','w'))
+	'''[1:]),file=open('local_module.py','w')) # strip initial \n
 
 	print(f'step=0',file=open('step.py','w'))
 	ut.lmake( 'cmd' , done=1 , new=1 )        # create file cmd to ensure transition bad->good does not leave a manual file

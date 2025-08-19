@@ -7,7 +7,6 @@ if __name__!='__main__' :
 
 	import lmake
 	from lmake.rules import Rule
-	from lmake       import multi_strip
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -24,10 +23,10 @@ if __name__!='__main__' :
 		target     = r'chdir{Digit:\d}'
 		auto_mkdir = step==2
 		shell      = Rule.shell + ('-e',)
-		cmd = multi_strip('''
+		cmd = '''
 			cd new_dir
 			cat dep{Digit}
-		''')
+		'''
 
 else :
 

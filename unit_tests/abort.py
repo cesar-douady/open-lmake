@@ -26,14 +26,15 @@ if __name__!='__main__' :
 
 else :
 
-	from lmake import multi_strip
+	import textwrap
+
 	import ut
 
-	open('dut.c','w').write(multi_strip('''
+	open('dut.c','w').write(textwrap.dedent('''
 		#include <stdlib.h>
 		int main() {
 			abort() ;
 		}
-	'''))
+	'''[1:])) # strip initial \n
 
 	ut.lmake( 'dut.out' , new=1 , done=1 , failed=1 , rc=1 )

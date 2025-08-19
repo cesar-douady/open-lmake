@@ -47,10 +47,6 @@ Variable values actually used in `Lmakefile.py` are considered as deps for this 
 This class is a dict in which attribute accesses are mapped to item accesses.
 It is very practical to handle configurations.
 
-### `multi_strip(txt)`
-
-This function deindents `txt` as much as possible so as to ease printing code.
-
 ### `check_version( major , minor=0 )`
 
 This function is used to check that the expected version is compatible with the actual version.

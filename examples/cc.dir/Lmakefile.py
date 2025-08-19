@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import textwrap
 
 import lmake
 
@@ -113,7 +114,7 @@ class CompCmdLnk(Base,PyRule) :
 			if first : first = False
 			else     : print(',')
 			obj = obj.strip()
-			print(lmake.indent(open(f'{obj}.compile_command.json').read(),'\t'),end='')
+			print(textwrap.indent(open(f'{obj}.compile_command.json').read(),'\t'),end='')
 		print(']')
 
 class Run(Base) :

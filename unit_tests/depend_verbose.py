@@ -9,7 +9,6 @@ if __name__!='__main__' :
 
 	import subprocess as sp
 
-	from lmake import multi_strip
 	from lmake.rules import Rule,PyRule
 
 	import step
@@ -38,12 +37,12 @@ if __name__!='__main__' :
 			name    = f'cpy-sh-{ad}'
 			target  = f'{{File}}.sh.{ad}.{step.link_support}.cpy'
 			autodep = ad
-			cmd = multi_strip('''
+			cmd = '''
 				from_server=$(ldepend -v {File} | awk '$1=="ok" {{print $2}}')
 				expected=$(   xxhsum     {File}                              )
 				echo $from_server
 				[ "$from_server" = "$expected" ] || echo expected $expected got $from_server >&2
-			''')
+			'''
 		class CpyPy(Base,PyRule) :
 			name    = f'cpy-py-{ad}'
 			target  = f'{{File}}.py.{ad}.{step.link_support}.cpy'

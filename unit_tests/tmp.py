@@ -7,7 +7,6 @@ import lmake
 
 if __name__!='__main__' :
 
-	from lmake       import multi_strip
 	from lmake.rules import Rule
 
 	lmake.manifest = ('Lmakefile.py',)
@@ -20,7 +19,7 @@ if __name__!='__main__' :
 		targets  = { 'LNK' : 'lnk{N}' }
 		tmp_view = '/tmp'
 		environ  = { 'REPO_ROOT' : '$REPO_ROOT' }
-		cmd = multi_strip('''
+		cmd = '''
 			ln -s $TMPDIR/a        {LNK}
 			ln -s $REPO_ROOT/{LNK} $TMPDIR/b
 			cd $TMPDIR
@@ -32,17 +31,17 @@ if __name__!='__main__' :
 			cd $REPO_ROOT
 			cat {LNK}
 			cat $TMPDIR/b
-		''')
+		'''
 
 	class Ref(Base) :
 		target = 'ref{N}'
-		cmd    = multi_strip('''
+		cmd    = '''
 			echo /tmp            # echo $TMPDIR
 			echo /tmp            # pwd
 			echo {N}             # cat a
 			echo {N}             # cat LNK
 			echo {N}             # cat /tmp/b
-		''')
+		'''
 
 	class Cmp(Base) :
 		target = 'ok{N}'

@@ -9,7 +9,6 @@ if __name__!='__main__' :
 	import os
 
 	import lmake
-	from lmake       import multi_strip
 	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = ('Lmakefile.py',)
@@ -18,12 +17,12 @@ if __name__!='__main__' :
 	class Tar(Rule) :
 		targets = { 'TAR' : r'hello.tar{*:.*}' }
 		environ = { 'REPO_ROOT' : '$REPO_ROOT' }
-		cmd = multi_strip('''
+		cmd = '''
 			cd $TMPDIR
 			mkdir -p $(dirname {file})
 			echo yes >{file}
 			tar cf $REPO_ROOT/hello.tar {file}
-		''')
+		'''
 	class Untar(PyRule) :
 		targets = {
 			'TARGET' : r'{File:.*}.tardir/{*:.*}'

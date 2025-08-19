@@ -10,11 +10,12 @@ import importlib
 import os
 import os.path as osp
 import re
+import textwrap
 
 import serialize
 
 import lmake
-from lmake import pdict , multi_strip , indent
+from lmake import pdict
 
 no_imports = {__name__} # may be overridden by external code
 
@@ -412,7 +413,7 @@ class Handle :
 				f = lcl_mod_file(m)
 				if not f : continue
 				e = ImportError(f'cannot import module {m} from local file {f}')
-				e.consider = multi_strip('''
+				e.consider = textwrap.dedent('''
 					rewrite code such as :
 						import my_module
 						def my_func() :
@@ -421,7 +422,7 @@ class Handle :
 						from my_module import my_sub_func
 						def my_func() :
 							my_sub_func()
-				''')
+				'''[1:])                                     # strip initial \n
 				raise e
 		del dyn_expr.modules
 		return dyn_expr
@@ -655,8 +656,8 @@ def fmt_rule(rule) :
 			print(f'in sub-repo {lmake.repo_root[len(lmake.top_repo_root)+1:]} :',file=sys.stderr)
 			tab = '\t'
 		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
-		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                         ,file=sys.stderr       )
-		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                   ,file=sys.stderr       )
-		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}" ,file=sys.stderr       )
-		if hasattr(e,'consider')               : print(f'{tab}\tconsider :\n'+indent(e.consider,f'{tab}\t\t'),file=sys.stderr,end='') # ending new line is already in e.consider
+		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                         ,file=sys.stderr                )
+		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                   ,file=sys.stderr                )
+		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}" ,file=sys.stderr                )
+		if hasattr(e,'consider')               : print(f'{tab}\tconsider :\n'+textwrap.indent(e.consider,f'{tab}\t\t'),file=sys.stderr,end='') # ending new line is already in e.consider
 		sys.exit(2)

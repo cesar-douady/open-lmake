@@ -42,8 +42,8 @@ else :
 
 	import os
 	import subprocess as sp
+	import textwrap
 
-	from lmake import multi_strip
 	import ut
 
 	if not os.environ['HAS_32'] :
@@ -52,14 +52,14 @@ else :
 
 	ut.mk_gxx_module('gxx')
 
-	open('hello_world.c','w').write(multi_strip(r'''
+	open('hello_world.c','w').write(textwrap.dedent(r'''
 		#include <fcntl.h>
 		#include <stdio.h>
 		int main() {
 			int fd = open("dep",O_RDONLY) ; // just create a dep
 			printf("hello world\n") ;
 		}
-	'''))
+	'''[1:]))
 	print('hello world',file=open('ref','w'))
 
 	bad_32   = 'ptrace' in lmake.autodeps # 32 bits with ptrace is not supported

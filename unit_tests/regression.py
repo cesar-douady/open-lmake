@@ -99,14 +99,10 @@ if __name__!='__main__' :
 
 else :
 
-	from lmake import multi_strip
-
 	import ut
 
-	open('refs','w').write(multi_strip('''
-		1.dut 1.dut-bad
-	'''))
-	print('step=1',file=open('step.py','w'))
+	print('1.dut 1.dut-bad',file=open('refs'   ,'w'))
+	print('step=1'         ,file=open('step.py','w'))
 	#
 	# udpate
 	#

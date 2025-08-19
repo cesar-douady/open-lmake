@@ -6,10 +6,9 @@
 import os
 import os.path as osp
 import re
+import textwrap
 
 import lmake
-
-from lmake.utils import multi_strip
 
 no_quote     = re.compile(r'[\w+,-./:=@^]*')
 single_quote = re.compile(r"[^']*"         )
@@ -79,23 +78,23 @@ class Job :
 	def gen_pre_actions(self) :
 		res = ''
 		if any(a=='uniquify' for a in self.pre_actions.values()) :
-			res += multi_strip('''
+			res += textwrap.dedent('''
 				uniquify() {
 					if [ -f "$1" -a $(stat -c%h "$1" 2>/dev/null||echo 0) -gt 1 ] ; then
 						echo warning : uniquify "$1" >&2
 						mv "$1" "$1.$$" ; cp -p "$1.$$" "$1" ; rm -f "$1.$$"
 					fi
 				}
-			''')
+			'''[1:])                                                                           # strip initial \n
 		if any(a in ('unlink_warning','unlink_polluted') for a in self.pre_actions.values()) :
-			res += multi_strip('''
+			res += textwrap.dedent('''
 				rm_warning() {
 					if [ -f "$2" ] ; then
 						echo $1 : rm "$2" >&2
 						rm -f "$2"
 					fi
 				}
-			''')
+			'''[1:])                                                                           # strip initial \n
 		actions = []
 		for f,a in self.pre_actions.items() :
 			f = mk_shell_str(f)
@@ -158,11 +157,11 @@ class Job :
 		return preamble,res
 
 	def gen_init(self) :
-		res = multi_strip(f'''
+		res = textwrap.dedent(f'''
 			#!/bin/bash
 			#
 			cd {mk_shell_str(lmake.top_repo_root)}
-		''')
+		'''[1:])                                   # strip initial \n
 		return res
 
 	def gen_shell_cmd( self , trace=False , enter=False , **kwds ) :
@@ -174,14 +173,14 @@ class Job :
 		if True            : res += add_nl(self.cmd)
 		if trace and enter : res += ')\n'
 		if enter           :
-			res += multi_strip(f'''
+			res += textwrap.dedent(f'''
 				#
 				export HOME="$LMAKE_HOME"   ; unset LMAKE_HOME
 				export SHLVL="$LMAKE_SHLVL" ; unset LMAKE_SHLVL
 				[ "$LMAKE_DEBUG_STDIN"  ] && exec <"$LMAKE_DEBUG_STDIN"
 				[ "$LMAKE_DEBUG_STDOUT" ] && exec >"$LMAKE_DEBUG_STDOUT"
 				exec {self.interpreter_line()} -i
-			''')
+			'''[1:])                              # strip initial \n
 		return res
 
 	def gen_py_cmd( self , runner=None , **kwds ) :
@@ -193,13 +192,13 @@ class Job :
 			func_args = func
 			if args : func_args = f'{func},{args}'                                  # generate func,args,...
 			else    : func_args = func                                              # handle no args case
-			cmd = multi_strip(f'''
+			cmd = textwrap.dedent(f'''
 				import sys as lmake_sys
 				lmake_sys.path.append({osp.dirname(osp.dirname(lmake.__file__))!r}) # ensure lmake lib is accessible
 				from {runner} import run_py as lmake_runner
 				lmake_sys.path.pop()                                                # restore
 				lmake_runner({self.debug_dir!r},{self.static_deps!r},{func_args})
-			''')
+			'''[1:])                                                                # strip initial \n
 		fix_path = "import sys ; sys.path[0] = '' ; del sys\n"                      # ensure same sys.path as if run with -c, del sys to ensure total transparency
 		if not preamble.startswith(fix_path) : preamble = fix_path+'#\n'+preamble   # if cmd was already in a script, it already contains the fix
 		return (

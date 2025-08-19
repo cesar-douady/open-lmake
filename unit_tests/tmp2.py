@@ -7,7 +7,6 @@ import lmake
 
 if __name__!='__main__' :
 
-	from lmake       import multi_strip
 	from lmake.rules import Rule
 
 	lmake.manifest = (
@@ -43,7 +42,7 @@ if __name__!='__main__' :
 		side_targets = { 'SIDE'      : 'lnk_dut.tmp' }
 		environ      = { 'REPO_ROOT' : '$REPO_ROOT'  }
 		# make a chain of links with all potential cases
-		cmd = multi_strip('''
+		cmd = '''
 			ln -s /tmp/a         lnk_dut.tmp      # link from repo to tmp
 			cd /tmp
 			ln -s b              a                # relative link within tmp
@@ -53,14 +52,14 @@ if __name__!='__main__' :
 			cd $REPO_ROOT
 			readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp
 			cat lnk_dut.tmp
-		''')
+		'''
 
 	class Cp(TmpRule) :
 		target       = 'cp_dut'
 		side_targets = { 'SIDE'      : 'cp_dut.tmp' }
 		environ      = { 'REPO_ROOT' : '$REPO_ROOT' }
 		# make a chain of copies with all potential cases
-		cmd = multi_strip('''
+		cmd = '''
 			cp src    /tmp/c
 			cd /tmp
 			cp /tmp/c b
@@ -68,13 +67,13 @@ if __name__!='__main__' :
 			cd $REPO_ROOT
 			cp /tmp/a cp_dut.tmp
 			cat cp_dut.tmp
-		''')
+		'''
 
 	class Touch(TmpRule) :
 		target       = 'touch_dut'
 		side_targets = { 'SIDE'      : 'touch_dut.tmp' }
 		environ      = { 'REPO_ROOT' : '$REPO_ROOT'    }
-		cmd = multi_strip('''
+		cmd = '''
 			cd /tmp
 			mkdir d
 			cp $REPO_ROOT/src d/a
@@ -93,19 +92,19 @@ if __name__!='__main__' :
 			[ -f d/c ] && {{ echo 'rm did not rm' >&2 ; exit 1 ; }}
 			cd $REPO_ROOT
 			cat {SIDE}
-		''')
+		'''
 
 	class Exec(TmpRule) :
 		target       = 'exec_dut'
 		side_targets = { 'SIDE' : 'exec_dut.tmp' }
-		cmd = multi_strip('''
+		cmd = '''
 			PATH=/tmp:$PATH
 			echo '#!/bin/cat'      >  /tmp/dut_exe #ensure there is an execve as bash optimizes cases where it calls itself
 			echo 'dut_exe_content' >> /tmp/dut_exe
 			chmod +x /tmp/dut_exe
 			dut_exe > exec_dut.tmp
 			cat exec_dut.tmp
-		''')
+		'''
 
 else :
 

@@ -90,8 +90,7 @@ if __name__!='__main__' :
 else :
 
 	import os
-
-	from lmake import multi_strip
+	import textwrap
 
 	import ut
 
@@ -125,7 +124,7 @@ else :
 	# ninja
 	#
 	with open('build.ninja','w') as ninja :
-		ninja.write(multi_strip(f'''
+		ninja.write(textwrap.dedent(f'''
 			rule cc
 			 command     = {compile_cmd(True,True,'$out','$in')}
 			 description = Compile to $out
@@ -135,15 +134,15 @@ else :
 			rule gather
 			 command     = touch $out
 			 description = Gather to $out
-		'''))
+		'''[1:]))                                                                                                     # strip initial \n
 		for k in {r,n} :
 			print(f"build all_{k} : gather {' '.join(f'build/exe_{e}.exe' for e in range(k))}",file=ninja)
 		#
 		for e in range(n) :
-			ninja.write(multi_strip(f'''
+			ninja.write(textwrap.dedent(f'''
 				build build/exe_{e}.o   : cc   src/exe_{e}.c   | {' '.join(f'src/obj_{e}_{o}.h'   for o in range(l))}
 				build build/exe_{e}.exe : link build/exe_{e}.o   {' '.join(f'build/obj_{e}_{o}.o' for o in range(l))}
-			'''))
+			'''[1:]))                                                                                                 # strip initial \n
 			for o in range(l) :
 				print(f"build build/obj_{e}_{o}.o : cc   src/obj_{e}_{o}.c | {' '.join(f'src/obj_{e}_{(o+i)%l}.h' for i in range(p))}",file=ninja)
 
@@ -157,10 +156,10 @@ else :
 				print(f'''genrule   ( name='all_{k}_g'   , outs=['all_{k}'    ] , srcs=[{','.join(f"'//:exe_{e}_e'" for e in range(k))}] , cmd='>$@' )''',file=bazel)
 			#
 			for e in range(n) :
-				bazel.write(multi_strip(f'''
+				bazel.write(textwrap.dedent(f'''
 					cc_library( name='exe_{e}_o' , copts=['-pipe','-xc']  , srcs=['src/exe_{e}.c'  ] , hdrs=[{','.join(f"'src/obj_{e}_{o}.h'" for o in range(l))}] )
 					cc_binary ( name='exe_{e}_e'                          , srcs=[               ] , deps=['//:exe_{e}_o'{''.join(f",'//:obj_{e}_{o}_o'" for o in range(l))}] )
-				'''))
+				'''[1:]))                                                                                                                                                       # strip initial \n
 				for o in range(l) :
 					print(f'''cc_library( name='obj_{e}_{o}_o' , copts=['-pipe','-xc'] , srcs=['src/obj_{e}_{o}.c'] , hdrs=[{','.join(f"'src/obj_{e}_{(o+i)%l}.h'" for i in range(p))}] )''',file=bazel)
 
@@ -168,22 +167,22 @@ else :
 	# make
 	#
 	with open('Makefile','w') as makefile :
-		makefile.write(multi_strip(f'''
+		makefile.write(textwrap.dedent(f'''
 			build/%.o : src/%.c
 				{compile_cmd(True,True,'$@','$<')}
 			build/%.exe : build/%.o
 				{link_cmd(True,'$@','$^')}
 			all_% :
 				touch $@
-		'''))
+		'''[1:]))                                                                        # strip initial \n
 		for k in {r,n} :
 			print(f"all_{k} : {' '.join(f'build/exe_{e}.exe' for e in range(k))}",file=makefile)
 		#
 		for e in range(n) :
-			makefile.write(multi_strip(f'''
+			makefile.write(textwrap.dedent(f'''
 				build/exe_{e}.o   : {' '.join(f'src/obj_{e}_{o}.h'   for o in range(l))}
 				build/exe_{e}.exe : {' '.join(f'build/obj_{e}_{o}.o' for o in range(l))}
-			'''))
+			'''[1:]))                                                                    # strip initial \n
 			for o in range(l) :
 				print(f"build/obj_{e}_{o}.o : {' '.join(f'src/obj_{e}_{(o+i)%l}.h' for i in range(p))}",file=makefile)
 
@@ -212,7 +211,7 @@ else :
 	# run bench
 	#
 	with open('bench','w') as bench :
-		bench.write(multi_strip(rf'''
+		bench.write(textwrap.dedent(rf'''
 			clean() {{
 				rm -f all_*
 				find build -name '*.o' -o -name '*.exe' | xargs rm -f
@@ -249,9 +248,9 @@ else :
 			:     ; time make            -j 16 all_{l} >/dev/null
 			:     ; time make            -j 16 all_{l} >/dev/null
 			:     ; time make            -j 16 all_{l} >/dev/null
-		'''))
-		if not use_cat :                  # bazel is not supported with cat
-			bench.write(multi_strip(fr'''
+		'''[1:]))                                                 # strip initial \n
+		if not use_cat :                                          # bazel is not supported with cat
+			bench.write(textwrap.dedent(fr'''
 				# bazel
 				rm -rf ~/.cache/bazel
 				export CC={gxx.gxx}
@@ -265,11 +264,11 @@ else :
 				:     ; time bazel build --spawn_strategy=local --jobs=16 all_{l} >/dev/null
 				unset CC
 				unset BAZEL_CXXOPTS
-			'''))
-		bench.write(multi_strip(r'''
+			'''[1:]))                                             # strip initial \n
+		bench.write(textwrap.dedent(r'''
 			# bash
 			clean ; time ./run
-		'''))
+		'''[1:]))                                                 # strip initial \n
 	os.chmod('bench',0o755)
 
 	#

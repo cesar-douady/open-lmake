@@ -9,7 +9,6 @@ import os.path    as osp
 import subprocess as sp
 
 import lmake
-from lmake.utils import multi_strip
 
 from .       import utils
 from .utils  import mk_shell_str

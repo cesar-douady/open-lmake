@@ -7,7 +7,6 @@ import lmake
 
 if __name__!='__main__' :
 
-	from lmake       import multi_strip
 	from lmake.rules import Rule
 
 	lmake.manifest = (
@@ -21,11 +20,11 @@ if __name__!='__main__' :
 			target  = fr'{{File:.*}}.{ad}'
 			dep     =   '{ File    }'
 			autodep = ad
-			cmd = multi_strip('''
+			cmd = '''
 				echo tmp > scratch.$$
 				cat
 				rm scratch.$$
-			''')
+			'''
 
 else :
 

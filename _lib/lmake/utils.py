@@ -43,31 +43,3 @@ class pdict(dict) :
 		try             : del self[attr] ; return
 		except KeyError : pass
 		raise AttributeError(attr)
-
-def multi_strip(txt) :
-	r"""
-		multi_strip(txt) looks like txt.strip(), but in addition, the common blank prefix on each line is also suppressed.
-		This allows to easily define multi-line text that have no reason to be indented in an indented context while keeping a nice looking code.
-		Usage :
-		gen_c = multi_strip(r'''
-			int main() {                           // this is the first line, not indented
-				printf("this is nice looking\n") ; // this is indented once
-			}                                      // this is the last line (no ending newline), not indented
-		''')
-	"""
-	ls = txt.split('\n')
-	while ls and ( not ls[ 0] or ls[ 0].isspace() ) : ls = ls[1:  ]
-	while ls and ( not ls[-1] or ls[-1].isspace() ) : ls = ls[ :-1]
-	if not ls : return ''
-	l0 = ls[0]
-	while l0[0].isspace() and all(not l or l[0]==l0[0] for l in ls) :
-		ls = [ l[1:] for l in ls ]
-		l0 = ls[0]
-	return ''.join(l+'\n' for l in ls)
-
-def indent(txt,pfx='\t') :
-	'''indent txt by adding pfx in front of each line not composed entirely of spaces'''
-	lines = txt.split('\n')
-	for i,line in enumerate(lines) :
-		if line and not line.isspace() : lines[i] = pfx+line
-	return '\n'.join(lines)

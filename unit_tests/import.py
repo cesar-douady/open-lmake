@@ -103,17 +103,18 @@ if __name__!='__main__' :
 
 else :
 
-	from   lmake import multi_strip
+	import textwrap
+
 	import ut
 
-	print(multi_strip('''
+	print(textwrap.dedent('''
 		lcl_config_var=0
 		def lcl_config_func() : return 1
-	'''),file=open('lcl_config.py','w'))
-	print(multi_strip('''
+	'''[1:]),file=open('lcl_config.py','w')) # strip initial \n
+	print(textwrap.dedent('''
 		lcl_job_var=2
 		def lcl_job_func() : return 3
-	'''),file=open('lcl_job.py','w'))
+	'''[1:]),file=open('lcl_job.py','w'))    # strip initial \n
 
 	print('step=2',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=4 ) # job script is prepared in server, no local module access
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'cmd_import_job_sh'          , new=1 , failed=1 , early_rerun=... , rc=1 ) # .

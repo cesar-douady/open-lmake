@@ -8,7 +8,6 @@ import sys
 import re
 import time
 
-from lmake       import multi_strip
 from lmake.rules import Rule,PyRule
 
 version = 1

@@ -64,7 +64,8 @@ if __name__!='__main__' :
 
 else :
 
-	from lmake import multi_strip
+	import textwrap
+
 	import ut
 
 	ut.mk_gxx_module('gxx')
@@ -73,7 +74,7 @@ else :
 	print(                                         'void world() ;'                      ,file=open('world.h','w'))
 	print('#include <stdio.h>\n#include "hello.h"\nvoid hello() { printf("hello\\n") ; }',file=open('hello.c','w'))
 	print('#include <stdio.h>\n#include "world.h"\nvoid world() { printf("world\\n") ; }',file=open('world.c','w'))
-	open('hello_world.c','w').write(multi_strip('''
+	open('hello_world.c','w').write(textwrap.dedent('''
 		#include "hello.h"
 		#include "world.h"
 		int main() {
@@ -81,7 +82,7 @@ else :
 			world() ;
 			return 0 ;
 		}
-	'''))
+	'''[1:]))                                  # strip initial \n
 	print('hello\nworld',file=open('ref','w'))
 
 	ut.lmake( 'test' , new=6 , done=7 )

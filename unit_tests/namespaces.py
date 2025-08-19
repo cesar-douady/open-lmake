@@ -8,7 +8,6 @@ import lmake
 if __name__!='__main__' :
 
 	from lmake.rules import Rule
-	from lmake       import multi_strip
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -29,13 +28,13 @@ if __name__!='__main__' :
 					if tmp_view :
 						tmp_view         = '/'+tmp_view
 						resources['tmp'] = '100M'
-					cmd = multi_strip('''
+					cmd = '''
 						unset PWD                       # ensure pwd calls getcwd
 						type -p lmake >  $TMPDIR/stdout
 						pwd           >> $TMPDIR/stdout
 						echo $TMPDIR  >> $TMPDIR/stdout
 						cat $TMPDIR/stdout
-					''')
+					'''
 					if lmake_view : cmd += f'[ $(type -p lmake) = {lmake_view}/bin/lmake ] || exit 1\n'
 					if repo_view  : cmd += f'[ $(pwd)           = {repo_view }           ] || exit 1\n'
 					if tmp_view   : cmd += f'[ $TMPDIR          = {tmp_view  }           ] || exit 1\n'

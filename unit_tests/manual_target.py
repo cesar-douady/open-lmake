@@ -8,7 +8,6 @@ if __name__!='__main__' :
 	import sys
 
 	import lmake
-	from lmake       import multi_strip
 	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
@@ -19,12 +18,12 @@ if __name__!='__main__' :
 	class Star(Rule) :
 		targets = { 'DST' : r'a{*:\d}' }
 		dep     = 'src'
-		cmd = multi_strip('''
+		cmd = '''
 			echo good > a1
 			[ -e a2 ]
 			ln a1 a2
 			rm a1
-		''')
+		'''
 
 	class Cpy(PyRule) :
 		target = 'cpy'

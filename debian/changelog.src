@@ -1,6 +1,7 @@
 open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
 
   * new lcollect tool
+  * suppress multi_strip function (use standard textwrapper.dedent instead)
 
   * bug fixes
   * improve perf
