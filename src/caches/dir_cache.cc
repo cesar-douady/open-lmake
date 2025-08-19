@@ -253,36 +253,41 @@ namespace Caches {
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard& nfs_guard ) {
 		Trace trace("DirCache::_mk_room",max_sz,old_sz,new_sz) ;
-		throw_unless( new_sz<=max_sz , "cannot store entry of size ",new_sz," in cache of size ",max_sz ) ;
+		if (new_sz>max_sz) {
+			trace("too_large1") ;
+			throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz) ;
+		}
 		//
-		::string head_file        = _lru_file(HeadS)                               ;
-		AcFd     head_fd          { nfs_guard.access(head_file) , true/*err_ok*/ } ;
-		Lru      head             ;                                                  if (+head_fd) deserialize(head_fd.read(),head) ;
-		Sz       old_head_sz      = head.sz                                        ;                                                  // for trace only
-		bool     some_removed     = false                                          ;
-		::string expected_older_s = HeadS                                          ;               // for assertion only
+		::string   head_file        = _lru_file(HeadS)                               ;
+		AcFd       head_fd          { nfs_guard.access(head_file) , true/*err_ok*/ } ;
+		Lru        head             ;                                                  if (+head_fd) deserialize(head_fd.read(),head) ;
+		Sz         old_head_sz      = head.sz                                        ;                                                  // for trace only
+		::vector_s to_unlnk         ;                                                                                                   // delay unlink actions until all exceptions are cleared
 		//
 		trace("before",head.sz) ;
-		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                                     // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>max_sz) {
-			SWEAR(head.newer_s!=HeadS) ;                                                           // else this would mean an empty cache and we know an empty cache can accept new_sz
+			if (head.newer_s==HeadS) {
+				trace("too_large2",head.sz) ;
+				throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz," with ",head.sz," bytes already reserved") ;
+			}
 			auto here = deserialize<Lru>(AcFd(nfs_guard.access(_lru_file(head.newer_s))).read()) ;
 			//
 			trace("evict",head.sz,here.sz,head.newer_s) ;
-			SWEAR( here.older_s==expected_older_s , here.older_s,expected_older_s ) ;
-			SWEAR( head.sz     >=here.sz          , head.sz     ,here.sz          ) ;              // total size contains this entry
+			if (+to_unlnk) SWEAR( here.older_s==to_unlnk.back() , here.older_s,to_unlnk.back() ) ;
+			else           SWEAR( here.older_s==HeadS           , here.older_s,HeadS           ) ;
+			/**/           SWEAR( head.sz     >=here.sz         , head.sz     ,here.sz         ) ;                                      // total size contains this entry
 			//
-			unlnk( nfs_guard.change(dir_s+no_slash(head.newer_s)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
-			expected_older_s  =        head.newer_s  ;
+			to_unlnk.push_back(head.newer_s) ;
 			head.sz          -=        here.sz       ;
 			head.newer_s      = ::move(here.newer_s) ;
-			some_removed      =        true          ;
 		}
 		head.sz += new_sz ;
 		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
 		//
-		if (some_removed) {
+		if (+to_unlnk) {
+			for( ::string const& e : to_unlnk ) unlnk( nfs_guard.change(dir_s+no_slash(e)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
 			if (head.newer_s==HeadS) {
 				head.older_s = HeadS ;
 			} else {
@@ -426,7 +431,7 @@ namespace Caches {
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
 		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
-		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
+		{	LockedFd lock { dir_s , true/*exclusive*/ } ;                            // lock for minimal time
 			_mk_room( 0 , reserve_sz , nfs_guard ) ;
 		}
 		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , FdAction::CreateReadOnly ).write(serialize(reserve_sz)) ;
