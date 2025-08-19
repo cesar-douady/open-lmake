@@ -77,8 +77,8 @@ namespace Caches {
 		//
 		::string sz_file = cat(dir_s,AdminDirS,"size") ;
 		AcFd     sz_fd   { sz_file , true/*err_ok*/ }  ; throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
-		try                       { sz = from_string_with_unit(strip(sz_fd.read())) ; }
-		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;            }
+		try                       { max_sz = from_string_with_unit(strip(sz_fd.read())) ; }
+		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;                }
 		//
 		try                     { chk_version(may_init,dir_s+AdminDirS) ;                   }
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
@@ -252,8 +252,8 @@ namespace Caches {
 	}
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard& nfs_guard ) {
-		Trace trace("DirCache::_mk_room",old_sz,new_sz) ;
-		throw_unless( new_sz<=sz , "cannot store entry of size ",new_sz," in cache of size ",sz ) ;
+		Trace trace("DirCache::_mk_room",max_sz,old_sz,new_sz) ;
+		throw_unless( new_sz<=max_sz , "cannot store entry of size ",new_sz," in cache of size ",max_sz ) ;
 		//
 		::string head_file        = _lru_file(HeadS)                               ;
 		AcFd     head_fd          { nfs_guard.access(head_file) , true/*err_ok*/ } ;
@@ -262,15 +262,16 @@ namespace Caches {
 		bool     some_removed     = false                                          ;
 		::string expected_older_s = HeadS                                          ;               // for assertion only
 		//
-		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                              // total size contains old_sz
+		trace("before",head.sz) ;
+		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                // total size contains old_sz
 		head.sz -= old_sz ;
-		while (head.sz+new_sz>sz) {
+		while (head.sz+new_sz>max_sz) {
 			SWEAR(head.newer_s!=HeadS) ;                                                           // else this would mean an empty cache and we know an empty cache can accept new_sz
 			auto here = deserialize<Lru>(AcFd(nfs_guard.access(_lru_file(head.newer_s))).read()) ;
 			//
+			trace("evict",head.sz,here.sz,head.newer_s) ;
 			SWEAR( here.older_s==expected_older_s , here.older_s,expected_older_s ) ;
 			SWEAR( head.sz     >=here.sz          , head.sz     ,here.sz          ) ;              // total size contains this entry
-			trace("evict",here.sz,head.newer_s) ;
 			//
 			unlnk( nfs_guard.change(dir_s+no_slash(head.newer_s)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
 			expected_older_s  =        head.newer_s  ;
@@ -279,7 +280,7 @@ namespace Caches {
 			some_removed      =        true          ;
 		}
 		head.sz += new_sz ;
-		SWEAR( head.sz<=sz , head.sz , sz ) ;
+		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
 		//
 		if (some_removed) {
 			if (head.newer_s==HeadS) {
@@ -323,13 +324,13 @@ namespace Caches {
 		return here.sz ;
 	}
 
-	void DirCache::_lru_mk_newest( ::string const& entry_s , Sz sz_ , NfsGuard& nfs_guard ) {
+	void DirCache::_lru_mk_newest( ::string const& entry_s , Sz sz , NfsGuard& nfs_guard ) {
 		SWEAR(entry_s!=HeadS) ;
 		//
 		::string head_file = _lru_file(HeadS)                                           ;
 		auto     head      = deserialize<Lru>(AcFd(nfs_guard.access(head_file)).read()) ;
 		::string here_file = _lru_file(entry_s)                                         ;
-		Lru      here      { .older_s=head.older_s , .sz=sz_ , .last_access=New }       ;
+		Lru      here      { .older_s=head.older_s , .sz=sz , .last_access=New }        ;
 		if (head.older_s==HeadS) {
 			head.older_s = entry_s ;
 			head.newer_s = entry_s ;
@@ -420,15 +421,15 @@ namespace Caches {
 		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
 	}
 
-	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz max_sz) {
-		Trace trace("DirCache::reserve",max_sz) ;
+	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz reserve_sz) {
+		Trace trace("DirCache::sub_upload",reserve_sz) ;
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
 		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
 		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
-			_mk_room( 0 , max_sz , nfs_guard ) ;
+			_mk_room( 0 , reserve_sz , nfs_guard ) ;
 		}
-		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , FdAction::CreateReadOnly ).write(serialize(max_sz)) ;
+		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , FdAction::CreateReadOnly ).write(serialize(reserve_sz)) ;
 		AcFd data_fd { nfs_guard.change(_reserved_file(upload_key,"data")) , FdAction::CreateReadOnly } ;
 		trace(data_fd,upload_key) ;
 		return { upload_key , ::move(data_fd) } ;

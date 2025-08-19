@@ -71,14 +71,14 @@ namespace Caches {
 		template<IsStream T> void _serdes(T& s) {
 			::serdes(s,key_crc  ) ;
 			::serdes(s,dir_s    ) ;
-			::serdes(s,sz       ) ;
+			::serdes(s,max_sz   ) ;
 			::serdes(s,file_sync) ;
 		}
 		// data
 	public :
 		Hash::Crc key_crc   = Hash::Crc::None ;
 		::string  dir_s     ;
-		Sz        sz        = 0               ;
+		Sz        max_sz    = 0               ;
 		FileSync  file_sync = FileSync::Dflt  ;
 	} ;
 

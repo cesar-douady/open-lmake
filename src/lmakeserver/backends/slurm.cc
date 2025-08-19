@@ -401,8 +401,8 @@ namespace Backends::Slurm {
 		SlurmApi::g_lib_handler = ::dlopen(lib_slurm_.c_str(),RTLD_NOW|RTLD_GLOBAL) ;
 		if (!SlurmApi::g_lib_handler) {
 			::string msg = "cannot find slurm lib\n" ;
-			if (+lib_slurm) msg << indent(cat("ensure lmake.config.backends.slurm.lib_slurm is adequate : "   ,lib_slurm_  ,'\n'            ),1) ;
-			else            msg << indent(cat("consider setting lmake.config.backends.slurm.lib_slurm (using ",lib_slurm_  ," by default)\n"),1) ;
+			if (+lib_slurm) msg << indent(cat("ensure lmake.config.backends.slurm.lib_slurm is adequate : "   ,lib_slurm_  ,'\n'            )) ;
+			else            msg << indent(cat("consider setting lmake.config.backends.slurm.lib_slurm (using ",lib_slurm_  ," by default)\n")) ;
 			throw msg ;
 		}
 		//
@@ -414,8 +414,8 @@ namespace Backends::Slurm {
 		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
 		if (!AcFd(config_file_,true/*err_ok*/)) {
 			::string msg = "cannot find slurm config\n" ;
-			if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "   ,config_file_,'\n'            ),1) ;
-			else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using ",config_file_," by default)\n"),1) ;
+			if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "   ,config_file_,'\n'            )) ;
+			else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using ",config_file_," by default)\n")) ;
 			throw msg ;
 		}
 		// /!\ stupid SlurmApi::init function calls exit(1) in case of error !
@@ -437,10 +437,10 @@ namespace Backends::Slurm {
 				::string msg ;
 				if ( WIFSIGNALED(wstatus) && WTERMSIG(wstatus)==SIGALRM ) msg << "cannot init slurm (timeout after "<<to<<"s)\n" ;
 				else                                                      msg << "cannot init slurm\n"                           ;
-				if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "      ,config_file_,'\n'            ),1) ;
-				else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using "   ,config_file_," by default)\n"),1) ;
-				if (+lib_slurm  ) msg << indent(cat("ensure lmake.config.backends.slurm.lib_slurm is adequate : "   ,lib_slurm_  ,'\n'            ),1) ;
-				else              msg << indent(cat("consider setting lmake.config.backends.slurm.lib_slurm (using ",lib_slurm_  ," by default)\n"),1) ;
+				if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "      ,config_file_,'\n'            )) ;
+				else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using "   ,config_file_," by default)\n")) ;
+				if (+lib_slurm  ) msg << indent(cat("ensure lmake.config.backends.slurm.lib_slurm is adequate : "   ,lib_slurm_  ,'\n'            )) ;
+				else              msg << indent(cat("consider setting lmake.config.backends.slurm.lib_slurm (using ",lib_slurm_  ," by default)\n")) ;
 				throw msg ;
 			}
 		}

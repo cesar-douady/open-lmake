@@ -468,7 +468,7 @@ namespace Backends {
 						start_msg_err = {}                   ;
 					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					s_end( entry.tag , +job , status ) ;                                                                          // dont care about backend, job is dead for other reasons
+					s_end( entry.tag , +job , status ) ;                                                             // dont care about backend, job is dead for other reasons
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("early",start_msg_err) ;
 					//
@@ -479,12 +479,12 @@ namespace Backends {
 					/**/                                 jerr.digest.has_msg_stderr = true                  ;
 					/**/                                 jerr.msg_stderr            = ::move(start_msg_err) ;
 					for( auto& [d,dd_edf] : reply.deps ) jerr.digest.deps.emplace_back( ::move(d) , dd_edf.first ) ;
-					JobDigest<Node> jd = jerr.digest ;                                                                            // before jerr is moved
+					JobDigest<Node> jd = jerr.digest ;                                                               // before jerr is moved
 					//
 					Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 					Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 					//
-					job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                                // job starts and ends
+					job_exec = { job , reply.addr , jerr.end_date/*start&end*/ } ;                                   // job starts and ends
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 					g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
@@ -496,7 +496,7 @@ namespace Backends {
 				//
 				reply.small_id = _s_small_ids.acquire() ;
 				//    vvvvvvvvvvvvvvvvvvvvvvvv
-				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {} // send reply ASAP to minimize overhead, failure will be caught by heartbeat
+				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                        // send reply ASAP to minimize overhead, failure will be caught by heartbeat
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^
 				job_exec = { job , entry.tag!=Tag::Local?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 				//
@@ -751,7 +751,7 @@ namespace Backends {
 	}
 
 	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) {
-		if (!dyn) {                                                                                                                       // if dyn, threads are already running
+		if (!dyn) {                                                                                                                     // if dyn, threads are already running
 			// threads must be stopped while store is still mapped, i.e. before main() returns
 			_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;                          s_record_thread('H',_s_heartbeat_thread             ) ;
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ; s_record_thread('S',_s_job_start_thread      .thread) ;
@@ -764,13 +764,13 @@ namespace Backends {
 		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                                                 // local backend is always available
+		for( Tag t : iota(1,All<Tag>) ) {                                                                                               // local backend is always available
 			Backend*               be        = s_tab [+t].get() ; if (!be) { trace("not_implemented",t) ; continue ; }
 			bool                   was_ready = s_ready(t)       ;
 			Config::Backend const& cfg       = config[+t]       ;
 			if (!cfg.configured) {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend ",t ) ;
-				be->config_err = "not configured" ;                                                                                       // empty config_err means ready
+				be->config_err = "not configured" ;                                                                                     // empty config_err means ready
 				trace("not_configured" ,t) ;
 				continue ;
 			}
@@ -780,7 +780,7 @@ namespace Backends {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend : ",e ) ;
 				if (+e) {
 					be->config_err = e ;
-					if (first_time) Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",ensure_nl(indent(e,1)))) ; // avoid annoying user with warnings they are already aware of
+					if (first_time) Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",ensure_nl(indent(e)))) ; // avoid annoying user with warnings they are already aware of
 					trace("err",t,e) ;
 				} else {
 					be->config_err = "no backend" ;
@@ -789,10 +789,10 @@ namespace Backends {
 				continue ;
 			}
 			if ( dyn && !was_ready ) {
-				SWEAR(+be->config_err) ;                                                                                                  // empty config_err means ready
+				SWEAR(+be->config_err) ;                                                                                                // empty config_err means ready
 				throw cat("cannot dynamically add backend ",t) ;
 			}
-			be->config_err = {} ;                                                                                                         // empty config_err means ready
+			be->config_err = {} ;                                                                                                       // empty config_err means ready
 			//
 			::string ifce ;
 			if (+cfg.ifce) {
@@ -801,15 +801,15 @@ namespace Backends {
 					Ptr<Dict> glbs = py_run(cfg.ifce) ;
 					ifce = (*glbs)["interface"].as_a<Str>() ;
 				} catch (::string const& e) {
-					throw "bad interface for "s+t+'\n'+indent(e,1) ;
+					throw "bad interface for "s+t+'\n'+indent(e) ;
 				}
 			}
 			::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;
 			if (addrs.size()==1) {
 				be->addr = addrs[0].second ;
 			} else if (t==Tag::Local) {
-				be->addr = SockFd::LoopBackAddr ;                                                                                         // dont bother user for local backend
-			} else if (addrs.size()==0) {                                                                                                 // START_OF_NO_COV condition is system dependent
+				be->addr = SockFd::LoopBackAddr ;                                                                                       // dont bother user for local backend
+			} else if (addrs.size()==0) {                                                                                               // START_OF_NO_COV condition is system dependent
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
 				::string msg   = "multiple possible interfaces : " ;
@@ -826,7 +826,7 @@ namespace Backends {
 					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;
 				}
 				throw msg ;
-			}                                                                                                                             // END_OF_NO_COV
+			}                                                                                                                           // END_OF_NO_COV
 			be->addr = addrs[0].second ;
 		}
 		trace(_s_job_exec) ;

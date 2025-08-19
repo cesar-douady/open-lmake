@@ -207,9 +207,9 @@ namespace Engine {
 	void DynEntry::compile( RulesBase const& rules ) {
 		if (kind!=Kind::Dyn) return ;
 		// keep str info to allow decompilation    for_eval
-		try { code      = { code_str               , true  }                    ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e,1) ; }
-		try { glbs_code = { glbs_str+'\n'+dbg_info , false }                    ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e,1) ; }
-		try { glbs      = glbs_code->run( nullptr/*glbs*/ , rules.py_sys_path ) ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e,1) ; }
+		try { code      = { code_str               , true  }                    ; } catch (::string const& e) { throw "cannot compile code :\n"   +indent(e) ; }
+		try { glbs_code = { glbs_str+'\n'+dbg_info , false }                    ; } catch (::string const& e) { throw "cannot compile context :\n"+indent(e) ; }
+		try { glbs      = glbs_code->run( nullptr/*glbs*/ , rules.py_sys_path ) ; } catch (::string const& e) { throw "cannot execute context :\n"+indent(e) ; }
 		kind = Kind::CompiledGlbs ;
 	}
 	void DynEntry::decompile() {
@@ -327,7 +327,7 @@ namespace Engine {
 
 	bool/*keep*/ Rule::s_qualify_dep( ::string const& key , ::string const& dep ) {
 		auto bad = [&] ( ::string const& msg , ::string const& consider={} )->void {
-			::string e = cat("dep ",key," (",dep,") ",msg) ;
+			::string e = cat("dep ",key,' ',msg,+dep?" : ":"",dep) ;
 			if ( +consider && consider!=dep ) e <<", consider : "<< consider ;
 			throw e ;
 		} ;
@@ -1172,7 +1172,7 @@ namespace Engine {
 		}
 		if (+excepts_s) {
 			/**/                                  res << "except in sub-repos :\n"  ;
-			for( ::string const& e_s : excepts_s) res <<'\t'<< no_slash(e_s) <<'\n' ;
+			for( ::string const& e_s : excepts_s) res << indent(no_slash(e_s)) <<'\n' ;
 		}
 		// report actual reg-exprs to ease debugging
 		res << "patterns :\n" ;
@@ -1213,7 +1213,7 @@ namespace Engine {
 		if (!d.is_dyn()) return {} ;
 		::string res ;
 		/**/                         res <<"dynamic "<< T::Msg <<" :\n" ;
-		if (+d.entry().ctx       ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.entry().ctx)    ) res << ' '<<k ; res <<'\n' ; }
+		if (+d.entry().ctx       ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.entry().ctx)    ) res <<' '<<k ; res <<'\n' ; }
 		if (+d.entry().may_import) { res << "\t<sys.path> :" ; for( Object   const& d : *Rule::s_rules->py_sys_path ) res <<' '<< ::string(d.as_a<Str>()) ; res <<'\n' ; }
 		if (+d.entry().glbs_str  )   res << "\t<globals> :\n" << ensure_nl(indent(ensure_nl(d.entry().glbs_str)+d.entry().dbg_info,2)) ;
 		if (+d.entry().code_str  )   res << "\t<code> :\n"    << ensure_nl(indent(          d.entry().code_str                    ,2)) ;
@@ -1279,31 +1279,31 @@ namespace Engine {
 		// checksums
 		SWEAR( crc->state==RuleCrcState::Ok , name , crc ) ;
 		SWEAR( &*crc->rule==this            , name , crc ) ;
-		res << indent( _pretty_vmap( "checksums :" , crc->descr() ) , 1 ) ;
+		res << indent(_pretty_vmap( "checksums :" , crc->descr()) ) ;
 		// then composite static attrs
-		{	res << indent( _pretty_vmap   ("stems :",stems,true/*uniq*/) , 1 ) ;
-			res << indent( _pretty_matches(                            ) , 1 ) ;
+		{	res << indent(_pretty_vmap   ("stems :",stems,true/*uniq*/)) ;
+			res << indent(_pretty_matches(                            )) ;
 		}
 		if (!is_special()) {
-			res << indent( _pretty_deps (                                           ) , 1 ) ;
-			res << indent( _pretty_vmap ("resources :",submit_rsrcs_attrs.spec.rsrcs) , 1 ) ;
-			res << indent( _pretty_views(                                           ) , 1 ) ;
-			res << indent( _pretty_env  (                                           ) , 1 ) ;
+			res << indent(_pretty_deps (                                           )) ;
+			res << indent(_pretty_vmap ("resources :",submit_rsrcs_attrs.spec.rsrcs)) ;
+			res << indent(_pretty_views(                                           )) ;
+			res << indent(_pretty_env  (                                           )) ;
 		}
 		// then dynamic part
 		if (!is_special()) {
-			res << indent( _pretty_dyn(deps_attrs            ) , 1 ) ;
-			res << indent( _pretty_dyn(submit_rsrcs_attrs    ) , 1 ) ;
-			res << indent( _pretty_dyn(submit_ancillary_attrs) , 1 ) ;
-			res << indent( _pretty_dyn(start_cmd_attrs       ) , 1 ) ;
-			res << indent( _pretty_dyn(start_rsrcs_attrs     ) , 1 ) ;
-			res << indent( _pretty_dyn(start_ancillary_attrs ) , 1 ) ;
-			res << indent( _pretty_dyn(cmd                   ) , 1 ) ;
+			res << indent(_pretty_dyn(deps_attrs            )) ;
+			res << indent(_pretty_dyn(submit_rsrcs_attrs    )) ;
+			res << indent(_pretty_dyn(submit_ancillary_attrs)) ;
+			res << indent(_pretty_dyn(start_cmd_attrs       )) ;
+			res << indent(_pretty_dyn(start_rsrcs_attrs     )) ;
+			res << indent(_pretty_dyn(start_ancillary_attrs )) ;
+			res << indent(_pretty_dyn(cmd                   )) ;
 		}
 		// and finally the cmd
 		if ( !is_special() && cmd.entry().kind<DynKind::Dyn ) {
-			if (is_python) res << indent("cmd :\n",1) << indent(ensure_nl(cmd.entry().glbs_str+cmd.entry().dbg_info+cmd.entry().code_str) ,2) ;
-			else           res << indent("cmd :\n",1) << indent(ensure_nl(_pretty_fstr(                             cmd.entry().code_str)),2) ;
+			if (is_python) res << indent("cmd :\n") << indent(ensure_nl(cmd.entry().glbs_str+cmd.entry().dbg_info+cmd.entry().code_str) ,2) ;
+			else           res << indent("cmd :\n") << indent(ensure_nl(_pretty_fstr(                             cmd.entry().code_str)),2) ;
 		}
 		return res ;
 	}
