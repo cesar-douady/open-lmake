@@ -251,29 +251,28 @@ namespace Caches {
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard& nfs_guard ) {
 		throw_unless( new_sz<=sz , "cannot store entry of size ",new_sz," in cache of size ",sz ) ;
 		//
-		::string head_file        = _lru_file(HeadS)              ;
-		AcFd     head_fd          { nfs_guard.access(head_file) } ;
-		Lru      head             ;                                 if (+head_fd) deserialize(head_fd.read(),head) ;
-		bool     some_removed     = false                         ;
-		::string expected_older_s = HeadS                         ;                                     // for assertion only
+		::string   head_file = _lru_file(HeadS)              ;
+		AcFd       head_fd   { nfs_guard.access(head_file) } ;
+		Lru        head      ;                                 if (+head_fd) deserialize(head_fd.read(),head) ;
+		::vector_s to_unlnk  ;                                                                                  // delay unlink actions until all exceptions are cleared
 		//
-		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                                   // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                                           // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
-			SWEAR(head.newer_s!=HeadS) ;                                                                // else this would mean an empty cache and we know an empty cache can accept new_sz
+			throw_if( head.newer_s==HeadS , cat("cannot store entry of size ",new_sz," in cache of size ",sz," with ",head.sz," bytes already reserved") ) ;
 			auto here = deserialize<Lru>(AcFd(nfs_guard.access(_lru_file(head.newer_s))).read()) ;
-			SWEAR( here.older_s==expected_older_s , here.older_s,expected_older_s ) ;
-			SWEAR( head.sz     >=here.sz          , head.sz     ,here.sz          ) ;                   // total size contains this entry
-			unlnk( nfs_guard.change(dir_s+no_slash(head.newer_s)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
-			expected_older_s  =        head.newer_s  ;
-			head.sz          -=        here.sz       ;
-			head.newer_s      = ::move(here.newer_s) ;
-			some_removed      =        true          ;
+			if (+to_unlnk) SWEAR( here.older_s==to_unlnk.back() , here.older_s,to_unlnk.back() ) ;
+			else           SWEAR( here.older_s==HeadS           , here.older_s,HeadS           ) ;
+			/**/           SWEAR( head.sz     >=here.sz         , head.sz     ,here.sz         ) ;              // total size contains this entry
+			to_unlnk.push_back(::move(head.newer_s)) ;
+			head.sz      -=        here.sz       ;
+			head.newer_s  = ::move(here.newer_s) ;
 		}
 		head.sz += new_sz ;
 		SWEAR( head.sz<=sz , head.sz , sz ) ;
 		//
-		if (some_removed) {
+		if (+to_unlnk) {
+			for( ::string const& e : to_unlnk ) unlnk( nfs_guard.change(dir_s+no_slash(e)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
 			if (head.newer_s==HeadS) {
 				head.older_s = HeadS ;
 			} else {
