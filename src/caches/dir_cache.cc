@@ -259,7 +259,7 @@ namespace Caches {
 		SWEAR( head.sz>=old_sz , head.sz , old_sz ) ;                                                           // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>sz) {
-			throw_if( head.newer_s==HeadS , cat("cannot store entry of size ",new_sz," in cache of size ",sz," with ",head.sz," bytes already reserved") ) ;
+			throw_if( head.newer_s==HeadS , "cannot store entry of size ",new_sz," in cache of size ",sz," with ",head.sz," bytes already reserved" ) ;
 			auto here = deserialize<Lru>(AcFd(nfs_guard.access(_lru_file(head.newer_s))).read()) ;
 			if (+to_unlnk) SWEAR( here.older_s==to_unlnk.back() , here.older_s,to_unlnk.back() ) ;
 			else           SWEAR( here.older_s==HeadS           , here.older_s,HeadS           ) ;

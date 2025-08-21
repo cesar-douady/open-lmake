@@ -667,12 +667,11 @@ int main( int argc , char* argv[] ) {
 		,	.job = g_gather.end_date-g_gather.start_date
 		} ;
 		end_report.digest = {
-			.upload_key     = upload_key
-		,	.targets        = ::move(digest.targets)
-		,	.deps           = ::move(digest.deps   )
-		,	.cache_idx      = g_start_info.cache_idx
-		,	.status         = status
-		,	.has_msg_stderr = +end_report.msg_stderr.msg || +g_gather.stderr
+			.upload_key = upload_key
+		,	.targets    = ::move(digest.targets)
+		,	.deps       = ::move(digest.deps   )
+		,	.cache_idx  = g_start_info.cache_idx
+		,	.status     = status
 		} ;
 		end_report.end_date          =        g_gather.end_date  ;
 		end_report.stats             = ::move(stats            ) ;
@@ -682,6 +681,7 @@ int main( int argc , char* argv[] ) {
 	}
 End :
 	{	Trace trace("end",end_report.digest.status) ;
+		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;

@@ -262,7 +262,7 @@ namespace Engine {
 				Rule::RuleMatch match ;
 				JobEndRpcReq    jerr  = job.job_info(JobInfoKind::End).end ;
 				if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl ) ;
+				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl+1 ) ;
 			}
 		}
 		if (intermediate)
