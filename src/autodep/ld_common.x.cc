@@ -739,15 +739,14 @@ struct Mkstemp : WSolve {
 			args[5] = va_arg(lst,uint64_t) ;
 			va_end(lst) ;
 		}
-		SyscallDescr::Tab const& tab   = SyscallDescr::s_tab                                       ;
-		SyscallDescr      const& descr = n>=0&&n<SyscallDescr::NSyscalls ? tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
+		SyscallDescr const& descr = n>=0&&n<SyscallDescr::NSyscalls ? SyscallDescr::s_tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HDR(
 			syscall
 		,	!descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1])))
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void*     descr_ctx = nullptr ;
-		SaveErrno audit_ctx ;                                                                        // save user errno when required
+		SaveErrno audit_ctx ;                                                                                   // save user errno when required
 		//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (descr.entry) descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;
 		//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

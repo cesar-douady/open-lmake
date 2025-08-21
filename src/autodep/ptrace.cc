@@ -51,12 +51,11 @@ void AutodepPtrace::s_init(AutodepEnv const& ade) {
 	Record::s_autodep_env(ade) ;
 	#if HAS_SECCOMP
 		// XXX! : find a way to load seccomp rules that support 32 bits and 64 bits exe's
-		static SyscallDescr::Tab const& s_tab = SyscallDescr::s_tab ;
 		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
 		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2 )==0 ) ;
 		for( long syscall : iota(SyscallDescr::NSyscalls) ) {
-			SyscallDescr const& descr = s_tab[syscall] ;
-			if ( +descr && +descr.entry ) swear_prod( ::seccomp_rule_add( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0 )==0 ) ; // else descr is not allocated
+			SyscallDescr const& descr = SyscallDescr::s_tab[syscall] ;
+			if (+descr) swear_prod( ::seccomp_rule_add( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0 )==0 ) ; // else descr is not allocated
 		}
 	#endif
 }
@@ -72,7 +71,7 @@ void AutodepPtrace::init(pid_t cp) {
 	|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
 	|	PTRACE_O_TRACESYSGOOD                                                  // necessary to have a correct syscall_info.op field
 	;
-	#ifdef PTRACE_O_EXITKILL                                                   // XXX : implement the same feature in all cases
+	#ifdef PTRACE_O_EXITKILL                                                   // XXX! : implement the same feature in all cases
 		options |= PTRACE_O_EXITKILL ;                                         // ensure no process is left stopped, even if alive at end of job
 	#endif
 	long rc = ::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ , options ) ;
@@ -120,8 +119,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 				default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                  // ignore other events
 			}
 		DoSyscall :
-			{	static SyscallDescr::Tab const& tab = SyscallDescr::s_tab ;
-				sig = 0 ;
+			{	sig = 0 ;
 				uint32_t word_sz = 0/*garbage*/ ;
 				#if HAS_PTRACE_GET_SYSCALL_INFO                                                   // use portable calls if implemented
 					struct ptrace_syscall_info syscall_info ;
@@ -157,9 +155,9 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						int syscall = np_ptrace_get_nr( pid , word_sz ) ;                         // use non-portable calls if portable accesses are not implemented
 					#endif
 					SWEAR( syscall>=0 && syscall<SyscallDescr::NSyscalls ) ;
-					SyscallDescr const& descr = tab[syscall] ;
+					SyscallDescr const& descr = SyscallDescr::s_tab[syscall] ;
 					if (HAS_SECCOMP) SWEAR(+descr,"should not be awaken for nothing") ;
-					if ( +descr && descr.entry ) {
+					if ( descr.entry ) {
 						info.idx = syscall ;
 						#if HAS_PTRACE_GET_SYSCALL_INFO                                           // use portable calls if implemented
 							// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
@@ -188,7 +186,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						#else
 							int64_t res = np_ptrace_get_res( pid , word_sz ) ;                    // use non-portable calls if portable accesses are not implemented
 						#endif
-						int64_t new_res = tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
+						int64_t new_res = SyscallDescr::s_tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
 						if (new_res!=res) np_ptrace_set_res( pid , new_res , word_sz ) ;
 						info.ctx = nullptr ;                                                      // ctx is used to retain some info between syscall entry and exit
 					}

@@ -162,7 +162,7 @@ public :
 		// cxtors & casts
 		_Path(                           )                           {                       }
 		_Path( Fd  a                     ) :                   at{a} {                       }
-		_Path( int a                     ) :                   at{a} {                       } // XXX : why isn't int always converted to Fd ?
+		_Path( int a                     ) :                   at{a} {                       } // avoid confusion with Char*
 		_Path(         Char*           f ) : file{f        }         {                       }
 		_Path( Fd  a , Char*           f ) : file{f        } , at{a} {                       }
 		_Path(         ::string const& f ) : file{f.c_str()}         { _allocate(f.size()) ; }

@@ -23,8 +23,8 @@ if __name__!='__main__' :
 		,	'TGT'  : ( 'src/{Dir   }.repo_dir/{File*:.*}' , 'incremental' , 'no_warning' )
 		}
 		side_deps = {
-			'DIR'  : ('src/{Dir}.repo_dir','readdir_ok')
-		,	'REPO' : ('{Dir}.repo/{File*}','ignore'    )
+			'DIR'  : ( 'src/{Dir}.repo_dir' , 'readdir_ok' )
+		,	'REPO' : ( '{Dir}.repo/{File*}' , 'ignore'     )
 		}
 		cmd = '''
 			if [ -f {TGT('.git/index')} ]
@@ -49,7 +49,6 @@ if __name__!='__main__' :
 		cmd = f'''
 			{gxx.gxx} -I . -o {{EXE}} -xc {{SRC}}
 		'''
-
 
 else :
 

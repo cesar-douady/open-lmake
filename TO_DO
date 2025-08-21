@@ -15,7 +15,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* StructFile::size() sometimes become 0 (invalid value, 1 when empty) with no apparent reason
 * Autodep seems to be inoperant
 	- see Thomas's use to fsync files
 	- at least regarding readdir signalling

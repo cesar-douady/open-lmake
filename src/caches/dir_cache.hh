@@ -53,7 +53,7 @@ namespace Caches {
 		Match                               sub_match   ( ::string const& job , ::vmap_s<DepDigest> const&          ) const override ;
 		::pair<JobInfo,AcFd>                sub_download( ::string const& match_key                                 )       override ;
 		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 )       override ;
-		bool/*ok*/                          sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& )       override ;
+		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& )       override ;
 		void                                sub_dismiss ( uint64_t upload_key                                       )       override ;
 		//
 		void chk(ssize_t delta_sz=0) const ;

@@ -264,10 +264,11 @@ namespace Caches {
 		Sz         old_head_sz = head.sz                                        ;                                                  // for trace only
 		::vector_s to_unlnk    ;                                                                                                   // delay unlink actions until all exceptions are cleared
 		//
-		trace("before",head.sz) ;
+trace("before",head.sz) ;
 		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                                // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>max_sz) {
+trace("access",_lru_file(head.newer_s)) ;
 			if (head.newer_s==HeadS) {
 				trace("too_large2",head.sz) ;
 				throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz," with ",head.sz," bytes already reserved") ;
@@ -284,6 +285,7 @@ namespace Caches {
 			head.newer_s  = ::move(here.newer_s) ;
 		}
 		head.sz += new_sz ;
+trace("after",head.sz) ;
 		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
 		//
 		if (+to_unlnk) {
@@ -440,7 +442,7 @@ namespace Caches {
 		return { upload_key , ::move(data_fd) } ;
 	}
 
-	bool/*ok*/ DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
+	void DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
 		NfsGuard nfs_guard { file_sync }                   ;
 		::string jn_s      = job+'/'                       ;
 		::string key_s     = cat("key-",key_crc.hex(),'/') ;
@@ -485,7 +487,7 @@ namespace Caches {
 				trace("failed",e) ;
 				unlnk_inside_s(dfd) ;                                                                                                         // clean up in case of partial execution
 				_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                                // finally, we did not populate the entry
-				return false/*ok*/ ;
+				throw e ;
 			}
 		}
 		// set a symlink from a name derived from deps to improve match speed in case of hit
@@ -495,7 +497,6 @@ namespace Caches {
 		lnk  ( abs_deps_hint , no_slash(key_s) ) ;
 		//
 		trace("done",new_sz) ;
-		return true/*ok*/ ;
 	}
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {

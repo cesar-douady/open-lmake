@@ -612,7 +612,7 @@ namespace Caches {
 		Match                  match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
 		JobInfo                download( ::string const& match_key , Disk::NfsGuard& repo_nfs_guard                        ) ;
 		uint64_t/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
-		bool/*ok*/             commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
+		void                   commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
 		void                   dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		// default implementation : no caching, but enforce protocol
 		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false ) {}
@@ -625,7 +625,7 @@ namespace Caches {
 		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return { .completed=true , .hit=No } ; }
 		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;
 		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 )       { return {}                            ; }
-		virtual bool/*ok*/                          sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& )       { return false                         ; }
+		virtual void                                sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& )       {                                        }
 		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       )       {                                        }
 	} ;
 

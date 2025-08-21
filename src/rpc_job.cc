@@ -584,13 +584,13 @@ namespace Caches {
 				FileTag                       tag   = entry.second.sig.tag() ;
 				Sz                            sz    = target_fis[ti].sz      ;
 				switch (tag) {
-					case FileTag::Lnk   : { trace("lnk_from"  ,tn,sz) ; ::string l = read_lnk(tn) ; SWEAR(l.size()==sz) ; data_fd.write(l) ; goto ChkSig ; }
-					case FileTag::Empty :   trace("empty_from",tn   ) ;                                                                      break       ;
+					case FileTag::Lnk   : { trace("lnk_from"  ,tn,sz) ; ::string l = read_lnk(tn) ; throw_unless(l.size()==sz,"cannot readlink ",tn) ; data_fd.write(l) ; goto ChkSig ; }
+					case FileTag::Empty :   trace("empty_from",tn   ) ;                                                                                                   break       ;
 					case FileTag::Reg   :
 					case FileTag::Exe   :
 						if (sz) {
 							trace("read_from",tn,sz) ;
-							data_fd.send_from( AcFd(::open(tn.c_str(),O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NOATIME)) , sz ) ;
+							data_fd.send_from( AcFd(tn,FdAction::ReadNoFollow) , sz ) ;
 							goto ChkSig ;
 						} else {
 							trace("empty_from",tn) ;
@@ -603,22 +603,22 @@ namespace Caches {
 				throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;
 			}
 			data_fd.flush() ;                                                        // update data_fd.sz
-		} catch (::string const&) {
+		} catch (::string const& e) {
 			dismiss(key_fd.first) ;
 			trace("failed") ;
-			return {} ;
+			throw e ;
 		}
 		trace("done",tgts_sz,z_max_sz) ;
 		return key_fd.first ;
 	}
 
-	bool/*ok*/ Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
+	void Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
 		Trace trace("Cache::commit",upload_key,job) ;
 		//
 		if (!( +job_info.start && +job_info.end )) { // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			dismiss(upload_key) ;
-			return false/*ok*/ ;
+			throw "no ancillary file"s ;
 		}
 		//
 		job_info.update_digest() ;                   // ensure cache has latest crc available
@@ -627,11 +627,11 @@ namespace Caches {
 			if (!dd.is_crc) {
 				trace("not_a_crc_dep",dn,dd) ;
 				dismiss(upload_key) ;
-				return false/*ok*/ ;
+				throw "not a crc dep"s ;
 			}
 		job_info.cache_cleanup() ;                   // defensive programming : remove useless/meaningless info
 		//
-		return sub_commit( upload_key , job , ::move(job_info) ) ;
+		sub_commit( upload_key , job , ::move(job_info) ) ;
 	}
 
 }

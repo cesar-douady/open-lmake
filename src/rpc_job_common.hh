@@ -169,7 +169,6 @@ enum class Comment : uint8_t {
 ,	chdir
 ,	chmod
 ,	creat                  , creat64
-,	clone                  , clone3
 ,	dlmopen
 ,	dlopen
 ,	execv                  , execvDep
@@ -180,7 +179,6 @@ enum class Comment : uint8_t {
 ,	fchdir
 ,	                                           fchmodat
 ,	fopen                  , fopen64
-,	fork
 ,	freopen                , freopen64
 ,	                                           fstatat           , fstatat64
 ,	                                           futimesat
