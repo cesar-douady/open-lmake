@@ -646,9 +646,15 @@ int main( int argc , char* argv[] ) {
 		end_report.msg_stderr.msg += compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
 		//
 		if (g_start_info.cache) {
-			upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
-			g_exec_trace->push_back({ New/*date*/ , Comment::uploadedToCache , {}/*comment_exts*/ , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
-			trace("cache",upload_key) ;
+			try {
+				upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
+				trace("cache",upload_key) ;
+			} catch (::string const& e) {
+				trace("cache_upload_throw",e) ;
+				end_report.msg_stderr.msg <<"cannot cache : "<<e<<'\n' ;
+			}
+			CommentExts ces ; if (!upload_key) ces |= CommentExt::Err ;
+			g_exec_trace->push_back({ New/*date*/ , Comment::uploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
 		}
 		//
 		if (+g_start_info.autodep_env.file_sync) {                                                                                   // fast path : avoid listing targets & guards if !file_sync
