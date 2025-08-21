@@ -277,7 +277,7 @@ namespace Engine {
 		JobReqInfo const& cri     = job->c_req_info(self)   ;
 		bool              job_err = job->status!=Status::Ok ;
 		Trace trace("chk_end",self,cri,job,job->status) ;
-		self->audit_stats() ;
+		self->audit_stats  (       ) ;
 		self->audit_summary(job_err) ;
 		if (zombie()                     ) { trace("zombie") ; goto Done ; }
 		if (!job_err                     ) { trace("ok"    ) ; goto Done ; }
@@ -508,13 +508,13 @@ namespace Engine {
 	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok) ; } // ... w/o naming namespace
 
 	bool/*seen*/ ReqData::audit_stderr( Job j , MsgStderr const& msg_stderr , uint16_t max_stderr_len , DepDepth lvl ) const {
-		if (+msg_stderr.msg   ) audit_info( Color::Note , msg_stderr.msg , lvl ) ;
+		if (+msg_stderr.msg   ) audit_info( Color::Note , msg_stderr.msg , lvl+1 ) ;
 		if (!msg_stderr.stderr) return +msg_stderr.msg ;
 		if (max_stderr_len) {
 			::string_view shorten = first_lines(msg_stderr.stderr,max_stderr_len) ;
 			if (shorten.size()<msg_stderr.stderr.size()) {
 				audit_as_is(::string(shorten)) ;
-				audit_info( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->user_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl ) ;
+				audit_info( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->user_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl+1 ) ;
 				return true ;
 			}
 		}

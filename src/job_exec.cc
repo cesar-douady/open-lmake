@@ -486,8 +486,8 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , nfs_guard )) ;
 		} catch (::string const& e) {                                                                                                   // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
-			end_report.msg_stderr.msg += ensure_nl(e) ;
-			end_report.digest.status = Status::LateLostErr ;
+			end_report.msg_stderr.msg += ensure_nl(e)        ;
+			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
 		}                                                                                                                               // END_OF_NO_COV
 		Pdate washed { New } ;
@@ -670,12 +670,11 @@ int main( int argc , char* argv[] ) {
 		,	.job = g_gather.end_date-g_gather.start_date
 		} ;
 		end_report.digest = {
-			.upload_key     = upload_key
-		,	.targets        = ::move(digest.targets)
-		,	.deps           = ::move(digest.deps   )
-		,	.cache_idx      = g_start_info.cache_idx
-		,	.status         = status
-		,	.has_msg_stderr = +end_report.msg_stderr.msg || +g_gather.stderr
+			.upload_key = upload_key
+		,	.targets    = ::move(digest.targets)
+		,	.deps       = ::move(digest.deps   )
+		,	.cache_idx  = g_start_info.cache_idx
+		,	.status     = status
 		} ;
 		end_report.end_date          =        g_gather.end_date  ;
 		end_report.stats             = ::move(stats            ) ;
@@ -685,11 +684,12 @@ int main( int argc , char* argv[] ) {
 	}
 End :
 	{	Trace trace("end",end_report.digest.status) ;
+		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
 			g_exec_trace->push_back({ end_overhead , Comment::endOverhead , {}/*CommentExt*/ , cat(end_report.digest.status) }) ;
-			end_report.digest.exec_time = end_overhead - start_overhead ;                                                            // measure overhead as late as possible
+			end_report.digest.exec_time      = end_overhead - start_overhead ;                                                            // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

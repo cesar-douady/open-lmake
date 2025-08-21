@@ -24,16 +24,16 @@ template< IsIStream S , HasSerdes   T > void serdes( S& is , T       & x ) {    
 template< IsOStream S , HasSerdeser T > void serdes( S& os , T  const& x ) { Serdeser<T>::s_serdes(os,const_cast<T&>(x)) ; }
 template< IsIStream S , HasSerdeser T > void serdes( S& is , T       & x ) { Serdeser<T>::s_serdes(is,               x ) ; }
 //
-template< Serializable T , IsOStream S > void     serialize  ( S& os , T const& x ) {                serdes(os ,x  ) ;              }
-template< Serializable T               > ::string serialize  (         T const& x ) { ::string res ; serdes(res,x  ) ; return res ; }
-template< Serializable T , IsIStream S > void     deserialize( S& is , T      & x ) { x = {} ;       serdes(is ,x  ) ;              }
-template< Serializable T , IsIStream S > T        deserialize( S& is              ) { T res ;        serdes(is ,res) ; return res ; }
+template< Serializable T , IsOStream S > void     serialize  ( S& os , T const&        x ) {                serdes(os ,x  ) ;              }
+template< Serializable T               > ::string serialize  (         T const&        x ) { ::string res ; serdes(res,x  ) ; return res ; }
+template< Serializable T , IsIStream S > void     deserialize( S& is , T      &/*out*/ x ) { x = {} ;       serdes(is ,x  ) ;              }
+template< Serializable T , IsIStream S > T        deserialize( S& is                     ) { T res ;        serdes(is ,res) ; return res ; }
 //
-template< Serializable T , IsOStream S > void serialize  ( S            && os , T const& x ) {        serialize  <T>(os              ,x) ; }
-template< Serializable T , IsIStream S > void deserialize( S            && is , T      & x ) {        deserialize<T>(is              ,x) ; }
-template< Serializable T , IsIStream S > T    deserialize( S            && is              ) { return deserialize<T>(is                ) ; }
-template< Serializable T               > T    deserialize( ::string const& s               ) { return deserialize<T>(::string_view(s)  ) ; }
-template< Serializable T               > void deserialize( ::string const& s  , T      & x ) {        deserialize<T>(::string_view(s),x) ; }
+template< Serializable T , IsOStream S > void serialize  ( S            && os , T const&        x ) {        serialize  <T>(os              ,x) ; }
+template< Serializable T , IsIStream S > void deserialize( S            && is , T      &/*out*/ x ) {        deserialize<T>(is              ,x) ; }
+template< Serializable T , IsIStream S > T    deserialize( S            && is                     ) { return deserialize<T>(is                ) ; }
+template< Serializable T               > void deserialize( ::string const& s  , T      &/*out*/ x ) {        deserialize<T>(::string_view(s),x) ; }
+template< Serializable T               > T    deserialize( ::string const& s                      ) { return deserialize<T>(::string_view(s)  ) ; }
 
 // make objects hashable as soon as they define serdes
 // as soon as a class T is serializable, you can simply use ::set<T>, ::uset<T>, ::map<T,...> or ::umap<T,...>

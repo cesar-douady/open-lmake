@@ -258,14 +258,14 @@ namespace Caches {
 			throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz) ;
 		}
 		//
-		::string   head_file        = _lru_file(HeadS)                               ;
-		AcFd       head_fd          { nfs_guard.access(head_file) , true/*err_ok*/ } ;
-		Lru        head             ;                                                  if (+head_fd) deserialize(head_fd.read(),head) ;
-		Sz         old_head_sz      = head.sz                                        ;                                                  // for trace only
-		::vector_s to_unlnk         ;                                                                                                   // delay unlink actions until all exceptions are cleared
+		::string   head_file   = _lru_file(HeadS)                               ;
+		AcFd       head_fd     { nfs_guard.access(head_file) , true/*err_ok*/ } ;
+		Lru        head        ;                                                  if (+head_fd) deserialize(head_fd.read(),head) ;
+		Sz         old_head_sz = head.sz                                        ;                                                  // for trace only
+		::vector_s to_unlnk    ;                                                                                                   // delay unlink actions until all exceptions are cleared
 		//
 		trace("before",head.sz) ;
-		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                                     // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                                // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>max_sz) {
 			if (head.newer_s==HeadS) {
@@ -277,11 +277,11 @@ namespace Caches {
 			trace("evict",head.sz,here.sz,head.newer_s) ;
 			if (+to_unlnk) SWEAR( here.older_s==to_unlnk.back() , here.older_s,to_unlnk.back() ) ;
 			else           SWEAR( here.older_s==HeadS           , here.older_s,HeadS           ) ;
-			/**/           SWEAR( head.sz     >=here.sz         , head.sz     ,here.sz         ) ;                                      // total size contains this entry
+			/**/           SWEAR( head.sz     >=here.sz         , head.sz     ,here.sz         ) ;                                 // total size contains this entry
 			//
-			to_unlnk.push_back(head.newer_s) ;
-			head.sz          -=        here.sz       ;
-			head.newer_s      = ::move(here.newer_s) ;
+			to_unlnk.push_back(::move(head.newer_s)) ;
+			head.sz      -=        here.sz       ;
+			head.newer_s  = ::move(here.newer_s) ;
 		}
 		head.sz += new_sz ;
 		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
