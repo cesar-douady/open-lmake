@@ -14,6 +14,9 @@ But these obsolete files are not removed from disk and after a while, this may o
 B(lcollect) can be used to remove all such files.
 
 .LP
+B(lcollect) works by walking through the dirs and files passed as argument and decide for each of them whether to keep, quarantine or remove them.
+
+.LP
 Files ignored as specified in B(lmake.config.collect) are kept, though.
 This is particularly useful if files are generated with the B(ignore) flag, in which case OpenLmake does not see they have been generated
 and B(lcollect) would consider them as foreign files to be quarantined.

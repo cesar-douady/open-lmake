@@ -463,7 +463,9 @@ trace("after",head.sz) ;
 		Sz       new_sz = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
 		LockedFd lock   { dir_s , true/*exclusive*/ }                                                                                       ; // lock as late as possible
 		Bool3    hit    = _sub_match( job , ::ref(::vmap_s<DepDigest>()) , false/*do_lock*/ ).hit                                           ;
+trace("before1",old_sz,new_sz) ;
 		if (hit==Yes) {
+			trace("hit") ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
 			_dismiss( upload_key , old_sz , nfs_guard ) ;                                                                                     // finally, we did not populate the entry
 			throw_unless( AcFd(dfd,"data").read()==job_data , "incoherent targets" ) ;                                                        // check coherence
@@ -473,8 +475,10 @@ trace("after",head.sz) ;
 				old_sz += _lru_remove(jnid_s,nfs_guard) ;
 				unlnk_inside_s(dfd) ;
 				// store meta-data and data
+trace("before2",old_sz) ;
 				_mk_room( old_sz , new_sz , nfs_guard ) ;
 				made_room = true ;
+trace("after1") ;
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
 				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                               // store deps in a compact format so that matching is fast
@@ -483,6 +487,7 @@ trace("after",head.sz) ;
 				if (rc<0) throw "cannot move data from tmp to final destination"s ;
 				unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 				_lru_mk_newest( jnid_s , new_sz , nfs_guard ) ;
+trace("after2") ;
 			} catch (::string const& e) {
 				trace("failed",e) ;
 				unlnk_inside_s(dfd) ;                                                                                                         // clean up in case of partial execution

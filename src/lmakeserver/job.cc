@@ -758,10 +758,10 @@ namespace Engine {
 				if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
 				else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
-				if (upload) trace("cache_commit_throw" ,e) ;
-				else        trace("cache_dismiss_throw",e) ;
+				const char* action = upload ? "upload" : "dismiss" ;
+				trace("cache_throw",action,e) ;
 				for( Req req : running_reqs_ ) {
-					req->audit_job( Color::Warning , "bad_cache_upload" , self , true/*at_end*/ ) ;
+					req->audit_job( Color::Warning , cat("bad_cache_",action) , self , true/*at_end*/ ) ;
 					req->audit_stderr( self , {.msg=e} ) ;
 				}
 			}
