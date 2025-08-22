@@ -274,25 +274,22 @@ namespace Disk {
 		if (has_dir(file)) mk_dir_s(at,dir_name_s(file)) ;
 	}
 
-	FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , bool unlnk_dst , bool mk_read_only ) {
+	FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file ) {
 		FileInfo fi  { src_at , src_file } ;
 		FileTag  tag = fi.tag()            ;
-		if (unlnk_dst) unlnk(dst_at,dst_file,true/*dir_ok*/)                  ;
-		else           SWEAR( !is_target(dst_at,dst_file) , dst_at,dst_file ) ;
+		//
+		SWEAR( !is_target(dst_at,dst_file) , dst_at,dst_file ) ;
+		//
 		switch (tag) {
 			case FileTag::None  :
 			case FileTag::Dir   : break ;    // dirs are like no file
 			case FileTag::Empty :            // fast path : no need to access empty src
 				dir_guard(dst_at,dst_file) ;
-				AcFd( dst_at , dst_file , mk_read_only?FdAction::CreateNoFollowReadOnly:FdAction::CreateNoFollow ) ;
+				AcFd( dst_at , dst_file , FdAction::CreateNoFollow ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
-				FdAction action =
-					tag==FileTag::Exe
-					?	( mk_read_only ? FdAction::CreateNoFollowExeReadOnly : FdAction::CreateNoFollowExe )
-					:	( mk_read_only ? FdAction::CreateNoFollowReadOnly    : FdAction::CreateNoFollow    )
-				;
+				FdAction action = tag==FileTag::Exe ? FdAction::CreateNoFollowExe : FdAction::CreateNoFollow ;
 				dir_guard(dst_at,dst_file) ;
 				AcFd rfd { src_at , src_file          }              ;
 				AcFd wfd { dst_at , dst_file , action }              ;

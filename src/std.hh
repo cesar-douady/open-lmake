@@ -6,10 +6,11 @@
 #pragma once
 
 #include <dlfcn.h>        // dlopen
+#include <fcntl.h>        //  O_*, openat, fcntl
 #include <link.h>         // struct link_map
 #include <netinet/ip.h>   // in_addr_t, in_port_t
 #include <signal.h>       // SIG*, kill
-#include <sys/file.h>     // AT_*, F_*, FD_*, LOCK_*, O_*, fcntl, flock, openat
+#include <sys/file.h>     // AT_*, F_*, FD_*, LOCK_*
 #include <sys/mman.h>     // mmap, munmap
 #include <sys/mount.h>    // mount
 #include <sys/resource.h> // getrlimit

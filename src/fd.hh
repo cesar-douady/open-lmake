@@ -24,14 +24,34 @@ struct LockedFd : AcFd {
 	// cxtors & casts
 	LockedFd() = default ;
 	//
-	LockedFd ( Fd fd_ , bool exclusive ) : AcFd{fd_} { lock  (exclusive) ; }
-	~LockedFd(                         )             { unlock(         ) ; }
+	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,FdAction::CreateReadTrunc} { lock  (exclusive) ; }
+	~LockedFd(                                            )                                        { unlock(         ) ; }
 	//
 	LockedFd           (LockedFd&&) = default ;
 	LockedFd& operator=(LockedFd&&) = default ;
 	//
-	void lock  (bool e) { if (fd>=0) ::flock(fd,e?LOCK_EX:LOCK_SH) ; }
-	void unlock(      ) { if (fd>=0) ::flock(fd,  LOCK_UN        ) ; }
+	void lock(bool exclusive) {
+		if (!self) return ;
+		struct flock lock {
+			.l_type   = short( exclusive ? F_WRLCK : F_RDLCK )
+		,	.l_whence = SEEK_SET
+		,	.l_start  = 0
+		,	.l_len    = 0 // lock entire file
+		,	.l_pid    = 0
+		} ;
+		while (::fcntl(fd,F_SETLKW,&lock)<0) swear_prod( errno==EINTR , +self ) ;
+	}
+	void unlock() {
+		if (!self) return ;
+		struct flock lock {
+			.l_type   = F_UNLCK
+		,	.l_whence = SEEK_SET
+		,	.l_start  = 0
+		,	.l_len    = 0 // lock entire file
+		,	.l_pid    = 0
+		} ;
+		swear_prod( ::fcntl(fd,F_SETLK,&lock)>=0 , +self ) ;
+	}
 } ;
 
 struct SockFd : AcFd {
@@ -249,7 +269,7 @@ public :
 // Epoll
 //
 
-extern StaticUniqPtr<::uset<int>> _s_epoll_sigs ;         // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+extern StaticUniqPtr<::uset<int>> _s_epoll_sigs ;      // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
 template<Enum E=NewType/*when_unused*/> struct Epoll {
 	struct Event : ::epoll_event {
 		// cxtors & casts

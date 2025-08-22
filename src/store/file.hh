@@ -52,13 +52,13 @@ namespace Store {
 			//
 			_alloc() ;
 			if (+name) {
-				int open_flags = O_CLOEXEC ;
-				if (writable) { open_flags |= O_RDWR | O_CREAT ; Disk::dir_guard(name) ; }
-				else            open_flags |= O_RDONLY         ;
-				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				_fd = ::open( name.c_str() , open_flags , 0644 ) ;                   // mode is only used if created, which implies writable
-				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (writable) _s_chk_rc( ::lseek( _fd , 0/*offset*/ , SEEK_END ) ) ; // ensure writes (when expanding) are done at end of file when resizing
+				FdAction action ;
+				if (writable) { action = FdAction::CreateRead ; Disk::dir_guard(name) ; }
+				else            action = FdAction::Read       ;
+				//    vvvvvvvvvvvvvvvvvvvvv
+				_fd = AcFd( name , action ) ;                                              // mode is only used if created, which implies writable
+				//    ^^^^^^^^^^^^^^^^^^^^^
+				if (writable) _s_chk_rc( ::lseek( _fd , 0/*offset*/ , SEEK_END ) ) ;       // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
 				Disk::FileInfo fi{_fd} ;
 				SWEAR(fi.tag()>=FileTag::Reg) ;

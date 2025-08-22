@@ -485,18 +485,16 @@ enum class FdAction : uint8_t {
 	Read
 ,	ReadNonBlock
 ,	ReadNoFollow
-,	ReadNoFollowNonBlock
 ,	Dir
 ,	Write
 ,	Append
 ,	Create
 ,	CreateExe
 ,	CreateReadOnly
-,	CreateExeReadOnly
 ,	CreateNoFollow
 ,	CreateNoFollowExe
-,	CreateNoFollowReadOnly
-,	CreateNoFollowExeReadOnly
+,	CreateRead
+,	CreateReadTrunc
 } ;
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;

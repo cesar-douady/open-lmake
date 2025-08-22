@@ -6,16 +6,11 @@
 #pragma once
 
 #include <dirent.h>
-#include <fcntl.h>
 
 #include "types.hh"
 #include "fd.hh"
 #include "lib.hh"
 #include "time.hh"
-
-#ifndef O_NOATIME
-	#define O_NOATIME 0 // this is just for perf, if not possible, no big deal
-#endif
 
 enum class Access : uint8_t {                                          // in all cases, dirs are deemed non-existing
 	Lnk                                                                // file is accessed with readlink              , regular files are deemed non-existing
@@ -230,7 +225,7 @@ namespace Disk {
 		// statics
 	private :
 		void _s_protect(::string const& dir_s) {
-			::close(::open(no_slash(dir_s).c_str(),O_DIRECTORY|O_NOATIME)) ;
+			AcFd( dir_s , true/*err_ok*/ , FdAction::Dir ) ;
 		}
 		// cxtors & casts
 	public :
@@ -392,10 +387,10 @@ namespace Disk {
 		return with_slash(cwd) ;                               // cwd is "/" not empty when at root dir, so dont simply append '/'
 	}
 
-	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , bool unlnk_dst=false , bool mk_read_only=false ) ;
-	inline FileTag cpy(             ::string const& df       , Fd sat    , ::string const& sf       , bool ud       =false , bool ro          =false ) { return cpy(Fd::Cwd,df,sat    ,sf,ud,ro) ; }
-	inline FileTag cpy( Fd dat    , ::string const& df       ,             ::string const& sf       , bool ud       =false , bool ro          =false ) { return cpy(dat    ,df,Fd::Cwd,sf,ud,ro) ; }
-	inline FileTag cpy(             ::string const& df       ,             ::string const& sf       , bool ud       =false , bool ro          =false ) { return cpy(Fd::Cwd,df,Fd::Cwd,sf,ud,ro) ; }
+	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file ) ;
+	inline FileTag cpy(             ::string const& df       , Fd sat    , ::string const& sf       ) { return cpy(Fd::Cwd,df,sat    ,sf) ; }
+	inline FileTag cpy( Fd dat    , ::string const& df       ,             ::string const& sf       ) { return cpy(dat    ,df,Fd::Cwd,sf) ; }
+	inline FileTag cpy(             ::string const& df       ,             ::string const& sf       ) { return cpy(Fd::Cwd,df,Fd::Cwd,sf) ; }
 
 	struct FileMap {
 		// cxtors & casts

@@ -76,10 +76,11 @@ namespace Caches {
 		}
 		// data
 	public :
-		Hash::Crc key_crc   = Hash::Crc::None ;
-		::string  dir_s     ;
-		Sz        max_sz    = 0               ;
-		FileSync  file_sync = FileSync::Dflt  ;
+		Hash::Crc key_crc     = Hash::Crc::None ;
+		::string  dir_s       ;
+		::string  admin_dir_s ;
+		Sz        max_sz      = 0               ;
+		FileSync  file_sync   = FileSync::Dflt  ;
 	} ;
 
 }

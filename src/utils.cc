@@ -34,23 +34,21 @@ using namespace Time ;
 int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action ) {
 	int res ;
 	switch (action) {
-		case FdAction::Read                      : res = ::openat( at ,          file .c_str() , O_RDONLY                     | O_CLOEXEC                     ) ; break ;
-		case FdAction::ReadNonBlock              : res = ::openat( at ,          file .c_str() , O_RDONLY | O_NONBLOCK        | O_CLOEXEC                     ) ; break ;
-		case FdAction::ReadNoFollow              : res = ::openat( at ,          file .c_str() , O_RDONLY                     | O_CLOEXEC | O_NOFOLLOW        ) ; break ;
-		case FdAction::ReadNoFollowNonBlock      : res = ::openat( at ,          file .c_str() , O_RDONLY | O_NONBLOCK        | O_CLOEXEC | O_NOFOLLOW        ) ; break ;
-		case FdAction::Dir                       : res = ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY       | O_CLOEXEC                     ) ; break ;
-		case FdAction::Write                     : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC           | O_CLOEXEC                     ) ; break ;
-		case FdAction::Append                    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_APPEND          | O_CLOEXEC                     ) ; break ;
-		case FdAction::Create                    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0666 ) ; break ;
-		case FdAction::CreateExe                 : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0777 ) ; break ;
-		case FdAction::CreateReadOnly            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0444 ) ; break ;
-		case FdAction::CreateExeReadOnly         : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC              , 0555 ) ; break ;
-		case FdAction::CreateNoFollow            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0666 ) ; break ;
-		case FdAction::CreateNoFollowExe         : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0777 ) ; break ;
-		case FdAction::CreateNoFollowReadOnly    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0444 ) ; break ;
-		case FdAction::CreateNoFollowExeReadOnly : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC | O_NOFOLLOW , 0555 ) ; break ;
+		case FdAction::Read              : res = ::openat( at ,          file .c_str() , O_RDONLY                                  | O_CLOEXEC        ) ; break ;
+		case FdAction::ReadNonBlock      : res = ::openat( at ,          file .c_str() , O_RDONLY | O_NONBLOCK                     | O_CLOEXEC        ) ; break ;
+		case FdAction::ReadNoFollow      : res = ::openat( at ,          file .c_str() , O_RDONLY                     | O_NOFOLLOW | O_CLOEXEC        ) ; break ;
+		case FdAction::Dir               : res = ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY                    | O_CLOEXEC        ) ; break ;
+		case FdAction::Write             : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC                        | O_CLOEXEC        ) ; break ;
+		case FdAction::Append            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_APPEND                       | O_CLOEXEC        ) ; break ;
+		case FdAction::Create            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
+		case FdAction::CreateExe         : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0777 ) ; break ;
+		case FdAction::CreateReadOnly    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0444 ) ; break ;
+		case FdAction::CreateNoFollow    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC , 0666 ) ; break ;
+		case FdAction::CreateNoFollowExe : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC , 0777 ) ; break ;
+		case FdAction::CreateRead        : res = ::openat( at ,          file .c_str() , O_RDWR             | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
+		case FdAction::CreateReadTrunc   : res = ::openat( at ,          file .c_str() , O_RDWR   | O_TRUNC | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
 	DF}
-	if ( !err_ok && res<0 ) throw cat("cannot open for ",action," (",::strerror(errno),") : ",file_msg(at,file)) ;
+	if ( !err_ok && res<0 ) throw cat("cannot open with action ",action," (",::strerror(errno),") : ",file_msg(at,file)) ;
 	return res ;
 }
 

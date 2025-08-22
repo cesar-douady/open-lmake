@@ -19,6 +19,7 @@ using namespace Time ;
 
 StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
+::string& operator+=( ::string& os , LockedFd     const& fd ) { return os << "LockedFd("     << fd.fd <<')' ; } // NO_COV
 ::string& operator+=( ::string& os , SockFd       const& fd ) { return os << "SockFd("       << fd.fd <<')' ; } // NO_COV
 ::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return os << "SlaveSockFd("  << fd.fd <<')' ; } // NO_COV
 ::string& operator+=( ::string& os , ServerSockFd const& fd ) { return os << "ServerSockFd(" << fd.fd <<')' ; } // NO_COV
