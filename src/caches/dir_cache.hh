@@ -58,29 +58,37 @@ namespace Caches {
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
-		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                 ) const ;
-		::string _lru_file     ( ::string const& entry_s                                         ) const { return cat(dir_s,entry_s,"lru"                                   ) ; }
-		::string _reserved_file( uint64_t upload_key          , ::string const& sfx              ) const { return cat(dir_s,AdminDirS,"reserved/",to_hex(upload_key),'.',sfx) ; }
-		Sz       _reserved_sz  ( uint64_t upload_key          , Disk::NfsGuard&                  ) const ;
-		Sz       _lru_remove   ( ::string const& entry_s      , Disk::NfsGuard&                  ) ;
-		void     _lru_mk_newest( ::string const& entry_s , Sz , Disk::NfsGuard&                  ) ;
-		void     _mk_room      ( Sz old_sz , Sz new_sz        , Disk::NfsGuard&                  ) ;
-		void     _dismiss      ( uint64_t upload_key     , Sz , Disk::NfsGuard&                  ) ;
-		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const& , bool do_lock ) const ;
+		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s    ) const ;
+		::string _lru_file     (                         ::string const& entry_s    ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
+		::string _reserved_file( uint64_t upload_key          , ::string const& sfx ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
+		Sz       _reserved_sz  ( uint64_t upload_key          , Disk::NfsGuard&     ) const ;
+		Sz       _lru_remove   ( ::string const& entry_s      , Disk::NfsGuard&     ) ;
+		void     _lru_mk_newest( ::string const& entry_s , Sz , Disk::NfsGuard&     ) ;
+		void     _mk_room      ( Sz old_sz , Sz new_sz        , Disk::NfsGuard&     ) ;
+		void     _dismiss      ( uint64_t upload_key     , Sz , Disk::NfsGuard&     ) ;
+		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const&   ) const ;
 		//
-		template<IsStream T> void _serdes(T& s) {
+		template<IsStream S> void _serdes(S& s) {
 			::serdes(s,key_crc  ) ;
 			::serdes(s,dir_s    ) ;
 			::serdes(s,max_sz   ) ;
 			::serdes(s,file_sync) ;
+			if (IsIStream<S>) _compile() ;
+		}
+		void _compile() {
+			admin_dir_s    = dir_s       + AdminDirS  ;
+			reserved_dir_s = admin_dir_s + "reserved" ;
+			lock_file      = admin_dir_s + "lock"     ;
 		}
 		// data
 	public :
-		Hash::Crc key_crc     = Hash::Crc::None ;
-		::string  dir_s       ;
-		::string  admin_dir_s ;
-		Sz        max_sz      = 0               ;
-		FileSync  file_sync   = FileSync::Dflt  ;
+		Hash::Crc key_crc        = Hash::Crc::None ;
+		::string  dir_s          ;
+		::string  admin_dir_s    ;
+		::string  reserved_dir_s ;
+		::string  lock_file      ;
+		Sz        max_sz         = 0               ;
+		FileSync  file_sync      = FileSync::Dflt  ;
 	} ;
 
 }

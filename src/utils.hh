@@ -493,6 +493,7 @@ enum class FdAction : uint8_t {
 ,	CreateReadOnly
 ,	CreateNoFollow
 ,	CreateNoFollowExe
+,	ReadWrite
 ,	CreateRead
 ,	CreateReadTrunc
 } ;

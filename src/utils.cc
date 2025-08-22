@@ -45,6 +45,7 @@ int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action )
 		case FdAction::CreateReadOnly    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0444 ) ; break ;
 		case FdAction::CreateNoFollow    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC , 0666 ) ; break ;
 		case FdAction::CreateNoFollowExe : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC , 0777 ) ; break ;
+		case FdAction::ReadWrite         : res = ::openat( at ,          file .c_str() , O_RDWR                                    | O_CLOEXEC        ) ; break ;
 		case FdAction::CreateRead        : res = ::openat( at ,          file .c_str() , O_RDWR             | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
 		case FdAction::CreateReadTrunc   : res = ::openat( at ,          file .c_str() , O_RDWR   | O_TRUNC | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
 	DF}

@@ -66,7 +66,6 @@ namespace Caches {
 		//
 		if ( auto it=config_map.find("dir") ; it!=config_map.end() ) dir_s = with_slash(it->second) ;
 		else                                                         throw "dir not found"s ;
-		admin_dir_s = dir_s + AdminDirS ;
 		//
 		if ( auto it=config_map.find("key") ; it!=config_map.end() ) key_crc = Crc(New,it->second) ;
 		//
@@ -75,6 +74,7 @@ namespace Caches {
 			else if (!can_mk_enum<FileSync>(it->second)) throw cat("unexpected value for file_sync : ",it->second) ;
 			else                                         file_sync = mk_enum<FileSync>(it->second) ;
 		}
+		_compile() ;
 		//
 		::string sz_file = admin_dir_s+"size" ;
 		AcFd     sz_fd   { sz_file , true/*err_ok*/ }  ; throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
@@ -85,6 +85,7 @@ namespace Caches {
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
 		//
 		mk_dir_s(admin_dir_s+"reserved/") ;
+		AcFd(lock_file,FdAction::Create) ;
 	}
 
 	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard& nfs_guard ) const {
@@ -265,11 +266,9 @@ namespace Caches {
 		Sz         old_head_sz = head.sz                                        ;                                                  // for trace only
 		::vector_s to_unlnk    ;                                                                                                   // delay unlink actions until all exceptions are cleared
 		//
-trace("before",head.sz) ;
 		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                                // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>max_sz) {
-trace("access",_lru_file(head.newer_s)) ;
 			if (head.newer_s==HeadS) {
 				trace("too_large2",head.sz) ;
 				throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz," with ",head.sz," bytes already reserved") ;
@@ -286,7 +285,6 @@ trace("access",_lru_file(head.newer_s)) ;
 			head.newer_s  = ::move(here.newer_s) ;
 		}
 		head.sz += new_sz ;
-trace("after",head.sz) ;
 		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
 		//
 		if (+to_unlnk) {
@@ -353,12 +351,17 @@ trace("after",head.sz) ;
 		AcFd(nfs_guard.change(here_file),FdAction::Create).write(serialize(here)) ;
 	}
 
-	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , bool do_lock ) const {
+	void DirCache::_dismiss( uint64_t upload_key , Sz sz , NfsGuard& nfs_guard ) {
+		_mk_room( sz , 0 , nfs_guard ) ; //!                        dir_ok  abs_ok
+		unlnk( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , false , true ) ;
+		unlnk( nfs_guard.change(_reserved_file(upload_key,"data")) , false , true ) ;
+	}
+
+	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
 		NfsGuard                    nfs_guard    { file_sync }                                                       ;
 		::string                    abs_jn_s     = dir_s+job+'/'                                                     ;
-		LockedFd                    lock         ;                                                                     if (do_lock) lock = { admin_dir_s+"lock" , false/*exclusive*/ } ;
 		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
@@ -410,22 +413,28 @@ trace("after",head.sz) ;
 	}
 
 	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
-		return _sub_match( job , repo_deps , true/*do_lock*/ ) ;
+		Trace trace("DirCache::sub_match",job) ;
+		LockedFd lock { lock_file } ;
+		Cache::Match res = _sub_match( job , repo_deps ) ;
+		trace("done") ;
+		return res ;
 	}
 
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {                                 // match_key is returned by sub_match()
+		Trace trace("DirCache::sub_download",match_key) ;
 		SWEAR(match_key.back()=='/') ;
 		NfsGuard nfs_guard { file_sync }                                             ;
 		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , FdAction::Dir } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
-		{	LockedFd lock { admin_dir_s+"lock" }                 ;                                           // because we manipulate LRU, we need exclusive
+		{	LockedFd lock { lock_file }                                              ;                       // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( match_key , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_mk_newest( match_key , sz , nfs_guard ) ;
 			//                            err_ok
 			info_fd = AcFd( dfd , "info" , true ) ; SWEAR(+info_fd) ;                                        // _lru_remove worked => everything should be accessible
 			data_fd = AcFd( dfd , "data" , true ) ; SWEAR(+data_fd) ;                                        // .
 		}
+		trace("done") ;
 		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
 	}
 
@@ -434,12 +443,12 @@ trace("after",head.sz) ;
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
 		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
-		{	LockedFd lock { admin_dir_s+"lock" } ;                                   // lock for minimal time
+		{	LockedFd lock { lock_file } ;                                            // lock for minimal time
 			_mk_room( 0 , reserve_sz , nfs_guard ) ;
 		}
 		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , FdAction::CreateReadOnly ).write(serialize(reserve_sz)) ;
 		AcFd data_fd { nfs_guard.change(_reserved_file(upload_key,"data")) , FdAction::CreateReadOnly } ;
-		trace(data_fd,upload_key) ;
+		trace("done",data_fd,upload_key) ;
 		return { upload_key , ::move(data_fd) } ;
 	}
 
@@ -462,9 +471,8 @@ trace("after",head.sz) ;
 		// this way, we are sure to avoid deadlocks
 		Sz       old_sz = _reserved_sz(upload_key,nfs_guard)                                                                                ;
 		Sz       new_sz = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
-		LockedFd lock   { admin_dir_s+"lock" }                                                                                              ; // lock as late as possible
-		Bool3    hit    = _sub_match( job , ::ref(::vmap_s<DepDigest>()) , false/*do_lock*/ ).hit                                           ;
-trace("before1",old_sz,new_sz) ;
+		LockedFd lock   { lock_file }                                                                                                       ; // lock as late as possible
+		Bool3    hit    = _sub_match( job , ::ref(::vmap_s<DepDigest>()) ).hit                                                              ;
 		if (hit==Yes) {
 			trace("hit") ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
@@ -476,10 +484,8 @@ trace("before1",old_sz,new_sz) ;
 				old_sz += _lru_remove(jnid_s,nfs_guard) ;
 				unlnk_inside_s(dfd) ;
 				// store meta-data and data
-trace("before2",old_sz) ;
 				_mk_room( old_sz , new_sz , nfs_guard ) ;
 				made_room = true ;
-trace("after1") ;
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
 				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                               // store deps in a compact format so that matching is fast
@@ -488,7 +494,6 @@ trace("after1") ;
 				if (rc<0) throw "cannot move data from tmp to final destination"s ;
 				unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 				_lru_mk_newest( jnid_s , new_sz , nfs_guard ) ;
-trace("after2") ;
 			} catch (::string const& e) {
 				trace("failed",e) ;
 				unlnk_inside_s(dfd) ;                                                                                                         // clean up in case of partial execution
@@ -506,15 +511,11 @@ trace("after2") ;
 	}
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {
-		NfsGuard nfs_guard { file_sync }          ;
-		LockedFd lock      { admin_dir_s+"lock" } ;                               // lock as late as possible
+		Trace trace("DirCache::sub_dismiss",upload_key) ;
+		NfsGuard nfs_guard { file_sync } ;
+		LockedFd lock      { lock_file } ;                                        // lock as late as possible
 		_dismiss( upload_key , _reserved_sz(upload_key,nfs_guard) , nfs_guard ) ;
-	}
-
-	void DirCache::_dismiss( uint64_t upload_key , Sz sz , NfsGuard& nfs_guard ) {
-		_mk_room( sz , 0 , nfs_guard ) ; //!                        dir_ok  abs_ok
-		unlnk( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , false , true ) ;
-		unlnk( nfs_guard.change(_reserved_file(upload_key,"data")) , false , true ) ;
+		trace("done") ;
 	}
 
 }

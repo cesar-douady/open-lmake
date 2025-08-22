@@ -24,8 +24,8 @@ struct LockedFd : AcFd {
 	// cxtors & casts
 	LockedFd() = default ;
 	//
-	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,FdAction::CreateReadTrunc} { lock  (exclusive) ; }
-	~LockedFd(                                            )                                        { unlock(         ) ; }
+	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,FdAction::ReadWrite} { lock  (exclusive) ; }
+	~LockedFd(                                            )                                  { unlock(         ) ; }
 	//
 	LockedFd           (LockedFd&&) = default ;
 	LockedFd& operator=(LockedFd&&) = default ;
@@ -36,7 +36,7 @@ struct LockedFd : AcFd {
 			.l_type   = short( exclusive ? F_WRLCK : F_RDLCK )
 		,	.l_whence = SEEK_SET
 		,	.l_start  = 0
-		,	.l_len    = 0 // lock entire file
+		,	.l_len    = 1 // ensure a lock exists even if file is empty
 		,	.l_pid    = 0
 		} ;
 		while (::fcntl(fd,F_SETLKW,&lock)<0) swear_prod( errno==EINTR , +self ) ;
@@ -47,7 +47,7 @@ struct LockedFd : AcFd {
 			.l_type   = F_UNLCK
 		,	.l_whence = SEEK_SET
 		,	.l_start  = 0
-		,	.l_len    = 0 // lock entire file
+		,	.l_len    = 1 // ensure a lock exists even if file is empty
 		,	.l_pid    = 0
 		} ;
 		swear_prod( ::fcntl(fd,F_SETLK,&lock)>=0 , +self ) ;
