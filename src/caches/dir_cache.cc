@@ -85,6 +85,7 @@ namespace Caches {
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
 		//
 		mk_dir_s(cat(dir_s,AdminDirS,"reserved/")) ;
+		AcFd( cat(dir_s,AdminDirS,"lock") , FdAction::Write ) ;
 	}
 
 	template<class T> T _full_deserialize( size_t&/*out*/ sz , ::string const& file ) {
@@ -104,7 +105,7 @@ namespace Caches {
 			size_t   info_sz  ;
 			auto     deps     = _full_deserialize<::vmap_s<DepDigest>>( /*out*/deps_sz , df_s+"deps" ) ;
 			auto     job_info = _full_deserialize<JobInfo            >( /*out*/info_sz , df_s+"info" ) ;
-			Sz       entry_sz = _entry_sz( entry_s , df_s+"data" , deps_sz , info_sz ) ;
+			Sz       entry_sz = _entry_sz( entry_s , df_s+"data" , deps_sz , info_sz )                 ;
 			//
 			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }          // lru file size is already estimated
 			catch (::string const&) { entry.old_lru = {}                                                     ; }          // avoid partial info
@@ -348,7 +349,7 @@ namespace Caches {
 		NfsGuard                    nfs_guard    { file_sync }                                         ;
 		::string                    abs_jn_s     = dir_s+job+'/'                                       ;
 		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , Fd::Dir }          ;
-		LockedFd                    lock         ;                                                       if (do_lock) lock = { dir_s , false/*exclusive*/ } ;
+		LockedFd                    lock         ;                                                       if (do_lock) lock = { cat(dir_s,AdminDirS,"lock") , false/*exclusive*/ } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
 		::vector_s                  repos        ;
@@ -408,7 +409,7 @@ namespace Caches {
 		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , Fd::Dir } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
-		{	LockedFd lock { dir_s , true /*exclusive*/ }         ;                                           // because we manipulate LRU, we need exclusive
+		{	LockedFd lock { cat(dir_s,AdminDirS,"lock") , true/*exclusive*/ }  ;                             // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( match_key , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_mk_newest( match_key , sz , nfs_guard ) ;
 			info_fd = AcFd( dfd , "info"s ) ; SWEAR(+info_fd) ;                                              // _lru_remove worked => everything should be accessible
@@ -423,7 +424,7 @@ namespace Caches {
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
 		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
-		{	LockedFd lock { dir_s , true/*exclusive*/ } ;
+		{	LockedFd lock { cat(dir_s,AdminDirS,"lock") , true/*exclusive*/ } ;
 			_mk_room( 0 , max_sz , nfs_guard ) ;
 		}
 		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , Fd::CreateReadOnly ).write(serialize(max_sz)) ;
@@ -452,7 +453,7 @@ namespace Caches {
 		Sz       old_sz    = _reserved_sz(upload_key,nfs_guard)                                                                                ;
 		Sz       new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
 		bool     made_room = false                                                                                                             ;
-		LockedFd lock      { dir_s , true/*exclusive*/ }                                                                                       ; // lock as late as possible
+		LockedFd lock      { cat(dir_s,AdminDirS,"lock") , true/*exclusive*/ }                                                                 ; // lock as late as possible
 		Bool3    hit       = _sub_match( job , ::ref(::vmap_s<DepDigest>()) , false/*do_lock*/ ).hit                                           ;
 		if (hit==Yes) {
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
@@ -492,8 +493,8 @@ namespace Caches {
 	}
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {
-		NfsGuard nfs_guard { file_sync }                 ;
-		LockedFd lock      { dir_s , true/*exclusive*/ } ;                        // lock as late as possible
+		NfsGuard nfs_guard { file_sync }                                       ;
+		LockedFd lock      { cat(dir_s,AdminDirS,"lock") , true/*exclusive*/ } ;  // lock as late as possible
 		_dismiss( upload_key , _reserved_sz(upload_key,nfs_guard) , nfs_guard ) ;
 	}
 

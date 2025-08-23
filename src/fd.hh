@@ -24,14 +24,34 @@ struct LockedFd : AcFd {
 	// cxtors & casts
 	LockedFd() = default ;
 	//
-	LockedFd ( Fd fd_ , bool exclusive ) : AcFd{fd_} { lock  (exclusive) ; }
-	~LockedFd(                         )             { unlock(         ) ; }
+	LockedFd ( ::string const& file , bool exclusive ) : AcFd{::open(file.c_str(),O_RDWR|O_CLOEXEC)} { lock  (exclusive) ; }
+	~LockedFd(                                       )                                               { unlock(         ) ; }
 	//
 	LockedFd           (LockedFd&&) = default ;
 	LockedFd& operator=(LockedFd&&) = default ;
 	//
-	void lock  (bool e) { if (fd>=0) ::flock(fd,e?LOCK_EX:LOCK_SH) ; }
-	void unlock(      ) { if (fd>=0) ::flock(fd,  LOCK_UN        ) ; }
+	void lock(bool exclusive) {
+		if (!self) return ;
+		struct flock lock {
+			.l_type   = short( exclusive ? F_WRLCK : F_RDLCK )
+		,	.l_whence = SEEK_SET
+		,	.l_start  = 0
+		,	.l_len    = 1 // ensure a lock exists even if file is empty
+		,	.l_pid    = 0
+		} ;
+		while (::fcntl(fd,F_SETLKW,&lock)<0) swear_prod( errno==EINTR , +self ) ;
+	}
+	void unlock() {
+		if (!self) return ;
+		struct flock lock {
+			.l_type   = F_UNLCK
+		,	.l_whence = SEEK_SET
+		,	.l_start  = 0
+		,	.l_len    = 1 // ensure a lock exists even if file is empty
+		,	.l_pid    = 0
+		} ;
+		swear_prod( ::fcntl(fd,F_SETLK,&lock)>=0 , +self ) ;
+	}
 } ;
 
 struct SockFd : AcFd {
