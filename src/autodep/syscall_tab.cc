@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <syscall.h>   // for SYS_* macros
+#include <syscall.h> // for SYS_* macros
 
 #include "ptrace.hh"
 #include "record.hh"
@@ -292,142 +292,74 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void*& /
 		#endif
 		_do_stat<true,2>(r,pid,args,a,c) ;
 	}
+#else
+	[[maybe_unused]] static void _entry_statx( void*& /*ctx*/ , Record& , pid_t , uint64_t /*args*/[6] , Comment ) {}
 #endif
 
-// XXX! : find a way to put one entry per line instead of 3 lines(would be much more readable)
+// use constexpr processing rather than #ifdef/#endif so each entry can be put on a single line rather than 3 lines
+static constexpr long _build_syscall_descr_tab_idx(const char* n_str) {
+	long n = 0 ;
+	for( const char* p=n_str ; *p ; p++ )
+		if ( '0'<=*p && *p<='9' ) n = (n*10) + (*p-'0') ;
+		else                      return -1 ;
+	return n ;
+} ;
 static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
-	constexpr long NSyscalls = SyscallDescr::NSyscalls ;
 	SyscallDescr::Tab s_tab = {} ;
-	//	/!\ prio must be non-zero as zero means entry is not allocated
-	//	entries marked NFS_GUARD are deemed data access as they touch their enclosing dir and hence must be guarded against strange NFS notion of coherence
-	//	entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
-	//	                                                                                { entry           <At   ,flag      > , exit           filter comment                    }
-	#ifdef SYS_access
-		static_assert(SYS_access           <NSyscalls) ; s_tab[SYS_access           ] = { _entry_access   <false,FlagNever > , nullptr        , 1  , Comment::access            } ;
-	#endif
-	#ifdef SYS_faccessat
-		static_assert(SYS_faccessat        <NSyscalls) ; s_tab[SYS_faccessat        ] = { _entry_access   <true ,3         > , nullptr        , 2  , Comment::faccessat         } ;
-	#endif
-	#ifdef SYS_faccessat2
-		static_assert(SYS_faccessat2       <NSyscalls) ; s_tab[SYS_faccessat2       ] = { _entry_access   <true ,3         > , nullptr        , 2  , Comment::faccessat2        } ;
-	#endif
-	#ifdef SYS_chdir
-		static_assert(SYS_chdir            <NSyscalls) ; s_tab[SYS_chdir            ] = { _entry_chdir    <false           > , _exit_chdir    , 0  , Comment::chdir             } ;
-	#endif
-	#ifdef SYS_fchdir
-		static_assert(SYS_fchdir           <NSyscalls) ; s_tab[SYS_fchdir           ] = { _entry_chdir    <true            > , _exit_chdir    , 0  , Comment::fchdir            } ;
-	#endif
-	#ifdef SYS_chmod
-		static_assert(SYS_chmod            <NSyscalls) ; s_tab[SYS_chmod            ] = { _entry_chmod    <false,FlagNever > , _exit_chmod    , 1  , Comment::chmod             } ;
-	#endif
-	#ifdef SYS_fchmodat
-		static_assert(SYS_fchmodat         <NSyscalls) ; s_tab[SYS_fchmodat         ] = { _entry_chmod    <true ,3         > , _exit_chmod    , 2  , Comment::fchmodat          } ;
-	#endif
-	#ifdef SYS_creat
-		static_assert(SYS_creat            <NSyscalls) ; s_tab[SYS_creat            ] = { _entry_creat                       , _exit_open     , 1  , Comment::creat             } ;
-	#endif
-	#ifdef SYS_execve
-		static_assert(SYS_execve           <NSyscalls) ; s_tab[SYS_execve           ] = { _entry_execve   <false,FlagNever > , nullptr        , 0  , Comment::execve            } ;
-	#endif
-	#ifdef SYS_execveat
-		static_assert(SYS_execveat         <NSyscalls) ; s_tab[SYS_execveat         ] = { _entry_execve   <true ,4         > , nullptr        , 0  , Comment::execveat          } ;
-	#endif
-	#ifdef SYS_getdents
-		static_assert(SYS_getdents         <NSyscalls) ; s_tab[SYS_getdents         ] = { _entry_getdents                    , _exit_getdents , 0  , Comment::getdents          } ;
-	#endif
-	#ifdef SYS_getdents64
-		static_assert(SYS_getdents64       <NSyscalls) ; s_tab[SYS_getdents64       ] = { _entry_getdents                    , _exit_getdents , 0  , Comment::getdents64        } ;
-	#endif
-	#ifdef SYS_link
-		static_assert(SYS_link             <NSyscalls) ; s_tab[SYS_link             ] = { _entry_lnk      <false,FlagNever > , _exit_lnk      , 2  , Comment::link              } ;
-	#endif
-	#ifdef SYS_linkat
-		static_assert(SYS_linkat           <NSyscalls) ; s_tab[SYS_linkat           ] = { _entry_lnk      <true ,4         > , _exit_lnk      , 4  , Comment::linkat            } ;
-	#endif
-	#ifdef SYS_mkdir
-		static_assert(SYS_mkdir            <NSyscalls) ; s_tab[SYS_mkdir            ] = { _entry_mkdir    <false           > , nullptr        , 1  , Comment::mkdir             } ;
-	#endif
-	#ifdef SYS_mkdirat
-		static_assert(SYS_mkdirat          <NSyscalls) ; s_tab[SYS_mkdirat          ] = { _entry_mkdir    <true            > , nullptr        , 2  , Comment::mkdirat           } ;
-	#endif
-	#ifdef SYS_mount
-		static_assert(SYS_mount            <NSyscalls) ; s_tab[SYS_mount            ] = { _entry_mount                       , nullptr        , 0  , Comment::mount             } ;
-	#endif
-	#ifdef SYS_name_to_handle_at
-		static_assert(SYS_name_to_handle_at<NSyscalls) ; s_tab[SYS_name_to_handle_at] = { _entry_open     <true            > , _exit_open     , 2  , Comment::name_to_handle_at } ;
-	#endif
-	#ifdef SYS_open
-		static_assert(SYS_open             <NSyscalls) ; s_tab[SYS_open             ] = { _entry_open     <false           > , _exit_open     , 1  , Comment::open              } ;
-	#endif
-	#ifdef SYS_openat
-		static_assert(SYS_openat           <NSyscalls) ; s_tab[SYS_openat           ] = { _entry_open     <true            > , _exit_open     , 2  , Comment::openat            } ;
-	#endif
-	#ifdef SYS_openat2
-		static_assert(SYS_openat2          <NSyscalls) ; s_tab[SYS_openat2          ] = { _entry_open     <true            > , _exit_open     , 2  , Comment::openat2           } ;
-	#endif
-	#ifdef SYS_open_tree
-		static_assert(SYS_open_tree        <NSyscalls) ; s_tab[SYS_open_tree        ] = { _entry_open_tree<true ,2         > , nullptr        , 2  , Comment::open_tree         } ;
-	#endif
-	#ifdef SYS_readlink
-		static_assert(SYS_readlink         <NSyscalls) ; s_tab[SYS_readlink         ] = { _entry_read_lnk <false           > , _exit_read_lnk , 1  , Comment::readlink          } ;
-	#endif
-	#ifdef SYS_readdir
-		static_assert(SYS_readdir          <NSyscalls) ; s_tab[SYS_readdir          ] = { _entry_getdents                    , _exit_getdents , 0  , Comment::readdir           } ;
-	#endif
-	#ifdef SYS_readlinkat
-		static_assert(SYS_readlinkat       <NSyscalls) ; s_tab[SYS_readlinkat       ] = { _entry_read_lnk <true            > , _exit_read_lnk , 2  , Comment::readlinkat        } ;
-	#endif
-	#if SYS_rename
-		static_assert(SYS_rename           <NSyscalls) ; s_tab[SYS_rename           ] = { _entry_rename   <false,FlagNever > , _exit_rename   , 2  , Comment::rename            } ;
-	#endif
-	#ifdef SYS_renameat
-		static_assert(SYS_renameat         <NSyscalls) ; s_tab[SYS_renameat         ] = { _entry_rename   <true ,FlagNever > , _exit_rename   , 4  , Comment::renameat          } ;
-	#endif
-	#ifdef SYS_renameat2
-		static_assert(SYS_renameat2        <NSyscalls) ; s_tab[SYS_renameat2        ] = { _entry_rename   <true ,4         > , _exit_rename   , 4  , Comment::renameat2         } ;
-	#endif
-	#ifdef SYS_rmdir
-		static_assert(SYS_rmdir            <NSyscalls) ; s_tab[SYS_rmdir            ] = { _entry_unlink   <false,FlagAlways> , nullptr        , 1  , Comment::rmdir             } ;
-	#endif
-	#ifdef SYS_stat
-		static_assert(SYS_stat             <NSyscalls) ; s_tab[SYS_stat             ] = { _entry_stat     <false,FlagNever > , nullptr        , 1  , Comment::stat              } ;
-	#endif
-	#ifdef SYS_stat64
-		static_assert(SYS_stat64           <NSyscalls) ; s_tab[SYS_stat64           ] = { _entry_stat     <false,FlagNever > , nullptr        , 1  , Comment::stat64            } ;
-	#endif
-	#ifdef SYS_fstatat64
-		static_assert(SYS_fstatat64        <NSyscalls) ; s_tab[SYS_fstatat64        ] = { _entry_stat     <true ,3         > , nullptr        , 2  , Comment::fstatat64         } ;
-	#endif
-	#ifdef SYS_lstat
-		static_assert(SYS_lstat            <NSyscalls) ; s_tab[SYS_lstat            ] = { _entry_stat     <false,FlagAlways> , nullptr        , 1  , Comment::lstat             } ;
-	#endif
-	#ifdef SYS_lstat64
-		static_assert(SYS_lstat64          <NSyscalls) ; s_tab[SYS_lstat64          ] = { _entry_stat     <false,FlagAlways> , nullptr        , 1  , Comment::lstat64           } ;
-	#endif
-	#ifdef SYS_statx
-		static_assert(SYS_statx            <NSyscalls) ; s_tab[SYS_statx            ] = { _entry_statx                       , nullptr        , 2  , Comment::statx             } ;
-	#endif
-	#if SYS_newfstatat
-		static_assert(SYS_newfstatat       <NSyscalls) ; s_tab[SYS_newfstatat       ] = { _entry_stat     <true ,3         > , nullptr        , 2  , Comment::newfstatat        } ;
-	#endif
-	#ifdef SYS_oldstat
-		static_assert(SYS_oldstat          <NSyscalls) ; s_tab[SYS_oldstat          ] = { _entry_stat     <false,FlagNever > , nullptr        , 1  , Comment::oldstat           } ;
-	#endif
-	#ifdef SYS_oldlstat
-		static_assert(SYS_oldlstat         <NSyscalls) ; s_tab[SYS_oldlstat         ] = { _entry_stat     <false,FlagAlways> , nullptr        , 1  , Comment::oldlstat          } ;
-	#endif
-	#ifdef SYS_symlink
-		static_assert(SYS_symlink          <NSyscalls) ; s_tab[SYS_symlink          ] = { _entry_symlink  <false           > , _exit_sym_lnk  , 2  , Comment::symlink           } ;
-	#endif
-	#ifdef SYS_symlinkat
-		static_assert(SYS_symlinkat        <NSyscalls) ; s_tab[SYS_symlinkat        ] = { _entry_symlink  <true            > , _exit_sym_lnk  , 3  , Comment::symlinkat         } ;
-	#endif
-	#ifdef SYS_unlink
-		static_assert(SYS_unlink           <NSyscalls) ; s_tab[SYS_unlink           ] = { _entry_unlink   <false,FlagNever > , _exit_unlnk    , 1  , Comment::unlink            } ;
-	#endif
-	#ifdef SYS_unlinkat
-		static_assert(SYS_unlinkat         <NSyscalls) ; s_tab[SYS_unlinkat         ] = { _entry_unlink   <true ,2         > , _exit_unlnk    , 2  , Comment::unlinkat          } ;
-	#endif
+	#define FILL_ENTRY_STR(x) #x     // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
+	#define FILL_ENTRY( n , ... ) { \
+		constexpr long i = _build_syscall_descr_tab_idx(FILL_ENTRY_STR(n)) ; \
+		if constexpr (i>=0) {                                                \
+			static_assert(i<SyscallDescr::NSyscalls) ;                       \
+			s_tab[i] = SyscallDescr __VA_ARGS__ ;                            \
+		}                                                                    \
+	}
+	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
+	//                                    entry           <At   ,FlagArg   > , exit           filter comment
+	FILL_ENTRY( SYS_access            , { _entry_access   <false,FlagNever > , nullptr        , 1  , Comment::access            } ) ;
+	FILL_ENTRY( SYS_faccessat         , { _entry_access   <true ,3         > , nullptr        , 2  , Comment::faccessat         } ) ;
+	FILL_ENTRY( SYS_faccessat2        , { _entry_access   <true ,3         > , nullptr        , 2  , Comment::faccessat2        } ) ;
+	FILL_ENTRY( SYS_chdir             , { _entry_chdir    <false           > , _exit_chdir    , 0  , Comment::chdir             } ) ;
+	FILL_ENTRY( SYS_fchdir            , { _entry_chdir    <true            > , _exit_chdir    , 0  , Comment::fchdir            } ) ;
+	FILL_ENTRY( SYS_chmod             , { _entry_chmod    <false,FlagNever > , _exit_chmod    , 1  , Comment::chmod             } ) ;
+	FILL_ENTRY( SYS_fchmodat          , { _entry_chmod    <true ,3         > , _exit_chmod    , 2  , Comment::fchmodat          } ) ;
+	FILL_ENTRY( SYS_creat             , { _entry_creat                       , _exit_open     , 1  , Comment::creat             } ) ;
+	FILL_ENTRY( SYS_execve            , { _entry_execve   <false,FlagNever > , nullptr        , 0  , Comment::execve            } ) ;
+	FILL_ENTRY( SYS_execveat          , { _entry_execve   <true ,4         > , nullptr        , 0  , Comment::execveat          } ) ;
+	FILL_ENTRY( SYS_getdents          , { _entry_getdents                    , _exit_getdents , 0  , Comment::getdents          } ) ;
+	FILL_ENTRY( SYS_getdents64        , { _entry_getdents                    , _exit_getdents , 0  , Comment::getdents64        } ) ;
+	FILL_ENTRY( SYS_link              , { _entry_lnk      <false,FlagNever > , _exit_lnk      , 2  , Comment::link              } ) ;
+	FILL_ENTRY( SYS_linkat            , { _entry_lnk      <true ,4         > , _exit_lnk      , 4  , Comment::linkat            } ) ;
+	FILL_ENTRY( SYS_mkdir             , { _entry_mkdir    <false           > , nullptr        , 1  , Comment::mkdir             } ) ;
+	FILL_ENTRY( SYS_mkdirat           , { _entry_mkdir    <true            > , nullptr        , 2  , Comment::mkdirat           } ) ;
+	FILL_ENTRY( SYS_mount             , { _entry_mount                       , nullptr        , 0  , Comment::mount             } ) ;
+	FILL_ENTRY( SYS_name_to_handle_at , { _entry_open     <true            > , _exit_open     , 2  , Comment::name_to_handle_at } ) ;
+	FILL_ENTRY( SYS_open              , { _entry_open     <false           > , _exit_open     , 1  , Comment::open              } ) ;
+	FILL_ENTRY( SYS_openat            , { _entry_open     <true            > , _exit_open     , 2  , Comment::openat            } ) ;
+	FILL_ENTRY( SYS_openat2           , { _entry_open     <true            > , _exit_open     , 2  , Comment::openat2           } ) ;
+	FILL_ENTRY( SYS_open_tree         , { _entry_open_tree<true ,2         > , nullptr        , 2  , Comment::open_tree         } ) ;
+	FILL_ENTRY( SYS_readlink          , { _entry_read_lnk <false           > , _exit_read_lnk , 1  , Comment::readlink          } ) ;
+	FILL_ENTRY( SYS_readdir           , { _entry_getdents                    , _exit_getdents , 0  , Comment::readdir           } ) ;
+	FILL_ENTRY( SYS_readlinkat        , { _entry_read_lnk <true            > , _exit_read_lnk , 2  , Comment::readlinkat        } ) ;
+	FILL_ENTRY( SYS_rename            , { _entry_rename   <false,FlagNever > , _exit_rename   , 2  , Comment::rename            } ) ;
+	FILL_ENTRY( SYS_renameat          , { _entry_rename   <true ,FlagNever > , _exit_rename   , 4  , Comment::renameat          } ) ;
+	FILL_ENTRY( SYS_renameat2         , { _entry_rename   <true ,4         > , _exit_rename   , 4  , Comment::renameat2         } ) ;
+	FILL_ENTRY( SYS_rmdir             , { _entry_unlink   <false,FlagAlways> , nullptr        , 1  , Comment::rmdir             } ) ;
+	FILL_ENTRY( SYS_stat              , { _entry_stat     <false,FlagNever > , nullptr        , 1  , Comment::stat              } ) ;
+	FILL_ENTRY( SYS_stat64            , { _entry_stat     <false,FlagNever > , nullptr        , 1  , Comment::stat64            } ) ;
+	FILL_ENTRY( SYS_fstatat64         , { _entry_stat     <true ,3         > , nullptr        , 2  , Comment::fstatat64         } ) ;
+	FILL_ENTRY( SYS_lstat             , { _entry_stat     <false,FlagAlways> , nullptr        , 1  , Comment::lstat             } ) ;
+	FILL_ENTRY( SYS_lstat64           , { _entry_stat     <false,FlagAlways> , nullptr        , 1  , Comment::lstat64           } ) ;
+	FILL_ENTRY( SYS_statx             , { _entry_statx                       , nullptr        , 2  , Comment::statx             } ) ;
+	FILL_ENTRY( SYS_newfstatat        , { _entry_stat     <true ,3         > , nullptr        , 2  , Comment::newfstatat        } ) ;
+	FILL_ENTRY( SYS_oldstat           , { _entry_stat     <false,FlagNever > , nullptr        , 1  , Comment::oldstat           } ) ;
+	FILL_ENTRY( SYS_oldlstat          , { _entry_stat     <false,FlagAlways> , nullptr        , 1  , Comment::oldlstat          } ) ;
+	FILL_ENTRY( SYS_symlink           , { _entry_symlink  <false           > , _exit_sym_lnk  , 2  , Comment::symlink           } ) ;
+	FILL_ENTRY( SYS_symlinkat         , { _entry_symlink  <true            > , _exit_sym_lnk  , 3  , Comment::symlinkat         } ) ;
+	FILL_ENTRY( SYS_unlink            , { _entry_unlink   <false,FlagNever > , _exit_unlnk    , 1  , Comment::unlink            } ) ;
+	FILL_ENTRY( SYS_unlinkat          , { _entry_unlink   <true ,2         > , _exit_unlnk    , 2  , Comment::unlinkat          } ) ;
+	#undef FILL_ENTRY
+	#undef FILL_ENTRY_STR
 	return s_tab ;
 }
 

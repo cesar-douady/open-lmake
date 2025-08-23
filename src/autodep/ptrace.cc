@@ -67,10 +67,12 @@ void AutodepPtrace::init(pid_t cp) {
 	pid_t pid     = ::wait(&wstatus) ;                                         // first signal is only there to start tracing as we are initially traced to next signal
 	if (pid!=child_pid) return ;                                               // child_pid will be waited for in process
 	int options =
-		(HAS_SECCOMP?PTRACE_O_TRACESECCOMP:0)
-	|	PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+		PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
 	|	PTRACE_O_TRACESYSGOOD                                                  // necessary to have a correct syscall_info.op field
 	;
+	#if HAS_SECCOMP
+		options |= PTRACE_O_TRACESECCOMP ;
+	#endif
 	#ifdef PTRACE_O_EXITKILL                                                   // XXX! : implement the same feature in all cases
 		options |= PTRACE_O_EXITKILL ;                                         // ensure no process is left stopped, even if alive at end of job
 	#endif
