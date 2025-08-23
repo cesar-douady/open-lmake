@@ -8,7 +8,8 @@ sys.implementation.cache_tag = None # dont read pyc files as our rudimentary dep
 sys.dont_write_bytecode      = True # and dont generate them
 
 import os
-import os.path as osp
+import os.path    as osp
+import subprocess as sp
 
 lmake_private_lib = osp.dirname(__file__ )
 lmake_root        = osp.dirname(lmake_private_lib)
@@ -64,7 +65,7 @@ sys.path = [ lmake_lib , *sys.path[2:] , '.' ]
 config = pdict()
 if '.config.' in actions :
 	from importlib.util import find_spec
-	import Lmakefile                                                                                              # import only when necessary
+	import Lmakefile                                                                                                      # import only when necessary
 	is_pkg = hasattr(Lmakefile,'__path__')
 	if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
 	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
@@ -94,12 +95,12 @@ if '.config.' in actions :
 			,	call_callables = True
 			)
 			be['interface'] = expr.glbs+'interface = '+expr.expr
-		git = '$GIT'                                                                                              # value is substitued at installation configuration
+		git = '$GIT'                                                                                                      # value is substitued at installation configuration
 		for cache in config.get('caches',{}).values() :
 			if 'key' in cache : continue
 			key = cwd
-			try    : key += '/'+check_output((git,'rev-parse','--verify','HEAD'),universal_newlines=True).split()
-			except : pass                                                                                         # if not under git, ignore
+			try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
+			except : pass                                                                                                 # if not under git, ignore
 			cache['key'] = key
 
 srcs = []
@@ -171,7 +172,6 @@ def merge_rules( sub_rules , sub_dir_s ) :
 if sub_repos_s==... : sub_sub_repos_s,sub_repos_s = ...,(d+'/' for d in config.sub_repos) # recurse if not provided explicitly
 else                : sub_sub_repos_s             = ()
 
-if sub_repos_s : import subprocess as sp
 for sub_repo_s in sub_repos_s :
 	if not isinstance(sub_repo_s,str)                        : raise TypeError (f'in {cwd}, sub-repo ({sub_repo_s}) must be a str')
 	if any(w in '/'+sub_repo_s for w in ('//','/./','/../')) : raise ValueError(f'in {cwd}, sub-repo ({sub_repo_s}) must be local and canonical')

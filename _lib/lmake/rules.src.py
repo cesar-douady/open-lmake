@@ -70,7 +70,7 @@ class Rule(_RuleBase) :
 #	cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
 #	compression         = 0                            # compression level to use when caching, 0 means no compression, 9 means maximum compression
 #	cwd                 = ''                           # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
-#                                                      # defaults to the nearest root dir of the module in which the rule is defined
+	#                                                  # defaults to the nearest root dir of the module in which the rule is defined
 	deps                = {}                           # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
 	#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
 	#                                                  #   flag        | default | description
@@ -81,12 +81,12 @@ class Rule(_RuleBase) :
 #	dep                                                # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
 #	ete                 = 0                            # Estimated Time Enroute, initial guess for job exec time (in s)
 #	force               = False                        # if set, jobs are never up-to-date, they are rebuilt every time they are needed
-	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
 #	keep_tmp            = False                        # keep tmp dir after job execution
 	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
 #	lmake_view          = '/lmake'                     # absolute path under which the open-lmake installation directory is seen (if None, empty, or absent, no bind mount is done)
 	max_retries_on_lost = 1                            # max number of retries in case of job lost. 1 is a reasonable value
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
+	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
 #	readdir_ok          = False                        # if set, listing a local non-ignored dir is not an error

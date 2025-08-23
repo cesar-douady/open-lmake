@@ -11,14 +11,23 @@
 //		- last_access : the last time entry was downloaded
 //	- global info :
 //		- LMAKE/lru : head
-//	- job_dir : <job>/<repo_crc> where :
+//	- job_dir : <job>/key-<repo_crc>-<order> where :
 //		- <job> is made after its name with suffixes replaced by readable suffixes and rule idx by rule crc
-//		- <repo_crc> is computed after the repo as indicated in config.repo
+//		- <repo_crc> is computed after the repo/revision, as indicated in config.caches.<name>.key
+//		- <order> is either 'first' or 'last'
 //	- each job has :
 //		- lru info       in <job_dir>/lru
 //		- meta-data      in <job_dir>/meta_data (the content of job.ancillary_file() with dep crc's instead of dep dates + target sizes)
 //		- deps crcs      in <job_dir>/deps      (the deps part of meta-data for fast matching)
 //		- target content in <job_dir>/data      (concatenation of all targets that can be split based on target sizes stored in meta-data)
+//
+// When an entry is uploaded, <order> is 'first' if it does not already exists, else it is 'last'.
+// This way, each repo/revision keeps at most 2 potentially active entries : the first time it was uploaded and the last time it was uploaded.
+// By default, under git the revision is the git sha1.
+// This way, between 2 commits (where the git sha1 changes), we keep the first run (anticipated as the one with a base that has undergone no modif)
+// and the last run (the one just before the commit).
+// Hence, whether the run before a push is always saved for use by other users, while avoiding cache pollution with numberous runs of the same job
+// when one is working in a repo.
 
 // XXX? : implement timeout when locking cache (cache v1 is a proof of concept anyway)
 
@@ -109,7 +118,7 @@ namespace Caches {
 			size_t   info_sz  ;
 			auto     deps     = _full_deserialize<::vmap_s<DepDigest>>( /*out*/deps_sz , df_s+"deps" ) ;
 			auto     job_info = _full_deserialize<JobInfo            >( /*out*/info_sz , df_s+"info" ) ;
-			Sz       entry_sz = _entry_sz( entry_s , df_s+"data" , deps_sz , info_sz ) ;
+			Sz       entry_sz = _entry_sz( entry_s , df_s+"data" , deps_sz , info_sz )                 ;
 			//
 			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }          // lru file size is already estimated
 			catch (::string const&) { entry.old_lru = {}                                                     ; }          // avoid partial info
@@ -130,9 +139,9 @@ namespace Caches {
 		}
 	}
 	void DirCache::repair(bool dry_run) {
-		static Re::RegExpr const entry_re { "((.*)/(\\d+-\\d+\\+)*rule-[\\dabcdef]{16}/key-[\\dabcdef]{16}/)(data|deps|info|lru)" } ;
-		static Re::RegExpr const key_re   {                                           "key-[\\dabcdef]{16}"                       } ;
-		static Re::RegExpr const hint_re  {  "(.*)/(\\d+-\\d+\\+)*rule-[\\dabcdef]{16}/deps_hint-[\\dabcdef]{16}"                 } ;
+		static Re::RegExpr const entry_re { "((.*)/(\\d+-\\d+\\+)*rule-[\\dabcdef]{16}/key-[\\dabcdef]{16}-(?:first|last)/)(data|deps|info|lru)" } ;
+		static Re::RegExpr const key_re   {                                           "key-[\\dabcdef]{16}-(?:first|last)"                       } ;
+		static Re::RegExpr const hint_re  {  "(.*)/(\\d+-\\d+\\+)*rule-[\\dabcdef]{16}/deps_hint-[\\dabcdef]{16}"                                } ;
 		//
 		::umap_s<bool/*keep*/> dirs_s   { {"",true/*keep*/} , {HeadS,true/*keep*/} , {cat(HeadS,"reserved/"),true/*keep*/} } ;
 		::uset_s               to_unlnk ;
@@ -357,25 +366,25 @@ namespace Caches {
 		unlnk( nfs_guard.change(_reserved_file(upload_key,"data")) , false , true ) ;
 	}
 
-	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
+	::pair_s<Cache::Match> DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
 		NfsGuard                    nfs_guard    { file_sync }                                                       ;
 		::string                    abs_jn_s     = dir_s+job+'/'                                                     ;
 		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
-		::string                    deps_hint    = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; // may point to the right entry (hint only as link is not updated when its target is modified)
 		::vector_s                  repos        ;
 		//
-		try                       { repos = lst_dir_s(dfd) ;            }
-		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ; }                                // if directory does not exist, it is as it was empty
-		if ( +deps_hint && repos.size()>1 )                                                              // reorder is only meaningful if there are several entries
-			for( size_t r : iota(repos.size()) ) {
-				if (repos[r]!=deps_hint) continue ;
-				for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                            // rotate repos to put hint in front
-				repos[0] = ::move(deps_hint) ;                                                           // .
-				break ;
-			}
+		try                       { for( ::string& r : lst_dir_s(dfd) ) if (r.starts_with("key-")) repos.push_back(::move(r)) ; }
+		catch (::string const& e) { trace("dir_not_found",abs_jn_s,e) ;                                                         } // if directory does not exist, it is as if it was empty
+		if (repos.size()>1)                                                                                                       // reorder is only meaningful if there are several entries
+			if ( ::string deps_hint = read_lnk(dfd,"deps_hint-"+Crc(New,repo_deps).hex()) ; +deps_hint )                          // may point to the right entry (hint only as link is not ...
+				for( size_t r : iota(repos.size()) )                                                                              // ... updated when its target is modified)
+					if (repos[r]==deps_hint) {
+						for( size_t i=r ; i>0 ; i-- ) repos[i] = ::move(repos[i-1]) ;                                             // rotate repos to put hint in front
+						repos[0] = ::move(deps_hint) ;                                                                            // .
+						break ;
+					}
 		for( ::string const& r : repos ) {
 			::string            deps_file  = abs_jn_s+r+"/deps" ;
 			::vmap_s<DepDigest> cache_deps ;
@@ -396,7 +405,7 @@ namespace Caches {
 			}
 			if (!has_dvg) {
 				trace("hit",r) ;
-				return { .completed=true , .hit=Yes , .key{job+'/'+r+'/'} } ;                                                                                       // hit
+				return { r , { .completed=true , .hit=Yes , .key{cat(job,'/',r,'/')} } } ;                                                                          // hit
 			}
 			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {
 				if ( cache_deps[i].second.dflags[Dflag::Critical] && ! repo_dep_map.contains(cache_deps[i].first) ) {
@@ -405,17 +414,17 @@ namespace Caches {
 				}
 			}
 			trace("deps",cache_deps) ;
-			return { .completed=true , .hit=Maybe , .new_deps{::move(cache_deps)} } ;
+			return { {} , { .completed=true , .hit=Maybe , .new_deps{::move(cache_deps)} } } ;
 		Miss : ;                                                                                                                                                    // missed this entry, try next one
 		}
 		trace("miss") ;
-		return { .completed=true , .hit=No } ;
+		return { {} , { .completed=true , .hit=No } } ;
 	}
 
 	Cache::Match DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::sub_match",job) ;
 		LockedFd lock { lock_file } ;
-		Cache::Match res = _sub_match( job , repo_deps ) ;
+		Match res = _sub_match( job , repo_deps ).second ;
 		trace("done") ;
 		return res ;
 	}
@@ -453,61 +462,61 @@ namespace Caches {
 	}
 
 	void DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		NfsGuard nfs_guard { file_sync }                   ;
-		::string jn_s      = job+'/'                       ;
-		::string key_s     = cat("key-",key_crc.hex(),'/') ;
-		::string jnid_s    = jn_s+key_s                    ;
-		Trace trace("DirCache::sub_commit",upload_key,jnid_s) ;
-		//
+		Trace trace("DirCache::sub_commit",upload_key,job) ;
 		// START_OF_VERSIONING
-		::string job_info_str = serialize(job_info                ) ;
-		::string deps_str     = serialize(job_info.end.digest.deps) ;
+		::string deps_str = serialize(job_info.end.digest.deps) ;
 		// END_OF_VERSIONING
-		::string abs_jnid_s = dir_s + jnid_s ;
-		mk_dir_s(nfs_guard.change(abs_jnid_s)) ;
-		AcFd dfd { nfs_guard.access_dir(abs_jnid_s) , FdAction::Dir } ;
-		//
-		// upload is the only one to take several locks and it starts with the global lock
-		// this way, we are sure to avoid deadlocks
-		Sz       old_sz = _reserved_sz(upload_key,nfs_guard)                                                                                ;
-		Sz       new_sz = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
-		LockedFd lock   { lock_file }                                                                                                       ; // lock as late as possible
-		Bool3    hit    = _sub_match( job , ::ref(::vmap_s<DepDigest>()) ).hit                                                              ;
-		if (hit==Yes) {
-			trace("hit") ;
+		NfsGuard        nfs_guard     { file_sync }                                      ;
+		::string        jn_s          = job+'/'                                          ;
+		LockedFd        lock          { lock_file }                                      ;                                // lock as late as possible
+		::pair_s<Match> key_match     = _sub_match( job , ::ref(::vmap_s<DepDigest>()) ) ;
+		Sz              old_sz        = _reserved_sz(upload_key,nfs_guard)               ;
+		::string        abs_deps_hint = dir_s+jn_s+"deps_hint-"+Crc(New,deps_str).hex()  ;
+		::string        key           ;
+		if (key_match.second.hit==Yes) {
+			key = ::move(key_match.first) ;
+			trace("hit",key) ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
-			_dismiss( upload_key , old_sz , nfs_guard ) ;                                                                                     // finally, we did not populate the entry
-			throw_unless( AcFd(dfd,"data").read()==job_data , "incoherent targets" ) ;                                                        // check coherence
+			_dismiss( upload_key , old_sz , nfs_guard ) ;                                                                 // finally, we did not populate the entry
+			throw_unless( AcFd(dir_s+key_match.second.key+"data").read()==job_data , "incoherent targets" ) ;             // check coherence
 		} else {
-			bool made_room = false ;
+			key = cat( "key-" , key_crc.hex() ) ; key += is_target(cat(dir_s,jn_s,key,"-first/lru")) ? "-last" : "-first" ;
+			//
+			::string jnid_s     = jn_s+key+'/'   ;
+			::string abs_jnid_s = dir_s + jnid_s ;
+			// START_OF_VERSIONING
+			::string job_info_str = serialize(job_info) ;
+			// END_OF_VERSIONING
+			mk_dir_s(nfs_guard.change(abs_jnid_s)) ;
+			AcFd dfd       { nfs_guard.access_dir(abs_jnid_s) , FdAction::Dir }                                                                ;
+			Sz   new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
+			bool made_room = false                                                                                                             ;
+			bool unlnked   = false                                                                                                             ;
+			trace("upload",key,new_sz) ;
 			try {
 				old_sz += _lru_remove(jnid_s,nfs_guard) ;
-				unlnk_inside_s(dfd) ;
+				unlnk_inside_s(dfd)                     ; unlnked   = true ;
+				_mk_room( old_sz , new_sz , nfs_guard ) ; made_room = true ;
 				// store meta-data and data
-				_mk_room( old_sz , new_sz , nfs_guard ) ;
-				made_room = true ;
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
-				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                                               // store deps in a compact format so that matching is fast
+				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
 				int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
 				// END_OF_VERSIONING
 				if (rc<0) throw "cannot move data from tmp to final destination"s ;
 				unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 				_lru_mk_newest( jnid_s , new_sz , nfs_guard ) ;
+				//
 			} catch (::string const& e) {
 				trace("failed",e) ;
-				unlnk_inside_s(dfd) ;                                                                                                         // clean up in case of partial execution
-				_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                                                // finally, we did not populate the entry
+				if (!unlnked) unlnk_inside_s(dfd) ;                                                                       // clean up in case of partial execution
+				_dismiss( upload_key , made_room?new_sz:old_sz , nfs_guard ) ;                                            // finally, we did not populate the entry
 				throw e ;
 			}
 		}
-		// set a symlink from a name derived from deps to improve match speed in case of hit
-		// this is a hint only as when link target is updated, link is not
-		::string abs_deps_hint = dir_s+jn_s+"deps_hint-"+Crc(New,deps_str).hex() ;
 		unlnk( abs_deps_hint , false/*dir_ok*/ , true/*abs_ok*/ ) ;
-		lnk  ( abs_deps_hint , no_slash(key_s) ) ;
-		//
-		trace("done",new_sz) ;
+		lnk  ( abs_deps_hint , key )                              ; // set a symlink from a name derived from deps to improve match speed in case of hit (hint only so target may be updated)
+		trace("done") ;
 	}
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {
