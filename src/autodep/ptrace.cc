@@ -52,7 +52,7 @@ void AutodepPtrace::s_init(AutodepEnv const& ade) {
 	#if HAS_SECCOMP
 		// XXX! : find a way to load seccomp rules that support 32 bits and 64 bits exe's
 		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
-		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2 )==0 ) ;
+		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2/*value*/ )==0 ) ;
 		for( long syscall : iota(SyscallDescr::NSyscalls) ) {
 			SyscallDescr const& descr = SyscallDescr::s_tab[syscall] ;
 			if (+descr) swear_prod( ::seccomp_rule_add( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0 )==0 ) ; // else descr is not allocated

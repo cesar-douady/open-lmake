@@ -262,7 +262,7 @@ namespace Backends::Sge {
 			SWEAR(pid>0) ;
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			int  wstatus ;
-			int  rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
+			int  rc      = ::waitpid(pid,&wstatus,0/*options*/) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 			trace("done_pid",wstatus) ;
 			delete[] cmd_line_ ;         // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
 			return wstatus_ok(wstatus) ;
@@ -294,7 +294,7 @@ namespace Backends::Sge {
 				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;                                        // NO_COV defensive programming
 				::_exit(+Rc::System) ;                                                                          // NO_COV in case exec fails
 			}
-			SWEAR(pid>0) ;                                                                            // ensure vfork worked
+			SWEAR(pid>0) ;                   // ensure vfork worked
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			// Normal code to get the content of stdout is to read the c2p pipe, and when we see eof, waitpid until sub-process has terminated.
 			// But it seems that if we do things this way, there are cases where c2p.read eof never occurs (or after a very long time, >300s).
@@ -302,15 +302,15 @@ namespace Backends::Sge {
 			// Curiously, this is much better and does not exhibit the long waiting time case.
 			// Pipe capacity is 16 pages, i.e. usually 64k (man 7 pipe), more than enough for a job id.
 			int wstatus ;
-			int rc      = ::waitpid(pid,&wstatus,0) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
-			delete[] cmd_line_ ;                                                                      // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
-			if (!wstatus_ok(wstatus)){                                                                // START_OF_NO_COV defensive programming
+			int rc      = ::waitpid(pid,&wstatus,0/*options*/) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
+			delete[] cmd_line_ ;             // safe even if not waiting pid, as thread is suspended by ::vfork until child has exec'ed
+			if (!wstatus_ok(wstatus)){       // START_OF_NO_COV defensive programming
 				trace("fail_pid") ;
 				::string msg = "cannot submit SGE job :" ;
 				for( ::string const& c : cmd_line ) msg <<' '<< c ;
 				throw msg ;
-			}                                                                                         // END_OF_NO_COV
-			::string cmd_out(100,0) ;                                                                 // 100 is plenty for a job id
+			}                                // END_OF_NO_COV
+			::string cmd_out(100,0) ;        // 100 is plenty for a job id
 			trace("wait_cmd_out",c2p.read) ;
 			ssize_t cnt = ::read( c2p.read , cmd_out.data() , cmd_out.size() ) ;
 			if (cnt==0                     ) FAIL("no data from"         ,cmd_line[0]                          ) ;

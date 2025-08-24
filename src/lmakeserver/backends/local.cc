@@ -58,7 +58,7 @@ namespace Backends::Local {
 	private :
 		static void _s_wait_job(pid_t pid) { // execute in a separate thread
 			Trace trace(BeChnl,"wait",pid) ;
-			::waitpid(pid,nullptr,0) ;
+			::waitpid( pid , nullptr/*wstatus*/ , 0/*options*/ ) ;
 			trace("waited",pid) ;
 		}
 

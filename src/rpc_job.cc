@@ -534,10 +534,10 @@ namespace Caches {
 				::string const& tn    = entry.first            ;
 				FileTag         tag   = entry.second.sig.tag() ;
 				Sz              sz    = target_szs[ti]         ;
-				n_copied = ti+1 ;                                                                  // this is a protection, so record n_copied *before* action occurs
-				repo_nfs_guard.change(tn) ; //!               dir_ok  abs_ok   force ignore_errs
-				if (tag==FileTag::None) unlnk(           tn  , false , false , false , true    ) ; // if we do not want the target, avoid unlinking potentially existing sub-files
-				else                    unlnk( dir_guard(tn) , true                            ) ;
+				n_copied = ti+1 ;                                                                           // this is a protection, so record n_copied *before* action occurs
+				repo_nfs_guard.change(tn) ; //!                     dir_ok
+				if (tag==FileTag::None) try { unlnk(           tn  , false ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
+				else                          unlnk( dir_guard(tn) , true  ) ;
 				switch (tag) {
 					case FileTag::None  :                                                                      break ;
 					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) ) ; break ;
@@ -546,18 +546,18 @@ namespace Caches {
 					case FileTag::Reg   : {
 						AcFd fd { tn , tag==FileTag::Exe?FdAction::CreateNoFollowExe:FdAction::CreateNoFollow } ;
 						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
-						else      trace("no_data_to",tn   ) ;                                      // empty exe are Exe, not Empty
+						else      trace("no_data_to",tn   ) ;                                               // empty exe are Exe, not Empty
 					} break ;
 				DN}
-				entry.second.sig = FileSig(tn) ;                                                   // target digest is not stored in cache
+				entry.second.sig = FileSig(tn) ;                                                            // target digest is not stored in cache
 			}
-			job_info.end.end_date = New ;                                                          // date must be after files are copied
+			job_info.end.end_date = New ;                                                                   // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 			return job_info ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
-			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                          // clean up partial job
+			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                   // clean up partial job
 			throw e ;
 		}
 	}
@@ -789,7 +789,7 @@ bool JobSpace::enter(
 ,	::string             &/*out*/ top_repo_root_s
 ,	::string   const&             phy_lmake_root_s
 ,	::string   const&             phy_repo_root_s
-,	::string   const&             phy_tmp_dir_s
+,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
 ,	::string   const&             cwd_s
 ,	::string   const&             work_dir_s
 ,	::vector_s const&             src_dirs_s
@@ -802,8 +802,37 @@ bool JobSpace::enter(
 		return false/*entered*/ ;
 	}
 	//
-	int uid = ::getuid() ;                                                                                                                // must be done before unshare that invents a new user
-	int gid = ::getgid() ;                                                                                                                // .
+	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
+	::string const& tmp_dir_s = tmp_view_s | phy_tmp_dir_s ;
+	SWEAR( !work_dir_s.starts_with(tmp_dir_s) , tmp_dir_s,work_dir_s ) ;             // else we have to detect if some view descr has size>1 in addition to view lying in tmp
+	if (!keep_tmp) {
+		bool mount_in_tmp = false ;
+		for( auto const& [view,descr] : views )
+			if ( +descr && view.starts_with(tmp_dir_s) ) {                           // empty descr does not represent a view
+				mount_in_tmp = true ;
+				break ;
+			}
+		//
+		if (mount_in_tmp) {
+			// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
+			// but umount is privileged, so what we do instead is forking
+			// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
+			// in child, we carry the whole job
+			if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                         // in parent
+				int wstatus ;
+				if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
+				unlnk( no_slash(phy_tmp_dir_s) , true/*dir_ok*/ , true/*abs_ok*/ ) ; // unlkink when child is done
+				if      (WIFEXITED  (wstatus)) ::exit(    WEXITSTATUS(wstatus)) ;
+				else if (WIFSIGNALED(wstatus)) ::exit(128+WTERMSIG   (wstatus)) ;
+				else                           ::exit(255                     ) ;
+			}
+		} else {
+			_tmp_dir_s = tmp_dir_s ;                                                 // unlink upon exit
+		}
+	}
+	//
+	int uid = ::getuid() ;                                                           // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                                           // .
 	//
 	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw cat("cannot create namespace : ",::strerror(errno)) ;
 	//
@@ -815,18 +844,18 @@ bool JobSpace::enter(
 			highest_s  = d_s ;
 		}
 	//
-	::string phy_super_repo_root_s ;                                                                                                      // dir englobing all relative source dirs
-	::string super_repo_view_s     ;                                                                                                      // .
+	::string phy_super_repo_root_s ;                                                 // dir englobing all relative source dirs
+	::string super_repo_view_s     ;                                                 // .
 	::string top_repo_view_s       ;
 	if (+repo_view_s) {
-		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 ))                                                       // ensure repo_view_s has at least one more level than cwd_s
+		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 ))  // ensure repo_view_s has at least one more level than cwd_s
 			throw cat(
 				"cannot map local repository dir to ",no_slash(repo_view_s)," appearing as ",no_slash(cwd_s)," in top-level repository, "
 			,	"consider setting <rule>.repo_view=",mk_py_str("/repo/"+no_slash(cwd_s))
 			) ;
 		phy_super_repo_root_s = phy_repo_root_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_repo_root_s = dir_name_s(phy_super_repo_root_s) ;
 		super_repo_view_s     = repo_view_s     ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_repo_view_s     = dir_name_s(super_repo_view_s    ) ;
-		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;                                                                    // this should have been checked earlier
+		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;               // this should have been checked earlier
 		if (!super_repo_view_s)
 			throw cat(
 				"cannot map repository dir to ",no_slash(repo_view_s)," with relative source dir ",no_slash(highest_s)
@@ -855,16 +884,16 @@ bool JobSpace::enter(
 	trace("create",STR(must_create_lmake),STR(must_create_repo),STR(must_create_tmp)) ;
 	//
 	if ( must_create_repo || must_create_tmp || +views )
-		try { unlnk_inside_s(work_dir_s) ; } catch (::string const& e) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
-	if ( must_create_lmake || must_create_repo || must_create_tmp ) {     // we cannot mount directly in chroot_dir
+		try { unlnk_inside_s(work_dir_s) ; } catch (::string const&) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
+	if ( must_create_lmake || must_create_repo || must_create_tmp ) {   // we cannot mount directly in chroot_dir
 		if (!work_dir_s)
-			throw cat(                                                    // START_OF_NO_COV defensive programming
+			throw cat(                                                  // START_OF_NO_COV defensive programming
 				"need a work dir to"
 			,		must_create_lmake ? " create lmake view"
 				:	must_create_repo  ? " create repo view"
 				:	must_create_tmp   ? " create tmp view"
 				:	                    " ???"
-			) ;                                                           // END_OF_NO_COV
+			) ;                                                         // END_OF_NO_COV
 		::vector_s top_lvls    = lst_dir_s(chroot_dir_s|"/") ;
 		::string   work_root   = work_dir_s+"root"           ;
 		::string   work_root_s = work_root+'/'               ;
@@ -888,7 +917,7 @@ bool JobSpace::enter(
 		chroot_dir = ::move(work_root) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                       // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                                       // necessary to be allowed to write the gid_map (if desirable)
 	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;
 	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;
 	//
@@ -902,14 +931,15 @@ bool JobSpace::enter(
 	else if (+chroot_dir ) _chdir(phy_repo_root_s) ;
 	//
 	size_t work_idx = 0 ;
-	for( auto const& [view,descr] : views ) if (+descr) {                                                     // empty descr does not represent a view
-		::string   abs_view = mk_abs(view,top_repo_root_s) ;
-		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ;
+	for( auto const& [view,descr] : views ) {
+		if (!descr) continue ;                                                                                                // empty descr does not represent a view
 		//
-		for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,top_repo_root_s)) ;
+		::string   abs_view = mk_abs(view,top_repo_root_s) ;
+		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,top_repo_root_s)) ;
+		//
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
-		if (is_dir_name(view)) {
+		if (is_dir_name(view))
 			for( ::string const& cu : descr.copy_up ) {
 				::string dst = descr.phys[0]+cu ;
 				if (is_dir_name(cu))
@@ -918,24 +948,23 @@ bool JobSpace::enter(
 					for( size_t i : iota(1,descr.phys.size()) )
 						if (_create(report,dst,descr.phys[i]+cu)) break ;
 			}
-		}
-		size_t          sz     = descr.phys.size() ;
-		::string const& upper  = descr.phys[0]     ;
-		::string        work_s ;
-		if (sz==1) {
+		if (+_tmp_dir_s) swear_prod( !abs_view.starts_with(_tmp_dir_s) , _tmp_dir_s,abs_view ) ;                              // ensure we do not clean up mounted dir upon exit
+		if (descr.phys.size()==1) {
 			_mount_bind( abs_view , abs_phys[0] ) ;
 		} else {
-			work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ; // if not in the repo, it must be in tmp
+			::string const& upper  = descr.phys[0]                                                                          ;
+			::string        work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ; // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
 			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,top_repo_root_s) ) ;
-		}
-		if (+tmp_view_s) {                                                // curiously, we have permission to mount, but not to unmount, so avoid unlinking mounted dirs to avoid a catastroph
-			if (view  .starts_with(tmp_view_s)) no_unlnk.insert(view  ) ;
-			if (work_s.starts_with(tmp_view_s)) no_unlnk.insert(work_s) ;
 		}
 	}
 	trace("done",report,top_repo_root_s) ;
 	return true/*entered*/ ;
+}
+
+void JobSpace::exit() {
+	if (+_tmp_dir_s)
+		try { unlnk(no_slash(_tmp_dir_s),true/*dir_ok*/,true/*abs_ok*/) ; } catch (::string const&) {} // best effort
 }
 
 // XXX! : implement recursive views
@@ -1136,7 +1165,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	/*out*/top_repo_root_s
 	,	       phy_lmake_root_s
 	,	       phy_repo_root_s
-	,	       phy_tmp_dir_s
+	,	       phy_tmp_dir_s          , keep_tmp
 	,	       autodep_env.sub_repo_s
 	,	       phy_work_dir_s
 	,	       autodep_env.src_dirs_s
@@ -1159,26 +1188,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	return entered ;
 }
 
-static void _unlnk_inside_s( ::string const& dir_s , ::uset_s const& no_unlnk ) {
-	try {
-		for( ::string const& f : lst_dir_s(dir_s,dir_s) ) {
-			if (no_unlnk.contains(f)  ) continue ;          // dont unlink file
-			if (::unlink(f.c_str())==0) continue ;          // ok
-			if (errno!=EISDIR         ) continue ;          // ignore errors as we have nothing much to do with them
-			::string d_s = with_slash(f) ;
-			if (no_unlnk.contains(d_s)) continue ;          // dont unlink dir
-			//
-			_unlnk_inside_s(d_s,no_unlnk) ;
-			//
-			::rmdir(f.c_str()) ;
-		}
-	} catch (::string const&) {}                            // ignore errors as we have nothing much to do with them
-}
-
 void JobStartRpcReply::exit() {
-	// work dir cannot be cleaned up as we may have chroot'ed inside
-	Trace trace("JobStartRpcReply::exit",STR(keep_tmp),_tmp_dir_s,job_space.no_unlnk) ;
-	if ( !keep_tmp && +_tmp_dir_s ) _unlnk_inside_s( _tmp_dir_s , job_space.no_unlnk ) ;
 	job_space.exit() ;
 }
 

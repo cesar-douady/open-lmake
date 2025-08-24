@@ -70,13 +70,13 @@ using namespace Disk ;
 	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail  ,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                         // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
+		//::close_range(3/*first*/,~0u/*last*/,CLOSE_RANGE_UNSHARE) ;        // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
 	if (first_pid) {
 		SWEAR(first_pid>1,first_pid) ;                                                                        // START_OF_NO_COV coverage recording does not work in isolated namespace
 		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
-		if (::mount(nullptr,"/proc","proc",0,nullptr)!=0) {
+		if (::mount(nullptr/*source*/,"/proc","proc",0/*flags*/,nullptr/*data*/)!=0) {
 			::perror("cannot mount /proc ") ;
 			_exit(Rc::System,"cannot mount /proc") ;
 		}

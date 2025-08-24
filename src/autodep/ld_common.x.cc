@@ -211,7 +211,7 @@ struct _Execp : _Exec {
 		//
 		::string p = get_env("PATH") ;
 		if (!p) {                                                                 // gather standard path if path not provided
-			size_t n = ::confstr(_CS_PATH,nullptr,0) ;
+			size_t n = ::confstr(_CS_PATH,nullptr/*buf*/,0/*size*/) ;
 			p.resize(n) ;
 			::confstr(_CS_PATH,p.data(),n) ;
 			SWEAR(p.back()==0) ;

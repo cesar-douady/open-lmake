@@ -62,11 +62,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-! suppress recycling of tmp dir
-	- difficult because in some cases with namespace, we create mount point in there
-	- and there is no known ways to do unmount, preventing tmp dir deletion
-	- tmp dir is then cleaned up when next job starts with the same tmp dir
-	- if no recycling, there is no way to know when to finish clean up
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm

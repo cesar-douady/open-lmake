@@ -537,6 +537,14 @@ public :
 	/**/      void              no_std     (                       ) ;
 	/**/      void              cloexec    (bool          set =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
 	constexpr size_t            hash       (                       ) const { return fd ;                            }
+protected :
+	::string& append_to_str( ::string& os , const char* class_name ) const {
+		os <<class_name<<"(" ;
+		if (self==Cwd) os << "Cwd" ;
+		else           os << fd    ;
+		return os <<')' ;
+	}
+public :
 	// data
 	int fd = -1 ;
 } ;

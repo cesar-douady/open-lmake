@@ -79,14 +79,14 @@ struct Child {
 	int/*wstatus*/ wait() {
 		SWEAR(pid!=0) ;
 		int wstatus ;
-		int rc      = ::waitpid(pid,&wstatus,0) ;
+		int rc      = ::waitpid(pid,&wstatus,0/*options*/) ;
 		swear_prod(rc==pid,"cannot wait for pid",pid) ;
 		waited() ;
 		return wstatus ;
 	}
 	bool         wait_ok (       )       { return wstatus_ok(wait())                           ; }
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
-	bool         is_alive(       ) const { return ::kill(pid,0)==0                             ; }
+	bool         is_alive(       ) const { return ::kill(pid,0/*sig*/)==0                      ; }
 private :
 	[[noreturn]] void _do_child           (                      ) ;
 	[[noreturn]] void _do_child_trampoline(                      ) ; // used when creating a new pid namespace : we need an intermediate process as the init process

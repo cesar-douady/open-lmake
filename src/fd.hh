@@ -97,7 +97,7 @@ public :
 	SockFd(NewType) { init() ; }
 	//
 	void init() {
-		self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0 ) ;
+		self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ;
 		no_std() ;
 	}
 	// services
@@ -150,6 +150,7 @@ struct ServerSockFd : SockFd {
 
 struct ClientSockFd : SockFd {
 	static constexpr int NTrials = 3 ;
+	friend ::string& operator+=( ::string& , ClientSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
 	ClientSockFd( in_addr_t       server , in_port_t port , Time::Delay timeout={} ) { connect(server,port,timeout) ; }
@@ -178,7 +179,7 @@ inline sigset_t _mk_sigset(::vector<int> const& sigs) {
 }
 inline bool is_blocked_sig(int sig) {
 	sigset_t old_mask ;
-	swear( ::pthread_sigmask(0,nullptr,&old_mask)==0 , "cannot get sig ",sig ) ;
+	swear( ::pthread_sigmask(0/*how*/,nullptr/*set*/,&old_mask)==0 , "cannot get sig ",sig ) ;
 	return sigismember(&old_mask,sig) ;                                                        // sigismember can be a macro
 }
 inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
@@ -203,7 +204,7 @@ template<class F> struct _Pipe {
 	_Pipe( NewType                            ) { open(             ) ; }
 	_Pipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
 	// services
-	void open(                          ) { open(0,false) ; }
+	void open(                          ) { open(0/*flags*/,false/*no_std*/) ; }
 	void open( int flags , bool no_std_ ) {
 		int fds[2] ;
 		if (::pipe2(fds,flags)!=0) fail_prod( "cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",::strerror(errno) ) ;
@@ -226,8 +227,11 @@ using AcPipe = _Pipe<AcFd> ;
 //
 
 struct EventFd : AcFd {
-	EventFd(NewType) : AcFd{::eventfd(0,O_CLOEXEC),true/*no_std*/} {}
-	EventFd(Fd fd_ ) : AcFd{fd_                                  } {}
+	friend ::string& operator+=( ::string& , EventFd const& ) ;
+	// cxtors & casts
+	EventFd(NewType) : AcFd{::eventfd(0/*initval*/,O_CLOEXEC),true/*no_std*/} {}
+	EventFd(Fd fd_ ) : AcFd{fd_                                             } {}
+	// services
 	void wakeup() const {
 		static constexpr uint64_t One = 1 ;
 		ssize_t cnt = ::write(self,&One,sizeof(One)) ;
@@ -245,14 +249,15 @@ struct EventFd : AcFd {
 //
 
 struct SignalFd : AcFd {
+	friend ::string& operator+=( ::string& , SignalFd const& ) ;
 	// cxtors & casts
 	SignalFd( NewType, int sig ) : AcFd{_mk_fd(sig),true/*no_std*/} {}
 	SignalFd( Fd fd_           ) : AcFd{fd_                       } {}
 private :
 	int _mk_fd(int sig) {
-		SWEAR(is_blocked_sig(sig)) ;                                                                                      // if not blocked, it may signal the process
-		::sigset_t sig_set  ;                                           sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
-		return ::signalfd( -1 , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
+		SWEAR(is_blocked_sig(sig)) ;                                                                                            // if not blocked, it may signal the process
+		::sigset_t sig_set  ;                                                 sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
+		return ::signalfd( -1/*fd*/ , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
 	}
 	// services
 public :

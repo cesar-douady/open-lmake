@@ -319,7 +319,7 @@ static bool/*interrupted*/ _engine_loop() {
 					case GlobalProc::Wakeup :
 						trace("wakeup") ;
 					break ;
-				DF}                        // NO_COV
+				DF}                         // NO_COV
 			} break ;
 			case EngineClosureKind::Req : {
 				EngineClosureReq& ecr           = closure.ecr()             ;
@@ -494,7 +494,7 @@ int main( int argc , char** argv ) {
 	::string msg ; //!          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	try                       { Makefiles::refresh( msg , crashed , refresh_ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
 	catch (::string const& e) { /*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/   if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
-	if (!_g_is_daemon) ::setpgid(0,0) ;                                                      // once we have reported we have started, lmake will send us a message to kill us
+	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/) ;                                       // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	mk_dir_s(cat(AdminDirS       ,"auto_tmp/"    ),true/*unlnk_ok*/) ;                       // prepare job execution so no dir_guard is necessary for each job
@@ -512,9 +512,7 @@ int main( int argc , char** argv ) {
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
-		try                       { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/,true/*ignore_errs*/) ; } // cleanup
-		catch (::string const& e) { exit(Rc::System,e) ;                                                                           }
-		//
+		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {} // cleanup
 		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , FdAction::Create ).write(g_kpi.pretty_str()) ;
 	}
 	//

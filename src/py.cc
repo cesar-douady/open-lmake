@@ -117,7 +117,7 @@ namespace Py {
 			::dup2(AcFd(::memfd_create("back_trace",MFD_CLOEXEC)),Fd::Stderr) ; // name is for debug purpose only
 			PyErr_Print() ;                                                     // clears exception
 			try { py_flush->call() ; } catch (::string const&) {}               // flush stderr buffer after manipulation (does not justify the burden of error in error if we cant)
-			::lseek( Fd::Stderr , 0 , SEEK_SET ) ;                              // rewind to read error message
+			::lseek( Fd::Stderr , 0/*offset*/ , SEEK_SET ) ;                    // rewind to read error message
 			read_all(Fd::Stderr) ;
 		#else
 			Pipe fds { New } ;
@@ -162,9 +162,9 @@ namespace Py {
 			for( char const* p = "{}" ; *p ; p++ ) res[*p] = true ;
 			return res ;
 		}() ;
-		::string res ; res.reserve(s.size()) ;                     // typically nothing to double
+		::string res ; res.reserve(s.size()) ; // typically nothing to double
 		for( char c : s ) {
-			if (IsSpecial[c]) res += c ;    // double specials
+			if (IsSpecial[c]) res += c ;       // double specials
 			/**/              res += c ;
 		}
 		return res ;

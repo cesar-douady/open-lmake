@@ -28,8 +28,8 @@ using namespace Time ;
 // Fd
 //
 
-::string& operator+=( ::string& os , Fd   const& fd ) { return os <<"Fd("  << fd.fd <<')' ; }
-::string& operator+=( ::string& os , AcFd const& fd ) { return os <<"AcFd("<< fd.fd <<')' ; }
+::string& operator+=( ::string& os , Fd   const& fd ) { return fd.append_to_str( os , "Fd"   ) ; }
+::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
 
 int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action ) {
 	int res ;
@@ -384,7 +384,7 @@ bool              _crash_busy  = false ;
 		}
 	Return :
 		::close(c2p.read) ;
-		::waitpid(pid,nullptr,0) ;
+		::waitpid( pid , nullptr/*wstatus*/ , 0/*options*/ ) ;
 		return n_sp ;
 	}
 

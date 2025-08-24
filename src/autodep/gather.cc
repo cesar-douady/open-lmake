@@ -501,7 +501,7 @@ Status Gather::exec_child() {
 				case Kind::ChildEnd   :
 				case Kind::ChildEndFd : {
 					int ws ;
-					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0) ;                             wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
+					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0/*flags*/) ;                    wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
 					trace(kind,fd,_child.pid,ws) ;
 					SWEAR(!WIFSTOPPED(ws),_child.pid) ;                                                   // child must have ended if we are here

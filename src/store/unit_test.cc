@@ -304,10 +304,10 @@ void test_prefix() {
 void test_lmake() {
 	Fd::Stdout.write("check lmake ...") ;
 	SinglePrefixFile<0/*ThreadKey*/,void,uint32_t,20> file(g_dir_s+"lmake",true/*writable*/) ;
-	char key ;
-	key = (char)0x28 ; file.insert(::string(&key,1)) ;
-	key = (char)0xb1 ; file.insert(::string(&key,1)) ;
-	key = (char)0xef ; file.insert(::string(&key,1)) ;
+	char key ; //!                              count
+	key = (char)0x28 ; file.insert(::string(&key,1  )) ;
+	key = (char)0xb1 ; file.insert(::string(&key,1  )) ;
+	key = (char)0xef ; file.insert(::string(&key,1  )) ;
 	Fd::Stdout.write(" ok\n") ;
 }
 

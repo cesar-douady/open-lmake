@@ -673,12 +673,12 @@ struct JobSpace {
 	,	::string             &/*out*/ top_repo_root_s
 	,	::string   const&             phy_lmake_root_s
 	,	::string   const&             phy_repo_root_s
-	,	::string   const&             phy_tmp_dir_s
+	,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
 	,	::string   const&             cwd_s
 	,	::string   const&             work_dir_s
 	,	::vector_s const&             src_dirs_s={}
 	) ;
-	void exit() {}
+	void exit() ;
 	//
 	::vmap_s<::vector_s> flat_phys() const ; // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
@@ -696,7 +696,8 @@ public :
 	::string            tmp_view_s   = {} ;  // absolute dir under which job sees tmp dir             (empty if unused)
 	::vmap_s<ViewDescr> views        = {} ;  // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
-	::uset_s no_unlnk ;                      // list of dirs and files that are mounted in tmp and should not be unlinked at end of job
+private :
+	::string _tmp_dir_s ;                    // to be unlinked upon exit
 } ;
 
 struct JobRpcReq {

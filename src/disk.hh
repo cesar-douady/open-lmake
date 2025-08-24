@@ -315,10 +315,10 @@ namespace Disk {
 	size_t/*pos*/ mk_dir_s ( Fd at , ::string const& dir_s , NfsGuard& , bool unlnk_ok=false ) ; // .
 	void          dir_guard( Fd at , ::string const& file                                    ) ;
 	//
-	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool abs_ok=false , bool force=false , bool ignore_errs=false ) ;
-	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false , bool ignore_errs=false ) ; // if dir_ok <=> unlink whole dir if it is one
-	void          rmdir_s       ( Fd at , ::string const& dir_s                                                                                     ) ;
-	void          mk_dir_empty_s( Fd at , ::string const& dir_s                     , bool abs_ok=false                                             ) ;
+	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool abs_ok=false , bool force=false ) ;
+	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
+	void          rmdir_s       ( Fd at , ::string const& dir_s                                                            ) ;
+	void          mk_dir_empty_s( Fd at , ::string const& dir_s                     , bool abs_ok=false                    ) ;
 	//
 	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
@@ -368,15 +368,10 @@ namespace Disk {
 		return walk( Fd::Cwd , path , fts , pfx , prune )  ;
 	}
 
-	inline void unlnk_inside_s( Fd at , bool force=false , bool ignore_errs=false ) {
-		unlnk_inside_s( at , {} , false , force , ignore_errs ) ;
-	}
-	inline void unlnk_inside_s( ::string const& dir_s , bool abs_ok=false , bool force=false , bool ignore_errs=false ) {
-		unlnk_inside_s( Fd::Cwd , dir_s , abs_ok , force , ignore_errs ) ;
-	}
-	inline bool/*done*/ unlnk( ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false , bool ignore_errs=false ) {
-		return unlnk( Fd::Cwd , file , dir_ok , abs_ok , force , ignore_errs ) ;
-	}
+	inline void         unlnk_inside_s( Fd              at    ,                                         bool force=false ) {        unlnk_inside_s( at      , {}    ,          false  , force ) ; }
+	inline void         unlnk_inside_s( ::string const& dir_s ,                     bool abs_ok=false , bool force=false ) {        unlnk_inside_s( Fd::Cwd , dir_s ,          abs_ok , force ) ; }
+	inline bool/*done*/ unlnk         ( ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false ) { return unlnk         ( Fd::Cwd , file  , dir_ok , abs_ok , force ) ; }
+
 	inline void mk_dir_empty_s( ::string const& dir_s , bool abs_ok=false ) {
 		return mk_dir_empty_s( Fd::Cwd , dir_s , abs_ok ) ;
 	}
