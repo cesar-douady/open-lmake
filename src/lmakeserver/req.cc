@@ -373,7 +373,7 @@ namespace Engine {
 	}
 
 	void ReqData::_open_log() {
-		static ::string const Last = AdminDirS+"last_output"s ;
+		static ::string const Last = cat(AdminDirS,"last_output") ;
 		Trace trace("_open_log") ;
 		Pdate    now { New }         ;
 		::string day = now.day_str() ;
@@ -393,8 +393,8 @@ namespace Engine {
 			//
 			::string log_dir_s = AdminDirS+lcl_log_dir_s ;
 			if (mk_dir_s(log_dir_s)<log_dir_s.size()-1) {                                        // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
-				::string   outputs_dir_s = AdminDirS+"outputs/"s    ;
-				::vector_s entries       = lst_dir_s(outputs_dir_s) ;
+				::string   outputs_dir_s = cat(AdminDirS,"outputs/") ;
+				::vector_s entries       = lst_dir_s(outputs_dir_s)  ;
 				trace(hd,entries.size()) ;
 				if (entries.size()>hd) {
 					::sort(entries) ;
@@ -425,8 +425,8 @@ namespace Engine {
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		size_t wk = ::max("elapsed"s.size(),"startup"s.size()) ;
-		size_t wn = 0                                          ;
+		size_t wk = ::max(::strlen("elapsed"),::strlen("startup")) ;
+		size_t wn = 0                                              ;
 		for( JobReport jr : iota(All<JobReport>) ) if ( stats.ended[+jr] || jr==JobReport::Done ) {
 			wk = ::max( wk , snake(jr)                    .size() ) ;
 			wn = ::max( wn , ::to_string(stats.ended[+jr]).size() ) ;

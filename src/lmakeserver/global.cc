@@ -56,8 +56,8 @@ namespace Engine {
 		try                       { OMsgBuf().send( out , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; } // if we lose connection, there is nothing much we ...
 		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                           } // ... can do about it (hoping that we can still trace)
 		if (+log)
-			try                       { log.write("status : "s+(ok?"ok":"failed")+'\n') ; }             // .
-			catch (::string const& e) { Trace("audit_status","lost_log",e) ;              }             // NO_COV defensive programming
+			try                       { log.write(cat("status : ",ok?"ok":"failed",'\n')) ; }           // .
+			catch (::string const& e) { Trace("audit_status","lost_log",e) ;                }           // NO_COV defensive programming
 	}
 
 	void audit_ctrl_c( Fd out, Fd log , ReqOptions const& ro ) {

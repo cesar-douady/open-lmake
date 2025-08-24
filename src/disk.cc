@@ -193,7 +193,10 @@ namespace Disk {
 		//
 		unlnk_inside_s(at,with_slash(file),abs_ok,force,ignore_errs) ;
 		//
-		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)<0) { if (ignore_errs) return false/*done*/ ; else throw "cannot unlink dir "+file ; }
+		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) {
+			if (ignore_errs) return false/*done*/            ;
+			else             throw "cannot unlink dir "+file ;
+		}
 		return true/*done*/ ;
 	}
 
@@ -293,7 +296,7 @@ namespace Disk {
 				dir_guard(dst_at,dst_file) ;
 				AcFd rfd { src_at , src_file          }              ;
 				AcFd wfd { dst_at , dst_file , action }              ;
-				int  rc  = ::sendfile( wfd , rfd , nullptr , fi.sz ) ; if (rc<0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
+				int  rc  = ::sendfile( wfd , rfd , nullptr , fi.sz ) ; if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
 			} break ;
 			case FileTag::Lnk :
 				dir_guard(dst_at,dst_file) ;
@@ -332,8 +335,8 @@ namespace Disk {
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {
 		FileStat st ;
-		if (+name) { if (::fstatat( at , name.c_str() , &st , no_follow?AT_SYMLINK_NOFOLLOW:0 )<0) return ; }
-		else       { if (::fstat  ( at ,                &st                                   )<0) return ; }
+		if (+name) { if (::fstatat( at , name.c_str() , &st , no_follow?AT_SYMLINK_NOFOLLOW:0 )!=0) return ; }
+		else       { if (::fstat  ( at ,                &st                                   )!=0) return ; }
 		self = st ;
 	}
 
@@ -406,7 +409,7 @@ namespace Disk {
 	}                                                            // END_OF_NO_COV
 
 	static FileLoc _lcl_file_loc(::string_view file) {
-		static ::string_view s_private_admin_dir { PrivateAdminDirS , strlen(PrivateAdminDirS)-1 } ; // get rid of final /
+		static ::string_view s_private_admin_dir { PrivateAdminDirS , ::strlen(PrivateAdminDirS)-1 } ; // get rid of final /
 		if (!file.starts_with(s_private_admin_dir)) return FileLoc::Repo ;
 		switch (file[s_private_admin_dir.size()]) {
 			case '/' :

@@ -687,8 +687,8 @@ template<::integral I> I random() {
 //
 
 inline constexpr void Fd::close() {
-	if (!self        ) return ;
-	if (::close(fd)<0) throw cat("cannot close fd ",fd," : ",::strerror(errno)) ;
+	if (!self         ) return ;
+	if (::close(fd)!=0) throw cat("cannot close fd ",fd," : ",::strerror(errno)) ;
 	self = {} ;
 }
 
@@ -803,12 +803,12 @@ template<char Delimiter> ::string parse_printable( ::string const& x , size_t& p
 				case '\\' : res += '\\'       ; break/*switch*/ ;
 				//
 				case 'x' : {
-					char x = 0 ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
-					x <<= 4    ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw "illegal hex digit "s+d ;
+					char x = 0 ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw cat("illegal hex digit ",d) ;
+					x <<= 4    ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw cat("illegal hex digit ",d) ;
 					res += x ;
 				} break/*switch*/ ;
 				//
-				default : throw "illegal code \\"s+x_c[pos] ;
+				default : throw cat("illegal code \\",x_c[pos]) ;
 			}
 	return res ;
 }
@@ -828,7 +828,7 @@ constexpr inline int8_t _unit_val(char u) {
 		case 'T' : return  4 ; break ;
 		case 'P' : return  5 ; break ;
 		case 'E' : return  6 ; break ;
-		default  : throw "unrecognized suffix "s+u ;
+		default  : throw cat("unrecognized suffix ",u) ;
 	}
 }
 template<char U,::integral I,bool RndUp> I from_string_with_unit(::string const& x) {

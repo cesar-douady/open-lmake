@@ -393,7 +393,7 @@ namespace Engine {
 
 	template<class T> struct Dyn : DynBase {
 		// statics
-		static ::string s_exc_msg(bool using_static) { return "cannot compute dynamic "s + T::Msg + (using_static?", using static info":"") ; }
+		static ::string s_exc_msg(bool using_static) { return cat("cannot compute dynamic ",T::Msg,using_static?", using static info":"") ; }
 		// cxtors & casts
 		Dyn() = default ;
 		Dyn( RulesBase& , Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , RuleData const& ) ;

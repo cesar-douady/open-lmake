@@ -178,16 +178,16 @@ using WSolve   = AuditAction<Record::WSolve  ,1   > ;
 //
 
 #if NEED_ELF
-	struct _Exec : Record::Exec {                                                          // even if path is simple, it may load non-simple libraries, so dont use ExecCS
+	struct _Exec : Record::Exec {                                                            // even if path is simple, it may load non-simple libraries, so dont use ExecCS
 		_Exec() = default ;
 		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Record::Exec{r,::move(path),no_follow,c} {
 			static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
-			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                          // -1 to account of terminating null
+			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                            // -1 to account of terminating null
 			//
 			const char* const* llp ;
-			for( llp=envp ; *llp ; llp++ ) if (strncmp( *llp , Llpe , LlpeSz )==0) break ;
-			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                    // pass value after the LD_LIBRARY_PATH= prefix
-			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                    // /!\ dont add LlpeSz to nullptr
+			for( llp=envp ; *llp ; llp++ ) if (::strncmp( *llp , Llpe , LlpeSz )==0) break ;
+			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                      // pass value after the LD_LIBRARY_PATH= prefix
+			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                      // /!\ dont add LlpeSz to nullptr
 		}
 	} ;
 #else

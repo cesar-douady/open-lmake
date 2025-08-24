@@ -86,8 +86,7 @@ void AutodepPtrace::init(pid_t cp) {
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 	#if HAS_SECCOMP
-		int rc = ::seccomp_load(s_scmp) ;
-		if (rc!=0) ::_exit(+Rc::System) ;
+		if (::seccomp_load(s_scmp)!=0) ::_exit(+Rc::System) ;
 	#endif
 	::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
 	kill_self(FirstSignal) ;                                        // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
@@ -197,10 +196,10 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 				}
 			}
 		NextSyscall :
-			if ( ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , sig )<0 ) throw cat("cannot set trace for next syscall for ",pid) ;
+			if ( ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , sig )!=0 ) throw cat("cannot set trace for next syscall for ",pid) ;
 			return false/*done*/ ;
 		SyscallExit :
-			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )<0 ) throw cat("cannot set trace for syscall exit for ",pid) ;
+			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )!=0 ) throw cat("cannot set trace for syscall exit for ",pid) ;
 			return false/*done*/ ;
 		} catch (::string const& e) {
 			SWEAR(errno==ESRCH,errno) ;               // if we cant find pid, it means we were not informed it terminated

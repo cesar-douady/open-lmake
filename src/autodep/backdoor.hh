@@ -24,7 +24,7 @@ namespace Backdoor {
 	::umap_s<Func> const& get_func_tab() ;
 
 	template<class T> typename T::Reply call(T&& args) {
-		::string file = ""s+MagicPfx+T::Cmd+'/'+mk_printable(serialize(args))            ;
+		::string file = cat(MagicPfx,T::Cmd,'/',mk_printable(serialize(args)))           ;
 		::string buf  ( args.reply_len()+1 , 0 )                                         ; // +1 to distinguish truncation
 		ssize_t  cnt  = ::readlinkat( MagicFd , file.c_str() , buf.data() , buf.size() ) ; // try to go through autodep to process args
 		if (cnt<0) return args.process(::ref(Record(New,Yes/*enabled*/))) ;                // no autodep available, directly process args

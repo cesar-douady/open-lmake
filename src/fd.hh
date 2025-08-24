@@ -39,7 +39,7 @@ struct LockedFd : AcFd {
 		,	.l_len    = 1 // ensure a lock exists even if file is empty
 		,	.l_pid    = 0
 		} ;
-		while (::fcntl(fd,F_SETLKW,&lock)<0) swear_prod( errno==EINTR , +self ) ;
+		while (::fcntl(fd,F_SETLKW,&lock)!=0) swear_prod( errno==EINTR , +self ) ;
 	}
 	void unlock() {
 		if (!self) return ;
@@ -50,7 +50,7 @@ struct LockedFd : AcFd {
 		,	.l_len    = 1 // ensure a lock exists even if file is empty
 		,	.l_pid    = 0
 		} ;
-		swear_prod( ::fcntl(fd,F_SETLK,&lock)>=0 , +self ) ;
+		swear_prod( ::fcntl(fd,F_SETLK,&lock)==0 , +self ) ;
 	}
 } ;
 
@@ -206,8 +206,7 @@ template<class F> struct _Pipe {
 	void open(                          ) { open(0,false) ; }
 	void open( int flags , bool no_std_ ) {
 		int fds[2] ;
-		int rc = ::pipe2(fds,flags) ;
-		if (rc<0) fail_prod( "cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",::strerror(errno) ) ;
+		if (::pipe2(fds,flags)!=0) fail_prod( "cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",::strerror(errno) ) ;
 		read  = F(fds[0],no_std_) ;
 		write = F(fds[1],no_std_) ;
 	}
@@ -297,12 +296,12 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 	}
 	void add( bool write , Fd fd , E data={} , bool wait=true ) {
 		Event event { write , fd , data } ;
-		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )<0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
+		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
 		if (wait) _n_waits ++ ;
 		/**/      _n_events++ ;
 	}
-	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                // wait must be coherent with corresponding add
-		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )<0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
+	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                 // wait must be coherent with corresponding add
+		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )!=0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
 		if (wait) { SWEAR(_n_waits >0) ; _n_waits -- ; }
 		/**/        SWEAR(_n_events>0) ; _n_events-- ;
 	}

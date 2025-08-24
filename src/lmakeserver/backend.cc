@@ -801,7 +801,7 @@ namespace Backends {
 					Ptr<Dict> glbs = py_run(cfg.ifce) ;
 					ifce = (*glbs)["interface"].as_a<Str>() ;
 				} catch (::string const& e) {
-					throw "bad interface for "s+t+'\n'+indent(e) ;
+					throw cat("bad interface for ",t,'\n',indent(e)) ;
 				}
 			}
 			::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;

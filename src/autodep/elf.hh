@@ -62,8 +62,8 @@ struct Elf {
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
 			if (start) {
-				if ( *p!='/'                                                   ) return ; // found a relative entry, most probably inside the repo
-				if ( strncmp(p,root_s.c_str(),sz)==0 && (p[sz]==':'||p[sz]==0) ) return ; // found an absolute entry pointing inside the repo
+				if ( *p!='/'                                                     ) return ; // found a relative entry, most probably inside the repo
+				if ( ::strncmp(p,root_s.c_str(),sz)==0 && (p[sz]==':'||p[sz]==0) ) return ; // found an absolute entry pointing inside the repo
 				start = false ;
 			} else {
 				if (*p==':') start = true ;
@@ -83,14 +83,14 @@ struct Elf {
 } ;
 
 inline Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
-	if (file_map.sz<sizeof(Ehdr)) throw 2 ;                                                                           // file too small : stop analysis and ignore
+	if (file_map.sz<sizeof(Ehdr)) throw 2 ;                                                              // file too small : stop analysis and ignore
 	//
 	Ehdr const& ehdr       = file_map.get<Ehdr>() ;
 	size_t      dyn_offset = 0/*garbage*/         ;
 	//
-	if ( memcmp(ehdr.e_ident,ELFMAG,SELFMAG) != 0                                                         ) throw 3 ; // bad header     : .
-	if ( ehdr.e_ident[EI_CLASS]              != (Is64Bits                       ?ELFCLASS64 :ELFCLASS32 ) ) throw 4 ; // bad word width : .
-	if ( ehdr.e_ident[EI_DATA ]              != (::endian::native==::endian::big?ELFDATA2MSB:ELFDATA2LSB) ) throw 5 ; // bad endianness : .
+	if ( ::memcmp(ehdr.e_ident,ELFMAG,SELFMAG)!=0                                            ) throw 3 ; // bad header     : .
+	if ( ehdr.e_ident[EI_CLASS] != (Is64Bits                       ?ELFCLASS64 :ELFCLASS32 ) ) throw 4 ; // bad word width : .
+	if ( ehdr.e_ident[EI_DATA ] != (::endian::native==::endian::big?ELFDATA2MSB:ELFDATA2LSB) ) throw 5 ; // bad endianness : .
 	//
 	for( size_t i : iota(ehdr.e_phnum) ) {
 		size_t      phdr_offset = ehdr.e_phoff + i*ehdr.e_phentsize ;
@@ -100,7 +100,7 @@ inline Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_ma
 			goto DoSection ;
 		}
 	}
-	return {} ;                                                                                                       // no dynamic header
+	return {} ;                                                                                          // no dynamic header
 DoSection :
 	size_t string_shdr_offset = ehdr.e_shoff + ehdr.e_shstrndx*ehdr.e_shentsize  ;
 	size_t string_offset      = file_map.get<Shdr>(string_shdr_offset).sh_offset ;
@@ -243,10 +243,10 @@ inline Record::Read search_elf( Record& r , const char* file , Comment c ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , c ) ; }
-	catch (::string const& e) { r.report_panic("while searching elf executable "s+file+" : "+e) ; return {} ;                                    } // if we cannot report the dep, panic
+	catch (::string const& e) { r.report_panic(cat("while searching elf executable ",file," : ",e)) ; return {} ;                                } // if we cannot report the dep, panic
 }
 
 inline void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_path , Comment c ) {
-	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , c ) ; }
-	catch (::string const& e) { r.report_panic("while analyzing elf executable "+mk_file(file.real)+" : "+e) ;      } // if we cannot report the dep, panic
+	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , c ) ;               }
+	catch (::string const& e) { r.report_panic(cat("while analyzing elf executable ",mk_file(file.real)," : ",e)) ; } // if we cannot report the dep, panic
 }

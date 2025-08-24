@@ -74,7 +74,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		//
 		if ( !_s_fd                                                        ) throw cat("cannot create temporary trace file ",tmp_trace_file," : ",::strerror(errno)          ) ;
 		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw cat("cannot create trace file "          ,*g_trace_file ," : ",::strerror(errno)          ) ;
-		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0                               ) throw cat("cannot truncate trace file "        ,*g_trace_file ," to its initial size ",_s_cur_sz) ;
+		if ( ::ftruncate(_s_fd,_s_cur_sz)                              !=0 ) throw cat("cannot truncate trace file "        ,*g_trace_file ," to its initial size ",_s_cur_sz) ;
 		//
 		_s_pos  = 0                                                                                                    ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0 )) ;

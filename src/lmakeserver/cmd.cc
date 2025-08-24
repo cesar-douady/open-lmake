@@ -173,8 +173,8 @@ namespace Engine {
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n)->void {
-				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw (n.frozen()?"already":"not")+" frozen "s+mk_file(nn) ; }
-				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw "cannot freeze source/anti "            +mk_file(nn) ; }
+				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw cat(n.frozen()?"already":"not"," frozen ",mk_file(nn)) ; }
+				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw cat("cannot freeze source/anti "         ,mk_file(nn)) ; }
 				//
 				nodes.push_back(n) ;
 			} ;
@@ -236,7 +236,7 @@ namespace Engine {
 			//check
 			for( Node n : nodes )
 				if (n.no_trigger()==add) {
-					audit( fd , ro , Color::Err , "file is "s+(add?"already":"not")+" no-trigger : "+mk_file(n->name(),Yes/*exists*/) ) ;
+					audit( fd , ro , Color::Err , cat("file is ",add?"already":"not"," no-trigger : ",mk_file(n->name(),Yes/*exists*/)) ) ;
 					return false ;
 				}
 			// do what is asked
@@ -541,8 +541,8 @@ namespace Engine {
 			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
 			job = _job_from_target(fd,ro,targets[0]) ;
 		}
-		if (!job                                  ) throw "no job found"s                        ;
-		if ( Rule r=job->rule() ; r->is_special() ) throw "cannot debug "+r->user_name()+" jobs" ;
+		if (!job                                  ) throw "no job found"s                             ;
+		if ( Rule r=job->rule() ; r->is_special() ) throw cat("cannot debug ",r->user_name()," jobs") ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start) {
@@ -757,9 +757,9 @@ namespace Engine {
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
-						case ReqKey::Trace  : //!                                                     as_is
-							if (porcelaine) audit( fd , ro ,              "None"                     , true , lvl+1 ) ;
-							else            audit( fd , ro , Color::Err , "no "s+ro.key+" available" , true , lvl+1 ) ;
+						case ReqKey::Trace  : //!                                                         as_is
+							if (porcelaine) audit( fd , ro ,              "None"                         , true , lvl+1 ) ;
+							else            audit( fd , ro , Color::Err , cat("no ",ro.key," available") , true , lvl+1 ) ;
 						break ;
 					DF}                              // END_OF_NO_COV
 				} else {
@@ -1152,7 +1152,7 @@ namespace Engine {
 				if (porcelaine) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
 			} break ;
 			default :
-				throw "cannot show "s+ro.key+" for job "+mk_file(job->name()) ;
+				throw cat("cannot show ",ro.key," for job ",mk_file(job->name())) ;
 		}
 	}
 

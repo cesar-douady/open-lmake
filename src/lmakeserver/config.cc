@@ -361,10 +361,10 @@ namespace Engine {
 			res <<"\t\t"<< t <<" :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			if ( +be.ifce)                    w = ::max(w,strlen("interface")) ;
-			/**/                              w = ::max(w,strlen("address"  )) ;
-			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()           ) ;
-			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()           ) ;
+			if ( +be.ifce)                    w = ::max(w,::strlen("interface")) ;
+			/**/                              w = ::max(w,::strlen("address"  )) ;
+			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()             ) ;
+			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()             ) ;
 			if ( +be.ifce)                    res <<"\t\t\t"<< widen("interface",w) <<" : "<< be.ifce                       <<'\n' ;
 			/**/                              res <<"\t\t\t"<< widen("address"  ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;

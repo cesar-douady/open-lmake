@@ -133,7 +133,7 @@ static void _chk_os() {
 }
 
 static void _record_targets(Job job) {
-	::string   targets_file  = AdminDirS+"targets"s                           ;
+	::string   targets_file  = cat(AdminDirS,"targets")                       ;
 	::vector_s known_targets = AcFd(targets_file,true/*err_ok*/).read_lines() ;
 	for( Node t : job->deps ) {
 		::string tn = t->name() ;

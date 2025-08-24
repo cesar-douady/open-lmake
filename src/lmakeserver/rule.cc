@@ -798,14 +798,14 @@ namespace Engine {
 					if ( !is_star                             ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , flags , kind==MatchKind::SideDep ) ;
 					// check
-					if ( target.starts_with(*g_repo_root_s)                                        ) throw snake_str(kind)+" must be relative to root dir : "          +target  ;
-					if ( !is_lcl(target)                                                           ) throw snake_str(kind)+" must be local : "                         +target  ;
-					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "        ,target) ;
-					if (  is_star                                    && is_special()               ) throw "star "s+kind+"s are meaningless for source and anti-rules"          ;
-					if (  is_star                                    && is_stdout                  ) throw "stdout cannot be directed to a star target"s                        ;
-					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw "stdout cannot be directed to an incremental target"s                ;
-					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw "star targets are natively optional : "                     +target  ;
-					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw "cannot be simultaneously optional and phony : "            +target  ;
+					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(snake_str(kind)," must be relative to root dir : "        ,target) ;
+					if ( !is_lcl(target)                                                           ) throw cat(snake_str(kind)," must be local : "                       ,target) ;
+					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "          ,target) ;
+					if (  is_star                                    && is_special()               ) throw cat("star ",kind,"s are meaningless for source and anti-rules"       ) ;
+					if (  is_star                                    && is_stdout                  ) throw     "stdout cannot be directed to a star target"s                      ;
+					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be directed to an incremental target"s              ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw cat("star targets are natively optional : "                   ,target) ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw cat("cannot be simultaneously optional and phony : "          ,target) ;
 					bool is_top = flags.extra_tflags[ExtraTflag::Top] || flags.extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top                  ;
 					seen_target |= kind==MatchKind::Target ;

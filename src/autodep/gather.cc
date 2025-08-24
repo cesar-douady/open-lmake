@@ -371,7 +371,7 @@ Status Gather::exec_child() {
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	if (+autodep_env.fast_report_pipe) {
-		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666 )<0 ) SWEAR(errno=EEXIST,errno) ; // if it already exists, assume it is already a fifo
+		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666 )!=0 ) SWEAR(errno=EEXIST,errno) ; // if it already exists, assume it is already a fifo
 		open_fast_report_fd() ;
 	}
 	if (+server_master_fd) {
@@ -385,7 +385,7 @@ Status Gather::exec_child() {
 		if (now>=end_child) {
 			_exec_trace(now,Comment::stillAlive) ;
 			if (!_wait[Kind::ChildEnd]) {
-				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;      // else we should already have exited
+				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;       // else we should already have exited
 				::string msg_ ;
 				if ( _wait[Kind::Stdout]                        ) msg_ += "stdout " ;
 				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg_ += "and "    ;

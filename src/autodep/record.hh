@@ -310,7 +310,8 @@ public :
 		Chdir( Record& , Path&& , Comment ) ;
 		// services
 		int operator()( Record& r , int rc ) {
-			if (rc==0) r.chdir() ;
+			if      (rc==0 ) r.chdir()                                                  ;
+			else if (rc!=-1) r.report_panic(cat("unexpected chdir return value : ",rc)) ;
 			return rc ;
 		}
 	} ;

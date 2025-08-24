@@ -27,15 +27,14 @@ StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
 ::string host() {
 	char buf[HOST_NAME_MAX+1] ;
-	int rc                    = ::gethostname(buf,sizeof(buf)) ;
-	swear_prod(rc==0,"cannot get host name") ;
+	swear_prod( ::gethostname(buf,sizeof(buf))==0 , "cannot get host name" ) ;
 	return buf ;
 }
 
 ::string fqdn() {
 	char buf[DOMAIN_NAME_MAX+1] ;
 	int rc                      = ::getdomainname(buf,sizeof(buf)) ;
-	if (rc<0          ) return host()         ;
+	if (rc!=0         ) return host()         ;
 	if (!buf[0]       ) return host()         ;
 	if (buf=="(none)"s) return host()         ;
 	/**/                return host()+'.'+buf ;
@@ -138,7 +137,7 @@ ByName :
 ::vmap_s<in_addr_t> SockFd::s_addrs_self(::string const& ifce) {
 	::vmap_s<in_addr_t> res ;
 	struct ifaddrs*     ifa ;
-	if (::getifaddrs(&ifa)<0) return {{{},LoopBackAddr}} ;
+	if (::getifaddrs(&ifa)!=0) return {{{},LoopBackAddr}} ;
 	for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next ) {
 		if (!( p->ifa_addr && p->ifa_addr->sa_family==AF_INET )) continue ;
 		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro

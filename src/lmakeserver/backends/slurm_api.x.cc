@@ -164,16 +164,16 @@ namespace Backends::Slurm::SlurmApi {
 		throw "cannot connect to slurm daemon"s ;
 	}
 
-	static ::pair_s<Bool3/*job_ok*/> _job_state(SlurmId slurm_id) {                                                         // Maybe means job has not completed
+	static ::pair_s<Bool3/*job_ok*/> _job_state(SlurmId slurm_id) {                                                             // Maybe means job has not completed
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		{	Lock lock { slurm_mutex } ;
 			if (_load_job(&resp,slurm_id,SHOW_LOCAL)!=SLURM_SUCCESS) switch (errno) {
 				case EAGAIN                              :
-				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                                   job_ok
-				case ESLURM_NODES_BUSY                   : return { "slurm daemon busy : "s   +_strerror(errno) , Maybe } ; // no info : heartbeat will retry, end will eventually cancel
-				default                                  : return { "cannot load job info : "s+_strerror(errno) , Yes   } ;
+				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                                       job_ok
+				case ESLURM_NODES_BUSY                   : return { cat("slurm daemon busy : "   ,_strerror(errno)) , Maybe } ; // no info : heartbeat will retry, end will eventually cancel
+				default                                  : return { cat("cannot load job info : ",_strerror(errno)) , Yes   } ;
 			}
 		}
 		::string                msg ;
@@ -185,19 +185,19 @@ namespace Backends::Slurm::SlurmApi {
 			switch (js) {
 				// if slurm sees job failure, somthing weird occurred (if actual job fails, job_exec reports an error and completes successfully)
 				// possible job_states values (from slurm.h) :
-				case JOB_PENDING   :                              ok = Maybe ; continue  ;                                  // queued waiting for initiation
-				case JOB_RUNNING   :                              ok = Maybe ; continue  ;                                  // allocated resources and executing
-				case JOB_SUSPENDED :                              ok = Maybe ; continue  ;                                  // allocated resources, execution suspended
-				case JOB_COMPLETE  :                                           continue  ;                                  // completed execution successfully
-				case JOB_CANCELLED : msg = "cancelled by user"s ; ok = Yes   ; goto Done ;                                  // cancelled by user
-				case JOB_TIMEOUT   : msg = "timeout"s           ; ok = No    ; goto Done ;                                  // terminated on reaching time limit
-				case JOB_NODE_FAIL : msg = "node failure"s      ; ok = Yes   ; goto Done ;                                  // terminated on node failure
-				case JOB_PREEMPTED : msg = "preempted"s         ; ok = Yes   ; goto Done ;                                  // terminated due to preemption
-				case JOB_BOOT_FAIL : msg = "boot failure"s      ; ok = Yes   ; goto Done ;                                  // terminated due to node boot failure
-				case JOB_DEADLINE  : msg = "deadline reached"s  ; ok = Yes   ; goto Done ;                                  // terminated on deadline
-				case JOB_OOM       : msg = "out of memory"s     ; ok = No    ; goto Done ;                                  // experienced out of memory error
-				//   JOB_END                                                                                                // not a real state, last entry in table
-				case JOB_FAILED :                                                                                           // completed execution unsuccessfully
+				case JOB_PENDING   :                             ok = Maybe ; continue  ;                                       // queued waiting for initiation
+				case JOB_RUNNING   :                             ok = Maybe ; continue  ;                                       // allocated resources and executing
+				case JOB_SUSPENDED :                             ok = Maybe ; continue  ;                                       // allocated resources, execution suspended
+				case JOB_COMPLETE  :                                          continue  ;                                       // completed execution successfully
+				case JOB_CANCELLED : msg = "cancelled by user" ; ok = Yes   ; goto Done ;                                       // cancelled by user
+				case JOB_TIMEOUT   : msg = "timeout"           ; ok = No    ; goto Done ;                                       // terminated on reaching time limit
+				case JOB_NODE_FAIL : msg = "node failure"      ; ok = Yes   ; goto Done ;                                       // terminated on node failure
+				case JOB_PREEMPTED : msg = "preempted"         ; ok = Yes   ; goto Done ;                                       // terminated due to preemption
+				case JOB_BOOT_FAIL : msg = "boot failure"      ; ok = Yes   ; goto Done ;                                       // terminated due to node boot failure
+				case JOB_DEADLINE  : msg = "deadline reached"  ; ok = Yes   ; goto Done ;                                       // terminated on deadline
+				case JOB_OOM       : msg = "out of memory"     ; ok = No    ; goto Done ;                                       // experienced out of memory error
+				//   JOB_END                                                                                                    // not a real state, last entry in table
+				case JOB_FAILED :                                                                                               // completed execution unsuccessfully
 					// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
 					// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
 					// signaled wstatus are barely the signal number
@@ -242,7 +242,7 @@ namespace Backends::Slurm::SlurmApi {
 	static sigjmp_buf _jmp_env ;
 	template<class T> void _load_func( T*& dst , const char* name ) {
 		dst = reinterpret_cast<T*>(::dlsym(g_lib_handler,name)) ;
-		if (!dst) throw "cannot find "s+name ;
+		if (!dst) throw cat("cannot find ",name) ;
 	}
 	static void _silent_ignore_sig(int /*sig*/) {
 		::siglongjmp( _jmp_env , true/*val*/ ) ;

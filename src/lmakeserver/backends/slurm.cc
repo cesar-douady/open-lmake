@@ -352,8 +352,8 @@ namespace Backends::Slurm {
 		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ;                                  // licenses are only for first job step
 		//
 		for( RsrcsDataSingle const& rds : self ) {
-			if (                 !rds.cpu ) throw "must reserve cpu, consider : "s                                +Job(ji)->rule()->user_name()+".resources={'cpu':'1'}"  ;
-			if ( d.manage_mem && !rds.mem ) throw "must reserve memory when managed by slurm daemon, consider : "s+Job(ji)->rule()->user_name()+".resources={'mem':'1M'}" ;
+			if (                 !rds.cpu ) throw cat("must reserve cpu, consider : "                                ,Job(ji)->rule()->user_name(),".resources={'cpu':'1'}" ) ;
+			if ( d.manage_mem && !rds.mem ) throw cat("must reserve memory when managed by slurm daemon, consider : ",Job(ji)->rule()->user_name(),".resources={'mem':'1M'}") ;
 		}
 	}
 	::vmap_ss RsrcsData::mk_vmap() const {

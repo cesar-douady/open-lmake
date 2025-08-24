@@ -314,7 +314,7 @@ void test_lmake() {
 int main( int argc , char const* argv[] ) {
 	SWEAR(argc==2) ;
 	g_dir_s = with_slash(argv[1]) ;
-	Fd::Stdout.write("chk dir : "s+no_slash(g_dir_s)+'\n') ;
+	Fd::Stdout.write(cat("chk dir : ",no_slash(g_dir_s),'\n')) ;
 	test_file    () ;
 	test_struct  () ;
 	test_side_car() ;

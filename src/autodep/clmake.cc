@@ -46,8 +46,8 @@ template<void(*Func)( Tuple const& args , Dict const& kwds )>
 	} ;
 
 static uint8_t _mk_uint8( Object const& o , ::string const& arg_name={} ) {
-	try                       { return o.as_a<Int>() ;                                        }
-	catch (::string const& e) { throw "bad type/value for arg"s+(+arg_name?" ":"")+arg_name ; }
+	try                       { return o.as_a<Int>() ;                                          }
+	catch (::string const& e) { throw cat("bad type/value for arg",+arg_name?" ":"",arg_name) ; }
 }
 
 static ::vector_s _get_files(Tuple const& py_args) {

@@ -144,7 +144,7 @@ size_t Fd::read_to(::span<char> dst) const {
 	return ::string(s) ;                                          // simplest case : no quotes necessary
 SingleQuote :
 	if (s.find('\'')!=Npos) goto DoubleQuote ;
-	return "'"s+s+'\'' ;                                          // next case : single quotes around text
+	return cat('\'',s,'\'') ;                                     // next case : single quotes around text
  DoubleQuote :
 	for( char c : s ) switch (c) {
 		case '!'  : goto Complex ;
@@ -153,7 +153,7 @@ SingleQuote :
 		case '\\' : goto Complex ;
 		case '`'  : goto Complex ;
 	DN}
-	return "\""s+s+'"' ;                                          // next case : double quotes around text
+	return cat('"',s,'"') ;                                       // next case : double quotes around text
 Complex :
 	::string res {'\''} ; res.reserve(s.size()+(s.size()>>4)+2) ; // take a little bit of margin + quotes
 	for( char c : s )
@@ -398,14 +398,14 @@ bool              _crash_busy  = false ;
 		int stack_sz     = 0                          ;
 		for( int i : iota( hide_cnt+1 , backtrace_sz ) ) {
 			stack_sz += fill_src_points( stack[i] , symbolic_stack+stack_sz , StackSize-stack_sz ) ;
-			if (strcmp(symbolic_stack[stack_sz-1].func,"main")==0) break ;
+			if (::strcmp(symbolic_stack[stack_sz-1].func,"main")==0) break ;
 		}
 		size_t  wf = 0 ;
 		uint8_t wl = 0 ;
 		for( int i : iota(stack_sz) ) {
 			uint8_t w = 0 ; for( size_t l=symbolic_stack[i].line ; l ; l/=10 ) w++ ;
-			wf = ::max( wf , strnlen(symbolic_stack[i].file,PATH_MAX) ) ;
-			wl = ::max( wl , w                                        ) ;
+			wf = ::max( wf , ::strnlen(symbolic_stack[i].file,PATH_MAX) ) ;
+			wl = ::max( wl , w                                          ) ;
 		}
 		::string bt = "approximately\n" ;
 		for( int i : iota(stack_sz) ) {

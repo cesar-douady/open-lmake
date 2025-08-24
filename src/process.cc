@@ -66,9 +66,8 @@ using namespace Disk ;
 	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                          // .
 	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                          // .
 	//
-	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"    ) ; }
-	//
-	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail,"cannot setup child") ; }
+	if (+cwd_s  ) { if (::chdir(no_slash(cwd_s).c_str())!=0) _exit(Rc::System,"cannot chdir"      ) ; }
+	if (pre_exec) { if (pre_exec(pre_exec_arg)          !=0) _exit(Rc::Fail  ,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
 		//::close_range(3,~0u,CLOSE_RANGE_UNSHARE) ;                         // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)

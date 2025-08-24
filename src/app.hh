@@ -211,12 +211,12 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 						p++ ;
 						if      (*p      ) flag_args[+f] = p         ;
 						else if (a+1<argc) flag_args[+f] = argv[++a] ;
-						else               throw "no value for option -"s+*p ;
+						else               throw cat("no value for option -",*p) ;
 						break ;
 					} else if (*p=='h') {
 						print_help = true ;
 					} else {
-						throw "unexpected option -"s+*p ;
+						throw cat("unexpected option -",*p) ;
 					}
 				}
 			}

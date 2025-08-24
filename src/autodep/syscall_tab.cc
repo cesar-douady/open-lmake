@@ -279,22 +279,18 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_open_tree( voi
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	_do_stat<At,FlagArg>(r,pid,args,~Accesses(),c) ;
 }
-#ifdef SYS_statx
-	// protect statx as STATX_* macros are not defined when statx is not implemented, leading to compile errors
-	[[maybe_unused]] static void _entry_statx( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
-		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
-			uint     msk = args[3] ;
-			Accesses a   ;
-			if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a = ~Accesses() ; // user can distinguish all content
-			else if (msk& STATX_MODE                         ) a = Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
-		#else
-			Accesses a = ~Accesses() ;                                           // if access macros are not defined, be pessimistic
-		#endif
-		_do_stat<true,2>(r,pid,args,a,c) ;
-	}
-#else
-	[[maybe_unused]] static void _entry_statx( void*& /*ctx*/ , Record& , pid_t , uint64_t /*args*/[6] , Comment ) {}
-#endif
+
+[[maybe_unused]] static void _entry_statx( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+	#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
+		uint     msk = args[3] ;
+		Accesses a   ;
+		if      (msk&(STATX_TYPE|STATX_SIZE|STATX_BLOCKS)) a = ~Accesses() ; // user can distinguish all content
+		else if (msk& STATX_MODE                         ) a = Access::Reg ; // user can distinguish executable files, which is part of crc for regular files
+	#else
+		Accesses a = ~Accesses() ;                                           // if access macros are not defined, be pessimistic
+	#endif
+	_do_stat<true,2>(r,pid,args,a,c) ;
+}
 
 // use constexpr processing rather than #ifdef/#endif so each entry can be put on a single line rather than 3 lines
 static constexpr long _build_syscall_descr_tab_idx(const char* n_str) {
@@ -306,8 +302,8 @@ static constexpr long _build_syscall_descr_tab_idx(const char* n_str) {
 } ;
 static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	SyscallDescr::Tab s_tab = {} ;
-	#define FILL_ENTRY_STR(x) #x     // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
-	#define FILL_ENTRY( n , ... ) { \
+	#define FILL_ENTRY_STR(x) #x                                               // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
+	#define FILL_ENTRY( n , ... ) {                                          \
 		constexpr long i = _build_syscall_descr_tab_idx(FILL_ENTRY_STR(n)) ; \
 		if constexpr (i>=0) {                                                \
 			static_assert(i<SyscallDescr::NSyscalls) ;                       \

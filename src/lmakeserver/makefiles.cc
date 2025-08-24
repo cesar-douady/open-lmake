@@ -331,7 +331,7 @@ namespace Engine::Makefiles {
 			Persistent::new_config( ::move(config) , dyn , rescue , diff_config ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {
-			throw "cannot "s+(dyn?"dynamically ":"")+"update config : "+e ;
+			throw cat("cannot ",dyn?"dynamically ":"","update config : ",e) ;
 		}
 		//
 		// /!\ sources must be processed first as source dirs influence rules
@@ -342,15 +342,15 @@ namespace Engine::Makefiles {
 		if (new_srcs) //!                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn , ManifestFile ) ; }
 			//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update sources : "+e ;          }
+			catch (::string const& e) { throw cat("cannot ",dyn?"dynamically ":"","update sources : ",e) ;        }
 		//
 		Rules         rules        ; //!                IsRule  out   out     out
 		Bool3/*done*/ rules_digest = _refresh_rules_srcs<true>( msg , rules , rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
 		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
 		if (new_rules) //!                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;   }
+			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;     }
 			//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			catch (::string const& e) { throw "cannot "s+(dyn?"dynamically ":"")+"update rules : "+e ; }
+			catch (::string const& e) { throw cat("cannot ",dyn?"dynamically ":"","update rules : ",e) ; }
 		//
 		if (invalidate) Persistent::invalidate_match() ;
 		//

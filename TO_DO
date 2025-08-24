@@ -86,7 +86,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * auto_check_deps
 	- execute lcheck_deps as soon as no new deps for a given duration
-* in lcache_repair
+* in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :

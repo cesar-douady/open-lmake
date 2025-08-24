@@ -436,7 +436,7 @@ namespace Caches {
 		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , FdAction::Dir } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
-		{	LockedFd lock { lock_file }                                              ;                       // because we manipulate LRU, we need exclusive
+		{	LockedFd lock { lock_file }                          ;                                           // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( match_key , nfs_guard ) ; throw_if( !sz , "no entry ",match_key ) ;
 			_lru_mk_newest( match_key , sz , nfs_guard ) ;
 			//                            err_ok
@@ -503,7 +503,7 @@ namespace Caches {
 				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
 				int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
 				// END_OF_VERSIONING
-				if (rc<0) throw "cannot move data from tmp to final destination"s ;
+				if (rc!=0) throw "cannot move data from tmp to final destination"s ;
 				unlnk( nfs_guard.change(_reserved_file(upload_key,"sz")) , false/*dir_ok*/ , true/*abs_ok*/ ) ;
 				_lru_mk_newest( jnid_s , new_sz , nfs_guard ) ;
 				//

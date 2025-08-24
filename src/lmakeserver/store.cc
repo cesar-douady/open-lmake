@@ -294,7 +294,7 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
-		if ( !dyn                                         ) mk_dir_s( AdminDirS+"outputs/"s , true/*unlnk_ok*/ ) ;
+		if ( !dyn                                         ) mk_dir_s( cat(AdminDirS,"outputs/") , true/*unlnk_ok*/ ) ;
 		if ( !dyn                                         ) _init_config() ;
 		else                                                SWEAR(+*g_config,*g_config) ; // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
