@@ -50,14 +50,29 @@ class Autodep :
 			with Autodep(enable) :
 				<code with autodep activated (enable=True) or deactivated (enable=False)>
 	"""
-	IsFake = getattr(set_autodep,'is_fake',False)
+	IsFake    = getattr(set_autodep,'is_fake',False)
+	LdPreload = _os.environ.get('LD_PRELOAD')
+	LdAudit   = _os.environ.get('LD_AUDIT'  )
 	def __init__(self,enable) :
-		self.cur  = enable
+		self.enable  = enable
 	def __enter__(self) :
-		self.prev = get_autodep()
-		set_autodep(self.cur)
+		self.prev_state      = get_autodep()
+		self.prev_ld_preload = _os.environ.get('LD_PRELOAD')
+		self.prev_ld_audit   = _os.environ.get('LD_AUDIT'  )
+		#
+		set_autodep(self.enable)
+		if self.enable :
+			_os.environ['LD_PRELOAD'] = self.LdPreload
+			_os.environ['LD_AUDIT'  ] = self.LdAudit
+		else :
+			_os.environ.pop('LD_PRELOAD',None)
+			_os.environ.pop('LD_AUDIT'  ,None)
 	def __exit__(self,*args) :
-		set_autodep(self.prev)
+		set_autodep(self.prev_state)
+		if self.prev_ld_preload is None : _os.environ.pop('LD_PRELOAD',None)
+		else                            : _os.environ['LD_PRELOAD'] = self.prev_ld_preload
+		if self.prev_ld_audit   is None : _os.environ.pop('LD_AUDIT',None)
+		else                            : _os.environ['LD_AUDIT'] = self.prev_ld_audit
 
 #def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when python2 is no more supported
 def run_cc(*cmd_line,**kwds) :
