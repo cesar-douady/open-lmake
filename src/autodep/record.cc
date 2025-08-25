@@ -292,10 +292,10 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ; // real is read, real0 is unlinked
 				if      (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f              ) ;
 			} else {
-				if      (src.file_loc <=FileLoc::Repo) unlnks.try_emplace(src.real +f,true/*read*/) ;  // real is both read and unlinked
-				else if (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f             ) ;
+				if      (src.file_loc<=FileLoc::Repo) unlnks.try_emplace(src.real+f,true/*read*/) ;    // real is both read and unlinked
+				else if (src.file_loc<=FileLoc::Dep ) reads .push_back  (src.real+f             ) ;
 			}
-			if (no_replace) stats.push_back(dst.real+f) ;                                              // probe existence of destination
+			if (no_replace) { if (dst.file_loc <=FileLoc::Dep ) stats .push_back(dst.real +f) ; }      // probe existence of destination
 			if (+dst.real0) { if (dst.file_loc0<=FileLoc::Repo) writes.push_back(dst.real0+f) ; }
 			else            { if (dst.file_loc <=FileLoc::Repo) writes.push_back(dst.real +f) ; }
 		}
