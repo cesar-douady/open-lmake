@@ -129,11 +129,11 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 		trace("uniquify",e.n_lnks,e.files) ;
 		//
 		const char* err = nullptr/*garbage*/ ;
-		{	const char* f0   = e.files[0].c_str()                           ;
-			AcFd        rfd  = ::open    ( f0 , O_RDONLY|O_NOFOLLOW       ) ; if (!rfd   ) { err = "cannot open for reading" ; goto Bad ; }
-			int         urc  = ::unlink  ( f0                             ) ; if (urc !=0) { err = "cannot unlink"           ; goto Bad ; }
-			AcFd        wfd  = ::open    ( f0 , O_WRONLY|O_CREAT , e.mode ) ; if (!wfd   ) { err = "cannot open for writing" ; goto Bad ; }
-			int         sfrc = ::sendfile( wfd , rfd , nullptr , e.sz     ) ; if (sfrc<0 ) { err = "cannot copy"             ; goto Bad ; }
+		{	const char* f0   = e.files[0].c_str()                                 ;
+			AcFd        rfd  = ::open    ( f0 , O_RDONLY|O_NOFOLLOW             ) ; if (!rfd   ) { err = "cannot open for reading" ; goto Bad ; }
+			int         urc  = ::unlink  ( f0                                   ) ; if (urc !=0) { err = "cannot unlink"           ; goto Bad ; }
+			AcFd        wfd  = ::open    ( f0 , O_WRONLY|O_CREAT , e.mode       ) ; if (!wfd   ) { err = "cannot open for writing" ; goto Bad ; }
+			int         sfrc = ::sendfile( wfd , rfd , nullptr/*offset*/ , e.sz ) ; if (sfrc<0 ) { err = "cannot copy"             ; goto Bad ; }
 			for( size_t i : iota(1,e.files.size()) ) {
 				if (::unlink(   e.files[i].c_str())!=0) { err = "cannot unlink" ; goto Bad ; }
 				if (::link  (f0,e.files[i].c_str())!=0) { err = "cannot link"   ; goto Bad ; }
@@ -285,8 +285,8 @@ namespace Caches {
 				}
 			#endif
 			// no compression
-			if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                            // small data : put in _buf
-			else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; total_sz += s.size() ; }                                            // large data : send directly
+			if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                                  // small data : put in _buf
+			else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; total_sz += s.size() ; }                                                  // large data : send directly
 		}
 		void send_from( Fd fd_ , size_t sz ) {
 			if (!sz) return ;
@@ -295,16 +295,15 @@ namespace Caches {
 				if (lvl) {
 					while (sz) {
 						size_t cnt = ::min(sz,DiskBufSz) ;
-						::string s = fd_.read(cnt) ; throw_unless(s.size()==cnt,"missing ",cnt-s.size()," bytes from ",fd) ;
+						::string s = fd_.read(cnt) ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
 						write(s) ;
 						sz -= cnt ;
 					}
 					return ;
 				}
 			#endif
-			_flush(sz) ;
-			if (_flush(sz)) {                size_t c = fd_.read_to({_buf+_pos,sz})     ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos     += c  ; } // small data : put in _buf
-			else            { SWEAR(!_pos) ; size_t c = ::sendfile(self,fd_,nullptr,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz += sz ; } // large data : send directly
+			if (_flush(sz)) {                size_t c=fd_.read_to({_buf+_pos,sz})               ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos    +=c  ; } // small data : put in _buf
+			else            { SWEAR(!_pos) ; size_t c=::sendfile(self,fd_,nullptr/*offset*/,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz+=sz ; } // large data : send directly
 		}
 		void flush() {
 			if (_flushed) return ;
@@ -327,8 +326,8 @@ namespace Caches {
 					_zs.next_in  = nullptr ;
 					_zs.avail_in = 0       ;
 					for (;;) {
-						_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>( _buf + _pos )) ;
-						_zs.avail_out = DiskBufSz - _pos                                     ;
+						_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>(_buf+_pos)) ;
+						_zs.avail_out = DiskBufSz - _pos                                 ;
 						int rc = deflate(&_zs,Z_FINISH) ;
 						_pos = DiskBufSz - _zs.avail_out ;
 						if (rc==Z_BUF_ERROR) throw cat("cannot flush ",self) ;
@@ -340,8 +339,8 @@ namespace Caches {
 			_flush() ;
 		}
 	private :
-		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {                                                                                                              // flush if not enough room
-			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ;                                                                                                       // enough room
+		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {                                                                                                                    // flush if not enough room
+			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ;                                                                                                             // enough room
 			if (_pos) {
 				AcFd::write({_buf,_pos}) ;
 				total_sz += _pos ;
@@ -804,11 +803,11 @@ bool JobSpace::enter(
 	//
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
 	::string const& tmp_dir_s = tmp_view_s | phy_tmp_dir_s ;
-	SWEAR( !work_dir_s.starts_with(tmp_dir_s) , tmp_dir_s,work_dir_s ) ;             // else we have to detect if some view descr has size>1 in addition to view lying in tmp
+	SWEAR( !work_dir_s.starts_with(tmp_dir_s) , tmp_dir_s,work_dir_s ) ;              // else we have to detect if some view descr has size>1 in addition to view lying in tmp
 	if (!keep_tmp) {
 		bool mount_in_tmp = false ;
 		for( auto const& [view,descr] : views )
-			if ( +descr && view.starts_with(tmp_dir_s) ) {                           // empty descr does not represent a view
+			if ( +descr && view.starts_with(tmp_dir_s) ) {                            // empty descr does not represent a view
 				mount_in_tmp = true ;
 				break ;
 			}
@@ -818,21 +817,21 @@ bool JobSpace::enter(
 			// but umount is privileged, so what we do instead is forking
 			// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
 			// in child, we carry the whole job
-			if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                         // in parent
+			if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                          // in parent
 				int wstatus ;
 				if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
-				unlnk( no_slash(phy_tmp_dir_s) , true/*dir_ok*/ , true/*abs_ok*/ ) ; // unlkink when child is done
+				unlnk( no_slash(phy_tmp_dir_s) , true/*dir_ok*/ , true/*abs_ok*/ ) ;  // unlkink when child is done
 				if      (WIFEXITED  (wstatus)) ::exit(    WEXITSTATUS(wstatus)) ;
 				else if (WIFSIGNALED(wstatus)) ::exit(128+WTERMSIG   (wstatus)) ;
 				else                           ::exit(255                     ) ;
 			}
 		} else {
-			_tmp_dir_s = tmp_dir_s ;                                                 // unlink upon exit
+			_tmp_dir_s = tmp_dir_s ;                                                  // unlink upon exit
 		}
 	}
 	//
-	int uid = ::getuid() ;                                                           // must be done before unshare that invents a new user
-	int gid = ::getgid() ;                                                           // .
+	int uid = ::getuid() ;                                                            // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                                            // .
 	//
 	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw cat("cannot create namespace : ",::strerror(errno)) ;
 	//
@@ -844,18 +843,18 @@ bool JobSpace::enter(
 			highest_s  = d_s ;
 		}
 	//
-	::string phy_super_repo_root_s ;                                                 // dir englobing all relative source dirs
-	::string super_repo_view_s     ;                                                 // .
+	::string phy_super_repo_root_s ;                                                  // dir englobing all relative source dirs
+	::string super_repo_view_s     ;                                                  // .
 	::string top_repo_view_s       ;
 	if (+repo_view_s) {
-		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 ))  // ensure repo_view_s has at least one more level than cwd_s
+		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 ))   // ensure repo_view_s has at least one more level than cwd_s
 			throw cat(
 				"cannot map local repository dir to ",no_slash(repo_view_s)," appearing as ",no_slash(cwd_s)," in top-level repository, "
 			,	"consider setting <rule>.repo_view=",mk_py_str("/repo/"+no_slash(cwd_s))
 			) ;
 		phy_super_repo_root_s = phy_repo_root_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_repo_root_s = dir_name_s(phy_super_repo_root_s) ;
 		super_repo_view_s     = repo_view_s     ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_repo_view_s     = dir_name_s(super_repo_view_s    ) ;
-		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;               // this should have been checked earlier
+		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;                // this should have been checked earlier
 		if (!super_repo_view_s)
 			throw cat(
 				"cannot map repository dir to ",no_slash(repo_view_s)," with relative source dir ",no_slash(highest_s)

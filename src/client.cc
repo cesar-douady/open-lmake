@@ -47,7 +47,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary
 					server_is_local = true                                                                                               ;
 				}
-				ClientSockFd req_fd { server_service , Delay(3)/*timeout*/ } ;
+				ClientSockFd req_fd { server_service , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ;
 				if (_server_ok(req_fd,"old")) {
 					g_server_fds = ::move(req_fd) ;
 					if (sync) exit(Rc::Format,"server already exists") ;

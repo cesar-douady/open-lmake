@@ -1345,7 +1345,7 @@ namespace Engine {
 		Trace trace("_submit_plain",job,ri,pressure) ;
 		SWEAR(!ri.waiting(),ri) ;
 		SWEAR(!ri.running(),ri) ;
-		for( Req rr : running_reqs(false/*with_zombies*/) ) if (rr!=req) {
+		for( Req rr : running_reqs() ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
 			ri.step(cri.step(),job) ;                                                  // Exec or Queued, same as other reqs
 			ri.inc_wait() ;

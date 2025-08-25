@@ -628,10 +628,10 @@ namespace Backends {
 	// kill all if ri==0
 	void Backend::_s_kill_req(Req req) {
 		Trace trace(BeChnl,"s_kill_req",req) ;
-		::vmap<Job,pair<StartEntry::Conn,Pdate>> to_wakeup ;
+		::vmap<Job,pair<StartEntry::Conn,Pdate>> to_kill ;
 		{	TraceLock lock { _s_mutex , BeChnl,"_s_kill_req" } ;                                                           // lock for minimal time
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t))
-				for( Job j : s_tab[+t]->kill_waiting_jobs(req) ) {
+				for( Job j : s_kill_waiting_jobs(t,req) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::GiveUp , JobExec(j,New) , req , false/*report*/ ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -644,11 +644,11 @@ namespace Backends {
 				if ( !req || (e.reqs.size()==1&&e.reqs[0]==+req) ) {                                                       // kill all Req's or req is the only Req for this entry : kill job
 					if (+e.start_date) {
 						trace("kill",j) ;
-						to_wakeup.emplace_back(j,::pair(e.conn,e.start_date)) ;
+						to_kill.emplace_back(j,::pair(e.conn,e.start_date)) ;
 						jit++ ;
 					} else {
 						trace("queued",j) ;
-						s_tab[+e.tag]->kill_job(j) ;
+						s_kill_job(e.tag,j) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						g_engine_queue.emplace( Proc::GiveUp , JobExec(j,e.start_date) , Req() , false/*report*/ ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -668,9 +668,9 @@ namespace Backends {
 				}
 			}
 		}
-		//                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		for( auto const& [j,c] : to_wakeup ) _s_wakeup_remote( j , c.first , c.second , JobMngtProc::Kill ) ;
-		//                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		for( auto const& [j,c] : to_kill ) _s_wakeup_remote( j , c.first , c.second , JobMngtProc::Kill ) ;
+		//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 	void Backend::_s_heartbeat_thread_func(::stop_token stop) {

@@ -122,11 +122,11 @@ template<void (*Handler)(int sig,void* addr)> inline void _sig_action( int sig ,
 	Handler(sig,si->si_addr) ;
 }
 inline struct sigaction get_sig_handler(int sig) {
-	struct sigaction action ; ::sigaction( sig , nullptr , &action ) ;
+	struct sigaction action ; ::sigaction( sig , nullptr/*act*/ , &action ) ;
 	return action ;
 }
 inline void restore_sig_handler( int sig , struct sigaction const& action ) {
-	::sigaction( sig , &action , nullptr ) ;
+	::sigaction( sig , &action , nullptr/*oldact*/ ) ;
 }
 template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
 	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
@@ -134,7 +134,7 @@ template<void (*Handler)(int sig,void* addr)> void set_sig_handler(int sig) {
 	action.sa_sigaction = _sig_action<Handler>  ;
 	action.sa_mask      = empty                 ;
 	action.sa_flags     = SA_RESTART|SA_SIGINFO ;
-	::sigaction( sig , &action , nullptr ) ;
+	::sigaction( sig , &action , nullptr/*oldact*/ ) ;
 }
 template<void (*Handler)(int sig)> void set_sig_handler(int sig) {
 	sigset_t         empty  ;      sigemptyset(&empty) ;                      // sigemptyset can be a macro
@@ -142,7 +142,7 @@ template<void (*Handler)(int sig)> void set_sig_handler(int sig) {
 	action.sa_handler = Handler    ;
 	action.sa_mask    = empty      ;
 	action.sa_flags   = SA_RESTART ;
-	::sigaction( sig , &action , nullptr ) ;
+	::sigaction( sig , &action , nullptr/*oldact*/ ) ;
 }
 
 template<void (*Handler)(int sig)> struct WithSigHandler {

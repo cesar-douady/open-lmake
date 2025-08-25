@@ -349,7 +349,7 @@ namespace Time {
 	inline void Delay::sleep_for() const {
 		if (_val<=0) return ;
 		TimeSpec ts(self) ;
-		::nanosleep(&ts,nullptr) ;
+		::nanosleep(&ts,nullptr/*rem*/) ;
 	}
 	template<class T> requires(::is_arithmetic_v<T>) constexpr Delay Delay::operator*(T f) const { return Delay(New,int64_t(_val*                   f )) ; }
 	template<class T> requires(::is_signed_v    <T>) constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/                   f )) ; }

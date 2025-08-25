@@ -289,9 +289,9 @@ namespace Disk {
 			case FileTag::Exe : {
 				FdAction action = tag==FileTag::Exe ? FdAction::CreateNoFollowExe : FdAction::CreateNoFollow ;
 				dir_guard(dst_at,dst_file) ;
-				AcFd rfd { src_at , src_file          }              ;
-				AcFd wfd { dst_at , dst_file , action }              ;
-				int  rc  = ::sendfile( wfd , rfd , nullptr , fi.sz ) ; if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
+				AcFd rfd { src_at , src_file          }                        ;
+				AcFd wfd { dst_at , dst_file , action }                        ;
+				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz ) ; if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
 			} break ;
 			case FileTag::Lnk :
 				dir_guard(dst_at,dst_file) ;

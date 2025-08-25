@@ -62,13 +62,13 @@ Restart :
 			else                                   pfx_sz = 5 ;     // in lib      => simple
 		break ;                                                     // else        => not simple
 		case 'p' :                                                  // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-			if ( ::strncmp(file+1,"proc",4)!=0 ) break            ;  // not in /proc      => not simple
-			if ( !file[5]                      ) return true      ;  // /proc             => simple
-			if ( file[5]!='/'                  ) goto ReturnFalse ;  // false prefix      => not simple
-			if ( file[6]>='0' && file[6]<='9'  ) goto ReturnFalse ;  // in /proc/<pid>    => not simple
-			if ( ::strncmp(file+6,"self",4)!=0 ) goto SimpleProc  ;  // not in /proc/self => simple
-			if ( !file[10]                     ) return true      ;  // /proc/self        => simple
-			if ( file[10]=='/'                 ) goto ReturnFalse ;  // in /proc/self     => not simple
+			if ( ::strncmp(file+1,"proc",4)!=0 ) break            ; // not in /proc      => not simple
+			if ( !file[5]                      ) return true      ; // /proc             => simple
+			if ( file[5]!='/'                  ) goto ReturnFalse ; // false prefix      => not simple
+			if ( file[6]>='0' && file[6]<='9'  ) goto ReturnFalse ; // in /proc/<pid>    => not simple
+			if ( ::strncmp(file+6,"self",4)!=0 ) goto SimpleProc  ; // not in /proc/self => simple
+			if ( !file[10]                     ) return true      ; // /proc/self        => simple
+			if ( file[10]=='/'                 ) goto ReturnFalse ; // in /proc/self     => not simple
 		SimpleProc :
 			pfx_sz = 6 ;
 		break ;
@@ -360,10 +360,10 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ; // real is read, real0 is unlinked
 				if      (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f              ) ;
 			} else {
-				if      (src.file_loc <=FileLoc::Repo) unlnks.try_emplace(src.real +f,true/*read*/) ;  // real is both read and unlinked
-				else if (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f             ) ;
+				if      (src.file_loc<=FileLoc::Repo) unlnks.try_emplace(src.real+f,true/*read*/) ;    // real is both read and unlinked
+				else if (src.file_loc<=FileLoc::Dep ) reads .push_back  (src.real+f             ) ;
 			}
-			if (no_replace) stats.push_back(dst.real+f) ;                                              // probe existence of destination
+			if (no_replace) { if (dst.file_loc <=FileLoc::Dep ) stats .push_back(dst.real +f) ; }      // probe existence of destination
 			if (+dst.real0) { if (dst.file_loc0<=FileLoc::Repo) writes.push_back(dst.real0+f) ; }
 			else            { if (dst.file_loc <=FileLoc::Repo) writes.push_back(dst.real +f) ; }
 		}

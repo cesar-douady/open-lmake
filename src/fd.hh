@@ -305,8 +305,8 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 		if (wait) _n_waits ++ ;
 		/**/      _n_events++ ;
 	}
-	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                 // wait must be coherent with corresponding add
-		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr )!=0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
+	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                          // wait must be coherent with corresponding add
+		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr/*event*/ )!=0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
 		if (wait) { SWEAR(_n_waits >0) ; _n_waits -- ; }
 		/**/        SWEAR(_n_events>0) ; _n_events-- ;
 	}

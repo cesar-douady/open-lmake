@@ -579,7 +579,7 @@ template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& j
 	return os << "JobDigest(" << to_hex(jd.upload_key) <<','<< jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() <<')' ;
 }                                                                                                                                                                // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
-	if constexpr (::is_same_v<Key,::string>) { //!                                    ext_ok
+	if constexpr (::is_same_v<Key,::string>) { //!                       ext_ok
 		for( auto const& [t,_] : targets ) throw_unless( Disk::is_canon(t,false) , "bad target" ) ;
 		for( auto const& [d,_] : deps    ) throw_unless( Disk::is_canon(d,true ) , "bad dep"    ) ;
 	}

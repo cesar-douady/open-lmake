@@ -42,8 +42,8 @@ struct Elf {
 		DynDigest( Dyn const* dyn_tab , FileMap const& file_map={} ) ;
 		DynDigest(                      FileMap const& file_map    ) : DynDigest{ _s_search_dyn_tab(file_map) , file_map } {}
 		DynDigest( NewType ) {
-			void*       main = ::dlopen(nullptr,RTLD_NOW|RTLD_NOLOAD) ; if (!main                                ) return ;
-			::link_map* lm   = nullptr/*garbage*/                     ; if (::dlinfo(main,RTLD_DI_LINKMAP,&lm)!=0) return ;
+			void*       main = ::dlopen(nullptr/*filename*/,RTLD_NOW|RTLD_NOLOAD) ; if (!main                                ) return ;
+			::link_map* lm   = nullptr/*garbage*/                                 ; if (::dlinfo(main,RTLD_DI_LINKMAP,&lm)!=0) return ;
 			self = DynDigest(lm->l_ld) ;
 		}
 		// data
