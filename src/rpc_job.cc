@@ -821,9 +821,9 @@ bool JobSpace::enter(
 				int wstatus ;
 				if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
 				unlnk( no_slash(phy_tmp_dir_s) , true/*dir_ok*/ , true/*abs_ok*/ ) ;  // unlkink when child is done
-				if      (WIFEXITED  (wstatus)) ::exit(    WEXITSTATUS(wstatus)) ;
-				else if (WIFSIGNALED(wstatus)) ::exit(128+WTERMSIG   (wstatus)) ;
-				else                           ::exit(255                     ) ;
+				if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;    // all the cleanup stuff is done by the child, so we want to do nothing here
+				else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
+				else                           ::_exit(255                     ) ;
 			}
 		} else {
 			_tmp_dir_s = tmp_dir_s ;                                                  // unlink upon exit

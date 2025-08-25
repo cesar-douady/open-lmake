@@ -347,24 +347,24 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	//                     no_follow read       create
 	src { r , ::move(src_) , true  , true     , exchange , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true  , exchange , true     , c , CommentExt::Write }
-{	if (src.real==dst.real) return ;                                                                   // posix says in this case, it is nop
+{	if (src.real==dst.real) return ;                                                                                // posix says in this case, it is nop
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written
 	::vector_s             reads  ;
 	::vector_s             stats  ;
-	::umap_s<bool/*read*/> unlnks ;                                                                    // files listed here are read and unlinked
+	::umap_s<bool/*read*/> unlnks ;                                                                                 // files listed here are read and unlinked
 	::vector_s             writes ;
 	auto do1 = [&]( Solve const& src , Solve const& dst )->void {
 		for( auto const& [f,_] : walk(s_repo_root_fd(),src.real,TargetTags) ) {
 			if (+src.real0) {
-				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ; // real is read, real0 is unlinked
+				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ;              // real is read, real0 is unlinked
 				if      (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f              ) ;
 			} else {
-				if      (src.file_loc<=FileLoc::Repo) unlnks.try_emplace(src.real+f,true/*read*/) ;    // real is both read and unlinked
+				if      (src.file_loc<=FileLoc::Repo) unlnks.try_emplace(src.real+f,true/*read*/) ;                 // real is both read and unlinked
 				else if (src.file_loc<=FileLoc::Dep ) reads .push_back  (src.real+f             ) ;
 			}
-			if (no_replace) { if (dst.file_loc <=FileLoc::Dep ) stats .push_back(dst.real +f) ; }      // probe existence of destination
+			if (no_replace) { if (dst.file_loc <=FileLoc::Dep ) stats .push_back(dst.real +f) ; }                   // probe existence of destination
 			if (+dst.real0) { if (dst.file_loc0<=FileLoc::Repo) writes.push_back(dst.real0+f) ; }
 			else            { if (dst.file_loc <=FileLoc::Repo) writes.push_back(dst.real +f) ; }
 		}
@@ -375,8 +375,8 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	for( ::string const& w : writes ) {
 		auto it = unlnks.find(w) ;
 		if (it==unlnks.end()) continue ;
-		reads.push_back(w) ;                                                                           // if a file is read, unlinked and written, it is actually not unlinked
-		unlnks.erase(it) ;                                                                             // .
+		reads.push_back(w) ;                                                                                        // if a file is read, unlinked and written, it is actually not unlinked
+		unlnks.erase(it) ;                                                                                          // .
 	}
 	//
 	::uset_s guards ;
@@ -385,14 +385,14 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	guards.erase(""s) ;
 	for( ::string const& g : guards ) r.report_guard( FileLoc::Repo , no_slash(g) ) ;
 	//
-	Pdate now { New } ;
-	src.file_loc = FileLoc::Dep  ; src.accesses = {} ;                                                 // use src/dst as holders for reporting
-	dst.file_loc = FileLoc::Repo ; dst.accesses = {} ; dst.real0.clear() ;                             // .
+	Pdate        now     { New } ;
+	SolveModify& deps    = src   ; deps   .file_loc = FileLoc::Dep  ; deps   .accesses = {} ;                         // use src/dst as holders for reporting
+	SolveModify& updates = dst   ; updates.file_loc = FileLoc::Repo ; updates.accesses = {} ; updates.real0.clear() ; // .
 	//
-	for( ::string&    f    : reads  ) { src.real =        f  ; src.report_dep   ( r , DataAccesses              , c , CommentExt::Read  , now ) ; }
-	for( ::string&    f    : stats  ) { src.real =        f  ; src.report_dep   ( r , Access::Stat              , c , CommentExt::Stat  , now ) ; }
-	for( auto const& [f,a] : unlnks ) { dst.real =        f  ; dst.report_update( r , a?DataAccesses:Accesses() , c , CommentExt::Unlnk , now ) ; }
-	for( ::string&    f    : writes ) { dst.real = ::move(f) ; dst.report_update( r , {}                        , c , CommentExt::Write , now ) ; }
+	for( ::string&    f    : reads  ) { deps   .real =        f  ; deps   .report_dep   ( r , DataAccesses              , c , CommentExt::Read  , now ) ; }
+	for( ::string&    f    : stats  ) { deps   .real =        f  ; deps   .report_dep   ( r , Access::Stat              , c , CommentExt::Stat  , now ) ; }
+	for( auto const& [f,a] : unlnks ) { updates.real =        f  ; updates.report_update( r , a?DataAccesses:Accesses() , c , CommentExt::Unlnk , now ) ; }
+	for( ::string&    f    : writes ) { updates.real = ::move(f) ; updates.report_update( r , {}                        , c , CommentExt::Write , now ) ; }
 }
 
 Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , Comment c ) :

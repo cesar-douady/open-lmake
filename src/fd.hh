@@ -101,9 +101,10 @@ public :
 		no_std() ;
 	}
 	// services
-	void set_receive_timeout(Time::Delay to) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
-	void set_send_timeout   (Time::Delay to) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
-	void set_timeout        (Time::Delay to) {
+	// if timeout is 0, it means infinity (no timeout)
+	void set_receive_timeout(Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
+	void set_send_timeout   (Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
+	void set_timeout        (Time::Delay to={}) {
 		set_receive_timeout(to) ;
 		set_send_timeout   (to) ;
 	}

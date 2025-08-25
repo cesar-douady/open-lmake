@@ -1,4 +1,4 @@
-# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Ths file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 # Copyright (c) 2023-2025 Doliam
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
@@ -12,8 +12,9 @@ from . import _maybe_lcl
 
 def _fix_path() :
 	try :
-		if not _sys.path[0] : _sys.path.append(_sys.path.pop(0)) # put entry invented by python at the end to avoid numerous deps
-	except : pass
+		if not _sys.path[0] : _sys.path.append(_sys.path.pop(0)) # put entry invented by python at the end to avoid too numerous deps
+	except :
+		pass
 
 if _sys.version_info.major==2 :
 

@@ -19,10 +19,7 @@ namespace Store {
 	template<char ThreadKey,size_t Capacity> struct File {
 		// statics
 	private :
-		void _s_chk_rc(int rc) {
-			if (rc<0) FAIL_PROD(rc,::strerror(errno)) ;
-		}
-		size_t _s_round_up(size_t sz) {
+		static size_t _s_round_up(size_t sz) {
 			static size_t s_page = ::sysconf(_SC_PAGESIZE) ;
 			return round_up( sz , s_page ) ;
 		}
@@ -56,9 +53,9 @@ namespace Store {
 				if (writable) { action = FdAction::CreateRead ; Disk::dir_guard(name) ; }
 				else            action = FdAction::Read       ;
 				//    vvvvvvvvvvvvvvvvvvvvv
-				_fd = AcFd( name , action ) ;                                                    // mode is only used if created, which implies writable
+				_fd = AcFd( name , action ) ;                                          // mode is only used if created, which implies writable
 				//    ^^^^^^^^^^^^^^^^^^^^^
-				if (writable) _s_chk_rc( ::lseek( _fd , 0/*offset*/ , SEEK_END ) ) ;             // ensure writes (when expanding) are done at end of file when resizing
+				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END) , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
 				Disk::FileInfo fi{_fd} ;
 				SWEAR(fi.tag()>=FileTag::Reg) ;
@@ -87,11 +84,12 @@ namespace Store {
 				,	"consider to recompile open-lmake with increased corresponding parameter in src/types.hh\n"
 				) ;
 			//
-			sz = ::max( sz              , size + (size>>2) ) ;                                   // ensure remaps are in log(n)
-			sz = ::min( _s_round_up(sz) , Capacity         ) ;                                   // legalize
-			//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			if (+_fd) _s_chk_rc( ::write( _fd , ::string(sz-size,0/*ch*/).data() , sz-size ) ) ; // /!\ dont use truncate to avoid race in kernel between truncate and write back of dirty pages
-			//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			sz = ::max( sz              , size + (size>>2) ) ;                         // ensure remaps are in log(n)
+			sz = ::min( _s_round_up(sz) , Capacity         ) ;                         // legalize
+			// /!\ dont use truncate to avoid race in kernel between truncate and write back of dirty pages
+			//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			if (+_fd) _chk_rc( ::write( _fd , ::string(sz-size,0/*ch*/).data() , sz-size ) , "expand" ) ;
+			//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			_map(sz) ;
 		}
 		void clear(size_t sz=0) {
@@ -102,9 +100,9 @@ namespace Store {
 			SWEAR( sz<=Capacity , sz,Capacity ) ;
 			//
 			_dealloc() ;
-			//                   vvvvvvvvvvvvvvvvvvvvvvv
-			if (+_fd) _s_chk_rc( ::ftruncate( _fd , sz ) ) ;                                     // /!\ can use truncate here as there is no mapping, hence no page write back, hence no race
-			//                   ^^^^^^^^^^^^^^^^^^^^^^^
+			//                 vvvvvvvvvvvvvvvvvvv
+			if (+_fd) _chk_rc( ::ftruncate(_fd,sz) , "truncate" ) ;                    // /!\ can use truncate here as there is no mapping, hence no page write back, hence no race
+			//                 ^^^^^^^^^^^^^^^^^^^
 			_alloc() ;
 			_map(sz) ;
 		}
@@ -112,9 +110,12 @@ namespace Store {
 		void chk_thread  () const { if (ThreadKey) SWEAR( t_thread_key==ThreadKey , ThreadKey,t_thread_key,name ) ; }
 		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
+		void _chk_rc( int rc, const char* msg ) {
+			if (rc<0) FAIL_PROD(rc,"cannot",msg,'(',::strerror(errno),") for file :",name) ;
+		}
 		void _dealloc() {
 			SWEAR(base) ;
-			_s_chk_rc( ::munmap( base , Capacity ) ) ;
+			_chk_rc( ::munmap(base,Capacity) , "unmap" ) ;
 			base = nullptr ;
 		}
 		void _alloc() {
@@ -140,8 +141,8 @@ namespace Store {
 		// data
 	public :
 		::string       name     ;
-		char*          base     = nullptr ;                                                      // address of mapped file
-		Atomic<size_t> size     = 0       ;                                                      // underlying file size (fake if no file)
+		char*          base     = nullptr ;                                            // address of mapped file
+		Atomic<size_t> size     = 0       ;                                            // underlying file size (fake if no file)
 		bool           writable = false   ;
 	private :
 		AcFd _fd ;

@@ -21,8 +21,10 @@ ClientFdPair g_server_fds ;
 
 static bool _server_ok( Fd fd , ::string const& tag ) {
 	Trace trace("_server_ok",tag,fd) ;
+	//
 	bool ok  = false                             ;
 	int  cnt = ::read( fd , &ok , sizeof(bool) ) ;
+	//
 	if (cnt!=sizeof(bool)) { trace("bad_answer",cnt) ; return false ; }
 	trace("answer",STR(ok)) ;
 	return ok ;
@@ -48,7 +50,9 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 					server_is_local = true                                                                                               ;
 				}
 				ClientSockFd req_fd { server_service , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ;
+				req_fd.set_receive_timeout(Delay(10)) ;                                                                // if server is too long to answer, it is probably not working properly
 				if (_server_ok(req_fd,"old")) {
+					req_fd.set_receive_timeout() ;                                                                     // restore
 					g_server_fds = ::move(req_fd) ;
 					if (sync) exit(Rc::Format,"server already exists") ;
 					return 0 ;
@@ -70,9 +74,9 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		Pipe server_to_client{New,0/*flags*/,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
 		/**/           cmd_line.push_back(cat("-i",client_to_server.read .fd)) ;
 		/**/           cmd_line.push_back(cat("-o",server_to_client.write.fd)) ;
-		if (!refresh ) cmd_line.push_back(    "-r"                           ) ; // -r means no refresh
-		if (read_only) cmd_line.push_back(    "-R"                           ) ; // -R means read-only
-		/**/           cmd_line.push_back(    "--"                           ) ; // ensure no further option processing in case a file starts with a -
+		if (!refresh ) cmd_line.push_back(    "-r"                           ) ;                                       // -r means no refresh
+		if (read_only) cmd_line.push_back(    "-R"                           ) ;                                       // -R means read-only
+		/**/           cmd_line.push_back(    "--"                           ) ;                                       // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
 			Child server { .as_session=true , .cmd_line=cmd_line } ;
@@ -83,12 +87,12 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			if (_server_ok(server_to_client.read,"new")) {
 				g_server_fds = ClientFdPair{ server_to_client.read , client_to_server.write } ;
 				pid_t pid = server.pid ;
-				server.mk_daemon() ;                                             // let process survive to server dxtor
+				server.mk_daemon() ;                                                                                   // let process survive to server dxtor
 				return pid ;
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
-			server.wait() ;                                                      // dont care about return code, we are going to relauch/reconnect anyway
+			server.wait() ;                                                                                            // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
 			exit(Rc::System,e) ;
 		}
