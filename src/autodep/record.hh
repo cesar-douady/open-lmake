@@ -112,16 +112,17 @@ private :
 	}
 	// static data
 public :
-	static bool                                s_static_report ; // if true <=> report deps to s_deps instead of through s_report_fd() sockets
-	static ::vmap_s<DepDigest>*                s_deps          ;
-	static ::string           *                s_deps_err      ;
-	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache  ; // map file to read accesses
+	static bool                                s_static_report       ; // if true <=> report deps to s_deps instead of through s_report_fd() sockets
+	static bool                                s_enable_was_modified ; // if true <=  the enable bit has been manipulated through the backdoor
+	static ::vmap_s<DepDigest>*                s_deps                ;
+	static ::string           *                s_deps_err            ;
+	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ; // map file to read accesses
 private :
 	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
-	static Fd                        _s_repo_root_fd          ;  // a file descriptor to repo root dir
-	static pid_t                     _s_repo_root_pid         ;  // pid in which _s_repo_root_fd is valid
-	static Fd                        _s_report_fd [2/*Fast*/] ;  // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
-	static pid_t                     _s_report_pid[2/*Fast*/] ;  // pid in which corresponding _s_report_fd is valid
+	static Fd                        _s_repo_root_fd          ;        // a file descriptor to repo root dir
+	static pid_t                     _s_repo_root_pid         ;        // pid in which _s_repo_root_fd is valid
+	static Fd                        _s_report_fd [2/*Fast*/] ;        // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t                     _s_report_pid[2/*Fast*/] ;        // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
 	Record( NewType ,                  pid_t pid   ) : Record( New , Maybe , pid ) {}

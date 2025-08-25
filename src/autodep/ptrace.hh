@@ -42,7 +42,7 @@ struct AutodepPtrace {
 	void init(pid_t child_pid) ;
 	// services
 private :
-	bool/*done*/ _changed( int pid , int& wstatus ) ;
+	bool/*done*/ _changed( int pid , int&/*inout*/ wstatus ) ;
 public :
 	int/*wstatus*/ process() ;
 	// data

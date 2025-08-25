@@ -822,22 +822,26 @@ template<char Delimiter> ::string parse_printable( ::string const& x , size_t& p
 }
 
 constexpr inline int8_t _unit_val(char u) {
-	switch (u) {
-		case 'a' : return -6 ; break ;
-		case 'f' : return -5 ; break ;
-		case 'p' : return -4 ; break ;
-		case 'n' : return -3 ; break ;
-		case 'u' : return -2 ; break ;
-		case 'm' : return -1 ; break ;
-		case 0   : return  0 ; break ;
-		case 'k' : return  1 ; break ;
-		case 'M' : return  2 ; break ;
-		case 'G' : return  3 ; break ;
-		case 'T' : return  4 ; break ;
-		case 'P' : return  5 ; break ;
-		case 'E' : return  6 ; break ;
-		default  : throw cat("unrecognized suffix ",u) ;
-	}
+	constexpr ::array<int8_t,256> Tab = []()->::array<int8_t,256> {
+		::array<int8_t,256> res ; for( size_t i : iota(res.size()) ) res[i] = 127 ;
+		res['a'] = -6 ;
+		res['f'] = -5 ;
+		res['p'] = -4 ;
+		res['n'] = -3 ;
+		res['u'] = -2 ;
+		res['m'] = -1 ;
+		res[0  ] =  0 ;
+		res['k'] =  1 ;
+		res['M'] =  2 ;
+		res['G'] =  3 ;
+		res['T'] =  4 ;
+		res['P'] =  5 ;
+		res['E'] =  6 ;
+		return res ;
+	}() ;
+	int8_t res = Tab[uint8_t(u)] ;
+	throw_if( res==127 , "unrecognized suffix ",u ) ;
+	return res ;
 }
 template<char U,::integral I,bool RndUp> I from_string_with_unit(::string const& x) {
 	double              val     ;

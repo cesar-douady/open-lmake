@@ -27,7 +27,10 @@ namespace Backdoor {
 
 	Enable::Reply Enable::process(Record& r) const {
 		bool res = r.enable ;
-		if (enable!=Maybe) r.enable = enable==Yes ;
+		if (enable!=Maybe) {
+			r.enable = enable==Yes ;
+			Record::s_enable_was_modified = true ; // if autodep=ptrace, managing enable is quite expansive and is only done if enable was manipulated, so it must be aware
+		}
 		return res ;
 	}
 

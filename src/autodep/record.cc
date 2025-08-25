@@ -28,15 +28,16 @@ using namespace Time ;
 // Record
 //
 
-bool                                        Record::s_static_report  = false     ;
-::vmap_s<DepDigest>*                        Record::s_deps           = nullptr   ;
-::string           *                        Record::s_deps_err       = nullptr   ;
-StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache   ;             // map file to read accesses
-StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env   ;             // declare as pointer to avoid late initialization
-Fd                                          Record::_s_repo_root_fd  ;
-pid_t                                       Record::_s_repo_root_pid = 0         ;
-Fd                                          Record::_s_report_fd[2]  ;
-pid_t                                       Record::_s_report_pid[2] = { 0 , 0 } ;
+bool                                        Record::s_static_report       = false     ;
+bool                                        Record::s_enable_was_modified = false     ;
+::vmap_s<DepDigest>*                        Record::s_deps                = nullptr   ;
+::string           *                        Record::s_deps_err            = nullptr   ;
+StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache        ;             // map file to read accesses
+StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env        ;             // declare as pointer to avoid late initialization
+Fd                                          Record::_s_repo_root_fd       ;
+pid_t                                       Record::_s_repo_root_pid      = 0         ;
+Fd                                          Record::_s_report_fd[2]       ;
+pid_t                                       Record::_s_report_pid[2]      = { 0 , 0 } ;
 
 bool Record::s_is_simple( const char* file , bool empty_is_simple ) {
 	if (!file        ) return empty_is_simple ;                                  // no file is simple (not documented, but used in practice)

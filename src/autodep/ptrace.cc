@@ -6,6 +6,7 @@
 #include <err.h>
 
 #include "disk.hh"
+#include "process.hh"
 #include "trace.hh"
 
 #include "non_portable.hh"
@@ -34,10 +35,22 @@ static constexpr auto StopAtNextSyscallEntry = HAS_SECCOMP ? PTRACE_CONT : PTRAC
 static constexpr auto StopAtSyscallExit      =                             PTRACE_SYSCALL ;
 
 struct PidInfo {
+private :
+	Bool3 _s_get_enable(pid_t pid) {
+		try {
+			/**/                            if (!Record::s_enable_was_modified) return Maybe ;
+			pid_t ppid = get_ppid(pid)    ; if (ppid<=1                       ) return Maybe ;
+			auto  it   = s_tab.find(ppid) ; if (it==s_tab.end()               ) return Maybe ;
+			return No|it->second.record.enable ;
+		} catch (::string const&) {
+			return Maybe ;
+		}
+	}
+public :
 	// static data
 	static ::umap<pid_t,PidInfo> s_tab ;
 	// cxtors & casts
-	PidInfo(pid_t pid) : record{New,pid} {}
+	PidInfo(pid_t pid) : record{ New , _s_get_enable(pid) , pid } {}
 	// data
 	Record record        ;
 	size_t idx           = 0       ;
@@ -98,14 +111,14 @@ int/*wstatus*/ AutodepPtrace::process() {
 	int   wstatus ;
 	pid_t pid     ;
 	while( (pid=::wait(&wstatus))>1 )
-		if (_changed(pid,wstatus)) {                                 // may update wstatus
+		if (_changed(pid,/*inout*/wstatus)) {
 			trace("done",wstatus) ;
 			return wstatus ;
 		}
 	fail_prod("process",child_pid,"did not exit nor was signaled") ; // NO_COV
 }
 
-bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
+bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 	PidInfo& info  = PidInfo::s_tab.try_emplace(pid,pid).first->second ;
 	if (WIFSTOPPED(wstatus)) {
 		try {

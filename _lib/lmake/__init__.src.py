@@ -50,6 +50,11 @@ class Autodep :
 			with Autodep(enable) :
 				<code with autodep activated (enable=True) or deactivated (enable=False)>
 	"""
+	@staticmethod
+	def set_env(var,val) :
+		if val is None : _os.environ.pop(var,None)
+		else           : _os.environ[var] = val
+
 	IsFake    = getattr(set_autodep,'is_fake',False)
 	LdPreload = _os.environ.get('LD_PRELOAD')
 	LdAudit   = _os.environ.get('LD_AUDIT'  )
@@ -61,18 +66,12 @@ class Autodep :
 		self.prev_ld_audit   = _os.environ.get('LD_AUDIT'  )
 		#
 		set_autodep(self.enable)
-		if self.enable :
-			_os.environ['LD_PRELOAD'] = self.LdPreload
-			_os.environ['LD_AUDIT'  ] = self.LdAudit
-		else :
-			_os.environ.pop('LD_PRELOAD',None)
-			_os.environ.pop('LD_AUDIT'  ,None)
+		self.set_env( 'LD_PRELOAD' , self.LdPreload if self.enable else None ) # propagate to sub-processes if autodep is not ptrace (handled in ptrace code)
+		self.set_env( 'LD_AUDIT'   , self.LdAudit   if self.enable else None ) # .
 	def __exit__(self,*args) :
 		set_autodep(self.prev_state)
-		if self.prev_ld_preload is None : _os.environ.pop('LD_PRELOAD',None)
-		else                            : _os.environ['LD_PRELOAD'] = self.prev_ld_preload
-		if self.prev_ld_audit   is None : _os.environ.pop('LD_AUDIT',None)
-		else                            : _os.environ['LD_AUDIT'] = self.prev_ld_audit
+		self.set_env( 'LD_PRELOAD' , self.prev_ld_preload )
+		self.set_env( 'LD_AUDIT'   , self.prev_ld_audit   )
 
 #def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when python2 is no more supported
 def run_cc(*cmd_line,**kwds) :
@@ -135,7 +134,7 @@ except :
 		,	file_name
 		,	c.co_name
 		,	firstlineno
-		,	c.co_lnotab,c.co_freevars,c.co_cellvars  # co_lnotab is deprecated since 3.12 (but used before 3.10)
+		,	c.co_lnotab,c.co_freevars,c.co_cellvars # co_lnotab is deprecated since 3.12 (but used before 3.10)
 		)
 		func.__code__     = c.__class__(*args)
 		func.__module__   = module

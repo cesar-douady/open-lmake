@@ -8,6 +8,46 @@
 
 using namespace Disk ;
 
+::string wstatus_str(int wstatus) {
+	if (WIFEXITED(wstatus)) {
+		int rc = WEXITSTATUS(wstatus) ;
+		if ( rc==0                               ) return     "ok"                                                        ;
+		if ( int sig=rc-128 ; sig>=0 && sig<NSIG ) return cat("exit ",rc," (could be signal ",sig,'-',strsignal(sig),')') ;
+		/**/                                       return cat("exit ",rc                                                ) ;
+	}
+	if (WIFSIGNALED(wstatus)) {
+		int sig = WTERMSIG(wstatus) ;
+		return cat("signal ",sig,'-',::strsignal(sig)) ;
+	}
+	return "??" ;
+}
+
+bool/*done*/ kill_process( pid_t pid , int sig , bool as_group ) {
+	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	//
+	if (!as_group          ) return ::kill(pid,sig)==0 ;
+	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
+	bool proc_killed  = ::kill( pid,sig)==0 ;                                   // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
+	bool group_killed = ::kill(-pid,sig)==0 ;                                   // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
+	return proc_killed || group_killed ;
+}
+
+pid_t get_ppid(pid_t pid) {
+	::string status_file = cat("/proc/",pid,"/status") ;
+	::string status = AcFd(status_file).read() ;
+	//
+	size_t start = status.find("\nPPid:") ;
+	throw_unless( start!=Npos , "bad format in ",status_file ) ;
+	start += strlen("\nPPid:") ;
+	while (is_space(status[start])) start++ ;
+	//
+	size_t end = status.find('\n',start) ;
+	throw_unless( end!=Npos , "bad format in ",status_file ) ;
+	//
+	try         { return from_string<pid_t>(substr_view( status , start , end-start )) ; }
+	catch (...) { throw cat("bad format in ",status_file)                              ; }
+}
+
 [[noreturn]] void Child::_exit( Rc rc , const char* msg ) { // signal-safe
 	if (msg) {
 		bool ok = true ;
@@ -49,7 +89,7 @@ using namespace Disk ;
 	}
 	//
 	sigset_t full_mask ; ::sigfillset(&full_mask) ;                          // sig fillset may be a macro
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr) ;                          // restore default behavior
+	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                // restore default behavior
 	//
 	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
 	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; } // .
