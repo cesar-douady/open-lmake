@@ -62,7 +62,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
-			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) ::rename( old.c_str()           , prev_old.c_str() ) ; prev_old = ::move(old) ; }
+			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) ::rename( old         . c_str() , prev_old.c_str() ) ; prev_old = ::move(old) ; }
 			/**/                                                            if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
 		}
 		::string trace_dir_s    = dir_name_s(*g_trace_file)                                         ;
@@ -72,9 +72,11 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		_s_cur_sz = 4096                                                            ;
 		_s_fd     = { tmp_trace_file , FdAction::CreateReadTrunc , true/*no_std*/ } ;
 		//
-		if ( !_s_fd                                                        ) throw cat("cannot create temporary trace file ",tmp_trace_file," : ",::strerror(errno)          ) ;
-		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw cat("cannot create trace file "          ,*g_trace_file ," : ",::strerror(errno)          ) ;
-		if ( ::ftruncate(_s_fd,_s_cur_sz)                              !=0 ) throw cat("cannot truncate trace file "        ,*g_trace_file ," to its initial size ",_s_cur_sz) ;
+		if ( !_s_fd                                                        ) throw cat("cannot create temporary trace file ",tmp_trace_file," : ",::strerror(errno)) ;
+		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw cat("cannot create trace file "          ,*g_trace_file ," : ",::strerror(errno)) ;
+		//
+		try                     { _s_fd.write(::string(_s_cur_sz,0/*ch*/)) ;                                            }
+		catch (::string const&) { throw cat("cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz) ; }
 		//
 		_s_pos  = 0                                                                                                                      ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0/*offset*/ )) ;
@@ -84,18 +86,21 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	}
 
 	void Trace::_t_commit() {
+		static const ::string Giant = "<giant record>\n" ;                                                                           // /!\ cannot be constexpr with gcc-11
 		//
-		static ::string s_giant = "<giant record>\n" ;
-		::string const& buf_view = _t_buf->size()<=(s_sz>>4) ? *_t_buf : s_giant ;
+		::string const& buf_view = _t_buf->size()<=(s_sz>>4) ? *_t_buf : Giant ;
 		//
 		{	Lock   lock    { _s_mutex }             ;
 			size_t new_pos = _s_pos+buf_view.size() ;
 			if ( _s_cur_sz<s_sz && new_pos>_s_cur_sz ) {
 				size_t old_sz = _s_cur_sz ;
-				_s_cur_sz = new_pos + (_s_cur_sz>>2)       ;                                                 // ensure exponential growth to limit calls to ftruncate
-				_s_cur_sz = (_s_cur_sz+4095)&size_t(-4095) ;                                                 // round up to 4K
-				_s_cur_sz = ::min(_s_cur_sz,size_t(s_sz))  ;
-				if (::ftruncate(_s_fd,_s_cur_sz)!=0) FAIL(_s_fd,old_sz,_s_cur_sz) ;                          // NO_COV
+				_s_cur_sz = ::max( new_pos                          , old_sz+::min(old_sz>>2,size_t(1<<24)) ) ;                      // ensure remaps are in log(n) (up to a reasonable size increase)
+				_s_cur_sz = ::min( round_up(_s_cur_sz,size_t(4096)) , size_t(s_sz)                          ) ;                      // legalize
+				//
+				// /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
+				try                     { _s_fd.write(::string(_s_cur_sz-old_sz,0/*ch*/)) ;                                        }
+				catch (::string const&) { fail_prod("cannot expand trace from",old_sz,"to",_s_cur_sz,"for file :",*g_trace_file) ; } // NO_COV
+				//
 				_s_data = static_cast<uint8_t*>(::mremap( _s_data , old_sz , _s_cur_sz , MREMAP_MAYMOVE )) ;
 			}
 			if (new_pos>s_sz) {

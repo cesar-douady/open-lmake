@@ -306,7 +306,7 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	#define FILL_ENTRY( n , ... ) {                                          \
 		constexpr long i = _build_syscall_descr_tab_idx(FILL_ENTRY_STR(n)) ; \
 		if constexpr (i>=0) {                                                \
-			static_assert(i<SyscallDescr::NSyscalls) ;                       \
+			static_assert(i<SyscallDescr::NSyscalls,"increase NSyscalls") ;  \
 			s_tab[i] = SyscallDescr __VA_ARGS__ ;                            \
 		}                                                                    \
 	}

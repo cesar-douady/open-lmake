@@ -303,6 +303,7 @@ namespace Engine::Makefiles {
 			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
 			/**/                          _g_env["UID"            ] = to_string(getuid())           ;
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
+			/**/                          _g_env["PYTHONPATH"     ] = *g_lmake_root_s+"lib"         ;
 			//
 			if (!FileInfo(EnvironFile ).exists()) AcFd(EnvironFile ,FdAction::Create) ; // these are sources, they must exist
 			if (!FileInfo(ManifestFile).exists()) AcFd(ManifestFile,FdAction::Create) ; // .

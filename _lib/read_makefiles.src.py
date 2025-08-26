@@ -15,9 +15,7 @@ lmake_private_lib = osp.dirname(__file__ )
 lmake_root        = osp.dirname(lmake_private_lib)
 lmake_lib         = lmake_root+'/lib'
 
-assert sys.path[0]==lmake_private_lib # normal python behavior : put script dir as first entry
-
-sys.path[0:0] = [lmake_lib]
+assert sys.path[0:2]==[lmake_private_lib,lmake_lib] # normal python behavior : put script dir as first entry
 
 if len(sys.argv)!=5 :
 	print('usage : python read_makefiles.py <out_file> <user_environ> .(<actions>.)* sub_repos_s sub_repo_s',file=sys.stderr)
@@ -58,9 +56,8 @@ class UserEnvironDict(pdict) :
 
 lmake.user_environ = UserEnvironDict(user_environ)
 
-# suppress access to _lib (not  for user usage)
-# add access to repo      (only for user usage)
-sys.path = [ lmake_lib , *sys.path[2:] , '.' ]
+sys.path.pop   (0  ) # suppress access to _lib (not  for user usage)
+sys.path.append('.') # add access to repo      (only for user usage)
 
 config = pdict()
 if '.config.' in actions :
