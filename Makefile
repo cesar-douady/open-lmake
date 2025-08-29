@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 25.07
-TAG            := 12
+TAG            := 13
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble

@@ -492,8 +492,8 @@ namespace Backends::Slurm {
 		//
 		if (!args) return {} ;                                                       // fast path
 		//
-		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")         ; // sentinel to parse last args
-		::vector<char*> argv(1) ;                   argv.reserve(arg_vec.size()+1) ;
+		::vector_s      arg_vec = split(args) ; arg_vec.push_back(":")         ; // sentinel to parse last args
+		::vector<char*> argv(1) ;               argv.reserve(arg_vec.size()+1) ;
 		RsrcsData       res     ;
 		//
 		for( ::string& arg : arg_vec ) {
