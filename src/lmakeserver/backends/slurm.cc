@@ -143,7 +143,7 @@ namespace Backends::Slurm {
 			{	size_t i = 0 ;
 				_slurm_env_vec.clear() ;
 				for( auto const& [k,v] : env_ ) {
-					_slurm_env_vec.push_back(k+'='+v) ;
+					_slurm_env_vec.push_back(cat(k,'=',v)) ;
 					_slurm_env[i++] = _slurm_env_vec.back().c_str() ;
 				}
 				_slurm_env[i] = "" ;                             // slurm env is terminated with an empty string, not a nullptr
@@ -332,7 +332,7 @@ namespace Backends::Slurm {
 			auto chk_first = [&]()->void {
 				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
 			} ;
-			switch (k[0]) { //!                                                                                                    RndUp
+			switch (k[0]) { //!                                                                                              RndUp
 				case 'c' : if (k=="cpu"      ) {                          rsds.cpu       = from_string_with_unit<    uint32_t     >(v) ; continue ; } break ;
 				case 'm' : if (k=="mem"      ) {                          rsds.mem       = from_string_with_unit<'M',uint32_t,true>(v) ; continue ; } break ; // no mem if not managed
 				case 't' : if (k=="tmp"      ) {                          rsds.tmp       = from_string_with_unit<'M',uint32_t,true>(v) ; continue ; } break ;
@@ -490,10 +490,10 @@ namespace Backends::Slurm {
 		//
 		Trace trace(BeChnl,"parse_args",args) ;
 		//
-		if (!args) return {} ;                                                       // fast path
+		if (!args) return {} ;                                                   // fast path
 		//
-		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")         ; // sentinel to parse last args
-		::vector<char*> argv(1) ;                   argv.reserve(arg_vec.size()+1) ;
+		::vector_s      arg_vec = split(args) ; arg_vec.push_back(":")         ; // sentinel to parse last args
+		::vector<char*> argv(1) ;               argv.reserve(arg_vec.size()+1) ;
 		RsrcsData       res     ;
 		//
 		for( ::string& arg : arg_vec ) {

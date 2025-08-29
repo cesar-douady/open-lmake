@@ -44,7 +44,7 @@ namespace Engine {
 		}
 		//
 		// remove old targets
-		for( Target t : targets ) {
+		for( Target t : targets() ) {
 			FileActionTag fat = {}/*garbage*/ ;
 			//
 			if      (  t->crc==Crc::None                                  ) fat = FileActionTag::None           ; // nothing to wash
@@ -130,6 +130,16 @@ namespace Engine {
 	//
 
 	//
+	// Job
+	//
+
+	void Job::pop(Req req) {
+		Trace trace("pop",self,req) ;
+		req->jobs.erase(self) ;
+		pop() ;
+	}
+
+	//
 	// JobTgts
 	//
 
@@ -169,8 +179,8 @@ namespace Engine {
 	void JobReqInfo::step( Step s , Job j ) {
 		if (_step==s) return ;                // fast path
 		//
-		if ( _step>=Step::MinCurStats && _step<Step::MaxCurStats1 ) { req->stats.cur(_step)-- ; if (_step==Step::Dep) req->stats.waiting_cost -= j->cost ; }
-		if ( s    >=Step::MinCurStats && s    <Step::MaxCurStats1 ) { req->stats.cur(s    )++ ; if (s    ==Step::Dep) req->stats.waiting_cost += j->cost ; }
+		if ( _step>=Step::MinCurStats && _step<Step::MaxCurStats1 ) { req->stats.cur(_step)-- ; if (_step==Step::Dep) req->stats.waiting_cost -= j->c_cost() ; }
+		if ( s    >=Step::MinCurStats && s    <Step::MaxCurStats1 ) { req->stats.cur(s    )++ ; if (s    ==Step::Dep) req->stats.waiting_cost += j->c_cost() ; }
 		_step = s ;
 	}
 
@@ -232,7 +242,7 @@ namespace Engine {
 			return ;
 		}
 		::vector<Dep>       deps ; deps.reserve(dep_specs_holes.size()) ;
-		::umap<Node,VarIdx> dis  ;
+		::umap<Node,VarIdx> dis  ; dis .reserve(dep_specs_holes.size()) ;
 		for( auto const& k_ds : dep_specs_holes ) {
 			DepSpec const& ds = k_ds.second ;
 			if (!ds.txt) continue ;                                                                                                           // filter out holes
@@ -339,7 +349,7 @@ namespace Engine {
 				if (report) req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
 				goto NotKilled ;
 			}
-			for( Node t : self->targets ) t->busy = false ;                              // if job does not continue, targets are no more busy
+			for( Node t : self->targets() ) t->busy = false ;                            // if job does not continue, targets are no more busy
 		NotKilled :
 			req.chk_end() ;
 		} else {
@@ -349,77 +359,88 @@ namespace Engine {
 	}
 
 	// answer to job execution requests
-	JobMngtRpcReply JobExec::job_analysis( JobMngtProc proc , ::vmap<Node,TargetDigest> const& targets , ::vector<Dep> const& deps ) const {
+	JobMngtRpcReply JobExec::job_analysis( EngineClosureJobMngt const& ecjm ) const {
 		::vector<Req> reqs = self->running_reqs(false/*with_zombies*/) ;
-		Trace trace("job_analysis",proc,deps.size(),reqs.size()) ;
+		Trace trace("job_analysis",self,ecjm.proc,ecjm.targets.size(),ecjm.deps.size(),reqs.size()) ;
 		//
-		if (!reqs) return {.proc=proc} ;                                                       // if job is not running, it is too late, seq_id will be filled in later
-		JobMngtRpcReply res { .proc=proc } ;                                                   // seq_id will be filled in later
-		switch (proc) {
-			case JobMngtProc::DepVerbose :
-				res.dep_infos.reserve(deps.size()) ;
-				for( Dep const& dep : deps ) {
-					Node(dep)->full_refresh(false/*report_no_file*/,{}) ;                      // dep is const
-					Bool3 dep_ok = Yes ;
-					for( Req req : reqs ) {
-						NodeReqInfo& dri = dep->req_info(req) ;
-						Node(dep)->make(dri,NodeMakeAction::Query) ;
-						if      (!dri.done(NodeGoal::Status)  ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
-						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
-					}
-					trace("dep_info",dep,dep_ok) ;
-					DepVerboseInfo dvi { .ok=dep_ok } ;
-					if (dep_ok!=Maybe) dvi.crc = dep->crc ;
-					if (dep->is_src_anti()) {
-						dvi.special = cat(dep->buildable) ;
-					} else if ( Job j = dep->actual_job() ; +j ) {
-						if ( Rule r = j->rule() ; +r ) {
-							if (r->is_special()) {
-								dvi.special = cat(r->special) ;
-							} else {
-								Rule::RuleMatch rm { j } ;
-								dvi.rule = r->user_name() ;
-								for( VarIdx i : iota(rm.stems.size()) ) dvi.stems.emplace_back( r->stems[i].first , ::move(rm.stems[i]) ) ;
+		JobMngtRpcReply res { .proc=ecjm.proc } ;                                                  // seq_id will be filled in later
+		if (+reqs)                                                                                 // if job is not running, it is too late
+			switch (ecjm.proc) {
+				case JobMngtProc::DepDirect : {
+					Job job { Special::Dep , Deps(mk_vector<Node>(ecjm.deps),~Accesses(),DflagsDfltStatic,true/*parallel*/) } ;
+					//
+					job->fd        () = ecjm.fd     ;
+					job->seq_id    () = ecjm.seq_id ;
+					job->asking_job() = self        ;
+					//
+					for( Req req : reqs ) job->make( job->req_info(req) , JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
+					//
+					res.proc = JobMngtProc::None ;                                                 // job->make will answer for us
+				} break ;
+				case JobMngtProc::DepVerbose :
+					res.dep_infos.reserve(ecjm.deps.size()) ;
+					for( Dep const& dep : ecjm.deps ) {
+						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
+						Bool3 dep_ok = Yes ;
+						for( Req req : reqs ) {
+							NodeReqInfo& dri = dep->req_info(req) ;
+							Node(dep)->make(dri,NodeMakeAction::Query) ;
+							if      (!dri.done(NodeGoal::Status)  ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
+							else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
+						}
+						trace("dep_info",dep,dep_ok) ;
+						DepVerboseInfo dvi { .ok=dep_ok } ;
+						if (dep_ok!=Maybe) dvi.crc = dep->crc ;
+						if (dep->is_src_anti()) {
+							dvi.special = cat(dep->buildable) ;
+						} else if ( Job j = dep->actual_job() ; +j ) {
+							if ( Rule r = j->rule() ; +r ) {
+								if (r->is_special()) {
+									dvi.special = cat(r->special) ;
+								} else {
+									Rule::RuleMatch rm { j } ;
+									dvi.rule = r->user_name() ;
+									for( VarIdx i : iota(rm.stems.size()) ) dvi.stems.emplace_back( r->stems[i].first , ::move(rm.stems[i]) ) ;
+								}
 							}
 						}
+						res.dep_infos.push_back(::move(dvi)) ;
 					}
-					res.dep_infos.push_back(::move(dvi)) ;
-				}
-			break ;
-			case JobMngtProc::ChkDeps :
-				res.ok = Yes ;
-				for( auto const& [t,td] : targets ) {
-					if (td.pre_exist) {
-						Node(t)->set_buildable() ;
-						if (!( t->is_src_anti() && t->buildable>Buildable::No )) {
-							trace("pre_exist",t) ;
-							res.ok  = No        ;
-							res.txt = t->name() ;
+				break ;
+				case JobMngtProc::ChkDeps :
+					res.ok = Yes ;
+					for( auto const& [t,td] : ecjm.targets ) {
+						if (td.pre_exist) {
+							Node(t)->set_buildable() ;
+							if (!( t->is_src_anti() && t->buildable>Buildable::No )) {
+								trace("pre_exist",t) ;
+								res.ok  = No        ;
+								res.txt = t->name() ;
+								goto StopChk ;
+							}
+						}
+						trace("target",t) ;
+					}
+					for( Dep const& dep : ecjm.deps ) {
+						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
+						Bool3 dep_ok = Yes ;
+						for( Req req : reqs ) {
+							NodeReqInfo& dri  = dep->req_info(req)                               ;
+							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ; // if no access, we do not care about file on disk
+							Node(dep)->make(dri,NodeMakeAction::Query) ;
+							if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
+							else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
+						}
+						if (dep_ok!=Yes) {
+							res.ok  = dep_ok      ;
+							res.txt = dep->name() ;
 							goto StopChk ;
 						}
+						trace("dep",dep) ;
 					}
-					trace("target",t) ;
-				}
-				for( Dep const& dep : deps ) {
-					Node(dep)->full_refresh(false/*report_no_file*/,{}) ;                      // dep is const
-					Bool3 dep_ok = Yes ;
-					for( Req req : reqs ) {
-						NodeReqInfo& dri  = dep->req_info(req)                               ;
-						NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ; // if no access, we do not care about file on disk
-						Node(dep)->make(dri,NodeMakeAction::Query) ;
-						if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
-						else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
-					}
-					if (dep_ok!=Yes) {
-						res.ok  = dep_ok      ;
-						res.txt = dep->name() ;
-						goto StopChk ;
-					}
-					trace("dep",dep) ;
-				}
-			StopChk :
-			break ;
-		DF}                                                                                    // NO_COV
+				StopChk :
+				break ;
+			DF}                                                                                    // NO_COV
 		trace("done") ;
 		return res ;
 	}
@@ -518,17 +539,12 @@ namespace Engine {
 		//
 		// handle targets
 		//
-		for( Node t : jd.targets ) t->busy = false ;     // old targets are no more busy
+		for( Node t : jd.targets() ) t->busy = false ;   // old targets are no more busy
 		//
 		if ( !lost && status>Status::Early ) {           // if early, we have not touched the targets, not even washed them, if lost, old targets are better than new ones
 			//
-			::umap  <Node,Tflags> old_incremental_targets ;
-			::vector<Target     > targets                 ; targets.reserve(digest.targets.size()) ;
-			for( Target t : jd.targets )
-				if (t->has_actual_job(self)) {
-					if (t.tflags[Tflag::Incremental]) old_incremental_targets.try_emplace(t,t.tflags) ;
-					else                              t->actual_job() = {} ;                                     // ensure targets we no more generate do not keep pointing to us
-				}
+			::umap  <Node,Tflags> old_targets ; old_targets.reserve(jd.targets()  .size()) ; for( Target t : jd.targets() ) if (t->has_actual_job(self)) old_targets.try_emplace(t,t.tflags) ;
+			::vector<Target     > targets     ; targets    .reserve(digest.targets.size()) ;
 			//
 			for( auto& [target,td] : digest.targets ) {
 				target->set_buildable() ;
@@ -539,7 +555,7 @@ namespace Engine {
 				bool   target_modified = false                  ;
 				bool   unexpected      = false                  ;
 				//
-				old_incremental_targets.erase(target) ;
+				old_targets.erase(target) ;
 				//
 				if      ( td.pre_exist                               )   target->polluted = Polluted::PreExist ; // pre-existed while not incremental => polluted even if generated by official job
 				else if ( tflags[Tflag::Target]                      )   target->polluted = {}                 ;
@@ -584,27 +600,26 @@ namespace Engine {
 								for( Req req : running_reqs_ ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
 							break ;
 						DN}
-						{	::string msg = "unexpected" ;
-							if (crc==Crc::None) msg += " unlink of" ;
-							else                msg += " write to"  ;
-							switch (target->buildable) {
-								case Buildable::PathTooLong : msg << " path too long"  ; break ;
-								case Buildable::Anti        :
-								case Buildable::DynAnti     : msg << " anti-file"      ; break ;
-								case Buildable::SrcDir      : msg << " source dir"     ; break ;
-								case Buildable::SubSrcDir   : msg << " source sub-dir" ; break ;
-								case Buildable::DynSrc      :
-								case Buildable::Src         : msg << " source"         ; break ;
-								case Buildable::SubSrc      : msg << " sub-source"     ; break ;
-							DF}                                                                          // NO_COV
-							severe_msg << msg <<" : "<< mk_file(target->name(),No /*exists*/) <<'\n' ;
-							unexpected = true ;
-						}
+						severe_msg << "unexpected" ;
+						if (crc==Crc::None) severe_msg << " unlink of" ;
+						else                severe_msg << " write to"  ;
+						switch (target->buildable) {
+							case Buildable::PathTooLong : severe_msg << " path too long"  ; break ;
+							case Buildable::Anti        :
+							case Buildable::DynAnti     : severe_msg << " anti-file"      ; break ;
+							case Buildable::SrcDir      : severe_msg << " source dir"     ; break ;
+							case Buildable::SubSrcDir   : severe_msg << " source sub-dir" ; break ;
+							case Buildable::DynSrc      :
+							case Buildable::Src         : severe_msg << " source"         ; break ;
+							case Buildable::SubSrc      : severe_msg << " sub-source"     ; break ;
+						DF}                                                                              // NO_COV
+						severe_msg <<" : "<< mk_file(target->name(),No/*exists*/) <<'\n' ;
+						unexpected = true ;
 						if (ok==Yes) status = Status::Err ;
 					SourceOk : ;
 					}
 					//
-					if (unexpected) target_modified = target->crc.match(crc)                                                                      ;
+					if (unexpected) target_modified = !target->crc.match(crc)                                                                     ;
 					else            target_modified = target->refresh( crc , { td.sig , td.extra_tflags[ExtraTflag::Late]?end_date:start_date } ) ;
 					modified |= target_modified && tflags[Tflag::Target] ;
 				}
@@ -624,18 +639,28 @@ namespace Engine {
 					trace("not_target",target,td) ;
 				}
 			}
-			for( auto t : old_incremental_targets ) targets.emplace_back(t.first,t.second) ; // if an old incremental target has not been touched, it is still there as it has not been washed
-			::sort(targets) ;                                                                // ease search in targets
-			//vvvvvvvvvvvvvvvvvvvvvvvv
-			jd.targets.assign(targets) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^
+			for( auto [t,tf] : old_targets ) {
+				if (tf[Tflag::Incremental]) {
+					targets.emplace_back(t,tf) ;       // if an old incremental target has not been touched, it is still there as it has not been washed
+				} else {
+					NodeData& td = *Node(t) ;          // t is const
+					td.actual_job   () = {} ;          // target is no more generated by us
+					td.actual_tflags() = {} ;          // .
+					td.polluted        = {} ;          // .
+					td.refresh(Crc::None,start_date) ; // non-incremental old targets were unlinked at start-of-job time, during washing
+				}
+			}
+			::sort(targets) ;                          // ease search in targets
+			//vvvvvvvvvvvvvvvvvvvvvvvvvv
+			jd.targets().assign(targets) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		//
 		// handle deps
 		//
-		bool          has_new_deps         = false ;
-		bool          has_updated_dep_crcs = false ;                                         // record acquired dep crc's if we acquired any
-		::vector<Crc> dep_crcs             ;
+		bool                              has_new_deps         = false ;
+		bool                              has_updated_dep_crcs = false ;                                  // record acquired dep crc's if we acquired any
+		::vector<::pair<Crc,bool/*err*/>> dep_crcs             ;
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
 			::vector<Dep> deps     ; deps.reserve(digest.deps.size()) ;
@@ -651,7 +676,7 @@ namespace Engine {
 					// because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP)
 					// this means that the file could actually have been accessed before and have gotten wrong data.
 					// if this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finished before job started).
-					if (dep.hot) { trace("reset",dep) ; dep.crc({}) ; }
+					if (dep.hot) { trace("reset",dep) ; dep.del_crc() ; }
 				}
 				bool updated_dep_crc = false ;
 				if (!dep.is_crc) {
@@ -660,11 +685,11 @@ namespace Engine {
 					if (!dep.is_crc) {
 						auto it = old_srcs.find(dep) ;
 						if (it!=old_srcs.end()) {
-							if (dep.sig()==it->second.first) dep.crc(it->second.second) ;
+							if (dep.sig()==it->second.first) dep.set_crc(it->second.second,false/*err*/) ;
 						}
 					}
 					if (dep.is_crc) {                                                                     // if a dep has become a crc, update digest so that ancillary file reflects it
-						dd.crc_sig(dep) ;
+						dd.set_crc_sig(dep) ;
 						updated_dep_crc = true ;
 					}
 				} else if (dep.never_match()) {
@@ -673,9 +698,9 @@ namespace Engine {
 					unstable_dep = true ;
 				}
 				trace("dep",dep,STR(dep.is_crc),STR(dep.is_crc&&dep.crc().valid())) ;
-				/**/                   deps    .push_back( dep     ) ;
-				if (updated_dep_crc) { dep_crcs.push_back(dep.crc()) ; has_updated_dep_crcs = true ; }
-				else                   dep_crcs.push_back(Crc()    ) ;
+				/**/                   deps    .push_back   (dep                    ) ;
+				if (updated_dep_crc) { dep_crcs.emplace_back(dep.crc(),bool(dep.err)) ; has_updated_dep_crcs = true ; }
+				else                   dep_crcs.emplace_back(Crc()    ,false        ) ;
 			}
 			//vvvvvvvvvvvvvvvvvv
 			jd.deps.assign(deps) ;
@@ -705,9 +730,10 @@ namespace Engine {
 				s_record_thread.emplace(self,::move(ji.end  )) ;
 			}
 		}
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		s_record_thread.emplace( self , has_updated_dep_crcs ? ::move(dep_crcs) : ::vector<Crc>() ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (has_updated_dep_crcs) s_record_thread.emplace( self , ::move(dep_crcs)                    ) ;
+		else                      s_record_thread.emplace( self , ::vector<::pair<Crc,bool/*err*/>>() ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ok==Yes) jd.record_stats( digest.exec_time , cost , tokens1 ) ; // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 		//
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/)) {
@@ -868,15 +894,15 @@ namespace Engine {
 			ts.emplace_back( Node(New,t) , r->tflags(mi) ) ;
 		}
 		::sort(ts) ;                                                                                                                     // ease search in targets
-		targets.assign(ts) ;
+		targets().assign(ts) ;
 	}
 
 	void JobData::_do_set_pressure(ReqInfo& ri , CoarseDelay pressure ) const {
 		Trace trace("set_pressure",idx(),ri,pressure) ;
 		g_kpi.n_job_set_pressure++ ;
 		//
-		Req         req          = ri.req                  ;
-		CoarseDelay dep_pressure = ri.pressure + exec_time ;
+		Req         req          = ri.req                    ;
+		CoarseDelay dep_pressure = ri.pressure + exec_time() ;
 		switch (ri.step()) { //!                                                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			case JobStep::Dep    : for( DepsIter it{deps,ri.iter } ; it!=deps.end() ; it++ ) (*it)->    set_pressure( (*it)->req_info(req) ,               dep_pressure  ) ; break ;
 			case JobStep::Queued :                                                           Backend::s_set_pressure( backend , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
@@ -910,6 +936,17 @@ namespace Engine {
 		static constexpr Dep Sentinel { false/*parallel*/ } ;                                   // used to clean up after all deps are processed
 		Trace trace("Jmake",idx(),ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 		//
+		// in case we are a DepDirect, we want to pop ourselves when done, but only once this method is fully done
+		// by declaring this variable first, its dxtor is executed last
+		struct ToPop {
+			~ToPop() {
+				if (+job) job.pop(req) ;
+			}
+			Job job ;
+			Req req ;
+		} ;
+		ToPop to_pop ;
+		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
 		Rule              r            = rule()                                              ;
 		bool              query        = make_action==MakeAction::Query                      ;
@@ -918,7 +955,7 @@ namespace Engine {
 		ReqOptions const& ro           = req->options                                        ;
 		Special           special      = r->special                                          ;
 		bool              dep_live_out = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay       dep_pressure = ri.pressure + exec_time                             ;
+		CoarseDelay       dep_pressure = ri.pressure + c_exec_time()                         ;
 		bool              archive      = ro.flags[ReqFlag::Archive]                          ;
 		//
 	RestartFullAnalysis :
@@ -1186,39 +1223,55 @@ namespace Engine {
 		//                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ri.waiting()) goto Wait ;
 		SWEAR(!ri.running()) ;
-		make_action = MakeAction::End ;                                                            // restart analysis as if called by end() as in case of flash execution, submit has called end()
-		ri.inc_wait() ;                                                                            // .
-		asked_reason = {} ;                                                                        // .
-		ri.reason    = {} ;                                                                        // .
+		make_action = MakeAction::End ;                                                              // restart analysis as if called by end() as in case of flash execution, submit has called end()
+		ri.inc_wait() ;                                                                              // .
+		asked_reason = {} ;                                                                          // .
+		ri.reason    = {} ;                                                                          // .
 		trace("restart_analysis",ri) ;
 		goto RestartFullAnalysis/*BACKWARD*/ ;
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
 		ri.step(Step::Done,idx()) ;
-		ri.reason = {} ;                                                                           // no more reason to run as analysis showed it is ok now
+		ri.reason = {} ;                                                                             // no more reason to run as analysis showed it is ok now
 	Wakeup :
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
 			//
-			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
+			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time()) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 			//
 			JobReason jr  = reason(ri.state)                                                              ;
 			::string  pfx = status==Status::SubmitLoop ? "" : ja.report==JobReport::Hit ? "hit_" : "was_" ;
 			if (ja.has_stderr) {
 				JobEndRpcReq jerr = idx().job_info(JobInfoKind::End).end ;
-				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=reason_str(jr),.stderr=jerr.msg_stderr.stderr} , jerr.digest.max_stderr_len ) ;
-				else                           audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=ja.msg        ,.stderr=jerr.msg_stderr.stderr} , jerr.digest.max_stderr_len ) ;
+				//                                           with_stats
+				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true   , pfx , MsgStderr{.msg=reason_str(jr),.stderr=::move(jerr.msg_stderr.stderr)} , jerr.digest.max_stderr_len ) ;
+				else                           audit_end( ri , true   , pfx , MsgStderr{.msg=ja.msg        ,.stderr=::move(jerr.msg_stderr.stderr)} , jerr.digest.max_stderr_len ) ;
 			} else {
-				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=reason_str(jr)                               } ) ;
-				else                           audit_end( ri , true/*with_stats*/ , pfx , MsgStderr{.msg=ja.msg                                       } ) ;
+				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true   , pfx , MsgStderr{.msg=reason_str(jr)} ) ;
+				else                           audit_end( ri , true   , pfx , MsgStderr{.msg=ja.msg        } ) ;
 			}
 			req->missing_audits.erase(it) ;
 		}
 		trace("wakeup",ri) ;
-		//                                  vvvvvvvvvvvvvvvvvvvv
-		if ( ri.done() && wakeup_watchers ) ri.wakeup_watchers() ;
-		//                                  ^^^^^^^^^^^^^^^^^^^^
+		if ( ri.done() && wakeup_watchers ) {
+			if (special!=Special::Dep) {
+				ri.wakeup_watchers() ;
+			} else if (!running_reqs()) {
+				trace("send_reply",status) ;
+				Backends::send_reply(
+					asking_job()
+				,	JobMngtRpcReply{
+						.proc   = JobMngtProc::DepDirect
+					,	.seq_id = seq_id()
+					,	.fd     = fd    ()
+					,	.ok     = No|(status==Status::Ok)
+					}
+				) ;
+				to_pop.job = idx() ; // once reply is sent, we can dispose of ourselves (dont do ToPop assignment to avoid 2 destructions)
+				to_pop.req = req   ;
+			}
+		}
 		report_reason = reason(ri.state) ;
 		goto Return ;
 	Wait :
@@ -1305,7 +1358,7 @@ namespace Engine {
 				Node        worst_target ;
 				Bool3       modified     = No                    ;
 				NfsGuard    nfs_guard    { g_config->file_sync } ;
-				for( Target t : targets ) {
+				for( Target t : targets() ) {
 					::string    tn = t->name()         ;
 					SpecialStep ss = SpecialStep::Idle ;
 					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date().sig )) {
@@ -1326,6 +1379,7 @@ namespace Engine {
 				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 			case Special::Req :
+			case Special::Dep :
 				status = Status::Ok ;
 			break ;
 			case Special::InfiniteDep  :
@@ -1362,7 +1416,7 @@ namespace Engine {
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		for( Node t : targets ) t->set_buildable() ;                                   // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		for( Node t : targets() ) t->set_buildable() ;                                 // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		::vmap_s<DepDigest>  early_deps             ;
 		SubmitAncillaryAttrs submit_ancillary_attrs ;
@@ -1382,7 +1436,7 @@ namespace Engine {
 				if ( cache_idx && has_download(req->cache_method) ) {
 					::vmap_s<DepDigest> dns ;
 					for( Dep const& d : deps ) {
-						DepDigest dd = d ; dd.crc(d->crc) ;                                                                     // provide node actual crc as this is the hit criteria
+						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                                                     // provide node actual crc as this is the hit criteria
 						dns.emplace_back(d->name(),dd) ;
 					}
 					Cache*       cache       = Cache::s_tab[cache_idx] ;
@@ -1474,7 +1528,7 @@ namespace Engine {
 			return true/*maybe_new_deps*/ ;
 		}
 		//
-		ri.inc_wait() ;                              // set before calling submit call back as in case of flash execution, we must be clean
+		ri.inc_wait() ;                                // set before calling submit call back as in case of flash execution, we must be clean
 		ri.step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
 		if (!has_upload(req->cache_method)) cache_idx = 0 ;
@@ -1489,13 +1543,13 @@ namespace Engine {
 			,	.live_out  =        ri.live_out
 			,	.nice      =        req->nice
 			} ;
-			estimate_stats(tokens1) ;                // refine estimate with best available info just before submitting
+			estimate_stats(tokens1) ;                  // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( backend , +job , +req , ::move(sa) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			for( Node t : targets ) t->busy = true ; // make targets busy once we are sure job is submitted
+			for( Node t : targets() ) t->busy = true ; // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
-			ri.dec_wait() ;                          // restore n_wait as we prepared to wait
+			ri.dec_wait() ;                            // restore n_wait as we prepared to wait
 			ri.step(Step::None,job) ;
 			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , job     ) ;

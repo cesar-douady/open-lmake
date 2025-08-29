@@ -72,20 +72,22 @@ namespace Engine {
 
 namespace Engine {
 
-	struct JobInfo1 : ::variant< Void/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<Crc>/*DepCrcs*/ > {
+	struct JobInfo1
+	:	             ::variant< Void/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ >
+	{	using Base = ::variant< Void/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ > ;
 		using Kind = JobInfoKind ;
 		// cxtors & casts
-		using ::variant< Void , JobInfoStart, JobEndRpcReq , ::vector<Crc> >::variant ; // necessary for clang++-14
+		using Base::variant ; // necessary for clang++-14
 		// accesses
 		/**/             Kind kind() const { return Kind(index()) ; }
 		template<Kind K> bool is_a() const { return index()==+K   ; }
 		//
-		JobInfoStart  const& start   () const { return ::get<JobInfoStart >(self) ; }
-		JobInfoStart       & start   ()       { return ::get<JobInfoStart >(self) ; }
-		JobEndRpcReq  const& end     () const { return ::get<JobEndRpcReq >(self) ; }
-		JobEndRpcReq       & end     ()       { return ::get<JobEndRpcReq >(self) ; }
-		::vector<Crc> const& dep_crcs() const { return ::get<::vector<Crc>>(self) ; }
-		::vector<Crc>      & dep_crcs()       { return ::get<::vector<Crc>>(self) ; }
+		JobInfoStart                      const& start   () const { return ::get<JobInfoStart                     >(self) ; }
+		JobInfoStart                           & start   ()       { return ::get<JobInfoStart                     >(self) ; }
+		JobEndRpcReq                      const& end     () const { return ::get<JobEndRpcReq                     >(self) ; }
+		JobEndRpcReq                           & end     ()       { return ::get<JobEndRpcReq                     >(self) ; }
+		::vector<::pair<Crc,bool/*err*/>> const& dep_crcs() const { return ::get<::vector<::pair<Crc,bool/*err*/>>>(self) ; }
+		::vector<::pair<Crc,bool/*err*/>>      & dep_crcs()       { return ::get<::vector<::pair<Crc,bool/*err*/>>>(self) ; }
 	} ;
 
 	struct Job : JobBase {
@@ -122,10 +124,13 @@ namespace Engine {
 		// accesses
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
 		// services
-		JobInfo    job_info    ( BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;    // read job info from ancillary file, taking care of queued events
+		JobInfo job_info( BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;    // read job info from ancillary file, taking care of queued events
 		//
 		void record(JobInfo1 const&) const ;
 		void record(JobInfo  const&) const ;
+		//
+		using JobBase::pop ;
+		void pop(Req req) ;
 	} ;
 
 	struct JobTgt : Job {
@@ -176,16 +181,16 @@ namespace Engine {
 		void live_out    (            ::string const& ) const ;
 		void add_live_out(            ::string const& ) const ;
 		//
-		JobMngtRpcReply  job_analysis( JobMngtProc , ::vmap<Node,TargetDigest> const& , ::vector<Dep> const& deps ) const ;           // answer to requests from job execution
-		void             end         ( JobDigest<Node>&&                       ) ;
-		void             give_up     ( Req={} , bool report=true               ) ; // Req (all if 0) was killed and job was not killed (not started or continue)
+		JobMngtRpcReply  job_analysis( EngineClosureJobMngt const& ) const ; // answer to requests from job execution
+		void             end         ( JobDigest<Node>&&           ) ;
+		void             give_up     ( Req={} , bool report=true   ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
 		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx , MsgStderr const&           , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const ;
 		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& stderr={}  , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const {
 			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , max_stderr_len , exec_time , retry ) ;
 		}
-		size_t hash() const {                                                      // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
+		size_t hash() const {                                                // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
 			size_t res = 0x811c9dc5 ;
 			res = (res^+Job(self)       ) * 0x01000193 ;
 			res = (res^ host            ) * 0x01000193 ;
@@ -196,10 +201,10 @@ namespace Engine {
 		}
 		// data
 		in_addr_t   host       = 0 ;
-		CoarseDelay cost       ;                                                   // exec time / average number of running job during execution
+		CoarseDelay cost       ;                                             // exec time / average number of running job during execution
 		Tokens1     tokens1    = 0 ;
 		Pdate       start_date ;
-		Pdate       end_date   ;                                                   // if no end_date, job is stil on going
+		Pdate       end_date   ;                                             // if no end_date, job is stil on going
 	} ;
 
 }
@@ -301,7 +306,7 @@ namespace Engine {
 		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ;                                                          // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
-		JobData(                                     ) = default ;
+		JobData() = delete ;
 		JobData( JobName n                           ) : JobDataBase{n}                                      {}
 		JobData( JobName n , Special sp , Deps ds={} ) : JobDataBase{n} , deps{ds} , rule_crc{Rule(sp)->crc} {}           // special Job, all deps
 		//
@@ -318,8 +323,29 @@ namespace Engine {
 		JobData& operator=(JobData const&) = default ;
 		void _reset_targets(Rule::RuleMatch const&) ;
 		void _reset_targets(                      ) { _reset_targets(rule_match()) ; }
+		void _close        (                      ) ;
 		// accesses
 	public :
+		bool has_targets() const { return rule()->special>=Special::HasTargets ; }
+		bool is_dep     () const { return rule()->special==Special::Dep        ; }
+		//
+		Node             & asking     ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.asking                    ; }
+		Node        const& asking     () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.asking                    ; }
+		Targets          & targets    ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                   ; }
+		Targets     const& targets    () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                   ; }
+		CoarseDelay      & exec_time  ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exec_time                 ; }
+		CoarseDelay const& exec_time  () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exec_time                 ; }
+		CoarseDelay        c_exec_time() const {                                          ; return has_targets() ? _if_plain.exec_time : CoarseDelay() ; }
+		CoarseDelay      & cost       ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                      ; }
+		CoarseDelay const& cost       () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                      ; }
+		CoarseDelay        c_cost     () const {                                          ; return has_targets() ? _if_plain.cost      : CoarseDelay() ; }
+		Fd               & fd         ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                        ; }
+		Fd          const& fd         () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                        ; }
+		SeqId            & seq_id     ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                    ; }
+		SeqId       const& seq_id     () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                    ; }
+		Job              & asking_job ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job                ; }
+		Job         const& asking_job () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job                ; }
+		//
 		Job      idx () const { return Job::s_idx(self) ; }
 		Rule     rule() const { return rule_crc->rule   ; }
 		::string name() const {
@@ -377,9 +403,9 @@ namespace Engine {
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.reported && ri.done() ) {
-				if      (err()                ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , exec_time ) ; }
-				else if (ri.modified_speculate)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , exec_time ) ;
-				else                                                                         req->stats.move( JobReport::Speculative , JobReport::Steady , exec_time ) ;
+				if      (err()                ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , exec_time() ) ; }
+				else if (ri.modified_speculate)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , exec_time() ) ;
+				else                                                                         req->stats.move( JobReport::Speculative , JobReport::Steady , exec_time() ) ;
 			}
 			_propag_speculate(ri) ;
 		}
@@ -404,24 +430,37 @@ namespace Engine {
 		void                   _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
 		// data
 		// START_OF_VERSIONING
+		struct IfPlain {
+			Node        asking    ;              //     32 bits,        last target needing this job
+			Targets     targets   ;              //     32 bits, owned, for plain jobs
+			CoarseDelay exec_time ;              //     16 bits,        for plain jobs
+			CoarseDelay cost      ;              //     16 bits,        exec_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+		} ;
+		struct IfDep {
+			SeqId seq_id     = 0 ;               //     64 bits
+			Fd    fd         ;                   //     32 bits
+			Job   asking_job ;                   //     32 bits
+		} ;
 	public :
-		//JobName        name         ;              //     32 bits, inherited
-		Node             asking       ;              //     32 bits,        last target needing this job
-		Targets          targets      ;              //     32 bits, owned, for plain jobs
-		Deps             deps         ;              // 31<=32 bits, owned
-		RuleCrc          rule_crc     ;              //     32 bits
-		CoarseDelay      exec_time    ;              //     16 bits,        for plain jobs
-		CoarseDelay      cost         ;              //     16 bits,        exec_time / average number of parallel jobs during execution, /!\ must be stable during job execution
-		Tokens1          tokens1      = 0  ;         //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
-		mutable MatchGen match_gen    = 0  ;         //      8 bits,        if <Rule::s_match_gen => deemed !sure
-		RunStatus        run_status:3 = {} ;         //      3 bits
-		Status           status    :4 = {} ;         //      4 bits
-		BackendTag       backend   :2 = {} ;         //      2 bits         backend asked for last execution
+		//JobName        name         ;          //     32 bits, inherited
+		Deps             deps         ;          // 31<=32 bits, owned
+		RuleCrc          rule_crc     ;          //     32 bits
+		Tokens1          tokens1      = 0  ;     //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
+		mutable MatchGen match_gen    = 0  ;     //      8 bits,        if <Rule::s_match_gen => deemed !sure
+		RunStatus        run_status:3 = {} ;     //      3 bits
+		Status           status    :4 = {} ;     //      4 bits
+		BackendTag       backend   :2 = {} ;     //      2 bits         backend asked for last execution
 	private :
-		mutable bool     _sure          :1 = false ; //      1 bit
-		Bool3            _reliable_stats:2 = No    ; //      2 bits,        if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+		mutable bool _sure          :1 = false ; //      1 bit
+		Bool3        _reliable_stats:2 = No    ; //      2 bits,        if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+	public :
+		union {
+			IfPlain  _if_plain = {} ;            //     96 bits
+			IfDep    _if_dep   ;                 //    128 bits
+		} ;
 		// END_OF_VERSIONING
 	} ;
+	static_assert(sizeof(JobData)==32) ;         // ensure size is a power of 2 to maximize cache perf
 
 }
 
@@ -439,8 +478,8 @@ namespace Engine {
 	inline Job::Job( RuleTgt rt , ::string const& t  , Bool3 chk_psfx , Req req , DepDepth lvl ) : Job{Rule::RuleMatch(rt,t ,chk_psfx),req,lvl} {} // chk_psfx=Maybe means check size only
 	inline Job::Job( Rule    r  , ::string const& jn , Bool3 chk_psfx , Req req , DepDepth lvl ) : Job{Rule::RuleMatch(r ,jn,chk_psfx),req,lvl} {} // .
 	//
-	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR(sp==Special::Req  ) ; }
-	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR(sp!=Special::Plain) ; }
+	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR( sp==Special::Req || sp==Special::Dep , sp ) ; }
+	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR( sp!=Special::Plain                        ) ; }
 
 	//
 	// JobTgt
@@ -460,8 +499,8 @@ namespace Engine {
 		if ( !actual && sure()                          ) return true                              ;
 		if ( t->has_actual_job(self)                    ) return t->actual_tflags()[Tflag::Target] ; // .
 		//
-		auto it = ::lower_bound( self->targets , {t,{}} ) ;
-		return it!=self->targets.end() && *it==t && it->tflags[Tflag::Target] ;
+		auto it = ::lower_bound( self->targets() , {t,{}} ) ;
+		return it!=self->targets().end() && *it==t && it->tflags[Tflag::Target] ;
 	}
 
 	//
@@ -474,15 +513,19 @@ namespace Engine {
 	// JobData
 	//
 
-	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                           jd.targets.forget() ; jd.deps.forget() ;               }
-	inline JobData::~JobData          (            ) {                                                            targets.pop   () ;    deps.pop   () ;               }
-	inline JobData& JobData::operator=(JobData&& jd) { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; self = jd ; jd.targets.forget() ; jd.deps.forget() ; return self ; }
+	inline void JobData::_close() {
+		if (has_targets()) targets().pop() ;
+		/**/               deps     .pop() ;
+	}
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                         jd._close() ;               }
+	inline JobData::~JobData          (            )               {                                                            _close() ;               }
+	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; self = jd ; jd._close() ; return self ; }
 
 	inline MsgStderr JobData::special_msg_stderr( bool short_msg                  ) const { return special_msg_stderr({},short_msg) ; }
 	inline void      JobData::audit_end_special ( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}     ) ; }
 
 	inline Tflags JobData::tflags(Node target) const {
-		Target t = *::lower_bound( targets , {target,{}} ) ;
+		Target t = *::lower_bound( targets() , {target,{}} ) ;
 		SWEAR(t==target) ;
 		return t.tflags ;
 	}
@@ -493,21 +536,23 @@ namespace Engine {
 
 	inline void JobData::estimate_stats() {                                                        // can be called any time, but only record on first time, so cost stays stable during job execution
 		if (_reliable_stats!=No) return ;
+		if (!has_targets()     ) return ;
 		Rule r = rule() ;
-		cost            = r->cost()    ;
-		exec_time       = r->exec_time ;
+		exec_time()     = r->exec_time ;
+		cost     ()     = r->cost()    ;
 		_reliable_stats = Maybe        ;
 	}
 	inline void JobData::estimate_stats( Tokens1 tokens1 ) {                                       // only called before submit, so cost stays stable during job execution
 		if (_reliable_stats==Yes) return ;
+		if (!has_targets()      ) return ;
 		Rule r = rule() ;
-		cost            = r->cost_per_token * (tokens1+1) ;
-		exec_time       = r->exec_time                    ;
+		exec_time()     = r->exec_time                    ;
+		cost     ()     = r->cost_per_token * (tokens1+1) ;
 		_reliable_stats = Maybe                           ;
 	}
 	inline void JobData::record_stats( Delay exec_time_ , CoarseDelay cost_ , Tokens1 tokens1_ ) { // only called in end, so cost stays stable during job execution
-		exec_time       = exec_time_ ;
-		cost            = cost_      ;
+		exec_time()     = exec_time_ ;
+		cost     ()     = cost_      ;
 		tokens1         = tokens1_   ;
 		_reliable_stats = Yes        ;
 		rule()->new_job_report( exec_time_ , cost_ , tokens1_ ) ;

@@ -39,7 +39,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_update_crcs() {
 		Trace trace("_s_update_crcs") ;
-		::umap<Crc,Rule> rule_map ; for( Rule r : rule_lst(true/*with_special*/) ) rule_map[r->crc->match] = r ;
+		::umap<Crc,Rule> rule_map ; if (+s_rules) rule_map.reserve(s_rules->size()) ; for( Rule r : rule_lst(true/*with_special*/) ) rule_map[r->crc->match] = r ;
 		for( RuleCrc rc : rule_crc_lst() ) {
 			RuleCrcData& rcd = rc.data()                ;
 			auto         it  = rule_map.find(rcd.match) ;
@@ -85,9 +85,9 @@ namespace Engine::Persistent {
 		SWEAR( s_rules->sys_path_crc==new_rules.sys_path_crc , s_rules->sys_path_crc,new_rules.sys_path_crc ) ; // may not change dynamically as this would potentially change rule cmd's
 		SWEAR( s_rules->size()      ==new_rules.size()       , s_rules->size()      ,new_rules.size()       ) ; // may not change dynamically
 		//
-		::umap<Crc,RuleData*> rule_map ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
+		::umap<Crc,RuleData*> rule_map ; rule_map.reserve(new_rules.size()) ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
-		Rules* next_rules = new Rules{New} ; next_rules->reserve(s_rules->size()) ;
+		Rules* next_rules = new Rules{New} ; if (+s_rules) next_rules->reserve(s_rules->size()) ;
 		for( Rule r : rule_lst() ) next_rules->push_back(::move(*rule_map.at(r->crc->match))) ;                 // crc->match's must be identical between old and new or we should be here
 		next_rules->dyn_vec      = ::move(new_rules.dyn_vec     ) ;
 		next_rules->py_sys_path  = ::move(new_rules.py_sys_path ) ;
@@ -250,7 +250,7 @@ namespace Engine::Persistent {
 			try {
 				chk()                                    ; // first verify we have a coherent store
 				invalidate_match(true/*force_physical*/) ; // then rely only on essential data that should be crash-safe
-				Fd::Stderr.write("seems ok\n") ;
+				Fd::Stderr.write("seems ok\n")           ;
 			} catch (::string const&) {
 				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
 			}
@@ -295,8 +295,8 @@ namespace Engine::Persistent {
 	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
 		if ( !dyn                                         ) mk_dir_s( cat(AdminDirS,"outputs/") , true/*unlnk_ok*/ ) ;
-		if ( !dyn                                         ) _init_config() ;
-		else                                                SWEAR(+*g_config,*g_config) ; // we must update something
+		if ( !dyn                                         ) _init_config()                                           ;
+		else                                                SWEAR(+*g_config,*g_config)                              ; // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                diff(*g_config,config) ;
@@ -305,7 +305,7 @@ namespace Engine::Persistent {
 		if (          d>ConfigDiff::Static  && +*g_config ) throw "repo must be clean"s  ;
 		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw "repo must be steady"s ;
 		//
-		if (  dyn && !d                                   ) return ;                      // fast path, nothing to update
+		if (  dyn && !d                                   ) return                       ;                             // fast path, nothing to update
 		//
 		/**/                                                Config old_config = *g_config ;
 		if (         +d                                   ) *g_config = ::move(config) ;
@@ -420,9 +420,9 @@ namespace Engine::Persistent {
 						Rule            br  = b->rule ;
 						RuleData const& ard = *ar     ;
 						RuleData const& brd = *br     ;
-						return //!                                               optim sort   any stable sort
-							::tuple( ard.is_special() , ard.prio , ard.special , psfx_szs[ar] , +a->match   , a.tgt_idx )
-						>	::tuple( brd.is_special() , brd.prio , brd.special , psfx_szs[br] , +b->match   , b.tgt_idx )
+						return //!   <-------------semantic_sort------------->   optim_sort    stable_sort within_rule
+							::tuple( ard.is_special() , ard.prio , ard.special , psfx_szs[ar] , +a->match , a.tgt_idx )
+						>	::tuple( brd.is_special() , brd.prio , brd.special , psfx_szs[br] , +b->match , b.tgt_idx )
 						;
 					}
 				) ;
@@ -431,15 +431,17 @@ namespace Engine::Persistent {
 		}
 	}
 
-	//                                      vv must fit in rule file vv   vvvvvvvv idx must fit within type vvvvvvvv
+	//                                      <--must_fit_in_rule_file-->   <--------idx_must_fit_within_type-------->
 	static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NShared ) ; // reserv 0 and full 1 to manage prio
 
 	static void _compute_prios(Rules& rules) {
-		::map<RuleData::Prio,RuleIdx> prio_map ;                                             // mapping from user_prio to prio
-		for( RuleData const& rd    : rules    ) prio_map[rd.user_prio] ;                     // create entries
-		RuleIdx p = 1 ;                                                                      // reserv 0 for "after all user rules"
-		for( auto&           [k,v] : prio_map ) { SWEAR( 0<p && p<NRules , p ) ; v = p++ ; } // and full 1 for "before all user rules"
-		for( RuleData&       rd    : rules    ) rd.prio = prio_map.at(rd.user_prio) ;
+		::map<RuleData::Prio,RuleIdx> prio_map ; for( RuleData const& rd : rules ) prio_map[rd.user_prio] ; // mapping from user_prio (double) to prio (RuleIdx) in same order
+		RuleIdx p = 1 ;
+		for( auto& [k,v] : prio_map ) {
+			SWEAR( 0<p && p<NRules , p ) ;                                                                  // reserv 0 for "after all user rules" and full 1 for "before all user rules"
+			v = p++ ;
+		}
+		for( RuleData& rd : rules ) rd.prio = prio_map.at(rd.user_prio) ;
 	}
 
 	bool/*invalidate*/ new_rules( Rules&& new_rules_ , bool dyn ) {
@@ -449,8 +451,8 @@ namespace Engine::Persistent {
 		//
 		_compute_prios(new_rules_) ;
 		//
-		::umap<Crc,RuleData const*> old_rds   ;
-		::umap<Crc,RuleData*>       new_rds   ;
+		::umap<Crc,RuleData const*> old_rds   ; if (+Rule::s_rules) old_rds.reserve(Rule::s_rules->size()) ;
+		::umap<Crc,RuleData      *> new_rds   ;                     new_rds.reserve(new_rules_   . size()) ;
 		::uset_s                    new_names ;
 		for( Rule r : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
 		for( RuleData& rd : new_rules_ ) {
@@ -547,9 +549,9 @@ namespace Engine::Persistent {
 
 	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn , ::string const& manifest ) {
 		NfsGuard             nfs_guard    { g_config->file_sync } ;
-		::vmap<Node,FileTag> srcs         ;
-		::umap<Node,FileTag> old_srcs     ;
-		::umap<Node,FileTag> new_srcs     ;
+		::vmap<Node,FileTag> srcs         ; srcs    .reserve(src_names                  .size()) ;
+		::umap<Node,FileTag> old_srcs     ; old_srcs.reserve(Node::s_srcs(false/*dirs*/).size()) ;                      // typically there are no source dirs
+		::umap<Node,FileTag> new_srcs     ; new_srcs.reserve(src_names                  .size()) ;
 		::uset<Node        > src_dirs     ;
 		::uset<Node        > old_src_dirs ;
 		::uset<Node        > new_src_dirs ;

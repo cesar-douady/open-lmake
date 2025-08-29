@@ -18,6 +18,7 @@ enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
 ,	Essential                // show when generating user oriented graphs
 ,	IgnoreError              // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 ,	Required                 // dep must be buildable (static deps are always required)
+,	Verbose                  // dep has been seen in a depend(verbose=True) call, which makes it sensitive to err state
 ,	Static                   // is static dep, for internal use only
 ,	Full                     // if false, dep is only necessary to compute resources
 //
@@ -31,6 +32,7 @@ static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
 ,	{ Dflag::Essential   , 'E' }
 ,	{ Dflag::IgnoreError , 'e' }
 ,	{ Dflag::Required    , 'r' }
+,	{ Dflag::Verbose     , 'v' }
 ,	{ Dflag::Static      , 'S' }
 ,	{ Dflag::Full        , 'F' }
 }} ;
@@ -47,8 +49,9 @@ enum class ExtraDflag : uint8_t {   // flags for deps, not recorded in server bo
 ,	Ignore
 ,	ReaddirOk
 ,	NoStar                          // exclude flags from star patterns (common info for dep and target)
+,	Direct
 // aliases
-,	NRule                           // all flags allowed
+,	NRule = Direct                  // number of Dflag's allowed in rule definition
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
@@ -56,7 +59,7 @@ static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
 ,	{ ExtraDflag::Ignore    , 'I' }
 ,	{ ExtraDflag::ReaddirOk , 'D' }
 ,	{ ExtraDflag::NoStar    , 'x' }
-,	{ ExtraDflag::NRule     , 0   } // artifical entry as all flags are allowed
+,	{ ExtraDflag::Direct    , 'd' }
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 static_assert(chk_enum_tab(ExtraDflagChars)) ;
@@ -263,6 +266,7 @@ enum class Comment : uint8_t {
 // START_OF_VERSIONING
 enum class CommentExt : uint8_t {
 	Err
+,	Direct
 ,	File
 ,	Last
 ,	LdLibraryPath
@@ -275,6 +279,7 @@ enum class CommentExt : uint8_t {
 ,	Reply
 ,	Stat
 ,	Unlnk
+,	Verbose
 ,	Write
 } ;
 using CommentExts = BitMap<CommentExt> ;

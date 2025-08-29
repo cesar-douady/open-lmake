@@ -237,10 +237,10 @@ namespace Backends {
 
 namespace Backends {
 
-	inline void  Backend::Workload::submit( Req r , Job j ) { Lock lock{_mutex} ;                            _queued_cost[+r] += Delay(j->cost).val() ; }
-	inline void  Backend::Workload::add   ( Req r , Job j ) { Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost).val() ; }
+	inline void  Backend::Workload::submit( Req r , Job j ) { Lock lock{_mutex} ;                            _queued_cost[+r] += Delay(j->cost()).val() ; }
+	inline void  Backend::Workload::add   ( Req r , Job j ) { Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost()).val() ; }
 	inline void  Backend::Workload::kill( Req r , Job j ) {
-		Delay::Tick dly = Delay(j->cost).val() ;
+		Delay::Tick dly = Delay(j->cost()).val() ;
 		SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , dly ) ;
 		_queued_cost[+r] -= dly ;
 	}

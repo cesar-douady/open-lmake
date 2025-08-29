@@ -57,7 +57,8 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	os << "JobExecRpcReply(" << jerr.proc ;
 	switch (jerr.proc) {
 		case JobExecProc::None       :                                     ; break ;
-		case JobExecProc::ChkDeps    : os <<','<< jerr.ok                  ; break ;
+		case JobExecProc::ChkDeps    :
+		case JobExecProc::DepDirect  : os <<','<< jerr.ok                  ; break ;
 		case JobExecProc::DepVerbose : os <<','<< jerr.dep_infos           ; break ;
 		case JobExecProc::Decode     :
 		case JobExecProc::Encode     : os <<','<< jerr.txt <<','<< jerr.ok ; break ;

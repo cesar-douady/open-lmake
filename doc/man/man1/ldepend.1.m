@@ -43,6 +43,7 @@ Bullet
 .SH OPTIONS
 .LP
 Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
+Item(B(-d),B(--direct))          Build deps before command completion (cf. note (6)).
 Item(B(-v),B(--verbose))
 	Write lines composed of:
 	.RS
@@ -89,5 +90,18 @@ Item((5))
 	and OpenLmake anticipates this by building these deps speculatively.
 	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
+Item((6))
+	Using direct deps is not recommanded for general use as it suffers 2 drawbacks:
+	.RS
+	- successive calls leads to serial jobs (as each job is analyzed once the previous has completed)
+	.RE
+	.RS
+	- this may generate dead-lock if the calling job holds resources (which is usually the case) as such resources are kept while the job is waiting
+	.RE
+	.RS
+	This flag is meant in exceptional situations such as a dichotomy search in which a dep is necessary at each step of the dichotomy.
+	In that case, using the B(direct) flag reduces the number of reruns, which can occur for each step otherwise.
+	In that case, it is most probably wise to use the B(critical) flag simultaneously.
+	.RE
 
 Footer

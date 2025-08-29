@@ -37,6 +37,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <set>
 #include <shared_mutex>
 #include <span>
@@ -52,93 +53,93 @@
 #include <vector>
 
 // import std definitions to simplify code
-using std::array                               ;
-using std::as_const                            ;
-using std::atomic                              ;
-using std::atomic_signal_fence                 ;
-using std::basic_string                        ;
-using std::basic_string_view                   ;
-using std::bit_width                           ;
-using std::chars_format                        ;
-using std::cmp_greater                         ;
-using std::cmp_less                            ;
-using std::condition_variable_any              ;
-using std::conditional_t                       ;
-using std::convertible_to                      ;
-using std::countl_zero                         ;
-using std::current_exception                   ;
-using std::decay_t                             ;
-using std::endian                              ;
-using std::errc                                ;
-using std::exception                           ;
-using std::floating_point                      ;
-using std::forward                             ;
-using std::from_chars                          ;
-using std::from_chars_result                   ;
-using std::function                            ;
-using std::get                                 ;
-using std::has_unique_object_representations_v ;
-using std::hash                                ;
-using std::input_iterator_tag                  ;
-using std::integral                            ;
-using std::is_aggregate_v                      ;
-using std::is_arithmetic_v                     ;
-using std::is_base_of_v                        ;
-using std::is_const_v                          ;
-using std::is_empty_v                          ;
-using std::is_enum_v                           ;
-using std::is_integral_v                       ;
-using std::is_pointer_v                        ;
-using std::is_same_v                           ;
-using std::is_standard_layout_v                ;
-using std::is_signed_v                         ;
-using std::is_trivial_v                        ;
-using std::is_trivially_copyable_v             ;
-using std::is_unsigned_v                       ;
-using std::is_void_v                           ;
-using std::jthread                             ;
-using std::latch                               ;
-using std::launder                             ;
-using std::make_error_code                     ;
-using std::make_signed_t                       ;
-using std::make_unsigned_t                     ;
-using std::map                                 ;
-using std::memory_order_acq_rel                ;
-using std::move                                ;
-using std::mutex                               ;
-using std::nullptr_t                           ;
-using std::numeric_limits                      ;
-using std::operator""s                         ;
-using std::pair                                ;
-using std::partial_ordering                    ;
-using std::popcount                            ;
-using std::remove_const_t                      ;
-using std::remove_reference_t                  ;
-using std::rethrow_exception                   ;
-using std::set                                 ;
-using std::set_terminate                       ;
-using std::shared_mutex                        ;
-using std::size                                ;
-using std::span                                ;
-using std::stop_callback                       ;
-using std::stop_token                          ;
-using std::string                              ;
-using std::string_view                         ;
-using std::strong_ordering                     ;
-using std::swap                                ;
-using std::thread                              ;
-using std::tie                                 ;
-using std::to_chars                            ;
-using std::to_chars_result                     ;
-using std::to_string                           ;
-using std::tuple                               ;
-using std::underlying_type_t                   ;
-using std::unique_ptr                          ;
-using std::unordered_map                       ;
-using std::unordered_set                       ;
-using std::unsigned_integral                   ;
-using std::variant                             ;
-using std::vector                              ;
+using std::array                                  ;
+using std::as_const                               ;
+using std::atomic                                 ;
+using std::atomic_signal_fence                    ;
+using std::basic_string                           ;
+using std::basic_string_view                      ;
+using std::bit_width                              ;
+using std::chars_format                           ;
+using std::cmp_greater                            ;
+using std::cmp_less                               ;
+using std::condition_variable_any                 ;
+using std::conditional_t                          ;
+using std::convertible_to                         ;
+using std::countl_zero                            ;
+using std::current_exception                      ;
+using std::decay_t                                ;
+using std::endian                                 ;
+using std::errc                                   ;
+using std::exception                              ;
+using std::floating_point                         ;
+using std::forward                                ;
+using std::from_chars                             ;
+using std::from_chars_result                      ;
+using std::function                               ;
+using std::get                                    ;
+using std::has_unique_object_representations_v    ;
+using std::hash                                   ;
+using std::input_iterator_tag                     ;
+using std::integral                               ;
+using std::is_aggregate_v                         ;
+using std::is_arithmetic_v                        ;
+using std::is_base_of_v                           ;
+using std::is_const_v                             ;
+using std::is_empty_v                             ;
+using std::is_enum_v                              ;
+using std::is_integral_v                          ;
+using std::is_pointer_v                           ;
+using std::is_same_v                              ;
+using std::is_standard_layout_v                   ;
+using std::is_signed_v                            ;
+using std::is_trivial_v                           ;
+using std::is_trivially_copyable_v                ;
+using std::is_unsigned_v                          ;
+using std::is_void_v                              ;
+using std::jthread                                ;
+using std::latch                                  ;
+using std::launder                                ;
+using std::make_error_code                        ;
+using std::make_signed_t                          ;
+using std::make_unsigned_t                        ;
+using std::map                                    ;
+using std::memory_order_acq_rel                   ;
+using std::move                                   ;
+using std::mutex                                  ;
+using std::nullptr_t                              ;
+using std::numeric_limits                         ;
+using std::operator""s                            ;
+using std::pair                                   ;
+using std::partial_ordering                       ;
+using std::popcount                               ;
+using std::remove_const_t                         ;
+using std::remove_reference_t                     ;
+using std::rethrow_exception                      ;
+using std::set                                    ;
+using std::set_terminate                          ;
+using std::shared_mutex                           ;
+using std::size                                   ;
+using std::span                                   ;
+using std::stop_callback                          ;
+using std::stop_token                             ;
+using std::string                                 ;
+using std::string_view                            ;
+using std::strong_ordering                        ;
+using std::swap                                   ;
+using std::thread                                 ;
+using std::tie                                    ;
+using std::to_chars                               ;
+using std::to_chars_result                        ;
+using std::to_string                              ;
+using std::tuple                                  ;
+using std::underlying_type_t                      ;
+using std::unique_ptr                             ;
+using std::unordered_map                          ;
+using std::unordered_set                          ;
+using std::unsigned_integral                      ;
+using std::variant                                ;
+using std::vector                                 ;
 // keep std definitions hidden by global definitions to simplify usage
 using std::binary_search ;
 using std::lower_bound   ;
@@ -149,7 +150,7 @@ using std::stable_sort   ;
 // special cases
 using std::getline ; // getline also has a C version that would hide std::getline without explicit using
 
-#if HAS_UNREACHABLE
+#ifdef __cpp_lib_unreachable
 	using std::unreachable ;
 #else
 	[[noreturn]] inline void unreachable() {
@@ -163,6 +164,15 @@ using std::getline ; // getline also has a C version that would hide std::getlin
 			::abort() ;
 		#endif
 	}
+#endif
+
+#ifdef __cpp_lib_hardware_interference_size
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Winterference-size"
+	static constexpr size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size ;
+	#pragma GCC diagnostic pop
+#else
+	static constexpr size_t hardware_destructive_interference_size = 64                                          ; // provide a reasonable default value
 #endif
 
 #define self (*this)

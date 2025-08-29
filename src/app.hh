@@ -112,10 +112,10 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 	if (!sub_option) err_msg << "--version    : print version and exit\n"   ; // .
 	//
 	if (has_keys) {
-		size_t wk = 0 ; for( Key  k : iota(All<Key>) ) if (k!=Key::None) wk = ::max( wk , snake(k).size() ) ;
-		if (has_dflt_key) { err_msg << "keys (at most 1) :\n"                                  ; wk = ::max(wk,NoKeySz) ; }
-		else                err_msg << "keys (exactly 1) :\n"                                  ;
-		if (has_dflt_key)   err_msg << "<no key>" << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
+		size_t wk = 0 ; for( Key  k : iota(All<Key>) ) if (keys[+k].short_name) wk = ::max( wk , snake(k).size() ) ;
+		if (has_dflt_key) { err_msg << "keys (at most 1) :\n"                             ; wk = ::max(wk,NoKeySz) ; }
+		else                err_msg << "keys (exactly 1) :\n"                             ;
+		if (has_dflt_key)   err_msg << NoKey << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
 		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
 			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,wk) <<" : "<< keys[+k].doc <<'\n' ;
@@ -123,7 +123,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 	}
 	//
 	if (has_flags) {
-		size_t wf = 0 ; for( Flag f : iota(All<Flag>) ) wf = ::max( wf , snake(f).size() ) ;
+		size_t wf = 0 ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) wf = ::max( wf , snake(f).size() ) ;
 		err_msg << "flags (0 or more) :\n"  ;
 		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
@@ -146,8 +146,8 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
-	::umap<char,Key > key_map  ;     for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
-	::umap<char,Flag> flag_map ;     for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
+	::umap<char,Key > key_map  ;     key_map.reserve(N<Key >) ; for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
+	::umap<char,Flag> flag_map ;     key_map.reserve(N<Flag>) ; for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
 		bool has_key       = false ;
 		bool force_args    = false ;

@@ -343,7 +343,7 @@ public :
 			if ( ChkSimple && !real ) return ;
 			SolveReport sr {.real=real,.file_loc=file_loc} ;
 			try {
-				for( auto&& [file,a] : r._real_path.exec(sr) )
+				for( auto&& [file,a] : r._real_path.exec(::move(sr)) )
 					r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .file=::move(file) } ) ;
 			} catch (::string& e) { r.report_panic(::move(e)) ; }
 		}

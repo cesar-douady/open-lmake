@@ -231,8 +231,8 @@ namespace Engine {
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
 			::vector<Node> nodes ;
-			if (ecr.is_job()) nodes = mk_vector<Node>(ecr.job()->targets) ;
-			else              nodes = ecr.targets()                       ;
+			if (ecr.is_job()) nodes = mk_vector<Node>(ecr.job()->targets()) ;
+			else              nodes = ecr.targets()                         ;
 			//check
 			for( Node n : nodes )
 				if (n.no_trigger()==add) {
@@ -395,7 +395,7 @@ namespace Engine {
 			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
 			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
 		}
-		for( Node t : job->targets ) t->set_buildable() ;                      // necessary for pre_actions()
+		for( Node t : job->targets() ) t->set_buildable() ;                    // necessary for pre_actions()
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
@@ -468,7 +468,7 @@ namespace Engine {
 		}
 		{	res << ",\tstatic_targets = (" ;
 			First first ;
-			for( Target const& t : job->targets )
+			for( Target const& t : job->targets() )
 				if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) res << first("\n\t\t",",\t") << mk_py_str(t->name()) << "\n\t" ;
 			res << first("",",","") << ")\n" ;
 		}
@@ -884,7 +884,7 @@ namespace Engine {
 							}
 							//
 							push_entry("ids",ids,Color::None,false/*protect*/) ;
-							if ( Node n=job->asking ; +n ) {
+							if ( Node n=job->asking() ; +n ) {
 								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
 								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
 								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
@@ -947,7 +947,7 @@ namespace Engine {
 									/**/                   push_entry( "elapsed in job"  , ::to_string(double(end.stats.job   )) , Color::None , false ) ;
 									/**/                   push_entry( "elapsed total"   , ::to_string(double(digest.exec_time)) , Color::None , false ) ;
 									/**/                   push_entry( "used mem"        , cat        (end.stats.mem           ) , Color::None , false ) ;
-									/**/                   push_entry( "cost"            , ::to_string(double(job->cost       )) , Color::None , false ) ;
+									/**/                   push_entry( "cost"            , ::to_string(double(job->cost()     )) , Color::None , false ) ;
 									/**/                   push_entry( "total size"      , cat        (end.total_sz            ) , Color::None , false ) ;
 									if (end.compressed_sz) push_entry( "compressed size" , cat        (end.compressed_sz       ) , Color::None , false ) ;
 								} else {
@@ -964,7 +964,7 @@ namespace Engine {
 									/**/                   push_entry( "elapsed in job"  , end.stats.job   .short_str()                                                           ) ;
 									/**/                   push_entry( "elapsed total"   , digest.exec_time.short_str()                                                           ) ;
 									/**/                   push_entry( "used mem"        , mem_str                                          , overflow?Color::Warning:Color::None ) ;
-									/**/                   push_entry( "cost"            , job->cost       .short_str()                                                           ) ;
+									/**/                   push_entry( "cost"            , job->cost()     .short_str()                                                           ) ;
 									/**/                   push_entry( "total size"      , to_short_string_with_unit(end.total_sz     )+'B'                                       ) ;
 									if (end.compressed_sz) push_entry( "compressed size" , to_short_string_with_unit(end.compressed_sz)+'B'                                       ) ;
 								}
@@ -1121,7 +1121,7 @@ namespace Engine {
 							i++ ;
 						}
 				}
-				for( Target t : job->targets ) {
+				for( Target t : job->targets() ) {
 					::string tn  = t->name()        ;
 					auto     it  = rev_map.find(tn) ;
 					::string key ;
@@ -1134,7 +1134,7 @@ namespace Engine {
 					else            wt = ::max( wt ,           tn  .size() ) ;
 				}
 				NodeIdx ti = 0 ;
-				for( Target t : job->targets ) {
+				for( Target t : job->targets() ) {
 					bool            exists = t->crc!=Crc::None                        ;
 					Bool3           hide   = Maybe|!(exists||t.tflags[Tflag::Target]) ;
 					Color           c      = _node_color( t , hide )                  ;
@@ -1292,8 +1292,8 @@ namespace Engine {
 					for( Job j : Persistent::job_lst() ) {
 						if ( !verbose && _job_color(j)==Color::HiddenNote ) continue ;
 						//
-						if (ro.key==ReqKey::InvDeps) for( Dep    const& d : j->deps    ) { if (d==target) { jobs.push_back(j) ; break ; } }
-						else                         for( Target const& t : j->targets ) { if (t==target) { jobs.push_back(j) ; break ; } }
+						if (ro.key==ReqKey::InvDeps) for( Dep    const& d : j->deps      ) { if (d==target) { jobs.push_back(j) ; break ; } }
+						else                         for( Target const& t : j->targets() ) { if (t==target) { jobs.push_back(j) ; break ; } }
 					}
 					First  first ;
 					size_t wr    = 0    ;

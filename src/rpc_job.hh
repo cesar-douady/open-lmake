@@ -75,6 +75,7 @@ enum class JobMngtProc : uint8_t {
 	None
 ,	ChkDeps
 ,	ChkTargets // used in JobMngtRpcReply to signal a pre-existing target
+,	DepDirect
 ,	DepVerbose
 ,	LiveOut
 ,	AddLiveOut // report missing live_out info (Req) or tell job_exec to send missing live_out info (Reply)
@@ -429,90 +430,87 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
 	//cxtors & casts
-	constexpr DepDigestBase(                                                                    bool p=false ) :                                       parallel{p} { crc    ({}) ; }
-	constexpr DepDigestBase(          Accesses a ,                      Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc    ({}) ; }
-	constexpr DepDigestBase(          Accesses a , Crc             c  , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc    (c ) ; }
-	constexpr DepDigestBase(          Accesses a , FileInfo const& fi , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { sig    (fi) ; }
-	constexpr DepDigestBase(          Accesses a , DepInfo  const& di , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { crc_sig(di) ; }
-	constexpr DepDigestBase( Base b , Accesses a ,                      Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc    ({}) ; }
-	constexpr DepDigestBase( Base b , Accesses a , Crc             c  , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc    (c ) ; }
-	constexpr DepDigestBase( Base b , Accesses a , FileInfo const& fi , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { sig    (fi) ; }
-	constexpr DepDigestBase( Base b , Accesses a , DepInfo  const& di , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { crc_sig(di) ; }
-	// initializing _crc in all cases (which crc_date does not do) is important to please compiler (gcc-11 -O3)
-	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :         accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { crc_sig(dd) ; }
-	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b},accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { crc_sig(dd) ; }
+	constexpr DepDigestBase(                                                                             bool p=false ) :                                       parallel{p} { del_crc    (    ) ; }
+	constexpr DepDigestBase(          Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { del_crc    (    ) ; }
+	constexpr DepDigestBase(          Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { set_crc    (c ,e) ; }
+	constexpr DepDigestBase(          Accesses a , FileInfo const& fi ,          Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { set_sig    (fi  ) ; }
+	constexpr DepDigestBase(          Accesses a , DepInfo  const& di , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { set_crc_sig(di,e) ; }
+	constexpr DepDigestBase( Base b , Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { del_crc    (    ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { set_crc    (c ,e) ; }
+	constexpr DepDigestBase( Base b , Accesses a , FileInfo const& fi ,          Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { set_sig    (fi  ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , DepInfo  const& di , bool e , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { set_crc_sig(di,e) ; }
+	// initializing _crc in all cases (which crc_sig does not do) is important to please compiler (gcc-11 -O3)
+	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :         accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { set_crc_sig(dd) ; }
+	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b},accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { set_crc_sig(dd) ; }
 	//
-	constexpr bool operator==(DepDigestBase const& other) const {
-		if constexpr (HasBase) if (Base::operator!=(other) ) return false            ;
-		/**/                   if (dflags  !=other.dflags  ) return false            ;
-		/**/                   if (accesses!=other.accesses) return false            ;
-		/**/                   if (parallel!=other.parallel) return false            ;
-		/**/                   if (is_crc  !=other.is_crc  ) return false            ;
-		/**/                   if (is_crc                  ) return _crc==other._crc ;
-		/**/                                                 return _sig==other._sig ;
+	constexpr bool operator==(DepDigestBase const& ddb) const {
+		SWEAR(!sz    ,self) ;
+		SWEAR(!ddb.sz,ddb ) ;
+		if constexpr (HasBase) if (Base::operator!=(ddb) ) return false          ;
+		/**/                   if (dflags  !=ddb.dflags  ) return false          ;
+		/**/                   if (accesses!=ddb.accesses) return false          ;
+		/**/                   if (parallel!=ddb.parallel) return false          ;
+		/**/                   if (is_crc  !=ddb.is_crc  ) return false          ;
+		/**/                   if (is_crc                ) return _crc==ddb._crc ;
+		/**/                                               return _sig==ddb._sig ;
 	}
 	// accesses
 	constexpr Crc     crc        () const { SWEAR( is_crc) ; return _crc                       ; }
 	constexpr FileSig sig        () const { SWEAR(!is_crc) ; return _sig                       ; }
 	constexpr bool    never_match() const { SWEAR( is_crc) ; return _crc.never_match(accesses) ; }
 	//
-	constexpr void crc    (Crc             c ) { is_crc = true  ; _crc = c        ; }
-	constexpr void sig    (FileSig  const& s ) { is_crc = false ; _sig = s        ; }
-	constexpr void sig    (FileInfo const& fi) { is_crc = false ; _sig = fi.sig() ; }
-	constexpr void crc_sig(DepInfo  const& di) {
-		if (di.is_a<DepInfoKind::Crc>()) crc(di.crc()) ;
-		else                             sig(di.sig()) ;
+	constexpr void set_crc    ( Crc             c  , bool e ) { is_crc = true  ; _crc = c        ; err = e ; }
+	constexpr void set_sig    ( FileSig  const& s           ) { is_crc = false ; _sig = s        ;           }
+	constexpr void set_sig    ( FileInfo const& fi          ) { is_crc = false ; _sig = fi.sig() ;           }
+	constexpr void set_crc_sig( DepInfo  const& di , bool e ) {
+		if (di.is_a<DepInfoKind::Crc>()) set_crc(di.crc(),e) ;
+		else                             set_sig(di.sig()     ) ;
 	}
-	template<class B2> constexpr void crc_sig(DepDigestBase<B2> const& dd) {
+	template<class B2> constexpr void set_crc_sig( DepDigestBase<B2> const& dd ) {
 		if (!dd.accesses) return ;
-		if ( dd.is_crc  ) crc(dd.crc()) ;
-		else              sig(dd.sig()) ;
-	}
+		if ( dd.is_crc  ) set_crc(dd.crc(),dd.err) ;
+		else              set_sig(dd.sig()       ) ;
+	} //!                                                                                                                                                  err
+	constexpr void del_crc        (                 ) {                                                                                     set_crc    ({},false) ; }
+	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && dflags[Dflag::Verbose] )) set_crc    (c ,false) ; } // only set crc if err is useless
+	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && dflags[Dflag::Verbose] )) set_crc_sig(di,false) ; } // .
 	// services
-	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                      // assumes ddb has been accessed after us
+	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                           // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR(Base::operator==(ddb),self,ddb) ;
+		/**/                   SWEAR(!sz                  ,self    ) ;
+		/**/                   SWEAR(!ddb.sz              ,ddb     ) ;
 		if (!accesses) {
-			crc_sig(ddb) ;
+			set_crc_sig(ddb) ;
 			parallel = ddb.parallel ;
 		} else if (+ddb.accesses) {
-			if      (is_crc!=ddb.is_crc)                         crc({}) ;               // destroy info if digests disagree
-			else if (is_crc            ) { if (crc()!=ddb.crc()) crc({}) ; }             // .
-			else                         { if (sig()!=ddb.sig()) crc({}) ; }             // .
+			if      (is_crc!=ddb.is_crc)                         del_crc() ;   // destroy info if digests disagree
+			else if (is_crc            ) { if (crc()!=ddb.crc()) del_crc() ; } // .
+			else                         { if (sig()!=ddb.sig()) del_crc() ; } // .
 			// parallel is kept untouched as ddb follows us
 		}
 		dflags   |= ddb.dflags   ;
 		accesses |= ddb.accesses ;
 		return self ;
 	}
-	constexpr void tag(Tag tag_) {
-		SWEAR(!is_crc,self) ;
-		if (!_sig) { crc(Crc::None) ; return ; }                                         // even if file appears, the whole job has been executed seeing the file as absent
-		switch (tag_) {
-			case Tag::Reg  :
-			case Tag::Exe  :
-			case Tag::Lnk  : if (!Crc::s_sense(accesses,tag_)) crc(tag_) ; break ;       // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
-			case Tag::None :
-			case Tag::Dir  : if (+_sig                       ) crc({}  ) ; break ;
-		DF}                                                                              // NO_COV
-	}
 	// data
 	// START_OF_VERSIONING
-	static constexpr uint8_t NSzBits = 5 ;                                               // XXX! : set to 8 by making room by storing accesses on 3 bits rather than 8
-	Accesses accesses         ;                                                          // 3<8 bits
-	Dflags   dflags           = DflagsDflt ;                                             // 5<8 bits
-	bool     parallel:1       = false      ;                                             //   1 bit , dep is parallel with prev dep
-	bool     is_crc  :1       = true       ;                                             //   1 bit
-	uint8_t  sz      :NSzBits = 0          ;                                             //   5 bits, number of items in chunk following header (semantically before)
-	bool     hot     :1       = false      ;                                             //   1 bit , if true <= file date was very close from access date (within date granularity)
-	Accesses chunk_accesses   ;                                                          // 3<8 bits
+	static constexpr uint8_t NSzBits = 8 ;
+	uint8_t       sz                       = 0          ;                                     //   8 bits, number of items in chunk following header (semantically before)
+	Accesses      accesses                 ;                                                  // 3<8 bits
+	Dflags        dflags                   = DflagsDflt ;                                     // 5<8 bits
+	bool          parallel      :1         = false      ;                                     //   1 bit , dep is parallel with prev dep
+	bool          is_crc        :1         = true       ;                                     //   1 bit
+	bool          hot           :1         = false      ;                                     //   1 bit , if true <= file date was very close from access date (within date granularity)
+	Accesses::Val chunk_accesses:N<Access> = 0          ;                                     //   3 bits
+	bool          err           :1         = false      ;                                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
 private :
 	union {
-		Crc     _crc = {} ;                                                              // ~45<64 bits
-		FileSig _sig ;                                                                   // ~40<64 bits
+		Crc     _crc = {} ;                                                                   // ~45<64 bits
+		FileSig _sig ;                                                                        // ~40<64 bits
 	} ;
 	// END_OF_VERSIONING
 } ;
-template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {    // START_OF_NO_COV
+template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {         // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                                          os << "D("                           ;
 	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
@@ -523,7 +521,7 @@ template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& d
 	else if      ( +dd.accesses && +dd.crc()  ) { os <<sep<< dd.crc()                  ; sep = "," ; }
 	if           (  dd.hot                    )   os <<sep<< "hot"                     ;
 	return                                        os <<')'                             ;
-}                                                                                        // END_OF_NO_COV
+}                                                                                             // END_OF_NO_COV
 
 using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
@@ -830,7 +828,18 @@ private :
 
 struct ExecTraceEntry {
 	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
+	// cxtor & casts
+	// mimic aggregate cxtors as clang would not accept emplace_back if not explicitely provided
+	ExecTraceEntry() = default ;
+	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
+	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
 	// services
+	template<IsStream T> void serdes(T& s) {
+		::serdes(s,date        ) ;
+		::serdes(s,comment     ) ;
+		::serdes(s,comment_exts) ;
+		::serdes(s,file        ) ;
+	}
 	::string step() const {
 		if (+comment_exts) return cat     (snake(comment),comment_exts) ;
 		else               return ::string(snake(comment)             ) ;
@@ -899,6 +908,7 @@ struct JobMngtRpcReq : JobRpcReq {
 			case Proc::LiveOut    :
 			case Proc::AddLiveOut :                                                                                                ::serdes(s,txt) ;                       break ;
 			case Proc::ChkDeps    : ::serdes(s,fd) ; ::serdes(s,targets) ; ::serdes(s,deps) ;                                                                              break ;
+			case Proc::DepDirect  :
 			case Proc::DepVerbose : ::serdes(s,fd) ;                       ::serdes(s,deps) ;                                                                              break ;
 			case Proc::Decode     : ::serdes(s,fd) ;                                          ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ;                       break ;
 			case Proc::Encode     : ::serdes(s,fd) ;                                          ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ; ::serdes(s,min_len) ; break ;
@@ -908,11 +918,11 @@ struct JobMngtRpcReq : JobRpcReq {
 	Proc                   proc    = Proc::None ;
 	Fd                     fd      = {}         ; // fd to which reply must be forwarded
 	::vmap_s<TargetDigest> targets = {}         ; // proc==ChkDeps
-	::vmap_s<DepDigest   > deps    = {}         ; // proc==ChkDeps|DepVerbose
-	::string               ctx     = {}         ; // proc==                           Decode|Encode
-	::string               file    = {}         ; // proc==                           Decode|Encode
-	::string               txt     = {}         ; // proc==                   LiveOut|Decode|Encode
-	uint8_t                min_len = 0          ; // proc==                                  Encode
+	::vmap_s<DepDigest   > deps    = {}         ; // proc==ChkDeps|DepDirect|DepVerbose
+	::string               ctx     = {}         ; // proc==        Decode|Encode
+	::string               file    = {}         ; // proc==        Decode|Encode
+	::string               txt     = {}         ; // proc==LiveOut|Decode|Encode
+	uint8_t                min_len = 0          ; // proc==               Encode
 } ;
 
 struct JobMngtRpcReply {
@@ -928,6 +938,7 @@ struct JobMngtRpcReply {
 			case Proc::Kill       :
 			case Proc::Heartbeat  :
 			case Proc::AddLiveOut :                                                                        break ;
+			case Proc::DepDirect  : ::serdes(s,fd) ; ::serdes(s,ok ) ;                                     break ;
 			case Proc::DepVerbose : ::serdes(s,fd) ; ::serdes(s,dep_infos) ;                               break ;
 			case Proc::ChkDeps    :
 			case Proc::ChkTargets : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ;                   break ;
@@ -938,11 +949,11 @@ struct JobMngtRpcReply {
 	// data
 	Proc                     proc      = {}    ;
 	SeqId                    seq_id    = 0     ;
-	Fd                       fd        = {}    ; // proc == ChkDeps|DepVerbose|Decode|Encode , fd to which reply must be forwarded
-	::vector<DepVerboseInfo> dep_infos = {}    ; // proc ==         DepVerbose
-	::string                 txt       = {}    ; // proc == ChkDeps|           Decode|Encode , reason for ChkDeps, value for Decode, code for Encode
-	Crc                      crc       = {}    ; // proc ==                    Decode|Encode , crc of txt
-	Bool3                    ok        = Maybe ; // proc == ChkDeps|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	Fd                       fd        = {}    ; // proc == ChkDeps|DepDirect|DepVerbose|Decode|Encode , fd to which reply must be forwarded
+	::vector<DepVerboseInfo> dep_infos = {}    ; // proc ==                   DepVerbose
+	::string                 txt       = {}    ; // proc == ChkDeps|                     Decode|Encode , reason for ChkDeps, value for Decode, code for Encode
+	Crc                      crc       = {}    ; // proc ==                              Decode|Encode , crc of txt
+	Bool3                    ok        = Maybe ; // proc == ChkDeps|DepDirect|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
 } ;
 
 struct SubmitAttrs {
@@ -1010,14 +1021,14 @@ struct JobInfo {
 	}
 	void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
 	//
-	void update_digest(                    ) ;       // update crc in digest from dep_crcs
-	void cache_cleanup(                    ) ;       // clean up info before uploading to cache
+	void update_digest(                    ) ;         // update crc in digest from dep_crcs
+	void cache_cleanup(                    ) ;         // clean up info before uploading to cache
 	void chk          (bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
-	JobInfoStart        start    ;
-	JobEndRpcReq        end      ;
-	::vector<Hash::Crc> dep_crcs ;                   // optional, if not provided in end.digest.deps
+	JobInfoStart                            start    ;
+	JobEndRpcReq                            end      ;
+	::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps
 	// END_OF_VERSIONING
 } ;
 

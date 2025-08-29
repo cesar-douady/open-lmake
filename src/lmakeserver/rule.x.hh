@@ -55,7 +55,8 @@ enum class RuleCrcState : uint8_t {
 
 enum class Special : uint8_t {
 	None                       // value 0 reserved to mean not initialized
-,	Req
+,	Dep                        // used for synthetized jobs when asking for direct dep
+,	Req                        // used for synthetized jobs representing a Req
 ,	InfiniteDep
 ,	InfinitePath
 ,	Plain
@@ -64,8 +65,9 @@ enum class Special : uint8_t {
 ,	GenericSrc
 //
 // aliases
-,	NShared = Plain            // <NShared means there is a single such rule
-,	HasJobs = Plain            // <=HasJobs means jobs can refer to this rule
+,	NShared    = Plain         // <NShared means there is a single such rule
+,	HasJobs    = Plain         // <=HasJobs means jobs can refer to this rule
+,	HasTargets = InfiniteDep   // >=HasTarget means targets field exists
 } ;
 inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
 

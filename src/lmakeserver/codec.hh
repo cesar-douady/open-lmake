@@ -43,21 +43,24 @@ namespace Codec {
 			Proc       p
 		,	JobIdx     j
 		,	Fd         fd_
+		,	SeqId      id
 		,	::string&& code
 		,	::string&& f
 		,	::string&& c
 		) :
-			proc {        p     }
-		,	job  {        j     }
-		,	fd   {        fd_   }
-		,	file { ::move(f   ) }
-		,	ctx  { ::move(c   ) }
-		,	txt  { ::move(code) }
+			proc   {        p     }
+		,	job    {        j     }
+		,	fd     {        fd_   }
+		,	seq_id {        id    }
+		,	file   { ::move(f   ) }
+		,	ctx    { ::move(c   ) }
+		,	txt    { ::move(code) }
 		{ SWEAR(p==Proc::Decode) ; }
 		Closure(
 			Proc       p
 		,	JobIdx     j
 		,	Fd         fd_
+		,	SeqId      id
 		,	::string&& val
 		,	::string&& f
 		,	::string&& c
@@ -67,6 +70,7 @@ namespace Codec {
 		,	_min_len {        ml   }
 		,	job      {        j    }
 		,	fd       {        fd_  }
+		,	seq_id   {        id   }
 		,	file     { ::move(f  ) }
 		,	ctx      { ::move(c  ) }
 		,	txt      { ::move(val) }
@@ -77,15 +81,16 @@ namespace Codec {
 		JobMngtRpcReply decode() const ;
 		JobMngtRpcReply encode() const ;
 		// data
-		Proc proc = {}/*garbage*/ ;
+		Proc proc = {} ;
 	private :
-		uint8_t _min_len = 0/*garbage*/ ;
+		uint8_t _min_len = 0 ;
 	public :
-		JobIdx   job  ;
-		Fd       fd   ;
-		::string file ;
-		::string ctx  ;
-		::string txt  ;
+		JobIdx   job    = 0 ;
+		Fd       fd     ;
+		SeqId    seq_id = 0 ;
+		::string file   ;
+		::string ctx    ;
+		::string txt    ;
 	} ;
 
 	struct ValMrkr  {} ;
@@ -94,7 +99,7 @@ namespace Codec {
 	using Val  = Vector::Simple<CodecIdx,char,ValMrkr > ;
 	using Code = Vector::Simple<CodecIdx,char,CodeMrkr> ;
 
-	extern StaticUniqPtr<QueueThread<Codec::Closure>> g_codec_queue ;
+	extern StaticUniqPtr<QueueThread<Closure>> g_codec_queue ;
 
 }
 

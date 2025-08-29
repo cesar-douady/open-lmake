@@ -23,7 +23,7 @@ RepairDigest repair(::string const& from_dir) {
 	RepairDigest res           ;
 	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , FdAction::Create } ;
 	//
-	::umap<Crc,Rule> rule_tab ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
+	::umap<Crc,Rule> rule_tab ; rule_tab.reserve(Rule::s_rules->size()) ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
 	//
 	for( auto const& [jd,_] : walk(from_dir,TargetTags,from_dir) ) {
 		{	JobInfo job_info { jd } ;
@@ -60,14 +60,14 @@ RepairDigest repair(::string const& from_dir) {
 				Dep dep { Node(New,dn) , dd } ;
 				if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; }             // dep could not be identified when job ran, hum, better not to repair that
 				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; }             // no valid crc, no interest to repair as job will rerun anyway
-				deps.emplace_back(dep) ;
+				deps.push_back(dep) ;
 			}
 			// set job
 			Rule::RuleMatch m   { rule , ::move(job_info.start.stems) } ; if ( ::string msg=m.reject_msg().first ; +msg ) { trace("rejected"         ,jd,msg) ; goto NextJob ; }
 			Job             job { ::move(m)                           } ; if ( !job                                     ) { trace("no_job_from_match",jd    ) ; goto NextJob ; }
 			//
-			job->targets.assign(targets) ;
-			job->deps   .assign(deps   ) ;
+			job->targets().assign(targets) ;
+			job->deps     .assign(deps   ) ;
 			job->status = job_info.end.digest.status ;
 			job->set_exec_ok() ;                                                                                       // pretend job just ran
 			// set target actual_job's

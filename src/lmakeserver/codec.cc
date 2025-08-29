@@ -284,7 +284,8 @@ namespace Codec {
 			case JobMngtProc::Decode : jmrr = cc.decode() ; break ;
 			case JobMngtProc::Encode : jmrr = cc.encode() ; break ;
 		DF}                                                         // NO_COV
-		jmrr.fd = cc.fd ;                                           // seq_id will be filled in by send_reply
+		jmrr.fd     = cc.fd     ;
+		jmrr.seq_id = cc.seq_id ;
 		Backends::send_reply( cc.job , ::move(jmrr) ) ;
 	}
 

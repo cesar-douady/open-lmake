@@ -415,17 +415,6 @@ if [ "$OBJCOPY" ] ; then
 fi
 
 #
-# UNREACHABLE (HAS_UNREACHABLE)
-#
-cat <<"EOF" >unreachable.cc
-	#include <utility>
-	int main() {
-		std::unreachable() ;
-	}
-EOF
-HAS_UNREACHABLE=$(ok cc -std=$CXX_STD -o /dev/null unreachable.cc) # check if std::unreachable is available in lib
-
-#
 # ZSTD/ZLIB (HAS_ZSTD+HAS_ZLIB)
 #
 cat <<"EOF" >zlib.cc
@@ -513,7 +502,6 @@ cat >$H_FILE <<-EOF
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
-	#define HAS_UNREACHABLE             $HAS_UNREACHABLE
 	#define HAS_ZLIB                    $HAS_ZLIB
 	#define HAS_ZSTD                    $HAS_ZSTD
 	#define LD_SO_LIB                   "$LD_SO_LIB"

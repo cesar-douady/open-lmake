@@ -161,18 +161,18 @@ void Child::spawn() {
 		_child_env     = new const char*[n_env+1] ;
 		_own_child_env = true                     ;
 		size_t i = 0 ;
-		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
-		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
-		/**/                                                                               _child_env[i  ] = nullptr                   ;
+		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(cat(k,'=',v)) ; _child_env[i++] = env_vector.back().c_str() ; }
+		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(cat(k,'=',v)) ; _child_env[i++] = env_vector.back().c_str() ; }
+		/**/                                                                                    _child_env[i  ] = nullptr                   ;
 	} else if (add_env) {
 		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
 		env_vector.reserve(add_env->size()) ;
 		_child_env     = new const char*[n_env+1] ;
 		_own_child_env = true                     ;
 		size_t i = 0 ;
-		for( char** e=environ ; *e ; e++  )                                   _child_env[i++] = *e                        ;
-		for( auto const& [k,v] : *add_env ) { env_vector.push_back(k+'='+v) ; _child_env[i++] = env_vector.back().c_str() ; }
-		/**/                                                                  _child_env[i  ] = nullptr                   ;
+		for( char** e=environ ; *e ; e++  )                                        _child_env[i++] = *e                        ;
+		for( auto const& [k,v] : *add_env ) { env_vector.push_back(cat(k,'=',v)) ; _child_env[i++] = env_vector.back().c_str() ; }
+		/**/                                                                       _child_env[i  ] = nullptr                   ;
 	} else {
 		_child_env = const_cast<const char**>(environ) ;
 	}

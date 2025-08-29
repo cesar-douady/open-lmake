@@ -63,7 +63,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		else if (+e          ) exit(Rc::Fail,"cannot connect to server at",g_service_start,':',e) ; // this may be a server config problem, better to report if verbose
 		else                   exit(Rc::Fail,"cannot connect to server at",g_service_start      ) ; // .
 	}
-	g_exec_trace->push_back({ New/*date*/ , Comment::startInfo , CommentExt::Reply }) ;
+	g_exec_trace->emplace_back( New/*date*/ , Comment::startInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
 }
@@ -100,7 +100,7 @@ Digest analyze(Status status=Status::New) {                                     
 		Accesses accesses    = info.accesses()                  ;
 		bool     was_written = info.first_write()<Pdate::Future ;
 		//
-		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                    // . is only reported when reading dir but otherwise is an external file
+		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                            // . is only reported when reading dir but otherwise is an external file
 		//
 		Pdate first_read = info.first_read()                                                    ;
 		bool  was_read   = first_read        <Pdate::Future                                     ;
@@ -114,28 +114,28 @@ Digest analyze(Status status=Status::New) {                                     
 		}
 		// handle deps
 		if (is_dep) {
-			DepDigest dd       { accesses , info.dep_info , flags.dflags } ;
-			bool      unstable = false                                     ;
+			DepDigest dd       { accesses , info.dep_info , false/*err*/ , flags.dflags } ;
+			bool      unstable = false                                                    ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
 			dd.hot          = info.dep_info.is_a<DepInfoKind::Info>() && !info.dep_info.info().date.avail_at(first_read,g_start_info.ddate_prec) ;
 			dd.parallel     = first_read<Pdate::Future && first_read==prev_first_read                                                            ;
 			prev_first_read = first_read                                                                                                         ;
 			// try to transform date into crc as far as possible
-			if      ( dd.is_crc                         )   {}                                       // already a crc => nothing to do
-			else if ( !accesses                         )   {}                                       // no access     => nothing to do
-			else if ( !info.seen()                      ) { dd.crc(Crc::None) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
-			else if ( !dd.sig()                         ) { dd.crc({}       ) ; unstable = true  ; } // file was not present initially but was seen, it is incoherent even if not present finally
-			else if ( was_written                       )   {}                                       // cannot check stability as we wrote to it, clash will be detected in server if any
-			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.crc({}       ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, dont know what has been read
-			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.crc(sig.tag()) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			if      ( dd.is_crc                         )   {}                                               // already a crc => nothing to do
+			else if ( !accesses                         )   {}                                               // no access     => nothing to do
+			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
+			else if ( !dd.sig()                         ) { dd.del_crc(             ) ; unstable = true  ; } // file was absent initially but was seen, it is incoherent even if absent finally
+			else if ( was_written                       )   {}                                               // cannot check stability, clash will be detected in server if any
+			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc(             ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, no stable content
+			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag()) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back( file , dd ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (status!=Status::New) {                                                               // only trace for user at end of job as intermediate analyses are of marginal interest for user
-				//                                          Pdate                    CommentExt
-				if      (unstable) g_exec_trace->push_back({ New , Comment::unstable , {}     , file }) ;
-				else if (dd.hot  ) g_exec_trace->push_back({ New , Comment::hot      , {}     , file }) ;
+			if (status!=Status::New) { // only trace for user at end of job as intermediate analyses are of marginal interest for user
+				//                                            Pdate
+				if      (unstable) g_exec_trace->emplace_back( New , Comment::unstable , CommentExts() , file ) ;
+				else if (dd.hot  ) g_exec_trace->emplace_back( New , Comment::hot      , CommentExts() , file ) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
@@ -148,22 +148,22 @@ Digest analyze(Status status=Status::New) {                                     
 			bool         unlnk      = !sig                                                                                           ;
 			bool         compulsery = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
 			//
-			if ( is_dep                                         ) td.tflags    |= Tflag::Incremental ;               // if is_dep, previous target state is guaranteed by being a dep, use it
+			if ( is_dep                                         ) td.tflags    |= Tflag::Incremental ;                 // if is_dep, previous target state is guaranteed by being a dep, use it
 			if ( !td.tflags[Tflag::Incremental]                 ) td.pre_exist  = info.seen()        ;
-			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                  // if SourceOk => ok to simultaneously be a dep and a target
+			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                    // if SourceOk => ok to simultaneously be a dep and a target
 				const char* written_msg = unlnk ? "unlinked" : was_written ? "written to" : "declared as target" ;
-				if (flags.dflags[Dflag::Static]) { //!  date
-					if (unlnk) g_exec_trace->push_back({ New , Comment::staticDepAndTarget , CommentExt::Unlnk , file }) ;
-					else       g_exec_trace->push_back({ New , Comment::staticDepAndTarget , {}                , file }) ;
+				if (flags.dflags[Dflag::Static]) { //!    date
+					if (unlnk) g_exec_trace->emplace_back( New , Comment::staticDepAndTarget , CommentExt::Unlnk , file ) ;
+					else       g_exec_trace->emplace_back( New , Comment::staticDepAndTarget , CommentExts()     , file ) ;
 					res.msg << "static dep was "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
 					if (!flags.extra_tflags[ExtraTflag::SourceOk]) {
 						res.msg << "  if file is a source, consider calling :\n"                                  ;
 						res.msg << "       lmake.target("<<mk_file(file,FileDisplay::Py   )<<",source_ok=True)\n" ;
 						res.msg << "    or ltarget -s "  <<mk_file(file,FileDisplay::Shell)<<'\n'                 ;
 					}
-				} else if (!unlnk) {                                                                                 // if file is unlinked, ignore writing to it even if not allowed ...
-					if (!allow) {                                                                                    // ... as it is common practice to write besides the final target and mv to it
-						g_exec_trace->push_back({ New/*date*/ , Comment::unexpectedTarget , CommentExt() , file }) ;
+				} else if (!unlnk) {                                                                                   // if file is unlinked, ignore writing to it even if not allowed ...
+					if (!allow) {                                                                                      // ... as it is common practice to write besides the final target and mv to it
+						g_exec_trace->emplace_back( New/*date*/ , Comment::unexpectedTarget , CommentExts() , file ) ;
 						res.msg << "file was unexpectedly "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
 					} else {
 						bool        read_lnk = false   ;
@@ -173,7 +173,7 @@ Digest analyze(Status status=Status::New) {                                     
 						else if (accesses[Access::Stat]       )   read = "stat'ed"     ;
 						else if (flags.dflags[Dflag::Required])   read = "required"    ;
 						else                                      read = "accessed"    ;
-						g_exec_trace->push_back({ New/*date*/ , Comment::depAndTarget , CommentExt() , file }) ;
+						g_exec_trace->emplace_back( New/*date*/ , Comment::depAndTarget , CommentExts() , file ) ;
 						/**/          res.msg << "file was "<<read<<" and later "<<written_msg<<" : "<<mk_file(file)<<'\n'               ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
@@ -195,7 +195,7 @@ Digest analyze(Status status=Status::New) {                                     
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}
-	g_exec_trace->push_back({ New/*date*/ , Comment::analyzed }) ;
+	g_exec_trace->emplace_back( New/*date*/ , Comment::analyzed ) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -432,7 +432,7 @@ void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeI
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
-	g_exec_trace->push_back({ New/*date*/ , Comment::computedCrcs }) ;
+	g_exec_trace->emplace_back( New/*date*/ , Comment::computedCrcs ) ;
 	return msg ;
 }
 
@@ -458,7 +458,7 @@ int main( int argc , char* argv[] ) {
 	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead             ;
 	g_exec_trace        = &end_report.exec_trace     ;
-	g_exec_trace->push_back({ start_overhead , Comment::startOverhead }) ;
+	g_exec_trace->emplace_back( start_overhead , Comment::startOverhead ) ;
 	//
 	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {                                          // START_OF_NO_COV defensive programming
 		get_start_info(server_fd) ;                                                                 // getting start_info is useless, but necessary to be allowed to report end
@@ -491,7 +491,7 @@ int main( int argc , char* argv[] ) {
 			goto End ;
 		}                                                                                                                               // END_OF_NO_COV
 		Pdate washed { New } ;
-		g_exec_trace->push_back({ washed , Comment::washed }) ;
+		g_exec_trace->emplace_back( washed , Comment::washed ) ;
 		//
 		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
 		{	auto it = g_start_info.env.begin() ;
@@ -545,7 +545,7 @@ int main( int argc , char* argv[] ) {
 						if      (a==MountAction::Write) { FileInfo fi{       } ; g_gather.new_access(washed,::move(sr.real),{.write=Yes             },fi,Yes,Comment::mount,CommentExt::Write) ; }
 					}
 				}
-				g_exec_trace->push_back({ New/*date*/ , Comment::enteredNamespace }) ;
+				g_exec_trace->emplace_back( New/*date*/ , Comment::enteredNamespace ) ;
 			}
 			g_start_info.job_space.update_env(
 				/*inout*/cmd_env
@@ -588,7 +588,7 @@ int main( int argc , char* argv[] ) {
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
 				DepDigest& dd = dd_edf.first ;
 				dd.accesses = ~Accesses() ;
-				if ( dd.is_crc && !dd.crc().valid() ) dd.sig(FileSig(d)) ;
+				if ( dd.is_crc && !dd.crc().valid() ) dd.set_sig(FileSig(d)) ;
 			}
 		//
 		for( auto& [d,dd_edf] : g_start_info.deps ) {
@@ -596,7 +596,7 @@ int main( int argc , char* argv[] ) {
 			ExtraDflags& edf      = dd_edf.second         ;
 			bool         is_stdin = d==g_start_info.stdin ;
 			if (is_stdin) {                                                                                   // stdin is read
-				if (!dd.accesses) dd.sig(FileInfo(d)) ;                                                       // record now if not previously accessed
+				if (!dd.accesses) dd.set_sig(FileInfo(d)) ;                                                   // record now if not previously accessed
 				dd.accesses |= Access::Reg ;
 			}
 			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::stdin:Comment::staticDep ) ;
@@ -660,7 +660,7 @@ int main( int argc , char* argv[] ) {
 				end_report.msg_stderr.msg <<"cannot cache : "<<e<<'\n' ;
 			}
 			CommentExts ces ; if (!upload_key) ces |= CommentExt::Err ;
-			g_exec_trace->push_back({ New/*date*/ , Comment::uploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) }) ;
+			g_exec_trace->emplace_back( New/*date*/ , Comment::uploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
 		}
 		//
 		if (+g_start_info.autodep_env.file_sync) {                                                                                   // fast path : avoid listing targets & guards if !file_sync
@@ -697,7 +697,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->push_back({ end_overhead , Comment::endOverhead , {}/*CommentExt*/ , cat(end_report.digest.status) }) ;
+			g_exec_trace->emplace_back( end_overhead , Comment::endOverhead , CommentExts() , cat(end_report.digest.status) ) ;
 			end_report.digest.exec_time      = end_overhead - start_overhead ;                                                       // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;

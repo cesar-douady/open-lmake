@@ -16,16 +16,15 @@ using namespace Engine ;
 namespace Backends {
 
 	void send_reply( Job job , JobMngtRpcReply&& jmrr ) {
+		if (!jmrr.proc) return ;
+		//
 		Trace trace("send_reply",job) ;
-		TraceLock lock { Backend::_s_mutex , "send_reply" } ;
-		auto      it   = Backend::_s_start_tab.find(job)    ;
-		if (it==Backend::_s_start_tab.end()) return ;         // job is dead without waiting for reply, curious but possible
-		Backend::StartEntry const& e = it->second ;
+		TraceLock                  lock { Backend::_s_mutex , "send_reply" } ;
+		auto                       it   = Backend::_s_start_tab.find(job)    ; if (it==Backend::_s_start_tab.end()) return ; // job is dead without waiting for reply, curious but possible
+		Backend::StartEntry const& e    = it->second                         ; if (jmrr.seq_id!=e.conn.seq_id     ) return ; // .
 		try {
-			jmrr.seq_id = e.conn.seq_id ;
-			ClientSockFd fd( e.conn.host , e.conn.port ) ;
-			OMsgBuf().send( fd , jmrr ) ;
-		} catch (...) {                                       // if we cannot connect to job, assume it is dead while we processed the request
+			OMsgBuf().send( ClientSockFd(e.conn.host,e.conn.port) , jmrr ) ;
+		} catch (...) {                                                      // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config->network_delay
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(job,e.conn.host,e.start_date) }
@@ -91,16 +90,16 @@ namespace Backends {
 	}
 
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {
-		Lock        lock { _mutex }             ;
-		Delay::Tick dly  = Delay(j->cost).val() ;
-		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost,j->exec_time,dly) ;
+		Lock        lock { _mutex }               ;
+		Delay::Tick dly  = Delay(j->cost()).val() ;
+		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost(),j->exec_time(),dly) ;
 		for( Req r : reqs ) {
 			SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , r , dly , j ) ;
 			_queued_cost[+r] -= dly ;
 		}
 		_refresh() ;
 		Tokens tokens = j->tokens1+1 ;
-		if ( Delay jet=Delay(j->exec_time).round_msec() ; +jet ) { // schedule job based on best estimate
+		if ( Delay jet=Delay(j->exec_time()).round_msec() ; +jet ) { // schedule job based on best estimate
 			Pdate jed = _ref_date + jet ;
 			_eta_tab.try_emplace(j  ,jed) ;
 			_eta_set.emplace    (jed,j  ) ;
@@ -506,11 +505,11 @@ namespace Backends {
 				entry.conn.port     = jsrr.port                         ;
 				entry.conn.small_id = jis.start.small_id                ;
 			}
-			bool report_now =                                                // dont defer long jobs or if a message is to be delivered to user
+			bool report_now =                                                  // dont defer long jobs or if a message is to be delivered to user
 					+pre_action_warnings
 				||	+start_msg_err.stderr
-				||	is_retry(submit_attrs.reason.tag)                        // emit retry start message
-				||	Delay(job->exec_time)>=start_ancillary_attrs.start_delay // if job is probably long, emit start message immediately
+				||	is_retry(submit_attrs.reason.tag)                          // emit retry start message
+				||	Delay(job->exec_time())>=start_ancillary_attrs.start_delay // if job is probably long, emit start message immediately
 			;
 			Job::s_record_thread.emplace( job , ::move(jis) ) ;
 			trace("started",job_exec,jis.start) ;
@@ -536,6 +535,7 @@ namespace Backends {
 			case JobMngtProc::None       :                                                  // if connection is lost, ignore it
 			case JobMngtProc::Heartbeat  :                        return false/*keep_fd*/ ; // received heartbeat probe from job, just receive and ignore
 			case JobMngtProc::ChkDeps    :
+			case JobMngtProc::DepDirect  :
 			case JobMngtProc::DepVerbose :
 			case JobMngtProc::Decode     :
 			case JobMngtProc::Encode     : SWEAR(+fd,jmrr.proc) ; break                   ; // fd is needed to reply
@@ -554,22 +554,23 @@ namespace Backends {
 			switch (jmrr.proc) {
 				case JobMngtProc::LiveOut    : //!vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				case JobMngtProc::AddLiveOut : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , ::move(jmrr.txt) ) ; break ;
-				//                          vvv^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvv
-				case JobMngtProc::Decode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
-				case JobMngtProc::Encode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
-				//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                          vvv^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				case JobMngtProc::Decode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , jmrr.seq_id , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
+				case JobMngtProc::Encode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , jmrr.seq_id , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
+				//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				case JobMngtProc::ChkDeps : {
 					::vmap<Node,TargetDigest> targets ; targets.reserve(jmrr.targets.size()) ; for( auto const& [t,td] : jmrr.targets ) targets.emplace_back( Node(New,t) , td ) ;
 					::vector<Dep>             deps    ; deps   .reserve(jmrr.deps   .size()) ; for( auto const& [d,dd] : jmrr.deps    ) deps   .emplace_back( Node(New,d) , dd ) ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , ::move(targets) , ::move(deps) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , jmrr.seq_id , ::move(targets) , ::move(deps) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				} break ;
+				case JobMngtProc::DepDirect  :
 				case JobMngtProc::DepVerbose : {
 					::vector<Dep> deps ; deps.reserve(jmrr.deps.size()) ; for( auto const& [d,dd] : jmrr.deps ) deps.emplace_back( Node(New,d) , dd ) ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , ::move(deps) ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , jmrr.fd , jmrr.seq_id , ::move(deps) ) ;
+					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				} break ;
 			DF}                                                                             // NO_COV
 		}

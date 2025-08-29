@@ -195,7 +195,7 @@ namespace Engine {
 		bool up_to_date () const ;
 		void acquire_crc() ;
 	} ;
-	static_assert(sizeof(Dep)==16) ;
+	static_assert(sizeof(Dep)==16) ; // ensure size is a power of 2 for improved cache perf
 
 	union GenericDep {
 		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
@@ -243,31 +243,31 @@ namespace Engine {
 			// - if i_chunk==hdr->sz : refer to header
 			SWEAR(hdr) ;
 			if (i_chunk==hdr->hdr.sz) return hdr->hdr ;
-			static_cast<Node&>(tmpl) = hdr[1].chunk[i_chunk]   ;
-			tmpl.accesses            = hdr->hdr.chunk_accesses ;
+			static_cast<Node&>(tmpl) = hdr[1].chunk[i_chunk]             ;
+			tmpl.accesses            = Accesses(hdr->hdr.chunk_accesses) ;
 			return tmpl ;
 		}
 		DepsIter& operator++(int) { return ++self ; }
 		DepsIter& operator++(   ) {
-			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                         // go to next item in chunk
-			else                     { i_chunk = 0 ; hdr = hdr->next() ; } // go to next chunk
+			if (i_chunk<hdr->hdr.sz)   i_chunk++ ;                            // go to next item in chunk
+			else                     { i_chunk = 0 ; hdr = hdr->next() ; }    // go to next chunk
 			return self ;
 		}
 		DepsIter& next_existing(DepsIter const& end) {
-			SWEAR(end.i_chunk==0) ;                                        // at end, an iterator always have a null i_chunk
+			SWEAR(end.i_chunk==0) ;                                           // at end, an iterator always have a null i_chunk
 			if (hdr==end.hdr) return self ;
-			i_chunk = hdr->hdr.sz ;                                        // go to last item in chunk, i.e. skip over non-existing deps in the chunk
+			i_chunk = hdr->hdr.sz ;                                           // go to last item in chunk, i.e. skip over non-existing deps in the chunk
 			while ( hdr->hdr.is_crc && hdr->hdr.crc()==Crc::None ) {
-				hdr = hdr->next() ;                                        // go to next chunk if already at end of chunk
+				hdr = hdr->next() ;                                           // go to next chunk if already at end of chunk
 				if (hdr==end.hdr) { i_chunk = 0           ; break ; }
-				else                i_chunk = hdr->hdr.sz ;                // go to last item in chunk, the only one that may be existing
+				else                i_chunk = hdr->hdr.sz ;                   // go to last item in chunk, the only one that may be existing
 			}
 			return self ;
 		}
 		// data
-		GenericDep const* hdr     = nullptr                    ;           // pointer to current chunk header
-		mutable Dep       tmpl    = {{}/*accesses*/,Crc::None} ;           // template to store uncompressed Dep's
-		uint8_t           i_chunk = 0                          ;           // current index in chunk
+		GenericDep const* hdr     = nullptr                                 ; // pointer to current chunk header
+		mutable Dep       tmpl    = {{}/*accesses*/,Crc::None,false/*err*/} ; // template to store uncompressed Dep's
+		uint8_t           i_chunk = 0                                       ; // current index in chunk
 	} ;
 
 	struct Deps : DepsBase {
@@ -362,8 +362,6 @@ namespace Engine {
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
-		// static data
-		static Mutex<MutexLvl::NodeCrcDate> s_crc_date_mutex ;
 		// cxtors & casts
 		NodeData() = delete ;                                                                                         // if necessary, we must take care of the union
 		NodeData( NodeName n             ) : NodeDataBase{n} {                }
@@ -401,11 +399,6 @@ namespace Engine {
 		Ddate            & log_date          ()       { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
 		Ddate       const& log_date          () const { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
 		//
-		void crc_date( Crc crc_ , SigDate const& sd ) {
-			date() = sd   ;
-			crc    = crc_ ;
-		}
-		//
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
@@ -429,17 +422,17 @@ namespace Engine {
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const&      , ::string const& name ) ; // Req's are for reporting only
 		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs                        ) { return refresh_src_anti(report_no_file,reqs,name()) ; }
 		//
-		void full_refresh( bool report_no_file , ::vector<Req> const& reqs ) {
+		void full_refresh( bool report_no_file , ::vector<Req> const& reqs={} ) {
 			if (+reqs) set_buildable(reqs[0]) ;
 			else       set_buildable(       ) ;
 			if (is_src_anti()) refresh_src_anti(report_no_file,reqs) ;
 			else               manual_refresh  (Req()              ) ;                                  // no manual_steady diagnostic as this may be because of another job
 		}
 		//
-		RuleIdx    conform_idx(              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
-		void       conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
-		NodeStatus status     (              ) const { if   (_conform_idx> MaxRuleIdx)   return NodeStatus(-_conform_idx) ; else return NodeStatus::Plain ; }
-		void       status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
+		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
+		void       set_conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
+		NodeStatus status         (              ) const { if   (_conform_idx> MaxRuleIdx)   return NodeStatus(-_conform_idx) ; else return NodeStatus::Plain ; }
+		void       set_status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
 		//
 		JobTgt conform_job_tgt() const {
 			if (status()==NodeStatus::Plain) { SWEAR( conform_idx()<n_job_tgts , status(),conform_idx(),n_job_tgts ) ; return job_tgts()[conform_idx()] ; }
@@ -478,9 +471,6 @@ namespace Engine {
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
 			else                 return +a             ;                                                // dont know if file is a link, any access may have perceived a difference
-		}
-		bool up_to_date(DepDigest const& dd) const {                                                    // only manage crc, not dates
-			return crc.match( dd.crc() , dd.accesses ) ;
 		}
 		//
 		Manual manual_wash( ReqInfo& ri , bool query , bool dangling ) ;
@@ -573,6 +563,7 @@ namespace Engine {
 		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		// END_OF_VERSIONING
 	} ;
+	static_assert(sizeof(NodeData)==64) ;                // ensure size is a power of 2 to maximize cache perf
 
 }
 
@@ -684,14 +675,15 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date() const {
-		return is_crc && crc().match( self->crc , accesses ) ;
+		if ( dflags[Dflag::Verbose] && err!=(self->ok()==No) ) return false                                         ;
+		/**/                                                   return is_crc && crc().match( self->crc , accesses ) ;
 	}
 
 	inline void Dep::acquire_crc() {
-		if (is_crc              ) return ;                                              // already a crc ==> nothing to do
-		if (!self->crc.valid()  ) return ;                                              // nothing to acquire
-		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) crc(self->crc) ; } // acquire no file (cannot test sig equality as sig contains date at which file was known non-existent)
-		else                      { if (sig()==self->date().sig    ) crc(self->crc) ; } // acquire existing file
+		if (is_crc              ) return ;                                                                 // already a crc ==> nothing to do
+		if (!self->crc.valid()  ) return ;                                                                 // nothing to acquire
+		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) set_crc(self->crc,self->ok()==No) ; } // no file (cannot test sig as it contains date at which file was known non-existent)
+		else                      { if (sig()==self->date().sig    ) set_crc(self->crc,self->ok()==No) ; } // existing file
 	}
 
 	//

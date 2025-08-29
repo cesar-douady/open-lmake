@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Aug 21 20:04:29 2025 -->
+<!-- CreationDate: Fri Aug 29 15:58:54 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -190,6 +190,11 @@ reporting deps in such a case (usually with
 
 <p style="margin-left:18%;">Follow the last level symbolic
 link, default is not to follow.</p>
+
+<p style="margin-left:9%;"><b>-d</b>, <b>--direct</b></p>
+
+<p style="margin-left:18%;">Build deps before command
+completion (cf. note (6)).</p>
 
 <p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
@@ -409,6 +414,35 @@ in some situations, it is almost certain that there will be
 an influence and it is preferable not to anticipate. this is
 what critical deps are made for: in case of modifications,
 following deps are not built speculatively.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p style="margin-top: 1em">(6)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">Using direct deps is not
+recommanded for general use as it suffers 2 drawbacks:</p></td></tr>
+</table>
+
+<p style="margin-left:18%;">- successive calls leads to
+serial jobs (as each job is analyzed once the previous has
+completed) <br>
+- this may generate dead-lock if the calling job holds
+resources (which is usually the case) as such resources are
+kept while the job is waiting <br>
+This flag is meant in exceptional situations such as a
+dichotomy search in which a dep is necessary at each step of
+the dichotomy. In that case, using the <b>direct</b> flag
+reduces the number of reruns, which can occur for each step
+otherwise. In that case, it is most probably wise to use the
+<b>critical</b> flag simultaneously.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>

@@ -235,25 +235,20 @@ namespace Engine {
 			using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
 			// cxtors & casts
 		public :
-			InfoMap(            ) = default ;
-			InfoMap(InfoMap&& im) {
-				_Lock lock { im._mutex } ;
+			InfoMap() = default ;
+			InfoMap (InfoMap&& im) { self = ::move(im) ; }
+			~InfoMap(            ) { _clear() ;          }
+			InfoMap& operator=(InfoMap&& im) {
+				_Lock lock {_mutex } ;
 				_idxs = ::move(im._idxs) ;
 				_dflt = ::move(im._dflt) ;
 				_sz   =        im._sz    ;
 				im._clear() ;                                    // ensure im is fully coherent after move
-			}
-			~InfoMap() {
-				for( Info* p : _idxs ) if (p) delete p ;
-			}
-			InfoMap& operator=(InfoMap&& im) {
-				SWEAR(!im) ;                                     // can only clear
-				_Lock lock {_mutex } ;
-				_clear() ;
 				return self ;
 			}
 		private :
 			void _clear() {
+				for( Info* p : _idxs ) if (p) delete p ;
 				_idxs.clear() ;
 				_dflt = {} ;
 				_sz   = 0  ;
@@ -285,6 +280,14 @@ namespace Engine {
 				if (&ci==&_dflt) return req_info( ci.req , w ) ; // allocate
 				else             return const_cast<Info&>(ci)  ; // already allocated, no look up
 			}
+			void erase(W w) {
+				_Lock lock { _mutex } ;
+				if (_contains(w)) {
+					Info*& p=_idxs[+w] ;
+					delete p ;
+					p = nullptr ;
+				}
+			}
 		private :
 			bool _contains(W w) const {
 				return +w<_idxs.size() && _idxs[+w] ;
@@ -306,7 +309,7 @@ namespace Engine {
 		bool   operator+() const {                    return +job                                                ; }
 		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
 		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
-		Req    req      () const { SWEAR(is_open()) ; return Req::s_reqs_by_start[idx_by_start]                  ; }
+		Req    idx      () const { SWEAR(is_open()) ; return this-Req::s_store.data()                            ; }
 		// services
 		void audit_summary(bool err) const ;
 		//
@@ -351,18 +354,18 @@ namespace Engine {
 		Ddate                  start_ddate    ;
 		Pdate                  eta            ;                     // Estimated Time of Arrival
 		Delay                  ete            ;                     // Estimated Time Enroute
-		::umap<Rule,JobIdx >   ete_n_rules    ;                     // number of jobs participating to stats.ete with exec_time from rule
+		::umap<Rule,JobIdx>    ete_n_rules    ;                     // number of jobs participating to stats.ete with exec_time from rule
 		uint8_t                n_retries      = 0                 ;
 		uint8_t                n_submits      = 0                 ;
 		uint8_t                nice           = -1                ; // -1 means not specified (legal values are between 0 and 20)
 		CacheMethod            cache_method   = CacheMethod::Dflt ;
 		bool                   has_backend    = false             ;
 		// summary
-		::vector<Node>                   up_to_dates  ;   // asked nodes already done when starting
-		OrderedSet<Job >                 frozen_jobs  ;   // frozen     jobs                                   (value is just for summary ordering purpose)
-		OrderedSet<Node>                 frozen_nodes ;   // frozen     nodes                                  (value is just for summary ordering purpose)
-		OrderedSet<Node>                 no_triggers  ;   // no-trigger nodes                                  (value is just for summary ordering purpose)
-		OrderedMap<Node,::pair<Job,Job>> clash_nodes  ;   // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                   up_to_dates  ;             // asked nodes already done when starting
+		OrderedSet<Job >                 frozen_jobs  ;             // frozen     jobs                                   (value is just for summary ordering purpose)
+		OrderedSet<Node>                 frozen_nodes ;             // frozen     nodes                                  (value is just for summary ordering purpose)
+		OrderedSet<Node>                 no_triggers  ;             // no-trigger nodes                                  (value is just for summary ordering purpose)
+		OrderedMap<Node,::pair<Job,Job>> clash_nodes  ;             // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

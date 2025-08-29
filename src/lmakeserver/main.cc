@@ -429,9 +429,11 @@ static bool/*interrupted*/ _engine_loop() {
 					case JobMngtProc::AddLiveOut : je.add_live_out(ecjm.txt) ; break ;
 					//                             ^^^^^^^^^^^^^^^^^^^^^^^^^
 					case JobMngtProc::ChkDeps    :
+					case JobMngtProc::DepDirect  :
 					case JobMngtProc::DepVerbose : {
-						JobMngtRpcReply jmrr = je.job_analysis( ecjm.proc , ecjm.targets , ecjm.deps ) ;
-						jmrr.fd = ecjm.fd ;                                                                   // seq_id will be filled in by send_reply
+						JobMngtRpcReply jmrr = je.job_analysis(ecjm) ;
+						jmrr.fd     = ecjm.fd     ;
+						jmrr.seq_id = ecjm.seq_id ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						Backends::send_reply( +je , ::move(jmrr) ) ;
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

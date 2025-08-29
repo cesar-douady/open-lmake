@@ -190,14 +190,14 @@ For example, some default values may be modified and if they are used before thi
 <p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
 <p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
-<h3 id="depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><code>depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></h3>
+<h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></h3>
 <p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
 <p>If <code>follow_symlinks</code>, <code>deps</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
 <p>Each dep is associated with an access pattern.
 Accesses are of 3 kinds, regular, link and stat:</p>
 <ul>
-<li>Regular means that the file was accessed using C(open,2) or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.</li>
-<li>Link means that the file was accessed using C(readlink,2) or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.</li>
+<li>Regular means that the file was accessed using <code>open</code> or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.</li>
+<li>Link means that the file was accessed using <code>readlink</code> or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.</li>
 <li>Stat means that the file meta-data were accessed, i.e. the job is sensitive to file existence and type, but not to the content or its target.</li>
 </ul>
 <p>If a file have none of these accesses, changing it will not trigger a rebuild, but it is still a dep as in case it is in error, this will prevent the job from being run.
@@ -206,6 +206,7 @@ For example, if file <code>a/b</code> is opened for reading, and it turns out to
 as a link (in case it is itself a link) and regular (as it is opened).</p>
 <p>By default, passed deps are associated with no access, but are required to be buildable and produced without error unless <code>readdir_ok</code> is true.
 To simulate a plain access, you need to pass <code>read=True</code> to associate accesses and <code>required=False</code> to allow it not to exist.</p>
+<p>If <code>direct</code>, dep are built before function returns (cf. note (6)).</p>
 <p>If <code>verbose</code>, return a <code>dict</code> with one entry par dep where:</p>
 <ul>
 <li>The key is the dep name.</li>
@@ -235,28 +236,49 @@ However, the <code>ignore</code> flag only applies to deps following this call.<
 <p>Flags accumulate and are never reset.</p>
 <p>Notes:</p>
 <ul>
-<li>(1):
-The same functionality is provided with the <code>ldepend</code> executable.</li>
-<li>(2):
-Flags can be associated to deps on a regexpr (matching on dep name) basis by using the <code>side_deps</code> rule attribute.</li>
-<li>(3):
+<li>
+<p>(1):
+The same functionality is provided with the <code>ldepend</code> executable.</p>
+</li>
+<li>
+<p>(2):
+Flags can be associated to deps on a regexpr (matching on dep name) basis by using the <code>side_deps</code> rule attribute.</p>
+</li>
+<li>
+<p>(3):
 If <code>cat a b</code> is executed, open-lmake sees 2 <code>open</code> system calls, to <code>a</code> then to <code>b</code>, exactly the same sequence that if one did <code>cat $(cat a)</code> and <code>a</code> contained <code>b</code>.<br />
 Suppose now that <code>b</code> is an error. This is a reason for your job to be in error.
 But if <code>a</code> is modifed, in the former case, this cannot solve the error while in the latter case, it may if the new content of <code>a</code> points to a file that may successfully be built.
 Because open-lmake cannot distinguish between the 2 cases, upon a modification of <code>a</code>, the job will be rerun in the hope that <code>b</code> is not accessed any more.
-Parallel deps prevents this trial.</li>
-<li>(4):
+Parallel deps prevents this trial.</p>
+</li>
+<li>
+<p>(4):
 If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
 and if the series of file does not depend on the actual content of said files,
 then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
-The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.</li>
-<li>(5):
+The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.</p>
+</li>
+<li>
+<p>(5):
 If a series of dep is directly derived from the content of a file, it may be wise to declare it as <code>critical</code>.
 When a critical dep is modified, open-lmake forgets about deps reported after it.<br />
 Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
 and open-lmake anticipates this by building these deps speculatively.
 But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
-this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</li>
+this is what critical deps are made for: in case of modifications, following deps are not built speculatively.</p>
+</li>
+<li>
+<p>(6):
+Using direct deps is not recommanded for general use as it suffers 2 drawbacks:</p>
+<ul>
+<li>successive calls leads to serial jobs (as each job is analyzed once the previous has completed)</li>
+<li>this may generate dead-lock if the calling job holds resources (which is usually the case) as such resources are kept while the job is waiting</li>
+</ul>
+<p>This flag is meant in exceptional situations such as a dichotomy search in which a dep is necessary at each step of the dichotomy.
+In that case, using the <code>direct</code> flag reduces the number of reruns, which can occur for each step otherwise.
+In that case, it is most probably wise to use the <code>critical</code> flag simultaneously.</p>
+</li>
 </ul>
 <h3 id="target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a class="header" href="#target-targets--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><code>target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )</code></a></h3>
 <p>Declare <code>targets</code> as targets and alter associated flags.

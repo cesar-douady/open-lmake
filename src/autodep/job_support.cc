@@ -21,23 +21,28 @@ namespace JobSupport {
 		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
 	}
 
-	::vector<DepVerboseInfo> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool verbose , bool regexpr ) {
+	::pair<::vector<DepVerboseInfo>,bool/*ok*/> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr ) {
+		bool verbose    = ad.flags.dflags      [Dflag     ::Verbose]   ;
+		bool direct     = ad.flags.extra_dflags[ExtraDflag::Direct ]   ;
+		bool readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
 		if (regexpr) {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
 			throw_if( verbose      , "regexpr and verbose are exclusive"         ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                             // it is meaningless to exclude regexpr when we are a regexpr
+			throw_if( direct       , "regexpr and direct are exclusive"          ) ;
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                           // it is meaningless to exclude regexpr when we are a regexpr
 		}
+		throw_if( verbose && direct , "verbose and direct are exclusive" ) ;
 		_chk_files(files) ;
 		::vmap_s<FileInfo> deps       ;
-		Pdate              now        { New }                                        ; // all dates must be identical to be recognized as parallel deps
-		NodeIdx            di         = 0                                            ;
+		Pdate              now        { New }             ;                          // all dates must be identical to be recognized as parallel deps
+		NodeIdx            di         = 0                 ;
 		::vector<NodeIdx>  dep_idxs1  ;
-		bool               readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
+		bool               sync       = verbose || direct ;
 		if (readdir_ok) {
-			ad.flags.dflags &= ~Dflag::Required ;                                      // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
-			ad.read_dir     |= +ad.accesses     ;                                      // if reading and allow dir access, assume user meant reading a dir
+			ad.flags.dflags &= ~Dflag::Required ;                                    // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
+			ad.read_dir     |= +ad.accesses     ;                                    // if reading and allow dir access, assume user meant reading a dir
 		}
 		for( ::string const& f : files ) {
 			if (regexpr) {
@@ -45,42 +50,50 @@ namespace JobSupport {
 				continue ;
 			}
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
-				.file      = ::copy(f)                                                 // keep a copy in case there is no server and we must invent a reply
+				.file      = ::copy(f)                                               // keep a copy in case there is no server and we must invent a reply
 			,	.no_follow = no_follow
 			,	.read      = true
 			,	.write     = false
 			,	.comment   = Comment::depend
 			}) ;
-			if (!verbose) {
-				if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) {                  // when passing flag readdir_ok, we may want to report top-level dir
+			if (!sync) {
+				if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) {                // when passing flag readdir_ok, we may want to report top-level dir
 					sr.file_loc = FileLoc::Repo ;
-					sr.real     = "."s          ;                                      // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
-					sr.accesses = {}            ;                                      // besides passing ReadirOk flag, top-level dir is external
-					ad.accesses = {}            ;                                      // .
+					sr.real     = "."s          ;                                    // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
+					sr.accesses = {}            ;                                    // besides passing ReadirOk flag, top-level dir is external
+					ad.accesses = {}            ;                                    // .
 				}
 				r.report_access( sr.file_loc , { .comment=Comment::depend , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
 			} else if (sr.file_loc<=FileLoc::Dep) {
-				ad |= sr.accesses ;                                                    // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
+				ad |= sr.accesses ;                                                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 				// not actually sync, but transport as sync to use the same fd as DepVerbose
-				r.report_sync( { .proc=Proc::DepVerbosePush , .sync=Maybe , .comment=Comment::depend , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
-				dep_idxs1.push_back(++di) ;                                            // 0 is reserved to mean no dep info
+				r.report_sync( { .proc=Proc::DepPush , .sync=Maybe , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+				dep_idxs1.push_back(++di) ;                                                                                                // 0 is reserved to mean no dep info
 			} else {
-				dep_idxs1.push_back(0) ;                                               // .
+				dep_idxs1.push_back(0) ;                                                                                                   // .
 			}
 		}
-		if (!verbose) return {} ;
-		// if verbose, we de facto fully access files, dont send request if nothing to ask
-		JobExecRpcReply reply { .proc=Proc::DepVerbose } ;
-		if (di) reply = r.report_sync( { .proc=Proc::DepVerbose , .sync=Yes , .comment=Comment::depend , .digest=ad|~Accesses() , .date=now } , true/*force*/ ) ;
-		// fill holes for external deps
-		::vector<DepVerboseInfo> dep_infos ;
-		for( size_t i : iota(files.size()) ) {
-			NodeIdx di1 = dep_idxs1[i] ;
-			if      (!di1  ) dep_infos.push_back({ .ok=Maybe                      }) ; // 0 is reserved to mean no dep info
-			else if (!reply) dep_infos.push_back({ .ok=Yes   , .crc=Crc(files[i]) }) ; // there was no server, mimic it
-			else             dep_infos.push_back(::move(reply.dep_infos[di1-1])    ) ;
+		if ( !sync || !di ) return {{},true/*ok*/} ;                                                                                       // dont send request if nothing to ask
+		//
+		JobExecProc proc = JobExecProc::None ; if (verbose) proc  = JobExecProc::DepVerbose ; if (direct) proc  = JobExecProc::DepDirect ;
+		CommentExts ces  ;                     if (verbose) ces  |= CommentExt::Verbose     ; if (direct) ces  |= CommentExt::Direct     ;
+		//
+		if (verbose) ad.accesses |= ~Accesses() ;
+		JobExecRpcReply reply = r.report_sync( { .proc=proc , .sync=Yes , .comment=Comment::depend , .comment_exts=ces , .digest=ad , .date=now } , true/*force*/ ) ;
+		if (verbose) {
+			// fill holes for external deps
+			::vector<DepVerboseInfo> dep_infos ;
+			for( size_t i : iota(files.size()) ) {
+				NodeIdx di1 = dep_idxs1[i] ;
+				if      (!di1  ) dep_infos.push_back({ .ok=Maybe                      }) ;                                                 // 0 is reserved to mean no dep info
+				else if (!reply) dep_infos.push_back({ .ok=Yes   , .crc=Crc(files[i]) }) ;                                                 // there was no server, mimic it
+				else             dep_infos.push_back(::move(reply.dep_infos[di1-1])    ) ;
+			}
+			return {dep_infos,true/*ok*/} ;
+		} else if (direct) {
+			return {{},reply.ok==Yes} ;
 		}
-		return dep_infos ;
+		FAIL() ;
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool regexpr ) {

@@ -59,9 +59,9 @@ namespace Engine {
 			//
 			Job::ReqInfo& jri = data.job->req_info(self) ;
 			jri.live_out = self->options.flags[ReqFlag::LiveOut] ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			data.job->make( jri,JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			data.job->make( jri , JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			for( Node d : data.job->deps ) {
 				/**/                           if (!d->done(self)              ) continue ;
 				Job j = d->conform_job_tgt() ; if (!j                          ) continue ;
@@ -368,7 +368,7 @@ namespace Engine {
 	void ReqData::clear() {
 		Trace trace("clear",job) ;
 		SWEAR( !n_running() , n_running() ) ;
-		if ( +job && job->rule()->special==Special::Req ) job.pop();
+		if ( +job && job->rule()->special==Special::Req ) job.pop(idx());
 		self = {} ;
 	}
 

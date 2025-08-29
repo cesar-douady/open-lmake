@@ -14,6 +14,7 @@ enum class JobExecProc : uint8_t {
 	None
 ,	ChkDeps
 ,	Confirm
+,	DepDirect
 ,	DepVerbose
 ,	Tmp                    // write activity in tmp has been detected (hence clean up is required)
 ,	CodecCtx
@@ -24,7 +25,7 @@ enum class JobExecProc : uint8_t {
 ,	Trace                  // no algorithmic info, just for tracing purpose
 ,	Access
 ,	AccessPattern          // pass flags on a regexpr basis
-,	DepVerbosePush
+,	DepPush
 ,	Encode                 // file_info is used to transport min_len
 //
 // aliases
@@ -63,23 +64,24 @@ struct JobExecRpcReq {
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
-		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                           // Encode uses file_info to store min_len
+		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                          // Encode uses file_info to store min_len
 		switch (proc) {
-			case Proc::ChkDeps        :
-			case Proc::Tmp            : SWEAR(                !digest            &&  !id                       && +date , self ) ; break ;
-			case Proc::DepVerbose     : SWEAR( sync==Yes   &&                        !id                       && +date , self ) ; break ;
-			case Proc::Trace          :
-			case Proc::Panic          : SWEAR( sync==No    && !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::CodecFile      :
-			case Proc::CodecCtx       :
-			case Proc::DepVerbosePush : SWEAR( sync==Maybe && !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::Confirm        : SWEAR(                !digest.has_read() && ( id&&digest.write!=Maybe) && !date , self ) ; break ;
-			case Proc::Guard          : SWEAR(                !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::Decode         :
-			case Proc::Encode         : SWEAR( sync==Yes   && !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::Access         : SWEAR(                                      ( id||digest.write!=Maybe) && +date , self ) ; break ;
-			case Proc::AccessPattern  : SWEAR( sync!=Yes   && !digest.has_read() && (!id&&digest.write!=Maybe) && +date , self ) ; break ;
-		DF}                                                                                                                                // NO_COV
+			case Proc::ChkDeps       :
+			case Proc::Tmp           : SWEAR(                !digest            &&  !id                       && +date , self ) ; break ;
+			case Proc::DepDirect     :
+			case Proc::DepVerbose    : SWEAR( sync==Yes   &&                        !id                       && +date , self ) ; break ;
+			case Proc::Trace         :
+			case Proc::Panic         : SWEAR( sync==No    && !digest            &&  !id                       && !date , self ) ; break ;
+			case Proc::CodecFile     :
+			case Proc::CodecCtx      :
+			case Proc::DepPush       : SWEAR( sync==Maybe && !digest            &&  !id                       && !date , self ) ; break ;
+			case Proc::Confirm       : SWEAR(                !digest.has_read() && ( id&&digest.write!=Maybe) && !date , self ) ; break ;
+			case Proc::Guard         : SWEAR(                !digest            &&  !id                       && !date , self ) ; break ;
+			case Proc::Decode        :
+			case Proc::Encode        : SWEAR( sync==Yes   && !digest            &&  !id                       && !date , self ) ; break ;
+			case Proc::Access        : SWEAR(                                      ( id||digest.write!=Maybe) && +date , self ) ; break ;
+			case Proc::AccessPattern : SWEAR( sync!=Yes   && !digest.has_read() && (!id&&digest.write!=Maybe) && +date , self ) ; break ;
+		DF}                                                                                                                               // NO_COV
 	}
 	template<IsStream T> void serdes(T& s) {
 		/**/                         ::serdes(s,proc        ) ;
@@ -92,6 +94,7 @@ struct JobExecRpcReq {
 			case Proc::ChkDeps       :
 			case Proc::Tmp           :                                             ::serdes(s,date) ; break ;
 			case Proc::Confirm       : ::serdes(s,digest.write) ; ::serdes(s,id) ;                    break ;
+			case Proc::DepDirect     :
 			case Proc::DepVerbose    : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
 			case Proc::Access        : ::serdes(s,digest      ) ; ::serdes(s,id) ; ::serdes(s,date) ; break ;
 			case Proc::AccessPattern : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
@@ -121,6 +124,7 @@ struct JobExecRpcReply {
 		switch (proc) {
 			case Proc::None       : SWEAR( ok==Maybe && !dep_infos && !txt ) ; break ;
 			case Proc::ChkDeps    : SWEAR(              !dep_infos && !txt ) ; break ;
+			case Proc::DepDirect  : SWEAR(              !dep_infos && !txt ) ; break ;
 			case Proc::DepVerbose : SWEAR( ok==Maybe               && !txt ) ; break ;
 			case Proc::Decode     :
 			case Proc::Encode     : SWEAR(              !dep_infos         ) ; break ;
@@ -130,6 +134,7 @@ struct JobExecRpcReply {
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::ChkDeps    : ::serdes(s,ok       ) ;            break ;
+			case Proc::DepDirect  : ::serdes(s,ok       ) ;            break ;
 			case Proc::DepVerbose : ::serdes(s,dep_infos) ;            break ;
 			case Proc::Decode     :
 			case Proc::Encode     : ::serdes(s,ok) ; ::serdes(s,txt) ; break ;
@@ -137,7 +142,7 @@ struct JobExecRpcReply {
 	}
 	// data
 	Proc                     proc      = Proc::None ;
-	Bool3                    ok        = Maybe      ;                                  // if proc==ChkDeps|Decode|Encode
-	::vector<DepVerboseInfo> dep_infos = {}         ;                                  // if proc==DepVerbose            , same order as deps
-	::string                 txt       = {}         ;                                  // if proc==        Decode|Encode , value for Decode, code for Encode
+	Bool3                    ok        = Maybe      ;                                  // if proc==ChkDeps|DepDirect |Decode|Encode
+	::vector<DepVerboseInfo> dep_infos = {}         ;                                  // if proc==        DepVerbose               , same order as deps
+	::string                 txt       = {}         ;                                  // if proc==                   Decode|Encode , value for Decode, code for Encode
 } ;

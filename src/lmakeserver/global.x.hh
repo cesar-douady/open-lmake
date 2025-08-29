@@ -53,9 +53,10 @@ namespace Engine {
 	struct Rules     ;
 	struct Sources   ;
 
-	struct EngineClosure    ;
-	struct EngineClosureReq ;
-	struct EngineClosureJob ;
+	struct EngineClosure        ;
+	struct EngineClosureReq     ;
+	struct EngineClosureJob     ;
+	struct EngineClosureJobMngt ;
 
 }
 
@@ -237,6 +238,7 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , EngineClosureJobMngt const& ) ;
 		JobMngtProc               proc     = {} ;
 		Fd                        fd       = {} ;
+		SeqId                     seq_id   = 0  ;
 		JobExec                   job_exec = {} ;
 		::vmap<Node,TargetDigest> targets  = {} ; // proc==ChkDeps
 		::vector<Dep>             deps     = {} ; // proc==ChkDeps|DepsInfo
@@ -265,32 +267,33 @@ namespace Engine {
 		using K   = Kind            ;
 		using R   = Engine::Req     ;
 		using RO  = ReqOptions      ;
-		using VS  = ::vector_s      ;
 		//
 		// cxtors & casts
 		// Global
 		EngineClosure(GP p=GP::None) : Base{ECG{.proc=p}} {}
 		// Req
-		EngineClosure(RP p,R r,Fd ifd,Fd ofd,VS const& fs,RO const& ro) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro}} { SWEAR( p==RP::Make                 ) ; }
-		EngineClosure(RP p,    Fd ifd,Fd ofd,VS const& fs,RO const& ro) : Base{ECR{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro}} { SWEAR( p!=RP::Make&&p>=RP::HasArgs ) ; }
-		EngineClosure(RP p,R r,Fd ifd,Fd ofd                          ) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      }} { SWEAR( p==RP::Kill || p==RP::None  ) ; }
-		EngineClosure(RP p,R r                                        ) : Base{ECR{.proc=p,.req=r                                             }} { SWEAR( p==RP::Close                ) ; }
+		EngineClosure(RP p,R r,Fd ifd,Fd ofd,::vector_s const& fs,RO const& ro) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro}} { SWEAR( p==RP::Make                 , p ) ; }
+		EngineClosure(RP p,    Fd ifd,Fd ofd,::vector_s const& fs,RO const& ro) : Base{ECR{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro}} { SWEAR( p!=RP::Make&&p>=RP::HasArgs , p ) ; }
+		EngineClosure(RP p,R r,Fd ifd,Fd ofd                                  ) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      }} { SWEAR( p==RP::Kill || p==RP::None  , p ) ; }
+		EngineClosure(RP p,R r                                                ) : Base{ECR{.proc=p,.req=r                                             }} { SWEAR( p==RP::Close                , p ) ; }
 		// Job
 		EngineClosure( JRP p , JE&& je , bool r , ::vmap<Node,FileActionTag>&& rus={} , MsgStderr&& msg_stderr_={} ) :
 			Base{ECJ{ ::move(je) , EngineClosureJobStart{.report=r,.report_unlnks=::move(rus),.msg_stderr=::move(msg_stderr_)} }}
-		{ (void)p ; SWEAR(p==JRP::Start) ; }
+		{ (void)p ; SWEAR( p==JRP::Start , p ) ; }
 		//
-		EngineClosure( JRP p , JE&& je , R rq , bool rpt ) : Base{ECJ{::move(je),EngineClosureJobGiveUp     {.req=rq,.report=rpt}}} { SWEAR(p==JRP::GiveUp     ) ; }
-		EngineClosure( JRP p , JE&& je                   ) : Base{ECJ{::move(je),EngineClosureJobReportStart{                   }}} { SWEAR(p==JRP::ReportStart) ; }
-		EngineClosure( JRP p , JE&& je , JD&& jd         ) : Base{ECJ{::move(je),::move(jd)                                      }} { SWEAR(p==JRP::End        ) ; }
+		EngineClosure( JRP p , JE&& je , R rq , bool rpt ) : Base{ECJ{::move(je),EngineClosureJobGiveUp     {.req=rq,.report=rpt}}} { SWEAR( p==JRP::GiveUp      , p ) ; }
+		EngineClosure( JRP p , JE&& je                   ) : Base{ECJ{::move(je),EngineClosureJobReportStart{                   }}} { SWEAR( p==JRP::ReportStart , p ) ; }
+		EngineClosure( JRP p , JE&& je , JD&& jd         ) : Base{ECJ{::move(je),::move(jd)                                      }} { SWEAR( p==JRP::End         , p ) ; }
 		// JobMngt
-		EngineClosure( JMP p , JE&& je , ::string&& t ) : Base{ECJM{.proc=p,.job_exec=::move(je),.txt=::move(t)}} { SWEAR( p==JMP::LiveOut || p==JMP::AddLiveOut ) ; }
-		//
-		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vmap<Node,TargetDigest>&& tds , ::vector<Dep>&& dds ) : Base{ECJM{.proc=p,.fd{fd_},.job_exec=::move(je),.targets{::move(tds)},.deps{::move(dds)}}} {
-			SWEAR(p==JMP::ChkDeps) ;
+		EngineClosure( JMP p , JE&& je , ::string&& t ) : Base{ECJM{.proc=p,.job_exec=::move(je),.txt=::move(t)}} {
+			SWEAR( p==JMP::LiveOut || p==JMP::AddLiveOut , p ) ;
 		}
-		EngineClosure( JMP p , JE&& je , Fd fd_ , ::vector<Dep>&& dds ) : Base{ECJM{.proc=p,.fd{fd_},.job_exec=::move(je),.deps{::move(dds)}}} {
-			SWEAR(p==JMP::DepVerbose) ;
+		EngineClosure( JMP p , JE&& je , Fd fd_ , SeqId id , ::vmap<Node,TargetDigest>&& tds , ::vector<Dep>&& dds ) :
+			Base{ECJM{ .proc=p , .fd=fd_ , .seq_id=id , .job_exec=::move(je) , .targets=::move(tds) , .deps=::move(dds) }}
+		{	SWEAR( p==JMP::ChkDeps , p ) ;
+		}
+		EngineClosure( JMP p , JE&& je , Fd fd_ , SeqId id , ::vector<Dep>&& dds ) : Base{ECJM{ .proc=p , .fd=fd_ , .seq_id=id , .job_exec=::move(je) , .deps=::move(dds) }} {
+			SWEAR( p==JMP::DepDirect || p==JMP::DepVerbose , p ) ;
 		}
 		// accesses
 		/**/             Kind kind() const { return Kind(index()) ; }

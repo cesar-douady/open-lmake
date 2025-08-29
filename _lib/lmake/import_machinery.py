@@ -6,7 +6,7 @@
 import os.path as _osp
 import sys     as _sys
 
-from . import report_import
+from . import report_import # from clmake
 
 from . import _maybe_lcl
 

@@ -64,7 +64,7 @@ This functions ensures that all dirs listed in arguments such as `-I` or `-L` ex
 
 `stdin` is the text ot send as the stdin of `cmd_line`.
 
-### `depend( *deps , follow_symlinks=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )`
+### `depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )`
 
 Declare `deps` as parallel deps (i.e. no order exist between them).
 
@@ -73,8 +73,8 @@ If `follow_symlinks`, `deps` that are symbolic links are followed (and a dep is 
 Each dep is associated with an access pattern.
 Accesses are of 3 kinds, regular, link and stat:
 
-- Regular means that the file was accessed using C(open,2) or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.
-- Link means that the file was accessed using C(readlink,2) or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.
+- Regular means that the file was accessed using `open` or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.
+- Link means that the file was accessed using `readlink` or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.
 - Stat means that the file meta-data were accessed, i.e. the job is sensitive to file existence and type, but not to the content or its target.
 
 If a file have none of these accesses, changing it will not trigger a rebuild, but it is still a dep as in case it is in error, this will prevent the job from being run.
@@ -84,6 +84,8 @@ as a link (in case it is itself a link) and regular (as it is opened).
 
 By default, passed deps are associated with no access, but are required to be buildable and produced without error unless `readdir_ok` is true.
 To simulate a plain access, you need to pass `read=True` to associate accesses and `required=False` to allow it not to exist.
+
+If `direct`, dep are built before function returns (cf. note (6)).
 
 If `verbose`, return a `dict` with one entry par dep where:
 
@@ -136,6 +138,15 @@ Notes:
 	and open-lmake anticipates this by building these deps speculatively.
 	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
+- (6):
+	Using direct deps is not recommanded for general use as it suffers 2 drawbacks:
+
+	- successive calls leads to serial jobs (as each job is analyzed once the previous has completed)
+	- this may generate dead-lock if the calling job holds resources (which is usually the case) as such resources are kept while the job is waiting
+
+	This flag is meant in exceptional situations such as a dichotomy search in which a dep is necessary at each step of the dichotomy.
+	In that case, using the `direct` flag reduces the number of reruns, which can occur for each step otherwise.
+	In that case, it is most probably wise to use the `critical` flag simultaneously.
 
 ### `target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )`
 

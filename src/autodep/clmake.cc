@@ -70,7 +70,6 @@ static ::vector_s _get_files(Tuple const& py_args) {
 
 static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                                                                   ;
-	bool         verbose   = false                                                                  ;
 	bool         regexpr   = false                                                                  ;
 	AccessDigest ad        { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
 	//
@@ -81,44 +80,52 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 			case 'f' : if (key=="follow_symlinks") {          no_follow   = !val         ; continue ; } break ;
 			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  ~Accesses() ; continue ; }
 			/**/       if (key=="regexpr"        ) {          regexpr     =  val         ; continue ; } break ;
-			case 'v' : if (key=="verbose"        ) {          verbose     =  val         ; continue ; } break ;
 		DN}
 		if      (can_mk_enum<Dflag     >(key)) { if ( Dflag      df =mk_enum<Dflag     >(key) ; df<Dflag::NDyn ) { ad.flags.dflags      .set(df ,val) ; continue ; } }
 		else if (can_mk_enum<ExtraDflag>(key)) {      ExtraDflag edf=mk_enum<ExtraDflag>(key) ;                    ad.flags.extra_dflags.set(edf,val) ; continue ;   }
 		throw "unexpected keyword arg "+key ;
 	}
 	//
-	::vector_s files = _get_files(py_args) ;
+	::vector_s files   = _get_files(py_args)                        ;
+	bool       verbose = ad.flags.dflags      [Dflag     ::Verbose] ;
+	bool       direct  = ad.flags.extra_dflags[ExtraDflag::Direct ] ;
+	bool       sync    = verbose || direct                          ;
 	//
-	::vector<DepVerboseInfo> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( *_g_record , ::copy(files) , ad , no_follow , verbose , regexpr ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                             }
+	::pair<::vector<DepVerboseInfo>,bool/*ok*/> dep_infos ;
+	try                       { dep_infos = JobSupport::depend( *_g_record , ::copy(files) , ad , no_follow , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                   }
 	//
-	if (!verbose) return &None ;
+	if (!sync) return &None ;
 	//
-	Ptr<Dict> res { New } ;
-	//
-	SWEAR( dep_infos.size()==files.size() , dep_infos.size() , files.size() ) ;
-	for( size_t i : iota(dep_infos.size()) ) {
-		DepVerboseInfo const& dvi = dep_infos[i] ;
-		Object*   py_ok    ;
-		switch (dvi.ok) {
-			case Yes   : py_ok = &True  ; break ;
-			case Maybe : py_ok = &None  ; break ;
-			case No    : py_ok = &False ; break ;
-		DF}
-		Ptr<Dict> py_dep_info { New } ;
-		/**/              py_dep_info->set_item( "ok"       , *py_ok                       ) ;
-		if (+dvi.crc    ) py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(dvi.crc)) ) ;
-		if (+dvi.rule   ) py_dep_info->set_item( "rule"     , *Ptr<Str>(dvi.rule         ) ) ;
-		if (+dvi.special) py_dep_info->set_item( "special"  , *Ptr<Str>(dvi.special      ) ) ;
-		if (+dvi.stems) {
-			Ptr<Dict> py_stems { New } ; for( auto const& [k,v] : dvi.stems ) py_stems->set_item( k , *Ptr<Str>(v) ) ;
-			py_dep_info->set_item( "stems" , *py_stems ) ;
-		}
-		res->set_item( files[i] , *py_dep_info ) ;
+	if (direct) {
+		return Ptr<Bool>(dep_infos.second) ;
 	}
-	return res ;
+	if (verbose) {
+		Ptr<Dict> res { New } ;
+		//
+		SWEAR( dep_infos.first.size()==files.size() , dep_infos.first.size() , files.size() ) ;
+		for( size_t i : iota(dep_infos.first.size()) ) {
+			DepVerboseInfo const& dvi = dep_infos.first[i] ;
+			Object*   py_ok    ;
+			switch (dvi.ok) {
+				case Yes   : py_ok = &True  ; break ;
+				case Maybe : py_ok = &None  ; break ;
+				case No    : py_ok = &False ; break ;
+			DF}
+			Ptr<Dict> py_dep_info { New } ;
+			/**/              py_dep_info->set_item( "ok"       , *py_ok                       ) ;
+			if (+dvi.crc    ) py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(dvi.crc)) ) ;
+			if (+dvi.rule   ) py_dep_info->set_item( "rule"     , *Ptr<Str>(dvi.rule         ) ) ;
+			if (+dvi.special) py_dep_info->set_item( "special"  , *Ptr<Str>(dvi.special      ) ) ;
+			if (+dvi.stems) {
+				Ptr<Dict> py_stems { New } ; for( auto const& [k,v] : dvi.stems ) py_stems->set_item( k , *Ptr<Str>(v) ) ;
+				py_dep_info->set_item( "stems" , *py_stems ) ;
+			}
+			res->set_item( files[i] , *py_dep_info ) ;
+		}
+		return res ;
+	}
+	FAIL() ; // if sync, we have either direct or verbose
 }
 
 static void target( Tuple const& py_args , Dict const& py_kwds ) {
@@ -335,7 +342,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 				try                       { JobSupport::depend( *_g_record , {file} , AccessDigestDfltDyn , false/*no_follow*/ ) ; }
 				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                }
 			}
-			if (exists) return ;                                                                                                     // found module, dont explore path any further
+			if (exists) return ;                                          // found module, dont explore path any further
 		}
 	}
 }

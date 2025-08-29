@@ -49,8 +49,6 @@ namespace Engine {
 	// NodeData
 	//
 
-	Mutex<MutexLvl::NodeCrcDate> NodeData::s_crc_date_mutex ;
-
 	::string& operator+=( ::string& os , NodeData const& nd ) { // START_OF_NO_COV
 		/**/                    os <<'('<< nd.crc ;
 		if (nd.is_plain()) {
@@ -349,7 +347,7 @@ namespace Engine {
 			case Buildable::Encode :
 			case Buildable::Loop   :                                   goto Return ;
 		DN}
-		status(NodeStatus::Unknown) ;
+		set_status(NodeStatus::Unknown) ;
 		//
 		{	::string name_ = name() ;
 			if (name_.size()>g_config->path_max) {                                          // path is ridiculously long, pretend an infinite recursion
@@ -423,12 +421,12 @@ namespace Engine {
 			case Buildable::Anti        :
 			case Buildable::SrcDir      :
 			case Buildable::DynAnti     :
-			case Buildable::No          : status(NodeStatus::None) ; goto NoSrc ;
+			case Buildable::No          : set_status(NodeStatus::None) ; goto NoSrc ;
 			case Buildable::DynSrc      :
-			case Buildable::Src         : status(NodeStatus::Src ) ; goto Src   ;
+			case Buildable::Src         : set_status(NodeStatus::Src ) ; goto Src   ;
 			case Buildable::Decode      :
-			case Buildable::Encode      : status(NodeStatus::Src ) ; goto Codec ;
-			case Buildable::Unknown     :                            FAIL()     ;                       // NO_COV
+			case Buildable::Encode      : set_status(NodeStatus::Src ) ; goto Codec ;
+			case Buildable::Unknown     :                                FAIL()     ;                       // NO_COV
 		DN}
 		if (!dir()) goto NotDone ;
 		// step 2 : handle what can be done without making dir
@@ -438,16 +436,16 @@ namespace Engine {
 		switch (dir()->buildable) {
 			case Buildable::DynAnti     :
 			case Buildable::Anti        :
-			case Buildable::No          :                            goto NotDone ;
-			case Buildable::SrcDir      : status(NodeStatus::None) ; goto Src     ;                     // status is overwritten Src if node actually exists
-			case Buildable::PathTooLong :                                                               // path too long have been discovered above
-			case Buildable::Unknown     :                            FAIL()       ;                     // NO_COV
-			default                     :                            break        ;
+			case Buildable::No          :                                goto NotDone ;
+			case Buildable::SrcDir      : set_status(NodeStatus::None) ; goto Src     ;                     // status is overwritten Src if node actually exists
+			case Buildable::PathTooLong :                                                                   // path too long have been discovered above
+			case Buildable::Unknown     :                                FAIL()       ;                     // NO_COV
+			default                     :                                break        ;
 		}
 		//
-		if ( ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,NodeGoal::Status) ) {               // fast path : no need to call make if dir is done
+		if ( ReqInfo& dri = dir()->req_info(req) ; !dir()->done(dri,NodeGoal::Status) ) {                   // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
-				ReqInfo::WaitInc sav_n_wait{ri} ;                                                       // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+				ReqInfo::WaitInc sav_n_wait{ri} ;                                                           // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 				dir()->asking = idx() ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				dir()->make( dri , query?MakeAction::Query:MakeAction::Status , ri.speculate ) ;
@@ -457,25 +455,25 @@ namespace Engine {
 			//
 			if (dri.waiting()) {
 				dir()->add_watcher(dri,idx(),ri,ri.pressure) ;
-				status(NodeStatus::Uphill) ;                                                            // temporarily, until dir() is built and we know the definitive answer
-				goto NotDone ;                                                                          // return value is meaningless when waiting
+				set_status(NodeStatus::Uphill) ;                                                            // temporarily, until dir() is built and we know the definitive answer
+				goto NotDone ;                                                                              // return value is meaningless when waiting
 			}
 			if ( query && !dir()->done(dri) ) { trace("query","dir") ; return false ; }
-			SWEAR(dir()->done(dri)) ;                                                                   // after having called make, dep must be either waiting or done
+			SWEAR(dir()->done(dri)) ;                                                                       // after having called make, dep must be either waiting or done
 		}
 		// step 3 : handle what needs dir status
 		switch (dir()->buildable) {
 			case Buildable::Maybe :
-				if (dir()->status()==NodeStatus::None) { status(NodeStatus::Unknown) ; goto NotDone ; } // not Uphill anymore
+				if (dir()->status()==NodeStatus::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; } // not Uphill anymore
 				[[fallthrough]] ;
 			case Buildable::Yes :
-				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                           // propagate as dir->buildable may have changed from Maybe to Yes when made
+				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                               // propagate as dir->buildable may have changed from Maybe to Yes when made
 				[[fallthrough]] ;
 			case Buildable::SubSrc    :
 			case Buildable::SubSrcDir :
 				switch (dir()->status()) {
-					case NodeStatus::Transient :                              goto Transient ;
-					case NodeStatus::Uphill    : status(NodeStatus::Uphill) ; goto NoSrc     ;
+					case NodeStatus::Transient :                                  goto Transient ;
+					case NodeStatus::Uphill    : set_status(NodeStatus::Uphill) ; goto NoSrc     ;
 				DN}
 			break ;
 		DN}
@@ -483,65 +481,65 @@ namespace Engine {
 		switch (dir()->buildable) {
 			case Buildable::Maybe :
 			case Buildable::Yes   :
-				if (dir()->crc==Crc::None) { status(NodeStatus::Unknown) ; goto NotDone ; }             // uphill is buildable, but does not actually exist
+				if (dir()->crc==Crc::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }             // uphill is buildable, but does not actually exist
 				goto DirSrc ;
 			case Buildable::SubSrcDir :
-				if (dir()->crc==Crc::None) { status(NodeStatus::None   ) ; goto Src     ; }             // status is overwritten Src if node actually exists
+				if (dir()->crc==Crc::None) { set_status(NodeStatus::None   ) ; goto Src     ; }             // status is overwritten Src if node actually exists
 				goto DirSrc ;
 			case Buildable::SubSrc :
 			case Buildable::DynSrc :
 			case Buildable::Src    :
 			DirSrc :
-				if (dir()->crc.is_lnk()) goto Transient ;                                               // our dir is a link, we are transient
-				status(NodeStatus::Uphill) ;                                                            // a non-existent source stays a source, hence its sub-files are uphill
+				if (dir()->crc.is_lnk()) goto Transient ;                                                   // our dir is a link, we are transient
+				set_status(NodeStatus::Uphill) ;                                                            // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
-		DF}                                                                                             // NO_COV
-		FAIL() ;                                                                                        // NO_COV
+		DF}                                                                                                 // NO_COV
+		FAIL() ;                                                                                            // NO_COV
 	Codec :
 		{	SWEAR(crc.valid()) ;
-			if (!Codec::refresh(+idx(),+ri.req)) status(NodeStatus::None) ;
-			if (log_date()>req->start_ddate    ) ri.overwritten = Access::Reg ;                         // date is only updated when actual content is modified and codec cannot be links
+			if (!Codec::refresh(+idx(),+ri.req)) set_status(NodeStatus::None) ;
+			if (log_date()>req->start_ddate    ) ri.overwritten = Access::Reg ;                             // date is only updated when actual content is modified and codec cannot be links
 			trace("codec",ri.overwritten) ;
 			goto DoneDsk ;
 		}
-		FAIL() ;                                                                                        // NO_COV
+		FAIL() ;                                                                                            // NO_COV
 	Src :
 		{	bool modified = refresh_src_anti( status()!=NodeStatus::None , {req} , lazy_name() ) ;
-			if      (crc            !=Crc::None) status(NodeStatus::Src) ;                              // overwrite status if it was pre-set to None
-			else if (status()==NodeStatus::None) goto NoSrc ;                                           // if status was pre-set to None, it means we accept NoSrc
+			if      (crc            !=Crc::None) set_status(NodeStatus::Src) ;                              // overwrite status if it was pre-set to None
+			else if (status()==NodeStatus::None) goto NoSrc ;                                               // if status was pre-set to None, it means we accept NoSrc
 			if      (modified                  ) actual_job() = {} ;
-			/**/                                 goto DoneDsk ;                                         // sources are always done on disk, as it is by probing it that we are done
+			/**/                                 goto DoneDsk ;                                             // sources are always done on disk, as it is by probing it that we are done
 		}
-		FAIL() ;                                                                                        // NO_COV
+		FAIL() ;                                                                                            // NO_COV
 	Transient :
-		{	refresh(Crc::Unknown) ;                                                                     // if depending on a transient node, a job must be rerun in all cases
-			status(NodeStatus::Transient) ;
+		{	refresh(Crc::Unknown) ;                                                                         // if depending on a transient node, a job must be rerun in all cases
+			set_status(NodeStatus::Transient) ;
 			actual_job() = {} ;
 			goto DoneDsk ;
 		}
-		FAIL() ;                                                                                        // NO_COV
+		FAIL() ;                                                                                            // NO_COV
 	NoSrc :
 		{	if (ri.goal>=NodeGoal::Dsk) {
-				Manual manual = manual_wash(ri,query,true/*dangling*/) ;                                // always check manual if asking for disk
+				Manual manual = manual_wash(ri,query,true/*dangling*/) ;                                    // always check manual if asking for disk
 				trace("no_src",ri.goal,crc,manual,actual_job()) ;
 				if (crc!=Crc::None) {
-					if (manual==Manual::Ok) {                                                           // if already unlinked, no need to unlink it again
-						lazy_name() ;                                                                   // solve
+					if (manual==Manual::Ok) {                                                               // if already unlinked, no need to unlink it again
+						lazy_name() ;                                                                       // solve
 						SWEAR(is_lcl(name_),name_) ;
 						if (query) { trace("query","unlnk") ; return false ; }
-						unlnk(name_,true/*dir_ok*/) ;                                                   // wash pollution if not manual
+						unlnk(name_,true/*dir_ok*/) ;                                                       // wash pollution if not manual
 						req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , name_ ) ;
 					}
-					refresh(Crc::None) ;                                                                // if not physically unlinked, node will be manual
+					refresh(Crc::None) ;                                                                    // if not physically unlinked, node will be manual
 					actual_job() = {} ;
 				}
 				goto DoneDsk ;
 			} else {
 				trace("no_src",ri.goal,crc,actual_job()) ;
 				if (crc!=Crc::None) {
-					refresh(Crc::None) ;                                                                // if not physically unlinked, node will be manual
+					refresh(Crc::None) ;                                                                    // if not physically unlinked, node will be manual
 					if (+actual_job()) {
-						polluted        = Polluted::Job ;                                               // disk has been modified, actual_job cannot be the official job
+						polluted        = Polluted::Job ;                                                   // disk has been modified, actual_job cannot be the official job
 						polluting_job() = actual_job()  ;
 					}
 					actual_job() = {} ;
@@ -549,13 +547,13 @@ namespace Engine {
 				goto Done ;
 			}
 		}
-		FAIL() ;                                                                                        // NO_COV
+		FAIL() ;                                                                                            // NO_COV
 	Done :
 		ri.done_ = ri.goal ;
 		goto NotDone ;
-		FAIL() ;                                                                                        // NO_COV
+		FAIL() ;                                                                                            // NO_COV
 	DoneDsk :
-		ri.done_ = NodeGoal::Dsk   ;                                                                    // disk is de facto updated
+		ri.done_ = NodeGoal::Dsk   ;                                                                        // disk is de facto updated
 		polluted = Polluted::Clean ;
 	NotDone :
 		trace("done",idx(),status(),crc,ri) ;
@@ -681,7 +679,7 @@ namespace Engine {
 							}
 						}
 						if (ri.live_out) jri.live_out = ri.live_out ;                                                              // transmit user request to job for last level live output
-						jt->asking = idx() ;
+						jt->asking() = idx() ;
 						//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						if      (!query ) jt->make( jri , JobMakeAction::Status , reason , ri.speculate ) ;
 						else if (!reason) jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ) ;                        // if we have a reason to run job, answer to query is known
@@ -699,18 +697,18 @@ namespace Engine {
 		DoWakeup :
 			if (prod_idx==NoIdx) {
 				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;                          // no producing job, check for dangling if asked to do so
-				status(NodeStatus::None) ;
+				set_status(NodeStatus::None) ;
 				chk_regenerate = false ;                                                                                           // cannot regenerate from nothing
 			} else if (multi[0]!=NoIdx) {
 				SWEAR(multi[1]!=NoIdx) ;                                                                                           // both must contain a valid index or none of them
-				status(NodeStatus::Multi) ;
+				set_status(NodeStatus::Multi) ;
 				trace("multi",ri,multi) ;
 				/**/                     req->audit_node(Color::Err ,"multi",idx()                       ) ;
 				/**/                     req->audit_info(Color::Note,"at least 2 rules match :"        ,1) ;
 				for( RuleIdx i : multi ) req->audit_info(Color::Note,job_tgts()[i]->rule()->user_name(),2) ;
 				chk_regenerate = false ;                                                                                           // cannot regenerate from multi
 			} else {
-				conform_idx(prod_idx) ;
+				set_conform_idx(prod_idx) ;
 			}
 			ri.done_ = ri.goal ;
 			if (!( chk_regenerate && _may_need_regenerate(self,ri,make_action) )) break ;
@@ -746,7 +744,7 @@ namespace Engine {
 		RuleIdx prio = 0    ;
 		for( Job j : job_tgts().subvec(0,n_job_tgts) ) {
 			RuleIdx p = j->rule()->prio ;
-			if (p<prio) break ;              // all jobs above or besides conform job(s)
+			if (p<prio) break ;             // all jobs above or besides conform job(s)
 			ok &= j->forget(targets,deps) ;
 			if (k==conform_idx()) prio = p ;
 			k++ ;
@@ -798,10 +796,8 @@ namespace Engine {
 		//
 		Trace trace( "refresh" , STR(modified) , idx() , reqs() , crc ,"->", crc_ , date() ,"->", sd ) ;
 		//
-		{	Lock lock { s_crc_date_mutex } ;
-			if (modified) crc_date(crc_,sd) ;
-			else          date() = sd ;
-		}
+		if (modified) { crc = {} ; date() = sd ; crc = crc_ ; }              // defensive programming : ensure crc and date are never incoherent
+		else                       date() = sd ;
 		for( Req r : reqs() ) {
 			ReqInfo& ri = req_info(r) ;
 			if (modified) ri.done_  = ::min( ri.done_ , NodeGoal::Status ) ; // target is not conform on disk any more
@@ -855,7 +851,7 @@ namespace Engine {
 	::string& operator+=( ::string& os , GenericDep const& gd ) { // START_OF_NO_COV
 		os << "GenericDep(" ;
 		if (gd.hdr.sz) {
-			os << gd.hdr.chunk_accesses            <<',' ;
+			os << Accesses(gd.hdr.chunk_accesses)  <<',' ;
 			os << ::span((&gd)[1].chunk,gd.hdr.sz) <<',' ;
 		}
 		os << gd.hdr ;
@@ -885,42 +881,42 @@ namespace Engine {
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
 		bool can_compress = dep.is_crc && dep.crc()==Crc::None && dep.dflags==DflagsDfltDyn && !dep.parallel ;
 		if (hole==Npos) {
-			if (can_compress) {                                                                       // create new open chunk
+			if (can_compress) {                                                                        // create new open chunk
 				/**/ hole                         = deps.size()             ;
 				Dep& hdr                          = deps.emplace_back().hdr ;
 				/**/ hdr.sz                       = 1                       ;
-				/**/ hdr.chunk_accesses           = dep.accesses            ;
+				/**/ hdr.chunk_accesses           = +dep.accesses           ;
 				/**/ deps.emplace_back().chunk[0] = dep                     ;
-			} else {                                                                                  // create a chunk just for dep
+			} else {                                                                                   // create a chunk just for dep
 				deps.push_back(dep) ;
-				deps.back().hdr.sz             = 0  ;                                                 // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
-				deps.back().hdr.chunk_accesses = {} ;                                                 // useless, just to avoid a random value hanging around
+				deps.back().hdr.sz             = 0 ;                                                   // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
+				deps.back().hdr.chunk_accesses = 0 ;                                                   // useless, just to avoid a random value hanging around
 			}
 		} else {
 			Dep& hdr = deps[hole].hdr ;
-			if ( can_compress && dep.accesses==hdr.chunk_accesses && hdr.sz<lsb_msk(Dep::NSzBits) ) { // append dep to open chunk
+			if ( can_compress && +dep.accesses==hdr.chunk_accesses && hdr.sz<lsb_msk(Dep::NSzBits) ) { // append dep to open chunk
 				uint8_t i = hdr.sz%GenericDep::NodesPerDep ;
 				if (i==0) deps.emplace_back() ;
 				deps.back().chunk[i] = dep ;
 				hdr.sz++ ;
-			} else {                                                                                  // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
-				uint8_t  sz                 = hdr.sz             ;
-				Accesses chunk_accesses     = hdr.chunk_accesses ;
-				/**/     hdr                = dep                ;
-				/**/     hdr.sz             = sz                 ;
-				/**/     hdr.chunk_accesses = chunk_accesses     ;
-				/**/     hole               = Npos               ;
+			} else {                                                                                   // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
+				uint8_t       sz                 = hdr.sz             ;
+				Accesses::Val chunk_accesses     = hdr.chunk_accesses ;
+				/**/          hdr                = dep                ;
+				/**/          hdr.sz             = sz                 ;
+				/**/          hdr.chunk_accesses = chunk_accesses     ;
+				/**/          hole               = Npos               ;
 			}
 		}
 	}
 
 	static void _fill_hole(GenericDep& hdr) {
 		SWEAR(hdr.hdr.sz!=0) ;
-		uint8_t  sz                     = hdr.hdr.sz-1                                                 ;
-		Accesses chunk_accesses         = hdr.hdr.chunk_accesses                                       ;
-		/**/     hdr.hdr                = { (&hdr)[1].chunk[sz] , hdr.hdr.chunk_accesses , Crc::None } ;
-		/**/     hdr.hdr.sz             = sz                                                           ;
-		/**/     hdr.hdr.chunk_accesses = chunk_accesses                                               ;
+		uint8_t       sz                     = hdr.hdr.sz-1                                                                          ;
+		Accesses::Val chunk_accesses         = hdr.hdr.chunk_accesses                                                                ;
+		/**/          hdr.hdr                = { (&hdr)[1].chunk[sz] , Accesses(hdr.hdr.chunk_accesses) , Crc::None , false/*err*/ } ;
+		/**/          hdr.hdr.sz             = sz                                                                                    ;
+		/**/          hdr.hdr.chunk_accesses = chunk_accesses                                                                        ;
 	}
 	static void _fill_hole( ::vector<GenericDep>& deps , size_t hole ) {
 		if (hole==Npos) return ;

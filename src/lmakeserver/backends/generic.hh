@@ -288,7 +288,7 @@ namespace Backends {
 		void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
-			SWEAR(!waiting_jobs.contains(job),job,waiting_jobs) ;                                                                                               // job must be a new one
+			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                           // job must be a new one
 			RsrcsData   rd       = import_(::move(rsrcs),req,job) ;
 			Rsrcs       rs       { New , rd }                     ; if ( ::string msg=lacking_rsrc(*rs) ; +msg ) throw msg+" to launch job "+Job(job)->name() ;
 			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                     // in particular for this req

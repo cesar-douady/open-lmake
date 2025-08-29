@@ -109,7 +109,7 @@ namespace Backends::Local {
 			{	size_t i = 0 ;
 				_env_vec.clear() ;
 				for( auto const& [k,v] : env_ ) {
-					_env_vec.push_back(k+'='+v) ;
+					_env_vec.push_back(cat(k,'=',v)) ;
 					_env[i++] = _env_vec.back().c_str() ;
 				}
 				_env[i] = nullptr ;

@@ -104,10 +104,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 		case Proc::Access :
 			if      (jerr.digest.write!=No) *s_deps_err<<"unexpected write/unlink to "<<jerr.file<<'\n' ; // can have only deps from within server
 			else if (!s_deps              ) *s_deps_err<<"unexpected access of "      <<jerr.file<<'\n' ; // cant have deps when no way to record them
-			else {
-				s_deps->emplace_back( ::move(jerr.file) , DepDigest(jerr.digest.accesses,jerr.file_info,jerr.digest.flags.dflags,true/*parallel*/) ) ;
-				s_deps->back().second.parallel = false ;                                                  // parallel bit is marked false on last of a series of parallel accesses
-			}
+			else                            s_deps->emplace_back( ::move(jerr.file) , DepDigest(jerr.digest.accesses,jerr.file_info,jerr.digest.flags.dflags) ) ;
 		break ;
 		default : *s_deps_err<<"unexpected "<<jerr.proc<<'\n' ;
 	}
@@ -153,9 +150,9 @@ Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 }
 
 JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
-	thread_local ::string   codec_file   ;
-	thread_local ::string   codec_ctx    ;
-	thread_local ::vector_s dep_verboses ;
+	thread_local ::string   codec_file  ;
+	thread_local ::string   codec_ctx   ;
+	thread_local ::vector_s pushed_deps ;
 	//
 	if (+report_direct(::move(jerr),force)) {
 		/**/                                   if (jerr.sync!=Yes) return {}    ;
@@ -163,13 +160,13 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 	}
 	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
-		case Proc::DepVerbosePush : dep_verboses.push_back(::move(jerr.file)) ; break ;
-		case Proc::CodecFile      : codec_file = ::move(jerr.file) ;            break ;
-		case Proc::CodecCtx       : codec_ctx  = ::move(jerr.file) ;            break ;
+		case Proc::DepPush   : pushed_deps.push_back(::move(jerr.file)) ; break ;
+		case Proc::CodecFile : codec_file = ::move(jerr.file) ;           break ;
+		case Proc::CodecCtx  : codec_ctx  = ::move(jerr.file) ;           break ;
 		case Proc::DepVerbose : {
 			::vector<DepVerboseInfo> dep_infos ;
-			for( ::string& f : dep_verboses ) dep_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
-			dep_verboses.clear() ;
+			for( ::string& f : pushed_deps ) dep_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
+			pushed_deps.clear() ;
 			return { .proc=jerr.proc , .dep_infos=::move(dep_infos) } ;
 		}
 		case Proc::Decode :
@@ -347,24 +344,24 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	//                     no_follow read       create
 	src { r , ::move(src_) , true  , true     , exchange , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true  , exchange , true     , c , CommentExt::Write }
-{	if (src.real==dst.real) return ;                                                                                // posix says in this case, it is nop
+{	if (src.real==dst.real) return ;                                                                                  // posix says in this case, it is nop
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written
 	::vector_s             reads  ;
 	::vector_s             stats  ;
-	::umap_s<bool/*read*/> unlnks ;                                                                                 // files listed here are read and unlinked
+	::umap_s<bool/*read*/> unlnks ;                                                                                   // files listed here are read and unlinked
 	::vector_s             writes ;
 	auto do1 = [&]( Solve const& src , Solve const& dst )->void {
 		for( auto const& [f,_] : walk(s_repo_root_fd(),src.real,TargetTags) ) {
 			if (+src.real0) {
-				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ;              // real is read, real0 is unlinked
+				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ;                // real is read, real0 is unlinked
 				if      (src.file_loc <=FileLoc::Dep ) reads .push_back  (src.real +f              ) ;
 			} else {
-				if      (src.file_loc<=FileLoc::Repo) unlnks.try_emplace(src.real+f,true/*read*/) ;                 // real is both read and unlinked
+				if      (src.file_loc<=FileLoc::Repo) unlnks.try_emplace(src.real+f,true/*read*/) ;                   // real is both read and unlinked
 				else if (src.file_loc<=FileLoc::Dep ) reads .push_back  (src.real+f             ) ;
 			}
-			if (no_replace) { if (dst.file_loc <=FileLoc::Dep ) stats .push_back(dst.real +f) ; }                   // probe existence of destination
+			if (no_replace) { if (dst.file_loc <=FileLoc::Dep ) stats .push_back(dst.real +f) ; }                     // probe existence of destination
 			if (+dst.real0) { if (dst.file_loc0<=FileLoc::Repo) writes.push_back(dst.real0+f) ; }
 			else            { if (dst.file_loc <=FileLoc::Repo) writes.push_back(dst.real +f) ; }
 		}
@@ -375,8 +372,8 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	for( ::string const& w : writes ) {
 		auto it = unlnks.find(w) ;
 		if (it==unlnks.end()) continue ;
-		reads.push_back(w) ;                                                                                        // if a file is read, unlinked and written, it is actually not unlinked
-		unlnks.erase(it) ;                                                                                          // .
+		reads.push_back(w) ;                                                                                          // if a file is read, unlinked and written, it is actually not unlinked
+		unlnks.erase(it) ;                                                                                            // .
 	}
 	//
 	::uset_s guards ;

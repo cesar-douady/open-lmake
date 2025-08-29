@@ -639,6 +639,7 @@ namespace Engine {
 		if (s<Special::NShared) SWEAR( !src_dir_s                           , s , src_dir_s ) ; // shared rules cannot have parameters as, precisely, they are shared
 		else                    SWEAR( +src_dir_s && is_dir_name(src_dir_s) , s , src_dir_s ) ; // ensure source dir ends with a /
 		switch (s) {
+			case Special::Dep          :                break ;
 			case Special::Req          : force = true ; break ;
 			case Special::InfiniteDep  :
 			case Special::InfinitePath :                break ;
@@ -1009,7 +1010,7 @@ namespace Engine {
 			// job_name & targets
 			MatchEntry job_name_match_entry ; job_name_match_entry.set_pattern(job_name,stems.size()) ;
 			job_name_pattern = _mk_pattern(job_name_match_entry,true /*for_name*/)  ;
-			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/ )) ;
+			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/)) ;
 			//
 		} catch (::string const& e) {
 			throw "while processing "+user_name()+" :\n"+indent(e) ;

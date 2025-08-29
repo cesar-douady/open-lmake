@@ -461,7 +461,7 @@ namespace Disk {
 		SolveReport solve(         const char*     file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve( at      , ::string()          , no_follow ) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&) ;                             // arg is updated to reflect last interpreter
+		vmap_s<Accesses> exec(SolveReport&&) ;                             // arg is updated to reflect last interpreter
 		//
 		void chdir() ;
 		::string cwd() {

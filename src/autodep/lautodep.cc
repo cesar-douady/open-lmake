@@ -41,8 +41,7 @@ static ::vmap_s<JobSpace::ViewDescr> _mk_views(::string const& views) {
 	if (+views) {
 		Ptr<> py_views = py_eval(views) ;                         // hold objet in a Ptr
 		for( auto const& [py_k,py_v] : py_views->as_a<Dict>() ) {
-			res.emplace_back( ::string(py_k.as_a<Str>()) , JobSpace::ViewDescr() ) ;
-			JobSpace::ViewDescr& descr = res.back().second ;
+			JobSpace::ViewDescr& descr = res.emplace_back( ::string(py_k.as_a<Str>()) , JobSpace::ViewDescr() ).second ;
 			if (py_v.is_a<Str>()) {
 				descr.phys.push_back(py_v.as_a<Str>()) ;
 			} else if (py_v.is_a<Dict>()) {

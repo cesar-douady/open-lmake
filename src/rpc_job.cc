@@ -1333,11 +1333,11 @@ void JobInfo::fill_from(::string const& file_name , JobInfoKinds need ) {
 
 void JobInfo::update_digest() {
 	Trace trace("update_digest",dep_crcs.size()) ;
-	if (!dep_crcs) return ;                                                                                            // nothing to update
+	if (!dep_crcs) return ;                                                                                                                               // nothing to update
 	SWEAR( dep_crcs.size()==end.digest.deps.size() ) ;
 	for( size_t i : iota(end.digest.deps.size()) )
-		if ( dep_crcs[i].valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.crc(dep_crcs[i]) ;
-	dep_crcs.clear() ;                                                                                                 // now useless as info is recorded in digest
+		if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
+	dep_crcs.clear() ;                                                                                                                                    // now useless as info is recorded in digest
 }
 
 void JobInfo::cache_cleanup() {

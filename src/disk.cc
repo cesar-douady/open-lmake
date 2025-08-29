@@ -586,7 +586,7 @@ namespace Disk {
 		return res ;
 	}
 
-	::vmap_s<Accesses> RealPath::exec(SolveReport& sr) {
+	::vmap_s<Accesses> RealPath::exec(SolveReport&& sr) {
 		::vmap_s<Accesses> res ;
 		// from tmp, we can go back to repo
 		for( int i=0 ; i<=4 ; i++ ) {                                                                          // interpret #!<interpreter> recursively (4 levels as per man execve)
@@ -594,15 +594,16 @@ namespace Disk {
 			//
 			if ( sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp ) break ;                               // if we escaped from the repo, there is no more deps to gather
 			//
-			Accesses a = Access::Reg ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
-			if (sr.file_loc<=FileLoc::Dep) res.emplace_back(sr.real,a) ;
+			::string abs_real = mk_abs(sr.real,_env->repo_root_s) ;
+			Accesses a        = Access::Reg                       ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
 			//
+			if (sr.file_loc<=FileLoc::Dep) res.emplace_back( ::move(sr.real) , a ) ;
 			try {
-				AcFd     hdr_fd { mk_abs(sr.real,_env->repo_root_s) , true/*err_ok*/ } ; if    ( !hdr_fd                                               ) break ;
-				::string hdr    = hdr_fd.read(256)                                     ; if    ( !hdr.starts_with("#!")                                ) break ;
-				size_t   eol    = hdr.find('\n')                                       ; if    ( eol!=Npos                                             ) hdr.resize(eol) ;
-				size_t   pos1   = 2                                                    ; while ( pos1<hdr.size() &&  (hdr[pos1]==' '||hdr[pos1]=='\t') ) pos1++ ;
-				size_t   pos2   = pos1                                                 ; while ( pos2<hdr.size() && !(hdr[pos2]==' '||hdr[pos2]=='\t') ) pos2++ ;
+				AcFd     hdr_fd { abs_real , true/*err_ok*/ } ; if    ( !hdr_fd                                               ) break ;
+				::string hdr    = hdr_fd.read(256)            ; if    ( !hdr.starts_with("#!")                                ) break ;
+				size_t   eol    = hdr.find('\n')              ; if    ( eol!=Npos                                             ) hdr.resize(eol) ;
+				size_t   pos1   = 2                           ; while ( pos1<hdr.size() &&  (hdr[pos1]==' '||hdr[pos1]=='\t') ) pos1++ ;
+				size_t   pos2   = pos1                        ; while ( pos2<hdr.size() && !(hdr[pos2]==' '||hdr[pos2]=='\t') ) pos2++ ;
 				//
 				if (pos1!=pos2) sr = solve( ::string_view(hdr).substr(pos1,pos2-pos1) , false/*no_follow*/ ) ; // interpreter is first word
 				// recurse by looping
