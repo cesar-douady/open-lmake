@@ -475,10 +475,12 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 # slurm
 #
 
-src/lmakeserver/backends/slurm_api-%.cc :
+src/lmakeserver/backends/slurm_api-%.cc : ext/slurm/%/META
 	@echo generate $@
-	@(	echo '#define SLURM_VERSION   "$*"' \
-	;	echo '#include "slurm_api.x.cc"'    \
+	@# mimic slurm source code to retrieve API version from META, in practice, API_AGE is 0
+	@(                                                                                                                                                 \
+		awk '/API_CURRENT/ {api_current=$$2} ; /API_AGE/ {api_age=$$2} ; END {printf("#define SLURM_API_VERSION_NUMBER %d\n",api_current-api_age)}' $< \
+	;	echo '#include "slurm_api.x.cc"'                                                                                                               \
 	) >$@
 
 #

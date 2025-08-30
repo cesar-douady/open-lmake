@@ -66,12 +66,13 @@ namespace Backends::Slurm {
 
 namespace Backends::Slurm::SlurmApi {
 
+	using ApiVersionFunc  = long (*)(                                                ) ; // this is used to determine version
 	using InitFunc        = void (*)( const char*                                    ) ; // this is used before version is known
 	using LoadCtlConfFunc = int  (*)( time_t update_time , void** /*out*/ slurm_conf ) ; // slurm_conf_t is not known yet
 	using FreeCtlConfFunc = void (*)( void* slurm_conf                               ) ;
 
-	extern void*                                     g_lib_handler      ; // handler for libslurm.so as returned by ::dlsym
-	extern ::umap_s<Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ; // map slurm version to init function, which returns true if version matches else returns false or traps with SIGSEGV/SIGBUS
+	extern void*                                            g_lib_handler      ; // handler for libslurm.so as returned by ::dlsym
+	extern ::umap<uint32_t,Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ;
 	//
 	extern SlurmId (*spawn_job_func)(
 		::stop_token            st
@@ -84,7 +85,14 @@ namespace Backends::Slurm::SlurmApi {
 	,	RsrcsData        const& rsrcs
 	,	bool                    verbose
 	) ;
-	extern ::pair_s<Bool3/*job_ok*/> (*job_state_func)(SlurmId) ;         // Maybe means job has not completed
+	extern ::pair_s<Bool3/*job_ok*/> (*job_state_func)(SlurmId) ;                // Maybe means job has not completed
 	extern void                      (*cancel_func   )(SlurmId) ;
+
+	inline ::string version_str(long v) {
+		int major = (v>>16)&0xff ;
+		int minor = (v>> 8)&0xff ;
+		SWEAR( v==(major<<16)+(minor<<8) , v ) ;
+		return cat(major,'.',minor<10?"0":"",minor) ;
+	}
 
 }

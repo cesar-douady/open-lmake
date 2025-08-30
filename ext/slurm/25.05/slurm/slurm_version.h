@@ -38,7 +38,7 @@
 #ifndef _SLURM_VERSION_H_
 #define _SLURM_VERSION_H_
 
-#define SLURM_VERSION_NUMBER 0x170200
+#define SLURM_VERSION_NUMBER 0x190500
 
 /*
  * Define Slurm version number.

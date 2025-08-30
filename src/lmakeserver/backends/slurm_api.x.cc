@@ -239,34 +239,18 @@ namespace Backends::Slurm::SlurmApi {
 		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",_strerror(errno)) ; // NO_COV
 	}
 
-	static sigjmp_buf _jmp_env ;
-	template<class T> void _load_func( T*& dst , const char* name ) {
+	template<class T> static void _load_func( T*& dst , const char* name ) {
 		dst = reinterpret_cast<T*>(::dlsym(g_lib_handler,name)) ;
-		if (!dst) throw cat("cannot find ",name) ;
-	}
-	static void _silent_ignore_sig(int /*sig*/) {
-		::siglongjmp( _jmp_env , true/*val*/ ) ;
-	}
-	__attribute__((no_sanitize("address"))) static void _chk_version(slurm_conf_t const* conf) {
-		static const ::string SlurmVersion = SLURM_VERSION ;                                     // cannot be constexpr with gcc-11
-		Trace trace("_chk_version",SlurmVersion) ;
-		const char* cv = conf->version ;
-		if (!cv) { trace("null_access") ; throw "bad_version"s ; }                               // although null dereference is caught, explicitly test cv to allow code to run with address sanitizer
-		WithSigHandler<_silent_ignore_sig> sav_segv { SIGSEGV } ;                                // field offsets vary with version, so we may access a bad pointer
-		WithSigHandler<_silent_ignore_sig> sav_bus  { SIGBUS  } ;                                // .
-		if (::sigsetjmp( _jmp_env , true/*save_sigs*/ )==0) {                                    // from direct call
-			// /!\ no RAII here as setjmp/longjmp will not correctly destroy it
-			for( size_t i : iota(SlurmVersion.size()) )
-				if(cv[i]!=SlurmVersion[i]) { trace("mismatch") ; throw "bad_version"s ; }
-		} else {                                                                                 // signal caught
-			trace("bad_access") ; throw "bad_version"s ;
-		}
+		throw_unless( dst , "cannot find ",name ) ;
 	}
 	static Daemon _sense_daemon(void const* conf_) {
-		Trace trace("_sense_daemon") ;
+		static const ::string Version = version_str(SLURM_VERSION_NUMBER) ;                                                                           // cannot be constexpr with gcc-11
 		//
-		slurm_conf_t const* conf = ::launder(reinterpret_cast<slurm_conf_t const*>(conf_)) ;     // if version mismatch, this may lead to SIGSEGV/SIGBUS handled by caller
-		_chk_version(conf) ;
+		Trace trace("_sense_daemon",Version) ;
+		//
+		slurm_conf_t const* conf    = ::launder(reinterpret_cast<slurm_conf_t const*>(conf_)) ;
+		::string            version = conf->version                                           ; if (version.size()>5) version = version.substr(0,5) ; // only keep major and minor
+		throw_unless( Version==version , "slurm version mismatch : found ",version," expected ",Version ) ;
 		//
 		_load_func( _free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
 		_load_func( _free_submit_response_response_msg , "slurm_free_submit_response_response_msg" ) ;
@@ -318,6 +302,6 @@ namespace Backends::Slurm::SlurmApi {
 		return res ;
 	}
 
-	static bool once = ( g_sense_daemon_tab[SLURM_VERSION]=_sense_daemon , true ) ; // register version
+	static bool once = ( g_sense_daemon_tab[SLURM_API_VERSION_NUMBER]=_sense_daemon , true ) ; // register version
 
 }

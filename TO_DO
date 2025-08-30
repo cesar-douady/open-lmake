@@ -25,14 +25,12 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* add the possibility to list targets
-	- to ease manifest generation
-* suppress readdir protection on dirs made by successful mkdir
-	- as these dirs have a predictible content
-	- not perfectly true as another job could create a file in such a dir
 ! add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
 ! manage 32 bits executables with ptrace
+? suppress readdir protection on dirs made by successful mkdir
+	- as these dirs have a predictible content
+	- not perfectly true as another job could create a file in such a dir
 ? replace environ/environ_resources/environ_ancillary with a unique dict
 	- value is either a str or a tuple with value and flags
 	- much like deps

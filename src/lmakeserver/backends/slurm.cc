@@ -29,8 +29,8 @@ enum class SlurmFlag : uint8_t {
 namespace Backends::Slurm {
 
 	namespace SlurmApi {
-		void*                                     g_lib_handler      ;
-		::umap_s<Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ;
+		void*                                            g_lib_handler      ;
+		::umap<uint32_t,Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ;
 		//
 		SlurmId (*spawn_job_func)(
 			::stop_token            st
@@ -406,6 +406,7 @@ namespace Backends::Slurm {
 			throw msg ;
 		}
 		//
+		SlurmApi::ApiVersionFunc  api_version_func   = reinterpret_cast<SlurmApi::ApiVersionFunc >(::dlsym(SlurmApi::g_lib_handler,"slurm_api_version"  )) ;
 		SlurmApi::InitFunc        init_func          = reinterpret_cast<SlurmApi::InitFunc       >(::dlsym(SlurmApi::g_lib_handler,"slurm_init"         )) ;
 		SlurmApi::LoadCtlConfFunc load_ctl_conf_func = reinterpret_cast<SlurmApi::LoadCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_load_ctl_conf")) ;
 		SlurmApi::FreeCtlConfFunc free_ctl_conf_func = reinterpret_cast<SlurmApi::FreeCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_free_ctl_conf")) ;
@@ -446,29 +447,31 @@ namespace Backends::Slurm {
 		}
 		init_func(config_file_.c_str()) ;                                // this should be safe now that we have checked it works in a child
 		//
-		void* conf = nullptr ;
+		struct ToFree {                                                  // use RAII technics so as to be sure conf is released in all cases
+			~ToFree() { if (conf) free_func(conf) ; }
+			void*                     conf      = nullptr ;
+			SlurmApi::FreeCtlConfFunc free_func = nullptr ;
+
+		} ;
+		ToFree to_free { .free_func=free_ctl_conf_func } ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
 		{	Lock lock { slurm_mutex } ;
-			if (!is_target(config_file_)                     ) throw "no slurm config file "+config_file_ ;
-			if (load_ctl_conf_func(0/*update_time*/,&conf)!=0) throw "cannot reach slurm daemon"          ;
+			throw_unless( is_target(config_file_)                               , "no slurm config file ",config_file_ ) ;
+			throw_unless( load_ctl_conf_func(0/*update_time*/,&to_free.conf)==0 , "cannot reach slurm daemon"          ) ;
 		}
-		SWEAR(conf) ;
+		SWEAR(to_free.conf) ;
 		//
-		trace("search_version") ;
-		Daemon daemon ;
-		bool   found  = false ;
-		for( auto const& [version,sense_daemon_func] : SlurmApi::g_sense_daemon_tab ) {
-			trace("try_version",version) ;
-			try {
-				daemon = sense_daemon_func(conf) ;
-				found  = true                    ;
-				break ;
-			} catch (::string const&) {}                                 // ignore errors as well
+		uint32_t api_version = api_version_func()>>16                         ; // well, api_version_func returns the API version shifted left by 16, manage it
+		auto     it          = SlurmApi::g_sense_daemon_tab.find(api_version) ;
+		if (it==SlurmApi::g_sense_daemon_tab.end()) {
+			::string msg = cat("unsupported slurm version ",api_version," not in") ;
+			::vector<uint32_t> versions = mk_key_vector(SlurmApi::g_sense_daemon_tab) ; ::sort(versions) ;
+			for( uint32_t v : versions ) msg <<' '<< v ;
+			msg <<'\n' ;
+			throw msg ;
 		}
 		//
-		free_ctl_conf_func(conf) ;
-		throw_unless( found , "unsupported slurm version" ) ;
-		return daemon ;
+		return it->second(to_free.conf) ;
 	}
 
 	RsrcsData parse_args(::string const& args) {

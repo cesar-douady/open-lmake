@@ -273,8 +273,9 @@ By the way, the execution is lighter and code is not heavier.
 
 * to add a slurm version
 	- in slurm source tree, type `./configure`
-	- copy file `slurm/slurm.h` from slurm source tree to `ext/slurm/<version>/slurm/slurm.h`
-	- also copy included files from there, as of today, they are `slurm/slurm_errno.h` and `slurm/slurm_version.h`
+	- copy minimal info from slurm source tree to ext/slurm/<version>:
+		- file `slurm/slurm.h` together with included files, as of today, they are `slurm/slurm_errno.h` and `slurm/slurm_version.h`
+		- file `META`
 	- git add `ext/slurm/<version>`
 	- <version> may be a prefix, e.g. `24.11` works for all `24.11.x`
 	- git clean and remake
