@@ -16,6 +16,7 @@ enum class JobExecProc : uint8_t {
 ,	Confirm
 ,	DepDirect
 ,	DepVerbose
+,	List                   // list deps/targets
 ,	Tmp                    // write activity in tmp has been detected (hence clean up is required)
 ,	CodecCtx
 ,	CodecFile
@@ -68,6 +69,7 @@ struct JobExecRpcReq {
 		switch (proc) {
 			case Proc::ChkDeps       :
 			case Proc::Tmp           : SWEAR(                !digest            &&  !id                       && +date , self ) ; break ;
+			case Proc::List          : SWEAR( sync==Yes   && !digest.has_read() &&  !id                       && +date , self ) ; break ;
 			case Proc::DepDirect     :
 			case Proc::DepVerbose    : SWEAR( sync==Yes   &&                        !id                       && +date , self ) ; break ;
 			case Proc::Trace         :
@@ -93,6 +95,7 @@ struct JobExecRpcReq {
 		switch (proc) {
 			case Proc::ChkDeps       :
 			case Proc::Tmp           :                                             ::serdes(s,date) ; break ;
+			case Proc::List          : ::serdes(s,digest.write) ;                  ::serdes(s,date) ; break ;
 			case Proc::Confirm       : ::serdes(s,digest.write) ; ::serdes(s,id) ;                    break ;
 			case Proc::DepDirect     :
 			case Proc::DepVerbose    : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
@@ -122,27 +125,30 @@ struct JobExecRpcReply {
 	// services
 	void chk() const {
 		switch (proc) {
-			case Proc::None       : SWEAR( ok==Maybe && !dep_infos && !txt ) ; break ;
-			case Proc::ChkDeps    : SWEAR(              !dep_infos && !txt ) ; break ;
-			case Proc::DepDirect  : SWEAR(              !dep_infos && !txt ) ; break ;
-			case Proc::DepVerbose : SWEAR( ok==Maybe               && !txt ) ; break ;
+			case Proc::None       : SWEAR( ok==Maybe && !verbose_infos && !files && !txt ) ; break ;
+			case Proc::ChkDeps    : SWEAR(              !verbose_infos && !files && !txt ) ; break ;
+			case Proc::DepDirect  : SWEAR(              !verbose_infos && !files && !txt ) ; break ;
+			case Proc::DepVerbose : SWEAR( ok==Maybe                   && !files && !txt ) ; break ;
+			case Proc::List       : SWEAR( ok==Maybe && !verbose_infos &&           !txt ) ; break ;
 			case Proc::Decode     :
-			case Proc::Encode     : SWEAR(              !dep_infos         ) ; break ;
-		DF}                                                                            // NO_COV
+			case Proc::Encode     : SWEAR(              !verbose_infos && !files         ) ; break ;
+		DF}                                                                                          // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
 		switch (proc) {
-			case Proc::ChkDeps    : ::serdes(s,ok       ) ;            break ;
-			case Proc::DepDirect  : ::serdes(s,ok       ) ;            break ;
-			case Proc::DepVerbose : ::serdes(s,dep_infos) ;            break ;
+			case Proc::ChkDeps    : ::serdes(s,ok           ) ;                   break ;
+			case Proc::DepDirect  : ::serdes(s,ok           ) ;                   break ;
+			case Proc::DepVerbose : ::serdes(s,verbose_infos) ;                   break ;
+			case Proc::List       : ::serdes(s,files        ) ;                   break ;
 			case Proc::Decode     :
-			case Proc::Encode     : ::serdes(s,ok) ; ::serdes(s,txt) ; break ;
+			case Proc::Encode     : ::serdes(s,ok           ) ; ::serdes(s,txt) ; break ;
 		DN}
 	}
 	// data
-	Proc                     proc      = Proc::None ;
-	Bool3                    ok        = Maybe      ;                                  // if proc==ChkDeps|DepDirect |Decode|Encode
-	::vector<DepVerboseInfo> dep_infos = {}         ;                                  // if proc==        DepVerbose               , same order as deps
-	::string                 txt       = {}         ;                                  // if proc==                   Decode|Encode , value for Decode, code for Encode
+	Proc                  proc          = Proc::None ;
+	Bool3                 ok            = Maybe      ;                                               // if proc==Decode|Encode|ChkDeps|DepDirect
+	::vector<VerboseInfo> verbose_infos = {}         ;                                               // if proc==DepVerbose                      , same order as deps
+	::vector_s            files         = {}         ;                                               // if proc==List
+	::string              txt           = {}         ;                                               // if proc==Decode|Encode                   , value for Decode, code for Encode
 } ;

@@ -93,9 +93,6 @@ If `verbose`, return a `dict` with one entry par dep where:
 - The value is a `dict` composed of:
   - `ok`:       `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
   - `checksum`: The checksum computed after the dep (unless `ok` is `None`) (cf. *xxhsum(1)*).
-  - `rule`:     The rule name of the job that has generated the dep one exists.
-  - `special`:  The special nature (e.g. `src`).
-  - `stems`:    A `dict` mapping stem names to stem values if the rule is a plain rule.
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 
@@ -129,7 +126,7 @@ Notes:
 - (4):
 	If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
 	and if the series of file does not depend on the actual content of said files,
-	then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
+	then it is preferable to pre-access (using this function) all files before starting the loop.
 	The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.
 - (5):
 	If a series of dep is directly derived from the content of a file, it may be wise to declare it as `critical`.
@@ -178,6 +175,11 @@ In case passed targets turn out to be deps, the deps flags are also available: `
 
 Flags accumulate and are never reset.
 
+Notes:
+
+- (1):
+	The same functionality is provided with the `ltarget` executable.
+
 ### `check_deps(sync=False)`
 
 Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
@@ -201,6 +203,11 @@ This may be annoying if said process was supposed to do some clean up or if it i
 The solution in this case is to pass `sync=True`.
 This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as `check_deps` will still be running when the signal fires up.
 
+Notes:
+
+- (1):
+	The same functionality is provided with the `lcheck_deps` executable.
+
 ### `get_autodep()`
 
 Returns whether autodep is currently active or not.
@@ -221,6 +228,16 @@ with Autodep(active) :
 ```
 
 executes `<some code>` with autodep active set as instructed.
+
+### `list_deps()`
+
+Returns a `tuple` of currently accessed deps.
+If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
+
+### `list_targets()`
+
+Returns a `tuple` of currently generated targets.
+If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
 
 ### `encode( file , ctx , val , min_length=1 )`
 
@@ -255,7 +272,7 @@ Note : this checksum is **not** crypto-robust.
 
 Cf. *xxhsum(1)* for a description of the algorithm.
 
-### `xxhsum(text,is_link=False)`
+### `xxhsum( text , is_link=False )`
 
 Return a checksum of provided text.
 

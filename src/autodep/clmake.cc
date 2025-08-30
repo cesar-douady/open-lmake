@@ -91,7 +91,7 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool       direct  = ad.flags.extra_dflags[ExtraDflag::Direct ] ;
 	bool       sync    = verbose || direct                          ;
 	//
-	::pair<::vector<DepVerboseInfo>,bool/*ok*/> dep_infos ;
+	::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
 	try                       { dep_infos = JobSupport::depend( *_g_record , ::copy(files) , ad , no_follow , regexpr ) ; }
 	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                   }
 	//
@@ -105,22 +105,16 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 		//
 		SWEAR( dep_infos.first.size()==files.size() , dep_infos.first.size() , files.size() ) ;
 		for( size_t i : iota(dep_infos.first.size()) ) {
-			DepVerboseInfo const& dvi = dep_infos.first[i] ;
+			VerboseInfo const& vi = dep_infos.first[i] ;
 			Object*   py_ok    ;
-			switch (dvi.ok) {
+			switch (vi.ok) {
 				case Yes   : py_ok = &True  ; break ;
 				case Maybe : py_ok = &None  ; break ;
 				case No    : py_ok = &False ; break ;
 			DF}
 			Ptr<Dict> py_dep_info { New } ;
-			/**/              py_dep_info->set_item( "ok"       , *py_ok                       ) ;
-			if (+dvi.crc    ) py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(dvi.crc)) ) ;
-			if (+dvi.rule   ) py_dep_info->set_item( "rule"     , *Ptr<Str>(dvi.rule         ) ) ;
-			if (+dvi.special) py_dep_info->set_item( "special"  , *Ptr<Str>(dvi.special      ) ) ;
-			if (+dvi.stems) {
-				Ptr<Dict> py_stems { New } ; for( auto const& [k,v] : dvi.stems ) py_stems->set_item( k , *Ptr<Str>(v) ) ;
-				py_dep_info->set_item( "stems" , *py_stems ) ;
-			}
+			/**/         py_dep_info->set_item( "ok"       , *py_ok                      ) ;
+			if (+vi.crc) py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(vi.crc)) ) ;
 			res->set_item( files[i] , *py_dep_info ) ;
 		}
 		return res ;
@@ -161,13 +155,21 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 		else             throw "unexpected keyword arg "+key ;
 	}
 	try {
-		Bool3 ok = JobSupport::check_deps(*_g_record,sync) ;
+		Bool3 ok = JobSupport::check_deps( *_g_record , sync ) ;
 		if (!sync) return &None ;
 		throw_if(ok==Maybe,"some deps are out-of-date") ; // in case handler catches killing signal as job will be killed in that case
 		return Ptr<Bool>(ok==Yes) ;
 	} catch (::string const& e) {
 		throw ::pair(PyException::RuntimeErr,e) ;
 	}
+}
+
+template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const& py_kwds ) {
+	if ( +py_args || +py_kwds ) throw "no args supported" ;
+	::vector_s files = JobSupport::list( *_g_record , No|Target ) ;
+	Ptr<Tuple> res   { files.size() }              ;
+	for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
+	return res ;
 }
 
 // encode and decode are very similar, it is easier to define a template for both
@@ -417,6 +419,14 @@ PyMODINIT_FUNC
 	,	F( "set_autodep" , py_func<set_autodep> ,
 			"set_autodep(active,/)\n"
 			"Activate (if active) or deactivate (if not active) autodep recording.\n"
+		)
+	,	F( "list_deps" , (py_func<Tuple,list<false/*Target*/>>) ,
+			"list_deps()\n"
+			"Return the list of deps as currently known.\n"
+		)
+	,	F( "list_targets" , (py_func<Tuple,list<true/*Target*/>>) ,
+			"list_targets()\n"
+			"Return the list of targets as currently known.\n"
 		)
 	,	F( "decode" , (py_func<Str,codec<false/*Encode*/>>) ,
 			"decode(file,ctx,code)\n"

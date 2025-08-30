@@ -59,7 +59,8 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 		case JobExecProc::None       :                                     ; break ;
 		case JobExecProc::ChkDeps    :
 		case JobExecProc::DepDirect  : os <<','<< jerr.ok                  ; break ;
-		case JobExecProc::DepVerbose : os <<','<< jerr.dep_infos           ; break ;
+		case JobExecProc::DepVerbose : os <<','<< jerr.verbose_infos       ; break ;
+		case JobExecProc::List       : os <<','<< jerr.files               ; break ;
 		case JobExecProc::Decode     :
 		case JobExecProc::Encode     : os <<','<< jerr.txt <<','<< jerr.ok ; break ;
 	DF}                                                                              // NO_COV

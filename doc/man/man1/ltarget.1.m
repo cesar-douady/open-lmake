@@ -26,6 +26,8 @@ Following symbolic links would inevitably lead to files being read (to check if 
 .SH OPTIONS
 .LP
 Item(B(-W),B(--write))           Report an actual write, not only target flags. Default is to only alter flags.
+Item(B(-l),B(--list))            Print list of currently generated targets to stdout (exclusive of arguments or other options).
+If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
 Item(B(-X),B(--regexpr))         Pass flags to all targets matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 Item(B(-x),B(--no-exclude-star)) Accept that flags are further processed according to regexpr-based requests, e.g. B(ltarget --regexpr), default is to exclude such processing.
 Item(B(-E),B(--essential))       Show when generating user oriented graphs.

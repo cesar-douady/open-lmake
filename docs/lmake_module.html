@@ -214,9 +214,6 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <ul>
 <li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
 <li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <em>xxhsum(1)</em>).</li>
-<li><code>rule</code>:     The rule name of the job that has generated the dep one exists.</li>
-<li><code>special</code>:  The special nature (e.g. <code>src</code>).</li>
-<li><code>stems</code>:    A <code>dict</code> mapping stem names to stem values if the rule is a plain rule.</li>
 </ul>
 </li>
 </ul>
@@ -256,7 +253,7 @@ Parallel deps prevents this trial.</p>
 <p>(4):
 If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
 and if the series of file does not depend on the actual content of said files,
-then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
+then it is preferable to pre-access (using this function) all files before starting the loop.
 The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.</p>
 </li>
 <li>
@@ -306,6 +303,11 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 </ul>
 <p>Flags accumulate and are never reset.</p>
+<p>Notes:</p>
+<ul>
+<li>(1):
+The same functionality is provided with the <code>ltarget</code> executable.</li>
+</ul>
 <h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
 Job will be killed in case condition above is not met.</p>
@@ -322,6 +324,11 @@ This is due to a race condition in I(python) when said process is just starting.
 <p>This may be annoying if said process was supposed to do some clean up or if it is very long.
 The solution in this case is to pass <code>sync=True</code>.
 This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as <code>check_deps</code> will still be running when the signal fires up.</p>
+<p>Notes:</p>
+<ul>
+<li>(1):
+The same functionality is provided with the <code>lcheck_deps</code> executable.</li>
+</ul>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>
 <p>By default, autodep is active.</p>
@@ -333,6 +340,12 @@ This has a small cost in the general case where deps are actually up-to-date, bu
 	&lt;some code&gt;
 </code></pre>
 <p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
+<h3 id="list_deps"><a class="header" href="#list_deps"><code>list_deps()</code></a></h3>
+<p>Returns a <code>tuple</code> of currently accessed deps.
+If the cwd lies inside the repo, listed files are relative to it, else they are absolute.</p>
+<h3 id="list_targets"><a class="header" href="#list_targets"><code>list_targets()</code></a></h3>
+<p>Returns a <code>tuple</code> of currently generated targets.
+If the cwd lies inside the repo, listed files are relative to it, else they are absolute.</p>
 <h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
 <p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
 Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.
@@ -355,7 +368,7 @@ Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 </ul>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
 <p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
-<h3 id="xxhsumtextis_linkfalse"><a class="header" href="#xxhsumtextis_linkfalse"><code>xxhsum(text,is_link=False)</code></a></h3>
+<h3 id="xxhsum-text--is_linkfalse-"><a class="header" href="#xxhsum-text--is_linkfalse-"><code>xxhsum( text , is_link=False )</code></a></h3>
 <p>Return a checksum of provided text.</p>
 <p>It is a 16-digit hex value with no suffix.</p>
 <p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>

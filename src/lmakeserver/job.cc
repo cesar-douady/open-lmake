@@ -378,7 +378,7 @@ namespace Engine {
 					res.proc = JobMngtProc::None ;                                                 // job->make will answer for us
 				} break ;
 				case JobMngtProc::DepVerbose :
-					res.dep_infos.reserve(ecjm.deps.size()) ;
+					res.verbose_infos.reserve(ecjm.deps.size()) ;
 					for( Dep const& dep : ecjm.deps ) {
 						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
 						Bool3 dep_ok = Yes ;
@@ -389,22 +389,7 @@ namespace Engine {
 							else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
 						}
 						trace("dep_info",dep,dep_ok) ;
-						DepVerboseInfo dvi { .ok=dep_ok } ;
-						if (dep_ok!=Maybe) dvi.crc = dep->crc ;
-						if (dep->is_src_anti()) {
-							dvi.special = cat(dep->buildable) ;
-						} else if ( Job j = dep->actual_job() ; +j ) {
-							if ( Rule r = j->rule() ; +r ) {
-								if (r->is_special()) {
-									dvi.special = cat(r->special) ;
-								} else {
-									Rule::RuleMatch rm { j } ;
-									dvi.rule = r->user_name() ;
-									for( VarIdx i : iota(rm.stems.size()) ) dvi.stems.emplace_back( r->stems[i].first , ::move(rm.stems[i]) ) ;
-								}
-							}
-						}
-						res.dep_infos.push_back(::move(dvi)) ;
+						res.verbose_infos.push_back({ .ok=dep_ok , .crc=dep_ok!=Maybe?dep->crc:Crc() }) ;
 					}
 				break ;
 				case JobMngtProc::ChkDeps :

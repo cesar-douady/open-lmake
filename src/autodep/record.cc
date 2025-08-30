@@ -164,11 +164,11 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 		case Proc::CodecFile : codec_file = ::move(jerr.file) ;           break ;
 		case Proc::CodecCtx  : codec_ctx  = ::move(jerr.file) ;           break ;
 		case Proc::DepVerbose : {
-			::vector<DepVerboseInfo> dep_infos ;
-			for( ::string& f : pushed_deps ) dep_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
+			::vector<VerboseInfo> verbose_infos ; for( ::string& f : pushed_deps ) verbose_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
 			pushed_deps.clear() ;
-			return { .proc=jerr.proc , .dep_infos=::move(dep_infos) } ;
+			return { .proc=jerr.proc , .verbose_infos=::move(verbose_infos) } ;
 		}
+		break ;
 		case Proc::Decode :
 		case Proc::Encode :
 			// /!\ format must stay in sync with Codec::_s_canonicalize

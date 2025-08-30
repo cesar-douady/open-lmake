@@ -22,7 +22,7 @@ if __name__!='__main__' :
 			import os
 			dir = OUT(f'v{step}')
 			os.makedirs(dir)
-			open(f'{dir}/res','w').close()
+			open(f'{dir}/res','w')
 
 else :
 

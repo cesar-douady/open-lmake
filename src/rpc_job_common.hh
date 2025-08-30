@@ -44,14 +44,14 @@ static constexpr Dflags DflagsDfltDyn    = DflagsDflt                           
 static constexpr Dflags DflagsDfltDepend = DflagsDflt|Dflag::Required                ;
 
 // START_OF_VERSIONING
-enum class ExtraDflag : uint8_t {   // flags for deps, not recorded in server book-keeping
+enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book-keeping
 	Top
 ,	Ignore
 ,	ReaddirOk
-,	NoStar                          // exclude flags from star patterns (common info for dep and target)
+,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 ,	Direct
 // aliases
-,	NRule = Direct                  // number of Dflag's allowed in rule definition
+,	NRule = Direct                // number of Dflag's allowed in rule definition
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
@@ -241,6 +241,7 @@ enum class Comment : uint8_t {
 ,	enteredNamespace
 ,	hot
 ,	kill
+,	list
 ,	lostServer
 ,	panic
 ,	startInfo
@@ -285,19 +286,13 @@ enum class CommentExt : uint8_t {
 using CommentExts = BitMap<CommentExt> ;
 // END_OF_VERSIONING
 
-struct DepVerboseInfo {
-	friend ::string& operator+=( ::string& , DepVerboseInfo const& ) ;
+struct VerboseInfo {
+	friend ::string& operator+=( ::string& , VerboseInfo const& ) ;
 	Bool3     ok      = Maybe ;
 	Hash::Crc crc     = {}    ;
-	::string  rule    = {}    ;
-	::string  special = {}    ;
-	::vmap_ss stems   = {}    ;
 } ;
-
-inline ::string& operator+=( ::string& os , DepVerboseInfo const& dvi ) { // START_OF_NO_COV
-	/**/            os <<'('<< dvi.ok    ;
-	if (+dvi.crc  ) os <<','<< dvi.crc   ;
-	if (+dvi.rule ) os <<','<< dvi.rule  ;
-	if (+dvi.stems) os <<','<< dvi.stems ;
-	return          os <<')'             ;
-}                                                                         // END_OF_NO_COV
+inline ::string& operator+=( ::string& os , VerboseInfo const& dvi ) { // START_OF_NO_COV
+	/**/          os <<'('<< dvi.ok  ;
+	if (+dvi.crc) os <<','<< dvi.crc ;
+	return        os <<')'           ;
+}                                                                      // END_OF_NO_COV

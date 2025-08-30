@@ -1232,10 +1232,9 @@ void JobStartRpcReply::chk(bool for_cache) const {
 		case JobMngtProc::LiveOut    : os <<','<< jmrr.txt.size() ;                             break ;
 		case JobMngtProc::ChkDeps    : os <<','<< jmrr.targets <<','<<jmrr.deps ;               break ;
 		case JobMngtProc::DepVerbose : os <<','<< jmrr.deps ;                                   break ;
-		case JobMngtProc::Encode     : os <<','<< jmrr.min_len           ;                      [[fallthrough]] ;
+		case JobMngtProc::Encode     : os <<','<< jmrr.min_len ;                                [[fallthrough]] ;
 		case JobMngtProc::Decode     : os <<','<< jmrr.ctx <<','<< jmrr.file <<','<< jmrr.txt ; break ;
-		default                      :                                                          break ;
-	}
+	DN}
 	return                             os <<')' ;
 }                                                                                                                                 // END_OF_NO_COV
 
@@ -1247,7 +1246,7 @@ void JobStartRpcReply::chk(bool for_cache) const {
 	/**/                               os << "JobMngtRpcReply(" << jmrr.proc ;
 	switch (jmrr.proc) {
 		case JobMngtProc::ChkDeps    : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<<                  jmrr.ok ; break ;
-		case JobMngtProc::DepVerbose : os <<','<< jmrr.fd <<','<< jmrr.dep_infos                            ; break ;
+		case JobMngtProc::DepVerbose : os <<','<< jmrr.fd <<','<< jmrr.verbose_infos                        ; break ;
 		case JobMngtProc::Decode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
 		case JobMngtProc::Encode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
 	DN}

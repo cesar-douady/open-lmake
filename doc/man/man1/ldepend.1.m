@@ -55,6 +55,8 @@ Item(B(-v),B(--verbose))
 	.IP
 	For each file, such line is followed by one line for each stem, starting with a tab, composed of the name of the stem followed by its value.
 Item(B(-R),B(--read))            Report an actual read. Default is to only alter flags.
+Item(B(-l),B(--list))            Print list of currently accessed deps to stdout (exclusive of arguments or other options).
+If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
 Item(B(-c),B(--critical))        Create critical deps (cf. note (5)).
 Item(B(-D),B(--readdir-ok))      Allow C(readdir,3) on passed deps even if not B(ignore)d nor B(incremental). Implies flag B(--no-required).
 Item(B(-E),B(--essential))       Passed deps will appear in the flow shown with a graphical tool.

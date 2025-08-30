@@ -21,10 +21,11 @@ namespace JobSupport {
 		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
 	}
 
-	::pair<::vector<DepVerboseInfo>,bool/*ok*/> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr ) {
+	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( Record const& r , ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr ) {
 		bool verbose    = ad.flags.dflags      [Dflag     ::Verbose]   ;
 		bool direct     = ad.flags.extra_dflags[ExtraDflag::Direct ]   ;
 		bool readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
+		throw_if( verbose && direct , "verbose and direct are exclusive" ) ;
 		if (regexpr) {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
@@ -33,17 +34,17 @@ namespace JobSupport {
 			throw_if( direct       , "regexpr and direct are exclusive"          ) ;
 			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                           // it is meaningless to exclude regexpr when we are a regexpr
 		}
-		throw_if( verbose && direct , "verbose and direct are exclusive" ) ;
-		_chk_files(files) ;
-		::vmap_s<FileInfo> deps       ;
-		Pdate              now        { New }             ;                          // all dates must be identical to be recognized as parallel deps
-		NodeIdx            di         = 0                 ;
-		::vector<NodeIdx>  dep_idxs1  ;
-		bool               sync       = verbose || direct ;
 		if (readdir_ok) {
 			ad.flags.dflags &= ~Dflag::Required ;                                    // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
 			ad.read_dir     |= +ad.accesses     ;                                    // if reading and allow dir access, assume user meant reading a dir
 		}
+		_chk_files(files) ;
+		//
+		::vmap_s<FileInfo> deps      ;
+		Pdate              now       { New }             ;                           // all dates must be identical to be recognized as parallel deps
+		NodeIdx            di        = 0                 ;
+		::vector<NodeIdx>  dep_idxs1 ;
+		bool               sync      = verbose || direct ;
 		for( ::string const& f : files ) {
 			if (regexpr) {
 				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
@@ -75,25 +76,22 @@ namespace JobSupport {
 		}
 		if ( !sync || !di ) return {{},true/*ok*/} ;                                                                                       // dont send request if nothing to ask
 		//
-		JobExecProc proc = JobExecProc::None ; if (verbose) proc  = JobExecProc::DepVerbose ; if (direct) proc  = JobExecProc::DepDirect ;
-		CommentExts ces  ;                     if (verbose) ces  |= CommentExt::Verbose     ; if (direct) ces  |= CommentExt::Direct     ;
+		SWEAR(verbose!=direct) ;
+		JobExecProc proc = verbose ? JobExecProc::DepVerbose : JobExecProc::DepDirect ;
+		CommentExts ces  = verbose ? CommentExt::Verbose     : CommentExt::Direct     ;
 		//
 		if (verbose) ad.accesses |= ~Accesses() ;
-		JobExecRpcReply reply = r.report_sync( { .proc=proc , .sync=Yes , .comment=Comment::depend , .comment_exts=ces , .digest=ad , .date=now } , true/*force*/ ) ;
-		if (verbose) {
-			// fill holes for external deps
-			::vector<DepVerboseInfo> dep_infos ;
-			for( size_t i : iota(files.size()) ) {
-				NodeIdx di1 = dep_idxs1[i] ;
-				if      (!di1  ) dep_infos.push_back({ .ok=Maybe                      }) ;                                                 // 0 is reserved to mean no dep info
-				else if (!reply) dep_infos.push_back({ .ok=Yes   , .crc=Crc(files[i]) }) ;                                                 // there was no server, mimic it
-				else             dep_infos.push_back(::move(reply.dep_infos[di1-1])    ) ;
-			}
-			return {dep_infos,true/*ok*/} ;
-		} else if (direct) {
-			return {{},reply.ok==Yes} ;
-		}
-		FAIL() ;
+		JobExecRpcReply                          reply = r.report_sync( { .proc=proc , .sync=Yes , .comment=Comment::depend , .comment_exts=ces , .digest=ad , .date=now } , true/*force*/ ) ;
+		::pair<::vector<VerboseInfo>,bool/*ok*/> res   { {} , true/*ok*/ }                                                                                                                   ;
+		SWEAR(verbose!=direct) ;
+		if (verbose)
+			for( size_t i : iota(files.size()) )
+				if      (!dep_idxs1[i]) res.first.push_back({ .ok=Maybe                      }         ) ;                                 // 0 is reserved to mean no dep info
+				else if (!reply       ) res.first.push_back({ .ok=Yes   , .crc=Crc(files[i]) }         ) ;                                 // there was no server, mimic it
+				else                    res.first.push_back(::move(reply.verbose_infos[dep_idxs1[i]-1])) ;
+		else
+			res.second = reply.ok==Yes ;
+		return res ;
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool regexpr ) {
@@ -130,6 +128,21 @@ namespace JobSupport {
 
 	Bool3 check_deps( Record const& r , bool sync ) {
 		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::chkDeps , .date=New }).ok ;
+	}
+
+	::vector_s list( Record const& r , Bool3 write ) {
+		::vector_s      res         = r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::list , .digest{.write=write} , .date=New }).files ;
+		::string        cwd_s_      = cwd_s()                                                                                                            ;
+		::string const& repo_root_s = Record::s_autodep_env().repo_root_s                                                                                ;
+		// report files as seen from cwd
+		if (cwd_s_.starts_with(repo_root_s)) {
+			cwd_s_ = mk_lcl( cwd_s_ , repo_root_s ) ;
+			for( ::string& f : res ) f = mk_lcl( f , cwd_s_ ) ;
+		} else {
+			for( ::string& f : res ) f = mk_abs( f , repo_root_s ) ;
+		}
+		//
+		return res ;
 	}
 
 	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {
