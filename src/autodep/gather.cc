@@ -214,12 +214,12 @@ void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
 	AutodepPtrace::s_init(autodep_env) ;
 	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
 	//vvvvvvvvvvvv
-	_child.spawn() ;                                                        // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
+	_child.spawn() ;                                                            // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
-	ready->count_down() ;                                                   // signal main thread that _child.pid is available
+	ready->count_down() ;                                                       // signal main thread that _child.pid is available
 	AutodepPtrace autodep_ptrace{_child.pid} ;
 	wstatus = autodep_ptrace.process() ;
-	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; // report child end
+	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ; // report child end
 	Record::s_close_reports() ;
 }
 
@@ -499,7 +499,7 @@ Status Gather::exec_child() {
 					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0/*flags*/) ;                    wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
 					trace(kind,fd,_child.pid,ws) ;
-					SWEAR(!WIFSTOPPED(ws),_child.pid) ;                                                   // child must have ended if we are here
+					SWEAR( !WIFSTOPPED(ws) , _child.pid ) ;                                               // child must have ended if we are here
 					end_date  = New                      ;
 					end_child = end_date + network_delay ;                                                // wait at most network_delay for reporting & stdout & stderr to settle down
 					_exec_trace( end_date , Comment::endJob , {}/*CommentExt*/ , to_hex(uint16_t(ws)) ) ;

@@ -764,7 +764,7 @@ namespace Engine {
 		}
 		if (+digest.upload_key) {
 			Cache* cache = Cache::s_tab[digest.cache_idx] ;
-			SWEAR(cache,digest.cache_idx) ;                                                          // cannot commit/dismiss without cache
+			SWEAR( cache , digest.cache_idx ) ;                                                      // cannot commit/dismiss without cache
 			try {
 				if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
 				else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
@@ -976,7 +976,7 @@ namespace Engine {
 		// /!\ no_run_reason_tag and inc_submits must stay in sync
 		auto inc_submits = [&](JobReasonTag jrt)->void {                                        // inc counter associated with no_run_reason_tag (returning None)
 			NoRunReason nrr = no_run_reason_tag(jrt) ;
-			SWEAR(!nrr,jrt,pre_reason,nrr) ;
+			SWEAR( !nrr , jrt,pre_reason,nrr ) ;
 			switch (jrt) {
 				case JobReasonTag::Retry     :
 				case JobReasonTag::LostRetry : ri.n_retries++ ; return ;
@@ -1173,7 +1173,7 @@ namespace Engine {
 				if ( state.missing_dsk && !no_run_reason(state) ) {
 					SWEAR(!query) ;                                       // when query, we cannot miss dsk
 					trace("restart_analysis") ;
-					SWEAR(!ri.reason,ri.reason) ;                         // we should have asked for dep on disk if we had a reason to run
+					SWEAR( !ri.reason , ri.reason ) ;                     // we should have asked for dep on disk if we had a reason to run
 					ri.reason = state.reason ;                            // record that we must ask for dep on disk
 					ri.reset(idx()) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
@@ -1382,8 +1382,8 @@ namespace Engine {
 		Job             job   = idx()  ;
 		Rule::RuleMatch match { job }  ;
 		Trace trace("_submit_plain",job,ri,pressure) ;
-		SWEAR(!ri.waiting(),ri) ;
-		SWEAR(!ri.running(),ri) ;
+		SWEAR( !ri.waiting() , ri ) ;
+		SWEAR( !ri.running() , ri ) ;
 		for( Req rr : running_reqs() ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
 			ri.step(cri.step(),job) ;                                                  // Exec or Queued, same as other reqs

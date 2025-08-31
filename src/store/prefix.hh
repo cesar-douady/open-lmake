@@ -1295,7 +1295,7 @@ namespace Store {
 			DvgDigest                 dvg         { root , self , name , {} , 0 , sep } ;
 			::pair<Idx,::vector<Idx>> top_created { dvg.used_idx , {}/*created*/ }      ;
 			if (dvg.dvg!=Dvg::Match) {
-				SWEAR(dvg.used_pos<name.size(),dvg.used_pos,name) ; // else we should have a match
+				SWEAR( dvg.used_pos<name.size() , dvg.used_pos,name ) ; // else we should have a match
 				//
 				Idx    idx     = +dvg.used_idx ? dvg.used_idx : root ;
 				size_t sep_pos = dvg.used_pos                        ;

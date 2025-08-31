@@ -43,15 +43,15 @@ static ::vmap_s<JobSpace::ViewDescr> _mk_views(::string const& views) {
 		for( auto const& [py_k,py_v] : py_views->as_a<Dict>() ) {
 			JobSpace::ViewDescr& descr = res.emplace_back( ::string(py_k.as_a<Str>()) , JobSpace::ViewDescr() ).second ;
 			if (py_v.is_a<Str>()) {
-				descr.phys.push_back(py_v.as_a<Str>()) ;
+				descr.phys.emplace_back(py_v.as_a<Str>()) ;
 			} else if (py_v.is_a<Dict>()) {
 				Dict& py_dct = py_v.as_a<Dict>() ;
-				descr.phys.push_back(py_dct.get_item("upper").as_a<Str>()) ;
+				descr.phys.emplace_back(py_dct.get_item("upper").as_a<Str>()) ;
 				for( Object const& py_l  : py_dct.get_item("lower").as_a<Sequence>() )
-					descr.phys.push_back(py_l.as_a<Str>()) ;
+					descr.phys.emplace_back(py_l.as_a<Str>()) ;
 				if (py_dct.contains("copy_up"))
 					for( Object const& py_cu : py_dct.get_item("copy_up").as_a<Sequence>() )
-						descr.copy_up.push_back(py_cu.as_a<Str>()) ;
+						descr.copy_up.emplace_back(py_cu.as_a<Str>()) ;
 			}
 		}
 	}

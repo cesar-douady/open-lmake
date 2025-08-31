@@ -276,22 +276,22 @@ namespace Backends {
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
 			if (it==reqs.end()) return ;                                                                       // req has been killed
 			ReqEntry const& re = it->second ;
-			SWEAR(!re.waiting_jobs,re.waiting_jobs) ;
+			SWEAR( !re.waiting_jobs , re.waiting_jobs ) ;
 			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                  // check no underflow
 			reqs.erase(it) ;
 			if (!reqs) {
-				SWEAR(!waiting_jobs,waiting_jobs) ;
-				SWEAR(!spawned_jobs,spawned_jobs) ;                                                            // there may be !live entries waiting for destruction
+				SWEAR( !waiting_jobs , waiting_jobs ) ;
+				SWEAR( !spawned_jobs , spawned_jobs ) ;                                                        // there may be !live entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
 		void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
-			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                           // job must be a new one
+			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                                // job must be a new one
 			RsrcsData   rd       = import_(::move(rsrcs),req,job) ;
-			Rsrcs       rs       { New , rd }                     ; if ( ::string msg=lacking_rsrc(*rs) ; +msg ) throw msg+" to launch job "+Job(job)->name() ;
-			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                     // in particular for this req
+			Rsrcs       rs       { New , rd }                     ; if ( ::string msg=lacking_rsrc(*rs) ; +msg ) throw cat(msg," to launch job ",Job(job)->name()) ;
+			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                          // in particular for this req
 			CoarseDelay pressure = submit_attrs.pressure          ;
 			Trace trace(BeChnl,"submit",rs,pressure) ;
 			//
@@ -464,8 +464,8 @@ namespace Backends {
 						se.verbose = wit->second.verbose ;
 						::vector<ReqIdx> rs { +req } ;
 						for( auto const& [r,re] : reqs )
-							if      (!re.waiting_jobs.contains(j)) SWEAR(r!=req,r)  ;
-							else if (r!=req                      ) rs.push_back(+r) ;
+							if      (!re.waiting_jobs.contains(j)) SWEAR( r!=req , r ) ;
+							else if (r!=req                      ) rs.push_back(+r)    ;
 						//
 						for( Req r : rs ) {
 							ReqEntry& re   = reqs.at(r)              ;
@@ -497,7 +497,7 @@ namespace Backends {
 					} else {
 						try {
 							se.id = launch_job( st , j , ld.reqs , ld.prio , ld.cmd_line , se ) ; // XXX! : manage errors, for now rely on heartbeat
-							SWEAR(se.id>=0,j) ;                                                   // negative id are used to mark special states
+							SWEAR( se.id>=0 , j ) ;                                               // negative id are used to mark special states
 							trace("child",j,ld.prio,se.id,ld.cmd_line) ;
 						} catch (::string const& e) {
 							trace("fail",j,ld.prio,e) ;

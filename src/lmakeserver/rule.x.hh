@@ -156,7 +156,7 @@ namespace Engine {
 				else if constexpr (IsOneOf<T,::vector_s,::vmap_ss>) {                       if (py_dct.contains(key)) return acquire<::string,Env>( dst , &py_dct[key] ) ; else return false ; }
 				else                                                { static_assert(!Env) ; if (py_dct.contains(key)) return acquire              ( dst , &py_dct[key] ) ; else return false ; }
 			} catch (::string const& e) {
-				throw "while processing "+key+" : "+e ;
+				throw cat("while processing ",key," : ",e) ;
 			}
 		}
 		template<class T> bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key , T min ) {
@@ -752,7 +752,7 @@ namespace Engine {
 					if constexpr (Env) updated |= acquire<Env>(it->second,&py_val) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
 					else               updated |= acquire     (it->second,&py_val) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
-					throw "for item "+key+" : "+e ;
+					throw cat("for item ",key," : ",e) ;
 				}
 			}
 			dst = mk_vmap(dst_map) ;
@@ -846,7 +846,7 @@ namespace Engine {
 		::vector_s to_del  ;
 		::string   to_eval ;
 		//
-		SWEAR(!Rule::s_last_dyn_date,Rule::s_last_dyn_date) ;
+		SWEAR( !Rule::s_last_dyn_date , Rule::s_last_dyn_date ) ;
 		Rule::s_last_dyn_job  = job    ;
 		Rule::s_last_dyn_msg  = T::Msg ;
 		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , New } ;

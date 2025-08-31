@@ -133,8 +133,8 @@ namespace Backends::Sge {
 						/**/       if (k=="root"             ) { sge_root_s        = with_slash               (v)  ; continue ; } break ;
 						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                           v   ; continue ; } break ;
 					DN}
-				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
-				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
+				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "   ,k+": ",v) ; }
+				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry: ",k       ) ; }
 			}
 			throw_unless( +sge_bin_s  , "must specify bin to configure SGE" ) ;
 			throw_unless( +sge_root_s , "must specify root to configure SGE") ;
@@ -163,7 +163,7 @@ namespace Backends::Sge {
 
 		void close_req(Req req) override {
 			Base::close_req(req) ;
-			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
+			if(!reqs) SWEAR( !spawned_rsrcs , spawned_rsrcs ) ;
 		}
 
 		::vmap_ss export_( RsrcsData const& rs              ) const override { return rs.mk_vmap()  ; }
@@ -224,13 +224,13 @@ namespace Backends::Sge {
 			int16_t prio = Min<int16_t> ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
 			//
 			Rsrcs const& rs = se.rsrcs ;
-			if ( prio                 )            { sge_cmd_line.push_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
-			if ( +cpu_rsrc && rs->cpu )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
-			if ( +mem_rsrc && rs->mem )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
-			if ( +tmp_rsrc && rs->tmp )            { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
-			for( auto const& [k,v] : rs ->tokens ) { sge_cmd_line.push_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
-			if ( +rs->hard            )            {                                   for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
-			if ( +rs->soft            )            { sge_cmd_line.push_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
+			if ( prio                 )            { sge_cmd_line.emplace_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
+			if ( +cpu_rsrc && rs->cpu )            { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
+			if ( +mem_rsrc && rs->mem )            { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
+			if ( +tmp_rsrc && rs->tmp )            { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
+			for( auto const& [k,v] : rs ->tokens ) { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
+			if ( +rs->hard            )            {                                      for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
+			if ( +rs->soft            )            { sge_cmd_line.emplace_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//
@@ -284,8 +284,8 @@ namespace Backends::Sge {
 			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child
-				SWEAR(c2p.read .fd>Fd::Std.fd,c2p.read ) ;                                                      // ensure we can safely close what needs to be closed
-				SWEAR(c2p.write.fd>Fd::Std.fd,c2p.write) ;                                                      // .
+				SWEAR( c2p.read .fd>Fd::Std.fd , c2p.read  ) ;                                                      // ensure we can safely close what needs to be closed
+				SWEAR( c2p.write.fd>Fd::Std.fd , c2p.write ) ;                                                      // .
 				::dup2(c2p.write,Fd::Stdout) ;
 				::close(Fd::Stdin) ;                                                                            // ensure no stdin (defensive programming)
 				::close(c2p.read ) ;                                                                            // dont touch c2p object as it is shared with parent

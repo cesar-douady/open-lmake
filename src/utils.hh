@@ -687,11 +687,18 @@ template<::integral I> I random() {
 }
 
 // use constexpr processing rather than #ifdef/#endif so as to discriminate between defined/undefined macros on a single line
-template<class I,I DfltVal> constexpr I _macro_val_str(const char* n_str) {
-	I n = 0 ;
+template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
+	I    n      = 0     ;
+	bool is_neg = false ;
+	if (*n_str=='-') {
+		is_neg = true ;
+		n_str++ ;
+	}
 	for( const char* p=n_str ; *p ; p++ )
-		if ( '0'<=*p && *p<='9' ) n = (n*10) + (*p-'0') ;
-		else                      return DfltVal ;
+		if      (!( '0'<=*p && *p<='9'  )) return DfltVal ;
+		else if (   ::is_same_v<I,bool>  ) n |= *p!='0'           ;
+		else                               n  = (n*10) + (*p-'0') ;
+	if ( !::is_same_v<I,bool> && is_neg ) n = -n ;
 	return n ;
 }
 #define _MACRO_VAL_STR(x         ) #x                                                         // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
@@ -725,7 +732,7 @@ inline void Fd::no_std() {
 
 inline void kill_self(int sig) {      // raise kills the thread, not the process
 	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
-	SWEAR(rc==0,sig) ;                // killing outselves should always be ok
+	SWEAR( rc==0 , sig ) ;            // killing outselves should always be ok
 }
 
 ::string get_exe       () ;
@@ -802,7 +809,7 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 // stop at Delimiter or any non printable char
 template<char Delimiter> ::string parse_printable( ::string const& x , size_t& pos ) {
 	static_assert(_can_be_delimiter(Delimiter)) ;
-	SWEAR(pos<=x.size(),x,pos) ;
+	SWEAR( pos<=x.size() , x,pos ) ;
 	::string res ;
 	const char* x_c = x.c_str() ;
 	for( char c ; (c=x_c[pos]) ; pos++ )

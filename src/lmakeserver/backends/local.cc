@@ -80,9 +80,9 @@ namespace Backends::Local {
 				seen_single = !new_names.insert("<single>").second ;
 				if (new_names!=old_names) throw cat("cannot change resource names from ",old_names," to ",new_names," while lmake is running") ;
 			} else {
-				SWEAR(!rsrc_keys,rsrc_keys) ;
-				for( auto const& [k,v] : dct ) { rsrc_idxs[k         ] = rsrc_keys.size() ; rsrc_keys.push_back(k         ) ; seen_single |= k=="<single>" ; }
-				if (!seen_single)              { rsrc_idxs["<single>"] = rsrc_keys.size() ; rsrc_keys.push_back("<single>") ;                                }
+				SWEAR( !rsrc_keys , rsrc_keys ) ;
+				for( auto const& [k,v] : dct ) { rsrc_idxs[k         ] = rsrc_keys.size() ; rsrc_keys.push_back   (k         ) ; seen_single |= k=="<single>" ; }
+				if (!seen_single)              { rsrc_idxs["<single>"] = rsrc_keys.size() ; rsrc_keys.emplace_back("<single>") ;                                }
 				occupied  = RsrcsData(rsrc_keys.size()) ;                                                           // if dyn <=> keep currently used resources
 			}
 			trace(BeChnl,"occupied_rsrcs",'=',occupied) ;
@@ -224,7 +224,7 @@ namespace Backends::Local {
 				self[it->second]  = rsrc ;
 				non_null         |= rsrc ;
 			} catch(...) {
-				throw "cannot convert resource "+k+" from "+v+" to a int" ;
+				throw cat("cannot convert resource ",k," from ",v," to a int") ;
 			}
 		}
 		throw_unless( non_null ,"cannot launch local job with no resources" ) ;

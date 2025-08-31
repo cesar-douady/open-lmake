@@ -60,8 +60,9 @@ namespace Caches {
 		for( ::string entry_s=head.older_s ; entry_s!=HeadS ;) {
 			auto here = deserialize<Lru>(AcFd(_lru_file(entry_s)).read()) ;
 			//
-			SWEAR(seen.insert(entry_s).second ,entry_s) ;
-			SWEAR(here.newer_s==expected_newer_s,entry_s) ;
+			bool inserted = seen.insert(entry_s).second ;
+			SWEAR( inserted                       , entry_s ) ;
+			SWEAR( here.newer_s==expected_newer_s , entry_s ) ;
 			total_sz         += here.sz      ;
 			expected_newer_s  = entry_s      ;
 			entry_s           = here.older_s ;
@@ -88,7 +89,7 @@ namespace Caches {
 		::string sz_file = admin_dir_s+"size" ;
 		AcFd     sz_fd   { sz_file , true/*err_ok*/ }  ; throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
 		try                       { max_sz = from_string_with_unit(strip(sz_fd.read())) ; }
-		catch (::string const& e) { throw "cannot read "+sz_file+" : "+e ;                }
+		catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;           }
 		//
 		try                     { chk_version( may_init , admin_dir_s ) ;                   }
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }

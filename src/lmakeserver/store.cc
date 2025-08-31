@@ -296,7 +296,7 @@ namespace Engine::Persistent {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
 		if ( !dyn                                         ) mk_dir_s( cat(AdminDirS,"outputs/") , true/*unlnk_ok*/ ) ;
 		if ( !dyn                                         ) _init_config()                                           ;
-		else                                                SWEAR(+*g_config,*g_config)                              ; // we must update something
+		else                                                SWEAR( +*g_config , *g_config )                          ; // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                diff(*g_config,config) ;
@@ -459,9 +459,9 @@ namespace Engine::Persistent {
 			if (rd.special<Special::NShared) continue ;
 			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)  ;
 			bool     new_name  = new_names.insert(rd.user_name()).second ;
-			if ( !new_crc && !new_name ) throw "rule "+rd.user_name()+" appears twice"                                                        ;
-			if ( !new_crc              ) throw "rules "+rd.user_name()+" and "+it->second->user_name()+" match identically and are redundant" ;
-			if (             !new_name ) throw "2 rules have the same name "+rd.user_name()                                                   ;
+			if ( !new_crc && !new_name ) throw cat("rule ",rd.user_name()," appears twice"                                                       ) ;
+			if ( !new_crc              ) throw cat("rules ",rd.user_name()," and ",it->second->user_name()," match identically and are redundant") ;
+			if (             !new_name ) throw cat("2 rules have the same name ",rd.user_name()                                                  ) ;
 		}
 		//
 		RuleIdx n_old_rules         = old_rds.size() ;
@@ -570,7 +570,7 @@ namespace Engine::Persistent {
 			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within or encompass system directories") ;
 			//
 			if (is_dir_) {
-				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw "cannot access relative source dir "+no_slash(src)+" from repository "+no_slash(*g_repo_root_s) ;
+				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw cat("cannot access relative source dir ",no_slash(src)," from repository ",no_slash(*g_repo_root_s)) ;
 				src.pop_back() ;
 			}
 			if (dyn) nfs_guard.access(src) ;
@@ -583,7 +583,7 @@ namespace Engine::Persistent {
 				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                ) ;
 				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"     ) ;
 				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported" ) ;
-				SWEAR(src==sr.real,src,sr.real) ;                                  // src is local, canonic and there are no links, what may justify real from being different ?
+				SWEAR( src==sr.real , src,sr.real ) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
 			}
 			srcs.emplace_back( Node(New,src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
 		}
@@ -608,8 +608,8 @@ namespace Engine::Persistent {
 			else                    old_srcs.erase (it) ;
 		}
 		if (!fresh) {
-			for( auto [n,t] : new_srcs ) if (t==FileTag::Dir) throw "new source dir "+n->name()+' '+git_clean_msg() ; // we may not have recorded some deps to these, and this is unpredictable
-			for( auto [n,t] : old_srcs ) if (t==FileTag::Dir) throw "old source dir "+n->name()+' '+git_clean_msg() ; // XXX? : this could be managed if necessary (is it worth?)
+			for( auto [n,t] : new_srcs ) if (t==FileTag::Dir) throw cat("new source dir ",n->name(),' ',git_clean_msg()) ; // we may not have recorded some deps to these, and this is unpredictable
+			for( auto [n,t] : old_srcs ) if (t==FileTag::Dir) throw cat("old source dir ",n->name(),' ',git_clean_msg()) ; // XXX? : this could be managed if necessary (is it worth?)
 		}
 		//
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }

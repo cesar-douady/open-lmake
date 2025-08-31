@@ -64,7 +64,7 @@ namespace Engine {
 				dct.emplace_back( field , py_v==True ? "1"s : py_v==False ? "0"s : ::string(*py_v.str()) ) ;
 			}
 		} catch(::string const& e) {
-			throw "while processing "+field+e ;
+			throw cat("while processing ",field,e) ;
 		}
 	}
 

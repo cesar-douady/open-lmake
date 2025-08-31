@@ -62,7 +62,7 @@ namespace Engine {
 				else if ( ExtraTflag f ; !dep_only && can_mk_enum<ExtraTflag>(flag_str) && (f=mk_enum<ExtraTflag>(flag_str))<ExtraTflag::NRule ) flags.extra_tflags.set(f,!neg) ;
 				else if ( Dflag      f ;              can_mk_enum<Dflag     >(flag_str) && (f=mk_enum<Dflag     >(flag_str))<Dflag     ::NRule ) flags.dflags      .set(f,!neg) ;
 				else if ( ExtraDflag f ;              can_mk_enum<ExtraDflag>(flag_str) && (f=mk_enum<ExtraDflag>(flag_str))<ExtraDflag::NRule ) flags.extra_dflags.set(f,!neg) ;
-				else                                                                                                                             throw "unexpected flag "+flag_str+" for "+key ;
+				else                                                                                                                             throw cat("unexpected flag ",flag_str," for ",key) ;
 			} else if (item.is_a<Sequence>()) {
 				_mk_flags( key , item.as_a<Sequence>() , 0 , flags , dep_only ) ;
 			} else {
@@ -78,8 +78,8 @@ namespace Engine {
 		Sequence const* py_seq ;
 		try                       { py_seq = &py.as_a<Sequence>() ; }
 		catch (::string const& e) { throw e+" nor a str" ;          } // e is a type error
-		SWEAR(py_seq->size()>=n_skip,key) ;
-		SWEAR((*py_seq)[0].is_a<Str>(),key) ;
+		SWEAR( py_seq->size()>=n_skip   , key ) ;
+		SWEAR( (*py_seq)[0].is_a<Str>() , key ) ;
 		_mk_flags( key , *py_seq , n_skip , flags , dep_only ) ;
 		return (*py_seq)[0].as_a<Str>() ;
 	}
@@ -126,7 +126,7 @@ namespace Engine {
 				::string abs_fixed = mk_abs(fixed,*g_repo_root_s)       ;
 				::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s)       ;
 				::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s)       ;
-				if (is_lcl_s(rel_dir_s)) throw "must be provided as local file, consider : "+rel_dir_s+substr_view(fstr,dir_s.size()) ;
+				if (is_lcl_s(rel_dir_s)) throw cat("must be provided as local file, consider : ",rel_dir_s+substr_view(fstr,dir_s.size())) ;
 				//
 				for( ::string const& sd_s : *g_src_dirs_s ) {
 					if (is_lcl_s(sd_s)) continue ;                            // nothing to recognize inside repo
@@ -143,8 +143,8 @@ namespace Engine {
 							}
 						}
 						if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
-						if (  is_abs(fstr) && !abs_sd ) throw "must be relative inside source dir "+no_slash(sd_s)+", consider : "+mk_rel(fstr,*g_repo_root_s) ;
-						if ( !is_abs(fstr) &&  abs_sd ) throw "must be absolute inside source dir "+no_slash(sd_s)+", consider : "+mk_abs(fstr,*g_repo_root_s) ;
+						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",no_slash(sd_s),", consider : ",mk_rel(fstr,*g_repo_root_s)) ;
+						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",no_slash(sd_s),", consider : ",mk_abs(fstr,*g_repo_root_s)) ;
 					}
 					*keep_for_deps = true ;
 					break ;
@@ -777,7 +777,7 @@ namespace Engine {
 						if (kind==MatchKind::Target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
 						parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) -> void {
-								if (!stem_defs.contains(k)) throw "found undefined "+stem_words(k,star,unnamed)+" in "+kind ;
+								if (!stem_defs.contains(k)) throw cat("found undefined ",stem_words(k,star,unnamed)," in ",kind) ;
 								//
 								if (star) {
 									is_star = true ;
@@ -834,7 +834,7 @@ namespace Engine {
 					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
 					stems    .emplace_back( k            , s                    ) ;
 					try         { stem_n_marks.push_back(Re::RegExpr(s,true/*cache*/).n_marks()) ; }
-					catch (...) { throw "bad regexpr for stem "+k+" : "+s ;                        }
+					catch (...) { throw cat("bad regexpr for stem ",k," : ",s) ;                   }
 				}
 				if (!star) n_static_stems = stems.size() ;
 			}
@@ -940,8 +940,8 @@ namespace Engine {
 				}
 		}
 		catch(::string const& e) {
-			if (+field) throw "while processing "+user_name()+'.'+field+" :\n"+indent(e) ;
-			else        throw "while processing "+user_name()+          " :\n"+indent(e) ;
+			if (+field) throw cat("while processing ",user_name(),'.',field," :\n",indent(e)) ;
+			else        throw cat("while processing ",user_name(),          " :\n",indent(e)) ;
 		}
 	}
 
@@ -966,12 +966,12 @@ namespace Engine {
 					pattern.emplace_back(r,Maybe/*capture*/) ;
 					return Re::escape(r) ;
 				}
-				if (res.groups[s]) {                                      // already seen, we must protect against following text potentially containing numbers
+				if (res.groups[s]) {                                // already seen, we must protect against following text potentially containing numbers
 					::string r = cat('\\',res.groups[s]) ;
 					pattern.emplace_back( r , No/*capture*/ ) ;
 					return cat("(?:",r,')') ;
 				}
-				bool capture = s<n_static_stems || me.captures[s] ;       // star stems are only captured if back referenced
+				bool capture = s<n_static_stems || me.captures[s] ; // star stems are only captured if back referenced
 				if (capture) res.groups[s] = cur_group ;
 				cur_group += capture+stem_n_marks[s] ;
 				pattern.emplace_back( stems[s].second , No|capture ) ;
@@ -982,7 +982,7 @@ namespace Engine {
 				return Re::escape(s) ;
 			}
 		) ;
-		res.re = {pattern,true/*cache*/} ;                                // stem regexprs have been validated, normally there is no error here
+		res.re = {pattern,true/*cache*/} ;                          // stem regexprs have been validated, normally there is no error here
 		return res ;
 	}
 
@@ -1013,7 +1013,7 @@ namespace Engine {
 			for( auto const& [k,me] : matches ) patterns.push_back(_mk_pattern(me,false/*for_name*/)) ;
 			//
 		} catch (::string const& e) {
-			throw "while processing "+user_name()+" :\n"+indent(e) ;
+			throw cat("while processing ",user_name()," :\n",indent(e)) ;
 		}
 		trace("done",patterns.size()) ;
 	}
@@ -1312,16 +1312,16 @@ namespace Engine {
 	::vector_s RuleData::_list_ctx(::vector<CmdIdx> const& ctx) const {
 		::vector_s res ; res.reserve(ctx.size()) ;
 		for( auto [vc,i] : ctx ) switch (vc) {
-			case VarCmd::Stem      : res.push_back(stems                        [i].first) ; break ;
+			case VarCmd::Stem      : res.push_back   (stems                        [i].first) ; break ;
 			case VarCmd::StarMatch :
-			case VarCmd::Match     : res.push_back(matches                      [i].first) ; break ;
-			case VarCmd::Dep       : res.push_back(deps_attrs        .spec .deps[i].first) ; break ;
-			case VarCmd::Rsrc      : res.push_back(submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
-			case VarCmd::Stems     : res.push_back("stems"                               ) ; break ;
-			case VarCmd::Targets   : res.push_back("targets"                             ) ; break ;
-			case VarCmd::Deps      : res.push_back("deps"                                ) ; break ;
-			case VarCmd::Rsrcs     : res.push_back("resources"                           ) ; break ;
-		DF}                                                                                          // NO_COV
+			case VarCmd::Match     : res.push_back   (matches                      [i].first) ; break ;
+			case VarCmd::Dep       : res.push_back   (deps_attrs        .spec .deps[i].first) ; break ;
+			case VarCmd::Rsrc      : res.push_back   (submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
+			case VarCmd::Stems     : res.emplace_back("stems"                               ) ; break ;
+			case VarCmd::Targets   : res.emplace_back("targets"                             ) ; break ;
+			case VarCmd::Deps      : res.emplace_back("deps"                                ) ; break ;
+			case VarCmd::Rsrcs     : res.emplace_back("resources"                           ) ; break ;
+		DF}                                                                                             // NO_COV
 		return res ;
 	}
 

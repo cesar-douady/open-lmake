@@ -16,7 +16,7 @@ namespace Time {
 		uint32_t sub1  = 1'000'000'000 + ns ;                             // avoid formatting efforts : sub1 is now in the range 1.000.000.000-1.999.999.999
 		uint8_t  point = res.size()         ;                             // position of the decimal point
 		res.reserve(point+1+prec) ;                                       // 1 to account for the decimal point
-		SWEAR(prec<=9,prec) ;
+		SWEAR( prec<=9 , prec ) ;
 		switch (prec) {
 			case 1 : sub1 /= 100'000'000 ; break ;
 			case 2 : sub1 /= 10'000'000  ; break ;

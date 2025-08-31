@@ -192,9 +192,9 @@ namespace Engine {
 					else {
 						Rule r  = j->rule()            ;
 						Job  cj = t->conform_job_tgt() ;
-						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ;
-						if (+cj) throw "target was produced by "+r->name+" instead of "+cj->rule()->name+" (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
-						else     throw "target was produced by "+r->name+                                " (use -F to override) : "+mk_file(t->name(),Yes/*exists*/) ;
+						trace("fail",t->buildable,t->conform_idx(),t->status(),cj) ; //!                                                                 exists
+						if (+cj) throw cat("target was produced by ",r->name+" instead of ",cj->rule()->name," (use -F to override) : ",mk_file(t->name(),Yes )) ;
+						else     throw cat("target was produced by ",r->name+                                " (use -F to override) : ",mk_file(t->name(),Yes )) ;
 					}
 				}
 			}
@@ -674,7 +674,7 @@ namespace Engine {
 			JobStep step = {} ;
 			for( Req r : Req::s_reqs_by_start )
 				if ( JobStep s = job->c_req_info(r).step() ; InterestingSteps[s] && step!=s ) { // process job as soon as one Req is waiting/running, and this must be coherent
-					SWEAR(!step,step,s) ;
+					SWEAR( !step , step,s ) ;
 					step = s ;
 				}
 			Color c   = {} /*garbage*/ ;
@@ -764,7 +764,7 @@ namespace Engine {
 					DF}                              // END_OF_NO_COV
 				} else {
 					//
-					if (pre_start.job) SWEAR(pre_start.job==+job,pre_start.job,+job) ;
+					if (pre_start.job) SWEAR( pre_start.job==+job , pre_start.job,+job ) ;
 					//
 					switch (ro.key) {
 						case ReqKey::Env : {

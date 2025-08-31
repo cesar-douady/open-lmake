@@ -221,7 +221,7 @@ namespace Caches {
 				static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;  // compressBound manages ulong and we need a Sz
 				if (lvl) return ::compressBound(sz) ;
 			#else
-				SWEAR(!lvl,lvl) ;
+				SWEAR( !lvl , lvl ) ;
 			#endif
 			return sz ;
 		}
@@ -384,7 +384,7 @@ namespace Caches {
 			}
 		#else
 			InflateFd( AcFd&& fd , bool lvl=false ) : AcFd{::move(fd)} {
-				SWEAR(!lvl,lvl) ;
+				SWEAR( !lvl , lvl ) ;
 			}
 			~InflateFd() {}
 		#endif
@@ -435,7 +435,7 @@ namespace Caches {
 				sz   -= cnt ;
 			}
 			if (sz) {
-				SWEAR(!_len,_len) ;
+				SWEAR( !_len , _len ) ;
 				if (sz>=DiskBufSz) {                                                                                             // large data : read directly
 					size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
 				} else {                                                                                                         // small data : bufferize
@@ -451,8 +451,8 @@ namespace Caches {
 			#if HAS_ZSSTD || HAS_ZLIB
 				if (lvl) {
 					while (sz) {
-						size_t   cnt = ::min(sz,DiskBufSz)                           ;
-						::string s   = read(cnt) ; SWEAR(s.size()==cnt,s.size(),cnt) ;
+						size_t   cnt = ::min(sz,DiskBufSz) ;
+						::string s   = read(cnt)           ; SWEAR(s.size()==cnt,s.size(),cnt) ;
 						fd_.write(s) ;
 						sz -= cnt ;
 					}
@@ -467,7 +467,7 @@ namespace Caches {
 				sz   -= cnt ;
 			}
 			if (sz) {
-				SWEAR(!_len,_len) ;
+				SWEAR( !_len , _len ) ;
 				if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
 					size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
 				} else {                                                                                                         // small data : bufferize
@@ -677,8 +677,8 @@ void JobSpace::chk() const {
 }
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
-	SWEAR(+srcs_s) ;
-	SWEAR(srcs_s.size()>1,dst_s,srcs_s,work_s) ;                                                 // use bind mount in that case
+	SWEAR( +srcs_s                               ) ;
+	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ;                                             // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	for( size_t i : iota(1,srcs_s.size()) )
@@ -854,7 +854,7 @@ bool JobSpace::enter(
 			) ;
 		phy_super_repo_root_s = phy_repo_root_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_repo_root_s = dir_name_s(phy_super_repo_root_s) ;
 		super_repo_view_s     = repo_view_s     ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_repo_view_s     = dir_name_s(super_repo_view_s    ) ;
-		SWEAR(phy_super_repo_root_s!="/",phy_repo_root_s,uphill_lvl) ;                // this should have been checked earlier
+		SWEAR( phy_super_repo_root_s!="/" , phy_repo_root_s,uphill_lvl ) ;            // this should have been checked earlier
 		if (!super_repo_view_s)
 			throw cat(
 				"cannot map repository dir to ",no_slash(repo_view_s)," with relative source dir ",no_slash(highest_s)

@@ -32,7 +32,7 @@ static void* get_orig(const char* libcall) {
 		for( const char* lc1 : { ENUMERATE_LIBCALLS } ) {
 			::array<char,NChar> lc2 = {} ; strncpy(lc2.data(),lc1,NChar-1) ;
 			bool inserted = new_libcall_tab->try_emplace(lc2,::dlsym(RTLD_NEXT,lc1)).second ;
-			SWEAR(inserted,lc1,lc2) ;                                                         // ensure troncation does not produce ambguities
+			SWEAR( inserted , lc1,lc2 ) ;                                                     // ensure troncation does not produce ambguities
 		}
 		#undef LIBCALL_ENTRY
 		LibCallTab* prev_libcall_tab = nullptr ;

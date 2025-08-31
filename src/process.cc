@@ -23,12 +23,12 @@ using namespace Disk ;
 }
 
 bool/*done*/ kill_process( pid_t pid , int sig , bool as_group ) {
-	swear_prod(pid>1,"killing process",pid) ;                                   // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
+	swear_prod(pid>1,"killing process",pid) ;                      // /!\ ::kill(-1) sends signal to all possible processes, ensure no system wide catastrophe
 	//
 	if (!as_group          ) return ::kill(pid,sig)==0 ;
-	if (::kill(-pid,sig)==0) return true               ;                        // fast path : group exists, nothing else to do
-	bool proc_killed  = ::kill( pid,sig)==0 ;                                   // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
-	bool group_killed = ::kill(-pid,sig)==0 ;                                   // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
+	if (::kill(-pid,sig)==0) return true               ;           // fast path : group exists, nothing else to do
+	bool proc_killed  = ::kill( pid,sig)==0 ;                      // else, there may be another possibility : the process to kill might not have had enough time to call setpgid(0,0) ...
+	bool group_killed = ::kill(-pid,sig)==0 ;                      // ... that makes it be a group, so kill it as a process, and kill the group again in case it was created inbetween
 	return proc_killed || group_killed ;
 }
 
@@ -114,7 +114,7 @@ pid_t get_ppid(pid_t pid) {
 	#endif
 	//
 	if (first_pid) {
-		SWEAR(first_pid>1,first_pid) ;                                                                        // START_OF_NO_COV coverage recording does not work in isolated namespace
+		SWEAR( first_pid>1 , first_pid ) ;                                                                    // START_OF_NO_COV coverage recording does not work in isolated namespace
 		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
 		if (::mount(nullptr/*source*/,"/proc","proc",0/*flags*/,nullptr/*data*/)!=0) {
 			::perror("cannot mount /proc ") ;

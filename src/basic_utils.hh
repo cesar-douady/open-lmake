@@ -161,7 +161,7 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
 
-template<class... A> [[noreturn]] inline void fail( A const&... args [[maybe_unused]] ) {
+template<class... A> [[noreturn]] inline void fail( [[maybe_unused]] A const&... args ) {
 	#ifndef NDEBUG
 		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
@@ -169,7 +169,7 @@ template<class... A> [[noreturn]] inline void fail( A const&... args [[maybe_unu
 	#endif
 }
 
-template<class... A> inline constexpr void swear( bool cond , A const&... args [[maybe_unused]] ) {
+template<class... A> inline constexpr void swear( bool cond , [[maybe_unused]] A const&... args ) {
 	#ifndef NDEBUG
 		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 	#else
@@ -282,7 +282,7 @@ template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2
 		v >>= 4 ;
 		if (!v) break ;
 	}
-	SWEAR(!v,v,res) ;
+	SWEAR( !v , v,res ) ;
 	return res ;
 }
 

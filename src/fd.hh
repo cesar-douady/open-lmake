@@ -391,7 +391,7 @@ public :
 							struct ::signalfd_siginfo si        ;
 							ssize_t                   n         ;                                                           // we are supposed to read at least once, so init with error case
 							while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                           // flush signal fd, including possibly left-over old sigs
-								SWEAR(int(si.ssi_signo)==sig,si.ssi_signo,sig) ;
+								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
 								found |= pid_t(si.ssi_pid)==pid ;
 							}
 							SWEAR( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK) , n,fd,errno ) ;                              // fd is non-blocking

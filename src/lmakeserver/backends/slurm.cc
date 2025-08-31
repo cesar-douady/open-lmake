@@ -131,8 +131,8 @@ namespace Backends::Slurm {
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                             v   ; continue ; } break ;
 						case 'u' : if (k=="use_nice"         ) { use_nice          =       from_string<bool    >(v)  ; continue ; } break ;
 					DN}
-				} catch (::string const& e) { trace("bad_val",k,v) ; throw "wrong value for entry "   +k+": "+v ; }
-				/**/                        { trace("bad_key",k  ) ; throw "unexpected config entry: "+k        ; }
+				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "   ,k+": ",v) ; }
+				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry: ",k       ) ; }
 			}
 			if (!dyn) {
 				daemon = slurm_sense_daemon( config_file , lib_slurm , init_timeout ) ;
@@ -199,7 +199,7 @@ namespace Backends::Slurm {
 
 		void close_req(Req req) override {
 			Base::close_req(req) ;
-			if(!reqs) SWEAR(!spawned_rsrcs,spawned_rsrcs) ;
+			if(!reqs) SWEAR( !spawned_rsrcs , spawned_rsrcs ) ;
 		}
 
 		::vmap_ss export_( RsrcsData const& rs                    ) const override { return rs.mk_vmap()                                       ; }
@@ -495,7 +495,7 @@ namespace Backends::Slurm {
 		//
 		if (!args) return {} ;                                                   // fast path
 		//
-		::vector_s      arg_vec = split(args) ; arg_vec.push_back(":")         ; // sentinel to parse last args
+		::vector_s      arg_vec = split(args) ; arg_vec.emplace_back(":")      ; // sentinel to parse last args
 		::vector<char*> argv(1) ;               argv.reserve(arg_vec.size()+1) ;
 		RsrcsData       res     ;
 		//

@@ -293,8 +293,8 @@ public :
 			::pair<Sent/*confirm_fd*/,JobExecRpcReq::Id> confirm = r.report_access( file_loc , ::move(jerr) , file_loc0 , ::move(real0) )                                                             ;
 			if (+confirm.first) {
 				confirm_fds |= confirm.first  ;
-				if (confirm_id)   SWEAR(confirm.second==confirm_id , confirm.second,confirm_id,jerr ) ;
-				else            { SWEAR(confirm.second             ,                           jerr ) ; confirm_id = confirm.second ; }
+				if (confirm_id)   SWEAR( confirm.second==confirm_id , confirm.second,confirm_id,jerr ) ;
+				else            { SWEAR( confirm.second             ,                           jerr ) ; confirm_id = confirm.second ; }
 			}
 		}
 		int operator()( Record& r , int rc ) {

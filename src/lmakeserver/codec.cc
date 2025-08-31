@@ -213,7 +213,7 @@ namespace Codec {
 
 	JobMngtRpcReply Closure::decode() const {
 		Trace trace("decode",self) ;
-		SWEAR(proc==JobMngtProc::Decode,proc) ;
+		SWEAR( proc==JobMngtProc::Decode , proc ) ;
 		Node             decode_node { New , mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		::vector<ReqIdx> reqs        ;                                                       ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
 		bool             refreshed   = s_refresh( file , +decode_node , reqs )               ;
@@ -230,7 +230,7 @@ namespace Codec {
 
 	JobMngtRpcReply Closure::encode() const {
 		Trace trace("encode",self) ;
-		SWEAR(proc==JobMngtProc::Encode,proc) ;
+		SWEAR( proc==JobMngtProc::Encode , proc ) ;
 		Node             encode_node { New , mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
 		::vector<ReqIdx> reqs        ;                                                       ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
 		bool             refreshed   = s_refresh( file , +encode_node , reqs )               ;

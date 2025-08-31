@@ -29,7 +29,7 @@ namespace Backdoor {
 		ssize_t  cnt  = ::readlinkat( MagicFd , file.c_str() , buf.data() , buf.size() ) ; // try to go through autodep to process args
 		if (cnt<0) return args.process(::ref(Record(New,Yes/*enabled*/))) ;                // no autodep available, directly process args
 		size_t ucnt = cnt ;
-		SWEAR(ucnt<buf.size(),cnt,buf.size()) ;
+		SWEAR( ucnt<buf.size() , cnt,buf.size() ) ;
 		buf.resize(ucnt) ;
 		return deserialize<typename T::Reply>(buf) ;
 	}

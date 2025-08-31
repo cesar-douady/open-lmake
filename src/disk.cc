@@ -131,9 +131,9 @@ namespace Disk {
 		while (pos!=Npos) {
 			pos++ ;                                                                                            // clobber marker
 			FileDisplay fd = FileDisplay(txt[pos++]) ;
-			SWEAR(txt.size()>=pos+sizeof(FileNameIdx),txt.size(),pos) ;                                        // ensure we have enough room to find file length
+			SWEAR( txt.size()>=pos+sizeof(FileNameIdx) , txt.size(),pos ) ;                                    // ensure we have enough room to find file length
 			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ; pos += sizeof(FileNameIdx) ;
-			SWEAR(txt.size()>=pos+len,txt.size(),pos,len) ;                                                    // ensure we have enough room to read file
+			SWEAR( txt.size()>=pos+len , txt.size(),pos,len ) ;                                                // ensure we have enough room to read file
 			switch (fd) {
 				case FileDisplay::None      : res +=              mk_rel(txt.substr(pos,len),dir_s)  ; break ;
 				case FileDisplay::Printable : res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
@@ -187,7 +187,7 @@ namespace Disk {
 		if (!abs_ok                         ) SWEAR( !file || is_lcl(file) , file           ) ;   // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
 		if (errno==ENOENT                   ) return false/*done*/ ;
-		if ( !dir_ok || errno!=EISDIR       ) throw "cannot unlink file "+file+" : "+::strerror(errno) ;
+		if ( !dir_ok || errno!=EISDIR       ) throw cat("cannot unlink file ",file," : ",::strerror(errno)) ;
 		//
 		unlnk_inside_s(at,with_slash(file),abs_ok,force) ;
 		//
@@ -441,7 +441,7 @@ namespace Disk {
 
 	void RealPath::_Dvg::update( ::string_view domain_s , ::string const& chk ) {
 		if (!domain_s) return ;                                                   // always false
-		SWEAR(domain_s.back()=='/',domain_s) ;
+		SWEAR( domain_s.back()=='/' , domain_s ) ;
 		size_t ds    = domain_s.size()-1 ;                                        // do not account for terminating /
 		size_t start = dvg               ;
 		ok  = ds <= chk.size()     ;

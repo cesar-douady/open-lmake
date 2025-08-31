@@ -97,17 +97,17 @@ namespace Engine::Makefiles {
 		else      return AdminDirS       +action+"_deps"     ;
 	}
 
-	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) {                 // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::vector_s deps = AcFd(_deps_file(action,new_),true/*err_ok*/).read_lines() ;
 		for( ::string const& line : deps ) {
-			if (line[0]!='+') continue ;                                                                              // not an existing file
+			if (line[0]!='+') continue ;                                                              // not an existing file
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;                                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			if (is_abs(d)) continue ;                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n { New , d } ;
-			n->set_buildable() ;                                                                                      // this is mandatory before is_src_anti() can be called
-			if ( !n->is_src_anti() ) throw "while reading "+action+", dangling makefile : "+mk_rel(d,startup_dir_s) ;
+			n->set_buildable() ;                                                                                           // this is mandatory before is_src_anti() can be called
+			if ( !n->is_src_anti() ) throw cat("while reading ",action,", dangling makefile : ",mk_rel(d,startup_dir_s)) ;
 		}
 		trace("ok") ;
 	}
@@ -271,8 +271,8 @@ namespace Engine::Makefiles {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
-		try                      { res = (*py_info)[kind].as_a<typename T::PyType>() ; }
-		catch(::string const& e) { throw "while processing "+kind+" :\n"+indent(e) ;   }
+		try                      { res = (*py_info)[kind].as_a<typename T::PyType>() ;    }
+		catch(::string const& e) { throw cat("while processing ",kind+" :\n",indent(e)) ; }
 		return Maybe|+reason/*done*/ ;                                                                          // cannot be split without reason
 	}
 
@@ -313,19 +313,19 @@ namespace Engine::Makefiles {
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                                         // invalidate because of config
+		bool  invalidate    = false ;                                                   // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old) {                                                                       // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                       // Maybe means new
-				changed_rules = Maybe ;                                                       // .
+			if (!old) {                                                                 // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                                 // Maybe means new
+				changed_rules = Maybe ;                                                 // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_) return ;                                                               // no new config means we keep old config, no modification
+			if (!new_) return ;                                                         // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
 			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                            // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                      // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

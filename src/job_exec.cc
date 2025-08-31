@@ -378,8 +378,8 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;    // env+cmd line must not be larger than ARG_MAX, keep some margin for env
 		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                     // res is set if simple
 			res.reserve(res.size()+2) ;
-			res.push_back("-c"                    ) ;
-			res.push_back(::move(g_start_info.cmd)) ;
+			res.emplace_back("-c"                    ) ;
+			res.push_back   (::move(g_start_info.cmd)) ;
 		}
 	}
 	return res ;
@@ -493,7 +493,7 @@ int main( int argc , char* argv[] ) {
 		Pdate washed { New } ;
 		g_exec_trace->emplace_back( washed , Comment::washed ) ;
 		//
-		SWEAR(!end_report.phy_tmp_dir_s,end_report.phy_tmp_dir_s) ;
+		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
 			if ( it==g_start_info.env.end() || +it->second ) {                                                                          // if TMPDIR is set and empty, no tmp dir is prepared/cleaned

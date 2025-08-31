@@ -64,9 +64,9 @@ namespace Py {
 		List& py_path = py_get_sys<List>("path") ;
 		py_path.append( *Ptr<Str>(lmake_root_s+"lib") ) ;
 		//
-		SWEAR(!_g_std_sys_path,_g_std_sys_path) ;
-		_g_std_sys_path = New ;
-		for( Object& p : py_path ) _g_std_sys_path->push_back(p.as_a<Str>()) ;
+		SWEAR( !_g_std_sys_path , _g_std_sys_path ) ;
+		/**/                       _g_std_sys_path = New ;
+		for( Object& p : py_path ) _g_std_sys_path->emplace_back(p.as_a<Str>()) ;
 		//
 		Dict::s_builtins = from_py<Dict>(PyEval_GetBuiltins()) ;
 		//
@@ -82,7 +82,7 @@ namespace Py {
 	}
 
 	nullptr_t py_err_set( PyException e , ::string const& txt ) {
-		[[maybe_unused]] static bool once = (SWEAR(chk_enum_tab(PyExceptionTab)),true) ; // cannot be static_assert'ed because PyExceptionTab cannot be constexpr, although keys are all constexpr
+		[[maybe_unused]] static bool once = ( SWEAR(chk_enum_tab(PyExceptionTab)) , true ) ; // cannot be static_assert'ed because PyExceptionTab cannot be constexpr, although keys are all constexpr
 		Gil::s_swear_locked() ;
 		PyErr_SetString(PyExceptionTab[+e].second,txt.c_str()) ;
 		return nullptr ;

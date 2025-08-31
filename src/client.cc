@@ -72,11 +72,11 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		} ;
 		Pipe client_to_server{New,0/*flags*/,true/*no_std*/} ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
 		Pipe server_to_client{New,0/*flags*/,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
-		/**/           cmd_line.push_back(cat("-i",client_to_server.read .fd)) ;
-		/**/           cmd_line.push_back(cat("-o",server_to_client.write.fd)) ;
-		if (!refresh ) cmd_line.push_back(    "-r"                           ) ;                                       // -r means no refresh
-		if (read_only) cmd_line.push_back(    "-R"                           ) ;                                       // -R means read-only
-		/**/           cmd_line.push_back(    "--"                           ) ;                                       // ensure no further option processing in case a file starts with a -
+		/**/           cmd_line.push_back   (cat("-i",client_to_server.read .fd)) ;
+		/**/           cmd_line.push_back   (cat("-o",server_to_client.write.fd)) ;
+		if (!refresh ) cmd_line.emplace_back(    "-r"                           ) ;                                    // -r means no refresh
+		if (read_only) cmd_line.emplace_back(    "-R"                           ) ;                                    // -R means read-only
+		/**/           cmd_line.emplace_back(    "--"                           ) ;                                    // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
 			Child server { .as_session=true , .cmd_line=cmd_line } ;
@@ -108,7 +108,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 	exit(Rc::Format
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
-	,	"\trm "s+AdminDirS+"server\n"
+	,	"\trm ",AdminDirS,"server\n"
 	) ;
 }
 

@@ -71,8 +71,8 @@ namespace Backends {
 			auto   [eta,job]     = *it                           ;
 			Tokens tokens        = job->tokens1+1                ;
 			Val    left_workload = tokens*(eta-_ref_date).msec() ;
-			SWEAR(_reasonable_tokens  >=tokens       ,_reasonable_tokens  ,tokens       ) ;
-			SWEAR(_reasonable_workload>=left_workload,_reasonable_workload,left_workload) ;
+			SWEAR( _reasonable_tokens  >=tokens        , _reasonable_tokens  ,tokens        ) ;
+			SWEAR( _reasonable_workload>=left_workload , _reasonable_workload,left_workload ) ;
 			_reasonable_tokens   -= tokens        ;
 			_reasonable_workload -= left_workload ;
 			_eta_tab.erase(it->second) ;                                                        // erase _eta_tab while it is still valid
@@ -85,7 +85,7 @@ namespace Backends {
 		_ref_date      = now                        ;                                           // _ref_date is always rounded on ms
 		SWEAR( _reasonable_workload>=delta_workload , _reasonable_workload , delta_workload ) ;
 		_reasonable_workload -= delta_workload ;
-		if (!_reasonable_tokens) SWEAR(!_reasonable_workload,_reasonable_workload) ;            // check no reasonable workload if no reasonable jobs
+		if (!_reasonable_tokens) SWEAR( !_reasonable_workload , _reasonable_workload ) ;        // check no reasonable workload if no reasonable jobs
 		trace("done",self) ;
 	}
 
@@ -119,8 +119,8 @@ namespace Backends {
 		if ( auto it=_eta_tab.find(j) ; it!=_eta_tab.end() ) {        // cancel scheduled time left to run
 			SWEAR( it->second>=_ref_date , it->second , _ref_date ) ;
 			Val left_workload = tokens*((it->second-_ref_date).msec()) ;
-			SWEAR(_reasonable_tokens  >=tokens       ,_reasonable_tokens  ,tokens       ) ;
-			SWEAR(_reasonable_workload>=left_workload,_reasonable_workload,left_workload) ;
+			SWEAR( _reasonable_tokens  >=tokens        , _reasonable_tokens  ,tokens        ) ;
+			SWEAR( _reasonable_workload>=left_workload , _reasonable_workload,left_workload ) ;
 			_reasonable_tokens   -= tokens        ;
 			_reasonable_workload -= left_workload ;
 			_eta_set.erase({it->second,j}) ;                          // erase _eta_set while it is still valid
@@ -255,7 +255,7 @@ namespace Backends {
 
 	void Backend::_s_wakeup_remote( Job job , StartEntry::Conn const& conn , Pdate start_date , JobMngtProc proc ) {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
-		SWEAR(conn.seq_id,job,conn) ;
+		SWEAR( conn.seq_id , job,conn ) ;
 		try {
 			ClientSockFd fd( conn.host , conn.port ) ;
 			OMsgBuf().send( fd , JobMngtRpcReply({.proc=proc,.seq_id=conn.seq_id}) ) ;
@@ -300,7 +300,7 @@ namespace Backends {
 	bool/*keep_fd*/ Backend::_s_handle_job_start( JobStartRpcReq&& jsrr , SlaveSockFd const& fd ) {
 		if (!jsrr) return false ;                                                                   // if connection is lost, ignore it
 		Trace trace(BeChnl,"_s_handle_job_start",jsrr) ;
-		SWEAR(+fd,jsrr) ;                                                                           // fd is needed to reply
+		SWEAR( +fd , jsrr ) ;                                                                       // fd is needed to reply
 		Job               job          { jsrr.job }                  ;
 		RuleData const&   rd           = *job->rule()                ;
 		::vector<ReqIdx>  reqs         ;

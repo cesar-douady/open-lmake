@@ -387,7 +387,7 @@ namespace Engine {
 				lcl_log_file = lcl_log_dir_s+now.str(i,true/*in_day*/) ;
 				log_file     = AdminDirS+lcl_log_file                  ;
 				if (FileInfo(log_file).tag()==FileTag::None) break ;                             // else conflict => try higher resolution
-				SWEAR(i<=9,i) ;                                                                  // at ns resolution, it impossible to have a conflict
+				SWEAR( i<=9 , i ) ;                                                              // at ns resolution, it impossible to have a conflict
 			}
 			trace(log_file) ;
 			//
@@ -399,7 +399,7 @@ namespace Engine {
 				if (entries.size()>hd) {
 					::sort(entries) ;
 					for( ::string const& e : ::span_s(entries.data(),entries.size()-hd) ) {
-						SWEAR(e!=day,e,day) ;                                                    // day is supposed to be the most recent and we keep at least 1 entry
+						SWEAR( e!=day , e,day ) ;                                                // day is supposed to be the most recent and we keep at least 1 entry
 						::string f = outputs_dir_s+e ;
 						trace("unlnk",f) ;
 						unlnk( f , true/*dir_ok*/ ) ;

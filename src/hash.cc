@@ -42,7 +42,7 @@ namespace Hash {
 							case EINTR  : continue                                        ;
 							default     : throw "I/O error while reading file "+file_name ;
 						}
-						SWEAR(cnt>0,cnt) ;
+						SWEAR( cnt>0 , cnt ) ;
 						if (size_t(cnt)>=sz) break ;
 						sz -= cnt ;
 					}

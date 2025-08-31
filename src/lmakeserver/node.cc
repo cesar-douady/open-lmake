@@ -79,7 +79,7 @@ namespace Engine {
 				else {
 					Trace trace("manual_wash",idx(),"unlnk") ;
 					::string n = name() ;
-					SWEAR(is_lcl(n),n) ;
+					SWEAR( is_lcl(n) , n ) ;
 					unlnk(n) ;
 					req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
 					res = Manual::Unlnked ;
@@ -525,7 +525,7 @@ namespace Engine {
 				if (crc!=Crc::None) {
 					if (manual==Manual::Ok) {                                                               // if already unlinked, no need to unlink it again
 						lazy_name() ;                                                                       // solve
-						SWEAR(is_lcl(name_),name_) ;
+						SWEAR( is_lcl(name_) , name_ ) ;
 						if (query) { trace("query","unlnk") ; return false ; }
 						unlnk(name_,true/*dir_ok*/) ;                                                       // wash pollution if not manual
 						req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , name_ ) ;
@@ -617,7 +617,7 @@ namespace Engine {
 		}
 	Make :
 		g_kpi.n_node_make++ ;
-		SWEAR(prod_idx==NoIdx,prod_idx) ;
+		SWEAR( prod_idx==NoIdx , prod_idx ) ;
 		for( chk_regenerate=true ;; chk_regenerate=false ) {                                 // only check regenerate once (e.g. in case of submit_loop, we would try forever)
 			for (;;) {
 				SWEAR(ri.prio_idx!=NoIdx) ;
@@ -731,7 +731,7 @@ namespace Engine {
 			case NodeStatus::Multi     : { for( Job j : conform_job_tgts(cri) ) j->propag_speculate( cri.req , cri.speculate ) ; } break ;
 			case NodeStatus::Unknown   :                                                                                           break ; // node is not built, nowhere to propagate
 			default :
-				SWEAR(status()<NodeStatus::Uphill,status()) ;                                                                              // ensure we have not forgotten a case
+				SWEAR( status()<NodeStatus::Uphill , status() ) ;                                                                          // ensure we have not forgotten a case
 		}
 	}
 
@@ -928,9 +928,9 @@ namespace Engine {
 	// START_OF_NO_COV for debug only
 	void Deps::_chk( ::vector<Node> const& deps , size_t is_tail ) {
 		::vector<Node> stored ; for( Dep const& d : self ) stored.push_back(d) ;
-		if (is_tail) SWEAR(stored.size()>=deps.size(),stored.size(),deps.size()) ;
-		else         SWEAR(stored.size()==deps.size(),stored.size(),deps.size()) ;
-		for( size_t i : iota(deps.size())) SWEAR(deps[i]==stored[i+stored.size()-deps.size()],i,deps,stored) ;
+		if (is_tail) SWEAR( stored.size()>=deps.size() , stored.size(),deps.size() ) ;
+		else         SWEAR( stored.size()==deps.size() , stored.size(),deps.size() ) ;
+		for( size_t i : iota(deps.size())) SWEAR( deps[i]==stored[i+stored.size()-deps.size()] , i,deps,stored ) ;
 	}
 	// END_OF_NO_COV
 

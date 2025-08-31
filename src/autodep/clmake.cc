@@ -146,9 +146,9 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
-	if (py_args.size()>1) throw "too many args" ;
+	if (py_args.size()>1) throw "too many args"s ;
 	bool sync = +py_args && +py_args[0] ;
-	if ( +py_args && +py_kwds ) throw "too many args" ;
+	if ( +py_args && +py_kwds ) throw "too many args"s ;
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
 		if (key=="sync") sync = +py_val ;
@@ -165,7 +165,7 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const& py_kwds ) {
-	if ( +py_args || +py_kwds ) throw "no args supported" ;
+	if ( +py_args || +py_kwds ) throw "no args supported"s ;
 	::vector_s files = JobSupport::list( *_g_record , No|Target ) ;
 	Ptr<Tuple> res   { files.size() }              ;
 	for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
@@ -489,7 +489,7 @@ PyMODINIT_FUNC
 		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
 		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
 		/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
-		SWEAR(i==py_ads->size(),i,py_ads->size()) ;
+		SWEAR( i==py_ads->size() , i,py_ads->size() ) ;
 	}
 	//
 	static constexpr const char* Bes[] = { "local" , "sge" , "slurm" } ; // PER_BACKEND : add entries here

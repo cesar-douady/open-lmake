@@ -321,7 +321,7 @@ struct JobReason {
 	}
 	JobReason& operator|=(JobReason jr) { self = self | jr ; return self ; }
 	::string msg() const {
-		if (tag<Tag::HasNode) SWEAR(!node,tag,node) ;
+		if (tag<Tag::HasNode) SWEAR( !node , tag,node ) ;
 		return JobReasonTagStrs[+tag].second ;
 	}
 	void chk() const ;
@@ -402,7 +402,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	//
 	bool seen(Accesses a) const {                                                           // return true if accesses could perceive the existence of file
 		if (!a) return false ;
-		SWEAR(+self,self,a) ;
+		SWEAR( +self , self,a ) ;
 		switch (kind()) {
 			case Kind::Crc  : return !Crc::None.match( crc()             , a ) ;
 			case Kind::Sig  : return !Crc::None.match( Crc(sig ().tag()) , a ) ;
@@ -444,8 +444,8 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b},accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { set_crc_sig(dd) ; }
 	//
 	constexpr bool operator==(DepDigestBase const& ddb) const {
-		SWEAR(!sz    ,self) ;
-		SWEAR(!ddb.sz,ddb ) ;
+		SWEAR( !sz     , self ) ;
+		SWEAR( !ddb.sz , ddb  ) ;
 		if constexpr (HasBase) if (Base::operator!=(ddb) ) return false          ;
 		/**/                   if (dflags  !=ddb.dflags  ) return false          ;
 		/**/                   if (accesses!=ddb.accesses) return false          ;
@@ -476,9 +476,9 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && dflags[Dflag::Verbose] )) set_crc_sig(di,false) ; } // .
 	// services
 	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                      // assumes ddb has been accessed after us
-		if constexpr (HasBase) SWEAR(Base::operator==(ddb),self,ddb) ;
-		/**/                   SWEAR(!sz                  ,self    ) ;
-		/**/                   SWEAR(!ddb.sz              ,ddb     ) ;
+		if constexpr (HasBase) SWEAR( Base::operator==(ddb) , self,ddb ) ;
+		/**/                   SWEAR( !sz                   , self     ) ;
+		/**/                   SWEAR( !ddb.sz               , ddb      ) ;
 		if (!accesses) {
 			set_crc_sig(ddb) ;
 			parallel = ddb.parallel ;

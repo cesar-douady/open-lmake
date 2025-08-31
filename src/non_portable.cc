@@ -29,13 +29,12 @@ using Iovec          = struct ::iovec            ;
 	using Word = decltype(UserRegsStruct().gprs[0]) ;
 #endif
 
-template<bool Set> static void _get_set( pid_t pid , int n_words , UserRegsStruct&/*inout*/ regs ) {
+template<bool Set> static void _get_set( pid_t pid , [[maybe_unused]] int n_words , UserRegsStruct&/*inout*/ regs ) {
 	#if __aarch64__ || __arm__
 		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                                                          // read/write n_words registers
 		throw_unless( ::ptrace( Set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov )==0 , "cannot ",Set?"set":"get",' ',n_words," regs" ) ;
 		SWEAR( iov.iov_len==n_words*sizeof(Word) , iov.iov_len ) ; // check all asked regs have been handled
 	#else
-		(void)n_words ;
 		throw_unless( ::ptrace( Set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs )==0 , "cannot ",Set?"set":"get"," regs") ;
 	#endif
 }
