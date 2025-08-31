@@ -292,23 +292,14 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void*& /
 	_do_stat<true,2>(r,pid,args,a,c) ;
 }
 
-// use constexpr processing rather than #ifdef/#endif so each entry can be put on a single line rather than 3 lines
-static constexpr long _build_syscall_descr_tab_idx(const char* n_str) {
-	long n = 0 ;
-	for( const char* p=n_str ; *p ; p++ )
-		if ( '0'<=*p && *p<='9' ) n = (n*10) + (*p-'0') ;
-		else                      return -1 ;
-	return n ;
-} ;
 static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	SyscallDescr::Tab s_tab = {} ;
-	#define FILL_ENTRY_STR(x) #x                                               // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
-	#define FILL_ENTRY( n , ... ) {                                          \
-		constexpr long i = _build_syscall_descr_tab_idx(FILL_ENTRY_STR(n)) ; \
-		if constexpr (i>=0) {                                                \
-			static_assert(i<SyscallDescr::NSyscalls,"increase NSyscalls") ;  \
-			s_tab[i] = SyscallDescr __VA_ARGS__ ;                            \
-		}                                                                    \
+	#define FILL_ENTRY( n , ... ) {                                         \
+		constexpr long i = MACRO_VAL(n,-1L) ;                               \
+		if constexpr (i>=0) {                                               \
+			static_assert(i<SyscallDescr::NSyscalls,"increase NSyscalls") ; \
+			s_tab[i] = SyscallDescr __VA_ARGS__ ;                           \
+		}                                                                   \
 	}
 	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
 	//                                    entry           <At   ,FlagArg   > , exit           filter comment

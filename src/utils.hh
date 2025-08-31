@@ -686,6 +686,17 @@ template<::integral I> I random() {
 	return buf_int ;
 }
 
+// use constexpr processing rather than #ifdef/#endif so as to discriminate between defined/undefined macros on a single line
+template<class I,I DfltVal> constexpr I _macro_val_str(const char* n_str) {
+	I n = 0 ;
+	for( const char* p=n_str ; *p ; p++ )
+		if ( '0'<=*p && *p<='9' ) n = (n*10) + (*p-'0') ;
+		else                      return DfltVal ;
+	return n ;
+}
+#define _MACRO_VAL_STR(x         ) #x                                                         // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
+#define MACRO_VAL(     macro,dflt) _macro_val_str<decltype(dflt),dflt>(_MACRO_VAL_STR(macro))
+
 //
 // Implementation
 //

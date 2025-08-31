@@ -10,7 +10,7 @@
 #include "rpc_job_exec.hh"
 
 struct SyscallDescr {
-	static constexpr long NSyscalls = 1024 ;                                                           // must larger than higher syscall number, 1024 is plenty, actual upper value is around 450
+	static constexpr long NSyscalls = 440 ;                                                            // must larger than higher syscall number
 	using Tab = ::array<SyscallDescr,NSyscalls> ;                                                      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	// static data
 	static Tab const& s_tab ;
