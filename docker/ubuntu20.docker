@@ -11,7 +11,7 @@ RUN                                apt-get update --fix-missing                 
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 RUN                                apt-get install -y build-essential
 
-# compulsery
+# compulsory
 RUN                                apt-get install -y git
 RUN                                apt-get install -y python3-dev
 RUN                                apt-get install -y wget

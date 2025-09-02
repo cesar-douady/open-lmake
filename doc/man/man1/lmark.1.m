@@ -57,6 +57,16 @@ SpecificOptions
 Item(B(-f),B(--freeze))     mark is freeze.
 Item(B(-t),B(--no-trigger)) mark is no-trigger.
 
+.SH EXAMPLES
+.LP
+V(lmark -fa a_dep)
+.LP
+V(lmake depend_on_a_dep) # a_dep not remade
+.LP
+V(lmake -fc)
+.LP
+V(lmake depend_on_a_dep) # a_dep remade if necessary
+
 .SH FILES
 CommonFiles
 

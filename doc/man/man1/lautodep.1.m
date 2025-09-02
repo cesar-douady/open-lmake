@@ -67,7 +67,7 @@ I(list) must be provided as a  tuple or list of str using the python syntax (whi
 Mimic setting the rule attribute B(source_dirs)=I(list).
 
 Item(B(-t) I(abs_dir),B(--tmp-dir)=I(abs_dir))
-This option is compulsery.
+This option is mandatory.
 Set the physical tmp dir.
 The tmp dir is cleaned (i.e. all files inside it are B(rm)'ed) before execution.
 It is also cleaned after execution unless the B(--keep-tmp) or B(-k) is given.
@@ -84,6 +84,12 @@ Mimic setting the rule attribute B(tmp_view)=I(abs_dir).
 Item(B(-V) I(dict),B(--views)=I(dict))
 I(dict) must be provided as a dict mapping str to view descriptions using the python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(views)=I(dict).
+
+.SH EXAMPLES
+
+A typical call could be:
+.LP
+V(lautodep -e"['DISPLAY','LMAKE_HOME','HOME','PATH',]" -k -lfull -mld_audit -oaccesses -t/my_tmp/$$ -- /bin/bash cmd)
 
 .SH FILES
 CommonFiles

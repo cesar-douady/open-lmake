@@ -158,7 +158,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 # General description
 
 ## Main classes
-- Req represents an lmake command
+- `Req` represents an lmake command
 	- several `Req`'s may be present as several lmake command may run (but there is a single server serving all of them)
 - `Rule` represents a derivation rule
 	- i.e. a pattern to derive some target files from some source files

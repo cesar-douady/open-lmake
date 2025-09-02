@@ -12,7 +12,7 @@ RUN dnf clean all
 
 # build an intermediate environment
 
-# compulsery
+# compulsory
 RUN dnf install -y epel-release
 RUN dnf install -y gcc-toolset-11
 RUN dnf install -y python3 python3-devel

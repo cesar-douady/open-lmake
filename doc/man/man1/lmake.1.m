@@ -183,6 +183,12 @@ Bullet B($JOB_ID) is set to an integer specific of a job.
 Bullet B($SMALL_ID) is set to a as small as possible integer such that a different value is set for jobs running concurrently.
 Bullet B($SEQUENCE_ID) is set to a different value each time a job is run, they are never recycled.
 
+.SH EXAMPLES
+.LP
+V(lmake a_file)
+.LP
+V(vi a_file) # a_file is guaranteed up-to-date.
+
 .SH FILES
 CommonFiles
 

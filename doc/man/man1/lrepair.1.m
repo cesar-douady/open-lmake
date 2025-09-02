@@ -25,6 +25,10 @@ While repairing B(lrepair) generates a file I(LMAKE/repaired_jobs) that contains
 
 ClientGeneralities()
 
+.SH EXAMPLES
+.LP
+V(lrepair)
+
 .SH FILES
 CommonFiles
 

@@ -12,7 +12,7 @@ RUN dnf clean all
 
 # build a maximal environment
 
-# compulsery
+# compulsory
 RUN dnf install -y epel-release
 RUN dnf install -y gcc gcc-c++
 RUN dnf install -y gcc-toolset-12

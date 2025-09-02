@@ -140,7 +140,7 @@ config_python() {
 }
 #
 config_python "$PYTHON2" 2 || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; }                                                # python2 is optional
-config_python "$PYTHON"  3 || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                                # python3 is compulsery
+config_python "$PYTHON"  3 || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                                # python3 is compulsory
 #
 if   [ "$PY2_LIB_DIR" -a "$PY3_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR
 elif [ "$PY2_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY2_LIB_DIR

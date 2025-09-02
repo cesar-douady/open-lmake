@@ -78,6 +78,13 @@ Item(B($LMAKE_DEBUG_KEY))    The key provided by the B(-k) or B(--key) option.
 Item(B($LMAKE_DEBUG_STDIN))  The file connected as stdin to B(ldebug) when it was launched (usually a tty) if the job has its stdin redirected (in case the B(dep) rule attribute is defined).
 Item(B($LMAKE_DEBUG_STDOUT)) The file connected as stdout to B(ldebug) when it was launched (usually a tty) if the job has its stdout redirected (in case the B(target) rule attribute is defined).
 
+.SH EXAMPLES
+
+.LP
+V(ldebug -n my_job) : generate script and cmd files in I(LMAKE/debug/<job_id>) but do not run it.
+.LP
+V(ldebug -e my_job) : enter in an interactive shell session with the necessary environment to execute job, but execute nothing.
+
 .SH FILES
 .LP
 Debug script files are generated in the I(LMAKE/debug) dir as I(LMAKE/debug/<job id>/script). Associated files are besides the the script files.

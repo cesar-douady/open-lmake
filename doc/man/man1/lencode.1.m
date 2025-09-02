@@ -23,6 +23,32 @@ It is an error if I(association_file) is not a source (symbolic links are follow
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
 
+.SH EXAMPLES
+.LP
+V(touch my_codec_file) # contains an association table code <==> value with each context
+.LP
+V(git add my_codec_file) # my_codec_file must be a source
+.LP
+V(lencode my_codec_file my_context 3 <<EOF)
+.LP
+V(first line)
+.LP
+V(second line)
+.LP
+V(EOF)
+.LP
+V(==>)
+.LP
+V(3ab)
+.LP
+V(ldecode my_codec_file my_context 3ab)
+.LP
+V(==>)
+.LP
+V(first line)
+.LP
+V(second line)
+
 .SH NOTES
 Item((1))
 	The same functionality is provided with the B(lmake.encode) python function.

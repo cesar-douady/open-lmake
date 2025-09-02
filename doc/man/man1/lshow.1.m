@@ -258,6 +258,12 @@ Also,reported files are relative to the root of the repo, not the current workin
 If argument is a job, the output is as described for each sub-command.
 unless mentioned otherwise, if arguments are files, the output is a B(dict) whose keys are the arguments and values are as described above.
 
+.SH EXAMPLES
+.LP
+V(lmake a_file)
+.LP
+V(lshow -i a_file)
+
 .SH ENVIRONMENT
 .LP
 The content of B($LMAKE_VIDEO) is processed as if provided with the I(--video) option.

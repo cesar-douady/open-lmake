@@ -21,6 +21,10 @@ Bullet I(code) cannot be found with the accompanying I(context)
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
 
+.SH EXAMPLES
+.LP
+See C(lencode,1).
+
 .SH NOTES
 Item((1))
 	The same functionality is provided with the B(lmake.decode) python function.

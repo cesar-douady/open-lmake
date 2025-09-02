@@ -62,10 +62,22 @@ Item(B(-D),B(--readdir-ok))      Allow C(readdir,3) on passed deps even if not B
 Item(B(-E),B(--essential))       Passed deps will appear in the flow shown with a graphical tool.
 Item(B(-e),B(--ignore-error))    Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))     Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
-Item(B(-x),B(--no-exclude-star)) Accept that flags are further processed according to regexpr-based requests, e.g. B(ldepend --regexpr), default is to exclude such processing.
+Item(B(-x),B(--no-exclude-star)) Accept that flags are further processed according to regexpr-based requests, default is to exclude such processing.
 Item(B(-`I'),B(--ignore))        From now on, ignore all reads of deps (including C(readdir,3)).
 Item(B(-X),B(--regexpr))         Pass flags to all deps matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 Default is to optimize dep check as much as possible.
+
+.SH EXAMPLES
+.LP
+V(ldepend --ignore a_file) # must be put before reading I(a_file).
+.LP
+V(ldepend --read a b) # a and b are parallel deps
+.LP
+V(cat a_file) # ignored
+.LP
+V(ldepend --readir_ok --regexpr 'a_dir(/.*)?') # may follow reading dirs
+.LP
+V(find a_dir)
 
 .SH NOTES
 Item((1))

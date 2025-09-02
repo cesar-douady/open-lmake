@@ -42,6 +42,11 @@ This is useful in scenarios such as the following one :
 Item(B(-t),B(--targets))
 In addition to being out-of-date, job will forget about star targets.
 
+.SH EXAMPLES
+.LP
+V(lforget a_file)
+.LP
+V(lmake a_file) # job is always run
 
 .SH FILES
 CommonFiles

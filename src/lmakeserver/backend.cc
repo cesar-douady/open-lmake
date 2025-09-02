@@ -146,7 +146,7 @@ namespace Backends {
 	::pair<Pdate/*eta*/,bool/*keep_tmp*/> Backend::StartEntry::req_info() const {
 		Pdate eta      = Pdate::Future       ;
 		bool  keep_tmp = false               ;
-		Lock  lock     { Req::s_reqs_mutex } ; // taking Req::s_reqs_mutex is compulsery to derefence req
+		Lock  lock     { Req::s_reqs_mutex } ; // taking Req::s_reqs_mutex is compulsory to derefence req
 		for( Req r : reqs ) {
 			keep_tmp |= r->options.flags[ReqFlag::KeepTmp] ;
 			eta       = ::min(eta,r->eta)                  ;
@@ -183,7 +183,7 @@ namespace Backends {
 	}
 
 	static bool _localize( Tag t , Req r ) {
-		Lock lock{Req::s_reqs_mutex} ;                                    // taking Req::s_reqs_mutex is compulsery to derefence req
+		Lock lock{Req::s_reqs_mutex} ;                                    // taking Req::s_reqs_mutex is compulsory to derefence req
 		return r->options.flags[ReqFlag::Local] || !Backend::s_ready(t) ; // if asked backend is not usable, force local execution
 	}
 

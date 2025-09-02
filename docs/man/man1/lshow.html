@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Aug 30 15:39:43 2025 -->
+<!-- CreationDate: Tue Sep  2 19:36:38 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -26,6 +26,7 @@
 <a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
 <a href="#SUB-COMMANDS">SUB-COMMANDS</a><br>
 <a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#ENVIRONMENT">ENVIRONMENT</a><br>
 <a href="#FILES">FILES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
@@ -264,16 +265,26 @@ modify <i>Lmakefile.py</i>.</p>
 <p style="margin-left:18%;">Generate more prolix
 output.</p>
 
-<p style="margin-left:9%;"><b>-V</b> <i>mode</i>,
-<b>--video</b>=<i>mode</i></p>
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="5%">
 
-<p style="margin-left:18%;">Explicitly ask for a video mode
-instead of interrogating connected terminal. If mode starts
-with <b>n</b> or <b>N</b>, normal video (black on white) is
-assumed. If it starts with <b>r</b> or <b>R</b>, reverse
-video (white on black) is assumed. Else output is not
-colorized. video mode has an impact on generated colors as
-nice looking colors are not the same in each case.</p>
+
+<p><b>-.nf</b></p></td>
+<td width="86%">
+</td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">Explicitly ask
+for a video mode instead of interrogating connected
+terminal. If mode starts with <b>n</b> or <b>N</b>, normal
+video (black on white) is assumed. If it starts with
+<b>r</b> or <b>R</b>, reverse video (white on black) is
+assumed. Else output is not colorized. video mode has an
+impact on generated colors as nice looking colors are not
+the same in each case.</p>
 
 <h2>SUB-COMMANDS
 <a name="SUB-COMMANDS"></a>
@@ -1441,6 +1452,16 @@ a job, the output is as described for each sub-command.
 unless mentioned otherwise, if arguments are files, the
 output is a <b>dict</b> whose keys are the arguments and
 values are as described above.</p>
+
+<h2>EXAMPLES
+<a name="EXAMPLES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">lmake a_file</p>
+
+<p style="margin-left:9%; margin-top: 1em">lshow -i
+a_file</p>
 
 <h2>ENVIRONMENT
 <a name="ENVIRONMENT"></a>

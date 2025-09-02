@@ -266,7 +266,7 @@ namespace Backends {
 		}
 		void open_req( Req req , JobIdx n_jobs ) override {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
-			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsery to derefence req
+			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsory to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
 			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                     // check no overflow
 			SWEAR(inserted) ;

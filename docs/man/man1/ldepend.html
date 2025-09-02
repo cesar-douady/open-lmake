@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Aug 30 15:39:43 2025 -->
+<!-- CreationDate: Tue Sep  2 19:36:37 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -24,6 +24,7 @@
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#OPTIONS">OPTIONS</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#NOTES">NOTES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
 <a href="#COPYRIGHT">COPYRIGHT</a><br>
@@ -302,9 +303,8 @@ read may fail, but <i>open-lmake</i> is ok).</p>
 <b>--no-exclude-star</b></p>
 
 <p style="margin-left:18%;">Accept that flags are further
-processed according to regexpr-based requests, e.g.
-<b>ldepend --regexpr</b>, default is to exclude such
-processing.</p>
+processed according to regexpr-based requests, default is to
+exclude such processing.</p>
 
 <p style="margin-left:9%;"><b>-I</b>, <b>--ignore</b></p>
 
@@ -317,6 +317,24 @@ of deps (including <b>readdir</b>(3)).</p>
 regexprs passed as argument. The <b>ignore</b> flag only
 applies to targets following this command. Default is to
 optimize dep check as much as possible.</p>
+
+<h2>EXAMPLES
+<a name="EXAMPLES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">ldepend --ignore
+a_file</p>
+
+<p style="margin-left:9%; margin-top: 1em">ldepend --read a
+b</p>
+
+<p style="margin-left:9%; margin-top: 1em">cat a_file</p>
+
+<p style="margin-left:9%; margin-top: 1em">ldepend
+--readir_ok --regexpr a_dir(/.*)?&rsquo;&rsquo;</p>
+
+<p style="margin-left:9%; margin-top: 1em">find a_dir</p>
 
 <h2>NOTES
 <a name="NOTES"></a>

@@ -8,9 +8,12 @@ Comment(
 
 define(`About',`define(`Name',``$1'')')
 
-define(`B',`\fB`$1'\fR')
+define(`B',`\fB`$*'\fR')
 define(`C',`B(`$1')(ifelse(`$2',,1,``$2''))')
-define(`I',`\fI`$1'\fR')
+define(`I',`\fI`$*'\fR')
+define(`V',`.nf
+`$*'
+.fi')
 define(`Bullet',`.IP \[bu]
 ')
 define(`Item',`.TP

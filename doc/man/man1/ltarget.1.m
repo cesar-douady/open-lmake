@@ -43,6 +43,16 @@ Item(B(-D),B(--readdir-ok))   Allow C(readdir,3) on passed deps even if not B(ig
 Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
 
+.SH EXAMPLES
+.LP
+V(ltarget --ignore a_file) # reading/writing to a_file will be ignored
+.LP
+V(echo >a_file)
+.LP
+V(ltarget --readdir_ok a_dir)
+.LP
+V(rm -rf a_dir)
+
 .SH NOTES
 
 Footer

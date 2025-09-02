@@ -34,6 +34,10 @@ Item(B(-n),B(--dry-run)) Report actions to carry out but do not actually perform
 
 ClientGeneralities()
 
+.SH EXAMPLES
+.LP
+V(ldircache_repair)
+
 .SH FILES
 CommonFiles
 

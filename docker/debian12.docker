@@ -10,7 +10,7 @@ FROM debian:12
 RUN apt-get update --fix-missing       # 0 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
 
-# compulsery
+# compulsory
 RUN apt-get install -y git
 RUN apt-get install -y python3-dev
 RUN apt-get install -y wget

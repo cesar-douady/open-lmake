@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Aug 30 15:39:42 2025 -->
+<!-- CreationDate: Tue Sep  2 19:36:37 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -24,6 +24,7 @@
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#OPTIONS">OPTIONS</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
 <a href="#COPYRIGHT">COPYRIGHT</a><br>
@@ -228,7 +229,7 @@ attribute <b>source_dirs</b>=<i>list</i>.</p>
 <p style="margin-left:9%;"><b>-t</b> <i>abs_dir</i>,
 <b>--tmp-dir</b>=<i>abs_dir</i></p>
 
-<p style="margin-left:18%;">This option is compulsery. Set
+<p style="margin-left:18%;">This option is mandatory. Set
 the physical tmp dir. The tmp dir is cleaned (i.e. all files
 inside it are <b>rm</b>&rsquo;ed) before execution. It is
 also cleaned after execution unless the <b>--keep-tmp</b> or
@@ -252,13 +253,36 @@ attribute <b>repo_view</b>=<i>abs_dir</i>.</p>
 <p style="margin-left:18%;">Mimic setting the rule
 attribute <b>tmp_view</b>=<i>abs_dir</i>.</p>
 
-<p style="margin-left:9%;"><b>-V</b> <i>dict</i>,
-<b>--views</b>=<i>dict</i></p>
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="5%">
 
-<p style="margin-left:18%;"><i>dict</i> must be provided as
-a dict mapping str to view descriptions using the python
-syntax (which most probably requires shell quoting). Mimic
-setting the rule attribute <b>views</b>=<i>dict</i>.</p>
+
+<p><b>-.nf</b></p></td>
+<td width="86%">
+</td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em"><i>dict</i>
+must be provided as a dict mapping str to view descriptions
+using the python syntax (which most probably requires shell
+quoting). Mimic setting the rule attribute
+<b>views</b>=<i>dict</i>.</p>
+
+<h2>EXAMPLES
+<a name="EXAMPLES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">A typical call
+could be:</p>
+
+<p style="margin-left:9%; margin-top: 1em">lautodep
+-e&quot;[DISPLAY&rsquo;,&rsquo;LMAKE_HOME&rsquo;,&rsquo;HOME&rsquo;,&rsquo;PATH&rsquo;,]&quot;
+-k -lfull -mld_audit -oaccesses -t/my_tmp/$$ -- /bin/bash
+cmd&rsquo;</p>
 
 <h2>FILES
 <a name="FILES"></a>

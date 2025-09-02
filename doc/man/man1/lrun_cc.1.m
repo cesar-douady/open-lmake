@@ -16,4 +16,8 @@ I(args) are parsed for include or library dirs and calls mkdir on these dirs and
 
 The goal is to ensure that these dirs always exist as this is a requirement of most C/C++ compiler to try to read include files within them and hence trigger deps.
 
+.SH EXAMPLES
+.LP
+V(lrun_cc -mmrkr gcc -Ia -Ib -Ic -c -o prog.o prog.c)
+
 Footer

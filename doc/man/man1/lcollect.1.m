@@ -33,6 +33,10 @@ ClientOptions(,color)
 SpecificOptions
 Item(B(-n),B(--dry-run)) report only, dont actually execute actions.
 
+.SH EXAMPLES
+.LP
+V(lcollect)
+
 .SH FILES
 CommonFiles
 

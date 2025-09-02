@@ -142,11 +142,11 @@ Digest analyze(Status status=Status::New) {                                     
 		}
 		// handle targets
 		if (is_tgt) {
-			FileStat     st         ;
-			FileSig      sig        ;                                                                                                  if (::lstat(file.c_str(),&st)==0) sig = {st} ;
-			TargetDigest td         { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags }                                      ;
-			bool         unlnk      = !sig                                                                                           ;
-			bool         compulsery = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
+			FileStat     st        ;
+			FileSig      sig       ;                                                                                                  if (::lstat(file.c_str(),&st)==0) sig = {st} ;
+			TargetDigest td        { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags }                                      ;
+			bool         unlnk     = !sig                                                                                           ;
+			bool         mandatory = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
 			//
 			if ( is_dep                                         ) td.tflags    |= Tflag::Incremental ;                 // if is_dep, previous target state is guaranteed by being a dep, use it
 			if ( !td.tflags[Tflag::Incremental]                 ) td.pre_exist  = info.seen()        ;
@@ -187,7 +187,7 @@ Digest analyze(Status status=Status::New) {                                     
 				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
 				else                                                              res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( compulsery && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                        // target is expected, not produced and no more important reason
+			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                         // target is expected, not produced and no more important reason
 				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                     // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
