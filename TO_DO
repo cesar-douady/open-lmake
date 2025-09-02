@@ -15,9 +15,8 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* include status in crc
-	- think of depend(ignore_err=True,verbose=True)
-	- if status of deps change, result changes but crc's do not
+* improve doc with examples, specially phony targets
+* lmake.depend( readdir_ok=True) followed by shutil.rmtree produces a dep and infinite rerun
 ? seen once : server has been seen blocked
 	- seems to be while taking GIL
 
@@ -25,9 +24,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-! add a dead-lock removal mechanism for depend direct
-	- as resources may be held by depending (suspended) job
 ! manage 32 bits executables with ptrace
+? add a dead-lock removal mechanism for depend direct
+	- as resources may be held by depending (suspended) job
+	- how to distinguish dead-lock from waiting resources that are occupied externally ?
 ? suppress readdir protection on dirs made by successful mkdir
 	- as these dirs have a predictible content
 	- not perfectly true as another job could create a file in such a dir

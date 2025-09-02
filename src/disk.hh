@@ -179,6 +179,7 @@ namespace Disk {
 		FileSig( Fd at                                              ) : FileSig{at     ,{}                 } {}
 		FileSig(         ::string const& name , bool no_follow=true ) : FileSig{Fd::Cwd,name,no_follow     } {}
 		FileSig( Fd at , ::string const& name , bool no_follow=true ) : FileSig{FileInfo(at,name,no_follow)} {}
+		FileSig( FileStat const& fs                                 ) : FileSig{FileInfo(fs               )} {}
 		FileSig( FileInfo const&                                    ) ;
 		FileSig( FileTag tag                                        ) : _val{+tag}                           {}
 		//

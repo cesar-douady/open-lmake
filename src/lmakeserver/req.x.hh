@@ -97,6 +97,8 @@ namespace Engine {
 		/**/                 ::string _color_pfx(Color ) const ;
 		/**/                 ::string _color_sfx(Color ) const ;
 		//
+		void _do_chk_end() ;
+		//
 		bool/*overflow*/ _report_err  ( Dep const& , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
 		bool/*overflow*/ _report_err  ( Job , Node , size_t& n_err , bool& seen_stderr , ::uset<Job>& seen_jobs , ::uset<Node>& seen_nodes , DepDepth lvl=0 ) ;
 		void             _report_cycle( Node                                                                                                                ) ;
@@ -401,6 +403,11 @@ namespace Engine {
 	inline void Req::dealloc() {
 		s_small_ids.release(+self) ;
 		self->clear() ;
+	}
+
+	inline void Req::chk_end() {
+		if (self->n_running()) return ;
+		_do_chk_end() ;
 	}
 
 	//

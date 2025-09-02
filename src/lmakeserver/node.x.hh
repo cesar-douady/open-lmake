@@ -298,7 +298,7 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeReqInfo : ReqInfo {                                            // watchers of Node's are Job's
+	struct NodeReqInfo : ReqInfo {                                            // watchers of Node's are Job's or Node's (in case of uphill)
 		friend ::string& operator+=( ::string& os , NodeReqInfo const& ri ) ;
 		//
 		using MakeAction = NodeMakeAction ;

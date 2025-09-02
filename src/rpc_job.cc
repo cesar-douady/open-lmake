@@ -70,40 +70,61 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	} ;
 	//
 	Trace trace("do_file_actions") ;
-	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                                                                // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                                        // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                                 // acting on root dir is non-sense
+	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                   // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                           // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                    // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None           : {
-				FileSig sig { nfs_guard.access(f) } ;
-				if (!sig) { trace(a.tag,"no_file",f) ; continue ; }                                                                 // file does not exist, nothing to do
-				dir_exists(f) ;                                                                                                     // if a file exists, its dir necessarily exists
-				bool quarantine = sig!=a.sig && sig.tag()!=Crc::Empty && (a.crc==Crc::None||!a.crc.valid()||!a.crc.match(Crc(f))) ; // only compute crc if file has been modified
+				FileStat fs ;
+				if (::lstat(nfs_guard.access(f).c_str(),&fs)!=0) {                     // file does not exist, nothing to do
+					trace(a.tag,"no_file",f) ;
+					continue ;
+				}
+				FileSig sig        { fs } ;
+				bool    quarantine ;
+				if (!sig) {
+					if ( a.tag==FileActionTag::None && sig.tag()==FileTag::Dir ) {     // if None, we dont want to generate the file, so dir is ok (and there may be sub-files to generate)
+						trace(a.tag,"dir",f) ;
+						continue ;
+					}
+					trace(a.tag,"awkward",f) ;
+					quarantine = true ;
+				} else {
+					quarantine =
+						sig!=a.sig
+					&&	sig.tag()!=Crc::Empty
+					&&	( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) // only compute crc if file has been modified
+					;
+					dir_exists(f) ;                                                    // if a file exists, its dir necessarily exists
+				}
 				if (quarantine) {
-					if (::rename( nfs_guard.rename(f).c_str() , dir_guard(QuarantineDirS+f).c_str() )!=0) throw "cannot quarantine "+f ;
+					::string qf = QuarantineDirS+f ;
+					if (::rename( nfs_guard.rename(f).c_str() , dir_guard(qf).c_str() )!=0) {
+						unlnk( qf , true/*dir_ok*/ ) ;                                                                         // try to unlink, in case it is a dir
+						if (::rename( f.c_str() , qf.c_str() )!=0) throw "cannot quarantine "+f ;                              // and retry
+					}
 					msg <<"quarantined " << mk_file(f) <<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
 					if (!unlnk(nfs_guard.change(f))) throw "cannot unlink "+f ;
-					if ( a.tag==FileActionTag::None && !a.no_warning ) msg <<"unlinked "<<mk_file(f)<<'\n' ;                        // if a file has been unlinked, its dir necessarily exists
+					if ( a.tag==FileActionTag::None && !a.no_warning ) msg <<"unlinked "<<mk_file(f)<<'\n' ;                   // if a file has been unlinked, its dir necessarily exists
 				}
 				trace(a.tag,STR(quarantine),f) ;
-				if (unlnks) unlnks->push_back(f) ;
+				if ( +sig && unlnks ) unlnks->push_back(f) ;
 			} break ;
 			case FileActionTag::Uniquify : {
-				struct stat s ;
-				if (   ::stat(f.c_str(),&s)!=0                ) { trace(a.tag,"no_file"  ,f) ; continue ; }                // file does not exist, nothing to do
-				if (   s.st_nlink==0                          ) { trace(a.tag,"ghost"    ,f) ; continue ; }                // file may be being unlinked by another process, do as if it does not exist
-				dir_exists(f) ;                                                                                            // if file exists, certainly its dir exists as well
-				if (   s.st_nlink==1                          ) { trace(a.tag,"single"   ,f) ; continue ; }                // file is already unique, nothing to do
-				if (!( s.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only",f) ; continue ; }                // if file is read-only, assume it is immutable
-				if (!  S_ISREG(s.st_mode)                     ) { trace(a.tag,"awkward"  ,f) ; continue ; }                // do not handle awkward files and symlinks are immutable
-				UniqEntry& e = uniq_tab[{s.st_dev,s.st_ino}] ;                                                             // accumulate all links per file identified by dev/inode
-				if (!e.files) {      e.n_lnks= s.st_nlink ;  e.sz= s.st_size ;  e.mode= s.st_mode ;  e.mtim= s.st_mtim ; }
-				else          SWEAR( e.n_lnks==s.st_nlink && e.sz==s.st_size && e.mode==s.st_mode && e.mtim==s.st_mtim ) ; // check consistency
+				FileStat fs ;
+				if (   ::lstat(f.c_str(),&fs)!=0               ) { trace(a.tag,"no_file"  ,f) ; continue ; }                   // file does not exist, nothing to do
+				dir_exists(f) ;                                                                                                // if file exists, certainly its dir exists as well
+				if (   fs.st_nlink<=1                          ) { trace(a.tag,"single"   ,f) ; continue ; }                   // file is already unique (or unlinked in parallel), nothing to do
+				if (!( fs.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only",f) ; continue ; }                   // if file is read-only, assume it is immutable
+				if (!  S_ISREG(fs.st_mode)                     ) { trace(a.tag,"awkward"  ,f) ; continue ; }                   // do not handle awkward files and symlinks are immutable
+				UniqEntry& e = uniq_tab[{fs.st_dev,fs.st_ino}] ;                                                               // accumulate all links per file identified by dev/inode
+				if (!e.files) {      e.n_lnks= fs.st_nlink ;  e.sz= fs.st_size ;  e.mode= fs.st_mode ;  e.mtim= fs.st_mtim ; }
+				else          SWEAR( e.n_lnks==fs.st_nlink && e.sz==fs.st_size && e.mode==fs.st_mode && e.mtim==fs.st_mtim ) ; // check consistency
 				e.files.push_back(f) ;
 				e.no_warning &= a.no_warning ;
 			} break ;
@@ -115,17 +136,17 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 				if (!keep_dirs.contains(f))
 					try {
 						rmdir_s(with_slash(nfs_guard.change(f))) ;
-					} catch (::string const&) {                                                                            // if a dir cannot rmdir'ed, no need to try those uphill
+					} catch (::string const&) {                                                                                // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
 							if (!keep_dirs.insert(no_slash(d_s)).second) break ;
 					}
 			break ;
-		DF}                                                                                                                // NO_COV
+		DF}                                                                                                                    // NO_COV
 	}
 	for( auto const& [_,e] : uniq_tab ) {
-		SWEAR( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                             // check consistency
-		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                           // we have all the links, nothing to do
+		SWEAR( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                                 // check consistency
+		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                               // we have all the links, nothing to do
 		trace("uniquify",e.n_lnks,e.files) ;
 		//
 		const char* err = nullptr/*garbage*/ ;
@@ -139,7 +160,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 				if (::link  (f0,e.files[i].c_str())!=0) { err = "cannot link"   ; goto Bad ; }
 			}
 			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , e.mtim } ;
-			::futimens(wfd,times) ;                                                                                        // maintain original date
+			::futimens(wfd,times) ;                                                                                            // maintain original date
 			if (!e.no_warning) {
 				/**/                               msg <<"uniquified"  ;
 				if (e.files.size()>1)              msg <<" as a group" ;
@@ -149,8 +170,8 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 			}
 		}
 		continue ;
-	Bad :                                                                                                                  // NO_COV defensive programming
-		throw cat(err," while uniquifying ",e.files) ;                                                                     // NO_COV .
+	Bad :                                                                                                                      // NO_COV defensive programming
+		throw cat(err," while uniquifying ",e.files) ;                                                                         // NO_COV .
 	}
 	trace("done",localize(msg)) ;
 	return msg ;

@@ -271,8 +271,7 @@ namespace Engine {
 		return false/*overflow*/ ;
 	}
 
-	void Req::chk_end() {
-		if (self->n_running()) return ;
+	void Req::_do_chk_end() {
 		Job               job     = self->job               ;
 		JobReqInfo const& cri     = job->c_req_info(self)   ;
 		bool              job_err = job->status!=Status::Ok ;

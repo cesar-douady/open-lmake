@@ -15,10 +15,11 @@ lmake_private_lib = osp.dirname(__file__ )
 lmake_root        = osp.dirname(lmake_private_lib)
 lmake_lib         = lmake_root+'/lib'
 
-assert sys.path[0:2]==[lmake_private_lib,lmake_lib] # normal python behavior : put script dir as first entry
+# normal python behavior : put script dir as first entry, then PYTHONPATH
+assert sys.path[0:2]==[lmake_private_lib,lmake_lib],f'unexpected sys.path : {sys.path} does not start with {[lmake_private_lib,lmake_lib]}'
 
 if len(sys.argv)!=5 :
-	print('usage : python read_makefiles.py <out_file> <user_environ> .(<actions>.)* sub_repos_s sub_repo_s',file=sys.stderr)
+	print('usage : python read_makefiles.py <out_file> <user_environ> .(<actions>.)* sub_repos_s',file=sys.stderr)
 	sys.exit(1)
 
 out_file     =      sys.argv[1]
