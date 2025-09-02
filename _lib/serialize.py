@@ -14,17 +14,17 @@ import types
 
 from lmake.utils import pdict
 
-class f_str(str) :                                                                    # used as a marker to generate an f-string as source
+class f_str(str) :                                                                                          # used as a marker to generate an f-string as source
 	def __repr__(self) :
-		if   not self                               : res = "f''"
-		elif "'"   not in self and '\n' not in self : res = "f'"  +self+"'"
-		elif '"'   not in self and '\n' not in self : res = 'f"'  +self+'"'
-		elif "'''" not in self and self[-1]!="'"    : res = "f'''"+self+"'''"
-		elif '"""' not in self and self[-1]!='"'    : res = 'f"""'+self+'"""'
-		elif "'''" not in self and self[-1]=="'"    : res = "f'''"+self[:-1]+"\\''''" # this \ is certainly outside {}, hence f-string is still valid
-		elif '"""' not in self and self[-1]=='"'    : res = 'f"""'+self[:-1]+'\\""""' # .
-		else                                        : res = 'f'+str.repr(self)        # hope that repr will not insert \ within {}
-		return res
+		if not self                                                : return  "fr''"
+		if "'"   not in self and '\n' not in self                  : return  "fr'"  +self     +"'"
+		if '"'   not in self and '\n' not in self                  : return  'fr"'  +self     +'"'
+		if "'''" not in self and self[-1]!="'"                     : return  "fr'''"+self     +"'''"
+		if '"""' not in self and self[-1]!='"'                     : return  'fr"""'+self     +'"""'
+		if "'''" not in self and self[-1]=="'"                     : return "(fr'''"+self[:-1]+"'''+\"'\")" # put last quote outside f-string as \ protection is forbidden within fr-strings
+		if '"""' not in self and self[-1]=='"'                     : return '(fr"""'+self[:-1]+'""""\'"\')' # .
+		if (sys.version_info.major,sys.version_info.minor)>=(3.13) : return  'f'+str.__repr__(self)         # until python3.13, \'s are forbidden within {}
+		raise SyntaxError(f'string quotes are too complex : {self}')
 
 class based_dict :                # used to add entries to a dict provided as a callable
 	def __init__(self,base,inc) :
