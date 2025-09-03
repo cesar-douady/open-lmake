@@ -156,7 +156,7 @@ namespace Disk {
 		Fd dir_fd { at , dir_s , FdAction::Dir } ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
-		if (!dir_fp) throw cat("cannot list dir ",at==Fd::Cwd?""s:cat("@",at.fd,':'),dir_s," : ",::strerror(errno)) ;
+		if (!dir_fp) throw cat("cannot list dir ",file_msg(at,dir_s)," : ",::strerror(errno)) ;
 		//
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
@@ -172,11 +172,11 @@ namespace Disk {
 	}
 
 	void unlnk_inside_s( Fd at , ::string const& dir_s , bool abs_ok , bool force ) {
-		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                               // unless certain, prevent accidental non-local unlinks
-		if (force) [[maybe_unused]] int _ = ::fchmodat( at , no_slash(dir_s).c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , AT_SYMLINK_NOFOLLOW ) ; // best effort
+		if (!abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                                                  // unless certain, prevent accidental non-local unlinks
+		if (force) [[maybe_unused]] int _ = ::fchmodat( at , no_empty_s(dir_s).c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , 0 ) ; // best effort
 		::string e ;
 		for( ::string const& f : lst_dir_s(at,dir_s,dir_s) ) {
-			try                        { unlnk(at,f,true/*dir_ok*/,abs_ok,force) ; }                                                                     // remove all removable files
+			try                        { unlnk(at,f,true/*dir_ok*/,abs_ok,force) ; }                                                     // remove all removable files
 			catch (::string const& e2) { e = e2 ;                                  }
 		}
 		if (+e) throw e ;
@@ -191,12 +191,13 @@ namespace Disk {
 		//
 		unlnk_inside_s(at,with_slash(file),abs_ok,force) ;
 		//
-		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw "cannot unlink dir "+file ;
+		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw "cannot unlink dir "+no_slash(file) ;
 		return true/*done*/ ;
 	}
 
 	void rmdir_s( Fd at , ::string const& dir_s ) {
-		if (::unlinkat(at,no_slash(dir_s).c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
+		SWEAR(+dir_s) ;
+		if (::unlinkat(at,dir_s.c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
 	}
 
 	// path and pfx are restored after execution
@@ -230,32 +231,33 @@ namespace Disk {
 	}
 
 	static size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard , bool unlnk_ok ) {
+		if (!dir_s) return Npos ;                                                                           // nothing to create
+		//
 		::vector_s  to_mk_s { dir_s }              ;
 		const char* msg     = nullptr              ;
-		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                                                  // return the pos of the / between existing and new components
+		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                                        // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string const& d_s = to_mk_s.back() ;                                                                    // parents are after children in to_mk
+			::string const& d_s = to_mk_s.back() ;                                                          // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d_s) ; }
-			if (::mkdirat(at,no_slash(d_s).c_str(),0777)==0) {
+			if (::mkdirat(at,d_s.c_str(),0777)==0) {
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                         // done
+			}                                                                                               // done
 			switch (errno) {
 				case EEXIST :
-					if ( unlnk_ok && !is_dir_s(at,d_s) )   unlnk(at,no_slash(d_s),false/*dir_ok*/,true/*abs_ok*/) ;   // retry
-					else                                 { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                } // done
+					if ( unlnk_ok && !is_dir_s(at,d_s) )   unlnk(at,d_s,false/*dir_ok*/,true/*abs_ok*/) ;   // retry
+					else                                 { pos = d_s.size()-1 ; to_mk_s.pop_back() ;      } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;                                          // retry after parent is created
-					else              { msg = "cannot create top dir" ; goto Bad ; }                                  // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;                                // retry after parent is created
+					else              { msg = "cannot create top dir" ; goto Bad ; }                        // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
 					msg = "cannot create dir" ;
 				Bad :
-					if (at==Fd::Cwd) throw cat(msg,' '           ,no_slash(d_s)) ;
-					else             throw cat(msg," @",at.fd,':',no_slash(d_s)) ;
+					throw cat(msg,file_msg(at.fd,no_slash(d_s))) ;
 			}
 		}
 		return pos ;
@@ -324,8 +326,11 @@ namespace Disk {
 
 	FileInfo::FileInfo(FileStat const& st) {
 		FileTag tag = _s_tag(st) ;
-		if (tag==FileTag::Dir)   date = Ddate(   tag) ;
-		else                   { date = Ddate(st,tag) ; sz = st.st_size ; }
+		switch (tag) {
+			case FileTag::None :                                          break ;
+			case FileTag::Dir  : date = Ddate(   tag) ;                   break ;
+			default            : date = Ddate(st,tag) ; sz = st.st_size ; break ;
+		}
 	}
 
 	FileInfo::FileInfo( Fd at , ::string const& name , bool no_follow ) {

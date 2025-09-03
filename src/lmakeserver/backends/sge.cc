@@ -118,7 +118,7 @@ namespace Backends::Sge {
 		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) override {
 			Trace trace(BeChnl,"Sge::config",STR(dyn),dct) ;
 			//
-			repo_key = base_name(no_slash(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
+			repo_key = no_slash(base_name(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {

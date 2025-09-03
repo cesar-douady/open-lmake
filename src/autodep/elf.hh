@@ -165,9 +165,9 @@ inline Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map )
 	if ( runpath && !*runpath ) runpath = nullptr ;
 }
 
-inline ::string _mk_origin(::string const& exe) {
-	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().repo_root_s) ; return no_slash(dir_name_s(abs_exe)) ; }
-	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                      ; return no_slash(dir_name_s(abs_exe)) ; }
+inline ::string _mk_abs_exe(::string const& exe) {
+	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().repo_root_s) ; return abs_exe ; }
+	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                      ; return abs_exe ; }
 } ;
 inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	static constexpr const char* LdSoLib   =                 LD_SO_LIB              ;
@@ -178,7 +178,7 @@ inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	while (*ptr) {                                                                    // INVARIANT : *ptr=='$', result must be res+ptr if no further substitution
 		bool        brace = ptr[1]=='{' ;
 		const char* p1    = ptr+1+brace ;
-		if      ( ::memcmp(p1,"ORIGIN"  ,6)==0 && (!brace||p1[6]=='}') ) { res += _mk_origin(exe)                                         ; ptr = p1+6+brace ; }
+		if      ( ::memcmp(p1,"ORIGIN"  ,6)==0 && (!brace||p1[6]=='}') ) { res += no_slash(dir_name_s(_mk_abs_exe(exe)))                  ; ptr = p1+6+brace ; }
 		else if ( ::memcmp(p1,"LIB"     ,3)==0 && (!brace||p1[3]=='}') ) { res += Is64Bits?LdSoLib:LdSoLib32                              ; ptr = p1+3+brace ; }
 		else if ( ::memcmp(p1,"PLATFORM",8)==0 && (!brace||p1[8]=='}') ) { res += reinterpret_cast<const char*>(::getauxval(AT_PLATFORM)) ; ptr = p1+8+brace ; }
 		else                                                             { res += *ptr                                                    ; ptr++            ; }

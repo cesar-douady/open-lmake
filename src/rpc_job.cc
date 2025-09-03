@@ -676,13 +676,13 @@ namespace Caches {
 	return                os <<')'                                   ;
 }                                                                      // END_OF_NO_COV
 
-	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(no_slash(dir_s).c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",::strerror(errno)) ; }
-	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (no_slash(dir_s).c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",::strerror(errno)) ; }
+	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",::strerror(errno)) ; }
+	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",::strerror(errno)) ; }
 
-	static void _mount_bind( ::string const& dst , ::string const& src ) {                                                    // src and dst may be files or dirs
+	static void _mount_bind( ::string const& dst , ::string const& src ) {                                // src and dst may be files or dirs
 		Trace trace("_mount_bind",dst,src) ;
-		if (::mount( no_slash(src).c_str() , no_slash(dst).c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
-			throw cat("cannot bind mount ",src," onto ",dst," : ",::strerror(errno)) ;                                        // NO_COV defensive programming
+		if (::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
+			throw cat("cannot bind mount ",src," onto ",dst," : ",::strerror(errno)) ;                    // NO_COV defensive programming
 	}
 
 void JobSpace::chk() const {
@@ -712,7 +712,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	/**/                                    data += ",lowerdir="+no_slash(srcs_s[1]) ;
 	for( size_t i : iota(2,srcs_s.size()) ) data += ':'         +no_slash(srcs_s[i]) ;
 	/**/                                    data += ",workdir=" +no_slash(work_s   ) ;
-	if (::mount( nullptr ,  no_slash(dst_s).c_str() , "overlay" , 0 , data.c_str() )!=0) throw cat("cannot overlay mount ",dst_s," to ",data," : ",::strerror(errno)) ;
+	if (::mount( nullptr ,  dst_s.c_str() , "overlay" , 0 , data.c_str() )!=0) throw cat("cannot overlay mount ",dst_s," to ",data," : ",::strerror(errno)) ;
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
@@ -841,7 +841,7 @@ bool JobSpace::enter(
 			if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                          // in parent
 				int wstatus ;
 				if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
-				unlnk( no_slash(phy_tmp_dir_s) , true/*dir_ok*/ , true/*abs_ok*/ ) ;  // unlkink when child is done
+				unlnk( phy_tmp_dir_s , true/*dir_ok*/ , true/*abs_ok*/ ) ;            // unlkink when child is done
 				if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;    // all the cleanup stuff is done by the child, so we want to do nothing here
 				else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
 				else                           ::_exit(255                     ) ;
@@ -984,7 +984,7 @@ bool JobSpace::enter(
 
 void JobSpace::exit() {
 	if (+_tmp_dir_s)
-		try { unlnk(no_slash(_tmp_dir_s),true/*dir_ok*/,true/*abs_ok*/) ; } catch (::string const&) {} // best effort
+		try { unlnk(_tmp_dir_s,true/*dir_ok*/,true/*abs_ok*/) ; } catch (::string const&) {} // best effort
 }
 
 // XXX! : implement recursive views
@@ -1086,16 +1086,17 @@ void JobStartRpcReq::chk(bool for_cache) const {
 	return os <<"ExecTraceEntry("<< ete.date <<','<< ete.step() <<','<< ete.file <<')' ;
 }                                                                                        // END_OF_NO_COV
 
-::string& operator+=( ::string& os , TargetDigest const& td ) { // START_OF_NO_COV
-	const char* sep = "" ;
-	/**/                    os << "TargetDigest("      ;
-	if ( td.pre_exist   ) { os <<      "pre_exist"     ; sep = "," ; }
-	if (+td.tflags      ) { os <<sep<< td.tflags       ; sep = "," ; }
-	if (+td.extra_tflags) { os <<sep<< td.extra_tflags ; sep = "," ; }
-	if (+td.crc         ) { os <<sep<< td.crc          ; sep = "," ; }
-	if (+td.sig         )   os <<sep<< td.sig          ;
-	return                  os <<')'                   ;
-}                                                               // END_OF_NO_COV
+::string& operator+=( ::string& os , TargetDigest const& td ) {  // START_OF_NO_COV
+	First first ;
+	/**/                  os <<"TargetDigest("                 ;
+	if ( td.pre_exist   ) os <<first("",",")<< "pre_exist"     ;
+	if ( td.written     ) os <<first("",",")<< "pre_exist"     ;
+	if (+td.tflags      ) os <<first("",",")<< td.tflags       ;
+	if (+td.extra_tflags) os <<first("",",")<< td.extra_tflags ;
+	if (+td.crc         ) os <<first("",",")<< td.crc          ;
+	if (+td.sig         ) os <<first("",",")<< td.sig          ;
+	return                os <<')'                             ;
+}                                                                // END_OF_NO_COV
 
 ::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {                                                                            // START_OF_NO_COV
 	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dyn_env <<')' ;

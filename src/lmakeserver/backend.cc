@@ -869,7 +869,7 @@ namespace Backends {
 		,	_s_job_end_thread  .fd.service(s_tab[+tag]->addr)
 		,	::to_string(seq_id)
 		,	::to_string(+job  )
-		,	no_slash(*g_repo_root_s)
+		,	*g_repo_root_s
 		,	::to_string(seq_id%g_config->trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;

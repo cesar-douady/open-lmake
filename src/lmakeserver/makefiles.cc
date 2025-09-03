@@ -164,7 +164,7 @@ namespace Engine::Makefiles {
 		Gather   gather    ;
 		::string tmp_dir_s = _g_tmp_dir_s+action+'/'            ;
 		//
-		_g_env["TMPDIR"] = no_slash(cat(*g_repo_root_s,tmp_dir_s)) ;
+		_g_env["TMPDIR"] = no_slash(*g_repo_root_s+tmp_dir_s) ;
 		mk_dir_empty_s(tmp_dir_s) ;                                  // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                ;

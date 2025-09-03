@@ -148,15 +148,13 @@ elif [ "$PY3_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
 fi
 
 #
-# ADDR2LINE (ADDR2LINE+HAS_ADDR2LINE)
+# ADDR2LINE (ADDR2LINE)
 #
 case $CXX_FLAVOR in
 	gcc  ) ADDR2LINE=$CXX_DIR/addr2line      ;;
 	clang) ADDR2LINE=$CXX_DIR/llvm-addr2line ;;
 esac
 [ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line ||:)
-#
-HAS_ADDR2LINE=$(ok test "$ADDR2LINE")
 
 #
 # CLOSE_RANGE (HAS_CLOSE_RANGE)
@@ -493,7 +491,6 @@ cat >$H_FILE <<-EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define BASH                        "/bin/bash"
 	#define HAS_32                      $HAS_32
-	#define HAS_ADDR2LINE               $HAS_ADDR2LINE
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD

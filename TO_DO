@@ -15,8 +15,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* improve doc with examples, specially phony targets
-* lmake.depend( readdir_ok=True) followed by shutil.rmtree produces a dep and infinite rerun
 ? seen once : server has been seen blocked
 	- seems to be while taking GIL
 

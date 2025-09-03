@@ -37,7 +37,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <new>
 #include <set>
 #include <shared_mutex>
 #include <span>
@@ -164,15 +163,6 @@ using std::getline ; // getline also has a C version that would hide std::getlin
 			::abort() ;
 		#endif
 	}
-#endif
-
-#ifdef __cpp_lib_hardware_interference_size
-	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Winterference-size"
-	static constexpr size_t hardware_destructive_interference_size = std::hardware_destructive_interference_size ;
-	#pragma GCC diagnostic pop
-#else
-	static constexpr size_t hardware_destructive_interference_size = 64                                          ; // provide a reasonable default value
 #endif
 
 #define self (*this)

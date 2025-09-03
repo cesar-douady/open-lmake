@@ -48,7 +48,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 			SearchRootResult srr = search_root() ;
 			g_repo_root_s    = new ::string{srr.top_s} ;
 			*g_startup_dir_s = srr.startup_s           ;
-			if ( cd_root==Yes && +*g_startup_dir_s && ::chdir(no_slash(*g_repo_root_s).c_str())!=0 ) exit( Rc::System , "cannot chdir to ",no_slash(*g_repo_root_s) ) ;
+			if ( cd_root==Yes && +*g_startup_dir_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",no_slash(*g_repo_root_s) ) ;
 		} catch (::string const& e) {
 			if (cd_root!=No) exit( Rc::Usage , e ) ;
 		}
@@ -61,7 +61,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 		set_env( "GMON_OUT_PREFIX" , dir_guard(cat(*g_repo_root_s,AdminDirS,"gmon.out/",*g_exe_name)) ) ; // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 	#endif
 	//
-	bool read_only = !g_repo_root_s || ::access(no_slash(*g_repo_root_s).c_str(),W_OK) ;                  // cannot modify repo if no repo
+	bool read_only = !g_repo_root_s || ::access(g_repo_root_s->c_str(),W_OK) ;                            // cannot modify repo if no repo
 	if (read_only>read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
 	//
 	if (chk_version_!=No)

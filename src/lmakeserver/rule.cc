@@ -111,8 +111,8 @@ namespace Engine {
 					else                                       throw cat("is not canonical"                     ) ;
 				}
 				if ( !has_sfx && fixed.back()=='/' ) {
-					if ( ::string ns=no_slash(fstr) ; ns!=fstr ) throw cat("is ends with /, consider using : ",ns) ;
-					else                                         throw cat("is ends with /"                      ) ;
+					if ( ::string ns=no_slash(fstr) ; ns!=fstr ) throw cat("ends with /, consider using : ",ns) ;
+					else                                         throw cat("ends with /"                      ) ;
 				}
 				if (has_pfx      ) return ;                                   // further check only for prefix
 				if (is_lcl(fixed)) return ;

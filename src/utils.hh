@@ -480,6 +480,10 @@ inline ::string no_slash(::string const& path) {
 	if ( path.back()=='/' && path.size()!=1 ) return path.substr(0,path.size()-1) ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
 	/**/                                      return path                         ;
 }
+inline ::string const& no_empty_s(::string const& dir_s) {
+	if (+dir_s)                                  return dir_s ;
+	else        { static ::string dot_s = "./" ; return dot_s ; }
+}
 
 enum class FdAction : uint8_t {
 	Read

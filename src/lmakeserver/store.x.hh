@@ -425,9 +425,9 @@ namespace Engine::Persistent {
 	}
 	inline void JobBase::pop() {
 		SWEAR(t_thread_key=='=') ;
-		if (!self) return ;
+		if (!self            ) return ;
 		if (+self->_full_name) self->_full_name.pop() ;
-		_g_job_file.pop(+self) ;
+		_g_job_file.pop(Job(+self)) ;
 		clear() ;
 	}
 	// accesses

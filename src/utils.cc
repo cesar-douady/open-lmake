@@ -9,10 +9,10 @@
     #include <linux/close_range.h>
 #endif
 
-#if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE and HAS_ADDR2LINE are defined
+#if HAS_STACKTRACE        // must be after utils.hh so that HAS_STACKTRACE is defined
 	#include <stacktrace>
 	using std::stacktrace ;
-#elif HAS_ADDR2LINE
+#else
 	#include <execinfo.h> // backtrace
 	#include "process.hh"
 #endif
@@ -32,23 +32,28 @@ using namespace Time ;
 ::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
 
 int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action ) {
-	int res ;
+	int    res   ;
+	int    flags = 0/*garbage*/ ;
+	mode_t mod   = 0/*garbage*/ ;
 	switch (action) {
-		case FdAction::Read              : res = ::openat( at ,          file .c_str() , O_RDONLY                                  | O_CLOEXEC        ) ; break ;
-		case FdAction::ReadNonBlock      : res = ::openat( at ,          file .c_str() , O_RDONLY | O_NONBLOCK                     | O_CLOEXEC        ) ; break ;
-		case FdAction::ReadNoFollow      : res = ::openat( at ,          file .c_str() , O_RDONLY                     | O_NOFOLLOW | O_CLOEXEC        ) ; break ;
-		case FdAction::Dir               : res = ::openat( at , no_slash(file).c_str() , O_RDONLY | O_DIRECTORY                    | O_CLOEXEC        ) ; break ;
-		case FdAction::Write             : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC                        | O_CLOEXEC        ) ; break ;
-		case FdAction::Append            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_APPEND                       | O_CLOEXEC        ) ; break ;
-		case FdAction::Create            : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
-		case FdAction::CreateExe         : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0777 ) ; break ;
-		case FdAction::CreateReadOnly    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC , 0444 ) ; break ;
-		case FdAction::CreateNoFollow    : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC , 0666 ) ; break ;
-		case FdAction::CreateNoFollowExe : res = ::openat( at ,          file .c_str() , O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC , 0777 ) ; break ;
-		case FdAction::ReadWrite         : res = ::openat( at ,          file .c_str() , O_RDWR                                    | O_CLOEXEC        ) ; break ;
-		case FdAction::CreateRead        : res = ::openat( at ,          file .c_str() , O_RDWR             | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
-		case FdAction::CreateReadTrunc   : res = ::openat( at ,          file .c_str() , O_RDWR   | O_TRUNC | O_CREAT              | O_CLOEXEC , 0666 ) ; break ;
+		case FdAction::Read              : flags = O_RDONLY                                  | O_CLOEXEC ;              break ;
+		case FdAction::ReadNonBlock      : flags = O_RDONLY | O_NONBLOCK                     | O_CLOEXEC ;              break ;
+		case FdAction::ReadNoFollow      : flags = O_RDONLY                     | O_NOFOLLOW | O_CLOEXEC ;              break ;
+		case FdAction::Dir               : flags = O_RDONLY | O_DIRECTORY                    | O_CLOEXEC ;              break ;
+		case FdAction::Write             : flags = O_WRONLY | O_TRUNC                        | O_CLOEXEC ;              break ;
+		case FdAction::Append            : flags = O_WRONLY | O_APPEND                       | O_CLOEXEC ;              break ;
+		case FdAction::Create            : flags = O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0666 ; break ;
+		case FdAction::CreateExe         : flags = O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0777 ; break ;
+		case FdAction::CreateReadOnly    : flags = O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0444 ; break ;
+		case FdAction::CreateNoFollow    : flags = O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC ; mod = 0666 ; break ;
+		case FdAction::CreateNoFollowExe : flags = O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC ; mod = 0777 ; break ;
+		case FdAction::ReadWrite         : flags = O_RDWR                                    | O_CLOEXEC ;              break ;
+		case FdAction::CreateRead        : flags = O_RDWR             | O_CREAT              | O_CLOEXEC ; mod = 0666 ; break ;
+		case FdAction::CreateReadTrunc   : flags = O_RDWR   | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0666 ; break ;
 	DF}
+	if      (+file      ) res = ::openat( at , file.c_str() , flags , mod ) ;
+	else if (at==Fd::Cwd) res = ::openat( at , "."          , flags , mod ) ;
+	else                  res =           at                                ;
 	if ( !err_ok && res<0 ) throw cat("cannot open with action ",action," (",::strerror(errno),") : ",file_msg(at,file)) ;
 	return res ;
 }
@@ -276,7 +281,7 @@ bool              _crash_busy  = false ;
 		fd.write(bt) ;
 	}
 
-#elif HAS_ADDR2LINE
+#else
 
 	// if ::stacktrace is not available, try to mimic using addr2line, but this is of much lower quality :
 	// - sometimes, the function is completely off
@@ -355,6 +360,14 @@ bool              _crash_busy  = false ;
 			del_env("LD_AUDIT"  ) ;                                                                         // .
 			const char* args[] = { ADDR2LINE , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
 			::execv( args[0] , const_cast<char**>(args) ) ;
+			// if compiled in addr2line does not work, try standard path, maybe we'll find a working one
+			::vector_s std_path = split(STD_PATH,':') ;
+			for( ::string const& path_entry : std_path ) {
+				if (!path_entry) continue ;
+				::string std_addr2line = path_entry+"/addr2line" ;                                          // bits to hold c-string
+				args[0] = std_addr2line.c_str() ;
+				::execv( args[0] , const_cast<char**>(args) ) ;
+			}
 			exit(Rc::System) ;                                                                              // in case exec fails
 		}
 		::close(c2p.write) ;
@@ -416,12 +429,6 @@ bool              _crash_busy  = false ;
 			/**/                        bt <<'\n' ;
 		}
 		fd.write(bt) ;
-	}
-
-#else
-
-	void write_backtrace( Fd , int /*hide_cnt*/ ) {
-		::string s ; SWEAR(!s) ;
 	}
 
 #endif

@@ -29,12 +29,9 @@ namespace Store {
 			// unsigned types handle negative values modulo 2^n, which is ok
 			// round up to ensure cache alignment if Data is properly sized
 			// START_OF_VERSIONING
-			constexpr size_t CacheLineSz = 64 ;
+			constexpr size_t CacheLineSz = 64 ; // hint only, defined independently of ::hardware_destructive_interference_size to ensure inter-operability
 			// END_OF_VERSIONING
 			constexpr size_t Offset0 = round_up( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) , CacheLineSz ) ;
-			//
-			// CacheLineSize is defined independently of hardware_destructive_interference_size to ensure inter-operability between programs compiled for different architectures
-			static_assert( CacheLineSz>=::hardware_destructive_interference_size , "use a larger CacheLineSz value" ) ;
 			//
 			return Offset0 + sizeof(Data)*idx ;
 		}

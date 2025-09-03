@@ -100,7 +100,7 @@ Digest analyze(Status status=Status::New) {                                     
 		Accesses accesses    = info.accesses()                  ;
 		bool     was_written = info.first_write()<Pdate::Future ;
 		//
-		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                            // . is only reported when reading dir but otherwise is an external file
+		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                             // . is only reported when reading dir but otherwise is an external file
 		//
 		Pdate first_read = info.first_read()                                                    ;
 		bool  was_read   = first_read        <Pdate::Future                                     ;
@@ -122,13 +122,14 @@ Digest analyze(Status status=Status::New) {                                     
 			dd.parallel     = first_read<Pdate::Future && first_read==prev_first_read                                                            ;
 			prev_first_read = first_read                                                                                                         ;
 			// try to transform date into crc as far as possible
-			if      ( dd.is_crc                         )   {}                                               // already a crc => nothing to do
-			else if ( !accesses                         )   {}                                               // no access     => nothing to do
-			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
-			else if ( !dd.sig()                         ) { dd.del_crc(             ) ; unstable = true  ; } // file was absent initially but was seen, it is incoherent even if absent finally
-			else if ( was_written                       )   {}                                               // cannot check stability, clash will be detected in server if any
-			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc(             ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, no stable content
-			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag()) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			if      ( dd.is_crc                         )   {}                                                // already a crc => nothing to do
+			else if ( !accesses                         )   {}                                                // no access     => nothing to do
+			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None ) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
+			else if ( !dd.sig()                         ) { dd.del_crc(              ) ; unstable = true  ; } // file was absent initially but was seen, it is incoherent even if absent finally
+			else if ( was_written                       )   {}                                                // cannot check stability, clash will be detected in server if any
+			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc(              ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, no stable content
+			else if ( sig.tag()==FileTag::Empty         )   dd.may_set_crc(Crc::Empty) ;                      // crc is easy to compute (empty file), record it
+			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag() ) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back( file , dd ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -142,14 +143,15 @@ Digest analyze(Status status=Status::New) {                                     
 		}
 		// handle targets
 		if (is_tgt) {
-			FileStat     st        ;
-			FileSig      sig       ;                                                                                                  if (::lstat(file.c_str(),&st)==0) sig = {st} ;
+			FileStat     st        ;                                                                                                  if (::lstat(file.c_str(),/*out*/&st)!=0) st.st_mode = 0 ;
+			FileSig      sig       { st }                                                                                           ;
 			TargetDigest td        { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags }                                      ;
 			bool         unlnk     = !sig                                                                                           ;
 			bool         mandatory = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
 			//
-			if ( is_dep                                         ) td.tflags    |= Tflag::Incremental ;                 // if is_dep, previous target state is guaranteed by being a dep, use it
-			if ( !td.tflags[Tflag::Incremental]                 ) td.pre_exist  = info.seen()        ;
+			if (is_dep) td.tflags    |= Tflag::Incremental ;                                                           // if is_dep, previous target state is guaranteed by being a dep, use it
+			/**/        td.pre_exist  = info.seen()        ;
+			/**/        td.written    = was_written        ;
 			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                    // if SourceOk => ok to simultaneously be a dep and a target
 				const char* written_msg = unlnk ? "unlinked" : was_written ? "written to" : "declared as target" ;
 				if (flags.dflags[Dflag::Static]) { //!    date
@@ -182,13 +184,14 @@ Digest analyze(Status status=Status::New) {                                     
 					res.msg << "    or ltarget "     <<mk_file(file,FileDisplay::Shell)<<'\n'  ;
 				}
 			}
-			if ( was_written || (+sig&&st.st_nlink>1) ) {                                                                       // file may change even if not written to ...
-				if      ( unlnk                                               )                  td.crc = Crc::None    ;        // ... in case of hard links (another link may have been written)
-				else if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
-				else                                                              res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
+			if (unlnk) {
+				td.crc = Crc::None ;
+			} else if ( was_written || (+sig&&st.st_nlink>1) ) {                                                           // file may change through another link if any
+				if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
+				else                                                         res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                         // target is expected, not produced and no more important reason
-				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                     // warn specifically
+			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                    // target is expected, not produced and no more important reason
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -447,7 +450,7 @@ int main( int argc , char* argv[] ) {
 	g_service_end     =                     argv[3]  ;
 	g_seq_id          = from_string<SeqId >(argv[4]) ;
 	g_job             = from_string<JobIdx>(argv[5]) ;
-	g_phy_repo_root_s = with_slash         (argv[6]) ; // passed early so we can chdir and trace early
+	g_phy_repo_root_s =                     argv[6]  ; // passed early so we can chdir and trace early
 	g_trace_id        = from_string<SeqId >(argv[7]) ;
 	//
 	g_repo_root_s = new ::string{g_phy_repo_root_s} ;  // no need to search for it
@@ -460,7 +463,7 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace        = &end_report.exec_trace     ;
 	g_exec_trace->emplace_back( start_overhead , Comment::startOverhead ) ;
 	//
-	if (::chdir(no_slash(g_phy_repo_root_s).c_str())!=0) {                                          // START_OF_NO_COV defensive programming
+	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                    // START_OF_NO_COV defensive programming
 		get_start_info(server_fd) ;                                                                 // getting start_info is useless, but necessary to be allowed to report end
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
 		goto End ;

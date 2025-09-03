@@ -50,7 +50,7 @@ static void* init_get_orig = get_orig(nullptr) ;
 #include "ld_common.x.cc"
 
 AutodepLock::AutodepLock(::vmap_s<DepDigest>* deps) : lock{_s_mutex} {
-	// SWEAR(cwd()==no_slash(Record::s_autodep_env().repo_root_s)) ;   // too expensive
+	// SWEAR(cwd_s()==Record::s_autodep_env().repo_root_s) ;           // too expensive
 	SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
 	SWEAR( !*Record::s_access_cache               ) ;
 	Record::s_deps     = deps ;

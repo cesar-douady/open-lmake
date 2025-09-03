@@ -298,7 +298,7 @@ namespace Caches {
 		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
 		//
 		if (+to_unlnk) {
-			for( ::string const& e : to_unlnk ) unlnk( nfs_guard.change(dir_s+no_slash(e)) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
+			for( ::string const& e : to_unlnk ) unlnk( nfs_guard.change(dir_s+e) , true/*dir_ok*/ , true/*abs_ok*/ ) ;
 			if (head.newer_s==HeadS) {
 				head.older_s = HeadS ;
 			} else {
@@ -370,9 +370,9 @@ namespace Caches {
 	::pair_s<Cache::Match> DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
-		NfsGuard                    nfs_guard    { file_sync }                                                       ;
-		::string                    abs_jn_s     = dir_s+job+'/'                                                     ;
-		AcFd                        dfd          { nfs_guard.access_dir(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
+		NfsGuard                    nfs_guard    { file_sync }                                                         ;
+		::string                    abs_jn_s     = dir_s+job+'/'                                                       ;
+		AcFd                        dfd          { nfs_guard.access_dir_s(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::vector_s                  repos        ;
 		//
@@ -433,8 +433,8 @@ namespace Caches {
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {                                 // match_key is returned by sub_match()
 		Trace trace("DirCache::sub_download",match_key) ;
 		SWEAR(match_key.back()=='/') ;
-		NfsGuard nfs_guard { file_sync }                                             ;
-		AcFd     dfd       { nfs_guard.access_dir(dir_s+match_key) , FdAction::Dir } ;
+		NfsGuard nfs_guard { file_sync }                                               ;
+		AcFd     dfd       { nfs_guard.access_dir_s(dir_s+match_key) , FdAction::Dir } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
 		{	LockedFd lock { lock_file }                          ;                                           // because we manipulate LRU, we need exclusive
@@ -489,7 +489,7 @@ namespace Caches {
 			::string job_info_str = serialize(job_info) ;
 			// END_OF_VERSIONING
 			mk_dir_s(nfs_guard.change(abs_jnid_s)) ;
-			AcFd dfd       { nfs_guard.access_dir(abs_jnid_s) , FdAction::Dir }                                                                ;
+			AcFd dfd       { nfs_guard.access_dir_s(abs_jnid_s) , FdAction::Dir }                                                              ;
 			Sz   new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
 			bool made_room = false                                                                                                             ;
 			bool unlnked   = false                                                                                                             ;

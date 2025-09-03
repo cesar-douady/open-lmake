@@ -83,9 +83,9 @@ namespace Store {
 		//
 		static constexpr bool IsStr = IsChar<Item> ;
 		//
-		using Char    = AsChar<Item>              ;
-		using VecView = ::span<Item const>        ;
-		using StrView = ::basic_string_view<Char> ;
+		using Char    = AsChar<Item>                                          ;
+		using VecView = ::span<Item const>                                    ;
+		using StrView = ::conditional_t<IsStr,::basic_string_view<Char>,void> ;
 		//
 		void at     (Idx   ) = delete ;
 		void shorten(Idx,Sz) = delete ;
