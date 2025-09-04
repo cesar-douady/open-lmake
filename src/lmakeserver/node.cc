@@ -881,25 +881,25 @@ namespace Engine {
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
 		bool can_compress = dep.is_crc && dep.crc()==Crc::None && dep.dflags==DflagsDfltDyn && !dep.parallel ;
 		if (hole==Npos) {
-			if (can_compress) {                                                                        // create new open chunk
+			if (can_compress) {                                                              // create new open chunk
 				/**/ hole                         = deps.size()             ;
 				Dep& hdr                          = deps.emplace_back().hdr ;
 				/**/ hdr.sz                       = 1                       ;
 				/**/ hdr.chunk_accesses           = +dep.accesses           ;
 				/**/ deps.emplace_back().chunk[0] = dep                     ;
-			} else {                                                                                   // create a chunk just for dep
+			} else {                                                                         // create a chunk just for dep
 				deps.push_back(dep) ;
-				deps.back().hdr.sz             = 0 ;                                                   // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
-				deps.back().hdr.chunk_accesses = 0 ;                                                   // useless, just to avoid a random value hanging around
+				deps.back().hdr.sz             = 0 ;                                         // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
+				deps.back().hdr.chunk_accesses = 0 ;                                         // useless, just to avoid a random value hanging around
 			}
 		} else {
 			Dep& hdr = deps[hole].hdr ;
-			if ( can_compress && +dep.accesses==hdr.chunk_accesses && hdr.sz<lsb_msk(Dep::NSzBits) ) { // append dep to open chunk
+			if ( can_compress && +dep.accesses==hdr.chunk_accesses && hdr.sz<uint8_t(-1) ) { // append dep to open chunk
 				uint8_t i = hdr.sz%GenericDep::NodesPerDep ;
 				if (i==0) deps.emplace_back() ;
 				deps.back().chunk[i] = dep ;
 				hdr.sz++ ;
-			} else {                                                                                   // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
+			} else {                                                                         // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
 				uint8_t       sz                 = hdr.sz             ;
 				Accesses::Val chunk_accesses     = hdr.chunk_accesses ;
 				/**/          hdr                = dep                ;
@@ -911,7 +911,7 @@ namespace Engine {
 	}
 
 	static void _fill_hole(GenericDep& hdr) {
-		SWEAR(hdr.hdr.sz!=0) ;
+		SWEAR(hdr.hdr.sz>0) ;
 		uint8_t       sz                     = hdr.hdr.sz-1                                                                          ;
 		Accesses::Val chunk_accesses         = hdr.hdr.chunk_accesses                                                                ;
 		/**/          hdr.hdr                = { (&hdr)[1].chunk[sz] , Accesses(hdr.hdr.chunk_accesses) , Crc::None , false/*err*/ } ;

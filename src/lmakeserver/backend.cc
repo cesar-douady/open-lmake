@@ -611,15 +611,10 @@ namespace Backends {
 			else if (digest.status==Status::LateLost) { jerr.msg_stderr.msg <<set_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
 			_s_start_tab_erase(it) ;
 		}
-		trace("info") ;
+		trace("digest",digest) ;
 		job->end_exec() ;
 		// record to file before queueing to main thread as main thread appends to file and may otherwise access info
 		{	JobDigest<Node> jd = digest ;                                                    // before jerr is moved
-size_t i=0 ;                                                                                 // XXX : until bug is found
-for( auto const& [dn,dd] : jd.deps ) {
-	SWEAR(+Node(dn),i,dd,digest.deps[i]) ;
-	i++;
-}
 			Job::s_record_thread.emplace( job , ::move(jerr) ) ;                             // /!\ _s_starting_job ensures Start has been queued before we enqueue End
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ;                  // .

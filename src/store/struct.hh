@@ -31,7 +31,7 @@ namespace Store {
 			// START_OF_VERSIONING
 			constexpr size_t CacheLineSz = 64 ; // hint only, defined independently of ::hardware_destructive_interference_size to ensure inter-operability
 			// END_OF_VERSIONING
-			constexpr size_t Offset0 = round_up( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) , CacheLineSz ) ;
+			constexpr size_t Offset0 = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ;
 			//
 			return Offset0 + sizeof(Data)*idx ;
 		}

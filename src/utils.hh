@@ -136,13 +136,13 @@ using span_s = ::span<::string> ;
 // math
 //
 
-template<size_t D,class N> inline constexpr N round_down(N n) { return n - N(n%D)              ; }
-template<size_t D,class N> inline constexpr N round_up  (N n) { return round_down<D>(N(n+D-1)) ; }
-template<size_t D,class N> inline constexpr N div_up    (N n) { return N(n+D-1)/D              ; }
+template<size_t D,::unsigned_integral I> constexpr I round_down(I n) { return     n   - I( n   %D)         ; }
+template<size_t D,::unsigned_integral I> constexpr I round_up  (I n) { return n ? n-1 - I((n-1)%D) + D : 0 ; }
+template<size_t D,::unsigned_integral I> constexpr I div_up    (I n) { return n ?       I(n-1)/D   + 1 : 0 ; }
 
-template<class N> inline constexpr N round_down( N n , N d ) { return n - N(n%d)             ; }
-template<class N> inline constexpr N round_up  ( N n , N d ) { return round_down(N(n+d-1),d) ; }
-template<class N> inline constexpr N div_up    ( N n , N d ) { return N(n+d-1)/d             ; }
+template<::unsigned_integral I> constexpr I round_down( I n , I d ) { return     n   - I( n   %d)         ; }
+template<::unsigned_integral I> constexpr I round_up  ( I n , I d ) { return n ? n-1 - I((n-1)%d) + d : 0 ; }
+template<::unsigned_integral I> constexpr I div_up    ( I n , I d ) { return n ?       I(n-1)/d   + 1 : 0 ; }
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;

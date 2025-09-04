@@ -464,7 +464,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	constexpr void set_sig    ( FileInfo const& fi          ) { is_crc = false ; _sig = fi.sig() ;           }
 	constexpr void set_crc_sig( DepInfo  const& di , bool e ) {
 		if (di.is_a<DepInfoKind::Crc>()) set_crc(di.crc(),e) ;
-		else                             set_sig(di.sig()     ) ;
+		else                             set_sig(di.sig()  ) ;
 	}
 	template<class B2> constexpr void set_crc_sig( DepDigestBase<B2> const& dd ) {
 		if (!dd.accesses) return ;
@@ -494,7 +494,6 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// data
 	// START_OF_VERSIONING
-	static constexpr uint8_t NSzBits = 8 ;
 	uint8_t       sz                       = 0          ;                                //   8 bits, number of items in chunk following header (semantically before)
 	Accesses      accesses                 ;                                             // 3<8 bits
 	Dflags        dflags                   = DflagsDflt ;                                // 5<8 bits
@@ -575,7 +574,10 @@ template<class Key=::string> struct JobDigest {             // Key may be ::stri
 	// END_OF_VERSIONING
 } ;
 template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                                                            // START_OF_NO_COV
-	return os << "JobDigest(" << to_hex(jd.upload_key) <<','<< jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() <<')' ;
+	/**/               os << "JobDigest("                                                                              ;
+	if (jd.upload_key) os << to_hex(jd.upload_key) <<','                                                               ;
+	/**/               os << jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() ;
+	return             os << ')'                                                                                       ;
 }                                                                                                                                                                // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 	if constexpr (::is_same_v<Key,::string>) { //!                       ext_ok

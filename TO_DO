@@ -81,8 +81,14 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* auto_check_deps
-	- execute lcheck_deps as soon as no new deps for a given duration
+* implement a dir and regexpr argument to list_deps and list_targets
+	- dir is given relative to cwd, default is repo root
+	- regexpr applies to generated output
+	- document output is chronological order
+* check_deps
+	- pass a delay argument
+	- execute lcheck_deps as soon as no new deps for delay seconds
+	- this allows to call check_deps before a program such as a compiler that read its deps early
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

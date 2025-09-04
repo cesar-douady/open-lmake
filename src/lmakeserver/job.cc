@@ -363,8 +363,8 @@ namespace Engine {
 		::vector<Req> reqs = self->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_analysis",self,ecjm.proc,ecjm.targets.size(),ecjm.deps.size(),reqs.size()) ;
 		//
-		JobMngtRpcReply res { .proc=ecjm.proc } ;                                                                               // seq_id will be filled in later
-		if (+reqs)                                                                                                              // if job is not running, it is too late
+		JobMngtRpcReply res { .proc=ecjm.proc } ;                                                  // seq_id will be filled in later
+		if (+reqs)                                                                                 // if job is not running, it is too late
 			switch (ecjm.proc) {
 				case JobMngtProc::DepDirect : {
 					Job job { Special::Dep , Deps(mk_vector<Node>(ecjm.deps),~Accesses(),DflagsDfltStatic,true/*parallel*/) } ;
@@ -375,12 +375,12 @@ namespace Engine {
 					//
 					for( Req req : reqs ) job->make( job->req_info(req) , JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
 					//
-					res.proc = JobMngtProc::None ;                                                                              // job->make will answer for us
+					res.proc = JobMngtProc::None ;                                                 // job->make will answer for us
 				} break ;
 				case JobMngtProc::DepVerbose :
 					res.verbose_infos.reserve(ecjm.deps.size()) ;
 					for( Dep const& dep : ecjm.deps ) {
-						Node(dep)->full_refresh(false/*report_no_file*/) ;                                                      // dep is const
+						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
 						Bool3 dep_ok = Yes ;
 						for( Req req : reqs ) {
 							NodeReqInfo& dri = dep->req_info(req) ;
@@ -397,7 +397,7 @@ namespace Engine {
 					for( Dep const& d : self->deps )
 						if (d->is_plain())
 							for( Node dd=d ; +dd ; dd=dd->dir() )
-								if (!old_deps.insert(dd).second) break ;                                                        // record old deps and all uphill dirs as these are implicit deps
+								if (!old_deps.insert(dd).second) break ;                           // record old deps and all uphill dirs as these are implicit deps
 					res.ok = Yes ;
 					for( auto const& [t,td] : ecjm.targets ) {
 						if ( !td.tflags[Tflag::Incremental] && td.pre_exist ) {
@@ -413,8 +413,8 @@ namespace Engine {
 						trace("target",t) ;
 					}
 					for( Dep const& dep : ecjm.deps ) {
-						Node(dep)->full_refresh(false/*report_no_file*/) ;                                                      // dep is const
-						if ( dep.hot && dep->is_plain() && !old_deps.contains(dep) ) {                                          // hot deps are out-of-date if they are just discovered
+						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
+						if ( dep.hot && dep->is_plain() && !old_deps.contains(dep) ) {             // hot deps are out-of-date if they are just discovered
 							trace("hot",dep) ;
 							res.ok  = Maybe       ;
 							res.txt = dep->name() ;
@@ -422,7 +422,7 @@ namespace Engine {
 						}
 						for( Req req : reqs ) {
 							NodeReqInfo& dri  = dep->req_info(req)                               ;
-							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ;                              // if no access, we do not care about file on disk
+							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ; // if no access, we do not care about file on disk
 							Node(dep)->make(dri,NodeMakeAction::Query) ;
 							if      (!dri.done(goal)                                                  ) { trace("waiting",dep,req) ; res.ok = Maybe ; res.txt = dep->name() ; goto EndChkDeps ; }
 							else if (dep->ok(dri,dep.accesses)==No && !dep.dflags[Dflag::IgnoreError] ) { trace("bad"    ,dep,req) ; res.ok = No    ; res.txt = dep->name() ;                   }
@@ -431,7 +431,7 @@ namespace Engine {
 					}
 				EndChkDeps : ;
 				} break ;
-			DF}                                                                                                                 // NO_COV
+			DF}                                                                                    // NO_COV
 		trace("done") ;
 		return res ;
 	}
@@ -633,16 +633,16 @@ namespace Engine {
 			}
 			for( auto [t,tf] : old_targets ) {
 				if (tf[Tflag::Incremental]) {
-					targets.emplace_back(t,tf) ;                         // if an old incremental target has not been touched, it is still there as it has not been washed
+					targets.emplace_back(t,tf) ;       // if an old incremental target has not been touched, it is still there as it has not been washed
 				} else {
-					NodeData& td = *Node(t) ;                            // t is const
-					td.actual_job   () = {} ;                            // target is no more generated by us
-					td.actual_tflags() = {} ;                            // .
-					td.polluted        = {} ;                            // .
-					td.refresh(Crc::None,start_date) ;                   // non-incremental old targets were unlinked at start-of-job time, during washing
+					NodeData& td = *Node(t) ;          // t is const
+					td.actual_job   () = {} ;          // target is no more generated by us
+					td.actual_tflags() = {} ;          // .
+					td.polluted        = {} ;          // .
+					td.refresh(Crc::None,start_date) ; // non-incremental old targets were unlinked at start-of-job time, during washing
 				}
 			}
-			::sort(targets) ;                                            // ease search in targets
+			::sort(targets) ;                          // ease search in targets
 			//vvvvvvvvvvvvvvvvvvvvvvvvvv
 			jd.targets().assign(targets) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -651,18 +651,17 @@ namespace Engine {
 		// handle deps
 		//
 		bool                              has_new_deps         = false ;
-		bool                              has_updated_dep_crcs = false ; // record acquired dep crc's if we acquired any
+		bool                              has_updated_dep_crcs = false ;                                  // record acquired dep crc's if we acquired any
 		::vector<::pair<Crc,bool/*err*/>> dep_crcs             ;
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
-			::vector<Dep> deps     ; deps.reserve(digest.deps.size()) ;
+			::vector<Dep> deps     ; deps    .reserve(digest.deps.size()) ;
+			/**/                     dep_crcs.reserve(digest.deps.size()) ;
 			for( Dep const& d : jd.deps )
 				if (d->is_plain())
 					for( Node dd=d ; +dd ; dd=dd->dir() )
-						if (!old_deps.insert(dd).second) break ;         // record old deps and all uphill dirs as these are implicit deps
-size_t i = 0 ;                                                           // XXX : until bug is found
+						if (!old_deps.insert(dd).second) break ;                                          // record old deps and all uphill dirs as these are implicit deps
 			for( auto& [dn,dd] : digest.deps ) {
-SWEAR(+dn,i);
 				Dep dep { dn , dd } ;
 				if (!old_deps.contains(dep)) {
 					has_new_deps = true ;
@@ -673,7 +672,6 @@ SWEAR(+dn,i);
 					if (dep.hot) { trace("reset",dep) ; dep.del_crc() ; }
 				}
 				bool updated_dep_crc = false ;
-SWEAR(+Node(dep),i);
 				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_) ;
 					dep.acquire_crc() ;
@@ -696,17 +694,10 @@ SWEAR(+Node(dep),i);
 				/**/                   deps    .push_back   (dep                    ) ;
 				if (updated_dep_crc) { dep_crcs.emplace_back(dep.crc(),bool(dep.err)) ; has_updated_dep_crcs = true ; }
 				else                   dep_crcs.emplace_back(Crc()    ,false        ) ;
-SWEAR(+Node(dep),i);
-i++;
 			}
 			//vvvvvvvvvvvvvvvvvv
 			jd.deps.assign(deps) ;
 			//^^^^^^^^^^^^^^^^^^
-i = 0 ;
-for( Dep const& dep : jd.deps ) {
-	SWEAR(+Node(dep),i,dep) ;
-	i++;
-}
 		}
 		//
 		// wrap up
@@ -1288,7 +1279,7 @@ for( Dep const& dep : jd.deps ) {
 		for ( Dep const& dep : deps ) {
 			if (!dep.parallel) speculate |= proto_speculate ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			dep->propag_speculate( cri.req , cri.speculate | (speculate&(!dep.dflags[Dflag::Static])) ) ;                                          // static deps are never speculative
+			dep->propag_speculate( cri.req , cri.speculate | (speculate&(!dep.dflags[Dflag::Static])) ) ; // static deps are never speculative
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			NodeReqInfo const& cdri = dep->c_req_info(cri.req) ;
 			if ( !dep.is_crc || cdri.waiting() ) { proto_speculate = Yes ; continue ; }

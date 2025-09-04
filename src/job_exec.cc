@@ -695,7 +695,7 @@ int main( int argc , char* argv[] ) {
 		end_report.wstatus           =        g_gather.wstatus   ;
 	}
 End :
-	{	Trace trace("end",end_report.digest.status) ;
+	{	Trace trace("end",end_report.digest) ;
 		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
 			ClientSockFd fd           { g_service_end } ;
