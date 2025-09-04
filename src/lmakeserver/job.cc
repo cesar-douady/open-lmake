@@ -363,8 +363,8 @@ namespace Engine {
 		::vector<Req> reqs = self->running_reqs(false/*with_zombies*/) ;
 		Trace trace("job_analysis",self,ecjm.proc,ecjm.targets.size(),ecjm.deps.size(),reqs.size()) ;
 		//
-		JobMngtRpcReply res { .proc=ecjm.proc } ;                                                  // seq_id will be filled in later
-		if (+reqs)                                                                                 // if job is not running, it is too late
+		JobMngtRpcReply res { .proc=ecjm.proc } ;                                                                               // seq_id will be filled in later
+		if (+reqs)                                                                                                              // if job is not running, it is too late
 			switch (ecjm.proc) {
 				case JobMngtProc::DepDirect : {
 					Job job { Special::Dep , Deps(mk_vector<Node>(ecjm.deps),~Accesses(),DflagsDfltStatic,true/*parallel*/) } ;
@@ -375,12 +375,12 @@ namespace Engine {
 					//
 					for( Req req : reqs ) job->make( job->req_info(req) , JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
 					//
-					res.proc = JobMngtProc::None ;                                                 // job->make will answer for us
+					res.proc = JobMngtProc::None ;                                                                              // job->make will answer for us
 				} break ;
 				case JobMngtProc::DepVerbose :
 					res.verbose_infos.reserve(ecjm.deps.size()) ;
 					for( Dep const& dep : ecjm.deps ) {
-						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
+						Node(dep)->full_refresh(false/*report_no_file*/) ;                                                      // dep is const
 						Bool3 dep_ok = Yes ;
 						for( Req req : reqs ) {
 							NodeReqInfo& dri = dep->req_info(req) ;
@@ -392,40 +392,46 @@ namespace Engine {
 						res.verbose_infos.push_back({ .ok=dep_ok , .crc=dep_ok!=Maybe?dep->crc:Crc() }) ;
 					}
 				break ;
-				case JobMngtProc::ChkDeps :
+				case JobMngtProc::ChkDeps : {
+					::uset<Node>  old_deps ;
+					for( Dep const& d : self->deps )
+						if (d->is_plain())
+							for( Node dd=d ; +dd ; dd=dd->dir() )
+								if (!old_deps.insert(dd).second) break ;                                                        // record old deps and all uphill dirs as these are implicit deps
 					res.ok = Yes ;
 					for( auto const& [t,td] : ecjm.targets ) {
 						if ( !td.tflags[Tflag::Incremental] && td.pre_exist ) {
 							Node(t)->set_buildable() ;
 							if (!( t->is_src_anti() && t->buildable>Buildable::No )) {
 								trace("pre_exist",t) ;
-								res.ok  = No        ;
-								res.txt = t->name() ;
-								goto StopChk ;
+								res.proc = JobMngtProc::ChkTargets ;
+								res.ok   = Maybe                   ;
+								res.txt  = t->name()               ;
+								goto EndChkDeps ;
 							}
 						}
 						trace("target",t) ;
 					}
 					for( Dep const& dep : ecjm.deps ) {
-						Node(dep)->full_refresh(false/*report_no_file*/) ;                         // dep is const
-						Bool3 dep_ok = Yes ;
+						Node(dep)->full_refresh(false/*report_no_file*/) ;                                                      // dep is const
+						if ( dep.hot && dep->is_plain() && !old_deps.contains(dep) ) {                                          // hot deps are out-of-date if they are just discovered
+							trace("hot",dep) ;
+							res.ok  = Maybe       ;
+							res.txt = dep->name() ;
+							goto EndChkDeps ;
+						}
 						for( Req req : reqs ) {
 							NodeReqInfo& dri  = dep->req_info(req)                               ;
-							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ; // if no access, we do not care about file on disk
+							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ;                              // if no access, we do not care about file on disk
 							Node(dep)->make(dri,NodeMakeAction::Query) ;
-							if      (!dri.done(goal)              ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
-							else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
+							if      (!dri.done(goal)                                                  ) { trace("waiting",dep,req) ; res.ok = Maybe ; res.txt = dep->name() ; goto EndChkDeps ; }
+							else if (dep->ok(dri,dep.accesses)==No && !dep.dflags[Dflag::IgnoreError] ) { trace("bad"    ,dep,req) ; res.ok = No    ; res.txt = dep->name() ;                   }
 						}
-						if (dep_ok!=Yes) {
-							res.ok  = dep_ok      ;
-							res.txt = dep->name() ;
-							goto StopChk ;
-						}
-						trace("dep",dep) ;
+						trace("dep",dep,STR(res.ok)) ;
 					}
-				StopChk :
-				break ;
-			DF}                                                                                    // NO_COV
+				EndChkDeps : ;
+				} break ;
+			DF}                                                                                                                 // NO_COV
 		trace("done") ;
 		return res ;
 	}
@@ -627,16 +633,16 @@ namespace Engine {
 			}
 			for( auto [t,tf] : old_targets ) {
 				if (tf[Tflag::Incremental]) {
-					targets.emplace_back(t,tf) ;       // if an old incremental target has not been touched, it is still there as it has not been washed
+					targets.emplace_back(t,tf) ;                         // if an old incremental target has not been touched, it is still there as it has not been washed
 				} else {
-					NodeData& td = *Node(t) ;          // t is const
-					td.actual_job   () = {} ;          // target is no more generated by us
-					td.actual_tflags() = {} ;          // .
-					td.polluted        = {} ;          // .
-					td.refresh(Crc::None,start_date) ; // non-incremental old targets were unlinked at start-of-job time, during washing
+					NodeData& td = *Node(t) ;                            // t is const
+					td.actual_job   () = {} ;                            // target is no more generated by us
+					td.actual_tflags() = {} ;                            // .
+					td.polluted        = {} ;                            // .
+					td.refresh(Crc::None,start_date) ;                   // non-incremental old targets were unlinked at start-of-job time, during washing
 				}
 			}
-			::sort(targets) ;                          // ease search in targets
+			::sort(targets) ;                                            // ease search in targets
 			//vvvvvvvvvvvvvvvvvvvvvvvvvv
 			jd.targets().assign(targets) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -645,7 +651,7 @@ namespace Engine {
 		// handle deps
 		//
 		bool                              has_new_deps         = false ;
-		bool                              has_updated_dep_crcs = false ;                                  // record acquired dep crc's if we acquired any
+		bool                              has_updated_dep_crcs = false ; // record acquired dep crc's if we acquired any
 		::vector<::pair<Crc,bool/*err*/>> dep_crcs             ;
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
@@ -653,8 +659,10 @@ namespace Engine {
 			for( Dep const& d : jd.deps )
 				if (d->is_plain())
 					for( Node dd=d ; +dd ; dd=dd->dir() )
-						if (!old_deps.insert(dd).second) break ;                                          // record old deps and all uphill dirs as these are implicit deps
+						if (!old_deps.insert(dd).second) break ;         // record old deps and all uphill dirs as these are implicit deps
+size_t i = 0 ;                                                           // XXX : until bug is found
 			for( auto& [dn,dd] : digest.deps ) {
+SWEAR(+dn,i);
 				Dep dep { dn , dd } ;
 				if (!old_deps.contains(dep)) {
 					has_new_deps = true ;
@@ -665,6 +673,7 @@ namespace Engine {
 					if (dep.hot) { trace("reset",dep) ; dep.del_crc() ; }
 				}
 				bool updated_dep_crc = false ;
+SWEAR(+Node(dep),i);
 				if (!dep.is_crc) {
 					dep->full_refresh(true/*report_no_file*/,running_reqs_) ;
 					dep.acquire_crc() ;
@@ -687,17 +696,23 @@ namespace Engine {
 				/**/                   deps    .push_back   (dep                    ) ;
 				if (updated_dep_crc) { dep_crcs.emplace_back(dep.crc(),bool(dep.err)) ; has_updated_dep_crcs = true ; }
 				else                   dep_crcs.emplace_back(Crc()    ,false        ) ;
+SWEAR(+Node(dep),i);
+i++;
 			}
 			//vvvvvvvvvvvvvvvvvv
 			jd.deps.assign(deps) ;
 			//^^^^^^^^^^^^^^^^^^
-for( Dep const& dep : jd.deps ) *Node(dep) ;                                                              // XXX : until bug is found
+i = 0 ;
+for( Dep const& dep : jd.deps ) {
+	SWEAR(+Node(dep),i,dep) ;
+	i++;
+}
 		}
 		//
 		// wrap up
 		//
-		jd.set_exec_ok() ;                                                  // effect of old cmd has gone away with job execution
-		fence() ;                                                           // only update status once every other info is set in case of crash and avoid transforming garbage into Err
+		jd.set_exec_ok() ;                                                                                // effect of old cmd has gone away with job execution
+		fence() ;                                                                                         // only update status once other info is set to anticipate crashes
 		if ( !lost && +target_reason && status>Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvv
 		jd.status = status ;
@@ -738,7 +753,7 @@ for( Dep const& dep : jd.deps ) *Node(dep) ;                                    
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;                                                        // if not done, does a full report anyway if this is not due to new deps
+			bool     full_report = done || !has_new_deps             ;                                                             // if not done, does a full report anyway if not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -761,7 +776,7 @@ for( Dep const& dep : jd.deps ) *Node(dep) ;                                    
 			) ;
 			upload &= done ;
 			must_wakeup.push_back(done) ;
-			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
+			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ;      // stderr may be empty if digest.has_mg_stderr, no harm
 			trace("req_after",ri,job_reason,STR(done)) ;
 		}
 		if (+digest.upload_key) {
@@ -1282,7 +1297,6 @@ for( Dep const& dep : jd.deps ) *Node(dep) ;                                    
 				case Yes   :                                                                                                               break ;
 				case Maybe : if (  dep.dflags[Dflag::Required   ] || dep.dflags[Dflag::Static] ) { proto_speculate |= Maybe ; continue ; } break ;
 				case No    : if ( !dep.dflags[Dflag::IgnoreError] || +cdri.overwritten         ) { proto_speculate |= Maybe ; continue ; } break ;
-				default : FAIL(dep_ok) ;                                                                                                           // NO_COV
 			}
 			if ( +dep.accesses && !dep.up_to_date() ) proto_speculate = Yes ;
 		}

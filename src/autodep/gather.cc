@@ -96,6 +96,10 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 	/**/                                  if ( pd<_write_ignore && ad.flags.extra_tflags[ExtraTflag::Ignore] ) _write_ignore = pd ;
 }
 
+void Gather::AccessInfo::no_hot( PD pd ) {
+	if (pd<_no_hot) _no_hot = pd ;
+}
+
 //
 // Gather
 //
@@ -117,28 +121,26 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
 	SWEAR( +file , c , ces        ) ;
 	SWEAR( +pd   , c , ces , file ) ;
-	if (late==Maybe) SWEAR( ad.write==No ) ;                                                                                   // when writing, we must know if job is started
-	AccessInfo* info        = nullptr/*garbage*/                       ;
-	auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
-	if (is_new) info = &accesses.emplace_back(::move(file),AccessInfo()).second ;
-	else        info = &accesses[it->second]                            .second ;
-	AccessInfo old_info = *info ;                                                                                              // for tracing only
+	if (late==Maybe) SWEAR( ad.write==No ) ;                                                                          // when writing, we must know if job is started
+	size_t                old_sz   = accesses.size()  ;
+	::pair_s<AccessInfo>& file_info = _access_info(::move(file)) ;
+	bool                  is_new   = accesses.size() > old_sz    ;
+	::string       const& f        = file_info.first             ;
+	AccessInfo&           info     = file_info.second            ;
+	AccessInfo            old_info = info                        ;                                                    // for tracing only
 	if (ad.write==Maybe) {
 		// wait until file state can be safely inspected as in case of interrupted write, syscall may continue past end of process
 		// this may be long, but is exceptionnal
 		(pd+network_delay).sleep_until() ;
-		if (info->dep_info.is_a<DepInfoKind::Crc>()) ad.write = No | (Crc    (file)!=info->dep_info.crc()) ;
-		else                                         ad.write = No | (FileSig(file)!=info->dep_info.sig()) ;
+		if (info.dep_info.is_a<DepInfoKind::Crc>()) ad.write = No | (Crc    (f)!=info.dep_info.crc()) ;
+		else                                        ad.write = No | (FileSig(f)!=info.dep_info.sig()) ;
 	}
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info->update( pd , ad , late==Yes , di ) ;
+	info.update( pd , ad , late==Yes , di ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( is_new || *info!=old_info ) {
-		if (+c) {
-			if (is_new) _exec_trace( pd , c , ces , accesses.back().first ) ;                                                  // file has been ::move()'ed
-			else        _exec_trace( pd , c , ces , file                  ) ;
-		}
-		Trace("new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , *info , it->first ) ; // only trace if something changes
+	if ( is_new || info!=old_info ) {
+		if (+c) _exec_trace( pd , c , ces , f ) ;
+		Trace("new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , info , f ) ; // only trace if something changes
 	}
 }
 
@@ -549,7 +551,10 @@ Status Gather::exec_child() {
 										}
 								else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
-									for( ::string const& pd : jse.pushed_deps ) nfs_guard.access(pd) ;
+									for( ::string const& pd : jse.pushed_deps ) {
+										nfs_guard.access(pd) ;
+										_access_info(::copy(pd)).second.no_hot(now) ;                                         // dep has been built and we are guarded : it cannot be hot from now on
+									}
 									_exec_trace( now , Comment::depend , {CommentExt::Direct,CommentExt::Reply} ) ;
 								}
 								for( ::string const& pd : jse.pushed_deps )
@@ -557,31 +562,27 @@ Status Gather::exec_child() {
 								jse.pushed_deps = {} ;
 								jse.jerr        = {} ;
 							} break ;
-							case JobMngtProc::Heartbeat :                                                                                                      break ;
-							case JobMngtProc::Kill      : _exec_trace( New , Comment::kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
-							case JobMngtProc::None      : _exec_trace( New , Comment::lostServer                     ) ; set_status(Status::Killed) ; kill() ; break ;
-							case JobMngtProc::ChkDeps   :
+							case JobMngtProc::Heartbeat  :                                                                                                      break ;
+							case JobMngtProc::Kill       : _exec_trace( New , Comment::kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
+							case JobMngtProc::None       : _exec_trace( New , Comment::lostServer                     ) ; set_status(Status::Killed) ; kill() ; break ;
+							case JobMngtProc::ChkDeps    :
+							case JobMngtProc::ChkTargets : {
+								bool        is_target = jmrr.proc==JobMngtProc::ChkTargets ;
+								CommentExts ces       = CommentExt::Reply                  ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
-								if (jmrr.ok!=Yes) {
-									_exec_trace( New , Comment::chkTargets , {CommentExt::Reply,CommentExt::Killed} , jmrr.txt ) ;
-									set_status( Status::ChkDeps , "pre-exiting target : "+jmrr.txt ) ;
-									kill() ;
-									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
-								} else {
-									_exec_trace( New , Comment::chkTargets , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
-								}
-							break ;
-							case JobMngtProc::ChkTargets :
-								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
-								if (jmrr.ok==Maybe) {
-									_exec_trace( New , Comment::chkDeps , {CommentExt::Reply,CommentExt::Killed} , jmrr.txt ) ;
-									set_status( Status::ChkDeps , "waiting dep : "+jmrr.txt ) ;
-									kill() ;
-									rfd = {} ;                                                                                // dont reply to ensure job waits if sync
-								} else {
-									_exec_trace( New , Comment::chkDeps , +jmrr.ok?CommentExts(CommentExt::Reply):CommentExts(CommentExt::Reply,CommentExt::Err) , jmrr.txt ) ;
-								}
-							break ;
+								switch (jmrr.ok) {
+									case Maybe :
+										ces |= CommentExt::Killed ;
+										set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
+										kill() ;
+										rfd = {} ;                                                                            // dont reply to ensure job waits if sync
+									break ;
+									case No :
+										ces |= CommentExt::Err ;
+									break ;
+								DN}
+								_exec_trace( New , is_target?Comment::chkTargets:Comment::chkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
+							} break ;
 							case JobMngtProc::Decode :
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
@@ -666,7 +667,7 @@ Status Gather::exec_child() {
 								case Proc::DepPush    : jse.pushed_deps.emplace_back(::move(jerr.file)) ;  break ;
 								case Proc::CodecFile  : jse.codec.file =             ::move(jerr.file)  ;  break ;
 								case Proc::CodecCtx   : jse.codec.ctx  =             ::move(jerr.file)  ;  break ;
-								case Proc::Guard      : _new_guard(fd,::move(jerr)) ;                      break ;
+								case Proc::Guard      : _new_guard(fd,::move(jerr.file)) ;                 break ;
 								case Proc::List       :
 								case Proc::ChkDeps    : delayed_jerrs[fd] = ::move(jerr) ; sync_ = false ; break ;                          // if sync, reply is delayed as well
 								case Proc::DepDirect  :

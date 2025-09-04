@@ -77,13 +77,22 @@ struct Gather {                                                       // NOLINT(
 		// services
 	public :
 		void update( PD , AccessDigest , bool late , DI const& ={} ) ;
+		void no_hot( PD                                            ) ;
+		bool is_hot( Time::Delay prec                              ) const {
+			// if file date is not comfortable enough, we make it hot and server will ensure job producing dep was done before this job started
+			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                                      // we have a crc, no risk to gather bad crc from sig
+			PD fr = first_read() ;
+			if (fr>=_no_hot) return false                                       ;                        // file has been rebuilt and we are guarded against nfs, no risk
+			/**/             return !dep_info.info().date.avail_at( fr , prec ) ;                        // mark hot if dep is not old enough
+			;
+		}
 		//
 		void chk() const ;
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		MatchFlags flags    { .dflags={} } ;                          // initially, no dflags, not even default ones (as they accumulate)
-		DI         dep_info ;                                         // state when first read
+		MatchFlags flags    { .dflags={} } ;                                                             // initially, no dflags, not even default ones (as they accumulate)
+		DI         dep_info ;                                                                            // state when first read
 	private :
 		PD   _read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access date for each access
 		PD   _read_dir        = PD::Future                             ;                                 // first date at which file has been read as a dir
@@ -93,6 +102,7 @@ struct Gather {                                                       // NOLINT(
 		PD   _seen            = PD::Future                             ;                                 // first date at which file has been seen existing
 		PD   _read_ignore     = PD::Future1                            ;                                 // first date at which reads  are ignored, always <Future
 		PD   _write_ignore    = PD::Future1                            ;                                 // first date at which writes are ignored, always <Future
+		PD   _no_hot          = PD::Future                             ;                                 // first date at which dep is known sync'ed on disk
 		bool _washed          = false                                  ;
 	} ;
 	struct JobSlaveEntry {
@@ -119,12 +129,17 @@ private :
 	void         _kill          ( bool force                            ) ;
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                  ) ;
 	void         _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                              // files are required for DepVerbose and forbidden for other
-	void _new_guard( Fd fd , Jerr&& jerr ) {                                                             // fd for trace purpose only
-		Trace trace("_new_guards",fd,jerr) ;
-		guards.insert(::move(jerr.file)) ;
+	void _new_guard( Fd fd , ::string&& file ) {                                                         // fd for trace purpose only
+		Trace trace("_new_guards",fd,file) ;
+		guards.insert(::move(file)) ;
 	}
 	void _new_access( Fd fd , Jerr&& jerr ) {
 		new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
+	}
+	::pair_s<AccessInfo>& _access_info(::string&& file) {
+		auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
+		if (is_new) return accesses.emplace_back(::move(file),AccessInfo()) ;
+		else        return accesses[it->second]                             ;
 	}
 public :
 	// Fd for trace purpose only

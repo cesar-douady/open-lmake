@@ -103,7 +103,7 @@ Digest analyze(Status status=Status::New) {                                     
 		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                             // . is only reported when reading dir but otherwise is an external file
 		//
 		Pdate first_read = info.first_read()                                                    ;
-		bool  was_read   = first_read        <Pdate::Future                                     ;
+		bool  was_read   = first_read<Pdate::Future                                             ;
 		bool  is_dep     = +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
 		bool  allow      = info.allow()                                                         ;
 		bool  is_tgt     = was_written || allow                                                 ;
@@ -118,16 +118,16 @@ Digest analyze(Status status=Status::New) {                                     
 			bool      unstable = false                                                    ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
-			dd.hot          = info.dep_info.is_a<DepInfoKind::Info>() && !info.dep_info.info().date.avail_at(first_read,g_start_info.ddate_prec) ;
-			dd.parallel     = first_read<Pdate::Future && first_read==prev_first_read                                                            ;
-			prev_first_read = first_read                                                                                                         ;
+			dd.hot          = info.is_hot(g_start_info.ddate_prec)                    ;
+			dd.parallel     = first_read<Pdate::Future && first_read==prev_first_read ;
+			prev_first_read = first_read                                              ;
 			// try to transform date into crc as far as possible
 			if      ( dd.is_crc                         )   {}                                                // already a crc => nothing to do
 			else if ( !accesses                         )   {}                                                // no access     => nothing to do
 			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None ) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
-			else if ( !dd.sig()                         ) { dd.del_crc(              ) ; unstable = true  ; } // file was absent initially but was seen, it is incoherent even if absent finally
+			else if ( !dd.sig()                         ) { dd.del_crc    (          ) ; unstable = true  ; } // file was absent initially but was seen, it is incoherent even if absent finally
 			else if ( was_written                       )   {}                                                // cannot check stability, clash will be detected in server if any
-			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc(              ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, no stable content
+			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc    (          ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, no stable content
 			else if ( sig.tag()==FileTag::Empty         )   dd.may_set_crc(Crc::Empty) ;                      // crc is easy to compute (empty file), record it
 			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag() ) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

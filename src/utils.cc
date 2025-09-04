@@ -359,7 +359,7 @@ bool              _crash_busy  = false ;
 			del_env("LD_PRELOAD") ;                                                                         // ensure no recursive errors
 			del_env("LD_AUDIT"  ) ;                                                                         // .
 			const char* args[] = { ADDR2LINE , "-f" , "-i" , "-C" , "-e" , file , hex_offset , nullptr } ;
-			::execv( args[0] , const_cast<char**>(args) ) ;
+			if (ADDR2LINE[0]) ::execv( args[0] , const_cast<char**>(args) ) ;
 			// if compiled in addr2line does not work, try standard path, maybe we'll find a working one
 			::vector_s std_path = split(STD_PATH,':') ;
 			for( ::string const& path_entry : std_path ) {
