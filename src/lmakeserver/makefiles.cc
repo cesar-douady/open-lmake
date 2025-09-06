@@ -145,7 +145,7 @@ namespace Engine::Makefiles {
 			if (val_exists.second) deps_str <<'='<<key<<'='<<val_exists.first<<'\n' ;
 			else                   deps_str <<'='<<key                       <<'\n' ;
 		}
-		AcFd(new_deps_file,FdAction::Create).write(deps_str) ;
+		AcFd( new_deps_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(deps_str) ;
 		//
 		_chk_dangling(action,true/*new*/,startup_dir_s) ;
 	}
@@ -165,7 +165,7 @@ namespace Engine::Makefiles {
 		::string tmp_dir_s = _g_tmp_dir_s+action+'/'            ;
 		//
 		_g_env["TMPDIR"] = no_slash(*g_repo_root_s+tmp_dir_s) ;
-		mk_dir_empty_s(tmp_dir_s) ;                                  // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
+		mk_dir_empty_s(tmp_dir_s) ;                                 // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                ;
 		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                       ;
@@ -190,7 +190,7 @@ namespace Engine::Makefiles {
 		::string   deps_str = AcFd(data_file).read() ;
 		::uset_s   dep_set  ;
 		try                       { py_info = py_eval(deps_str) ; }
-		catch (::string const& e) { FAIL(e) ;                     }  // NO_COV
+		catch (::string const& e) { FAIL(e) ;                     } // NO_COV
 		for( auto const& [d,ai] : gather.accesses ) {
 			if (ai.first_write()<Pdate::Future) continue ;
 			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = cat( m.group(d,1/*dir_s*/) , m.group(d,2/*module*/) , ".py" ) ;
@@ -305,27 +305,27 @@ namespace Engine::Makefiles {
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
 			/**/                          _g_env["PYTHONPATH"     ] = *g_lmake_root_s+"lib"         ;
 			//
-			if (!FileInfo(EnvironFile ).exists()) AcFd(EnvironFile ,FdAction::Create) ; // these are sources, they must exist
-			if (!FileInfo(ManifestFile).exists()) AcFd(ManifestFile,FdAction::Create) ; // .
+			if (!FileInfo(EnvironFile ).exists()) AcFd( EnvironFile  , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;                           // these are sources, they must exist
+			if (!FileInfo(ManifestFile).exists()) AcFd( ManifestFile , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;                           // .
 		}
 		//
 		bool/*done*/ config_digest = _refresh_config( /*out*/msg , /*out*/config , /*out*/py_info , /*out*/config_deps , user_env , startup_dir_s ) ;
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                                   // invalidate because of config
+		bool  invalidate    = false ;                                            // invalidate because of config
 		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old) {                                                                 // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                                 // Maybe means new
-				changed_rules = Maybe ;                                                 // .
+			if (!old) {                                                          // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                          // Maybe means new
+				changed_rules = Maybe ;                                          // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_) return ;                                                         // no new config means we keep old config, no modification
+			if (!new_) return ;                                                  // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
 			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;                      // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;               // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -370,26 +370,26 @@ namespace Engine::Makefiles {
 			if (rules_digest==Yes) { _stamp_deps("rules"  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (v.second) ue[k] = v.first ; } else _recall_env(ue,"rules" ) ;
 			::string user_env_str ;
 			for( auto const& [k,v] : ue ) user_env_str << k<<'='<<mk_printable(v)<<'\n' ;
-			AcFd( EnvironFile , FdAction::Write ).write(user_env_str) ;
+			AcFd( EnvironFile , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;
 		}
 	}
 
-	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                             // msg may be updated even if throwing
+	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                                       // msg may be updated even if throwing
 		::string reg_exprs_file = PRIVATE_ADMIN_DIR_S "regexpr_cache" ;
-		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }               // load from persistent cache
-		catch (...) {                                                                                }               // perf only, dont care of errors (e.g. first time)
+		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                         // load from persistent cache
+		catch (...) {                                                                                }                         // perf only, dont care of errors (e.g. first time)
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;   // dir_s is \1, module is \2, matches both python 2 & 3
+		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;             // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		_refresh( msg , rescue , refresh_ , false/*dyn*/ , mk_environ() , *g_startup_dir_s ) ;
 		//
 		if (!RegExpr::s_cache.steady()) {
-			try         { AcFd( dir_guard(reg_exprs_file) , FdAction::Write ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
-			catch (...) {                                                                                          } // perf only, dont care of errors (e.g. we are read-only)
+			try         { AcFd( dir_guard(reg_exprs_file) , {.flags=O_WRONLY|O_TRUNC} ).write(serialize(RegExpr::s_cache)) ; } // update persistent cache
+			catch (...) {                                                                                                    } // perf only, dont care of errors (e.g. we are read-only)
 		}
 	}
-	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) {                // msg may be updated even if throwing
+	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) {                          // msg may be updated even if throwing
 		_refresh( msg , false/*rescue*/  , true/*refresh*/ , true/*dyn*/ , env , startup_dir_s ) ;
 	}
 

@@ -18,7 +18,7 @@ extern StaticUniqPtr<::string> g_exe_name      ; //                            e
 // if cd_root     ==Maybe, we must identify root_dir, but not cd to it
 bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , Bool3 cd_root=Yes ) ;
 
-void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS ) ;
+void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS , PermExt={} ) ;
 
 inline ::string git_clean_msg() {
 	::string d ; if (+*g_startup_dir_s) d = ' '+no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;

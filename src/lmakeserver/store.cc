@@ -34,7 +34,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd(_g_rules_file_name,FdAction::Create).write(serialize(*Rule::s_rules)) ;
+		AcFd( _g_rules_file_name , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(serialize(*Rule::s_rules)) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -274,8 +274,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() {
-		AcFd( cat(PrivateAdminDirS,"config_store") , FdAction::Create ).write(serialize(*g_config)  ) ;
-		AcFd( cat(AdminDirS,"config"             ) , FdAction::Create ).write(g_config->pretty_str()) ;
+		AcFd( cat(PrivateAdminDirS,"config_store") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(serialize(*g_config)  ) ;
+		AcFd( cat(AdminDirS,"config"             ) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_config->pretty_str()) ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dyn ) {
@@ -527,7 +527,7 @@ namespace Engine::Persistent {
 				match_report_str << key <<" :\n" ;
 				for( RuleTgt rt : rts ) match_report_str <<'\t'<< widen(cat(rt->rule->user_prio),w_prio) <<' '<< widen(rt->rule->user_name(),w_name) <<' '<< rt.key() <<'\n' ;
 			}
-			AcFd( ADMIN_DIR_S "matching" , FdAction::Create ).write(match_report_str) ;
+			AcFd( ADMIN_DIR_S "matching" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(match_report_str) ;
 		}
 		// rule report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
@@ -541,7 +541,7 @@ namespace Engine::Persistent {
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
-			AcFd( ADMIN_DIR_S "rules" , FdAction::Create ).write(content) ;
+			AcFd( ADMIN_DIR_S "rules" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(content) ;
 		}
 		trace("done") ;
 		return invalidate ;
@@ -618,15 +618,15 @@ namespace Engine::Persistent {
 		if (dyn) {
 			if (+new_srcs) throw "new source "    +new_srcs.begin()->first->name() ;
 			if (+old_srcs) throw "removed source "+old_srcs.begin()->first->name() ;
-			FAIL() ;                                                                                                  // NO_COV
+			FAIL() ;                                                                                                       // NO_COV
 		}
 		//
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs.size()) ;
 		// commit
 		for( bool add : {false,true} ) {
 			::umap<Node,FileTag> const& srcs = add ? new_srcs : old_srcs ;
-			::vector<Node>              ss   ;                             ss.reserve(srcs.size()) ;                  // typically, there are very few src dirs
-			::vector<Node>              sds  ;                                                                        // .
+			::vector<Node>              ss   ;                             ss.reserve(srcs.size()) ;                       // typically, there are very few src dirs
+			::vector<Node>              sds  ;                                                                             // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;
@@ -642,8 +642,8 @@ namespace Engine::Persistent {
 			for( Node d : old_src_dirs ) d->mk_no_src() ;
 			for( auto [n,t] : new_srcs ) {
 				switch (n->buildable) {
-					case Buildable::Unknown :                                                                         // if node was not observed   , making it a source cannot change matching
-					case Buildable::Yes     : break ;                                                                 // if node was known buildable, matching does not change
+					case Buildable::Unknown :                                                                              // if node was not observed   , making it a source cannot change matching
+					case Buildable::Yes     : break ;                                                                      // if node was known buildable, matching does not change
 					default                 : invalidate = true ;
 				}
 				Node(n)->mk_src(t) ;
@@ -655,7 +655,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::string content ;
 			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( manifest , FdAction::Create ).write(content) ;
+			AcFd( manifest , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(content) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return invalidate ;

@@ -485,44 +485,44 @@ inline ::string const& no_empty_s(::string const& dir_s) {
 	else        { static ::string dot_s = "./" ; return dot_s ; }
 }
 
-enum class FdAction : uint8_t {
-	Read
-,	ReadNonBlock
-,	ReadNoFollow
-,	Dir
-,	Write
-,	Append
-,	Create
-,	CreateExe
-,	CreateReadOnly
-,	CreateNoFollow
-,	CreateNoFollowExe
-,	ReadWrite
-,	CreateRead
-,	CreateReadTrunc
+enum class PermExt : uint8_t {
+	None
+,	Group
+,	Other
+} ;
+
+struct _FdAction {
+	int     flags    = O_RDONLY ;
+	mode_t  mod      = 0        ;
+	PermExt perm_ext = {}       ;
 } ;
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;
+	//
 	static const Fd Cwd    ;
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                           // the highest standard fd
+	static const Fd Std    ;                                                               // the highest standard fd
+	//
+	using Action = _FdAction ;
 	// cxtors & casts
 private :
-	static int _s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read ) ;
+	static int _s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) ;
 public :
 	constexpr Fd(                        ) = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd( Fd at , const char* file ) : Fd{at,::string(file)} {}                          // ensure no confusion
-	Fd(         const char* file ) : Fd{   ::string(file)} {}                          // .
+	Fd( Fd at , ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,err_ok,action) , no_std_ } {}
+	Fd(         ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ Cwd , file , err_ok , action , no_std_    } {}
+	Fd( Fd at , ::string const& file ,               Action action={} , bool no_std_=false ) : Fd{ at  , file , false  , action , no_std_    } {}
+	Fd(         ::string const& file ,               Action action={} , bool no_std_=false ) : Fd{ Cwd , file , false  , action , no_std_    } {}
 	//
-	Fd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,err_ok,action) , no_std_ } {}
-	Fd(         ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , err_ok , action , no_std_    } {}
-	Fd( Fd at , ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ at  , file , false  , action , no_std_    } {}
-	Fd(         ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ Cwd , file , false  , action , no_std_    } {}
+	Fd( Fd at , const char* file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ at  , ::string(file) , err_ok , action , no_std_ } {} // ensure no confusion
+	Fd(         const char* file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{       ::string(file) , err_ok , action , no_std_ } {} // .
+	Fd( Fd at , const char* file ,               Action action={} , bool no_std_=false ) : Fd{ at  , ::string(file) ,          action , no_std_ } {} // .
+	Fd(         const char* file ,               Action action={} , bool no_std_=false ) : Fd{       ::string(file) ,          action , no_std_ } {} // .
 	//
 	constexpr operator int  () const { return fd    ; }
 	constexpr bool operator+() const { return fd>=0 ; }
@@ -531,8 +531,8 @@ public :
 	// services
 	constexpr bool              operator== (Fd const&              ) const = default ;
 	constexpr ::strong_ordering operator<=>(Fd const&              ) const = default ;
-	/**/      void              write      (::string_view data     ) const ;           // writing does not modify the Fd object
-	/**/      ::string          read       (size_t        sz  =Npos) const ;           // read sz bytes or to eof
+	/**/      void              write      (::string_view data     ) const ;               // writing does not modify the Fd object
+	/**/      ::string          read       (size_t        sz  =Npos) const ;               // read sz bytes or to eof
 	/**/      ::vector_s        read_lines (                       ) const ;
 	/**/      size_t            read_to    (::span<char>  dst      ) const ;
 	/**/      Fd                dup        (                       ) const { return ::dup(fd) ;                     }
@@ -566,13 +566,15 @@ struct AcFd : Fd {
 	AcFd( AcFd&& acfd                  )                   { swap(acfd) ; }
 	AcFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }
 	//
-	AcFd( Fd at , const char* file ) : AcFd{at,::string(file)} {} // ensure no confusion
-	AcFd(         const char* file ) : AcFd{   ::string(file)} {} // .
+	AcFd( Fd at , ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ at  , file , err_ok , action , no_std_   } {}
+	AcFd(         ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : AcFd{ Cwd , file , err_ok , action , no_std_ } {}
+	AcFd( Fd at , ::string const& file ,               Action action={} , bool no_std_=false ) : AcFd{ at  , file , false  , action , no_std_ } {}
+	AcFd(         ::string const& file ,               Action action={} , bool no_std_=false ) : AcFd{ Cwd , file , false  , action , no_std_ } {}
 	//
-	AcFd( Fd at , ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : Fd{ at  , file , err_ok , action , no_std_   } {}
-	AcFd(         ::string const& file , bool err_ok , FdAction action=FdAction::Read , bool no_std_=false ) : AcFd{ Cwd , file , err_ok , action , no_std_ } {}
-	AcFd( Fd at , ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : AcFd{ at  , file , false  , action , no_std_ } {}
-	AcFd(         ::string const& file ,               FdAction action=FdAction::Read , bool no_std_=false ) : AcFd{ Cwd , file , false  , action , no_std_ } {}
+	AcFd( Fd at , const char* file , bool err_ok , Action action={} , bool no_std_=false ) : AcFd{ at  , ::string(file) , err_ok , action , no_std_ } {} // ensure no confusion
+	AcFd(         const char* file , bool err_ok , Action action={} , bool no_std_=false ) : AcFd{       ::string(file) , err_ok , action , no_std_ } {} // .
+	AcFd( Fd at , const char* file ,               Action action={} , bool no_std_=false ) : AcFd{ at  , ::string(file) ,          action , no_std_ } {} // .
+	AcFd(         const char* file ,               Action action={} , bool no_std_=false ) : AcFd{       ::string(file) ,          action , no_std_ } {} // .
 	//
 	~AcFd() { close() ; }
 	//

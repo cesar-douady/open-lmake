@@ -405,13 +405,13 @@ namespace Engine {
 					}
 				}
 			}
-			log_fd = Fd( log_file , FdAction::Create ) ;
+			log_fd = Fd( log_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;
 			try         { lnk(Last,lcl_log_file) ;                                             }
 			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
 			start_ddate = file_date(log_file) ;                                                  // use log_file as a date marker
 		} else {
 			trace("no_log") ;
-			AcFd(Last,FdAction::Create) ;                                                        // use Last as a marker, just to gather its date
+			AcFd( Last , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;                         // use Last as a marker, just to gather its date
 			start_ddate = file_date(Last) ;
 			unlnk(Last) ;
 		}

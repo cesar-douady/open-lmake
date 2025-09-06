@@ -19,8 +19,9 @@ if __name__!='__main__' :
 	from step import z_lvl
 
 	lmake.config.caches.dir = {
-		'tag' : 'dir'
-	,	'dir' : lmake.repo_root+'/CACHE'
+		'tag'  : 'dir'
+	,	'dir'  : lmake.repo_root+'/CACHE'
+	,	'perm' : 'group'
 	}
 
 	class Auto(Rule) :
@@ -86,6 +87,8 @@ else :
 		# use setfacl(1) with adequate rights in the default ACL, e.g. :
 		# os.system('setfacl -m d:g::rw,d:o::r CACHE')
 		os.makedirs('CACHE/LMAKE')
+		os.chmod('CACHE'      ,0o775)
+		os.chmod('CACHE/LMAKE',0o775)
 		print('1M',file=open('CACHE/LMAKE/size','w'))
 
 		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date

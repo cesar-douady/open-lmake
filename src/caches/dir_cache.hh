@@ -89,6 +89,7 @@ namespace Caches {
 		::string  lock_file      ;
 		Sz        max_sz         = 0               ;
 		FileSync  file_sync      = FileSync::Dflt  ;
+		PermExt   perm_ext       = {}              ;
 	} ;
 
 }

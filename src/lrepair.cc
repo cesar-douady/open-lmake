@@ -21,7 +21,7 @@ struct RepairDigest {
 RepairDigest repair(::string const& from_dir) {
 	Trace trace("repair",from_dir) ;
 	RepairDigest res           ;
-	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , FdAction::Create } ;
+	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} } ;
 	//
 	::umap<Crc,Rule> rule_tab ; rule_tab.reserve(Rule::s_rules->size()) ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
 	//
@@ -145,7 +145,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	if (::rename(admin_dir.c_str(),bck_admin_dir.c_str())!=0) FAIL("cannot rename",admin_dir,"to",bck_admin_dir) ;
 	//
-	if ( AcFd fd { dir_guard(repair_mrkr) , true/*err_ok*/ , FdAction::Create } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( AcFd fd { dir_guard(repair_mrkr) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
 	//
 	mk_dir_s(PrivateAdminDirS) ;

@@ -72,30 +72,30 @@ namespace Caches {
 	}                                                                          // END_OF_NO_COV
 
 	void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
-		::umap_ss config_map = mk_umap(dct) ;
-		//
-		if ( auto it=config_map.find("dir") ; it!=config_map.end() ) dir_s = with_slash(it->second) ;
-		else                                                         throw "dir not found"s ;
-		//
-		if ( auto it=config_map.find("key") ; it!=config_map.end() ) key_crc = Crc(New,it->second) ;
-		//
-		if ( auto it=config_map.find("file_sync") ; it!=config_map.end() ) {
-			if      (it->second=="None"                ) file_sync = FileSync::None ;
-			else if (!can_mk_enum<FileSync>(it->second)) throw cat("unexpected value for file_sync : ",it->second) ;
-			else                                         file_sync = mk_enum<FileSync>(it->second) ;
+		Trace trace("DirCache::config",dct.size(),STR(may_init)) ;
+		for( auto const& [key,val] : dct ) {
+			try {
+				switch (key[0]) {
+					case 'd' : if (key=="dir"      ) { dir_s     = with_slash       (val) ; continue ; } break ;
+					case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ; continue ; } break ;
+					case 'k' : if (key=="key"      ) { key_crc   = Crc(New          ,val) ; continue ; } break ;
+					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >(val) ; continue ; } break ;
+				DN}
+			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "   ,key,": ",val) ; }
+			/**/                        { trace("bad_key",key    ) ; throw cat("unexpected config entry: ",key         ) ; }
 		}
 		_compile() ;
 		//
-		::string sz_file = admin_dir_s+"size" ;
-		AcFd     sz_fd   { sz_file , true/*err_ok*/ }  ; throw_unless( +sz_fd , "file ",sz_file," must exist and contain the size of the cache" ) ;
+		::string sz_file = admin_dir_s+"size"         ;
+		AcFd     sz_fd   { sz_file , true/*err_ok*/ } ; throw_unless( +sz_fd , "file must exist and contain the size of the cache: ",sz_file ) ;
 		try                       { max_sz = from_string_with_unit(strip(sz_fd.read())) ; }
 		catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;           }
 		//
-		try                     { chk_version( may_init , admin_dir_s ) ;                   }
+		try                     { chk_version( may_init , admin_dir_s , perm_ext) ;         }
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
 		//
-		mk_dir_s(admin_dir_s+"reserved/") ;
-		AcFd(lock_file,FdAction::Create) ;
+		mk_dir_s( admin_dir_s+"reserved/" , perm_ext ) ;
+		AcFd( lock_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ) ;
 	}
 
 	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard& nfs_guard ) const {
@@ -245,7 +245,7 @@ namespace Caches {
 			total_sz += new_lru.sz ;
 			if (new_lru!=old_lru) {
 				Fd::Stdout.write(cat("rebuild lru (",widen(to_short_string_with_unit(new_lru.sz),w),"B, last accessed ",new_lru.last_access.str(),") to ",lru_file,'\n')) ;
-				if (!dry_run) AcFd(lru_file,FdAction::Create).write(serialize(new_lru)) ;
+				if (!dry_run) AcFd( lru_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write(serialize(new_lru)) ;
 			}
 		}
 		::string head_lru_file = _lru_file(HeadS) ;
@@ -259,7 +259,7 @@ namespace Caches {
 		} ;
 		if (new_head_lru!=old_head_lru) {
 			Fd::Stdout.write(cat("rebuild head lru (total ",to_short_string_with_unit(new_head_lru.sz),"B) to ",head_lru_file,'\n')) ;
-			if (!dry_run) AcFd(head_lru_file,FdAction::Write).write(serialize(new_head_lru)) ;
+			if (!dry_run) AcFd(head_lru_file,{.flags=O_WRONLY|O_TRUNC}).write(serialize(new_head_lru)) ;
 		}
 	}
 
@@ -305,10 +305,10 @@ namespace Caches {
 				::string last_file = _lru_file(head.newer_s)                                    ;
 				auto     last      = deserialize<Lru>(AcFd(nfs_guard.access(last_file)).read()) ;
 				last.older_s = HeadS ;
-				AcFd(last_file,FdAction::Write).write(serialize(last)) ;
+				AcFd(last_file,{.flags=O_WRONLY|O_TRUNC}).write(serialize(last)) ;
 			}
 		}
-		AcFd(nfs_guard.change(dir_guard(head_file)),FdAction::Create).write(serialize(head)) ;
+		AcFd( nfs_guard.change(dir_guard(head_file,perm_ext)) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write(serialize(head)) ;
 		trace("total_sz",old_head_sz,"->",head.sz) ;
 	}
 
@@ -324,7 +324,7 @@ namespace Caches {
 			newer_older.older_s = here.older_s ;
 			newer_older.newer_s = here.newer_s ;
 			//
-			AcFd(nfs_guard.change(newer_older_file),FdAction::Write).write(serialize(newer_older)) ;
+			AcFd(nfs_guard.change(newer_older_file),{.flags=O_WRONLY|O_TRUNC}).write(serialize(newer_older)) ;
 		} else {
 			::string newer_file = _lru_file(here.newer_s)                                     ;
 			::string older_file = _lru_file(here.older_s)                                     ;
@@ -334,8 +334,8 @@ namespace Caches {
 			newer.older_s = here.older_s ;
 			older.newer_s = here.newer_s ;
 			//
-			AcFd(nfs_guard.change(newer_file),FdAction::Write).write(serialize(newer)) ;
-			AcFd(nfs_guard.change(older_file),FdAction::Write).write(serialize(older)) ;
+			AcFd(nfs_guard.change(newer_file),{.flags=O_WRONLY|O_TRUNC}).write(serialize(newer)) ;
+			AcFd(nfs_guard.change(older_file),{.flags=O_WRONLY|O_TRUNC}).write(serialize(older)) ;
 		}
 		return here.sz ;
 	}
@@ -355,10 +355,10 @@ namespace Caches {
 			auto     newest      = deserialize<Lru>(AcFd(nfs_guard.access(newest_file)).read()) ;
 			head  .older_s = entry_s ;
 			newest.newer_s = entry_s ;
-			AcFd(nfs_guard.change(newest_file),FdAction::Create).write(serialize(newest)) ;
+			AcFd( nfs_guard.change(newest_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write(serialize(newest)) ;
 		}
-		AcFd(nfs_guard.change(head_file),FdAction::Create).write(serialize(head)) ;
-		AcFd(nfs_guard.change(here_file),FdAction::Create).write(serialize(here)) ;
+		AcFd( nfs_guard.change(head_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write(serialize(head)) ;
+		AcFd( nfs_guard.change(here_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write(serialize(here)) ;
 	}
 
 	void DirCache::_dismiss( uint64_t upload_key , Sz sz , NfsGuard& nfs_guard ) {
@@ -372,7 +372,7 @@ namespace Caches {
 		//
 		NfsGuard                    nfs_guard    { file_sync }                                                         ;
 		::string                    abs_jn_s     = dir_s+job+'/'                                                       ;
-		AcFd                        dfd          { nfs_guard.access_dir_s(abs_jn_s) , true/*err_ok*/ , FdAction::Dir } ;
+		AcFd                        dfd          { nfs_guard.access_dir_s(abs_jn_s) , true/*err_ok*/ , {.flags=O_RDONLY|O_DIRECTORY} } ;
 		::umap_s<DepDigest>/*lazy*/ repo_dep_map ;
 		::vector_s                  repos        ;
 		//
@@ -433,8 +433,8 @@ namespace Caches {
 	::pair<JobInfo,AcFd> DirCache::sub_download(::string const& match_key) {                                 // match_key is returned by sub_match()
 		Trace trace("DirCache::sub_download",match_key) ;
 		SWEAR(match_key.back()=='/') ;
-		NfsGuard nfs_guard { file_sync }                                               ;
-		AcFd     dfd       { nfs_guard.access_dir_s(dir_s+match_key) , FdAction::Dir } ;
+		NfsGuard nfs_guard { file_sync }                                                               ;
+		AcFd     dfd       { nfs_guard.access_dir_s(dir_s+match_key) , {.flags=O_RDONLY|O_DIRECTORY} } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
 		{	LockedFd lock { lock_file }                          ;                                           // because we manipulate LRU, we need exclusive
@@ -452,13 +452,13 @@ namespace Caches {
 		Trace trace("DirCache::sub_upload",reserve_sz) ;
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
-		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
-		{	LockedFd lock { lock_file } ;                                            // lock for minimal time
+		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ;                                                                                     // reserve 0 for no upload_key
+		{	LockedFd lock { lock_file } ;                                                                                                                                // lock for minimal time
 			_mk_room( 0 , reserve_sz , nfs_guard ) ;
 		}
-		AcFd         ( nfs_guard.change(_reserved_file(upload_key,"sz"  )) , FdAction::CreateReadOnly ).write(serialize(reserve_sz)) ;
-		AcFd data_fd { nfs_guard.change(_reserved_file(upload_key,"data")) , FdAction::CreateReadOnly } ;
-		trace("done",data_fd,upload_key) ;
+		AcFd         (nfs_guard.change(_reserved_file(upload_key,"sz"  )),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444                   }).write(serialize(reserve_sz)) ; // reserved files are private
+		AcFd data_fd {nfs_guard.change(_reserved_file(upload_key,"data")),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}} ;                              // will be moved to ...
+		trace("done",data_fd,upload_key) ;                                                                                                                               // ... permanent storage
 		return { upload_key , ::move(data_fd) } ;
 	}
 
@@ -488,8 +488,8 @@ namespace Caches {
 			// START_OF_VERSIONING
 			::string job_info_str = serialize(job_info) ;
 			// END_OF_VERSIONING
-			mk_dir_s(nfs_guard.change(abs_jnid_s)) ;
-			AcFd dfd       { nfs_guard.access_dir_s(abs_jnid_s) , FdAction::Dir }                                                              ;
+			mk_dir_s(nfs_guard.change(abs_jnid_s),perm_ext) ;
+			AcFd dfd       { nfs_guard.access_dir_s(abs_jnid_s) , {.flags=O_RDONLY|O_DIRECTORY} }                                              ;
 			Sz   new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
 			bool made_room = false                                                                                                             ;
 			bool unlnked   = false                                                                                                             ;
@@ -500,8 +500,8 @@ namespace Caches {
 				_mk_room( old_sz , new_sz , nfs_guard ) ; made_room = true ;
 				// store meta-data and data
 				// START_OF_VERSIONING
-				AcFd(dfd,"info",FdAction::CreateReadOnly).write(job_info_str) ;
-				AcFd(dfd,"deps",FdAction::CreateReadOnly).write(deps_str    ) ;                                           // store deps in a compact format so that matching is fast
+				AcFd(dfd,"info",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
+				AcFd(dfd,"deps",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;     // store deps in a compact format so that matching is fast
 				int rc = ::renameat( Fd::Cwd,nfs_guard.change(_reserved_file(upload_key,"data")).c_str() , dfd,"data" ) ;
 				// END_OF_VERSIONING
 				if (rc!=0) throw "cannot move data from tmp to final destination"s ;

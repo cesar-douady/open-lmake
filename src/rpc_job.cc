@@ -559,12 +559,12 @@ namespace Caches {
 				if (tag==FileTag::None) try { unlnk(           tn  , false ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
 				else                          unlnk( dir_guard(tn) , true  ) ;
 				switch (tag) {
-					case FileTag::None  :                                                                      break ;
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) ) ; break ;
-					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , FdAction::CreateNoFollow )    ; break ;
+					case FileTag::None  :                                                                                                 break ;
+					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) )                            ; break ;
+					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666} ) ; break ;
 					case FileTag::Exe   :
 					case FileTag::Reg   : {
-						AcFd fd { tn , tag==FileTag::Exe?FdAction::CreateNoFollowExe:FdAction::CreateNoFollow } ;
+						AcFd fd { tn , { .flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , .mod=mode_t(tag==FileTag::Exe?0777:0666) } } ;
 						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
 						else      trace("no_data_to",tn   ) ;                                               // empty exe are Exe, not Empty
 					} break ;
@@ -609,7 +609,7 @@ namespace Caches {
 					case FileTag::Exe   :
 						if (sz) {
 							trace("read_from",tn,sz) ;
-							data_fd.send_from( AcFd(tn,FdAction::ReadNoFollow) , sz ) ;
+							data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
 							goto ChkSig ;
 						} else {
 							trace("empty_from",tn) ;
@@ -717,7 +717,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	AcFd    fd  { file , false/*erro_ok*/ , FdAction::Write } ;
+	AcFd    fd  { file , false/*erro_ok*/ , {.flags=O_WRONLY|O_TRUNC} } ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() )  ;
 	if (cnt<0                  ) throw cat("cannot write atomically ",data.size()," bytes to ",file," : ",::strerror(errno)        ) ;
 	if (size_t(cnt)<data.size()) throw cat("cannot write atomically ",data.size()," bytes to ",file," : only ",cnt," bytes written") ;
@@ -742,7 +742,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 		if ((dst_ok=+cpy(dst,src))) deps.emplace_back(dst,MountAction::Write) ;
 		else                        dst_ok = false ;
 	} else {
-		AcFd fd { dir_guard(dst) , true/*err_ok*/ , FdAction::Create } ;
+		AcFd fd { dir_guard(dst) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} } ;
 		if ((dst_ok=+fd)) deps.emplace_back(dst,MountAction::Write) ;
 	}
 	return dst_ok ;
@@ -923,12 +923,12 @@ bool JobSpace::enter(
 		for( ::string const& f : top_lvls ) {
 			::string src_f     = (chroot_dir_s|"/"s) + f ;
 			::string private_f = work_root_s         + f ;
-			switch (FileInfo(src_f).tag()) {                                                                                                   // exclude weird files
+			switch (FileInfo(src_f).tag()) {                                                                                                                              // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : AcFd    (           private_f ,true/*err_ok*/,FdAction::Create) ; _mount_bind(private_f,src_f) ; break ; // create file
-				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                ) ; _mount_bind(private_f,src_f) ; break ; // create dir
-				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)                ) ;                                break ; // copy symlink
+				case FileTag::Exe   : AcFd    (           private_f ,true/*err_ok*/,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}) ; _mount_bind(private_f,src_f) ; break ; // create file
+				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                                           ) ; _mount_bind(private_f,src_f) ; break ; // create dir
+				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)                                           ) ;                                break ; // copy symlink
 			DN}
 		}
 		if (must_create_lmake) mk_dir_s(work_root+lmake_view_s     ) ;
@@ -1355,7 +1355,7 @@ void JobInfo::fill_from(::string const& file_name , JobInfoKinds need ) {
 void JobInfo::update_digest() {
 	Trace trace("update_digest",dep_crcs.size()) ;
 	if (!dep_crcs) return ;                                                                                                                               // nothing to update
-	SWEAR( dep_crcs.size()==end.digest.deps.size() ) ;
+	SWEAR( dep_crcs.size()==end.digest.deps.size() , dep_crcs.size(),end.digest.deps.size() ) ;
 	for( size_t i : iota(end.digest.deps.size()) )
 		if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
 	dep_crcs.clear() ;                                                                                                                                    // now useless as info is recorded in digest

@@ -212,6 +212,8 @@ In the current version, only 2 tags may be used:
 
 #### `caches.<dir>.dir` : Static
 
+Only valid if `caches.<dir>.tag=='dir'`
+
 This attribute specifies the dir in which the cache puts its data.
 
 The dir must pre-exist and contain a file `LMAKE/size` containing the size the cache may occupy on disk.
@@ -222,18 +224,33 @@ Typically, the command `setfacl -m d:g::rw,d:o::r CACHE` can be used to set up t
 
 #### `caches.<dir>.file_sync` : Static (`'dir'`)
 
+Only valid if `caches.<dir>.tag=='dir'`
+
 Same meaning as `config.file_sync` for accesses in the cache.
 
-#### `caches.<dir>.group` : Static (default group of user)
-
-This attribute specifies the group used when creating entries.
-
 #### `caches.<dir>.key` : Static (repo root dir/git sha1)
+
+Only valid if `caches.<dir>.tag=='dir'`
 
 A key used to avoid cache pollution.
 No more than a single entry can be stored for any job with a given key.
 
 By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.
+
+#### `caches.<dir>.perm` : Static (dont share)
+
+Only valid if `caches.<dir>.tag=='dir'`
+
+This attribute specifies where this cache can be shared.
+Values can be:
+
+- `none`: cache is not share beyond permissions provided by `umask` and ACL. To access the cache, a user must have write permission to it, even to download.
+- `group`: cache is share with the group, even if restricted by `umask` or ACL.
+- `other`: cache is share with everybody, even if restricted by `umask` or ACL.
+
+It is usual to use this attribute when ACL are not used as most of the time, the cache wants to be share among several users and `umask` forbids it.
+
+On the contrary, when ACL are used, it is better to allow read/write accesses to the cache directory as this is more performant than relying on this attribute.
 
 ### `collect` : Dynamic
 

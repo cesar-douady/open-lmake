@@ -14,3 +14,8 @@ This cache is based on a shared dir and requires no running daemon.
 It must be initialized with a file `LMAKE/size` containing the overall size the cache is allowed to occupy.
 The value may end with a unit suffix in `k`, `M`, `G`, `T` (powers of 1024).
 For example `LMAKE/size` can contain `1.5T`.
+
+For all users accessing the cache:
+
+- The root dir of the cache and its `LMAKE` directory must have read/write access (including if only download is done to maintain the LRU state).
+- The `LMAKE/size` must have read access.

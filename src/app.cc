@@ -75,12 +75,12 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 	return read_only ;
 }
 
-void chk_version( bool may_init , ::string const& admin_dir_s ) {
+void chk_version( bool may_init , ::string const& admin_dir_s , PermExt perm_ext ) {
 	::string version_file = admin_dir_s+"version"           ;
 	AcFd     version_fd   { version_file , true/*err_ok*/ } ;
 	if (!version_fd) {
 		throw_unless( may_init , "repo not initialized, consider : lmake" ) ;
-		AcFd(dir_guard(version_file),FdAction::Create).write(cat(VersionMrkr,'\n')) ;
+		AcFd( dir_guard(version_file,perm_ext) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write(cat(VersionMrkr,'\n')) ;
 	} else {
 		::string stored = version_fd.read() ;
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;

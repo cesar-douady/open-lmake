@@ -86,7 +86,7 @@ static bool/*crashed*/ _start_server() {
 	} else {
 		_g_server_fd.listen() ;
 		::string tmp = cat(ServerMrkr,'.',_g_host,'.',pid) ;
-		AcFd(tmp,FdAction::Create).write(cat(
+		AcFd( tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(cat(
 			_g_server_fd.service() , '\n'
 		,	getpid()               , '\n'
 		)) ;
@@ -141,7 +141,7 @@ static void _record_targets(Job job) {
 		known_targets.push_back(tn) ;
 	}
 	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
-	AcFd(targets_file,FdAction::Create).write(content) ;
+	AcFd( targets_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(content) ;
 }
 
 static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
@@ -515,7 +515,7 @@ int main( int argc , char** argv ) {
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
 		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {} // cleanup
-		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , FdAction::Create ).write(g_kpi.pretty_str()) ;
+		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_kpi.pretty_str()) ;
 	}
 	//
 	Backend::s_finalize() ;

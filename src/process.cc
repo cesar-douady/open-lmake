@@ -34,7 +34,7 @@ bool/*done*/ kill_process( pid_t pid , int sig , bool as_group ) {
 
 pid_t get_ppid(pid_t pid) {
 	::string status_file = cat("/proc/",pid,"/status") ;
-	::string status = AcFd(status_file).read() ;
+	::string status      = AcFd(status_file).read()    ;
 	//
 	size_t start = status.find("\nPPid:") ;
 	throw_unless( start!=Npos , "bad format in ",status_file ) ;
@@ -46,6 +46,25 @@ pid_t get_ppid(pid_t pid) {
 	//
 	try         { return from_string<pid_t>(substr_view( status , start , end-start )) ; }
 	catch (...) { throw cat("bad format in ",status_file)                              ; }
+}
+
+pid_t get_umask() {
+	::string status_file = "/proc/self/status"      ;
+	::string status      = AcFd(status_file).read() ;
+	//
+	size_t start = status.find("\nUmask:") ; throw_unless( start!=Npos , "bad format in ",status_file ) ;
+	/**/                                                                start += strlen("\nUmask:") ;
+	while (is_space(status[start]))                                     start++ ;
+	throw_unless( status[start]=='0' , "bad format in ",status_file ) ; start++ ;
+	//
+	size_t end = status.find('\n',start) ; throw_unless( end!=Npos , "bad format in ",status_file ) ;
+	//
+	mode_t res = 0 ;
+	for( char c : substr_view( status , start , end-start ) ) {
+		throw_unless( c>='0' || c<'8' , "bad format in ",status_file ) ;
+		res = (res<<3)+c-'0' ;
+	}
+	return res ;
 }
 
 [[noreturn]] void Child::_exit( Rc rc , const char* msg ) { // signal-safe
@@ -79,13 +98,13 @@ pid_t get_ppid(pid_t pid) {
 [[noreturn]] void Child::_do_child_trampoline() {
 	if (as_session) ::setsid() ;                  // if we are here, we are the init process and we must be in the new session to receive the kill signal
 	if (nice) {
-		[[maybe_unused]] int nice_val ;                                                                  // ignore error if any, as we cant do much about it
+		[[maybe_unused]] int nice_val ;                                                                            // ignore error if any, as we cant do much about it
 		if (!as_session)
 			/**/                       nice_val = ::nice(nice) ;
 		else
 			// as_session creates a new autogroup, apply nice_val to it, not between processes within it
-			try                      { AcFd("/proc/self/autogroup",FdAction::Write).write(cat(nice)) ; }
-			catch (::string const&e) { nice_val = ::nice(nice) ;                                       } // best effort
+			try                      { AcFd("/proc/self/autogroup",{.flags=O_WRONLY|O_TRUNC}).write(cat(nice)) ; }
+			catch (::string const&e) { nice_val = ::nice(nice) ;                                                 } // best effort
 	}
 	//
 	sigset_t full_mask ; ::sigfillset(&full_mask) ;                          // sig fillset may be a macro
@@ -114,30 +133,30 @@ pid_t get_ppid(pid_t pid) {
 	#endif
 	//
 	if (first_pid) {
-		SWEAR( first_pid>1 , first_pid ) ;                                                                    // START_OF_NO_COV coverage recording does not work in isolated namespace
+		SWEAR( first_pid>1 , first_pid ) ;                                                                              // START_OF_NO_COV coverage recording does not work in isolated namespace
 		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
 		if (::mount(nullptr/*source*/,"/proc","proc",0/*flags*/,nullptr/*data*/)!=0) {
 			::perror("cannot mount /proc ") ;
 			_exit(Rc::System,"cannot mount /proc") ;
 		}
-		{	char                     first_pid_buf[30] ;                                                      // /!\ cannot use ::string as we are only allowed signal-safe functions
-			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )          ; // /!\ .
-			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , FdAction::Write } ;
-			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)             ; // dont care about errors, this is best effort
+		{	char                     first_pid_buf[30] ;                                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
+			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )                    ; // /!\ .
+			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , {.flags=O_WRONLY|O_TRUNC} } ;
+			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)                       ; // dont care about errors, this is best effort
 		}
-		pid_t pid = ::vfork() ;                                                                               // NOLINT(clang-analyzer-security.insecureAPI.vfork) faster than anything else
-		if (pid==0 ) _do_child() ;                                                                            // in child
+		pid_t pid = ::vfork() ;                                                   // NOLINT(clang-analyzer-security.insecureAPI.vfork) faster than anything else
+		if (pid==0 ) _do_child() ;                                                // in child
 		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
 		//
 		for(;;) {
 			int   wstatus   ;
 			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {                                                                             // XXX! : find a way to simulate a caught signal rather than exit 128+sig (mimic bash)
-				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                                 // exit as transparently as possible
-				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;                                 // cannot kill self to be transparent as we are process 1, mimic bash
-				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ;                             // ensure we have not forgotten a case
+			if (child_pid==pid) {                                                 // XXX! : find a way to simulate a caught signal rather than exit 128+sig (mimic bash)
+				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;     // exit as transparently as possible
+				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;     // cannot kill self to be transparent as we are process 1, mimic bash
+				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ; // ensure we have not forgotten a case
 			}
-		}                                                                                                     // END_OF_NO_COV
+		}                                                                         // END_OF_NO_COV
 	} else {
 		_do_child() ;
 	}

@@ -23,7 +23,7 @@ namespace Hash {
 	Crc::Crc(::string const& file_name) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
-		if ( AcFd fd { file_name , true/*err_ok*/ , FdAction::ReadNoFollow } ; +fd ) {
+		if ( AcFd fd { file_name , true/*err_ok*/ , {.flags=O_RDONLY|O_NOFOLLOW} } ; +fd ) {
 			FileInfo fi  { fd }                         ;
 			::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 			switch (fi.tag()) {

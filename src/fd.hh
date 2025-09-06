@@ -24,8 +24,8 @@ struct LockedFd : AcFd {
 	// cxtors & casts
 	LockedFd() = default ;
 	//
-	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,FdAction::ReadWrite} { lock  (exclusive) ; }
-	~LockedFd(                                            )                                  { unlock(         ) ; }
+	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,{.flags=O_RDWR}} { lock  (exclusive) ; }
+	~LockedFd(                                            )                              { unlock(         ) ; }
 	//
 	LockedFd           (LockedFd&&) = default ;
 	LockedFd& operator=(LockedFd&&) = default ;

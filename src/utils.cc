@@ -14,11 +14,11 @@
 	using std::stacktrace ;
 #else
 	#include <execinfo.h> // backtrace
-	#include "process.hh"
 #endif
 
 #include "disk.hh"
 #include "fd.hh"
+#include "process.hh"
 #include "time.hh"
 
 using namespace Disk ;
@@ -31,30 +31,42 @@ using namespace Time ;
 ::string& operator+=( ::string& os , Fd   const& fd ) { return fd.append_to_str( os , "Fd"   ) ; }
 ::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
 
-int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , FdAction action ) {
-	int    res   ;
-	int    flags = 0/*garbage*/ ;
-	mode_t mod   = 0/*garbage*/ ;
-	switch (action) {
-		case FdAction::Read              : flags = O_RDONLY                                  | O_CLOEXEC ;              break ;
-		case FdAction::ReadNonBlock      : flags = O_RDONLY | O_NONBLOCK                     | O_CLOEXEC ;              break ;
-		case FdAction::ReadNoFollow      : flags = O_RDONLY                     | O_NOFOLLOW | O_CLOEXEC ;              break ;
-		case FdAction::Dir               : flags = O_RDONLY | O_DIRECTORY                    | O_CLOEXEC ;              break ;
-		case FdAction::Write             : flags = O_WRONLY | O_TRUNC                        | O_CLOEXEC ;              break ;
-		case FdAction::Append            : flags = O_WRONLY | O_APPEND                       | O_CLOEXEC ;              break ;
-		case FdAction::Create            : flags = O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0666 ; break ;
-		case FdAction::CreateExe         : flags = O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0777 ; break ;
-		case FdAction::CreateReadOnly    : flags = O_WRONLY | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0444 ; break ;
-		case FdAction::CreateNoFollow    : flags = O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC ; mod = 0666 ; break ;
-		case FdAction::CreateNoFollowExe : flags = O_WRONLY | O_TRUNC | O_CREAT | O_NOFOLLOW | O_CLOEXEC ; mod = 0777 ; break ;
-		case FdAction::ReadWrite         : flags = O_RDWR                                    | O_CLOEXEC ;              break ;
-		case FdAction::CreateRead        : flags = O_RDWR             | O_CREAT              | O_CLOEXEC ; mod = 0666 ; break ;
-		case FdAction::CreateReadTrunc   : flags = O_RDWR   | O_TRUNC | O_CREAT              | O_CLOEXEC ; mod = 0666 ; break ;
-	DF}
-	if      (+file      ) res = ::openat( at , file.c_str() , flags , mod ) ;
-	else if (at==Fd::Cwd) res = ::openat( at , "."          , flags , mod ) ;
-	else                  res =           at                                ;
-	if ( !err_ok && res<0 ) throw cat("cannot open with action ",action," (",::strerror(errno),") : ",file_msg(at,file)) ;
+int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
+	bool creat = action.flags&O_CREAT ;
+	if (creat) {
+		SWEAR(   action.mod                           , file,action.flags ) ; // mod must be specified if creating
+		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ; // mod must only specify perm
+		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ; // mod must be independent of usr/grp/oth (this is umask job)
+		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ; // .
+	}
+	//
+	int res ;
+	if      (+file      ) res = ::openat( at , file.c_str() , action.flags|O_CLOEXEC , action.mod ) ;
+	else if (at==Fd::Cwd) res = ::openat( at , "."          , action.flags|O_CLOEXEC , action.mod ) ;
+	else                  res =           at                                                        ;
+	if ( !err_ok && res<0 ) throw cat("cannot open (",::strerror(errno),") : ",file_msg(at,file)) ;
+	//
+	if ( creat && +action.perm_ext ) {
+		static mode_t umask_ = get_umask() ;
+		switch (action.perm_ext) {
+			case PermExt::Other : if (!((action.mod&umask_)     )) goto PermOk ; break ;
+			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; break ;
+		DN}
+		//
+		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",::strerror(errno),") to extend permissions : ",file_msg(at,file)) ;
+		//
+		mode_t usr_mod = (st.st_mode>>6)&07 ;
+		mode_t new_mod = st.st_mode         ;
+		switch (action.perm_ext) {
+			case PermExt::Other : new_mod |= usr_mod    ; [[fallthrough]] ;
+			case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
+		DN}
+		if (new_mod!=st.st_mode)
+			if (::fchmod(res,new_mod)!=0)
+				throw cat("cannot chmod (",::strerror(errno),") to extend permissions : ",file_msg(at,file)) ;
+	}
+PermOk :
+	//
 	return res ;
 }
 

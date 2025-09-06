@@ -199,7 +199,7 @@ int main( int argc , char* argv[] ) {
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.first_write()==Pdate::Future) send(dep,ai.first_read()) ;
 	/**/                                                                               send(                   ) ; // send last
 	//
-	if (cmd_line.flags[CmdFlag::Out]) AcFd(cmd_line.flag_args[+CmdFlag::Out],FdAction::Create).write(files) ;
-	else                              Fd::Stdout                                              .write(files) ;
+	if (cmd_line.flags[CmdFlag::Out]) AcFd(cmd_line.flag_args[+CmdFlag::Out],{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}).write(files) ;
+	else                              Fd::Stdout                                                                         .write(files) ;
 	return status!=Status::Ok ;
 }

@@ -425,7 +425,7 @@ namespace Backends::Slurm {
 		if ( pid_t child_pid=::fork() ; !child_pid ) {
 			// in child
 			::atexit(_exit1) ;                                           // we are unable to call the exit handlers from here, so we add an additional one which exits immediately
-			Fd dev_null_fd { "/dev/null" , FdAction::Write } ;           // this is just a probe, we want nothing on stderr
+			Fd dev_null_fd { "/dev/null" , {.flags=O_WRONLY|O_TRUNC} } ; // this is just a probe, we want nothing on stderr
 			::dup2(dev_null_fd,Fd::Stderr) ;                             // so redirect to /dev/null
 			::alarm(to) ;                                                // ensure init_func does not block
 			init_func(config_file_.c_str()) ;                            // in case of error, SlurmApi::init calls exit(1), which in turn calls _exit1 as the first handler (last registered)

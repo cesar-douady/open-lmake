@@ -5,6 +5,7 @@
 
 #include "disk.hh"
 #include "hash.hh"
+#include "process.hh"
 
 namespace Disk {
 
@@ -153,7 +154,7 @@ namespace Disk {
 	//
 
 	vector_s lst_dir_s( Fd at , ::string const& dir_s , ::string const& prefix ) {
-		Fd dir_fd { at , dir_s , FdAction::Dir } ;
+		Fd dir_fd { at , dir_s , {.flags=O_RDONLY|O_DIRECTORY} } ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
 		if (!dir_fp) throw cat("cannot list dir ",file_msg(at,dir_s)," : ",::strerror(errno)) ;
@@ -230,7 +231,7 @@ namespace Disk {
 		return res ;
 	}
 
-	static size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard , bool unlnk_ok ) {
+	size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard , PermExt perm_ext , bool unlnk_ok ) {
 		if (!dir_s) return Npos ;                                                                           // nothing to create
 		//
 		::vector_s  to_mk_s { dir_s }              ;
@@ -240,6 +241,26 @@ namespace Disk {
 			::string const& d_s = to_mk_s.back() ;                                                          // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d_s) ; }
 			if (::mkdirat(at,d_s.c_str(),0777)==0) {
+				if (+perm_ext) {
+					static mode_t umask_ = get_umask() ;
+					switch (perm_ext) {
+						case PermExt::Other : if (!(umask_     )) goto PermOk ; break ;
+						case PermExt::Group : if (!(umask_&0770)) goto PermOk ; break ;
+					DN}
+					//
+					FileStat st ; if (::fstatat(at,d_s.c_str(),&st,0/*flags*/)!=0) throw cat("cannot stat (",::strerror(errno),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
+					//
+					mode_t usr_mod = (st.st_mode>>6)&07 ;
+					mode_t new_mod = st.st_mode         ;
+					switch (perm_ext) {
+						case PermExt::Other : new_mod |= usr_mod    ; [[fallthrough]] ;
+						case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
+					DN}
+					if (new_mod!=st.st_mode)
+						if (::fchmodat(at,d_s.c_str(),new_mod,0/*flags*/)!=0)
+							throw cat("cannot chmod (",::strerror(errno),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
+				}
+			PermOk :
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
@@ -262,16 +283,10 @@ namespace Disk {
 		}
 		return pos ;
 	}
-	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s ,                       bool unlnk_ok ) { return _mk_dir_s(at,dir_s,nullptr   ,unlnk_ok) ; }
-	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , NfsGuard& nfs_guard , bool unlnk_ok ) { return _mk_dir_s(at,dir_s,&nfs_guard,unlnk_ok) ; }
 
 	void mk_dir_empty_s( Fd at , ::string const& dir_s , bool abs_ok ) {
 		try                     { unlnk_inside_s(at,dir_s,abs_ok) ; }
 		catch (::string const&) { mk_dir_s(at,dir_s)              ; } // ensure tmp dir exists
-	}
-
-	void dir_guard( Fd at , ::string const& file ) {
-		if (has_dir(file)) mk_dir_s(at,dir_name_s(file)) ;
 	}
 
 	FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file ) {
@@ -285,14 +300,13 @@ namespace Disk {
 			case FileTag::Dir   : break ;    // dirs are like no file
 			case FileTag::Empty :            // fast path : no need to access empty src
 				dir_guard(dst_at,dst_file) ;
-				AcFd( dst_at , dst_file , FdAction::CreateNoFollow ) ;
+				AcFd( dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666} ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
-				FdAction action = tag==FileTag::Exe ? FdAction::CreateNoFollowExe : FdAction::CreateNoFollow ;
 				dir_guard(dst_at,dst_file) ;
-				AcFd rfd { src_at , src_file          }                        ;
-				AcFd wfd { dst_at , dst_file , action }                        ;
+				AcFd rfd { src_at , src_file                                                                                             } ;
+				AcFd wfd { dst_at , dst_file , { .flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , .mod=mode_t(tag==FileTag::Exe?0777:0666) } } ;
 				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz ) ; if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
 			} break ;
 			case FileTag::Lnk :

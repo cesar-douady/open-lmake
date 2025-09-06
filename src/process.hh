@@ -30,7 +30,8 @@ inline bool wstatus_ok(int wstatus) {
 
 bool/*done*/ kill_process( pid_t pid , int sig , bool as_group=false ) ;
 
-pid_t get_ppid(pid_t pid) ;
+pid_t get_ppid (pid_t pid) ;
+pid_t get_umask(         ) ;
 
 struct Child {
 	static constexpr size_t StackSz = 16<<10 ;                       // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k

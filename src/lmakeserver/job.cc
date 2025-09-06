@@ -314,14 +314,14 @@ namespace Engine {
 
 	void Job::record(JobInfo1 const& ji) const {
 		Trace trace("record",self,ji.kind()) ;
-		::string jaf    ;
-		FdAction action ;
+		::string jaf   ;
+		bool     creat ;
 		switch (ji.kind()) {
-			case JobInfoKind::Start   : serialize( jaf , ji.start   () ) ; action = FdAction::Create ; break ; // start event write to file (new record)
-			case JobInfoKind::End     : serialize( jaf , ji.end     () ) ; action = FdAction::Append ; break ; // other events append to it
-			case JobInfoKind::DepCrcs : serialize( jaf , ji.dep_crcs() ) ; action = FdAction::Append ; break ; // .
-		DF}                                                                                                    // NO_COV ensure something to record
-		AcFd( ancillary_file() , action ).write(jaf) ;
+			case JobInfoKind::Start   : serialize( jaf , ji.start   () ) ; creat = true  ; break ;               // start event write to file (new record)
+			case JobInfoKind::End     : serialize( jaf , ji.end     () ) ; creat = false ; break ;               // other events append to it
+			case JobInfoKind::DepCrcs : serialize( jaf , ji.dep_crcs() ) ; creat = false ; break ;               // .
+		DF}                                                                                                      // NO_COV ensure something to record
+		AcFd( ancillary_file() , { .flags=O_WRONLY|(creat?O_TRUNC|O_CREAT:O_APPEND) , .mod=0666 } ).write(jaf) ;
 	}
 
 	void Job::record(JobInfo const& ji) const {
@@ -330,7 +330,7 @@ namespace Engine {
 		serialize( jaf , ji.start    ) ;
 		serialize( jaf , ji.end      ) ;
 		serialize( jaf , ji.dep_crcs ) ;
-		AcFd( ancillary_file() , FdAction::Create ).write(jaf) ;
+		AcFd( ancillary_file() , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(jaf) ;
 	}
 
 	//

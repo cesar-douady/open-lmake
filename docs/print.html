@@ -1198,19 +1198,31 @@ In the current version, only 2 tags may be used:</p>
 <li><code>dir</code> is a cache working without daemon, data are stored in a dir.</li>
 </ul>
 <h4 id="cachesdirdir--static"><a class="header" href="#cachesdirdir--static"><code>caches.&lt;dir&gt;.dir</code> : Static</a></h4>
+<p>Only valid if <code>caches.&lt;dir&gt;.tag=='dir'</code></p>
 <p>This attribute specifies the dir in which the cache puts its data.</p>
 <p>The dir must pre-exist and contain a file <code>LMAKE/size</code> containing the size the cache may occupy on disk.
 The size may be suffixed by a unit suffix (<code>k</code>, <code>M</code>, <code>G</code>, <code>T</code>, <code>P</code> or <code>E</code>). These refer to base 1024.</p>
 <p>Also, an adequate default ACL (cf. <em>acl(5)</em>) must most probably be set for this dir to give adequate permissions to files created in it.
 Typically, the command <code>setfacl -m d:g::rw,d:o::r CACHE</code> can be used to set up the dir <code>CACHE</code>.</p>
 <h4 id="cachesdirfile_sync--static-dir"><a class="header" href="#cachesdirfile_sync--static-dir"><code>caches.&lt;dir&gt;.file_sync</code> : Static (<code>'dir'</code>)</a></h4>
+<p>Only valid if <code>caches.&lt;dir&gt;.tag=='dir'</code></p>
 <p>Same meaning as <code>config.file_sync</code> for accesses in the cache.</p>
-<h4 id="cachesdirgroup--static-default-group-of-user"><a class="header" href="#cachesdirgroup--static-default-group-of-user"><code>caches.&lt;dir&gt;.group</code> : Static (default group of user)</a></h4>
-<p>This attribute specifies the group used when creating entries.</p>
 <h4 id="cachesdirkey--static-repo-root-dirgit-sha1"><a class="header" href="#cachesdirkey--static-repo-root-dirgit-sha1"><code>caches.&lt;dir&gt;.key</code> : Static (repo root dir/git sha1)</a></h4>
+<p>Only valid if <code>caches.&lt;dir&gt;.tag=='dir'</code></p>
 <p>A key used to avoid cache pollution.
 No more than a single entry can be stored for any job with a given key.</p>
 <p>By default, it is made after the absolute root dir of the repo and the current git sha1 if repo is controlled by git.</p>
+<h4 id="cachesdirperm--static-dont-share"><a class="header" href="#cachesdirperm--static-dont-share"><code>caches.&lt;dir&gt;.perm</code> : Static (dont share)</a></h4>
+<p>Only valid if <code>caches.&lt;dir&gt;.tag=='dir'</code></p>
+<p>This attribute specifies where this cache can be shared.
+Values can be:</p>
+<ul>
+<li><code>none</code>: cache is not share beyond permissions provided by <code>umask</code> and ACL. To access the cache, a user must have write permission to it, even to download.</li>
+<li><code>group</code>: cache is share with the group, even if restricted by <code>umask</code> or ACL.</li>
+<li><code>other</code>: cache is share with everybody, even if restricted by <code>umask</code> or ACL.</li>
+</ul>
+<p>It is usual to use this attribute when ACL are not used as most of the time, the cache wants to be share among several users and <code>umask</code> forbids it.</p>
+<p>On the contrary, when ACL are used, it is better to allow read/write accesses to the cache directory as this is more performant than relying on this attribute.</p>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><code>collect</code> : Dynamic</a></h3>
 <p>This attributes specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>
@@ -2707,6 +2719,11 @@ They are:</p>
 <p>It must be initialized with a file <code>LMAKE/size</code> containing the overall size the cache is allowed to occupy.
 The value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
 For example <code>LMAKE/size</code> can contain <code>1.5T</code>.</p>
+<p>For all users accessing the cache:</p>
+<ul>
+<li>The root dir of the cache and its <code>LMAKE</code> directory must have read/write access (including if only download is done to maintain the LRU state).</li>
+<li>The <code>LMAKE/size</code> must have read access.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->

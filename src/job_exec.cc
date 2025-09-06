@@ -372,7 +372,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
 	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ; // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
-		AcFd( dir_guard(cmd_file) , FdAction::Create ).write(g_start_info.cmd) ;
+		AcFd( dir_guard(cmd_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_start_info.cmd) ;
 		res.reserve(res.size()+1) ;
 		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
@@ -634,7 +634,7 @@ int main( int argc , char* argv[] ) {
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , FdAction::Create ) ;
+			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;
 			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::stdout ) ; // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
