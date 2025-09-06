@@ -166,8 +166,8 @@ namespace Backends {
 				return res ;
 			}
 			void start( GenericBackend const& be , iterator&& it ) {
-				SWEAR(!it->second.zombie ) ;
-				SWEAR(!it->second.started) ;
+				SWEAR( !it->second.zombie  , it->first ) ;
+				SWEAR( !it->second.started , it->first ) ;
 				be.start_rsrcs(it->second.rounded_rsrcs) ;
 				it->second.started = true ;
 				#ifndef NDEBUG
