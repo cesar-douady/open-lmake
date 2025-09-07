@@ -38,7 +38,9 @@ RepairDigest repair(::string const& from_dir) {
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
-				if ( td.crc==Crc::None && !static_phony(td.tflags) ) continue ;                                            // not a target
+				if ( !tn                                           ) { trace("empty target"    ,jd   ) ; goto NextJob ; }
+				if ( !is_lcl(tn)                                   ) { trace("non-local target",jd,tn) ; goto NextJob ; }
+				if ( td.crc==Crc::None && !static_phony(td.tflags) )   continue ;                                          // not a target
 				FileSig sig { tn } ;
 				if ( (td.crc==Crc::None) != !sig                 ) { trace("disk_mismatch_none" ,jd,tn) ; goto NextJob ; } // do not agree on file existence
 				if ( td.sig              !=  sig                 ) { trace("disk_mismatch"      ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
@@ -55,8 +57,10 @@ RepairDigest repair(::string const& from_dir) {
 			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
 			job_info.update_digest() ;                                                                     // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
+				if (!dn        ) { trace("empty dep",jd) ; goto NextJob ; }
 				if (!is_lcl(dn)) {
 					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
+					trace("non-local dep",jd,dn) ;
 					goto NextJob ;                                                                         // this should never happen as src_dirs are part of cmd definition
 				KeepDep : ;
 				}
@@ -110,10 +114,10 @@ int main( int argc , char* /*argv*/[] ) {
 	::string startup_s        ;
 	//
 	auto mk_lad = [&]()->void {
-		phy_lad          = {}                     ; if (FileInfo(std_lad    ).tag()==FileTag::Lnk) phy_lad           = mk_glb(read_lnk(std_lad    ),dir_name_s(std_lad    )) ;
-		bck_phy_lad      = {}                     ; if (FileInfo(bck_std_lad).tag()==FileTag::Lnk) bck_phy_lad       = mk_glb(read_lnk(bck_std_lad),dir_name_s(bck_std_lad)) ;
-		rm_admin_dir     = "rm -r "+admin_dir     ; if (+phy_lad                                 ) rm_admin_dir     << ' '<<phy_lad                                          ;
-		rm_bck_admin_dir = "rm -r "+bck_admin_dir ; if (+bck_phy_lad                             ) rm_bck_admin_dir << ' '<<bck_phy_lad                                      ;
+		phy_lad          = {}                     ; if (FileInfo(std_lad    ).tag()==FileTag::Lnk) phy_lad           = mk_glb( read_lnk(std_lad    ) , dir_name_s(std_lad    ) ) ;
+		bck_phy_lad      = {}                     ; if (FileInfo(bck_std_lad).tag()==FileTag::Lnk) bck_phy_lad       = mk_glb( read_lnk(bck_std_lad) , dir_name_s(bck_std_lad) ) ;
+		rm_admin_dir     = "rm -r "+admin_dir     ; if (+phy_lad                                 ) rm_admin_dir     << ' '<<phy_lad                                              ;
+		rm_bck_admin_dir = "rm -r "+bck_admin_dir ; if (+bck_phy_lad                             ) rm_bck_admin_dir << ' '<<bck_phy_lad                                          ;
 		//
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
@@ -172,7 +176,7 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_version(true/*may_init*/) ;                                                                                                     // mark repo as initialized
+	chk_version(true/*may_init*/) ;                                                                                                                                // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "disk.hh"
+#include "re.hh"
 #include "time.hh"
 
 #include "backdoor.hh"
@@ -11,6 +12,7 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Re   ;
 using namespace Time ;
 
 using Proc = JobExecProc ;
@@ -130,16 +132,26 @@ namespace JobSupport {
 		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::chkDeps , .date=New }).ok ;
 	}
 
-	::vector_s list( Record const& r , Bool3 write ) {
-		::vector_s      res         = r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::list , .digest{.write=write} , .date=New }).files ;
-		::string        cwd_s_      = cwd_s()                                                                                                            ;
-		::string const& repo_root_s = Record::s_autodep_env().repo_root_s                                                                                ;
+	::vector_s list( Record const& r , Bool3 write , ::string const& dir_s , ::string const& regexpr ) {
+		bool            has_dir_s   = dir_s  !="/"                        ;
+		bool            has_regexpr = regexpr!=".*"                       ;
+		::vector_s      res         ;
+		::string        abs_cwd_s   = cwd_s()                             ;
+		::string        abs_dir_s   = mk_glb_s( dir_s , abs_cwd_s )       ;
+		::string const& repo_root_s = Record::s_autodep_env().repo_root_s ;
+		RegExpr         re          { regexpr }                           ;
 		// report files as seen from cwd
-		if (cwd_s_.starts_with(repo_root_s)) {
-			cwd_s_ = mk_lcl( cwd_s_ , repo_root_s ) ;
-			for( ::string& f : res ) f = mk_lcl( f , cwd_s_ ) ;
-		} else {
-			for( ::string& f : res ) f = mk_abs( f , repo_root_s ) ;
+		::optional_s lcl_cwd_s ; if (abs_cwd_s.starts_with(repo_root_s)) lcl_cwd_s = mk_lcl_s(abs_cwd_s,repo_root_s) ;
+		::optional_s lcl_dir_s ; if (abs_dir_s.starts_with(repo_root_s)) lcl_dir_s = mk_lcl_s(abs_dir_s,repo_root_s) ;
+		for( ::string& f : r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::list , .digest{.write=write} , .date=New }).files ) {
+			::string abs_f = mk_glb( ::move(f) , repo_root_s ) ;
+			//
+			if (has_dir_s) {
+				if (+lcl_dir_s) { if (!f    .starts_with(lcl_dir_s.value())) continue ; }
+				else            { if (!abs_f.starts_with(abs_dir_s        )) continue ; }
+			}
+			::string user_f = +lcl_cwd_s && !is_abs(f) ? mk_rel( f , lcl_cwd_s.value() ) : ::move(abs_f) ;
+			if (!( has_regexpr && !re.match(user_f) )) res.push_back(::move(user_f)) ;
 		}
 		//
 		return res ;

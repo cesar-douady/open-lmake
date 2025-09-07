@@ -37,6 +37,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <shared_mutex>
 #include <span>
@@ -109,6 +110,7 @@ using std::mutex                                  ;
 using std::nullptr_t                              ;
 using std::numeric_limits                         ;
 using std::operator""s                            ;
+using std::optional                               ;
 using std::pair                                   ;
 using std::partial_ordering                       ;
 using std::popcount                               ;
@@ -172,38 +174,42 @@ using std::getline ; // getline also has a C version that would hide std::getlin
 //
 
 // array
-template<                size_t N> using array_s  = ::array        <       string,N> ;
-template<class K,class V,size_t N> using amap     = ::array<pair   <K     ,V>    ,N> ;
-template<        class V,size_t N> using amap_s   = ::amap         <string,V     ,N> ;
-template<                size_t N> using amap_ss  = ::amap_s       <       string,N> ;
+template<                size_t N> using array_s  = ::array        <         ::string,N> ;
+template<class K,class V,size_t N> using amap     = ::array<::pair <K       ,V>      ,N> ;
+template<        class V,size_t N> using amap_s   = ::amap         <::string,V       ,N> ;
+template<                size_t N> using amap_ss  = ::amap_s       <         ::string,N> ;
 // pair
-template<        class V         > using pair_s   = ::pair         <string,V       > ;
-/**/                               using pair_ss  = ::pair_s       <       string  > ;
+template<        class V         > using pair_s   = ::pair         <::string,V         > ;
+/**/                               using pair_ss  = ::pair_s       <         ::string  > ;
 // map
-template<        class V         > using map_s    = ::map          <string,V       > ;
-/**/                               using map_ss   = ::map_s        <       string  > ;
+template<        class V         > using map_s    = ::map          <::string,V         > ;
+/**/                               using map_ss   = ::map_s        <         ::string  > ;
 // set
-/**/                               using set_s    = ::set          <       string  > ;
+/**/                               using set_s    = ::set          <         ::string  > ;
 // umap
-template<class K,class V         > using umap     = ::unordered_map<K     ,V       > ;
-template<        class V         > using umap_s   = ::umap         <string,V       > ;
-/**/                               using umap_ss  = ::umap_s       <       string  > ;
+template<class K,class V         > using umap     = ::unordered_map<K       ,V         > ;
+template<        class V         > using umap_s   = ::umap         <::string,V         > ;
+/**/                               using umap_ss  = ::umap_s       <         ::string  > ;
 // uset
-template<class K                 > using uset     = ::unordered_set<K              > ;
-/**/                               using uset_s   = ::uset         <string         > ;
+template<class K                 > using uset     = ::unordered_set<K                  > ;
+/**/                               using uset_s   = ::uset         <::string           > ;
 // vector
-/**/                               using vector_s = ::vector       <       string  > ;
-template<class K,class V         > using vmap     = ::vector<pair  <K     ,V>      > ;
-template<        class V         > using vmap_s   = ::vmap         <string,V       > ;
-/**/                               using vmap_ss  = ::vmap_s       <       string  > ;
+/**/                               using vector_s = ::vector       <         ::string  > ;
+template<class K,class V         > using vmap     = ::vector<::pair<K       ,V>        > ;
+template<        class V         > using vmap_s   = ::vmap         <::string,V         > ;
+/**/                               using vmap_ss  = ::vmap_s       <         ::string  > ;
+// optional
+/**/                               using optional_s = ::optional   <         ::string  > ;
 
-template<class T,size_t N> inline constexpr bool operator+(::array <T,N> const&  ) { return  N                   ; }
-template<class T,class  U> inline constexpr bool operator+(::pair  <T,U> const& p) { return  +p.first||+p.second ; }
-template<class K,class  V> inline           bool operator+(::map   <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> inline           bool operator+(::umap  <K,V> const& m) { return !m.empty()           ; }
-template<class K         > inline           bool operator+(::set   <K  > const& s) { return !s.empty()           ; }
-template<class K         > inline           bool operator+(::uset  <K  > const& s) { return !s.empty()           ; }
-template<class T         > inline constexpr bool operator+(::vector<T  > const& v) { return !v.empty()           ; }
+
+template<class T,size_t N> inline constexpr bool operator+(::array   <T,N> const&  ) { return  N                   ; }
+template<class T,class  U> inline constexpr bool operator+(::pair    <T,U> const& p) { return  +p.first||+p.second ; }
+template<class K,class  V> inline           bool operator+(::map     <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V> inline           bool operator+(::umap    <K,V> const& m) { return !m.empty()           ; }
+template<class K         > inline           bool operator+(::set     <K  > const& s) { return !s.empty()           ; }
+template<class K         > inline           bool operator+(::uset    <K  > const& s) { return !s.empty()           ; }
+template<class T         > inline constexpr bool operator+(::vector  <T  > const& v) { return !v.empty()           ; }
+template<class T         > inline constexpr bool operator+(::optional<T  > const& o) { return  o.has_value()       ; }
 //
 inline                             bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
 inline                   constexpr bool operator+(::string_view   s) { return !s.empty() ; } // .

@@ -125,7 +125,7 @@ namespace Engine {
 		NfsGuard         nfs_guard { g_config->file_sync     }   ;
 		FileInfo         fi        { nfs_guard.access(name_) }   ;
 		FileSig          sig       { fi                      }   ;
-		auto lazy_msg = [&]()->string const& {
+		auto lazy_msg = [&]()->::string const& {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;
 			if (!msg) {

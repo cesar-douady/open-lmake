@@ -80,6 +80,7 @@ template<UEnum Key,UEnum Flag> struct CmdLine {
 		Trace trace("files") ;
 		::vector_s res ; res.reserve(args.size()) ;
 		for( ::string const& a : args ) {
+			throw_unless( +a , "empty arg" ) ;
 			res.push_back(Disk::mk_glb(a,*g_startup_dir_s)) ; // translate arg to be relative to repo root dir
 			trace(a,"->",res.back()) ;
 		}

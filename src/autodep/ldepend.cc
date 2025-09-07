@@ -16,7 +16,8 @@ using namespace Disk ;
 enum class Key : uint8_t { None } ;
 
 enum class Flag : uint8_t {
-	FollowSymlinks
+	Dir
+,	FollowSymlinks
 ,	List
 ,	Read
 ,	Regexpr
@@ -34,10 +35,11 @@ enum class Flag : uint8_t {
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::FollowSymlinks , { .short_name='L' , .doc="Logical view, follow symolic links" } }
-	,	{ Flag::List           , { .short_name='l' , .doc="list deps"                          } }
-	,	{ Flag::Read           , { .short_name='R' , .doc="report a read"                      } }
-	,	{ Flag::Regexpr        , { .short_name='X' , .doc="args are regexprs"                  } }
+		{ Flag::Dir            , { .short_name='z' , .has_arg=true , .doc="dir in which to list deps"          } }
+	,	{ Flag::FollowSymlinks , { .short_name='L' ,                 .doc="Logical view, follow symolic links" } }
+	,	{ Flag::List           , { .short_name='l' ,                 .doc="list deps"                          } }
+	,	{ Flag::Read           , { .short_name='R' ,                 .doc="report a read"                      } }
+	,	{ Flag::Regexpr        , { .short_name='X' ,                 .doc="args are regexprs"                  } }
 	//
 	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
 	,	{ Flag::Direct        , { .short_name=ExtraDflagChars[+ExtraDflag::Direct     ].second , .doc="suspend job until deps are up-to-date"   } }
@@ -55,9 +57,17 @@ int main( int argc , char* argv[]) {
 	//
 	if (cmd_line.flags[Flag::List]) {
 		//
-		if (+cmd_line.args             ) syntax.usage("cannot list deps with args"                         ) ;
-		if ( cmd_line.flags!=Flag::List) syntax.usage("the --list/-l flag is exclusive with any other flag") ;
-		::vector_s deps = JobSupport::list( {New,Yes/*enabled*/} , No/*write*/ ) ;
+		//
+		if ( cmd_line.args.size() > cmd_line.flags[Flag::Regexpr]                    ) syntax.usage("cannot list deps with args other than a single regexpr"                     ) ;
+		if ( +( cmd_line.flags & ~BitMap<Flag>(Flag::Dir,Flag::List,Flag::Regexpr) ) ) syntax.usage("the --list flag is exclusive with any other flag except --dir and --regexpr") ;
+		//
+		::vector_s deps = JobSupport::list(
+			{New,Yes/*enabled*/}
+		,	No/*write*/
+		,	cmd_line.flags[Flag::Dir]                       ? cmd_line.flag_args[+Flag::Dir] : "/"s
+		,	cmd_line.flags[Flag::Regexpr] && +cmd_line.args ? cmd_line.args[0]               : ".*"s
+		) ;
+		//
 		for( ::string const& d : deps ) out << d <<'\n' ;
 		//
 	} else {

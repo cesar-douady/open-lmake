@@ -149,9 +149,9 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	t_thread_key = 'Q' ;
 	Trace trace("_reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback              stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;               // transform request_stop into an event we wait for
-	::umap<Fd,pair<IMsgBuf,Req>> in_tab  ;
-	Epoll<EventKind>             epoll   { New }                                                 ;
+	::stop_callback                stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;             // transform request_stop into an event we wait for
+	::umap<Fd,::pair<IMsgBuf,Req>> in_tab  ;
+	Epoll<EventKind>               epoll   { New }                                                 ;
 	//
 	if (g_writable) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; } // if read-only, we do not expect additional connections
 	/**/            { epoll.add_sig ( SIGHUP       , EventKind::Int    ) ; trace("read_hup"                ) ; }
@@ -514,7 +514,7 @@ int main( int argc , char** argv ) {
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
-		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {} // cleanup
+		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {}                   // cleanup
 		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_kpi.pretty_str()) ;
 	}
 	//

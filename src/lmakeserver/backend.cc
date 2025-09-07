@@ -68,15 +68,16 @@ namespace Backends {
 		Trace trace(BeChnl,"Workload::_refresh",self,now) ;
 		//
 		for( auto it=_eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {               // eta is passed, job is no more reasonable
-			auto   [eta,job]     = *it                           ;
+			auto   cur_it        = it++                          ;                              // increment it before entry is erase, but use value before increment
+			auto   [eta,job]     = *cur_it                       ;
 			Tokens tokens        = job->tokens1+1                ;
 			Val    left_workload = tokens*(eta-_ref_date).msec() ;
 			SWEAR( _reasonable_tokens  >=tokens        , _reasonable_tokens  ,tokens        ) ;
 			SWEAR( _reasonable_workload>=left_workload , _reasonable_workload,left_workload ) ;
 			_reasonable_tokens   -= tokens        ;
 			_reasonable_workload -= left_workload ;
-			_eta_tab.erase(it->second) ;                                                        // erase _eta_tab while it is still valid
-			_eta_set.erase(it++      ) ;
+			_eta_tab.erase(cur_it->second) ;                                                    // erase _eta_tab while it->second is still valid
+			_eta_set.erase(cur_it        ) ;
 		}
 		//
 		Val delta_date     = (now-_ref_date).msec()        ;
@@ -323,17 +324,17 @@ namespace Backends {
 			tie(jis.eta,reply.keep_tmp) = entry.req_info()           ;
 		}
 		trace("submit_attrs",submit_attrs) ;
-		vmap<Node,FileAction>    pre_actions           ;
-		vmap<Node,FileActionTag> pre_action_warnings   ;
-		StartCmdAttrs            start_cmd_attrs       ;
-		StartRsrcsAttrs          start_rsrcs_attrs     ;
-		StartAncillaryAttrs      start_ancillary_attrs ;
-		MsgStderr                start_msg_err         ;
-		Rule::RuleMatch          match                 = job->rule_match()              ;
-		::vmap_s<DepDigest>&     deps                  = submit_attrs.deps              ;           // these are the deps for dynamic attriute evaluation
-		size_t                   n_submit_deps         = deps.size()                    ;
-		int                      step                  = 0                              ;
-		::vmap_s<DepSpec>        dep_specs             = rd.deps_attrs.dep_specs(match) ;           // this cannot fail as it was already run to construct job
+		::vmap<Node,FileAction>    pre_actions           ;
+		::vmap<Node,FileActionTag> pre_action_warnings   ;
+		StartCmdAttrs              start_cmd_attrs       ;
+		StartRsrcsAttrs            start_rsrcs_attrs     ;
+		StartAncillaryAttrs        start_ancillary_attrs ;
+		MsgStderr                  start_msg_err         ;
+		Rule::RuleMatch            match                 = job->rule_match()              ;
+		::vmap_s<DepDigest>&       deps                  = submit_attrs.deps              ;         // these are the deps for dynamic attriute evaluation
+		size_t                     n_submit_deps         = deps.size()                    ;
+		int                        step                  = 0                              ;
+		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;         // this cannot fail as it was already run to construct job
 		try {
 			try {
 				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
@@ -450,13 +451,14 @@ namespace Backends {
 			JobExec job_exec ;
 			//
 			{	TraceLock lock { _s_mutex , BeChnl , "_s_handle_job_start2" } ; // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-				//
-				auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab2",job                              ) ; return false/*keep_fd*/ ; }
-				StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,jsrr.seq_id) ; return false/*keep_fd*/ ; }
+				//                                                                                                                                                 keep_fd
+				auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab2",job                              ) ; return false ; }
+				StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
 				entry.max_stderr_len = start_ancillary_attrs.max_stderr_len ;
 				for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
 				return false/*keep_fd*/ ;
 			Useful :
+				SWEAR( !entry.start_date , job,reply.addr,entry.start_date ) ;                                       // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvvvvvvvv
 				jis.pre_start.msg <<set_nl<< s_start(entry.tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^^^^^^^
@@ -497,22 +499,22 @@ namespace Backends {
 				//    vvvvvvvvvvvvvvvvvvvvvvvv
 				try { OMsgBuf().send(fd,reply) ; } catch (::string const&) {}                                        // send reply ASAP to minimize overhead, failure will be caught by heartbeat
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^
-				job_exec = { job , entry.tag!=Tag::Local?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
+				job_exec = { job , entry.tag!=Tag::Local?reply.addr:0 , New/*start*/ , {}/*end*/ } ;                 // job starts
 				//
 				entry.start_date    = job_exec.start_date               ;
 				entry.workload      = _s_workload.start(entry.reqs,job) ;
 				entry.conn.host     = job_exec.host                     ;
 				entry.conn.port     = jsrr.port                         ;
-				entry.conn.small_id = jis.start.small_id                ;
+				entry.conn.small_id = reply.small_id                    ;
 			}
-			bool report_now =                                                  // dont defer long jobs or if a message is to be delivered to user
+			bool report_now =                                                                                        // dont defer long jobs or if a message is to be delivered to user
 					+pre_action_warnings
 				||	+start_msg_err.stderr
-				||	is_retry(submit_attrs.reason.tag)                          // emit retry start message
-				||	Delay(job->exec_time())>=start_ancillary_attrs.start_delay // if job is probably long, emit start message immediately
+				||	is_retry(submit_attrs.reason.tag)                                                                // emit retry start message
+				||	Delay(job->exec_time())>=start_ancillary_attrs.start_delay                                       // if job is probably long, emit start message immediately
 			;
 			Job::s_record_thread.emplace( job , ::move(jis) ) ;
-			trace("started",job_exec,jis.start) ;
+			trace("started",job_exec,reply) ;
 			MsgStderr msg_stderr ; if (+start_msg_err.stderr) msg_stderr = { jsrr.msg+start_msg_err.msg , ::move(start_msg_err.stderr) } ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , report_now , ::move(pre_action_warnings) , ::move(msg_stderr) ) ;
@@ -629,8 +631,8 @@ namespace Backends {
 	// kill all if ri==0
 	void Backend::_s_kill_req(Req req) {
 		Trace trace(BeChnl,"s_kill_req",req) ;
-		::vmap<Job,pair<StartEntry::Conn,Pdate>> to_kill ;
-		{	TraceLock lock { _s_mutex , BeChnl,"_s_kill_req" } ;                                                           // lock for minimal time
+		::vmap<Job,::pair<StartEntry::Conn,Pdate>> to_kill ;
+		{	TraceLock lock { _s_mutex , BeChnl,"_s_kill_req" } ;                                                 // lock for minimal time
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t))
 				for( Job j : s_kill_waiting_jobs(t,req) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -638,35 +640,30 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("queued_in_backend",j) ;
 				}
-			for( auto jit=_s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                              // /!\ we erase entries while iterating
-				StartEntry& e = jit->second ; if (!e) { jit++ ; continue ; }
-				Job         j = jit->first  ;
-				SWEAR(+e.reqs) ;                                                                                           // a job for nobody should have been suppressed from _s_start_tab
-				if ( !req || (e.reqs.size()==1&&e.reqs[0]==+req) ) {                                                       // kill all Req's or req is the only Req for this entry : kill job
+			for( auto jit=_s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                    // /!\ we erase entries while iterating
+				auto        cur_jit    = jit++           ;                                                       // increment before erasing entry but process current entry
+				StartEntry& e          = cur_jit->second ; if (!e) continue ;
+				Job         j          = cur_jit->first  ;
+				Pdate       start_date = e.start_date    ;                                                       // sample before it is erased
+				SWEAR(+e.reqs) ;                                                                                 // a job for nobody should have been suppressed from _s_start_tab
+				if ( !req || (e.reqs.size()==1&&e.reqs[0]==+req) ) {                                             // kill all Req's or req is the only Req for this entry : kill job
 					if (+e.start_date) {
 						trace("kill",j) ;
 						to_kill.emplace_back(j,::pair(e.conn,e.start_date)) ;
-						jit++ ;
-					} else {
-						trace("queued",j) ;
-						s_kill_job(e.tag,j) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( Proc::GiveUp , JobExec(j,e.start_date) , Req() , false/*report*/ ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						_s_start_tab_erase(jit++) ;
+						continue ;
 					}
-				} else {                                                                                                   // job is also for other Req's : keep job
-					auto it = e.reqs.begin() ; while ( it!=e.reqs.end() && *it!=req ) it++ ;                               // e.reqs is a non-sorted vector, we must search req by hand
-					if (it!=e.reqs.end()) {
-						e.reqs.erase(it) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						g_engine_queue.emplace( Proc::GiveUp , JobExec(j,e.start_date) , req , +e.start_date/*report*/ ) ; // job is useful for some other Req
-						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						trace("give_up",j) ;
-					}
-					jit++ ;
-					trace("keep",j) ;
+					trace("queued",j) ;
+					s_kill_job(e.tag,j) ;
+					_s_start_tab_erase(cur_jit) ;
+				} else {                                                                                         // job is also for other Req's : keep job
+					auto it = e.reqs.begin() ; while ( it!=e.reqs.end() && *it!=req ) it++ ;                     // e.reqs is a non-sorted vector, we must search req by hand
+					if (it==e.reqs.end()) { trace("keep",j) ; continue ; }
+					e.reqs.erase(it) ;
+					trace("give_up",j) ;
 				}
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( Proc::GiveUp , JobExec(j,start_date) , req , +e.start_date/*report*/ ) ; // job is useful for some other Req
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 		}
 		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -685,13 +682,13 @@ namespace Backends {
 		Pdate                    eta                 ;
 		::vmap_ss                rsrcs               ;
 		SubmitAttrs              submit_attrs        ;
-		Pdate                    start_date          ;
 		Delay                    round_trip          = Delay(New,g_config->network_delay.val()*2) ;
 		Delay                    started_min_job_age = Delay(New,g_config->heartbeat    .val()/2) ;                                 // first check is after g_config->heartbeat on average (for pef)
 		Delay                    spawned_min_job_age = ::max(started_min_job_age,round_trip)      ;                                 // ensure jobs have had a minimal time to start and signal it
 		for( Job job ;; job=Job(+job+1) ) {
 			if (stop.stop_requested()) break ;                                                                                      // exit even if sleep_until does not wait
-			Pdate now { New } ;
+			Pdate now        { New } ;
+			Pdate start_date ;
 			{	TraceLock   lock  { _s_mutex , BeChnl , "_heartbeat_thread_func1" } ;                                               // lock _s_start_tab for minimal time
 				auto        it    = _s_start_tab.lower_bound(job)                   ; if (it==_s_start_tab.end()) goto WrapAround ;
 				StartEntry& entry = it->second                                      ; SWEAR(+entry) ;

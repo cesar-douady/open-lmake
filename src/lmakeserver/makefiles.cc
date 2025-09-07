@@ -118,7 +118,7 @@ namespace Engine::Makefiles {
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s )
-			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_abs(sd_s,*g_repo_root_s),is_abs_s(sd_s)) ;
+			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_glb_s(sd_s,*g_repo_root_s),is_abs_s(sd_s)) ;
 		//
 		::string deps_str =
 			"# * : lmake root\n"

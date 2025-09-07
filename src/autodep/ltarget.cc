@@ -13,9 +13,10 @@
 enum class Key : uint8_t { None } ;
 
 enum class Flag : uint8_t {
-	Write
+	Dir
 ,	List
 ,	Regexpr
+,	Write
 //
 ,	Critical
 ,	Essential
@@ -33,9 +34,10 @@ enum class Flag : uint8_t {
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::List    , { .short_name='l' , .doc="list targets"                         } }
-	,	{ Flag::Regexpr , { .short_name='X' , .doc="args are regexprs"                    } }
-	,	{ Flag::Write   , { .short_name='W' , .doc="report a write, in addition to flags" } }
+		{ Flag::Dir     , { .short_name='z' , .has_arg=true , .doc="dir in which to list targets"         } }
+	,	{ Flag::List    , { .short_name='l' ,                 .doc="list targets"                         } }
+	,	{ Flag::Regexpr , { .short_name='X' ,                 .doc="args are regexprs"                    } }
+	,	{ Flag::Write   , { .short_name='W' ,                 .doc="report a write, in addition to flags" } }
 	//
 	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="if files turn out to be deps, make them critical"                                          } }
 	,	{ Flag::Essential     , { .short_name=TflagChars     [+Tflag     ::Essential  ].second , .doc="show when generating user oriented graphs"                                                 } }
@@ -56,9 +58,16 @@ int main( int argc , char* argv[]) {
 	//
 	if (cmd_line.flags[Flag::List]) {
 		//
-		if (+cmd_line.args             ) syntax.usage("cannot list deps with args"                         ) ;
-		if ( cmd_line.flags!=Flag::List) syntax.usage("the --list/-l flag is exclusive with any other flag") ;
-		::vector_s targets = JobSupport::list( {New,Yes/*enabled*/} , Yes/*write*/ ) ;
+		if ( cmd_line.args.size() > cmd_line.flags[Flag::Regexpr]                    ) syntax.usage("cannot list targets with args other than a single regexpr"                  ) ;
+		if ( +( cmd_line.flags & ~BitMap<Flag>(Flag::Dir,Flag::List,Flag::Regexpr) ) ) syntax.usage("the --list flag is exclusive with any other flag except --dir and --regexpr") ;
+		//
+		::vector_s targets = JobSupport::list(
+			{New,Yes/*enabled*/}
+		,	Yes/*write*/
+		,	cmd_line.flags[Flag::Dir]                       ? cmd_line.flag_args[+Flag::Dir] : "/"s
+		,	cmd_line.flags[Flag::Regexpr] && +cmd_line.args ? cmd_line.args[0]               : ".*"s
+		) ;
+		//
 		for( ::string const& t : targets ) out << t <<'\n' ;
 		//
 	} else {
@@ -69,7 +78,6 @@ int main( int argc , char* argv[]) {
 		AccessDigest ad { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
 		//
 		if ( cmd_line.flags[Flag::Write        ]) ad.write               =  Yes                     ;
-		//
 		if ( cmd_line.flags[Flag::Essential    ]) ad.flags.tflags       |=  Tflag     ::Essential   ;
 		if ( cmd_line.flags[Flag::Incremental  ]) ad.flags.tflags       |=  Tflag     ::Incremental ;
 		if ( cmd_line.flags[Flag::NoWarning    ]) ad.flags.tflags       |=  Tflag     ::NoWarning   ;

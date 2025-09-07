@@ -165,9 +165,28 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const& py_kwds ) {
-	if ( +py_args || +py_kwds ) throw "no args supported"s ;
-	::vector_s files = JobSupport::list( *_g_record , No|Target ) ;
-	Ptr<Tuple> res   { files.size() }              ;
+	size_t n_args = py_args.size() ;
+	//
+	::optional_s dir     ;
+	::optional_s regexpr ;
+	if (n_args>2) throw cat("too many args : ",n_args,">2") ;
+	switch (n_args) {
+		case 2 : dir     = *py_args[1].str() ; [[fallthrough]] ;
+		case 1 : regexpr = *py_args[0].str() ; [[fallthrough]] ;
+		case 0 : break ;
+	DF}                                            // NO_COV
+	for( auto const& [py_key,py_val] : py_kwds ) {
+		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
+		::string key = py_key.template as_a<Str>() ;
+		switch (key[0]) {
+			case 'd' : if (key=="dir"    ) { throw_if(+dir    ,"arg ",key,MsgEnd) ; dir     = *py_val.str() ; continue ; } break ;
+			case 'r' : if (key=="regexpr") { throw_if(+regexpr,"arg ",key,MsgEnd) ; regexpr = *py_val.str() ; continue ; } break ;
+		DN}
+		throw "unexpected keyword arg "+key ;
+	}
+	//
+	::vector_s files = JobSupport::list( *_g_record , No|Target , with_slash(dir.value_or("/")) , regexpr.value_or(".*") ) ;
+	Ptr<Tuple> res   { files.size() }                                                                                      ;
 	for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
 	return res ;
 }
@@ -178,38 +197,38 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	static constexpr const char* Cv = Encode ? "val" : "code" ;
 	size_t n_args = py_args.size() ;
 	//
-	::string file    ;     bool has_file    = false ;
-	::string ctx     ;     bool has_ctx     = false ;
-	::string cv      ;     bool has_cv      = false ;
-	uint8_t  min_len = 1 ; bool has_min_len = false ;
+	::optional_s        file    ;
+	::optional_s        ctx     ;
+	::optional_s        cv      ;
+	::optional<uint8_t> min_len ;
 	if (n_args>(Encode?4:3)) throw cat("too many args : ",n_args,'>',Encode?4:3) ;
 	switch (n_args) {
-		case 4 : min_len = _mk_uint8(py_args[3],"min_len") ; has_min_len = true ; [[fallthrough]] ;
-		case 3 : cv      =          *py_args[2].str()      ; has_cv      = true ; [[fallthrough]] ;
-		case 2 : ctx     =          *py_args[1].str()      ; has_ctx     = true ; [[fallthrough]] ;
-		case 1 : file    =          *py_args[0].str()      ; has_file    = true ; [[fallthrough]] ;
+		case 4 : min_len = _mk_uint8(py_args[3],"min_len") ; [[fallthrough]] ;
+		case 3 : cv      =          *py_args[2].str()      ; [[fallthrough]] ;
+		case 2 : ctx     =          *py_args[1].str()      ; [[fallthrough]] ;
+		case 1 : file    =          *py_args[0].str()      ; [[fallthrough]] ;
 		case 0 : break ;
 	DF}                                            // NO_COV
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'f' : if (key=="file"   ) { throw_if(has_file   ,"arg file"   ,MsgEnd) ; file    =          *py_val.str() ; has_file    = true ; continue ; } break ;
-			case 'c' : if (key=="ctx"    ) { throw_if(has_ctx    ,"arg ctx"    ,MsgEnd) ; ctx     =          *py_val.str() ; has_ctx     = true ; continue ; }
-			/**/       if (key==Cv       ) { throw_if(has_cv     ,"arg ",Cv,' ',MsgEnd) ; cv      =          *py_val.str() ; has_cv      = true ; continue ; } break ;
-			case 'v' : if (key==Cv       ) { throw_if(has_cv     ,"arg ",Cv,' ',MsgEnd) ; cv      =          *py_val.str() ; has_cv      = true ; continue ; } break ;
-			case 'm' : if (key=="min_len") { throw_if(has_min_len,"arg min_len",MsgEnd) ; min_len = _mk_uint8(py_val,key)  ; has_min_len = true ; continue ; } break ;
+			case 'f' : if (key=="file"   ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =          *py_val.str() ; continue ; } break ;
+			case 'c' : if (key=="ctx"    ) { throw_if(+ctx    ,"arg ",key,MsgEnd) ; ctx     =          *py_val.str() ; continue ; }
+			/**/       if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str() ; continue ; } break ;
+			case 'v' : if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str() ; continue ; } break ;
+			case 'm' : if (key=="min_len") { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_uint8(py_val,key)  ; continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
 	}
-	/**/         throw_unless( has_file     , "missing arg ","file"    ) ;
-	/**/         throw_unless( has_ctx      , "missing arg ","ctx"     ) ;
-	/**/         throw_unless( has_cv       , "missing arg ",Cv        ) ;
-	if (!Encode) throw_unless( !has_min_len , "unexpected arg min_len" ) ;
+	/**/         throw_unless( +file    , "missing arg ","file"    ) ;
+	/**/         throw_unless( +ctx     , "missing arg ","ctx"     ) ;
+	/**/         throw_unless( +cv      , "missing arg ",Cv        ) ;
+	if (!Encode) throw_if    ( +min_len , "unexpected arg min_len" ) ;
 	//
 	::pair_s<bool/*ok*/> reply =
-		Encode ? JobSupport::encode( *_g_record , ::move(file) , ::move(cv/*val*/ ) , ::move(ctx) , min_len )
-		:        JobSupport::decode( *_g_record , ::move(file) , ::move(cv/*code*/) , ::move(ctx)           )
+		Encode ? JobSupport::encode( *_g_record , ::move(file.value()) , ::move(cv.value()/*val*/ ) , ::move(ctx.value()) , min_len.value_or(1) )
+		:        JobSupport::decode( *_g_record , ::move(file.value()) , ::move(cv.value()/*code*/) , ::move(ctx.value())                       )
 	;
 	throw_unless( reply.second , reply.first ) ;
 	return reply.first ;
@@ -217,27 +236,23 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 
 template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const& py_kwds ) {
 	static constexpr const char* Ft = IsFile ? "file" : "text" ;
-	size_t n_args = py_args.size() ;
-	::string ft ;
-	bool has_ft = false ;
+	size_t       n_args = py_args.size() ;
+	::optional_s ft     ;
 	if (n_args>1) throw cat("too many args : ",n_args,'>',1) ;
-	if (n_args) {
-		ft     = *py_args[0].str() ;
-		has_ft = true              ;
-	}
+	if (n_args  ) ft = *py_args[0].str() ;
+	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
 		if (key!=Ft) throw cat("unexpected keyword arg ",Ft) ;
-		throw_if( has_ft , "arg ",Ft," passed both as positional and keyword" ) ;
+		throw_unless( !ft , "arg ",Ft," passed both as positional and keyword" ) ;
 		ft     = *py_val.str() ;
-		has_ft = true          ;
 	}
-	throw_unless( has_ft , "missing arg ",ft ) ;
+	throw_unless( +ft , "missing arg ",Ft ) ;
 	if (IsFile) {
-		return ::string(Crc(ft)) ;
+		return ::string(Crc(ft.value())) ;
 	} else {
 		Xxh h ;
-		if (+ft) h += ft ;
+		if (+ft.value()) h += ft.value() ;
 		return h.digest().hex() ;
 	}
 }
@@ -331,9 +346,9 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	for( ::string const& dir : path ) {
 		::string dir_s  = with_slash(dir)                               ;
 		bool     is_lcl = dir_s.starts_with(_g_autodep_env.repo_root_s) ;
-		if (!is_abs(dir)) {                                               // fast path : dont compute cwd unless required
+		if (!is_abs_s(dir_s)) {                                               // fast path : dont compute cwd unless required
 			if (!cwd_s_) cwd_s_ = cwd_s() ;
-			dir_s = mk_abs(dir_s,cwd_s_) ;
+			dir_s = mk_glb_s(dir_s,cwd_s_) ;
 		}
 		::string base = dir_s+tail ;
 		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs ) {             // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
@@ -369,7 +384,7 @@ PyMODINIT_FUNC
 			",\tread           =False # pretend deps are read in addition to setting flags\n"
 			",\tregexpr        =False # deps are regexprs\n"
 			",\tno_star        =True  # do not take regexpr-based flags into account\n"
-			",\tverbose        =False # return a report as a dict  dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
+			",\tverbose        =False # return a report as a dict { dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
 			"# flags :\n"
 			",\tcritical       =False # if modified, ignore following deps\n"
 			",\tessential      =False # show when generating user oriented graphs\n"

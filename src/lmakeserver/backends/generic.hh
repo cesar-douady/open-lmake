@@ -21,7 +21,7 @@ namespace Backends {
 
 	// share actual resources data as we typically have a lot of jobs with the same resources
 	template< class Data , ::unsigned_integral RefCnt > struct Shared {
-		friend string& operator+=( string& os , Shared const& s ) {             // START_OF_NO_COV
+		friend ::string& operator+=( ::string& os , Shared const& s ) {         // START_OF_NO_COV
 			/**/           os << "Shared" ;
 			if (+s) return os << *s       ;
 			else    return os << "()"     ;
@@ -166,8 +166,8 @@ namespace Backends {
 				return res ;
 			}
 			void start( GenericBackend const& be , iterator&& it ) {
-				SWEAR(!it->second.zombie ) ;
-				SWEAR(!it->second.started) ;
+				SWEAR( !it->second.zombie  , it->first ) ;
+				SWEAR( !it->second.started , it->first ) ;
 				be.start_rsrcs(it->second.rounded_rsrcs) ;
 				it->second.started = true ;
 				#ifndef NDEBUG
@@ -337,7 +337,6 @@ namespace Backends {
 			q.insert({pressure    ,job}) ;
 			old_pressure = pressure ;
 		}
-	protected :
 		::string start(Job job) override {
 			auto          it = spawned_jobs.find(job) ; if (it==spawned_jobs.end()) return {} ;                 // job was killed in the mean time
 			SpawnedEntry& se = it->second             ;
@@ -429,6 +428,7 @@ namespace Backends {
 			_oldest_submitted_job = Pdate() ;
 			_launch_queue.wakeup() ;
 		}
+	protected :
 		void _launch(::stop_token st) {
 			struct LaunchDescr {
 				::vector<ReqIdx> reqs     ;
@@ -443,8 +443,8 @@ namespace Backends {
 					auto      rit  = reqs.find(+req)                ;
 					spawned_jobs.flush() ;                                                                      // do some cleanup while we hold the lock and we are holding no entries
 					if (rit==reqs.end()) continue ;
-					JobIdx                            n_jobs = rit->second.n_jobs         ;
-					::umap<Rsrcs,set<PressureEntry>>& queues = rit->second.waiting_queues ;
+					JobIdx                              n_jobs = rit->second.n_jobs         ;
+					::umap<Rsrcs,::set<PressureEntry>>& queues = rit->second.waiting_queues ;
 					while (!( n_jobs && spawned_jobs.size()>=n_jobs )) {                                        // cannot have more than n_jobs running jobs because of this req, process next req
 						auto candidate = queues.end() ;
 						for( auto it=queues.begin() ; it!=queues.end() ; it++ ) {

@@ -124,7 +124,7 @@ namespace Engine {
 		// accesses
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
 		// services
-		JobInfo job_info( BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;    // read job info from ancillary file, taking care of queued events
+		JobInfo job_info( BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;           // read job info from ancillary file, taking care of queued events
 		//
 		void record(JobInfo1 const&) const ;
 		void record(JobInfo  const&) const ;
@@ -382,7 +382,7 @@ namespace Engine {
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }
 		// services
-		vmap<Node,FileAction> pre_actions( Rule::RuleMatch const& , bool mark_target_dirs=false ) const ;                 // thread-safe
+		::vmap<Node,FileAction> pre_actions( Rule::RuleMatch const& , bool mark_target_dirs=false ) const ;               // thread-safe
 		//
 		Tflags tflags(Node target) const ;
 		//

@@ -99,27 +99,24 @@ namespace Disk {
 		throw_unless( path!="/" , "no base for /"          ) ;
 		return path ;
 	}
-	inline bool is_dir_name( ::string const& path                         ) { return !path || path.back()=='/'                                                         ; }
-	inline bool is_in_dir  ( ::string const& path , ::string const& dir_s ) { return path.starts_with(dir_s) || (path.size()+1==dir_s.size()&&dir_s.starts_with(path)) ; }
+	inline bool is_dir_name(::string const& path) { return !path || path.back()=='/' ; }
 
-	inline bool is_abs_s(::string const& name_s) { return          name_s[0]=='/' ; } // name_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty name_s is necessarily relative
-	inline bool is_abs  (::string const& name  ) { return !name || name  [0]=='/' ; } // name   is <x>(/<x>)* or (/<x>)*  with <x>=[^/]+, empty name   is necessarily absolute
+	inline bool is_abs_s(::string const& dir_s) {                return dir_s[0]=='/' ; } // dir_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty dir_s is necessarily relative
+	inline bool is_abs  (::string const& file ) { SWEAR(+file) ; return file [0]=='/' ; } // file  is <x>(/<x>)* or (/<x>)+  with <x>=[^/]+
 	//
-	inline bool   is_lcl_s    (::string const& name_s) { return !( is_abs_s(name_s) || name_s.starts_with("../")               ) ;                               }
-	inline bool   is_lcl      (::string const& name  ) { return !( is_abs  (name  ) || name  .starts_with("../") || name==".." ) ;                               }
-	inline size_t uphill_lvl_s(::string const& name_s) { SWEAR(!is_abs_s(name_s)) ; size_t l ; for( l=0 ; substr_view(name_s,3*l,3)=="../" ; l++ ) {} return l ; }
-	inline size_t uphill_lvl  (::string const& name  ) { return uphill_lvl_s(name+'/') ;                                                                         }
+	inline bool   is_lcl_s    (::string const& dir_s) { return !( is_abs_s(dir_s) || dir_s.starts_with("../")               ) ;                               }
+	inline bool   is_lcl      (::string const& file ) { return !( is_abs  (file ) || file .starts_with("../") || file==".." ) ;                               }
+	inline size_t uphill_lvl_s(::string const& dir_s) { SWEAR(!is_abs_s(dir_s)) ; size_t l ; for( l=0 ; substr_view(dir_s,3*l,3)=="../" ; l++ ) {} return l ; }
 
-	/**/   ::string mk_lcl( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
-	/**/   ::string mk_glb( ::string const& file , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
-	inline ::string mk_abs( ::string const& file , ::string const& dir_s ) { // return file (passed as from dir_s       ) as absolute
-		SWEAR( is_abs_s(dir_s) , dir_s ) ;
-		return mk_glb(file,dir_s) ;
-	}
-	inline ::string mk_rel( ::string const& file , ::string const& dir_s ) {
-		if (is_abs(file)==is_abs_s(dir_s)) return mk_lcl(file,dir_s) ;
-		else                               return file               ;
-	}
+	::string _mk_lcl( ::string const& path , ::string const& dir_s , bool path_is_dir ) ; // return file (passed as from dir_s origin) as seen from dir_s
+	::string _mk_glb( ::string const& path , ::string const& dir_s , bool path_is_dir ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
+	//                                                                                                                path_is_dir
+	inline ::string mk_lcl_s( ::string const& dir_s , ::string const& ref_dir_s ) { return _mk_lcl( dir_s , ref_dir_s , true    ) ;                                                  }
+	inline ::string mk_lcl  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_lcl( file  , ref_dir_s , false   ) ;                                                  }
+	inline ::string mk_glb_s( ::string const& dir_s , ::string const& ref_dir_s ) { return _mk_glb( dir_s , ref_dir_s , true    ) ;                                                  }
+	inline ::string mk_glb  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_glb( file  , ref_dir_s , false   ) ;                                                  }
+	inline ::string mk_rel_s( ::string const& dir_s , ::string const& ref_dir_s ) { if (is_abs_s(dir_s)==is_abs_s(ref_dir_s)) return mk_lcl_s(dir_s,ref_dir_s) ; else return dir_s ; }
+	inline ::string mk_rel  ( ::string const& file  , ::string const& ref_dir_s ) { if (is_abs  (file )==is_abs_s(ref_dir_s)) return mk_lcl  (file ,ref_dir_s) ; else return file  ; }
 
 	// manage localization to user startup dir
 	// the principle is to add a marker when file is generated, then this marker is recognized and file is localized when display
@@ -479,7 +476,7 @@ namespace Disk {
 		SolveReport solve(         const char*     file , bool no_follow=false ) { return solve( Fd::Cwd ,               file  , no_follow ) ; }
 		SolveReport solve( Fd at ,                        bool no_follow=false ) { return solve( at      , ::string()          , no_follow ) ; }
 		//
-		vmap_s<Accesses> exec(SolveReport&&) ;                            // arg is updated to reflect last interpreter
+		::vmap_s<Accesses> exec(SolveReport&&) ;                          // arg is updated to reflect last interpreter
 		//
 		void chdir() ;
 		::string cwd() {

@@ -133,8 +133,8 @@ namespace Backends::Sge {
 						/**/       if (k=="root"             ) { sge_root_s        = with_slash               (v)  ; continue ; } break ;
 						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                           v   ; continue ; } break ;
 					DN}
-				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "   ,k+": ",v) ; }
-				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry: ",k       ) ; }
+				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "    ,k+": ",v) ; }
+				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry : ",k       ) ; }
 			}
 			throw_unless( +sge_bin_s  , "must specify bin to configure SGE" ) ;
 			throw_unless( +sge_root_s , "must specify root to configure SGE") ;

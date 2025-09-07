@@ -15,7 +15,10 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? seen once : server has been seen blocked
+* server has been seen to crash with a job starting twice
+	- under investigation
+	- seems to be linked with job lost
+? seen once : server blocked
 	- seems to be while taking GIL
 
 ****************************************************************************************************
@@ -45,8 +48,6 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* show file crc in lshow -i
-	- and add a new entry None in case of porcelaine output
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
@@ -84,9 +85,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * implement a dir and regexpr argument to list_deps and list_targets
-	- dir is given relative to cwd, default is repo root
-	- regexpr applies to generated output
-	- document output is chronological order
+	- write a rm_targets, move targets and copy targets as python helper functions that handle intermediate dirs
+* make readdir_ok mandatory to mv a directory
+	- as there is an implicit dir listing underneath
 * check_deps
 	- pass a delay argument
 	- execute lcheck_deps as soon as no new deps for delay seconds

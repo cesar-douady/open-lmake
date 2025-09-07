@@ -655,6 +655,7 @@ AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
 REMOTE_OBJS  := \
 	$(BASIC_REMOTE_OBJS)   \
 	src/app.o              \
+	src/re.o               \
 	src/trace.o            \
 	src/autodep/job_support.o
 
@@ -711,10 +712,21 @@ bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/lcheck_deps.o
 bin/% :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(LINK_LIB)
+	@$(LINK) -o $@ $^ $(PCRE_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 # remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)
+
+LMAKE_DBG_FILES += lib/clmake.so $(if $(HAS_PY2_DYN),lib/clmake2.so)
+lib/clmake.so lib/clmake2.so : SO_FLAGS = $(PY_LINK_FLAGS)
+lib/clmake.so                : $(REMOTE_OBJS) src/py.o     src/autodep/clmake.o
+lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py2.o
+
+lib/%.so :
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK) -shared $(LIB_STDCPP) $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(PCRE_LIB) $(LINK_LIB)
+	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
 LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
@@ -724,11 +736,6 @@ _d$(LD_SO_LIB)/ld_preload_jemalloc.so    : $(AUTODEP_OBJS)             src/autod
 _d$(LD_SO_LIB_32)/ld_audit.so            : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_audit-m32.o
 _d$(LD_SO_LIB_32)/ld_preload.so          : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_preload-m32.o
 _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_preload_jemalloc-m32.o
-
-LMAKE_DBG_FILES += lib/clmake.so $(if $(HAS_PY2_DYN),lib/clmake2.so)
-lib/clmake.so lib/clmake2.so : SO_FLAGS = $(PY_LINK_FLAGS)
-lib/clmake.so                : $(REMOTE_OBJS) src/py.o     src/autodep/clmake.o
-lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py2.o
 
 %.so :
 	@mkdir -p $(@D)

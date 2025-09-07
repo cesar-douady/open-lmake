@@ -370,8 +370,8 @@ namespace Engine {
 		BitMap<DynImport> may_import ;                 // if true <= glbs_str or code_str is sensitive to sys.path
 	} ;
 
-	using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , string const& key , string  const& val )> ;
-	using EvalCtxFuncDct = ::function<void( VarCmd , VarIdx idx , string const& key , vmap_ss const& val )> ;
+	using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , ::string const& key , ::string  const& val )> ;
+	using EvalCtxFuncDct = ::function<void( VarCmd , VarIdx idx , ::string const& key , ::vmap_ss const& val )> ;
 
 	struct DynBase {
 		static void s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
@@ -707,7 +707,7 @@ namespace Engine {
 			return true ;
 		}
 
-		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) {
+		template<class T,bool Env> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) {
 			if (!py_src          )             return false/*updated*/ ;
 			if (*py_src==Py::None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*update*/ ; }
 			//
@@ -737,7 +737,7 @@ namespace Engine {
 			return updated ;
 		}
 
-		template<class T,bool Env> requires(!Env||::is_same_v<T,string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) {
+		template<class T,bool Env> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) {
 			if (!py_src          )             return false/*updated*/ ;
 			if (*py_src==Py::None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
 			//

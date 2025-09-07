@@ -229,15 +229,27 @@ with Autodep(active) :
 
 executes `<some code>` with autodep active set as instructed.
 
-### `list_deps()`
+### `list_deps( dir='/' , regexpr='.*' )`
 
 Returns a `tuple` of currently accessed deps.
-If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
+
+Only deps lying in the `dir` directory are listed, an only if the reported file (as explained below) matches `regexpr`.
+
+If the cwd lies outside the repo, listed files are absolute.
+Else they are relative unless a dep is in an absolute source dir.
+
+The order of the listed deps is the chronological order.
 
 ### `list_targets()`
 
 Returns a `tuple` of currently generated targets.
-If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
+
+Only targets lying in the `dir` directory are listed, an only if the reported file (as explained below) matches `regexpr`.
+
+If the cwd lies outside the repo, listed files are absolute.
+Else they are relative.
+
+The order of the listed targets is the chronological order.
 
 ### `encode( file , ctx , val , min_length=1 )`
 

@@ -166,7 +166,7 @@ inline Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map )
 }
 
 inline ::string _mk_abs_exe(::string const& exe) {
-	if (+exe) {        ::string abs_exe = mk_abs(exe,Record::s_autodep_env().repo_root_s) ; return abs_exe ; }
+	if (+exe) {        ::string abs_exe = mk_glb(exe,Record::s_autodep_env().repo_root_s) ; return abs_exe ; }
 	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                      ; return abs_exe ; }
 } ;
 inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {

@@ -121,13 +121,14 @@ int main( int argc , char* argv[] ) {
 	//
 	try {
 		::string tmp_dir = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
-		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
-		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::LmakeView] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
-		throw_if( !tmp_dir                                                                                , "tmp dir must be specified"                                              ) ;
-		throw_if(                                        !is_abs(tmp_dir                                ) , "tmp dir must be absolute : "   ,tmp_dir                                 ) ;
+		// is_abs_s considers empty as relative, which is ok even without terminating /
+		throw_if( !cmd_line.args                                                                            , "no exe to launch"                                                       ) ;
+		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs_s(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::LmakeView] && !is_abs_s(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs_s(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs_s(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
+		throw_if( !tmp_dir                                                                                  , "tmp dir must be specified"                                              ) ;
+		throw_if(                                        !is_abs_s(tmp_dir                                ) , "tmp dir must be absolute : "   ,tmp_dir                                 ) ;
 		//
 		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        jsrr.key                =                        "debug"                                      ;

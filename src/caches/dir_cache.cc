@@ -81,13 +81,13 @@ namespace Caches {
 					case 'k' : if (key=="key"      ) { key_crc   = Crc(New          ,val) ; continue ; } break ;
 					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >(val) ; continue ; } break ;
 				DN}
-			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "   ,key,": ",val) ; }
-			/**/                        { trace("bad_key",key    ) ; throw cat("unexpected config entry: ",key         ) ; }
+			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
+			/**/                        { trace("bad_key",key    ) ; throw cat("unexpected config entry : ",key         ) ; }
 		}
 		_compile() ;
 		//
 		::string sz_file = admin_dir_s+"size"         ;
-		AcFd     sz_fd   { sz_file , true/*err_ok*/ } ; throw_unless( +sz_fd , "file must exist and contain the size of the cache: ",sz_file ) ;
+		AcFd     sz_fd   { sz_file , true/*err_ok*/ } ; throw_unless( +sz_fd , "file must exist and contain the size of the cache : ",sz_file ) ;
 		try                       { max_sz = from_string_with_unit(strip(sz_fd.read())) ; }
 		catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;           }
 		//

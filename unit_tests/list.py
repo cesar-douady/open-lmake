@@ -28,7 +28,7 @@ if __name__!='__main__' :
 
 	class CatSh(Cat) :
 		targets = { 'TARGET' : '{File1}+{File2}_sh' }
-		cmd    = '''
+		cmd = '''
 			cat {FIRST} {SECOND} >/dev/null
 			(
 			echo deps    : ; ldepend -l
@@ -41,8 +41,8 @@ if __name__!='__main__' :
 		def cmd() :
 			for fn in (FIRST,SECOND) :
 				with open(fn) as f : pass
-			print('deps'   ,':', tuple( f for f in lmake.list_deps   () if not f.startswith('.local/') ) )
-			print('targets',':',                   lmake.list_targets()                                  )
+			print('deps'   ,':', lmake.list_deps   (regexpr='[hw].*') )
+			print('targets',':', lmake.list_targets()                 )
 
 	class Chk(Rule) :
 		target = r'{File:.*}.ok'

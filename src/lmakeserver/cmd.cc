@@ -296,6 +296,7 @@ namespace Engine {
 		Rule              rule       = job->rule()                   ;
 		bool              porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		bool              verbose    = ro.flags[ReqFlag::Verbose   ] ;
+		size_t            wc         = 0                             ;
 		size_t            wk         = 0                             ;
 		size_t            wf         = 0                             ;
 		::umap_ss         rev_map    ;
@@ -330,7 +331,8 @@ namespace Engine {
 			if ( !d.parallel                      ) dep_group++ ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
 			dep_groups.push_back(dep_group) ;
-			wf = ::max( wf , mk_py_str(d->name()).size() ) ;
+			/**/            wc = ::max( wc , mk_py_str(::string(d->crc)).size() ) ;
+			if (porcelaine) wf = ::max( wf , mk_py_str(d->name()       ).size() ) ;
 		}
 		NodeIdx di1          = 0 ;                                           // before filtering
 		NodeIdx di2          = 0 ;                                           // after  filtering
@@ -348,19 +350,30 @@ namespace Engine {
 			if (it!=rev_map.end())                                                              dep_key = it->second ;
 			else                   for ( auto const& [k,e] : res ) if (+e.match(dep->name())) { dep_key = k          ; break ; }
 			if (porcelaine) {
-				::string dep_str = "( "+mk_py_str(dep.dflags_str())+" , "+mk_py_str(dep.accesses_str())+" , "+widen(mk_py_str(dep_key),wk)+" , "+widen(mk_py_str(dep->name()),wf)+" )" ;
+				::string     dep_str = "( " ;
+				/**/         dep_str <<              mk_py_str(dep.dflags_str  ())     ;
+				/**/         dep_str <<" , "<<       mk_py_str(dep.accesses_str())     ;
+				if (verbose) dep_str <<" , "<< widen(mk_py_str(::string(dep->crc)),wc) ;
+				/**/         dep_str <<" , "<< widen(mk_py_str(dep_key           ),wk) ;
+				/**/         dep_str <<" , "<< widen(mk_py_str(dep->name()       ),wf) ;
+				/**/         dep_str <<" )"                                            ;
 				//                                                                                                       as_is
 				if      (  start_group &&  end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str," }"   ) , true , lvl ) ;
 				else if (  start_group && !end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str        ) , true , lvl ) ;
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
 				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
-				::string pfx = dep.dflags_str()+' '+dep.accesses_str()+' '+widen(dep_key,wk)+' ' ;
-				if      (  start_group &&  end_group ) pfx.push_back(' ' ) ;
-				else if (  start_group && !end_group ) pfx.push_back('/' ) ;
-				else if ( !start_group && !end_group ) pfx.push_back('|' ) ;
-				else                                   pfx.push_back('\\') ;
-				audit( fd , ro , c , pfx+' '+mk_file(dep->name()) , false/*as_is*/ , lvl ) ;
+				::string                               dep_str =       dep.dflags_str  ()           ;
+				/**/                                   dep_str <<' '<< dep.accesses_str()           ;
+				if      ( verbose                    ) dep_str <<' '<< widen(::string(dep->crc),wc) ;
+				/**/                                   dep_str <<' '<< widen(dep_key           ,wk) ;
+				/**/                                   dep_str <<' '                                ;
+				if      (  start_group &&  end_group ) dep_str <<      ' '                          ;
+				else if (  start_group && !end_group ) dep_str <<      '/'                          ;
+				else if ( !start_group && !end_group ) dep_str <<      '|'                          ;
+				else                                   dep_str <<      '\\'                         ;
+				/**/                                   dep_str <<' '<< mk_file(dep->name())         ;
+				audit( fd , ro , c , dep_str , false/*as_is*/ , lvl ) ;
 			}
 			n_dep_groups += end_group ;
 		}
@@ -814,7 +827,7 @@ namespace Engine {
 							} else if ( +end || (+start&&verbose) ) {
 								if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg         , false , lvl+1  ) ;
 								if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg_stderr.msg    , false , lvl+1  ) ;
-								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , 1,'\t' ) ;    // ensure internal alignment of stderr is maintained
+								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , 1,'\t' ) ;      // ensure internal alignment of stderr is maintained
 							} else {
 								audit( fd , ro , Color::Note , "no info available" , true , lvl ) ;
 							}
@@ -923,7 +936,7 @@ namespace Engine {
 							::map_ss required_rsrcs  ;
 							try {
 								Rule::RuleMatch match ;
-								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
+								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(::vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(MsgStderr const&) {}
 							//
 							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , cat(RunStatus(job->run_status)) , Color::Err ) ;
@@ -941,15 +954,16 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
-								if (porcelaine) { //!                                                                                           protect
-									/**/                   push_entry( "rc"              , wstatus_str(end.wstatus)              , Color::None , true  ) ;
-									/**/                   push_entry( "cpu time"        , ::to_string(double(end.stats.cpu   )) , Color::None , false ) ;
-									/**/                   push_entry( "elapsed in job"  , ::to_string(double(end.stats.job   )) , Color::None , false ) ;
-									/**/                   push_entry( "elapsed total"   , ::to_string(double(digest.exec_time)) , Color::None , false ) ;
-									/**/                   push_entry( "used mem"        , cat        (end.stats.mem           ) , Color::None , false ) ;
-									/**/                   push_entry( "cost"            , ::to_string(double(job->cost()     )) , Color::None , false ) ;
-									/**/                   push_entry( "total size"      , cat        (end.total_sz            ) , Color::None , false ) ;
-									if (end.compressed_sz) push_entry( "compressed size" , cat        (end.compressed_sz       ) , Color::None , false ) ;
+								if (porcelaine) { //!                                                                                                 protect
+									/**/                      push_entry( "rc"                 , wstatus_str(end.wstatus)              , Color::None , true  ) ;
+									/**/                      push_entry( "cpu time"           , ::to_string(double(end.stats.cpu   )) , Color::None , false ) ;
+									/**/                      push_entry( "elapsed in job"     , ::to_string(double(end.stats.job   )) , Color::None , false ) ;
+									/**/                      push_entry( "elapsed total"      , ::to_string(double(digest.exec_time)) , Color::None , false ) ;
+									/**/                      push_entry( "used mem"           , cat        (end.stats.mem           ) , Color::None , false ) ;
+									/**/                      push_entry( "cost"               , ::to_string(double(job->cost()     )) , Color::None , false ) ;
+									/**/                      push_entry( "total targets size" , cat        (end.total_sz            ) , Color::None , false ) ;
+									if ( end.compressed_sz  ) push_entry( "compressed size"    , cat        (end.compressed_sz       ) , Color::None , false ) ;
+									if ( verbose && +target ) push_entry( "checksum"           , ::string   (target->crc             ) , Color::None , true  ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit(mem_rsrc_str):0                                                                           ;
@@ -959,14 +973,15 @@ namespace Engine {
 									::string rc_str   = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.msg_stderr.stderr?" (with non-empty stderr)":"") ;
 									Color    rc_color = wstatus_ok(end.wstatus) ? Color::Ok : Color::Err                                                           ;
 									if ( rc_color==Color::Ok && +end.msg_stderr.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
-									/**/                   push_entry( "rc"              , rc_str                                           , rc_color                            ) ;
-									/**/                   push_entry( "cpu time"        , end.stats.cpu   .short_str()                                                           ) ;
-									/**/                   push_entry( "elapsed in job"  , end.stats.job   .short_str()                                                           ) ;
-									/**/                   push_entry( "elapsed total"   , digest.exec_time.short_str()                                                           ) ;
-									/**/                   push_entry( "used mem"        , mem_str                                          , overflow?Color::Warning:Color::None ) ;
-									/**/                   push_entry( "cost"            , job->cost()     .short_str()                                                           ) ;
-									/**/                   push_entry( "total size"      , to_short_string_with_unit(end.total_sz     )+'B'                                       ) ;
-									if (end.compressed_sz) push_entry( "compressed size" , to_short_string_with_unit(end.compressed_sz)+'B'                                       ) ;
+									/**/                      push_entry( "rc"                 , rc_str                                           , rc_color                            ) ;
+									/**/                      push_entry( "cpu time"           , end.stats.cpu   .short_str()                                                           ) ;
+									/**/                      push_entry( "elapsed in job"     , end.stats.job   .short_str()                                                           ) ;
+									/**/                      push_entry( "elapsed total"      , digest.exec_time.short_str()                                                           ) ;
+									/**/                      push_entry( "used mem"           , mem_str                                          , overflow?Color::Warning:Color::None ) ;
+									/**/                      push_entry( "cost"               , job->cost()     .short_str()                                                           ) ;
+									/**/                      push_entry( "total targets size" , to_short_string_with_unit(end.total_sz     )+'B'                                       ) ;
+									if ( end.compressed_sz  ) push_entry( "compressed size"    , to_short_string_with_unit(end.compressed_sz)+'B'                                       ) ;
+									if ( verbose && +target ) push_entry( "checksum"           , ::string(target->crc)                                                                  ) ;
 								}
 							}
 							//
@@ -1088,7 +1103,7 @@ namespace Engine {
 								}
 							}
 						} break ;
-					DF}                                                                                                               // NO_COV
+					DF}                                                                                                                 // NO_COV
 				}
 			} break ;
 			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ; break ;
@@ -1097,6 +1112,7 @@ namespace Engine {
 				_audit_deps( fd , ro , false/*hide*/ , job , lvl ) ;
 			break ;
 			case ReqKey::Targets : {
+				size_t            wc      = 0 ;
 				size_t            wk      = 0 ;
 				size_t            wt      = 0 ;
 				::umap_ss         rev_map ;
@@ -1109,15 +1125,15 @@ namespace Engine {
 					VarIdx          i              = 0                        ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[false/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep)                                                                               // side deps cannot be targets
-								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                                  // in case of multiple matches, retain first
+							if (mk!=MatchKind::SideDep)                                                                                 // side deps cannot be targets
+								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                                    // in case of multiple matches, retain first
 							i++ ;
 						}
 					::vector<Pattern> star_patterns = m.star_patterns() ;
 					/**/              i             = 0                 ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[true/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ;     // side deps cannot be targets
+							if (mk!=MatchKind::SideDep) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ;       // side deps cannot be targets
 							i++ ;
 						}
 				}
@@ -1128,10 +1144,11 @@ namespace Engine {
 					if (it!=rev_map.end())                                                     key = it->second ;
 					else                   for ( auto const& [k,e] : res ) if (+e.match(tn)) { key = k          ; break ; }
 					keys.push_back(key) ;
-					if (porcelaine) wk = ::max( wk , mk_py_str(key).size() ) ;
-					else            wk = ::max( wk ,           key .size() ) ;
-					if (porcelaine) wt = ::max( wt , mk_py_str(tn ).size() ) ;
-					else            wt = ::max( wt ,           tn  .size() ) ;
+					if (porcelaine) wc = ::max( wc , mk_py_str(::string(t->crc)).size() ) ;
+					else            wc = ::max( wc ,           ::string(t->crc) .size() ) ;
+					if (porcelaine) wk = ::max( wk , mk_py_str(key             ).size() ) ;
+					else            wk = ::max( wk ,           key              .size() ) ;
+					if (porcelaine) wt = ::max( wt , mk_py_str(tn              ).size() ) ;
 				}
 				NodeIdx ti = 0 ;
 				for( Target t : job->targets() ) {
@@ -1146,8 +1163,24 @@ namespace Engine {
 					char     wr    = !exists?'U':+t->crc?'W':'-' ;
 					::string flags ;                               for( Tflag tf : iota(All<Tflag>) ) flags << (t.tflags[tf]?TflagChars[+tf].second:'-') ;
 					//                                                                                                                                                  as_is
-					if (porcelaine) audit( fd , ro ,     cat(first('{',',')," ( '",wr,"' , '",flags,"' , ",widen(mk_py_str(k),wk)," , ",widen(mk_py_str(tn),wt)," )") , true  , lvl ) ;
-					else            audit( fd , ro , c , cat(                      wr,' '    ,flags,' '   ,widen(          k ,wk),' '  ,      mk_file  (tn)         ) , false , lvl ) ;
+					if (porcelaine) {
+						::string     target_str = first("{",",")                                ;
+						/**/         target_str <<" ( "<<       mk_py_str(wr              )     ;
+						/**/         target_str <<" , "<<       mk_py_str(flags           )     ;
+						if (verbose) target_str <<" , "<< widen(mk_py_str(::string(t->crc)),wc) ;
+						/**/         target_str <<" , "<< widen(mk_py_str(k               ),wk) ;
+						/**/         target_str <<" , "<< widen(mk_py_str(tn              ),wt) ;
+						/**/         target_str <<" )"                                          ;
+						audit( fd , ro ,     target_str , true/*as_is*/  , lvl ) ;
+					} else {
+						::string     target_str ;
+						/**/         target_str <<             wr                   ;
+						/**/         target_str <<' ' <<       flags                ;
+						if (verbose) target_str <<' ' << widen(::string(t->crc),wc) ;
+						/**/         target_str <<' ' << widen(k               ,wk) ;
+						/**/         target_str <<' ' <<       mk_file(tn)          ;
+						audit( fd , ro , c , target_str , false/*as_is*/ , lvl ) ;
+					}
 				}
 				if (porcelaine) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
 			} break ;
@@ -1177,7 +1210,7 @@ namespace Engine {
 				case 0  : throw                                                              ;                                                      // unknown case : propagate
 				case 1  : throw cat("repo is read-only and file is unknown : ",ecr.files[0]) ;
 				default : {
-					::string msg = "repo is read-only and some files are unknown among: " ;
+					::string msg = "repo is read-only and some files are unknown among : " ;
 					for( ::string const& f : ecr.files ) msg <<"\n  "<< f ;
 					throw msg ;
 				}

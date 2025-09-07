@@ -26,8 +26,12 @@ Following symbolic links would inevitably lead to files being read (to check if 
 .SH OPTIONS
 .LP
 Item(B(-W),B(--write))           Report an actual write, not only target flags. Default is to only alter flags.
-Item(B(-l),B(--list))            Print list of currently generated targets to stdout (exclusive of arguments or other options).
-If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
+Item(B(-z),B(--dir))             Specify a directory for use with I(--list).
+Item(B(-l),B(--list))            Print list of currently generated targets to stdout.
+Only targets lying in the dir mentioned with I(--dir) are listed (if this option is used), and only if they match the regexpr argument (if I(--regexpr)) as reported.
+If the cwd lies outside the repo, listed files are absolute, else they are relative unless they are within an absolute source dir.
+The order of the listed targets is the chronological order.
+Cf note (3).
 Item(B(-X),B(--regexpr))         Pass flags to all targets matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 Item(B(-x),B(--no-exclude-star)) Accept that flags are further processed according to regexpr-based requests, e.g. B(ltarget --regexpr), default is to exclude such processing.
 Item(B(-E),B(--essential))       Show when generating user oriented graphs.
@@ -38,7 +42,7 @@ Item(B(-a),B(--no-allow))        Unless this option is passed, B(ltarget) makes 
 Item(B(-s),B(--source-ok))       Unless this option is passed, writing to a source is an error. In that case, being simultaneously a dep and a target is ok.
 .LP
 In case mentioned targets turn out to be deps, the dep flags are also available:
-Item(B(-c),B(--critical))     Create critical deps (cf. note (5)).
+Item(B(-c),B(--critical))     Create critical deps (cf. note (4)).
 Item(B(-D),B(--readdir-ok))   Allow C(readdir,3) on passed deps even if not B(ignore)d nor B(incremental). Implies flag B(--no-required).
 Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
@@ -54,5 +58,20 @@ V(ltarget --readdir_ok a_dir)
 V(rm -rf a_dir)
 
 .SH NOTES
+Item((1))
+	The same functionality is provided with the B(lmake.target) python function.
+Item((2))
+	Flags can be associated to targets on a regexpr (matching on target name) basis by using the B(side_targets) rule attribute.
+Item((3))
+	I(--list) is provided as a secure way to replace C(readdir,3).
+	Using this feature only relies on job execution, not spurious files that can exist without the possibility of depending on such list.
+Item((4))
+	If a series of dep is directly derived from the content of a file, it may be wise to declare it as B(critical).
+	When a critical dep is modified, OpenLmake forgets about deps reported after it.
+	.IP
+	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
+	and OpenLmake anticipates this by building these deps speculatively.
+	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
+	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
 
 Footer

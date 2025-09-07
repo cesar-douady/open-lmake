@@ -122,10 +122,10 @@ namespace Engine {
 				if (!*g_src_dirs_s) return ;                                  // fast path : no need to compute rel/abs versions
 				//
 				::string dir_s     = fixed.substr(0,fixed.rfind('/')+1) ;
-				::string rel_fixed = mk_rel(fixed,*g_repo_root_s)       ;
-				::string abs_fixed = mk_abs(fixed,*g_repo_root_s)       ;
-				::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s)       ;
-				::string abs_dir_s = mk_abs(dir_s,*g_repo_root_s)       ;
+				::string rel_fixed = mk_rel  (fixed,*g_repo_root_s)     ;
+				::string abs_fixed = mk_glb  (fixed,*g_repo_root_s)     ;
+				::string rel_dir_s = mk_rel_s(dir_s,*g_repo_root_s)     ;
+				::string abs_dir_s = mk_glb_s(dir_s,*g_repo_root_s)     ;
 				if (is_lcl_s(rel_dir_s)) throw cat("must be provided as local file, consider : ",rel_dir_s+substr_view(fstr,dir_s.size())) ;
 				//
 				for( ::string const& sd_s : *g_src_dirs_s ) {
@@ -144,7 +144,7 @@ namespace Engine {
 						}
 						if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
 						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",no_slash(sd_s),", consider : ",mk_rel(fstr,*g_repo_root_s)) ;
-						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",no_slash(sd_s),", consider : ",mk_abs(fstr,*g_repo_root_s)) ;
+						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",no_slash(sd_s),", consider : ",mk_glb(fstr,*g_repo_root_s)) ;
 					}
 					*keep_for_deps = true ;
 					break ;
@@ -305,8 +305,8 @@ namespace Engine {
 		}
 		fi = 0 ;
 		::string res = ::move(fixed[fi++]) ;
-		auto cb_str = [&]( VarCmd , VarIdx , string const& /*key*/ , string  const&   val   )->void { res<<val<<fixed[fi++] ; } ;
-		auto cb_dct = [&]( VarCmd , VarIdx , string const& /*key*/ , vmap_ss const& /*val*/ )->void { FAIL()                ; } ; // NO_COV
+		auto cb_str = [&]( VarCmd , VarIdx , ::string const& /*key*/ , ::string  const&   val   )->void { res<<val<<fixed[fi++] ; } ;
+		auto cb_dct = [&]( VarCmd , VarIdx , ::string const& /*key*/ , ::vmap_ss const& /*val*/ )->void { FAIL()                ; } ; // NO_COV
 		DynBase::s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
 		return res ;
 	}
@@ -337,7 +337,7 @@ namespace Engine {
 		if (is_lcl(dep)                  ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
-		::string abs_dep = mk_abs( dep , *g_repo_root_s ) ;
+		::string abs_dep = mk_glb( dep , *g_repo_root_s ) ;
 		if (is_lcl_s(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
@@ -426,9 +426,12 @@ namespace Engine {
 				acquire_from_dct(upper  ,py_dct,"upper"  ) ;
 				acquire_from_dct(lower  ,py_dct,"lower"  ) ;
 				acquire_from_dct(copy_up,py_dct,"copy_up") ;
-				/**/                                throw_unless( +upper             , "no upper"                            ) ;
-				/**/                                throw_unless( !copy_up || +lower , "cannot copy up from nowhere"         ) ;
-				for( ::string const& cu : copy_up ) throw_unless( !is_abs(cu)        , "copy up item must be relative : ",cu ) ;
+				throw_unless( +upper             , "no upper"                    ) ;
+				throw_unless( !copy_up || +lower , "cannot copy up from nowhere" ) ;
+				for( ::string const& cu : copy_up ) {
+					throw_unless( +cu         , "copy up item must not be empty"      ) ;
+					throw_unless( !is_abs(cu) , "copy up item must be relative : ",cu ) ;
+				}
 			} else throw "unexpected view description which is not a str nor a dict"s ;
 			/**/                       dst.phys.push_back(::move(upper)) ;
 			for( ::string& l : lower ) dst.phys.push_back(::move(l    )) ;
@@ -800,6 +803,7 @@ namespace Engine {
 					_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , flags , kind==MatchKind::SideDep ) ;
 					// check
 					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(snake_str(kind)," must be relative to root dir : "        ,target) ;
+					if ( !target                                                                   ) throw cat(snake_str(kind)," must not be empty"                             ) ;
 					if ( !is_lcl(target)                                                           ) throw cat(snake_str(kind)," must be local : "                       ,target) ;
 					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "          ,target) ;
 					if (  is_star                                    && is_special()               ) throw cat("star ",kind,"s are meaningless for source and anti-rules"       ) ;

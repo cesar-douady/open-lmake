@@ -759,12 +759,18 @@ The same functionality is provided with the <code>lcheck_deps</code> executable.
 	&lt;some code&gt;
 </code></pre>
 <p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
-<h3 id="list_deps"><a class="header" href="#list_deps"><code>list_deps()</code></a></h3>
-<p>Returns a <code>tuple</code> of currently accessed deps.
-If the cwd lies inside the repo, listed files are relative to it, else they are absolute.</p>
+<h3 id="list_deps-dir--regexpr-"><a class="header" href="#list_deps-dir--regexpr-"><code>list_deps( dir='/' , regexpr='.*' )</code></a></h3>
+<p>Returns a <code>tuple</code> of currently accessed deps.</p>
+<p>Only deps lying in the <code>dir</code> directory are listed, an only if the reported file (as explained below) matches <code>regexpr</code>.</p>
+<p>If the cwd lies outside the repo, listed files are absolute.
+Else they are relative unless a dep is in an absolute source dir.</p>
+<p>The order of the listed deps is the chronological order.</p>
 <h3 id="list_targets"><a class="header" href="#list_targets"><code>list_targets()</code></a></h3>
-<p>Returns a <code>tuple</code> of currently generated targets.
-If the cwd lies inside the repo, listed files are relative to it, else they are absolute.</p>
+<p>Returns a <code>tuple</code> of currently generated targets.</p>
+<p>Only targets lying in the <code>dir</code> directory are listed, an only if the reported file (as explained below) matches <code>regexpr</code>.</p>
+<p>If the cwd lies outside the repo, listed files are absolute.
+Else they are relative.</p>
+<p>The order of the listed targets is the chronological order.</p>
 <h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
 <p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
 Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.

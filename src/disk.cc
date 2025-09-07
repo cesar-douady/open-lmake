@@ -87,24 +87,26 @@ namespace Disk {
 		return res ;
 	}
 
-	::string mk_lcl( ::string const& file , ::string const& dir_s ) {
+	::string _mk_lcl( ::string const& path , ::string const& dir_s , bool path_is_dir ) {
 		SWEAR( is_dir_name(dir_s)            ,        dir_s ) ;
-		SWEAR( is_abs(file)==is_abs_s(dir_s) , file , dir_s ) ;
+		if (path_is_dir) SWEAR( is_abs_s(path)==is_abs_s(dir_s) , path , dir_s ) ;
+		else             SWEAR( is_abs  (path)==is_abs_s(dir_s) , path , dir_s ) ;
 		size_t last_slash1 = 0 ;
-		for( size_t i : iota(file.size()) ) {
-			if (file[i]!=dir_s[i]) break ;
-			if (file[i]=='/'     ) last_slash1 = i+1 ;
+		for( size_t i : iota(path.size()) ) {
+			if (path[i]!=dir_s[i]) break ;
+			if (path[i]=='/'     ) last_slash1 = i+1 ;
 		}
 		::string res ;
 		for( char c : substr_view(dir_s,last_slash1) ) if (c=='/') res += "../" ;
-		res += substr_view(file,last_slash1) ;
+		res += substr_view(path,last_slash1) ;
 		return res ;
 	}
 
-	::string mk_glb( ::string const& file , ::string const& dir_s ) {
-		if (is_abs(file)) return file ;
+	::string _mk_glb( ::string const& path , ::string const& dir_s , bool path_is_dir ) {
+		if (path_is_dir) { if (is_abs_s(path)) return path ; }
+		else             { if (is_abs  (path)) return path ; }
 		::string_view d_sv = dir_s ;
-		::string_view f_v  = file  ;
+		::string_view f_v  = path  ;
 		for(; f_v.starts_with("../") ; f_v.remove_prefix(3) ) {
 			if (!d_sv) break ;
 			d_sv.remove_suffix(1) ;                                                       // suppress ending /
@@ -130,17 +132,16 @@ namespace Disk {
 		size_t   pos = first_file        ;
 		::string res = txt.substr(0,pos) ;
 		while (pos!=Npos) {
-			pos++ ;                                                                                            // clobber marker
-			FileDisplay fd = FileDisplay(txt[pos++]) ;
-			SWEAR( txt.size()>=pos+sizeof(FileNameIdx) , txt.size(),pos ) ;                                    // ensure we have enough room to find file length
-			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ; pos += sizeof(FileNameIdx) ;
-			SWEAR( txt.size()>=pos+len , txt.size(),pos,len ) ;                                                // ensure we have enough room to read file
+			pos++ ;                                                                                                                                                 // clobber marker
+			FileDisplay fd  = FileDisplay(txt[pos++])                                         ; SWEAR( txt.size()>=pos+sizeof(FileNameIdx) , txt.size(),pos     ) ; // ensure can read file length
+			FileNameIdx len = decode_int<FileNameIdx>(&txt[pos]) ; pos += sizeof(FileNameIdx) ; SWEAR( txt.size()>=pos+len                 , txt.size(),pos,len ) ; // ensure can read file
+			::string    f   = len ? mk_rel(txt.substr(pos,len),dir_s) : ""s                   ;
 			switch (fd) {
-				case FileDisplay::None      : res +=              mk_rel(txt.substr(pos,len),dir_s)  ; break ;
-				case FileDisplay::Printable : res += mk_printable(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
-				case FileDisplay::Shell     : res += mk_shell_str(mk_rel(txt.substr(pos,len),dir_s)) ; break ;
-				case FileDisplay::Py        : res += mk_py_str   (mk_rel(txt.substr(pos,len),dir_s)) ; break ;
-			DF}                                                                                                // NO_COV
+				case FileDisplay::None      : res +=              f  ; break ;
+				case FileDisplay::Printable : res += mk_printable(f) ; break ;
+				case FileDisplay::Shell     : res += mk_shell_str(f) ; break ;
+				case FileDisplay::Py        : res += mk_py_str   (f) ; break ;
+			DF}                                                                                                                                                     // NO_COV
 			pos += len ;
 			size_t new_pos = txt.find(FileMrkr,pos) ;
 			res += txt.substr(pos,new_pos-pos) ;
@@ -232,13 +233,13 @@ namespace Disk {
 	}
 
 	size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard , PermExt perm_ext , bool unlnk_ok ) {
-		if (!dir_s) return Npos ;                                                                           // nothing to create
+		if (!dir_s) return Npos ;                                                                                       // nothing to create
 		//
 		::vector_s  to_mk_s { dir_s }              ;
 		const char* msg     = nullptr              ;
-		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                                        // return the pos of the / between existing and new components
+		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                                                    // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string const& d_s = to_mk_s.back() ;                                                          // parents are after children in to_mk
+			::string const& d_s = to_mk_s.back() ;                                                                      // parents are after children in to_mk
 			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d_s) ; }
 			if (::mkdirat(at,d_s.c_str(),0777)==0) {
 				if (+perm_ext) {
@@ -264,16 +265,16 @@ namespace Disk {
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                               // done
+			}                                                                                                           // done
 			switch (errno) {
 				case EEXIST :
-					if ( unlnk_ok && !is_dir_s(at,d_s) )   unlnk(at,d_s,false/*dir_ok*/,true/*abs_ok*/) ;   // retry
-					else                                 { pos = d_s.size()-1 ; to_mk_s.pop_back() ;      } // done
+					if ( unlnk_ok && !is_dir_s(at,d_s) )   unlnk(at,d_s,false/*dir_ok*/,true/*abs_ok*/) ;               // retry
+					else                                 { pos = d_s.size()-1 ; to_mk_s.pop_back() ;      }             // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;                                // retry after parent is created
-					else              { msg = "cannot create top dir" ; goto Bad ; }                        // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;                                            // retry after parent is created
+					else              { msg = "cannot create top dir" ; goto Bad ; }                                    // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
 					msg = "cannot create dir" ;
@@ -434,7 +435,7 @@ namespace Disk {
 
 	// /!\ : this code must be in sync with RealPath::solve
 	FileLoc RealPathEnv::file_loc(::string const& real) const {
-		::string abs_real = mk_abs(real,repo_root_s) ;
+		::string abs_real = mk_glb(real,repo_root_s) ;
 		if (abs_real.starts_with(tmp_dir_s                                      )) return FileLoc::Tmp  ;
 		if (abs_real.starts_with("/proc/"                                       )) return FileLoc::Proc ;
 		if (abs_real.starts_with(substr_view(repo_root_s,0,repo_root_s.size()-1)))
@@ -476,12 +477,12 @@ namespace Disk {
 	}
 
 	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _repo_root_sz{_env->repo_root_s.size()} , _nfs_guard{rpe.file_sync} {
-		SWEAR( is_abs(rpe.repo_root_s) , rpe.repo_root_s ) ;
-		SWEAR( is_abs(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
+		/**/                SWEAR( is_abs_s(rpe.repo_root_s) , rpe.repo_root_s ) ;
+		if (+rpe.tmp_dir_s) SWEAR( is_abs_s(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
 		//
 		chdir() ; // initialize _cwd
 		//
-		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,rpe.repo_root_s)) ;
+		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb_s(sd_s,rpe.repo_root_s)) ;
 	}
 
 	size_t RealPath::_find_src_idx(::string const& real) const {
@@ -613,7 +614,7 @@ namespace Disk {
 			//
 			if ( sr.file_loc>FileLoc::Dep && sr.file_loc!=FileLoc::Tmp ) break ;                               // if we escaped from the repo, there is no more deps to gather
 			//
-			::string abs_real = mk_abs(sr.real,_env->repo_root_s) ;
+			::string abs_real = mk_glb(sr.real,_env->repo_root_s) ;
 			Accesses a        = Access::Reg                       ; if (sr.file_accessed==Yes) a |= Access::Lnk ;
 			//
 			if (sr.file_loc<=FileLoc::Dep) res.emplace_back( ::move(sr.real) , a ) ;

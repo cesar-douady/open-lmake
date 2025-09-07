@@ -108,7 +108,7 @@ else :
 		_,e  = lshow( ('-d','--deps') , '-v' , '-J' , 'hello+world_py' )
 		assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
 		assert all( w in x for w in ('site-packages','FIRST','hello','SECOND','world') )
-		assert len(e)==3 and 'site-package' in tuple(e[0])[0][3] and tuple(e[1])[0][2:]==('FIRST','hello') and tuple(e[2])[0][2:]==('SECOND','world')
+		assert len(e)==3 and 'site-package' in tuple(e[0])[0][-1] and tuple(e[1])[0][-2:]==('FIRST','hello') and tuple(e[2])[0][-2:]==('SECOND','world')
 
 		x,px = lshow( ('-d','--deps') , 'dut' )
 		e    = px['dut'][('Dut','dut','generating')]
@@ -142,7 +142,7 @@ else :
 		,	'elapsed total'
 		,	'used mem'
 		,	'cost'
-		,	'total size'
+		,	'total targets size'
 		) :
 			assert w in x , f'in lshow -i : missing {w} in\n{x}'
 		assert e['job']=='hello+world_sh' and len(e['ids'])==3 and e['required by']=='dut' and e['reason']=='job was never run' and e['status']=='ok' and e['rc']=='ok'

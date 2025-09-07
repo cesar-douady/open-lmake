@@ -131,8 +131,8 @@ namespace Backends::Slurm {
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                             v   ; continue ; } break ;
 						case 'u' : if (k=="use_nice"         ) { use_nice          =       from_string<bool    >(v)  ; continue ; } break ;
 					DN}
-				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "   ,k+": ",v) ; }
-				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry: ",k       ) ; }
+				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "    ,k+": ",v) ; }
+				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry : ",k       ) ; }
 			}
 			if (!dyn) {
 				daemon = slurm_sense_daemon( config_file , lib_slurm , init_timeout ) ;
@@ -520,8 +520,8 @@ namespace Backends::Slurm {
 				if (opts.flags[SlurmFlag::Qos        ]) res1.qos       =                                          opts.flag_args[+SlurmFlag::Qos        ]  ;
 				if (opts.flags[SlurmFlag::Reservation]) res1.reserv    =                                          opts.flag_args[+SlurmFlag::Reservation]  ;
 			} catch (::string const& e) {
-				if (e.find('\n')==Npos) throw "error while parsing slurm options: " +e ;
-				else                    throw "error while parsing slurm options:\n"+e ;
+				if (e.find('\n')==Npos) throw "error while parsing slurm options : " +e ;
+				else                    throw "error while parsing slurm options :\n"+e ;
 			}
 			res.push_back(::move(res1)) ;
 			argv.resize(1)              ;

@@ -10,11 +10,11 @@
 
 namespace JobSupport {
 
-	::pair<::vector<VerboseInfo>,bool/*ok*/> depend    ( Record const& , ::vector_s&& files , AccessDigest , bool no_follow , bool regexpr=false ) ;
-	void                                     target    ( Record const& , ::vector_s&& files , AccessDigest ,                  bool regexpr=false ) ;
-	Bool3                                    check_deps( Record const& ,                                                      bool sync   =false ) ;
-	::vector_s                               list      ( Record const& , Bool3 write                                                             ) ; // No:deps, Yes:targets, Maybe:both
-	::pair_s<                    bool/*ok*/> decode    ( Record const& , ::string&& file , ::string&& code , ::string&& ctx                      ) ;
-	::pair_s<                    bool/*ok*/> encode    ( Record const& , ::string&& file , ::string&& val  , ::string&& ctx , uint8_t min_len=1  ) ;
+	::pair<::vector<VerboseInfo>,bool/*ok*/> depend    ( Record const& , ::vector_s&& files , AccessDigest , bool no_follow , bool regexpr=false  ) ;
+	void                                     target    ( Record const& , ::vector_s&& files , AccessDigest ,                  bool regexpr=false  ) ;
+	Bool3                                    check_deps( Record const& ,                                                      bool sync   =false  ) ;
+	::vector_s                               list      ( Record const& r , Bool3 write , ::string const& dir_s="/" , ::string const& regexpr=".*" ) ; // No:deps, Yes:targets, Maybe:both
+	::pair_s<                    bool/*ok*/> decode    ( Record const& , ::string&& file , ::string&& code , ::string&& ctx                       ) ;
+	::pair_s<                    bool/*ok*/> encode    ( Record const& , ::string&& file , ::string&& val  , ::string&& ctx , uint8_t min_len=1   ) ;
 
 }

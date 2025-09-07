@@ -189,13 +189,14 @@ static void _out_thread_func(ReqRpcReply const& rrr) {
 	DF}                                                                    // NO_COV
 }
 
-Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb=[](bool/*start*/)->void{} ) {
+Bool3/*ok*/ _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb ) {
 	Trace trace("out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
 	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
 	//
-	bool sync = cmd_line.flags[ReqFlag::Sync] ;
+	bool       sync           = cmd_line.flags[ReqFlag::Sync] ;
+	::vector_s cmd_line_files ;                                 try { cmd_line_files = cmd_line.files() ; } catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Bool3    rv     = Maybe/*garbage*/ ;
 	::string rv_str ;
@@ -212,9 +213,9 @@ Bool3/*ok*/ _out_proc( ::vector_s* files , ReqProc proc , bool read_only , bool 
 	}
 	trace("reverse_video",rv) ;
 	//
-	ReqRpcReq                              rrr        { proc , cmd_line.files() , { rv , cmd_line } } ;
-	Bool3                                  rc         = Maybe                                         ;
-	pid_t                                  server_pid = _connect_to_server(read_only,refresh,sync)    ;
+	ReqRpcReq rrr        { proc , cmd_line_files , { rv , cmd_line } } ;
+	Bool3     rc         = Maybe                                       ;
+	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)  ;
 	trace("starting") ;
 	cb(true/*start*/) ;                                                                                 // block INT once server is initialized so as to be interruptible at all time
 	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func }                      ; // /!\ must be after call to cb so INT can be blocked before creating threads

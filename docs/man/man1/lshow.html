@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Sep  6 19:32:39 2025 -->
+<!-- CreationDate: Sun Sep  7 22:18:41 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -332,8 +332,8 @@ shown.</p>
 header nor decoration.</p>
 
 <p style="margin-left:18%; margin-top: 1em">Unless
-<i>--quiet</i>, each line is composed of 5 fields separated
-by spaces :</p>
+<i>--quiet</i>, each line is composed of 5 or 6 fields
+separated by spaces :</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -474,8 +474,8 @@ its inode has been accessed).</p></td></tr>
 </td></tr>
 </table>
 
-<p style="margin-left:27%; margin-top: 1em">Key : the key
-if the dep is static, else blank.</p>
+<p style="margin-left:27%; margin-top: 1em">Checksum : the
+checksum of the dep if <i>--verbose</i>.</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -489,9 +489,21 @@ if the dep is static, else blank.</p>
 <td width="73%">
 
 
-<p style="margin-top: 1em">Ascii art showing parallel deps
-(deps coming from a single call to <b>ldepend</b>(1) or
-<b>lmake.depend</b> are considered parallel).</p></td></tr>
+<p style="margin-top: 1em">Key : the key if the dep is
+static, else blank.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Ascii art showing parallel deps (deps coming from a
+single call to <b>ldepend</b>(1) or <b>lmake.depend</b> are
+considered parallel).</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -1094,7 +1106,7 @@ compute the ETA of the lmake command.</p></td></tr>
 <td width="73%">
 
 
-<p><b>total size</b> : the sum of the sizes of all
+<p><b>total targets size</b> : the sum of the sizes of all
 targets.</p> </td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
@@ -1108,6 +1120,18 @@ targets.</p> </td></tr>
 
 <p><b>compressed size</b> : the sum of the sizes of all
 targets after compression as stored in cache.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>checksum</b> : the checksum of the target if
+<i>--verbose</i> and not <i>--job</i>.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -1259,8 +1283,8 @@ shown.</p>
 header nor decoration.</p>
 
 <p style="margin-left:18%; margin-top: 1em">Unless
-<i>--quiet</i>, each line is composed of 3 fields separated
-by spaces :</p>
+<i>--quiet</i>, each line is composed of 4 or 5 fields
+separated by spaces :</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -1386,8 +1410,39 @@ another one depend on this target.</p></td></tr>
 </td></tr>
 </table>
 
-<p style="margin-left:27%; margin-top: 1em">The name of the
-target.</p>
+<p style="margin-left:27%; margin-top: 1em">the checksum of
+the target if <i>--verbose</i>.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p style="margin-top: 1em">&bull;</p></td>
+<td width="8%"></td>
+<td width="61%">
+
+
+<p style="margin-top: 1em">the key under which the target
+is known, if any.</p></td>
+<td width="12%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="61%">
+
+
+<p>The name of the target.</p></td>
+<td width="12%">
+</td></tr>
+</table>
 
 <p style="margin-left:18%; margin-top: 1em">If a target
 does not exist, it is deemed secondary information and is

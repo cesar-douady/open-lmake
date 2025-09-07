@@ -661,7 +661,7 @@ namespace Caches {
 
 ::string& operator+=( ::string& os , JobSpace::ViewDescr const& vd ) { // START_OF_NO_COV
 	/**/             os <<"ViewDescr("<< vd.phys ;
-	if (+vd.copy_up) os <<"CU:"<< vd.copy_up     ;
+	if (+vd.copy_up) os <<",CU:"<< vd.copy_up    ;
 	return           os <<')'                    ;
 }                                                                      // END_OF_NO_COV
 
@@ -699,12 +699,12 @@ void JobSpace::chk() const {
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
 	SWEAR( +srcs_s                               ) ;
-	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ;                                             // use bind mount in that case
+	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ;                                     // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	for( size_t i : iota(1,srcs_s.size()) )
 		if (srcs_s[i].find(':')!=Npos)
-			throw cat("cannot overlay mount ",dst_s," to ",srcs_s,"with embedded columns (:)") ; // NO_COV defensive programming
+			throw cat("cannot overlay mount ",dst_s," to ",srcs_s,"with embedded ':'") ; // NO_COV defensive programming
 	mk_dir_s(work_s) ;
 	//
 	::string                                data  = "userxattr"                      ;
@@ -724,7 +724,7 @@ static void _atomic_write( ::string const& file , ::string const& data ) {
 }
 
 bool JobSpace::_is_lcl_tmp(::string const& f) const {
-	if (is_lcl(f)  ) return true                      ;
+	if (is_lcl_s(f)) return true                      ;
 	if (+tmp_view_s) return f.starts_with(tmp_view_s) ;
 	/**/             return false                     ;
 } ;
@@ -952,10 +952,11 @@ bool JobSpace::enter(
 	//
 	size_t work_idx = 0 ;
 	for( auto const& [view,descr] : views ) {
+		throw_unless( +view , "cannot map a view to the entire repo" ) ;
 		if (!descr) continue ;                                                                                                // empty descr does not represent a view
 		//
-		::string   abs_view = mk_abs(view,top_repo_root_s) ;
-		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_abs(phy,top_repo_root_s)) ;
+		::string   abs_view = mk_glb(view,top_repo_root_s) ;
+		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_glb_s(phy,top_repo_root_s)) ;
 		//
 		/**/                                    _create(report,view) ;
 		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
@@ -975,7 +976,7 @@ bool JobSpace::enter(
 			::string const& upper  = descr.phys[0]                                                                          ;
 			::string        work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ; // if not in the repo, it must be in tmp
 			mk_dir_s(work_s) ;
-			_mount_overlay( abs_view , abs_phys , mk_abs(work_s,top_repo_root_s) ) ;
+			_mount_overlay( abs_view , abs_phys , mk_glb_s(work_s,top_repo_root_s) ) ;
 		}
 	}
 	trace("done",report,top_repo_root_s) ;
@@ -1001,7 +1002,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 		if ( !is_canon(dir_s)                             ) dir_s = Disk::mk_canon(dir_s) ;
 		if ( slash_ok && dir_s=="/"                       ) return ;
 		if (             dir_s=="/"                       ) throw cat(key," cannot be /"                                          ) ;
-		if ( !is_abs(dir_s)                               ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
+		if ( !is_abs_s(dir_s)                             ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
 		if ( phy_repo_root_s.starts_with(dir_s          ) ) throw cat("repository cannot lie within ",key,' ',no_slash(dir_s)     ) ;
 		if ( dir_s          .starts_with(phy_repo_root_s) ) throw cat(key,' ',no_slash(dir_s)," cannot be local to the repository") ;
 	} ;
@@ -1026,7 +1027,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	::string const& job_repo_root_s = repo_view_s | phy_repo_root_s ;
 	auto do_path = [&](::string& path)->void {
 		if      (!is_canon(path)                  ) path = Disk::mk_canon(path)         ;
-		if      (path.starts_with("../")          ) path = mk_abs(path,job_repo_root_s) ;
+		if      (path.starts_with("../")          ) path = mk_glb(path,job_repo_root_s) ;
 		else if (path.starts_with(job_repo_root_s)) path.erase(0,job_repo_root_s.size()) ;
 	} ;
 	for( auto& [view,_] : views ) {

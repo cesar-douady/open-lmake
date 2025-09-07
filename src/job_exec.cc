@@ -374,7 +374,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( dir_guard(cmd_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_start_info.cmd) ;
 		res.reserve(res.size()+1) ;
-		res.push_back(mk_abs(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
+		res.push_back(mk_glb(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
 		// large commands are forced use_script=true in server
@@ -388,16 +388,16 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	return res ;
 }
 
-void crc_thread_func( size_t id , vmap_s<TargetDigest>* targets , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
+void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
 	static Atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
-	Trace trace("crc_thread_func",targets->size(),crcs->size()) ;
+	Trace trace("crc_thread_func",tgts->size(),crcs->size()) ;
 	NodeIdx cnt = 0 ;                                                      // cnt is for trace only
 	*sz = 0 ;
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
-		NodeIdx                 ti     = (*crcs)[ci]    ;
-		::pair_s<TargetDigest>& e      = (*targets)[ti] ;
-		Pdate                   before = New            ;
+		NodeIdx                 ti     = (*crcs)[ci] ;
+		::pair_s<TargetDigest>& e      = (*tgts)[ti] ;
+		Pdate                   before = New         ;
 		FileInfo                fi     ;
 		try {
 			//             vvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -506,11 +506,11 @@ int main( int argc , char* argv[] ) {
 					// use seq id instead of small id to make tmp dir to ensure that even if user mistakenly record tmp dir name, there no chance of porosity between jobs
 					// as with small id, by the time the (bad) old tmp dir is referenced by a new job, it may be in use by another job
 					// such a situation cannot occur with seq id
-					if      (it==g_start_info.env.end()       ) {}
-					else if (it->second!=PassMrkr             ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					else if (has_env("TMPDIR")                ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					if      (!end_report.phy_tmp_dir_s        ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"           <<g_seq_id<<'/' ;
-					else if (!is_abs(end_report.phy_tmp_dir_s)) {
+					if      (it==g_start_info.env.end()         ) {}
+					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
+					else if (has_env("TMPDIR")                  ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
+					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"           <<g_seq_id<<'/' ;
+					else if (!is_abs_s(end_report.phy_tmp_dir_s)) {
 						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
 						goto End ;
 					}

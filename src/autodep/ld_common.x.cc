@@ -439,7 +439,7 @@ struct Mkstemp : WSolve {
 		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
 		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; NO_SERVER(setenv  ) ; get_ld_library_path() ; return (*orig)(name,value,overwrite) ; }
 		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; NO_SERVER(unsetenv) ; get_ld_library_path() ; return (*orig)(name                ) ; }
-		int putenv  (char *string                                        ) { ORIG(putenv  ) ; NO_SERVER(putenv  ) ; get_ld_library_path() ; return (*orig)(string              ) ; }
+		int putenv  (char *s                                             ) { ORIG(putenv  ) ; NO_SERVER(putenv  ) ; get_ld_library_path() ; return (*orig)(s                   ) ; }
 	#endif
 
 	// execv

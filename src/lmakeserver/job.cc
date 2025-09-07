@@ -24,7 +24,7 @@ namespace Engine {
 	// jobs thread
 	//
 
-	vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool mark_target_dirs ) const {    // thread-safe
+	::vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool mark_target_dirs ) const {    // thread-safe
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
 		::uset<Node>                  to_mkdirs          = match.target_dirs() ;
 		::uset<Node>                  to_mkdir_uphills   ;
@@ -1446,9 +1446,9 @@ namespace Engine {
 							try {
 								NfsGuard nfs_guard { g_config->file_sync } ;
 								//
-								vmap<Node,FileAction> fas     = pre_actions(match) ;
-								::vmap_s<FileAction>  actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-								::string              dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
+								::vmap<Node,FileAction> fas     = pre_actions(match) ;
+								::vmap_s<FileAction>    actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
+								::string                dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
 								//
 								if (+dfa_msg) {
 									req->audit_job ( Color::Note , "wash"  , job     ) ;

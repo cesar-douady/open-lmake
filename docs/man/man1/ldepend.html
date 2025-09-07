@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Sep  6 19:32:38 2025 -->
+<!-- CreationDate: Sun Sep  7 22:18:40 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -195,7 +195,7 @@ link, default is not to follow.</p>
 <p style="margin-left:9%;"><b>-d</b>, <b>--direct</b></p>
 
 <p style="margin-left:18%;">Build deps before command
-completion (cf. note (6)).</p>
+completion (cf. note (5)).</p>
 
 <p style="margin-left:9%;"><b>-v</b>, <b>--verbose</b></p>
 
@@ -261,17 +261,26 @@ value.</p>
 <p style="margin-left:18%;">Report an actual read. Default
 is to only alter flags.</p>
 
+<p style="margin-left:9%;"><b>-z</b>, <b>--dir</b></p>
+
+<p style="margin-left:18%;">Specify a directory for use
+with <i>--list</i>.</p>
+
 <p style="margin-left:9%;"><b>-l</b>, <b>--list</b></p>
 
 <p style="margin-left:18%;">Print list of currently
-accessed deps to stdout (exclusive of arguments or other
-options). If the cwd lies inside the repo, listed files are
-relative to it, else they are absolute.</p>
+accessed deps to stdout. Only deps lying in the dir
+mentioned with <i>--dir</i> are listed (if this option is
+used), and only if they match the regexpr argument (if
+<i>--regexpr</i>) as reported. If the cwd lies outside the
+repo, listed files are absolute, else they are relative
+unless they are within an absolute source dir. The order of
+the listed deps is the chronological order. Cf note (6).</p>
 
 <p style="margin-left:9%;"><b>-c</b>, <b>--critical</b></p>
 
 <p style="margin-left:18%;">Create critical deps (cf. note
-(5)).</p>
+(7)).</p>
 
 <p style="margin-left:9%;"><b>-D</b>,
 <b>--readdir-ok</b></p>
@@ -425,35 +434,8 @@ instead of all of them in parallel.</p></td></tr>
 <td width="82%">
 
 
-<p>If a series of dep is directly derived from the content
-of a file, it may be wise to declare it as <b>critical</b>.
-When a critical dep is modified, <i>open-lmake</i> forgets
-about deps reported after it.</p></td></tr>
-</table>
-
-<p style="margin-left:18%; margin-top: 1em">Usually, when a
-file is modified, this has no influence on the list of files
-that are accessed after it, and <i>open-lmake</i>
-anticipates this by building these deps speculatively. But
-in some situations, it is almost certain that there will be
-an influence and it is preferable not to anticipate. this is
-what critical deps are made for: in case of modifications,
-following deps are not built speculatively.</p>
-
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="4%">
-
-
-<p style="margin-top: 1em">(6)</p></td>
-<td width="5%"></td>
-<td width="82%">
-
-
-<p style="margin-top: 1em">Using direct deps is not
-recommanded for general use as it suffers 2 drawbacks:</p></td></tr>
+<p>Using direct deps is not recommanded for general use as
+it suffers 2 drawbacks:</p></td></tr>
 </table>
 
 <p style="margin-left:18%;">- successive calls leads to
@@ -468,6 +450,47 @@ the dichotomy. In that case, using the <b>direct</b> flag
 reduces the number of reruns, which can occur for each step
 otherwise. In that case, it is most probably wise to use the
 <b>critical</b> flag simultaneously.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p style="margin-top: 1em">(6)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em"><i>--list</i> is provided as a
+secure way to replace <b>readdir</b>(3). Using this feature
+only relies on job execution, not spurious files that can
+exist without the possibility of depending on such list.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(7)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>If a series of dep is directly derived from the content
+of a file, it may be wise to declare it as <b>critical</b>.
+When a critical dep is modified, <i>open-lmake</i> forgets
+about deps reported after it.</p></td></tr>
+</table>
+
+<p style="margin-left:18%; margin-top: 1em">Usually, when a
+file is modified, this has no influence on the list of files
+that are accessed after it, and <i>open-lmake</i>
+anticipates this by building these deps speculatively. But
+in some situations, it is almost certain that there will be
+an influence and it is preferable not to anticipate. this is
+what critical deps are made for: in case of modifications,
+following deps are not built speculatively.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>

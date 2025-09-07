@@ -43,7 +43,7 @@ Bullet
 .SH OPTIONS
 .LP
 Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
-Item(B(-d),B(--direct))          Build deps before command completion (cf. note (6)).
+Item(B(-d),B(--direct))          Build deps before command completion (cf. note (5)).
 Item(B(-v),B(--verbose))
 	Write lines composed of:
 	.RS
@@ -55,9 +55,13 @@ Item(B(-v),B(--verbose))
 	.IP
 	For each file, such line is followed by one line for each stem, starting with a tab, composed of the name of the stem followed by its value.
 Item(B(-R),B(--read))            Report an actual read. Default is to only alter flags.
-Item(B(-l),B(--list))            Print list of currently accessed deps to stdout (exclusive of arguments or other options).
-If the cwd lies inside the repo, listed files are relative to it, else they are absolute.
-Item(B(-c),B(--critical))        Create critical deps (cf. note (5)).
+Item(B(-z),B(--dir))             Specify a directory for use with I(--list).
+Item(B(-l),B(--list))            Print list of currently accessed deps to stdout.
+Only deps lying in the dir mentioned with I(--dir) are listed (if this option is used), and only if they match the regexpr argument (if I(--regexpr)) as reported.
+If the cwd lies outside the repo, listed files are absolute, else they are relative unless they are within an absolute source dir.
+The order of the listed deps is the chronological order.
+Cf note (6).
+Item(B(-c),B(--critical))        Create critical deps (cf. note (7)).
 Item(B(-D),B(--readdir-ok))      Allow C(readdir,3) on passed deps even if not B(ignore)d nor B(incremental). Implies flag B(--no-required).
 Item(B(-E),B(--essential))       Passed deps will appear in the flow shown with a graphical tool.
 Item(B(-e),B(--ignore-error))    Ignore the error status of the passed deps.
@@ -97,14 +101,6 @@ Item((4))
 	then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
 	The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.
 Item((5))
-	If a series of dep is directly derived from the content of a file, it may be wise to declare it as B(critical).
-	When a critical dep is modified, OpenLmake forgets about deps reported after it.
-	.IP
-	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
-	and OpenLmake anticipates this by building these deps speculatively.
-	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
-	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
-Item((6))
 	Using direct deps is not recommanded for general use as it suffers 2 drawbacks:
 	.RS
 	- successive calls leads to serial jobs (as each job is analyzed once the previous has completed)
@@ -117,5 +113,16 @@ Item((6))
 	In that case, using the B(direct) flag reduces the number of reruns, which can occur for each step otherwise.
 	In that case, it is most probably wise to use the B(critical) flag simultaneously.
 	.RE
+Item((6))
+	I(--list) is provided as a secure way to replace C(readdir,3).
+	Using this feature only relies on job execution, not spurious files that can exist without the possibility of depending on such list.
+Item((7))
+	If a series of dep is directly derived from the content of a file, it may be wise to declare it as B(critical).
+	When a critical dep is modified, OpenLmake forgets about deps reported after it.
+	.IP
+	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,
+	and OpenLmake anticipates this by building these deps speculatively.
+	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
+	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
 
 Footer

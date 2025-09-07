@@ -350,7 +350,7 @@ namespace Engine::Persistent {
 
 namespace Engine::Persistent {
 
-	template<bool IsSfx> static void _propag_to_longer( ::map_s<uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
+	template<bool IsSfx> static void _propag_to_longer( ::map_s<::uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
 		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
 			if ( !IsSfx && sub_repos_s.contains(long_psfx) ) continue ; // dont propagate through sub_repos boundaries
 			for( size_t shorten_by : iota(1,long_psfx.size()+1) ) {
@@ -370,7 +370,7 @@ namespace Engine::Persistent {
 		_g_pfxs_file.clear() ;
 		//
 		// first compute a suffix map
-		::map_s<uset<Rt>> sfx_map ;
+		::map_s<::uset<Rt>> sfx_map ;
 		for( Rule r : rule_lst() )
 			for( VarIdx ti : iota<VarIdx>(r->matches.size()) ) {
 				if (!r->matches[ti].second.flags.tflags[Tflag::Target]) continue ;
@@ -381,10 +381,10 @@ namespace Engine::Persistent {
 		//
 		// now, for each suffix, compute a prefix map
 		// create empty entries for all sub-repos so as markers to ensure prefixes are not propagated through sub-repo boundaries
-		::map_s<uset<Rt>> empty_pfx_map ;                                  for( ::string const& sr_s : g_config->sub_repos_s ) empty_pfx_map.try_emplace(sr_s) ;
-		::uset_s          sub_repos_s   = mk_uset(g_config->sub_repos_s) ;
+		::map_s<::uset<Rt>> empty_pfx_map ;                                  for( ::string const& sr_s : g_config->sub_repos_s ) empty_pfx_map.try_emplace(sr_s) ;
+		::uset_s            sub_repos_s   = mk_uset(g_config->sub_repos_s) ;
 		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
-			::map_s<uset<Rt>> pfx_map = empty_pfx_map ;
+			::map_s<::uset<Rt>> pfx_map = empty_pfx_map ;
 			if ( sfx.starts_with(StartMrkr) ) {                                              // manage targets with no stems as a suffix made of the entire target and no prefix
 				::string_view sfx1 = substr_view(sfx,1) ;
 				for( Rt const& rt : sfx_rule_tgts ) if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;

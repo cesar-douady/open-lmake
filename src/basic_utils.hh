@@ -324,7 +324,9 @@ template<class K         > ::string& operator+=( ::string& os , ::set   <K  > co
 template<class K,class V > ::string& operator+=( ::string& os , ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
 template<class K,class V > ::string& operator+=( ::string& os , ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
 //
-template<class A,class B > ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
+template<class A,class B> ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
+//
+template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) { return +o ? os<<o.value() : os<<"<none>" ; }
 //
 inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
 inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .

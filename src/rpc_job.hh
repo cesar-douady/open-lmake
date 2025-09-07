@@ -808,7 +808,7 @@ struct JobStartRpcReply {                                                       
 	JobSpace                                job_space      ;
 	bool                                    keep_tmp       = false               ;
 	::string                                key            ;                       // key used to uniquely identify repo
-	vector<uint8_t>                         kill_sigs      ;
+	::vector<uint8_t>                       kill_sigs      ;
 	bool                                    live_out       = false               ;
 	AutodepMethod                           method         = AutodepMethod::Dflt ;
 	Time::Delay                             network_delay  ;
