@@ -456,6 +456,7 @@ namespace Backends {
 				for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
 				return false/*keep_fd*/ ;
 			Useful :
+				SWEAR( !entry.start_date , job,reply.addr,entry.start_date ) ;                                       // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvvvvvvvv
 				jis.pre_start.msg <<set_nl<< s_start(entry.tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^^^^^^^
@@ -498,7 +499,6 @@ namespace Backends {
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^
 				job_exec = { job , entry.tag!=Tag::Local?jis.start.addr:0 , New/*start*/ , {}/*end*/ } ; SWEAR(+job_exec.start_date) ; // job starts
 				//
-				SWEAR( !entry.start_date , job,entry.start_date ) ;                                                                    // ensure we do not overwrite an already started entry
 				entry.start_date    = job_exec.start_date               ;
 				entry.workload      = _s_workload.start(entry.reqs,job) ;
 				entry.conn.host     = job_exec.host                     ;
