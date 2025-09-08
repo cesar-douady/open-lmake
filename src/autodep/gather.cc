@@ -426,8 +426,8 @@ Status Gather::exec_child() {
 							::vmap_s<DepDigest   > deps    ;
 							JobExecRpcReply        reply   { .proc=Proc::List } ;
 							chk_deps_cb( /*out*/targets , /*out*/deps ) ;
-							if (jerr.digest.write!=No ) { ces |= CommentExt::Write ; for( auto& [f,d] : targets ) reply.files.push_back(::move(f)) ; }
-							if (jerr.digest.write!=Yes) { ces |= CommentExt::Read  ; for( auto& [f,d] : deps    ) reply.files.push_back(::move(f)) ; }
+							if (jerr.digest.write!=No ) { ces |= CommentExt::Write ; for( auto& [tn,td] : targets ) if (td.crc!=Crc::None) reply.files.push_back(::move(tn)) ; }
+							if (jerr.digest.write!=Yes) { ces |= CommentExt::Read  ; for( auto& [dn,_ ] : deps    )                        reply.files.push_back(::move(dn)) ; }
 							_exec_trace( jerr.date , Comment::list , ces ) ;
 							sync( fd , ::move(reply) ) ;
 						} break ;

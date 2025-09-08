@@ -19,8 +19,8 @@ using namespace Py   ;
 namespace Engine::Makefiles {
 
 	struct Deps {
-		::vector_s                         files    ;
-		::vmap_s<::pair_s<bool/*exists*/>> user_env ;
+		::vector_s             files    ;
+		::vmap_s<::optional_s> user_env ;
 	} ;
 
 	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"  ; // provided to user, contains only variables used in Lmakefile.py
@@ -140,10 +140,10 @@ namespace Engine::Makefiles {
 			deps_str << pfx << d <<'\n' ;
 		NextDep : ;
 		}
-		for( auto const& [key,val_exists] : deps.user_env ) {
+		for( auto const& [key,val] : deps.user_env ) {
 			SWEAR(+key) ;
-			if (val_exists.second) deps_str <<'='<<key<<'='<<val_exists.first<<'\n' ;
-			else                   deps_str <<'='<<key                       <<'\n' ;
+			if (+val) deps_str <<'='<<key<<'='<<val.value()<<'\n' ;
+			else      deps_str <<'='<<key                  <<'\n' ;
 		}
 		AcFd( new_deps_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(deps_str) ;
 		//
@@ -198,9 +198,9 @@ namespace Engine::Makefiles {
 			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.files.push_back(d ) ; }
 		}
 		if (py_info->contains("user_environ")) {
-			for( auto const& [py_key,py_val] : py_info->get_item("user_environ").as_a<Dict>() ) //!                     exists
-				if (&py_val==&None) deps.user_env.emplace_back( py_key.as_a<Str>() , ::pair(""s                         ,false)) ;
-				else                deps.user_env.emplace_back( py_key.as_a<Str>() , ::pair(::string(py_val.as_a<Str>()),true )) ;
+			for( auto const& [py_key,py_val] : py_info->get_item("user_environ").as_a<Dict>() )
+				if (&py_val==&None) deps.user_env.emplace_back( py_key.as_a<Str>() , ::optional_s()     ) ;
+				else                deps.user_env.emplace_back( py_key.as_a<Str>() , py_val.as_a<Str>() ) ;
 			py_info->del_item("user_environ") ;
 		}
 		trace("done",Pdate(New)) ;
@@ -365,9 +365,9 @@ namespace Engine::Makefiles {
 		// once all error cases have been cleared, stamp deps and generate environ file for user
 		if ( config_digest || srcs_digest==Yes || rules_digest==Yes ) {
 			::umap_ss ue ;
-			if (config_digest    ) { _stamp_deps("config" ) ; for( auto const& [k,v] : config_deps.user_env ) if (v.second) ue[k] = v.first ; } else _recall_env(ue,"config") ;
-			if (srcs_digest ==Yes) { _stamp_deps("sources") ; for( auto const& [k,v] : srcs_deps  .user_env ) if (v.second) ue[k] = v.first ; } else _recall_env(ue,"srcs"  ) ;
-			if (rules_digest==Yes) { _stamp_deps("rules"  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (v.second) ue[k] = v.first ; } else _recall_env(ue,"rules" ) ;
+			if (config_digest    ) { _stamp_deps("config" ) ; for( auto const& [k,v] : config_deps.user_env ) if (+v) ue[k] = v.value() ; } else _recall_env(ue,"config") ;
+			if (srcs_digest ==Yes) { _stamp_deps("sources") ; for( auto const& [k,v] : srcs_deps  .user_env ) if (+v) ue[k] = v.value() ; } else _recall_env(ue,"srcs"  ) ;
+			if (rules_digest==Yes) { _stamp_deps("rules"  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (+v) ue[k] = v.value() ; } else _recall_env(ue,"rules" ) ;
 			::string user_env_str ;
 			for( auto const& [k,v] : ue ) user_env_str << k<<'='<<mk_printable(v)<<'\n' ;
 			AcFd( EnvironFile , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;

@@ -99,7 +99,7 @@ namespace EnumHelper {
 	template<Enum E           > constexpr ::string_view               EnumName  = enum_type_name_view<E>() ;
 	template<Enum E,bool Snake> constexpr ::array<::string_view,N<E>> EnumNames = enum_names<E,Snake>()    ;
 
-	template<UEnum E> ::pair<E,bool/*ok*/> mk_enum(::string const& x) {
+	template<UEnum E> ::optional<E> mk_enum(::string const& x) {
 		static ::umap_s<E> const s_tab = []() {
 			::umap_s<E> res ;
 			for( E e : iota(All<E>) ) {
@@ -109,9 +109,9 @@ namespace EnumHelper {
 			return res ;
 		}() ;
 		//
-		auto it = s_tab.find(x) ; //!           ok
-		if (it==s_tab.end()) return {{}        ,false} ;
-		else                 return {it->second,true } ;
+		auto it = s_tab.find(x) ;
+		if (it==s_tab.end()) return {}         ;
+		else                 return it->second ;
 	}
 
 }
@@ -137,13 +137,13 @@ template<Enum E> inline ::string  operator+ ( E               e , ::string const
 template<Enum E> inline ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
 
 template<UEnum E> inline bool can_mk_enum(::string const& x) {
-	return EnumHelper::mk_enum<E>(x).second ;
+	return +EnumHelper::mk_enum<E>(x) ;
 }
 
 template<UEnum E> inline E mk_enum(::string const& x) {
-	::pair<E,bool/*ok*/> res_ok = EnumHelper::mk_enum<E>(x) ;
-	throw_unless( res_ok.second , "cannot make enum ",EnumHelper::EnumName<E>," from ",x ) ;
-	return res_ok.first ;
+	::optional<E> e = EnumHelper::mk_enum<E>(x) ;
+	throw_unless( +e , "cannot make enum ",EnumHelper::EnumName<E>," from ",x ) ;
+	return e.value() ;
 }
 
 template<Enum E> inline constexpr EnumHelper::EnumInt <E> operator+ (E  e                          ) {                       return EnumHelper::EnumInt<E>(e    ) ; }

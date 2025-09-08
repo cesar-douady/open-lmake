@@ -87,8 +87,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * implement a dir and regexpr argument to list_deps and list_targets
 	- write a rm_targets, move targets and copy targets as python helper functions that handle intermediate dirs
-* make readdir_ok mandatory to mv a directory
-	- as there is an implicit dir listing underneath
 * check_deps
 	- pass a delay argument
 	- execute lcheck_deps as soon as no new deps for delay seconds
@@ -98,6 +96,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :
 	- use a daemon
+? make readdir_ok mandatory to mv a directory
+	- as there is an implicit dir listing underneath
+	- on the other hand, deps are recorded to all of them
 ? add dep to link target when generating a sym link as target
 ? add option to lcollect
 	- unlink all out-of-date files
@@ -173,6 +174,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 ! share deps to non-buildable Node's in job deps
 	- define a new prefix file non_buildable_deps (reversed)
 	- store such entries in deps rather than the explicit list

@@ -11,7 +11,8 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
-	lmake.config.backends.local.cpu = 1000 # a unreasonable but stressing value
+	lmake.config.backends.local.cpu =  1000 # a unreasonable but stressing value
+	lmake.config.trace.n_jobs       = 10000 # ensure we keep all traces for analysis
 
 	if 'slurm' in lmake.backends :
 		lmake.config.backends.slurm = {

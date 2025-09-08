@@ -47,10 +47,10 @@ public :
 	bool/*popped*/ pop_for(                     Delay d , T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(     d,lock) ; if (p) _pop(res) ; return p ; }
 	bool/*popped*/ pop_for( ::stop_token stop , Delay d,  T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,d,lock) ; if (p) _pop(res) ; return p ; }
 	//
-	/**/                  T  pop    (                             ) { LCK ;                                     _wait(       lock) ; return                   _pop()       ; }
-	::pair<bool/*popped*/,T> pop    ( ::stop_token stop           ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,  lock) ; return { popped , popped?_pop():T() } ; }
-	::pair<bool/*popped*/,T> pop_for(                     Delay d ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(     d,lock) ; return { popped , popped?_pop():T() } ; }
-	::pair<bool/*popped*/,T> pop_for( ::stop_token stop , Delay d ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,d,lock) ; return { popped , popped?_pop():T() } ; }
+	/**/       T  pop    (                             ) { LCK ;                                     _wait(       lock) ;             return _pop() ;                  }
+	::optional<T> pop    ( ::stop_token stop           ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,  lock) ; if (popped) return _pop() ; else return {} ; }
+	::optional<T> pop_for(                     Delay d ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(     d,lock) ; if (popped) return _pop() ; else return {} ; }
+	::optional<T> pop_for( ::stop_token stop , Delay d ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,d,lock) ; if (popped) return _pop() ; else return {} ; }
 	#undef LCK
 private :
 	void _pop(T& res) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ;   res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ;              }
@@ -91,9 +91,9 @@ private :
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func2") ;
 		for(;;) {
-			auto [popped,info] = this_->pop(stop) ;
-			if (!popped) break ;
-			func(stop,::move(info)) ;
+			::optional<T> info = this_->pop(stop) ;
+			if (!info) break ;
+			func(stop,::move(info.value())) ;
 		}
 		trace("done") ;
 	}
@@ -134,10 +134,10 @@ private :
 		t_thread_key = key ;
 		Trace trace("TimedQueueThread::_s_thread_func") ;
 		for(;;) {
-			auto [popped,info] = this_->pop(stop) ;
-			if (!popped                            ) break ;
-			if (!info.first.sleep_until(stop,Flush)) break ;
-			func(stop,::move(info.second)) ;
+			::optional<::pair<Time::Pdate,T>> info = this_->pop(stop) ;
+			if (!info                                      ) break ;
+			if (!info.value().first.sleep_until(stop,Flush)) break ;
+			func(stop,::move(info.value().second)) ;
 		}
 		trace("done") ;
 	}

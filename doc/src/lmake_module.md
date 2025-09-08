@@ -229,27 +229,52 @@ with Autodep(active) :
 
 executes `<some code>` with autodep active set as instructed.
 
-### `list_deps( dir='/' , regexpr='.*' )`
+### `list_deps( dir=None , regexpr=None )`
 
 Returns a `tuple` of currently accessed deps.
 
-Only deps lying in the `dir` directory are listed, an only if the reported file (as explained below) matches `regexpr`.
+If `dir` is not `None`, oonly deps lying in the `dir` directory are listed.
+And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
 
 If the cwd lies outside the repo, listed files are absolute.
 Else they are relative unless a dep is in an absolute source dir.
 
 The order of the listed deps is the chronological order.
 
-### `list_targets()`
+### `list_targets( dir=None , regexpr=None )`
 
 Returns a `tuple` of currently generated targets.
 
-Only targets lying in the `dir` directory are listed, an only if the reported file (as explained below) matches `regexpr`.
+If `dir` is not `None`, oonly deps lying in the `dir` directory are listed.
+And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
 
 If the cwd lies outside the repo, listed files are absolute.
 Else they are relative.
 
 The order of the listed targets is the chronological order.
+
+### `list_root(dir)`
+
+Returns a `dir` as used as prefix in `list_deps` and `list_targets`.
+This is useful to filter their results.
+
+### `rm_target_tree( dir , regexpr=None )`
+
+Remove generated targets that are inside `dir` and match `regexpr`.
+Enclosing dirs becoming empty are removed as well if they are `dir` or below it.
+
+### `cp_target_tree( from_dir , to_dir , regexpr=None )`
+
+Copy generated targets that are inside `from_dir` and match `regexpr` to `to_dir`.
+
+Links are copied as is, without effort to make them point to the same place.
+
+### `mv_target_tree( from_dir , to_dir , regexpr=None )`
+
+Move generated targets that are inside `from_dir` and match `regexpr` to `to_dir`.
+Enclosing dirs becoming empty are removed as well if they are `from_dir` or below it.
+
+Links are copied as is, without effort to make them point to the same place.
 
 ### `encode( file , ctx , val , min_length=1 )`
 

@@ -28,7 +28,7 @@ enum class Buildable : uint8_t {
 ,	Loop                         //                                   node is being analyzed, deemed buildable so as to block further analysis
 } ;
 // END_OF_VERSIONING
-static constexpr ::amap<Buildable,::pair<Bool3,bool>,N<Buildable>> BuildableAttrs {{
+static constexpr ::amap<Buildable,::pair<Bool3/*has_file*/,bool/*src_anti*/>,N<Buildable>> BuildableAttrs {{
 	//                         has_file src_anti
 	{ Buildable::Anti        , { No    , true  } }
 ,	{ Buildable::SrcDir      , { No    , true  } }

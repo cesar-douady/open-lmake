@@ -152,3 +152,88 @@ def _find_cc_ld_library_path(cc) :
 	,	stdout=sp.PIPE
 	,	check=True
 	).stdout.strip()
+
+def rm_target_tree( dir , regexpr=None ) :
+	'''
+		Remove targets generated in dir and matching regexpr.
+		Enclosing dirs that become empty are removed as well if they are dir (if `top`) or below it.
+	'''
+	import os.path as osp
+	assert dir and not (dir+'/').startswith('../') and dir[0]!='/' , 'dir must be a sub-dir, not '+dir
+	#
+	targets = list_targets(dir,regexpr)
+	pfx     = list_root(dir)
+	pfx     = ''   if pfx=='.' else pfx+'/'
+	dirs    = {''}                                                                 # accumulate seen dirs so as to remove dirs that have become empty
+	# remove files
+	for t in targets :
+		assert t.startswith(pfx) , 'listed target not in asked dir ('+dir+') : '+t
+		assert t[0]!='/'         , 'target should be relative : '               +t # defensive programming : ensure no catastrophic unlink
+		_os.unlink(t)
+		sub_t = t[len(pfx):]
+		if not sub_t : continue
+		d = osp.dirname(sub_t)
+		while d :
+			dirs.add(d)
+			d = osp.dirname(d)
+	# remove dirs
+	dirs = sorted(dirs,reverse=True)                                               # sort dirs so that sub-dirs appear before parent
+	for d in dirs :
+		try    : _os.rmdir(pfx+d)
+		except : pass
+
+def cp_target_tree( from_dir , to_dir , regexpr=None ) :
+	'''
+		Copy targets generated in from_dir and matching regexpr to to_dir.
+	'''
+	import os.path as osp
+	assert from_dir and not (from_dir+'/').startswith('../') and from_dir[0]!='/' , 'from_dir must be a sub-dir, not '+from_dir
+	assert to_dir   and not (to_dir  +'/').startswith('../') and to_dir  [0]!='/' , 'to_dir must be a sub-dir, not '  +to_dir
+	#
+	targets = list_targets(from_dir,regexpr)
+	from_   = list_root(from_dir)
+	from_s  = ''   if from_ =='.' else from_  +'/'
+	to_s    = ''   if to_dir=='.' else to_dir +'/'
+	# copy files
+	for from_t in targets :
+		assert from_t.startswith(from_s) , 'listed target not in asked dir ('+from_dir+') : '+from_t
+		assert from_t[0]!='/'            , 'target should be relative : '                    +from_t # defensive programming : ensure no catastrophic unlink
+		to_t = to_s+from_t[len(from_s):]
+		to_d = osp.dirname(to_t)
+		if   to_d               : _os.makedirs(to_d,exist_ok=True)
+		if   osp.islink(from_t) : _os.symlink(_os.readlink(from_t),to_t)
+		elif osp.isfile(from_t) : open(to_t,'w').write(open(from_t).read())
+		else                    : raise RuntimeError('file is neither regular nor a link : '+from_t)
+
+def mv_target_tree( from_dir , to_dir , regexpr=None ) :
+	'''
+		Move targets generated in from_dir and matching regexpr to to_dir.
+	'''
+	import os.path as osp
+	assert from_dir and not (from_dir+'/').startswith('../') and from_dir[0]!='/' , 'from_dir must be a sub-dir, not '+from_dir
+	assert to_dir   and not (to_dir  +'/').startswith('../') and to_dir  [0]!='/' , 'to_dir must be a sub-dir, not '  +to_dir
+	#
+	targets = list_targets(from_dir,regexpr)
+	from_   = list_root(from_dir)
+	from_s  = ''   if from_ =='.' else from_ +'/'
+	to_s    = ''   if to_dir=='.' else to_dir+'/'
+	dirs    = {''}
+	# rename files
+	for from_t in targets :
+		assert from_t.startswith(from_s) , 'listed target not in asked dir ('+from_dir+') : '+from_t
+		assert from_t[0]!='/'            , 'target should be relative : '                    +from_t # defensive programming : ensure no catastrophic unlink
+		sub_t = from_t[len(from_s):]
+		to_t  = to_s+sub_t
+		to_d  = osp.dirname(to_t)
+		if to_d : _os.makedirs(to_d,exist_ok=True)
+		_os.rename(from_t,to_t)
+		if not sub_t : continue
+		d = osp.dirname(sub_t)
+		while d :
+			dirs.add(d)
+			d = osp.dirname(d)
+	# remove dirs
+	dirs = sorted(dirs,reverse=True)                                               # sort dirs so that sub-dirs appear before parent
+	for d in dirs :
+		try    : _os.rmdir(pfx+d)
+		except : pass

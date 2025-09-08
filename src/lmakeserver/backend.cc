@@ -269,6 +269,7 @@ namespace Backends {
 
 	void Backend::_s_handle_deferred_report(::stop_token stop) {
 		Pdate now { New } ;
+		Trace trace("_s_handle_deferred_report",now) ;
 		for(;;) {
 			{	TraceLock lock { _s_mutex , BeChnl , "_s_handle_deferred_report" } ;                                                  // lock _s_start_tab for minimal time to avoid dead-locks
 				while (+_s_deferred_report_queue_by_date) {
@@ -281,10 +282,12 @@ namespace Backends {
 					_s_deferred_report_queue_by_job .erase(jit) ;                                                                   // entry has been processed
 					_s_deferred_report_queue_by_date.erase(dit) ;                                                                   // .
 				}
+				trace("done") ;
 				return ;
 			}
 		Wait :
-			if (!now.sleep_until(stop)) return ;                                                                                    // stop was trigggered
+			trace("wait",now) ;
+			if (!now.sleep_until(stop)) { trace("stopped") ; return ; }
 		}
 	}
 

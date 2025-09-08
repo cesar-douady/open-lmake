@@ -57,18 +57,13 @@ int main( int argc , char* argv[]) {
 	//
 	if (cmd_line.flags[Flag::List]) {
 		//
-		//
 		if ( cmd_line.args.size() > cmd_line.flags[Flag::Regexpr]                    ) syntax.usage("cannot list deps with args other than a single regexpr"                     ) ;
 		if ( +( cmd_line.flags & ~BitMap<Flag>(Flag::Dir,Flag::List,Flag::Regexpr) ) ) syntax.usage("the --list flag is exclusive with any other flag except --dir and --regexpr") ;
 		//
-		::vector_s deps = JobSupport::list(
-			{New,Yes/*enabled*/}
-		,	No/*write*/
-		,	cmd_line.flags[Flag::Dir]                       ? cmd_line.flag_args[+Flag::Dir] : "/"s
-		,	cmd_line.flags[Flag::Regexpr] && +cmd_line.args ? cmd_line.args[0]               : ".*"s
-		) ;
+		::optional_s dir     ; if ( cmd_line.flags[Flag::Dir]                       ) dir     = cmd_line.flag_args[+Flag::Dir] ;
+		::optional_s regexpr ; if ( cmd_line.flags[Flag::Regexpr] && +cmd_line.args ) regexpr = cmd_line.args[0]               ;
 		//
-		for( ::string const& d : deps ) out << d <<'\n' ;
+		for( ::string const& d : JobSupport::list( {New,Yes/*enabled*/} , No/*write*/ , dir , regexpr ) ) out << d <<'\n' ;
 		//
 	} else {
 		//

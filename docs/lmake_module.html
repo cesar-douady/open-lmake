@@ -340,18 +340,33 @@ The same functionality is provided with the <code>lcheck_deps</code> executable.
 	&lt;some code&gt;
 </code></pre>
 <p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
-<h3 id="list_deps-dir--regexpr-"><a class="header" href="#list_deps-dir--regexpr-"><code>list_deps( dir='/' , regexpr='.*' )</code></a></h3>
+<h3 id="list_deps-dirnone--regexprnone-"><a class="header" href="#list_deps-dirnone--regexprnone-"><code>list_deps( dir=None , regexpr=None )</code></a></h3>
 <p>Returns a <code>tuple</code> of currently accessed deps.</p>
-<p>Only deps lying in the <code>dir</code> directory are listed, an only if the reported file (as explained below) matches <code>regexpr</code>.</p>
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> directory are listed.
+And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
 <p>If the cwd lies outside the repo, listed files are absolute.
 Else they are relative unless a dep is in an absolute source dir.</p>
 <p>The order of the listed deps is the chronological order.</p>
-<h3 id="list_targets"><a class="header" href="#list_targets"><code>list_targets()</code></a></h3>
+<h3 id="list_targets-dirnone--regexprnone-"><a class="header" href="#list_targets-dirnone--regexprnone-"><code>list_targets( dir=None , regexpr=None )</code></a></h3>
 <p>Returns a <code>tuple</code> of currently generated targets.</p>
-<p>Only targets lying in the <code>dir</code> directory are listed, an only if the reported file (as explained below) matches <code>regexpr</code>.</p>
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> directory are listed.
+And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
 <p>If the cwd lies outside the repo, listed files are absolute.
 Else they are relative.</p>
 <p>The order of the listed targets is the chronological order.</p>
+<h3 id="list_rootdir"><a class="header" href="#list_rootdir"><code>list_root(dir)</code></a></h3>
+<p>Returns a <code>dir</code> as used as prefix in <code>list_deps</code> and <code>list_targets</code>.
+This is useful to filter their results.</p>
+<h3 id="rm_target_tree-dir--regexprnone-"><a class="header" href="#rm_target_tree-dir--regexprnone-"><code>rm_target_tree( dir , regexpr=None )</code></a></h3>
+<p>Remove generated targets that are inside <code>dir</code> and match <code>regexpr</code>.
+Enclosing dirs becoming empty are removed as well if they are <code>dir</code> or below it.</p>
+<h3 id="cp_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#cp_target_tree-from_dir--to_dir--regexprnone-"><code>cp_target_tree( from_dir , to_dir , regexpr=None )</code></a></h3>
+<p>Copy generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.</p>
+<p>Links are copied as is, without effort to make them point to the same place.</p>
+<h3 id="mv_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#mv_target_tree-from_dir--to_dir--regexprnone-"><code>mv_target_tree( from_dir , to_dir , regexpr=None )</code></a></h3>
+<p>Move generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.
+Enclosing dirs becoming empty are removed as well if they are <code>from_dir</code> or below it.</p>
+<p>Links are copied as is, without effort to make them point to the same place.</p>
 <h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
 <p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
 Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.

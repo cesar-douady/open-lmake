@@ -47,18 +47,12 @@ namespace JobSupport {
 		NodeIdx            di        = 0                 ;
 		::vector<NodeIdx>  dep_idxs1 ;
 		bool               sync      = verbose || direct ;
-		for( ::string const& f : files ) {
+		for( ::string& f : files ) {
 			if (regexpr) {
 				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
 				continue ;
 			}
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
-				.file      = ::copy(f)                                               // keep a copy in case there is no server and we must invent a reply
-			,	.no_follow = no_follow
-			,	.read      = true
-			,	.write     = false
-			,	.comment   = Comment::depend
-			}) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(f) , .no_follow=no_follow , .read=true , .write=false , .comment=Comment::depend }) ;
 			if (!sync) {
 				if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) {                // when passing flag readdir_ok, we may want to report top-level dir
 					sr.file_loc = FileLoc::Repo ;
@@ -132,29 +126,45 @@ namespace JobSupport {
 		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::chkDeps , .date=New }).ok ;
 	}
 
-	::vector_s list( Record const& r , Bool3 write , ::string const& dir_s , ::string const& regexpr ) {
-		bool            has_dir_s   = dir_s  !="/"                        ;
-		bool            has_regexpr = regexpr!=".*"                       ;
-		::vector_s      res         ;
-		::string        abs_cwd_s   = cwd_s()                             ;
-		::string        abs_dir_s   = mk_glb_s( dir_s , abs_cwd_s )       ;
-		::string const& repo_root_s = Record::s_autodep_env().repo_root_s ;
-		RegExpr         re          { regexpr }                           ;
+	::vector_s list( Record const& r , Bool3 write , ::optional_s const& dir , ::optional_s const& regexpr ) {
 		// report files as seen from cwd
-		::optional_s lcl_cwd_s ; if (abs_cwd_s.starts_with(repo_root_s)) lcl_cwd_s = mk_lcl_s(abs_cwd_s,repo_root_s) ;
-		::optional_s lcl_dir_s ; if (abs_dir_s.starts_with(repo_root_s)) lcl_dir_s = mk_lcl_s(abs_dir_s,repo_root_s) ;
+		::string const& repo_root_s = Record::s_autodep_env().repo_root_s ;
+		::optional_s    abs_dir_s   ;
+		if (+dir) {
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::copy(dir.value()) , .no_follow=true , .read=false , .write=false , .comment=Comment::list }) ;
+			abs_dir_s = mk_glb_s( with_slash(sr.real) , repo_root_s ) ;
+		}
+		::vector_s          res       ;
+		::string            abs_cwd_s = cwd_s() ;
+		::optional_s        lcl_cwd_s ;           if ( abs_cwd_s.starts_with(repo_root_s) ) lcl_cwd_s = mk_lcl_s(abs_cwd_s,repo_root_s) ;
+		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = regexpr.value()                 ;
+		//
 		for( ::string& f : r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::list , .digest{.write=write} , .date=New }).files ) {
 			::string abs_f = mk_glb( ::move(f) , repo_root_s ) ;
 			//
-			if (has_dir_s) {
-				if (+lcl_dir_s) { if (!f    .starts_with(lcl_dir_s.value())) continue ; }
-				else            { if (!abs_f.starts_with(abs_dir_s        )) continue ; }
-			}
-			::string user_f = +lcl_cwd_s && !is_abs(f) ? mk_rel( f , lcl_cwd_s.value() ) : ::move(abs_f) ;
-			if (!( has_regexpr && !re.match(user_f) )) res.push_back(::move(user_f)) ;
+			if ( +dir && !abs_f.starts_with(abs_dir_s.value()) ) continue ;
+			//
+			::string& user_f = abs_f ;                                                 // reuse storage
+			if ( +lcl_cwd_s && !is_abs(f) ) user_f = mk_rel( f , lcl_cwd_s.value() ) ; // else keep abs_f as is
+			//
+			if ( +regexpr && !re.value().match(user_f) ) continue ;
+			//
+			res.push_back(::move(user_f)) ;
 		}
 		//
 		return res ;
+	}
+
+	::string list_root_s( ::string const& dir ) {
+		// report dir as used as prefix when listing dir
+		::string const&        repo_root_s = Record::s_autodep_env().repo_root_s                                                                                            ;
+		Backdoor::Solve::Reply sr          = Backdoor::call<Backdoor::Solve>({ .file=::copy(dir) , .no_follow=true , .read=false , .write=false , .comment=Comment::list }) ;
+		::string               dir_s       = with_slash(sr.real)                                                                                                            ;
+		::string               abs_dir_s   = mk_glb_s( dir_s , repo_root_s )                                                                                                ;
+		::string               abs_cwd_s   = cwd_s()                                                                                                                        ;
+		//
+		if ( abs_cwd_s.starts_with(repo_root_s) && !is_abs_s(dir_s) ) return mk_rel_s( dir_s , mk_lcl_s(abs_cwd_s,repo_root_s) ) ;
+		else                                                          return abs_dir_s                                           ;
 	}
 
 	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {

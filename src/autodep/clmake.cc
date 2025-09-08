@@ -171,24 +171,29 @@ template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const&
 	::optional_s regexpr ;
 	if (n_args>2) throw cat("too many args : ",n_args,">2") ;
 	switch (n_args) {
-		case 2 : dir     = *py_args[1].str() ; [[fallthrough]] ;
-		case 1 : regexpr = *py_args[0].str() ; [[fallthrough]] ;
+		case 2 : if (&py_args[1]!=&None) regexpr = *py_args[1].str() ; [[fallthrough]] ;
+		case 1 : if (&py_args[0]!=&None) dir     = *py_args[0].str() ; [[fallthrough]] ;
 		case 0 : break ;
 	DF}                                            // NO_COV
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'd' : if (key=="dir"    ) { throw_if(+dir    ,"arg ",key,MsgEnd) ; dir     = *py_val.str() ; continue ; } break ;
-			case 'r' : if (key=="regexpr") { throw_if(+regexpr,"arg ",key,MsgEnd) ; regexpr = *py_val.str() ; continue ; } break ;
+			case 'd' : if (key=="dir"    ) { throw_if(+dir    ,"arg ",key,MsgEnd) ; { if (&py_val!=&None) dir     = *py_val.str() ; } continue ; } break ;
+			case 'r' : if (key=="regexpr") { throw_if(+regexpr,"arg ",key,MsgEnd) ; { if (&py_val!=&None) regexpr = *py_val.str() ; } continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
 	}
 	//
-	::vector_s files = JobSupport::list( *_g_record , No|Target , with_slash(dir.value_or("/")) , regexpr.value_or(".*") ) ;
-	Ptr<Tuple> res   { files.size() }                                                                                      ;
+	::vector_s files = JobSupport::list( *_g_record , No|Target , dir , regexpr ) ;
+	Ptr<Tuple> res   { files.size() }                                             ;
 	for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
 	return res ;
+}
+
+static Ptr<Str> list_root( Tuple const& py_args , Dict const& py_kwds ) {
+	if (!( py_args.size()==1 && !py_kwds )) throw cat("accept only a single arg") ;
+	return Ptr<Str>( no_slash( JobSupport::list_root_s(*py_args[0].str()) ) ) ;
 }
 
 // encode and decode are very similar, it is easier to define a template for both
@@ -436,12 +441,16 @@ PyMODINIT_FUNC
 			"Activate (if active) or deactivate (if not active) autodep recording.\n"
 		)
 	,	F( "list_deps" , (py_func<Tuple,list<false/*Target*/>>) ,
-			"list_deps()\n"
-			"Return the list of deps as currently known.\n"
+			"list_deps( dir=None , regexpr=None )\n"
+			"Return the list of deps in dir that match regexpr, as currently known.\n"
 		)
 	,	F( "list_targets" , (py_func<Tuple,list<true/*Target*/>>) ,
-			"list_targets()\n"
-			"Return the list of targets as currently known.\n"
+			"list_targets( dir=None , regexpr=None )\n"
+			"Return the list of targets in dir that match regexpr, as currently known.\n"
+		)
+	,	F( "list_root" , (py_func<Str,list_root>) ,
+			"list_root(dir)\n"
+			"Return passed dir as used as prefix in list_deps and list_targets.\n"
 		)
 	,	F( "decode" , (py_func<Str,codec<false/*Encode*/>>) ,
 			"decode(file,ctx,code)\n"

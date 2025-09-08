@@ -203,6 +203,18 @@ template<> struct Serdeser<::string> {
 	}
 } ;
 
+template<class T> struct Serdeser<::optional<T>> {
+	template<IsOStream S> static void s_serdes( S& s , ::optional<T> const& o ) {
+		/**/    serdes(s,+o       ) ;
+		if (+o) serdes(s,o.value()) ;
+	}
+	template<IsIStream S> static void s_serdes( S& s , ::optional<T>& o ) {
+		bool has_v ; serdes(s,has_v) ;
+		if (has_v) { T v ; serdes(s,v) ; o.emplace(::move(v)) ; }
+		else                             o.reset  (         ) ;
+	}
+} ;
+
 template<class T,class U> struct Serdeser<::pair<T,U>> {
 	template<IsOStream S> static void s_serdes( S& s , ::pair<T,U> const& p ) { serdes(s,p.first ) ; serdes(s,p.second) ; }
 	template<IsIStream S> static void s_serdes( S& s , ::pair<T,U>      & p ) { serdes(s,p.first ) ; serdes(s,p.second) ; }
