@@ -67,7 +67,7 @@ Pdate Gather::AccessInfo::first_write() const {
 	else                                          return PD::Future ;
 }
 
-::pair<Pdate,bool> Gather::AccessInfo::sort_key() const {
+::pair<Pdate,bool/*write*/> Gather::AccessInfo::sort_key() const {
 	PD fr = first_read() ;
 	if (fr<PD::Future) return { fr            , false } ;
 	else               return { first_write() , true  } ;

@@ -59,10 +59,10 @@ struct Gather {                                                       // NOLINT(
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
-		PD              first_read () const ;
-		PD              first_write() const ;
-		::pair<PD,bool> sort_key   () const ;
-		Accesses        accesses   () const ;
+		PD                       first_read () const ;
+		PD                       first_write() const ;
+		::pair<PD,bool/*write*/> sort_key   () const ;
+		Accesses                 accesses   () const ;
 		//
 		void clear_accesses() { for( Access a : iota(All<Access>) ) _read[+a          ] = PD::Future ; }
 		void clear_lnk     () {                                     _read[+Access::Lnk] = PD::Future ; }

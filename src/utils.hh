@@ -138,11 +138,11 @@ using span_s = ::span<::string> ;
 
 template<size_t D,::unsigned_integral I> constexpr I round_down(I n) { return     n   - I( n   %D)         ; }
 template<size_t D,::unsigned_integral I> constexpr I round_up  (I n) { return n ? n-1 - I((n-1)%D) + D : 0 ; }
-template<size_t D,::unsigned_integral I> constexpr I div_up    (I n) { return n ?       I(n-1)/D   + 1 : 0 ; }
+template<size_t D,::unsigned_integral I> constexpr I div_up    (I n) { return n ?       I(n-1)/D   + 1 : 0 ; } // (n+D-1)/D does not work when n is close to max value
 
 template<::unsigned_integral I> constexpr I round_down( I n , I d ) { return     n   - I( n   %d)         ; }
 template<::unsigned_integral I> constexpr I round_up  ( I n , I d ) { return n ? n-1 - I((n-1)%d) + d : 0 ; }
-template<::unsigned_integral I> constexpr I div_up    ( I n , I d ) { return n ?       I(n-1)/d   + 1 : 0 ; }
+template<::unsigned_integral I> constexpr I div_up    ( I n , I d ) { return n ?       I(n-1)/d   + 1 : 0 ; } // (n+d-1)/d does not work when n is close to max value
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
