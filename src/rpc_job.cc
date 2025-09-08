@@ -1091,7 +1091,7 @@ void JobStartRpcReq::chk(bool for_cache) const {
 	First first ;
 	/**/                  os <<"TargetDigest("                 ;
 	if ( td.pre_exist   ) os <<first("",",")<< "pre_exist"     ;
-	if ( td.written     ) os <<first("",",")<< "pre_exist"     ;
+	if ( td.written     ) os <<first("",",")<< "written"       ;
 	if (+td.tflags      ) os <<first("",",")<< td.tflags       ;
 	if (+td.extra_tflags) os <<first("",",")<< td.extra_tflags ;
 	if (+td.crc         ) os <<first("",",")<< td.crc          ;

@@ -191,6 +191,7 @@ namespace Engine {
 		// accesses
 		::string accesses_str() const ;
 		::string dflags_str  () const ;
+		::string crc_str     () const ;
 		// services
 		bool up_to_date () const ;
 		void acquire_crc() ;

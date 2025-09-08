@@ -163,10 +163,27 @@
 <p>It must be initialized with a file <code>LMAKE/size</code> containing the overall size the cache is allowed to occupy.
 The value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
 For example <code>LMAKE/size</code> can contain <code>1.5T</code>.</p>
+<h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
 <p>For all users accessing the cache:</p>
 <ul>
 <li>The root dir of the cache and its <code>LMAKE</code> directory must have read/write access (including if only download is done to maintain the LRU state).</li>
 <li>The <code>LMAKE/size</code> must have read access.</li>
+</ul>
+<p>If the group to use for access permission is not the default group of the users:</p>
+<ul>
+<li>the root of the cache must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
+<li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
+<li>the operation above may have to be done recursively if the cache dir is already populated</li>
+</ul>
+<p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
+<ul>
+<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
+<li>Altenatively, <code>lmake.config.caches.&lt;tag&gt;.perm = 'group'</code> can be set. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+</ul>
+<p>Similarly, to allow the cache to be used by any user:</p>
+<ul>
+<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
+<li>Altenatively, <code>lmake.config.caches.&lt;tag&gt;.perm = 'other'</code> can be set. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 
                     </main>

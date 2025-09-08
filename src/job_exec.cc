@@ -149,9 +149,9 @@ Digest analyze(Status status=Status::New) {                                     
 			bool         unlnk     = !sig                                                                                           ;
 			bool         mandatory = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
 			//
-			if (is_dep) td.tflags    |= Tflag::Incremental ;                                                           // if is_dep, previous target state is guaranteed by being a dep, use it
-			/**/        td.pre_exist  = info.seen()        ;
-			/**/        td.written    = was_written        ;
+			if (is_dep) td.tflags    |= Tflag::Incremental                            ;                                // if is_dep, previous target state is guaranteed by being a dep, use it
+			/**/        td.pre_exist  = info.seen() && !td.tflags[Tflag::Incremental] ;
+			/**/        td.written    = was_written                                   ;
 			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                    // if SourceOk => ok to simultaneously be a dep and a target
 				const char* written_msg = unlnk ? "unlinked" : was_written ? "written to" : "declared as target" ;
 				if (flags.dflags[Dflag::Static]) { //!    date
@@ -635,7 +635,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
 			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;
-			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::stdout ) ; // writing to stdout last for the whole job
+			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::stdout ) ;      // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line(cmd_env) ;
@@ -643,10 +643,10 @@ int main( int argc , char* argv[] ) {
 		//                                   vvvvvvvvvvvvvvvvvvvvv
 		try                       { status = g_gather.exec_child() ;            }
 		//                                   ^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                                                    // NO_COV defensive programming
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                                                         // NO_COV defensive programming
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                         // XXX> : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                              // XXX> : suppress when CentOS7 bug is fixed
 		//
 		Digest digest = analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -666,7 +666,7 @@ int main( int argc , char* argv[] ) {
 			g_exec_trace->emplace_back( New/*date*/ , Comment::uploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
 		}
 		//
-		if (+g_start_info.autodep_env.file_sync) {                                                                                   // fast path : avoid listing targets & guards if !file_sync
+		if (+g_start_info.autodep_env.file_sync) {                                                                                        // fast path : avoid listing targets & guards if !file_sync
 			for( auto const& [t,_] : digest.targets  ) nfs_guard.change(t) ;
 			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
 		}
@@ -701,18 +701,18 @@ End :
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
 			g_exec_trace->emplace_back( end_overhead , Comment::endOverhead , CommentExts() , cat(end_report.digest.status) ) ;
-			end_report.digest.exec_time      = end_overhead - start_overhead ;                                                       // measure overhead as late as possible
+			end_report.digest.exec_time      = end_overhead - start_overhead ;                                                            // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                               // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                                    // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}
 	try                       { g_start_info.exit() ;                             }
-	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                  // NO_COV defensive programming
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                       // NO_COV defensive programming
 	//
 	return 0 ;
 }

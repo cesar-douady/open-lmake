@@ -870,6 +870,11 @@ namespace Engine {
 		return res ;
 	}
 
+	::string Dep::crc_str() const {
+		if (is_crc) return ::string(crc()) ;
+		else        return ::string(Crc()) ;
+	}
+
 	//
 	// Deps
 	//

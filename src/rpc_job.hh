@@ -532,8 +532,8 @@ struct TargetDigest {
 	// START_OF_VERSIONING
 	Tflags        tflags       = {}    ;
 	ExtraTflags   extra_tflags = {}    ;
-	bool          pre_exist    = false ; // if true <=  file was seen as existing
-	bool          written      = false ; // if true <=  file was written or unlinked (if crc==None)
+	bool          pre_exist    = false ; // if true <=> file was seen as existing while not incremental
+	bool          written      = false ; // if true <=> file was written or unlinked (if crc==None)
 	Crc           crc          = {}    ; // if None <=> file was unlinked, if Unknown => file is idle (not written, not unlinked)
 	Disk::FileSig sig          = {}    ;
 	// END_OF_VERSIONING

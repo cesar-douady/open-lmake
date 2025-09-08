@@ -62,7 +62,7 @@ Unless I(--quiet), each line is composed of 5 or 6 fields separated by spaces :
 		Item(B(T))
 		dep has been accessed with a stat-like system call (i.e. its inode has been accessed).
 		.RE
-	Bullet Checksum : the checksum of the dep if I(--verbose).
+	Bullet Checksum : the checksum of the dep if I(--verbose), i.e. the checksum that must match the one of the underlying file or the job will be rerun.
 	Bullet Key : the key if the dep is static, else blank.
 	Bullet Ascii art showing parallel deps (deps coming from a single call to C(ldepend) or B(lmake.depend) are considered parallel).
 	Bullet Name of the dep.

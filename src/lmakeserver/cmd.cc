@@ -331,8 +331,9 @@ namespace Engine {
 			if ( !d.parallel                      ) dep_group++ ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
 			dep_groups.push_back(dep_group) ;
-			/**/            wc = ::max( wc , mk_py_str(::string(d->crc)).size() ) ;
-			if (porcelaine) wf = ::max( wf , mk_py_str(d->name()       ).size() ) ;
+			if (porcelaine) wc = ::max( wc , mk_py_str(d.crc_str()).size() ) ;
+			else            wc = ::max( wc ,           d.crc_str() .size() ) ;
+			if (porcelaine) wf = ::max( wf , mk_py_str(d->name()  ).size() ) ;
 		}
 		NodeIdx di1          = 0 ;                                           // before filtering
 		NodeIdx di2          = 0 ;                                           // after  filtering
@@ -353,7 +354,7 @@ namespace Engine {
 				::string     dep_str = "( " ;
 				/**/         dep_str <<              mk_py_str(dep.dflags_str  ())     ;
 				/**/         dep_str <<" , "<<       mk_py_str(dep.accesses_str())     ;
-				if (verbose) dep_str <<" , "<< widen(mk_py_str(::string(dep->crc)),wc) ;
+				if (verbose) dep_str <<" , "<< widen(mk_py_str(dep.crc_str()     ),wc) ;
 				/**/         dep_str <<" , "<< widen(mk_py_str(dep_key           ),wk) ;
 				/**/         dep_str <<" , "<< widen(mk_py_str(dep->name()       ),wf) ;
 				/**/         dep_str <<" )"                                            ;
@@ -363,16 +364,16 @@ namespace Engine {
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
 				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
-				::string                               dep_str =       dep.dflags_str  ()           ;
-				/**/                                   dep_str <<' '<< dep.accesses_str()           ;
-				if      ( verbose                    ) dep_str <<' '<< widen(::string(dep->crc),wc) ;
-				/**/                                   dep_str <<' '<< widen(dep_key           ,wk) ;
-				/**/                                   dep_str <<' '                                ;
-				if      (  start_group &&  end_group ) dep_str <<      ' '                          ;
-				else if (  start_group && !end_group ) dep_str <<      '/'                          ;
-				else if ( !start_group && !end_group ) dep_str <<      '|'                          ;
-				else                                   dep_str <<      '\\'                         ;
-				/**/                                   dep_str <<' '<< mk_file(dep->name())         ;
+				::string                               dep_str =       dep.dflags_str  ()      ;
+				/**/                                   dep_str <<' '<< dep.accesses_str()      ;
+				if      ( verbose                    ) dep_str <<' '<< widen(dep.crc_str(),wc) ;
+				/**/                                   dep_str <<' '<< widen(dep_key      ,wk) ;
+				/**/                                   dep_str <<' '                           ;
+				if      (  start_group &&  end_group ) dep_str <<      ' '                     ;
+				else if (  start_group && !end_group ) dep_str <<      '/'                     ;
+				else if ( !start_group && !end_group ) dep_str <<      '|'                     ;
+				else                                   dep_str <<      '\\'                    ;
+				/**/                                   dep_str <<' '<< mk_file(dep->name())    ;
 				audit( fd , ro , c , dep_str , false/*as_is*/ , lvl ) ;
 			}
 			n_dep_groups += end_group ;
