@@ -278,6 +278,7 @@ namespace Engine {
 			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
 		}
 		for( Node t : job->targets ) t->set_buildable() ;                      // necessary for pre_actions()
+		for( Node d : job->deps    ) d->set_buildable() ;                      // .
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
