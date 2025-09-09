@@ -142,8 +142,8 @@ namespace Engine::Makefiles {
 		}
 		for( auto const& [key,val] : deps.user_env ) {
 			SWEAR(+key) ;
-			if (+val) deps_str <<'='<<key<<'='<<val.value()<<'\n' ;
-			else      deps_str <<'='<<key                  <<'\n' ;
+			if (+val) deps_str <<'='<<key<<'='<<*val<<'\n' ;
+			else      deps_str <<'='<<key           <<'\n' ;
 		}
 		AcFd( new_deps_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(deps_str) ;
 		//
@@ -365,9 +365,9 @@ namespace Engine::Makefiles {
 		// once all error cases have been cleared, stamp deps and generate environ file for user
 		if ( config_digest || srcs_digest==Yes || rules_digest==Yes ) {
 			::umap_ss ue ;
-			if (config_digest    ) { _stamp_deps("config" ) ; for( auto const& [k,v] : config_deps.user_env ) if (+v) ue[k] = v.value() ; } else _recall_env(ue,"config") ;
-			if (srcs_digest ==Yes) { _stamp_deps("sources") ; for( auto const& [k,v] : srcs_deps  .user_env ) if (+v) ue[k] = v.value() ; } else _recall_env(ue,"srcs"  ) ;
-			if (rules_digest==Yes) { _stamp_deps("rules"  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (+v) ue[k] = v.value() ; } else _recall_env(ue,"rules" ) ;
+			if (config_digest    ) { _stamp_deps("config" ) ; for( auto const& [k,v] : config_deps.user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,"config") ;
+			if (srcs_digest ==Yes) { _stamp_deps("sources") ; for( auto const& [k,v] : srcs_deps  .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,"srcs"  ) ;
+			if (rules_digest==Yes) { _stamp_deps("rules"  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,"rules" ) ;
 			::string user_env_str ;
 			for( auto const& [k,v] : ue ) user_env_str << k<<'='<<mk_printable(v)<<'\n' ;
 			AcFd( EnvironFile , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;

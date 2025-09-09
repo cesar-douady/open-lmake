@@ -35,13 +35,10 @@ namespace Engine {
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		auto end_it = deps.end() ;
-		for( auto it = deps.begin().next_existing(end_it) ; it!=end_it ; it++.next_existing(end_it) ) {
-			Node dep = *it ;
-			if (dep->has_file()==Maybe)
+		for( Node dep : deps )
+			if (dep->has_file()!=No)
 				for( Node hd=dep->dir() ; +hd ; hd=hd->dir() )
 					if (!dep_locked_dirs.insert(hd).second) break ;                                               // if dir contains an existing dep, it cannot be rmdir'ed
-		}
 		//
 		// remove old targets
 		for( Target t : targets() ) {
@@ -743,7 +740,7 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !has_new_deps             ;                                                             // if not done, does a full report anyway if not due to new deps
+			bool     full_report = done || !has_new_deps             ; // if not done, does a full report anyway if not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -754,8 +751,9 @@ namespace Engine {
 				/**/         job_msg << reason_str(job_reason)<<'\n'   ;
 			}
 			//
-			::string  pfx = !done && !ri.running() && status>Status::Garbage && !unstable_dep ? "may_" : "" ;
-			JobReport jr  = audit_end(
+			bool      maybe_done = !ri.running() && status>Status::Garbage && !unstable_dep ;
+			::string  pfx        = !done && maybe_done ? "may_" : ""                        ;
+			JobReport jr = audit_end(
 				ri
 			,	true/*with_stats*/
 			,	pfx
@@ -764,9 +762,9 @@ namespace Engine {
 			,	digest.exec_time
 			,	is_retry(job_reason.tag)
 			) ;
-			upload &= done ;
+			upload &= maybe_done ;                                     // if job is not done, cache entry will be overwritten (with dircache at least) when actually rerun
 			must_wakeup.push_back(done) ;
-			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ;      // stderr may be empty if digest.has_mg_stderr, no harm
+			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
 			trace("req_after",ri,job_reason,STR(done)) ;
 		}
 		if (+digest.upload_key) {
@@ -1430,17 +1428,17 @@ namespace Engine {
 						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                                                     // provide node actual crc as this is the hit criteria
 						dns.emplace_back(d->name(),dd) ;
 					}
-					Cache*       cache       = Cache::s_tab[cache_idx] ;
-					Cache::Match cache_match ;
+					Cache*                   cache       = Cache::s_tab[cache_idx] ;
+					::optional<Cache::Match> cache_match ;
 					try {
 						cache_match = cache->match( unique_name() , dns ) ;
-						if (!cache_match.completed) FAIL("delayed cache not yet implemented") ;
+						if (!cache_match) FAIL("delayed cache not yet implemented") ;
 					} catch (::string const& e) {
 						trace("cache_match_throw",e) ;
 						req->audit_job( Color::Warning , "bad_cache_match" , job , true/*at_end*/ ) ;
 						req->audit_stderr( job , {.msg=e} ) ;
 					}
-					switch (cache_match.hit) {
+					switch (cache_match->hit) {
 						case Yes :
 							try {
 								NfsGuard nfs_guard { g_config->file_sync } ;
@@ -1455,8 +1453,8 @@ namespace Engine {
 									trace("hit_msg",dfa_msg,ri) ;
 								}
 								//
-								JobExec je       { job , New }                                ;                                 // job starts and ends, no host
-								JobInfo job_info = cache->download(cache_match.key,nfs_guard) ;
+								JobExec je       { job , New }                                 ;                                // job starts and ends, no host
+								JobInfo job_info = cache->download(cache_match->key,nfs_guard) ;
 								job_info.start.pre_start.job       = +job      ;                                                // repo dependent
 								job_info.start.submit_attrs.reason = ri.reason ;                                                // context dependent
 								job_info.end  .end_date            = New       ;                                                // execution dependnt
@@ -1473,14 +1471,14 @@ namespace Engine {
 								req->stats.add(JobReport::Hit) ;
 								req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
 								goto ResetReqInfo ;
-							} catch (::string const&e) {
+							} catch (::string const&e) {                                                                        // if we cant download result, it is like a miss
 								trace("cache_hit_throw",e) ;
 								req->audit_job( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
 								req->audit_stderr( job , {.msg=e} ) ;
-							}                                                                                                   // if we cant download result, it is like a miss
+							}
 						break ;
 						case Maybe : {
-							::vector<Dep> ds ; ds.reserve(cache_match.new_deps.size()) ; for( auto& [dn,dd] : cache_match.new_deps ) ds.emplace_back( Node(New,dn) , dd ) ;
+							::vector<Dep> ds ; ds.reserve(cache_match->deps.size()) ; for( auto& [dn,dd] : cache_match->deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 							deps.assign(ds) ;
 							status = Status::CacheMatch ;
 							trace("hit_deps") ;

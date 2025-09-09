@@ -55,38 +55,38 @@ template<class T> static constexpr T Min = ::numeric_limits<T>::min() ;
 #define VT(T) typename T::value_type
 
 // easy transformation of a container into another
-template<class K,        class V> inline ::set   <K                                                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,        class V> inline ::uset  <K                                                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> inline ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.begin() , v.end() ) ; }
-template<class K,class T,class V> inline ::map   <K                                ,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,class T,class V> inline ::umap  <K                                ,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,class T,class V> inline ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,        class V> ::set   <K                                                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,        class V> ::uset  <K                                                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.begin() , v.end() ) ; }
+template<class K,class T,class V> ::map   <K                                ,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::umap  <K                                ,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 // with implicit key type
-template<        class T,class V> inline ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> inline ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> inline ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 // with implicit item type
-template<                class V> inline ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> inline ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> inline ::vector<                                  VT(V)             > mk_vector(V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> inline ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> inline ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> inline ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::vector<                                  VT(V)             > mk_vector(V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
 
 // keys & vals
-template<class K,class M> inline ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
-template<class K,class M> inline ::uset  <K> const mk_key_uset  (M const& m) { ::uset  <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
-template<class K,class M> inline ::vector<K> const mk_key_vector(M const& m) { ::vector<K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(k) ; return res ; }
-template<class T,class M> inline ::set   <T>       mk_val_set   (M const& m) { ::set   <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
-template<class T,class M> inline ::uset  <T>       mk_val_uset  (M const& m) { ::uset  <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
-template<class T,class M> inline ::vector<T>       mk_val_vector(M const& m) { ::vector<T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(v) ; return res ; }
+template<class K,class M> ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
+template<class K,class M> ::uset  <K> const mk_key_uset  (M const& m) { ::uset  <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
+template<class K,class M> ::vector<K> const mk_key_vector(M const& m) { ::vector<K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(k) ; return res ; }
+template<class T,class M> ::set   <T>       mk_val_set   (M const& m) { ::set   <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
+template<class T,class M> ::uset  <T>       mk_val_uset  (M const& m) { ::uset  <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
+template<class T,class M> ::vector<T>       mk_val_vector(M const& m) { ::vector<T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(v) ; return res ; }
 // with implicit item type
-template<class M> inline ::set   <remove_const_t<VT(M)::first_type >> const mk_key_set   (M const& m) { return mk_key_set   <remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> inline ::uset  <remove_const_t<VT(M)::first_type >> const mk_key_uset  (M const& m) { return mk_key_uset  <remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> inline ::vector<remove_const_t<VT(M)::first_type >> const mk_key_vector(M const& m) { return mk_key_vector<remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> inline ::set   <               VT(M)::second_type >       mk_val_set   (M const& m) { return mk_val_set   <               VT(M)::second_type >(m) ; }
-template<class M> inline ::uset  <               VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <               VT(M)::second_type >(m) ; }
-template<class M> inline ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
+template<class M> ::set   <remove_const_t<VT(M)::first_type >> const mk_key_set   (M const& m) { return mk_key_set   <remove_const_t<VT(M)::first_type >>(m) ; }
+template<class M> ::uset  <remove_const_t<VT(M)::first_type >> const mk_key_uset  (M const& m) { return mk_key_uset  <remove_const_t<VT(M)::first_type >>(m) ; }
+template<class M> ::vector<remove_const_t<VT(M)::first_type >> const mk_key_vector(M const& m) { return mk_key_vector<remove_const_t<VT(M)::first_type >>(m) ; }
+template<class M> ::set   <               VT(M)::second_type >       mk_val_set   (M const& m) { return mk_val_set   <               VT(M)::second_type >(m) ; }
+template<class M> ::uset  <               VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <               VT(M)::second_type >(m) ; }
+template<class M> ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
 
 #undef VT
 
@@ -98,7 +98,7 @@ namespace std {                                                             // c
 	} ;
 }
 
-template<class T> inline T& grow( ::vector<T>& v , size_t i ) {
+template<class T> T& grow( ::vector<T>& v , size_t i ) {
 	if (i>=v.capacity()) {
 		size_t n = v.capacity() + ((v.capacity()+3)>>2) ; // ensure exponential growth while keeping memory overhead low
 		if (i<n) v.reserve(n) ;
@@ -118,7 +118,7 @@ extern thread_local char t_thread_key ;
 void kill_self      ( int sig                ) ;
 void write_backtrace( Fd      , int hide_cnt ) ;
 
-template<void (*Handler)(int sig,void* addr)> inline void _sig_action( int sig , siginfo_t* si , void* ) {
+template<void (*Handler)(int sig,void* addr)> void _sig_action( int sig , siginfo_t* si , void* ) {
 	Handler(sig,si->si_addr) ;
 }
 inline struct sigaction get_sig_handler(int sig) {
@@ -161,7 +161,7 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 
 template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
 
-template<class... A> [[noreturn]] inline void fail( [[maybe_unused]] A const&... args ) {
+template<class... A> [[noreturn]] void fail( [[maybe_unused]] A const&... args ) {
 	#ifndef NDEBUG
 		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
@@ -169,7 +169,7 @@ template<class... A> [[noreturn]] inline void fail( [[maybe_unused]] A const&...
 	#endif
 }
 
-template<class... A> inline constexpr void swear( bool cond , [[maybe_unused]] A const&... args ) {
+template<class... A> constexpr void swear( bool cond , [[maybe_unused]] A const&... args ) {
 	#ifndef NDEBUG
 		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 	#else
@@ -177,11 +177,11 @@ template<class... A> inline constexpr void swear( bool cond , [[maybe_unused]] A
 	#endif
 }
 
-template<class... A> [[noreturn]] inline void fail_prod( A const&... args ) {
+template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
 	crash( 1 , SIGABRT , "fail" , args... ) ;
 }
 
-template<class... A> constexpr inline void swear_prod( bool cond , A const&... args ) {
+template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
 	if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
 }
 
@@ -203,8 +203,8 @@ template<class... A> constexpr inline void swear_prod( bool cond , A const&... a
 
 constexpr inline uint8_t n_bits(size_t n) { return NBits<size_t>-::countl_zero(n-1) ; } // number of bits to store n states
 
-template<::integral T=size_t> constexpr inline T lsb_msk (uint8_t b) { return  (T(1)<<b)-1 ; }
-template<::integral T=size_t> constexpr inline T msb_msk (uint8_t b) { return -(T(1)<<b)   ; }
+template<::integral T=size_t> constexpr T lsb_msk (uint8_t b) { return  (T(1)<<b)-1 ; }
+template<::integral T=size_t> constexpr T msb_msk (uint8_t b) { return -(T(1)<<b)   ; }
 
 //
 // iota
@@ -238,9 +238,9 @@ public :
 	constexpr size_t   size () const { return +_end() - +_first() ; }
 	// data
 	T bounds[1+WithStart] = {} ;
-} ; //!                                          with_start
-template<         class T > inline constexpr Iota<false   ,T > iota(            T  end ) {                                    return {   end} ; }
-template<class T1,class T2> inline constexpr Iota<true    ,T2> iota( T1 begin , T2 end ) { T2 b2=T2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
+} ; //!                                   with_start
+template<         class T > constexpr Iota<false   ,T > iota(            T  end ) {                                    return {   end} ; }
+template<class T1,class T2> constexpr Iota<true    ,T2> iota( T1 begin , T2 end ) { T2 b2=T2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
 //                                  with_start
 template<class T> using Iota1 = Iota<false   ,T> ;
 template<class T> using Iota2 = Iota<true    ,T> ;
@@ -301,10 +301,10 @@ template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>        
 #if __cplusplus<202600L
 	inline ::string& operator+=( ::string& s , ::string_view v ) { s.append(  v.data(),v.size()) ; return s ; }
 #endif
-/**/                      inline ::string& operator+=( ::string& s , nullptr_t   ) { return s += "(null)"                                                    ; }
-template<_CanDoBool    B> inline ::string& operator+=( ::string& s , B         b ) { return s +=  b?"true":"false"                                           ; }
-template<_CanDoToHex   T> inline ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
-template<_CanDoToChars N> inline ::string& operator+=( ::string& s , N         n ) {
+inline                    ::string& operator+=( ::string& s , nullptr_t   ) { return s += "(null)"                                                    ; }
+template<_CanDoBool    B> ::string& operator+=( ::string& s , B         b ) { return s +=  b?"true":"false"                                           ; }
+template<_CanDoToHex   T> ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
+template<_CanDoToChars N> ::string& operator+=( ::string& s , N         n ) {
 	size_t old_sz = s.size()  ;
 	size_t new_sz = old_sz+30 ;                                                        // more than enough to print a number
 	s.resize(new_sz) ;
@@ -313,7 +313,7 @@ template<_CanDoToChars N> inline ::string& operator+=( ::string& s , N         n
 	return s ;
 }
 //
-template<_CanDoFunc F> inline ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
+template<_CanDoFunc F> ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
 //
 template<class T,size_t N> ::string& operator+=( ::string& os ,          T           a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
 template<class T,size_t N> ::string& operator+=( ::string& os , ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
@@ -326,14 +326,14 @@ template<class K,class V > ::string& operator+=( ::string& os , ::map   <K,V> co
 //
 template<class A,class B> ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
 //
-template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) { return +o ? os<<o.value() : os<<"<none>" ; }
+template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) { return +o ? os<<*o : os<<"<none>" ; }
 //
 inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
 inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .
 
 // END_OF_NO_COV
 
-template<class... A> inline ::string cat(A&&... args) {
+template<class... A> ::string cat(A&&... args) {
 	::string res ;
 	((res+=args),...) ;
 	return res ;
@@ -393,15 +393,15 @@ inline ::vector_s split( ::string_view txt , char sep , size_t n_sep=Npos ) {
 // miscellaneous
 //
 
-template<class... A> inline constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
-template<class... A> inline constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
+template<class... A> constexpr void throw_if    ( bool cond , A const&... args ) { if ( cond) throw cat(args...) ; }
+template<class... A> constexpr void throw_unless( bool cond , A const&... args ) { if (!cond) throw cat(args...) ; }
 
-template<::integral I> inline I decode_int(const char* p) {
+template<::integral I> I decode_int(const char* p) {
 	I r ; ::memcpy( &r , p , sizeof(I) ) ;
 	return r ;
 }
 
-template<::integral I> inline void encode_int( char* p , I x ) {
+template<::integral I> void encode_int( char* p , I x ) {
 	::memcpy( p , &x , sizeof(I) ) ;
 }
 

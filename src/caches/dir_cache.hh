@@ -50,7 +50,7 @@ namespace Caches {
 		void      serdes( ::string     & os                       ) override { _serdes(os) ;                               } // serialize  , cannot be a template as it is a virtual method
 		void      serdes( ::string_view& is                       ) override { _serdes(is) ;                               } // deserialize, .
 		//
-		Match                               sub_match   ( ::string const& job , ::vmap_s<DepDigest> const&          ) const override ;
+		::optional<Match>                   sub_match   ( ::string const& job , ::vmap_s<DepDigest> const&          ) const override ;
 		::pair<JobInfo,AcFd>                sub_download( ::string const& match_key                                 )       override ;
 		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 )       override ;
 		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& )       override ;

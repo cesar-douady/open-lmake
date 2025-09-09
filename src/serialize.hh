@@ -43,10 +43,10 @@ template< Serializable T               > T    deserialize( ::string const& s    
 //template<HasSerdes T> bool              operator== ( T const& a , T const& b ) { return serialize(a)== serialize(b) ; } // NO_COV cannot define for Serializable as it creates conflicts
 //template<HasSerdes T> ::strong_ordering operator<=>( T const& a , T const& b ) { return serialize(a)<=>serialize(b) ; } // NO_COV .
 
-namespace std {                                                                                                              // cannot specialize std::hash from global namespace with gcc-11
-	template<class T> requires( !requires(T t){t.hash();} && ( HasSerdes<T> || ::is_aggregate_v<T> ) ) struct hash<T> {
+namespace std {                                                                                                       // cannot specialize std::hash from global namespace with gcc-11
+	template<class T> requires( !requires(T t){t.hash();} && ( HasSerdes<T> || is_aggregate_v<T> ) ) struct hash<T> {
 		size_t operator()(T const& x) const {
-			return hash<::string>()(serialize(x)) ;
+			return hash<string>()(::serialize(x)) ;
 		}
 	} ;
 }
@@ -70,7 +70,7 @@ template<class T> requires( ::is_trivially_copyable_v<T> && !::is_empty_v<T> ) s
 } ;
 
 template<class T> requires( ::is_aggregate_v<T> && !::is_trivially_copyable_v<T> ) struct Serdeser<T> {
-	struct Universal { template<class X> operator X() const ; } ;                                               // a universal class that can be cast to anything
+	struct Universal { template<class X> operator X() const ; } ;                                       // a universal class that can be cast to anything
 	template<IsStream S> static void s_serdes( S& s , T& x ) {
 
 		#define U1  Universal()
@@ -205,8 +205,8 @@ template<> struct Serdeser<::string> {
 
 template<class T> struct Serdeser<::optional<T>> {
 	template<IsOStream S> static void s_serdes( S& s , ::optional<T> const& o ) {
-		/**/    serdes(s,+o       ) ;
-		if (+o) serdes(s,o.value()) ;
+		/**/    serdes(s,+o) ;
+		if (+o) serdes(s,*o) ;
 	}
 	template<IsIStream S> static void s_serdes( S& s , ::optional<T>& o ) {
 		bool has_v ; serdes(s,has_v) ;

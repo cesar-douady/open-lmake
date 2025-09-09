@@ -124,41 +124,41 @@ using EnumHelper::N   ;
 using EnumHelper::All ;
 
 //                                                                                             Snake
-template<Enum E> inline ::string_view camel    (E e) { return          EnumHelper::EnumNames<E,false>[+e]  ; }
-template<Enum E> inline ::string_view snake    (E e) { return          EnumHelper::EnumNames<E,true >[+e]  ; }
-template<Enum E> inline ::string      camel_str(E e) { return ::string(EnumHelper::EnumNames<E,false>[+e]) ; }
-template<Enum E> inline ::string      snake_str(E e) { return ::string(EnumHelper::EnumNames<E,true >[+e]) ; }
+template<Enum E> ::string_view camel    (E e) { return          EnumHelper::EnumNames<E,false>[+e]  ; }
+template<Enum E> ::string_view snake    (E e) { return          EnumHelper::EnumNames<E,true >[+e]  ; }
+template<Enum E> ::string      camel_str(E e) { return ::string(EnumHelper::EnumNames<E,false>[+e]) ; }
+template<Enum E> ::string      snake_str(E e) { return ::string(EnumHelper::EnumNames<E,true >[+e]) ; }
 
 template<UEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
-template<Enum E> inline ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
-template<Enum E> inline ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
-template<Enum E> inline ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
-template<Enum E> inline ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
+template<Enum E> ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
+template<Enum E> ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
+template<Enum E> ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
+template<Enum E> ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
 
-template<UEnum E> inline bool can_mk_enum(::string const& x) {
+template<UEnum E> bool can_mk_enum(::string const& x) {
 	return +EnumHelper::mk_enum<E>(x) ;
 }
 
-template<UEnum E> inline E mk_enum(::string const& x) {
+template<UEnum E> E mk_enum(::string const& x) {
 	::optional<E> e = EnumHelper::mk_enum<E>(x) ;
 	throw_unless( +e , "cannot make enum ",EnumHelper::EnumName<E>," from ",x ) ;
-	return e.value() ;
+	return *e ;
 }
 
-template<Enum E> inline constexpr EnumHelper::EnumInt <E> operator+ (E  e                          ) {                       return EnumHelper::EnumInt<E>(e    ) ; }
-template<Enum E> inline constexpr E                       operator+ (E  e,EnumHelper::EnumSInt<E> i) {                       return E(+e+i)                       ; }
-template<Enum E> inline constexpr E&                      operator+=(E& e,EnumHelper::EnumSInt<E> i) {             e = e+i ; return e                             ; }
-template<Enum E> inline constexpr E                       operator- (E  e,EnumHelper::EnumSInt<E> i) {                       return E(+e-i)                       ; }
-template<Enum E> inline constexpr EnumHelper::EnumSInt<E> operator- (E  e,E                       o) {                       return EnumHelper::EnumInt<E>(+e-+o) ; }
-template<Enum E> inline constexpr E&                      operator-=(E& e,EnumHelper::EnumSInt<E> i) {             e = e-i ; return e                             ; }
-template<Enum E> inline constexpr E                       operator++(E& e                          ) {             e = e+1 ; return e                             ; }
-template<Enum E> inline constexpr E                       operator++(E& e,int                      ) { E e_ = e ;  e = e+1 ; return e_                            ; }
-template<Enum E> inline constexpr E                       operator--(E& e                          ) {             e = e-1 ; return e                             ; }
-template<Enum E> inline constexpr E                       operator--(E& e,int                      ) { E e_ = e ;  e = e-1 ; return e_                            ; }
+template<Enum E> constexpr EnumHelper::EnumInt <E> operator+ (E  e                          ) {                       return EnumHelper::EnumInt<E>(e    ) ; }
+template<Enum E> constexpr E                       operator+ (E  e,EnumHelper::EnumSInt<E> i) {                       return E(+e+i)                       ; }
+template<Enum E> constexpr E&                      operator+=(E& e,EnumHelper::EnumSInt<E> i) {             e = e+i ; return e                             ; }
+template<Enum E> constexpr E                       operator- (E  e,EnumHelper::EnumSInt<E> i) {                       return E(+e-i)                       ; }
+template<Enum E> constexpr EnumHelper::EnumSInt<E> operator- (E  e,E                       o) {                       return EnumHelper::EnumInt<E>(+e-+o) ; }
+template<Enum E> constexpr E&                      operator-=(E& e,EnumHelper::EnumSInt<E> i) {             e = e-i ; return e                             ; }
+template<Enum E> constexpr E                       operator++(E& e                          ) {             e = e+1 ; return e                             ; }
+template<Enum E> constexpr E                       operator++(E& e,int                      ) { E e_ = e ;  e = e+1 ; return e_                            ; }
+template<Enum E> constexpr E                       operator--(E& e                          ) {             e = e-1 ; return e                             ; }
+template<Enum E> constexpr E                       operator--(E& e,int                      ) { E e_ = e ;  e = e-1 ; return e_                            ; }
 //
-template<Enum E> inline E    decode_enum( const char* p ) { return E(decode_int<EnumHelper::EnumInt<E>>(p)) ; }
-template<Enum E> inline void encode_enum( char* p , E e ) { encode_int(p,+e) ;                                }
+template<Enum E> E    decode_enum( const char* p ) { return E(decode_int<EnumHelper::EnumInt<E>>(p)) ; }
+template<Enum E> void encode_enum( char* p , E e ) { encode_int(p,+e) ;                                }
 
 //
 // BitMap
@@ -195,15 +195,15 @@ private :
 	Val _val = 0 ;
 } ;
 //
-template<UEnum E> inline constexpr BitMap<E> operator~(E e) { return ~BitMap<E>(e)  ; }
+template<UEnum E> constexpr BitMap<E> operator~(E e) { return ~BitMap<E>(e)  ; }
 
-template<UEnum E>inline  BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
+template<UEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	BitMap<E> res ;
 	for( ::string const& s : split(x,sep) ) res |= mk_enum<E>(s) ;
 	return res ;
 }
 
-template<UEnum E> inline ::string& operator+=( ::string& os , BitMap<E> const bm ) {
+template<UEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
 	os <<'(' ;
 	bool first = true ;
 	for( E e : iota(All<E>) ) if (bm[e]) {
@@ -214,8 +214,8 @@ template<UEnum E> inline ::string& operator+=( ::string& os , BitMap<E> const bm
 }
 
 // used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def
-template<UEnum E,class T> inline constexpr bool/*ok*/ chk_enum_tab(::amap<E,T,N<E>> tab) { // START_OF_NO_COV meant for compile time
+template<UEnum E,class T> constexpr bool/*ok*/ chk_enum_tab(::amap<E,T,N<E>> tab) { // START_OF_NO_COV meant for compile time
 	for( E e : iota(All<E>) ) if (tab[+e].first!=e) return false/*ok*/ ;
 	/**/                                            return true /*ok*/ ;
-}                                                                                          // END_OF_NO_COV
+}                                                                                   // END_OF_NO_COV
 

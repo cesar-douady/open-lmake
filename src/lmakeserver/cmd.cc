@@ -247,14 +247,14 @@ namespace Engine {
 	}
 
 	static Color _node_color( Node n , Bool3 hide=Maybe ) {
-		Color color = {} ;
-		if      (  hide==Yes                                                  ) color = Color::HiddenNote ;
-		else if (  n->ok()==No                                                ) color = Color::Err        ;
-		else if (  n->crc==Crc::None                                          ) color = Color::HiddenNote ;
-		else if (  n->is_plain() && n->has_file(true/*permissive*/)==No       ) color = Color::Warning    ;
-		else if ( !n->is_src_anti(true/*permissive*/) && !n->has_actual_job() ) color = Color::Warning    ;
-		if      (  hide==No && color==Color::HiddenNote                       ) color = Color::None       ;
-		return color ;
+		if ( hide==Yes                                 ) return Color::HiddenNote                          ;
+		if ( n->ok()==No                               ) return Color::Err                                 ;
+		if ( n->crc==Crc::None                         ) return hide==No ? Color::None : Color::HiddenNote ;
+		if ( !n->is_plain()                            ) return {}                                         ;
+		n->set_buildable() ;                                                                                 // for has_file() and is_src_anti()
+		if (  n->has_file()==No                        ) return Color::Warning                             ;
+		if ( !n->is_src_anti() && !n->has_actual_job() ) return Color::Warning                             ;
+		/**/                                             return {}                                         ;
 	}
 
 	static Color _job_color( Job j , bool hide=false ) {
@@ -410,6 +410,7 @@ namespace Engine {
 			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
 		}
 		for( Node t : job->targets() ) t->set_buildable() ;                    // necessary for pre_actions()
+		for( Node d : job->deps      ) d->set_buildable() ;                    // .
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
@@ -532,7 +533,8 @@ namespace Engine {
 	NoJob :
 		bool porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		if (!porcelaine) {
-			if (!target->is_src_anti(true/*permissive*/)) { //!                                                 as_is
+			target->set_buildable() ;
+			if (!target->is_src_anti()) { //!                                                                   as_is
 				audit( fd , ro , Color::Err  , "target not built"                                             , true  , lvl   ) ;
 				audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name(),FileDisplay::Shell) , false , lvl+1 ) ;
 			}

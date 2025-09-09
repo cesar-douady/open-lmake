@@ -232,8 +232,8 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	if (!Encode) throw_if    ( +min_len , "unexpected arg min_len" ) ;
 	//
 	::pair_s<bool/*ok*/> reply =
-		Encode ? JobSupport::encode( *_g_record , ::move(file.value()) , ::move(cv.value()/*val*/ ) , ::move(ctx.value()) , min_len.value_or(1) )
-		:        JobSupport::decode( *_g_record , ::move(file.value()) , ::move(cv.value()/*code*/) , ::move(ctx.value())                       )
+		Encode ? JobSupport::encode( *_g_record , ::move(*file) , ::move(*cv/*val*/ ) , ::move(*ctx) , min_len.value_or(1) )
+		:        JobSupport::decode( *_g_record , ::move(*file) , ::move(*cv/*code*/) , ::move(*ctx)                       )
 	;
 	throw_unless( reply.second , reply.first ) ;
 	return reply.first ;
@@ -254,10 +254,10 @@ template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const&
 	}
 	throw_unless( +ft , "missing arg ",Ft ) ;
 	if (IsFile) {
-		return ::string(Crc(ft.value())) ;
+		return ::string(Crc(*ft)) ;
 	} else {
 		Xxh h ;
-		if (+ft.value()) h += ft.value() ;
+		if (+*ft) h += *ft ;
 		return h.digest().hex() ;
 	}
 }

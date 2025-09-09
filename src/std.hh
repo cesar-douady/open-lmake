@@ -70,6 +70,7 @@ using std::countl_zero                            ;
 using std::current_exception                      ;
 using std::decay_t                                ;
 using std::endian                                 ;
+using std::erase_if                               ;
 using std::errc                                   ;
 using std::exception                              ;
 using std::floating_point                         ;
@@ -142,10 +143,14 @@ using std::unsigned_integral                      ;
 using std::variant                                ;
 using std::vector                                 ;
 // keep std definitions hidden by global definitions to simplify usage
+using std::all_of        ;
+using std::any_of        ;
 using std::binary_search ;
+using std::for_each      ;
 using std::lower_bound   ;
 using std::max           ;
 using std::min           ;
+using std::none_of       ;
 using std::sort          ;
 using std::stable_sort   ;
 // special cases
@@ -202,32 +207,42 @@ template<        class V         > using vmap_s   = ::vmap         <::string,V  
 /**/                               using optional_s = ::optional   <         ::string  > ;
 
 
-template<class T,size_t N> inline constexpr bool operator+(::array   <T,N> const&  ) { return  N                   ; }
-template<class T,class  U> inline constexpr bool operator+(::pair    <T,U> const& p) { return  +p.first||+p.second ; }
-template<class K,class  V> inline           bool operator+(::map     <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V> inline           bool operator+(::umap    <K,V> const& m) { return !m.empty()           ; }
-template<class K         > inline           bool operator+(::set     <K  > const& s) { return !s.empty()           ; }
-template<class K         > inline           bool operator+(::uset    <K  > const& s) { return !s.empty()           ; }
-template<class T         > inline constexpr bool operator+(::vector  <T  > const& v) { return !v.empty()           ; }
-template<class T         > inline constexpr bool operator+(::optional<T  > const& o) { return  o.has_value()       ; }
+template<class T,size_t N> constexpr bool operator+(::array   <T,N> const&  ) { return  N                   ; }
+template<class T,class  U> constexpr bool operator+(::pair    <T,U> const& p) { return  +p.first||+p.second ; }
+template<class K,class  V>           bool operator+(::map     <K,V> const& m) { return !m.empty()           ; }
+template<class K,class  V>           bool operator+(::umap    <K,V> const& m) { return !m.empty()           ; }
+template<class K         >           bool operator+(::set     <K  > const& s) { return !s.empty()           ; }
+template<class K         >           bool operator+(::uset    <K  > const& s) { return !s.empty()           ; }
+template<class T         > constexpr bool operator+(::vector  <T  > const& v) { return !v.empty()           ; }
+template<class T         > constexpr bool operator+(::optional<T  > const& o) { return  o.has_value()       ; }
 //
-inline                             bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
-inline                   constexpr bool operator+(::string_view   s) { return !s.empty() ; } // .
-template<class T> inline constexpr bool operator+(::span<T>       v) { return !v.empty() ; } // .
+inline                      bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
+inline            constexpr bool operator+(::string_view   s) { return !s.empty() ; } // .
+template<class T> constexpr bool operator+(::span<T>       v) { return !v.empty() ; } // .
 
 template<class T> requires requires(T const& x) { !+x ; } constexpr bool operator!(T const& x) { return !+x ; }
 
 // support container arg to standard utility functions
-#define VT(T) typename T::value_type
-#define CMP ::function<bool(VT(T) const&,VT(T) const&)>
-template<class T> inline          void              sort         ( T      & x ,                  CMP cmp ) {         ::sort         ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> inline          void              stable_sort  ( T      & x ,                  CMP cmp ) {         ::stable_sort  ( x.begin() , x.end() ,     cmp ) ; }
-template<class T> inline          bool              binary_search( T const& x , VT(T) const& v , CMP cmp ) { return  ::binary_search( x.begin() , x.end() , v , cmp ) ; }
-template<class T> inline typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v , CMP cmp ) { return  ::lower_bound  ( x.begin() , x.end() , v , cmp ) ; }
-template<class T> inline          void              sort         ( T      & x                            ) {         ::sort         ( x.begin() , x.end()           ) ; }
-template<class T> inline          void              stable_sort  ( T      & x                            ) {         ::stable_sort  ( x.begin() , x.end()           ) ; }
-template<class T> inline          bool              binary_search( T const& x , VT(T) const& v           ) { return  ::binary_search( x.begin() , x.end() , v       ) ; }
-template<class T> inline typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v           ) { return  ::lower_bound  ( x.begin() , x.end() , v       ) ; }
+#define VT(T)     typename T::value_type
+#define CMP       ::function<bool(VT(T) const&,VT(T) const&)>
+#define PRED      ::function<bool(VT(T) const&             )>
+#define FUNC      ::function<void(VT(T)      &             )>
+#define DFLT_PRED [](T const& t)->bool { return +t ; }
+template<class T>          void              sort         ( T      & x ,                  CMP  cmp            ) {         ::sort         ( x.begin() , x.end() ,     cmp  ) ; }
+template<class T>          void              stable_sort  ( T      & x ,                  CMP  cmp            ) {         ::stable_sort  ( x.begin() , x.end() ,     cmp  ) ; }
+template<class T>          bool              binary_search( T const& x , VT(T) const& v , CMP  cmp            ) { return  ::binary_search( x.begin() , x.end() , v , cmp  ) ; }
+template<class T> typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v , CMP  cmp            ) { return  ::lower_bound  ( x.begin() , x.end() , v , cmp  ) ; }
+template<class T>          void              sort         ( T      & x                                        ) {         ::sort         ( x.begin() , x.end()            ) ; }
+template<class T>          void              stable_sort  ( T      & x                                        ) {         ::stable_sort  ( x.begin() , x.end()            ) ; }
+template<class T>          bool              binary_search( T const& x , VT(T) const& v                       ) { return  ::binary_search( x.begin() , x.end() , v        ) ; }
+template<class T> typename T::const_iterator lower_bound  ( T const& x , VT(T) const& v                       ) { return  ::lower_bound  ( x.begin() , x.end() , v        ) ; }
+template<class T>          bool              all_of       ( T const& x ,                  PRED pred=DFLT_PRED ) { return  ::all_of       ( x.begin() , x.end() ,     pred ) ; }
+template<class T>          bool              any_of       ( T const& x ,                  PRED pred=DFLT_PRED ) { return  ::all_of       ( x.begin() , x.end() ,     pred ) ; }
+template<class T>          bool              none_of      ( T const& x ,                  PRED pred=DFLT_PRED ) { return  ::all_of       ( x.begin() , x.end() ,     pred ) ; }
+template<class T>          void              for_each     ( T      & x ,                  FUNC func           ) { return  ::for_each     ( x.begin() , x.end() ,     func ) ; }
+#undef DFLT_PRED
+#undef FUNC
+#undef PRED
 #undef CMP
 #undef VT
 

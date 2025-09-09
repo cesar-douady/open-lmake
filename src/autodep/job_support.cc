@@ -131,23 +131,23 @@ namespace JobSupport {
 		::string const& repo_root_s = Record::s_autodep_env().repo_root_s ;
 		::optional_s    abs_dir_s   ;
 		if (+dir) {
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::copy(dir.value()) , .no_follow=true , .read=false , .write=false , .comment=Comment::list }) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::copy(*dir) , .no_follow=true , .read=false , .write=false , .comment=Comment::list }) ;
 			abs_dir_s = mk_glb_s( with_slash(sr.real) , repo_root_s ) ;
 		}
 		::vector_s          res       ;
 		::string            abs_cwd_s = cwd_s() ;
 		::optional_s        lcl_cwd_s ;           if ( abs_cwd_s.starts_with(repo_root_s) ) lcl_cwd_s = mk_lcl_s(abs_cwd_s,repo_root_s) ;
-		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = regexpr.value()                 ;
+		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = *regexpr                        ;
 		//
 		for( ::string& f : r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::list , .digest{.write=write} , .date=New }).files ) {
 			::string abs_f = mk_glb( ::move(f) , repo_root_s ) ;
 			//
-			if ( +dir && !abs_f.starts_with(abs_dir_s.value()) ) continue ;
+			if ( +dir && !abs_f.starts_with(*abs_dir_s) ) continue ;
 			//
-			::string& user_f = abs_f ;                                                 // reuse storage
-			if ( +lcl_cwd_s && !is_abs(f) ) user_f = mk_rel( f , lcl_cwd_s.value() ) ; // else keep abs_f as is
+			::string& user_f = abs_f ;                                          // reuse storage
+			if ( +lcl_cwd_s && !is_abs(f) ) user_f = mk_rel( f , *lcl_cwd_s ) ; // else keep abs_f as is
 			//
-			if ( +regexpr && !re.value().match(user_f) ) continue ;
+			if ( +regexpr && !re->match(user_f) ) continue ;
 			//
 			res.push_back(::move(user_f)) ;
 		}

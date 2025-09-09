@@ -25,6 +25,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* detect mv of repo root
+	- reread makefiles in that case
+* upload cache when may_rerun is finally not rerun
 * improve lshow -i for sources
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
@@ -49,6 +52,7 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* provide a reason for not matching in cache
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 ? generate an error when calling depend on a target
@@ -68,10 +72,21 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* ensure serialization is unique
+	- i.e. there cannot be 2 serializations for the same value
+	- this is important as it may be used to compute Crc
+	- as of today, trivially copyable are serializable, but may contain padding
+	- this will lead to numerous serdes methods to enumerate fields
+		- make a multi_serdes function to easily handle that
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
 	- or write such functions in C, so that malloc are necessary visible
+? add a dep to all jobs that represents system
+	- semantically a crc computed over /usr, /etc, etc. everything that has an impact on job execution
+	- beware to take chroot into account
+	- deault to the content of /etc/os-release or something like that
+	- but should also take into account all installed packages/software
 ? use a Path struct instead of at/file
 	- everywhere applicable
 	- possibly too expensive performance wise

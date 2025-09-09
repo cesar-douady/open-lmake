@@ -539,7 +539,7 @@ struct TargetDigest {
 	// END_OF_VERSIONING
 } ;
 
-template<class Key=::string> struct JobDigest {             // Key may be ::string or Node
+template<class Key=::string> struct JobDigest {                                                                          // Key may be ::string or Node
 	// cxtors & casts
 	template<class KeyTo> operator JobDigest<KeyTo>() const {
 		JobDigest<KeyTo> res {
@@ -565,20 +565,20 @@ template<class Key=::string> struct JobDigest {             // Key may be ::stri
 	// START_OF_VERSIONING
 	uint64_t                 upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
-	::vmap<Key,DepDigest   > deps           = {}          ; // INVARIANT : sorted in first access order
+	::vmap<Key,DepDigest   > deps           = {}          ;                                                              // INVARIANT : sorted in first access order
 	Time::CoarseDelay        exec_time      = {}          ;
 	uint16_t                 max_stderr_len = {}          ;
 	CacheIdx                 cache_idx      = {}          ;
 	Status                   status         = Status::New ;
-	bool                     has_msg_stderr = false       ; // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     has_msg_stderr = false       ;                                                              // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
 	// END_OF_VERSIONING
 } ;
-template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                                                            // START_OF_NO_COV
+template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                    // START_OF_NO_COV
 	/**/               os << "JobDigest("                                                                              ;
 	if (jd.upload_key) os << to_hex(jd.upload_key) <<','                                                               ;
 	/**/               os << jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() ;
 	return             os << ')'                                                                                       ;
-}                                                                                                                                                                // END_OF_NO_COV
+}                                                                                                                        // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 	if constexpr (::is_same_v<Key,::string>) { //!                       ext_ok
 		for( auto const& [t,_] : targets ) throw_unless( Disk::is_canon(t,false) , "bad target" ) ;
@@ -599,10 +599,9 @@ namespace Caches {
 		using Sz  = Disk::DiskSz ;
 		using Tag = CacheTag     ;
 		struct Match {
-			bool                completed = true ; //                            if false <=> answer is delayed and an action will be posted to the main loop when ready
-			Bool3               hit       = No   ; // if completed
-			::vmap_s<DepDigest> new_deps  = {}   ; // if completed&&hit==Maybe : deps that were not done and need to be done before answering hit/miss
-			::string            key       = {}   ; // if completed&&hit==Yes   : an id to easily retrieve matched results when calling download
+			Bool3               hit   = No ;
+			::vmap_s<DepDigest> deps  = {} ;                                                          // if hit==Maybe : deps that need to be done before answering hit/miss
+			::string            key   = {} ;                                                          // if hit==Yes   : an id to easily retrieve matched results when calling download
 		} ;
 		// statics
 		static Cache* s_new   ( Tag                               ) ;
@@ -610,7 +609,8 @@ namespace Caches {
 		// static data
 		static ::vector<Cache*> s_tab ;
 		// services
-		Match                  match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
+		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
+		::optional<Match>      match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
 		JobInfo                download( ::string const& match_key , Disk::NfsGuard& repo_nfs_guard                        ) ;
 		uint64_t/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
 		void                   commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
@@ -623,11 +623,11 @@ namespace Caches {
 		virtual void      serdes( ::string     &                             ) {}                     // serialize
 		virtual void      serdes( ::string_view&                             ) {}                     // deserialize
 		//
-		virtual Match                               sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return { .completed=true , .hit=No } ; }
+		virtual ::optional<Match>                   sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return Match() ; }
 		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;
-		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 )       { return {}                            ; }
-		virtual void                                sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& )       {                                        }
-		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       )       {                                        }
+		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 )       { return {}      ; }
+		virtual void                                sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& )       {                  }
+		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       )       {                  }
 	} ;
 
 }

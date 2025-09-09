@@ -121,14 +121,14 @@ namespace Hash {
 	template<class K        > struct IsUnstableIterableHelper<::uset<K  >> { static constexpr bool value = true ; } ; // .
 	template<class T> concept IsUnstableIterable = IsUnstableIterableHelper<T>::value ;
 
-	template<class T> concept _SimpleUpdate = (sizeof(T)==1&&!::is_empty_v<T>) || ::is_integral_v<T> ;
+	template<class T> concept _SimpleUpdate = sizeof(T)==alignof(T) && !::is_empty_v<T> && ::is_trivially_copyable_v<T> ; // if sizeof==alignof, there is a single field and hence no padding
 	struct Xxh {
 		// statics
 	private :
 		static void _s_init_salt() {
-			if (_s_salt_inited) return ;                                       // fast path : avoid taking lock
+			if (_s_salt_inited) return ;                                                                                  // fast path : avoid taking lock
 			Lock lock{_s_salt_init_mutex} ;
-			if (_s_salt_inited) return ;                                       // repeat test after lock in case of contention
+			if (_s_salt_inited) return ;                                                                                  // repeat test after lock in case of contention
 			XXH3_generateSecret(_s_lnk_secret,sizeof(_s_lnk_secret),"lnk",3) ;
 			XXH3_generateSecret(_s_exe_secret,sizeof(_s_exe_secret),"exe",3) ;
 			_s_salt_inited = true ;
@@ -146,7 +146,7 @@ namespace Hash {
 		// services
 		Crc digest() const ;
 		//
-		Xxh& operator+=(::string_view) ;                                       // low level interface compatible with serialization
+		Xxh& operator+=(::string_view) ;                                                                                  // low level interface compatible with serialization
 		//
 		template<_SimpleUpdate T> Xxh& operator+=(T const& x) {
 			self += ::string_view( ::launder(reinterpret_cast<const char*>(&x)) , sizeof(x) ) ;

@@ -93,7 +93,7 @@ private :
 		for(;;) {
 			::optional<T> info = this_->pop(stop) ;
 			if (!info) break ;
-			func(stop,::move(info.value())) ;
+			func(stop,::move(*info)) ;
 		}
 		trace("done") ;
 	}
@@ -135,9 +135,9 @@ private :
 		Trace trace("TimedQueueThread::_s_thread_func") ;
 		for(;;) {
 			::optional<::pair<Time::Pdate,T>> info = this_->pop(stop) ;
-			if (!info                                      ) break ;
-			if (!info.value().first.sleep_until(stop,Flush)) break ;
-			func(stop,::move(info.value().second)) ;
+			if (!info                               ) break ;
+			if (!info->first.sleep_until(stop,Flush)) break ;
+			func(stop,::move(info->second)) ;
 		}
 		trace("done") ;
 	}

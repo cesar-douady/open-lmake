@@ -305,7 +305,7 @@ static bool/*interrupted*/ _engine_loop() {
 		if (refresh_stats) popped_closure = g_engine_queue.pop    (            ) ;
 		else               popped_closure = g_engine_queue.pop_for(StatsRefresh) ;
 		if (!popped_closure) goto Retry ;
-		EngineClosure& closure = popped_closure.value() ;
+		EngineClosure& closure = *popped_closure ;
 		switch (closure.kind()) {
 			case EngineClosureKind::Global : {
 				switch (closure.ecg().proc) {

@@ -36,10 +36,10 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 	else       lines = Fd::Stdin .read_lines() ;
 	//
 	for( ::string const& l : lines ) {
-		size_t   lvl   = 0               ;
-		size_t   cnt   = 0               ;
-		size_t   start = 0               ;
-		LineKind kind  = LineKind::Blank ; for( char c : l ) if (!::isspace(c)) { kind = LineKind::Plain ; break ; }
+		size_t   lvl   = 0                                                                                              ;
+		size_t   cnt   = 0                                                                                              ;
+		size_t   start = 0                                                                                              ;
+		LineKind kind  = ::all_of( l , [](char c)->bool { return ::isspace(c) ; } ) ? LineKind::Blank : LineKind::Plain ;
 		for( size_t i : iota(l.size()) ) {
 			if (l[i]=='\t') {
 				lvl++ ;

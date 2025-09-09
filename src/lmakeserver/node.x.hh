@@ -461,9 +461,8 @@ namespace Engine {
 					if (j->c_req_info(r).step()==JobStep::Exec) return true ;
 			return false ;
 		}
-		// for is_src_anti, if !match_ok(), recorded buildable is best effort to distinguish src/anti
-		Bool3 has_file   (bool permissive=false) const { { if (!permissive) SWEAR(match_ok()) ; } return BuildableAttrs[+(match_ok()?buildable:Buildable::Unknown)].second.first  ; }
-		bool  is_src_anti(bool permissive=false) const { { if (!permissive) SWEAR(match_ok()) ; } return BuildableAttrs[+            buildable                    ].second.second ; }
+		Bool3 has_file   () const { SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.first  ; }
+		bool  is_src_anti() const { SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.second ; }
 		//
 		// services
 		bool read(Accesses a) const {                                                                   // return true <= file was perceived different from non-existent, assuming access provided in a

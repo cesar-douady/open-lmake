@@ -47,7 +47,7 @@ template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const&
 	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
 	else                   return res                               ;
 }
-template<::integral I> inline I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt) , empty_ok , hex ) ; }
+template<::integral I> I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt) , empty_ok , hex ) ; }
 //
 template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S const& txt , bool empty_ok=false ) {
 	if ( empty_ok && !txt ) return 0 ;
@@ -58,7 +58,7 @@ template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S 
 	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
 	else                 return res ;
 }
-template<::floating_point F> inline F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt) , empty_ok ) ; }
+template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt) , empty_ok ) ; }
 
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;
@@ -74,8 +74,8 @@ inline bool is_printable(::string const& s) {
 	/**/                                    return true  ;
 }
 
-template<char Delimiter=0>        ::string mk_printable(::string const&    ) ;
-template<char Delimiter=0> inline ::string mk_printable(::string     && txt) {
+template<char Delimiter=0> ::string mk_printable(::string const&    ) ;
+template<char Delimiter=0> ::string mk_printable(::string     && txt) {
 	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
 	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
 }
@@ -119,12 +119,12 @@ inline ::string_view first_lines( ::string_view txt , size_t n_sep , char sep='\
 	return txt.substr(0,pos+1) ;
 }
 
-template<char U,::integral I=size_t,bool RndUp=false>        I        from_string_with_unit    (::string const& s) ; // if U is provided, return value is expressed in this unit
-template<char U,::integral I=size_t                 >        ::string to_string_with_unit      (I               x) ;
-template<char U,::integral I=size_t                 >        ::string to_short_string_with_unit(I               x) ;
-template<       ::integral I=size_t,bool RndUp=false> inline I        from_string_with_unit    (::string const& s) { return from_string_with_unit    <0,I,RndUp>(s) ; }
-template<       ::integral I=size_t                 > inline ::string to_string_with_unit      (I               x) { return to_string_with_unit      <0,I      >(x) ; }
-template<       ::integral I=size_t                 > inline ::string to_short_string_with_unit(I               x) { return to_short_string_with_unit<0,I      >(x) ; }
+template<char U,::integral I=size_t,bool RndUp=false> I        from_string_with_unit    (::string const& s) ; // if U is provided, return value is expressed in this unit
+template<char U,::integral I=size_t                 > ::string to_string_with_unit      (I               x) ;
+template<char U,::integral I=size_t                 > ::string to_short_string_with_unit(I               x) ;
+template<       ::integral I=size_t,bool RndUp=false> I        from_string_with_unit    (::string const& s) { return from_string_with_unit    <0,I,RndUp>(s) ; }
+template<       ::integral I=size_t                 > ::string to_string_with_unit      (I               x) { return to_string_with_unit      <0,I      >(x) ; }
+template<       ::integral I=size_t                 > ::string to_short_string_with_unit(I               x) { return to_short_string_with_unit<0,I      >(x) ; }
 
 //
 // span
@@ -674,7 +674,7 @@ enum class Rc : uint8_t {
 ,	System
 } ;
 
-template<class... As> [[noreturn]] inline void exit( Rc rc , As const&... args ) {
+template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
 	Fd::Stderr.write(ensure_nl(cat(args...))) ;
 	::std::exit(+rc) ;
 }
