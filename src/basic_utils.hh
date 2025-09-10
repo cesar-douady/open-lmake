@@ -211,7 +211,11 @@ template<::integral T=size_t> constexpr T msb_msk (uint8_t b) { return -(T(1)<<b
 //
 
 template<bool WithStart,class T> struct Iota {
+	using value_type = T ;
 	struct Iterator {
+		using value_type      = T         ;
+		using difference_type = ptrdiff_t ;
+		// cxtors & casts
 		constexpr Iterator(T c) : cur{c} {}
 		// services
 		constexpr bool      operator==(Iterator const&) const = default ;

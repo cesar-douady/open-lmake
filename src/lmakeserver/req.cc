@@ -180,9 +180,9 @@ namespace Engine {
 		}
 		cycle_str += first("",",)",")") ;
 		self->audit_node( Color::Err , "cycle detected for",node ) ;
-		Node   deepest   = cycle.back().second ;
-		bool   seen_loop = deepest==node       ;
-		size_t w         = 0                   ; for( auto const& [r,_] : cycle ) w = ::max(w,r.size()) ;
+		Node   deepest   = cycle.back().second                                                        ;
+		bool   seen_loop = deepest==node                                                              ;
+		size_t w         = ::max<size_t>( cycle , [](auto const& r_n) { return r_n.first.size() ; } ) ;
 		for( size_t i : iota(cycle.size()) ) {
 			const char* prefix ;
 			/**/ if ( seen_loop && i==0 && i==cycle.size()-1 )   prefix = "^-- " ;

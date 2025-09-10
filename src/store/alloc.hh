@@ -88,6 +88,8 @@ namespace Store {
 
 		struct Lst {
 			struct Iterator {
+				using value_type      = Idx       ;
+				using difference_type = ptrdiff_t ;
 				// cxtors & casts
 				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _fix_end() ; _legalize() ; }
 				// services

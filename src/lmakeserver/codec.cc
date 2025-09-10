@@ -105,7 +105,7 @@ namespace Codec {
 		bool                               is_canonic = true                                   ;
 		::vector_s                         lines      = AcFd(file,true/*err_ok*/).read_lines() ;
 		//
-		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val )->void {
+		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val ) {
 			Node dn { New , mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;
 			Node en { New , mk_encode_node(file,ctx,val ) , true/*no_dir*/ } ; nodes.emplace_back(en) ;
 			_create_pair( file , dn , val , en , code ) ;
@@ -181,11 +181,8 @@ namespace Codec {
 	bool/*ok*/ Closure::s_refresh( ::string const& file , NodeIdx ni , ::vector<ReqIdx> const& reqs ) {
 		auto   [it,inserted] = s_tab.try_emplace(file,Entry()) ;
 		Entry& entry         = it->second                      ;
-		if (!inserted) {
-			for( ReqIdx r : reqs ) if ( entry.sample_date < Req(r)->start_pdate ) goto Refresh ;                        // we sample disk once per Req
-			return true/*ok*/ ;
-		}
-	Refresh :
+		//
+		if ( !inserted && ::none_of( reqs , [&](ReqIdx ri) { return entry.sample_date<Req(ri)->start_pdate ; } ) ) return true/*ok*/ ; // we sample disk once per Req
 		Trace trace("refresh",file,reqs) ;
 		//
 		Node file_node { New , file } ;
@@ -202,9 +199,9 @@ namespace Codec {
 		entry.sample_date = New ;
 		if (inserted) {
 			Node node { ni } ;
-			if ( inserted && node->buildable==Buildable::Decode ) entry.phy_date = entry.log_date  = node->log_date() ; // initialize from known info
+			if ( inserted && node->buildable==Buildable::Decode ) entry.phy_date = entry.log_date  = node->log_date() ;                // initialize from known info
 		}
-		if (phy_date==entry.phy_date) return true/*ok*/ ;                                                               // file has not changed, nothing to do
+		if (phy_date==entry.phy_date) return true/*ok*/ ;                                                                              // file has not changed, nothing to do
 		entry.log_date = phy_date ;
 		//
 		_s_canonicalize( file , reqs ) ;

@@ -438,17 +438,21 @@ namespace Backends {
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second.first |= dd ;                   // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,::pair(dd,ExtraDflagsDfltDyn)) ; } // create new dep
 		}
-		bool deps_done = false ;                                                // true if all deps are done for at least one non-zombie req
-		for( Req r : reqs ) if (!r.zombie()) {
-			for( auto const& [dn,dd] : ::span(deps.data()+n_submit_deps,deps.size()-n_submit_deps) ) {
-				Node d { dn } ;
-				if ( !d || !d->done(r,NodeGoal::Dsk)) { trace("dep_not_done",r,dn) ; goto NextReq ; }
-			}
-			deps_done = true ;
-			break ;
-		NextReq : ;
-		}
-		//
+		bool deps_done =                                                        // true if all deps are done for at least one non-zombie req
+			::any_of(
+				reqs
+			,	[&](ReqIdx ri) {
+					Req r { ri } ;
+					return
+						!r.zombie()
+					&&	::all_of(
+							::span( deps.data()+n_submit_deps , deps.size()-n_submit_deps )
+						,	[&](auto const& dn_dd) { Node d { dn_dd.first } ; return +d && d->done(r,NodeGoal::Dsk) ; }
+						)
+					;
+				}
+			)
+		;
 		_s_starting_job = jsrr.job ; fence() ;                                  // used to ensure _s_handle_job_start is done for this job when _s_handle_job_end is called
 		{	Lock    lock     { _s_starting_job_mutex } ;                        // .
 			JobExec job_exec ;
@@ -457,10 +461,11 @@ namespace Backends {
 				//                                                                                                                                                 keep_fd
 				auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab2",job                              ) ; return false ; }
 				StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
+				//
 				entry.max_stderr_len = start_ancillary_attrs.max_stderr_len ;
-				for( Req r : entry.reqs ) if (!r.zombie()) goto Useful ;
-				return false/*keep_fd*/ ;
-			Useful :
+				//
+				if ( ::all_of( entry.reqs , [](ReqIdx ri) { return Req(ri).zombie() ; } ) ) return false ;
+				//
 				SWEAR( !entry.start_date , job,reply.addr,entry.start_date ) ;                                       // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvvvvvvvv
 				jis.pre_start.msg <<set_nl<< s_start(entry.tag,+job) ;

@@ -85,7 +85,7 @@ Restart :
 			if (p[-2]=='/')              continue     ;             // dot dir    ,             stay still
 			if (p[-2]!='.') { depth++  ; continue     ; }           // plain dir  , e.g. foo. , go down
 			if (p[-3]!='/') { depth++  ; continue     ; }           // plain dir  , e.g. foo.., go down
-			if (!depth    ) { file = p ; goto Restart ; }           // dot-dot dir, restart if we get back to top-level
+			if (!depth    ) { file = p ; goto Restart ; }           // dot-dot dir, restart if we get back to top-level, BACWARD
 			/**/              depth--  ;                            // dot-dot dir
 		}
 	}
@@ -352,7 +352,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	::vector_s             stats  ;
 	::umap_s<bool/*read*/> unlnks ;                                                                                   // files listed here are read and unlinked
 	::vector_s             writes ;
-	auto do1 = [&]( Solve const& src , Solve const& dst )->void {
+	auto do1 = [&]( Solve const& src , Solve const& dst ) {
 		for( auto const& [f,_] : walk(s_repo_root_fd(),src.real,TargetTags) ) {
 			if (+src.real0) {
 				if      (src.file_loc0<=FileLoc::Repo) unlnks.try_emplace(src.real0+f,false/*read*/) ;                // real is read, real0 is unlinked

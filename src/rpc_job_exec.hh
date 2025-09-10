@@ -94,13 +94,13 @@ struct JobExecRpcReq {
 		if (proc>=Proc::HasFileInfo) ::serdes(s,file_info   ) ;
 		switch (proc) {
 			case Proc::ChkDeps       :
-			case Proc::Tmp           :                                             ::serdes(s,date) ; break ;
-			case Proc::List          : ::serdes(s,digest.write) ;                  ::serdes(s,date) ; break ;
-			case Proc::Confirm       : ::serdes(s,digest.write) ; ::serdes(s,id) ;                    break ;
+			case Proc::Tmp           : ::serdes( s ,                     date ) ; break ;
+			case Proc::List          : ::serdes( s , digest.write ,      date ) ; break ;
+			case Proc::Confirm       : ::serdes( s , digest.write , id        ) ; break ;
 			case Proc::DepDirect     :
-			case Proc::DepVerbose    : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
-			case Proc::Access        : ::serdes(s,digest      ) ; ::serdes(s,id) ; ::serdes(s,date) ; break ;
-			case Proc::AccessPattern : ::serdes(s,digest      ) ;                  ::serdes(s,date) ; break ;
+			case Proc::DepVerbose    : ::serdes( s , digest       ,      date ) ; break ;
+			case Proc::Access        : ::serdes( s , digest       , id , date ) ; break ;
+			case Proc::AccessPattern : ::serdes( s , digest       ,      date ) ; break ;
 		DN}
 	}
 	// data
@@ -137,12 +137,12 @@ struct JobExecRpcReply {
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
 		switch (proc) {
-			case Proc::ChkDeps    : ::serdes(s,ok           ) ;                   break ;
-			case Proc::DepDirect  : ::serdes(s,ok           ) ;                   break ;
-			case Proc::DepVerbose : ::serdes(s,verbose_infos) ;                   break ;
-			case Proc::List       : ::serdes(s,files        ) ;                   break ;
+			case Proc::ChkDeps    : ::serdes(s , ok            ) ; break ;
+			case Proc::DepDirect  : ::serdes(s , ok            ) ; break ;
+			case Proc::DepVerbose : ::serdes(s , verbose_infos ) ; break ;
+			case Proc::List       : ::serdes(s , files         ) ; break ;
 			case Proc::Decode     :
-			case Proc::Encode     : ::serdes(s,ok           ) ; ::serdes(s,txt) ; break ;
+			case Proc::Encode     : ::serdes(s , ok , txt      ) ; break ;
 		DN}
 	}
 	// data

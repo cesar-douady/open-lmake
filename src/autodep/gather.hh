@@ -203,7 +203,7 @@ public :
 	Time::Delay                               timeout          ;
 	Atomic<int>                               wstatus          = 0                   ;
 	//
-	::function<void(::vmap_s<TargetDigest>&/*out*/,::vmap_s<DepDigest>&/*out*/)> chk_deps_cb = [&](::vmap_s<TargetDigest>&/*out*/,::vmap_s<DepDigest>/*out*/)->void {} ;
+	::function<void(::vmap_s<TargetDigest>&/*out*/,::vmap_s<DepDigest>&/*out*/)> chk_deps_cb = [&](::vmap_s<TargetDigest>&/*out*/,::vmap_s<DepDigest>/*out*/) {} ;
 private :
 	::map_ss     _add_env              ;
 	Child        _child                ;

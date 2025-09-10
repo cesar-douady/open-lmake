@@ -170,7 +170,7 @@ namespace Engine {
 		Console                                                                 console       ;
 		::array<Backend,N<BackendTag>>                                          backends      ;                  // backend may refuse dynamic modification
 		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}             ;
-		::umap_ss                                                               dbg_tab       = {}             ; // maps debug keys to modules to import
+		::map_ss                                                                dbg_tab       = {}             ; // maps debug keys to modules to import, ordered to be serializable
 		// END_OF_VERSIONING
 	} ;
 

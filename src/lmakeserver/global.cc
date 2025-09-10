@@ -327,8 +327,7 @@ namespace Engine {
 
 	void RulesBase::compile() {
 		for( RuleData& rd : self ) rd.compile() ; // for cmd and patterns
-		name_sz = Rule::NoRuleNameSz ;
-		for( RuleData const& rd : self ) name_sz = ::max( name_sz , rd.name.size() ) ;
+		name_sz = ::max<size_t>( self , [](RuleData const& rd) { return rd.name.size() ; } , Rule::NoRuleNameSz ) ;
 	}
 
 	Sources::Sources(PyType const& py_srcs) {

@@ -100,11 +100,11 @@ struct Tab {
 } ;
 
 // use dynamic programming to find best comment alignment
-void optimize( ::vector<Line>& lines) {
-	size_t         n_lvls = 0                                         ; for( Line const& l : lines ) n_lvls = ::max(n_lvls,l.lvl+1) ;
-	Tab            tab    { lines.size() , g_max_line_sz , n_lvls+1 } ;
+void optimize(::vector<Line>& lines) {
+	size_t         n_lvls = ::max<size_t>( lines , [](Line const& l) { return l.lvl+1 ; } ) ;
+	Tab            tab    { lines.size() , g_max_line_sz , n_lvls+1 }                       ;
 	Line           l0     ;
-	::vector<Info> t0     { tab.w , {false/*ko*/,n_lvls+1}          } ;
+	::vector<Info> t0     { tab.w , {false/*ko*/,n_lvls+1}          }                       ;
 	//
 	size_t py         = Npos ;
 	size_t break_lvl1 = 0    ;                                                                      // minimum indentation level of line separating comments, 0 is reserved to mean blank line

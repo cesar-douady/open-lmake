@@ -121,7 +121,7 @@ namespace Engine {
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
-				caches.resize(1) ;                                                                                 // idx 0 is reserved to mean no cache
+				caches.resize(1) ;                                                                             // idx 0 is reserved to mean no cache
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
 					fields[1] = py_key.as_a<Str>() ;
 					cache_idxs[fields[1]] = caches.size() ;
@@ -189,8 +189,8 @@ namespace Engine {
 							::string item       = py_item.as_a<Str>() ;
 							bool     found_stem = false               ;
 							::string target     ;
-							parse_py( item , &::ref(size_t()) ,                                                        // unused unnamed_star_idx, but passed to allow presence of unnamed star stems
-								[&]( ::string const& k , bool /*star*/ , bool unnamed , ::string const* re ) -> void {
+							parse_py( item , &::ref(size_t()) ,                                                // unused unnamed_star_idx, but passed to allow presence of unnamed star stems
+								[&]( ::string const& k , bool /*star*/ , bool unnamed , ::string const* re ) {
 									auto [it,inserted] = stem_idxs.try_emplace( k , collect.stems.size() ) ;
 									if (!re) {
 										throw_if    ( unnamed   , "unnamed stems must be defined in ",item ) ;
@@ -209,7 +209,7 @@ namespace Engine {
 									encode_int( p+1 , it->second ) ;
 									found_stem = true ;
 								}
-							,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx )->void {
+							,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx ) {
 									if ( !is_canon( fixed , false/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
 										if ( ::string c=mk_canon(item) ; c!=item ) throw cat("is not canonical, consider using : ",c) ;
 										else                                       throw cat("is not canonical"                     ) ;
@@ -283,14 +283,10 @@ namespace Engine {
 				fields.pop_back() ;
 			}
 			// do some adjustments
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                            // local backend is not remote
-				if (!backends[+t].configured      ) continue        ;
-				if (!Backends::Backend::s_ready(t)) continue        ;
-				if (t!=BackendTag::Local          ) goto SeenRemote ;
+			if ( ::none_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ) {
+				file_sync        = FileSync::None ;                                                                                    // no remote backend, filesystem is necessarily reliable
+				console.host_len = 0              ;                                                                                    // host has no interest if all jobs are local
 			}
-			file_sync        = FileSync::None ;                                                                                        // all backends are local, filesystem is necessarily reliable
-			console.host_len = 0              ;                                                                                        // host has no interest if all jobs are local
-		SeenRemote : ;
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) field<<'.'<<f ;
 			e = "while processing "+field+" :\n"+indent(e) ;
@@ -328,7 +324,7 @@ namespace Engine {
 					Cache const& cache = caches[idx] ;
 					::string avail ;
 					::map_ss descr = mk_map(cache.dct) ;
-					size_t   w     = 3                 ; for( auto const& [k,v] : descr ) w = ::max(w,k.size()) ;                                        // 3 : room for tag
+					size_t   w     = ::max<size_t>( descr , [](auto const& k_v) { return k_v.first.size() ; } , 3/*tag*/ ) ;
 					if ( Caches::Cache* c = Caches::Cache::s_tab[idx] ) for( auto const& [k,v] : c->descr() ) { descr[k] = v ; w = ::max(w,k.size()) ; }
 					else                                                avail = "(unvailable)" ;
 					res <<"\t\t"<<k<<avail<<" :\n" ;
@@ -349,11 +345,11 @@ namespace Engine {
 		if (nice         ) res << "\tnice            : " << size_t(nice)  <<'\n' ;
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                                                  // local backend is always present
+		for( BackendTag t : iota(1,All<BackendTag>) ) {                         // local backend is always present
 			Backend           const& be  = backends[+t]                       ;
 			Backends::Backend const* bbe = Backends::Backend::s_tab[+t].get() ;
-			if (!bbe                          ) continue ;                                                                                               // not implemented
-			if (!be.configured                ) continue ;                                                                                               // not configured
+			if (!bbe                          ) continue ;                      // not implemented
+			if (!be.configured                ) continue ;                      // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;
@@ -371,8 +367,7 @@ namespace Engine {
 			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
-				size_t w2 = 0 ;
-				for( auto const& [k,v] : be.env ) w2 = ::max(w2,k.size()) ;
+				size_t w2 = ::max<size_t>( be.env , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 				for( auto const& [k,v] : be.env ) res <<"\t\t\t\t"<< widen(k,w2) <<" : "<< v <<'\n' ;
 			}
 		}
@@ -381,7 +376,7 @@ namespace Engine {
 			res << "\tcollect :\n" ;
 			if (+collect.stems) {
 				res << "\t\tstems :\n" ;
-				size_t w = 0 ; for( auto const& [k,_] : collect.stems ) w = ::max( w , k.size() ) ;
+				size_t w = ::max<size_t>( collect.stems , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 				for( auto const& [k,v] : collect.stems ) res <<"\t\t\t"<< widen(k,w) <<" : "<< v <<'\n' ;
 			}
 			size_t w = 0 ; for( auto const& [k,_] : collect.static_ignore ) w = ::max( w , k.size() ) ;
@@ -392,7 +387,7 @@ namespace Engine {
 			for( auto const& [k,v] : collect.star_ignore ) {
 				::string p = subst_target(
 					v
-				,	[&](VarIdx s)->::string { return '{'+collect.stems[s].first+'}' ; }
+				,	[&](VarIdx s) { return cat('{',collect.stems[s].first,'}') ; }
 				,	py_fstr_escape
 				) ;
 				res <<"\t\t\t"<< widen(k,w) <<" : "<< p <<'\n' ;

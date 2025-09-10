@@ -406,7 +406,7 @@ namespace Engine::Persistent {
 				}
 				::sort(
 					pfx_rule_tgt_vec
-				,	[&]( Rt const& a , Rt const& b )->bool {
+				,	[&]( Rt const& a , Rt const& b ) {
 						// order :
 						// - rule order :
 						//   - special Rule's before plain Rule's

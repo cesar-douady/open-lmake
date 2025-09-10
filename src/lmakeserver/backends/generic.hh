@@ -261,7 +261,7 @@ namespace Backends {
 		void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) override {
 			sub_config(dct,env,dyn) ;
 			if (!dyn) {
-				_launch_queue.open( LaunchThreadKey , [&](::stop_token st)->void { _launch(st) ; } ) ; s_record_thread(LaunchThreadKey,_launch_queue.thread) ;
+				_launch_queue.open( LaunchThreadKey , [&](::stop_token st) { _launch(st) ; } ) ; s_record_thread(LaunchThreadKey,_launch_queue.thread) ;
 			}
 		}
 		void open_req( Req req , JobIdx n_jobs ) override {

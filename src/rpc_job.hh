@@ -40,7 +40,8 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 ,	Slurm
 //
 // aliases
-,	Dflt = Local
+,	Dflt   = Local
+,	Remote = Sge                  // if >=Remote, backend is remote
 } ;
 // END_OF_VERSIONING
 
@@ -315,6 +316,10 @@ struct JobReason {
 	bool operator+() const { return +tag                           ; }
 	bool need_run () const { return +tag and tag<JobReasonTag::Err ; }
 	// services
+	template<IsStream T> void serdes(T& s) {
+		/**/                            ::serdes( s , tag  ) ;
+		if (tag>=JobReasonTag::HasNode) ::serdes( s , node ) ;
+	}
 	JobReason operator|(JobReason jr) const {
 		if (JobReasonTagPrios[+tag].second>=JobReasonTagPrios[+jr.tag].second) return self ; // at equal level, prefer older reason
 		else                                                                   return jr   ;
@@ -475,6 +480,17 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && dflags[Dflag::Verbose] )) set_crc    (c ,false) ; } // only set crc if err is useless
 	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && dflags[Dflag::Verbose] )) set_crc_sig(di,false) ; } // .
 	// services
+	template<IsStream T> void serdes(T& s) {
+		::serdes( s , sz,accesses,dflags ) ;
+		// bitfields cannot be serialized directly as no ref is allowed
+		/**/                bool      parallel_ ; bool    is_crc_ ; bool hot_ ; Accesses::Val   chunk_accesses_ ; bool err_ ;
+		if (IsOStream<T>) { parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; chunk_accesses_=chunk_accesses  ; err_=err  ; }
+		::serdes( s ,       parallel_           , is_crc_         , hot_      , chunk_accesses_                 , err_      ) ;
+		if (IsIStream<T>) { parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; chunk_accesses =chunk_accesses_ ; err =err_ ; }
+		//
+		if (is_crc) ::serdes( s , _crc ) ;
+		else        ::serdes( s , _sig ) ;
+	}
 	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                      // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR( Base::operator==(ddb) , self,ddb ) ;
 		/**/                   SWEAR( !sz                   , self     ) ;
@@ -771,14 +787,9 @@ struct JobStartRpcReply {                                                       
 		::serdes(s,z_lvl         ) ;
 		//
 		CacheTag tag ;
-		if (IsIStream<S>) {
-			::serdes(s,tag) ;
-			if (+tag) cache = Caches::Cache::s_new(tag) ;
-		} else {
-			tag = cache ? cache->tag() : CacheTag::None ;
-			::serdes(s,tag) ;
-		}
-		if (+tag) cache->serdes(s) ;
+		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
+		else              { tag = cache ? cache->tag() : CacheTag::None ; ::serdes(s,tag)  ;                                               }
+		if (+tag          )                                               cache->serdes(s) ;
 	}
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&/*out*/
@@ -838,10 +849,9 @@ struct ExecTraceEntry {
 	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,date        ) ;
-		::serdes(s,comment     ) ;
-		::serdes(s,comment_exts) ;
-		::serdes(s,file        ) ;
+		::serdes( s , date                   ) ;
+		::serdes( s , comment , comment_exts ) ;
+		::serdes( s , file                   ) ;
 	}
 	::string step() const {
 		if (+comment_exts) return cat     (snake(comment),comment_exts) ;
@@ -863,18 +873,18 @@ struct JobEndRpcReq : JobRpcReq {
 	JobEndRpcReq(JobRpcReq jrr={}) : JobRpcReq{jrr} {}
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,static_cast<JobRpcReq&>(self)) ;
-		::serdes(s,digest                       ) ;
-		::serdes(s,phy_tmp_dir_s                ) ;
-		::serdes(s,dyn_env                      ) ;
-		::serdes(s,exec_trace                   ) ;
-		::serdes(s,total_sz                     ) ;
-		::serdes(s,compressed_sz                ) ;
-		::serdes(s,end_date                     ) ;
-		::serdes(s,stats                        ) ;
-		::serdes(s,msg_stderr                   ) ;
-		::serdes(s,stdout                       ) ;
-		::serdes(s,wstatus                      ) ;
+		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
+		::serdes( s , digest                        ) ;
+		::serdes( s , phy_tmp_dir_s                 ) ;
+		::serdes( s , dyn_env                       ) ;
+		::serdes( s , exec_trace                    ) ;
+		::serdes( s , total_sz                      ) ;
+		::serdes( s , compressed_sz                 ) ;
+		::serdes( s , end_date                      ) ;
+		::serdes( s , stats                         ) ;
+		::serdes( s , msg_stderr                    ) ;
+		::serdes( s , stdout                        ) ;
+		::serdes( s , wstatus                       ) ;
 	}
 	void cache_cleanup() ;                   // clean up info before uploading to cache
 	void chk(bool for_cache=false) const ;
@@ -903,29 +913,29 @@ struct JobMngtRpcReq : JobRpcReq {
 	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
 	// services
 	template<IsStream T> void serdes(T& s) {
-		::serdes(s,static_cast<JobRpcReq&>(self)) ;
-		::serdes(s,proc                         ) ;
+		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
+		::serdes( s , proc                          ) ;
 		switch (proc) {
 			case Proc::None       :
-			case Proc::Heartbeat  :                                                                                                                                        break ;
+			case Proc::Heartbeat  :                                                                    break ;
 			case Proc::LiveOut    :
-			case Proc::AddLiveOut :                                                                                                ::serdes(s,txt) ;                       break ;
-			case Proc::ChkDeps    : ::serdes(s,fd) ; ::serdes(s,targets) ; ::serdes(s,deps) ;                                                                              break ;
+			case Proc::AddLiveOut : ::serdes( s ,                                    txt           ) ; break ;
+			case Proc::ChkDeps    : ::serdes( s , fd , targets , deps                              ) ; break ;
 			case Proc::DepDirect  :
-			case Proc::DepVerbose : ::serdes(s,fd) ;                       ::serdes(s,deps) ;                                                                              break ;
-			case Proc::Decode     : ::serdes(s,fd) ;                                          ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ;                       break ;
-			case Proc::Encode     : ::serdes(s,fd) ;                                          ::serdes(s,ctx) ; ::serdes(s,file) ; ::serdes(s,txt) ; ::serdes(s,min_len) ; break ;
-		DF}                                                                                                                                                                        // NO_COV
+			case Proc::DepVerbose : ::serdes( s , fd ,           deps                              ) ; break ;
+			case Proc::Decode     : ::serdes( s , fd ,                  ctx , file , txt           ) ; break ;
+			case Proc::Encode     : ::serdes( s , fd ,                  ctx , file , txt , min_len ) ; break ;
+		DF}                                                                                                    // NO_COV
 	}
 	// data
 	Proc                   proc    = Proc::None ;
-	Fd                     fd      = {}         ; // fd to which reply must be forwarded
-	::vmap_s<TargetDigest> targets = {}         ; // proc==ChkDeps
-	::vmap_s<DepDigest   > deps    = {}         ; // proc==ChkDeps|DepDirect|DepVerbose
-	::string               ctx     = {}         ; // proc==        Decode|Encode
-	::string               file    = {}         ; // proc==        Decode|Encode
-	::string               txt     = {}         ; // proc==LiveOut|Decode|Encode
-	uint8_t                min_len = 0          ; // proc==               Encode
+	Fd                     fd      = {}         ;                                                              // fd to which reply must be forwarded
+	::vmap_s<TargetDigest> targets = {}         ;                                                              // proc==ChkDeps
+	::vmap_s<DepDigest   > deps    = {}         ;                                                              // proc==ChkDeps|DepDirect|DepVerbose
+	::string               ctx     = {}         ;                                                              // proc==        Decode|Encode
+	::string               file    = {}         ;                                                              // proc==        Decode|Encode
+	::string               txt     = {}         ;                                                              // proc==LiveOut|Decode|Encode
+	uint8_t                min_len = 0          ;                                                              // proc==               Encode
 } ;
 
 struct JobMngtRpcReply {
@@ -940,14 +950,14 @@ struct JobMngtRpcReply {
 			case Proc::None       :
 			case Proc::Kill       :
 			case Proc::Heartbeat  :
-			case Proc::AddLiveOut :                                                                        break ;
-			case Proc::DepDirect  : ::serdes(s,fd) ; ::serdes(s,ok ) ;                                     break ;
-			case Proc::DepVerbose : ::serdes(s,fd) ; ::serdes(s,verbose_infos) ;                           break ;
+			case Proc::AddLiveOut :                                                       break ;
+			case Proc::DepDirect  : ::serdes( s , fd , ok                             ) ; break ;
+			case Proc::DepVerbose : ::serdes( s , fd ,                  verbose_infos ) ; break ;
 			case Proc::ChkDeps    :
-			case Proc::ChkTargets : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ;                   break ;
+			case Proc::ChkTargets : ::serdes( s , fd , ok , txt                       ) ; break ;
 			case Proc::Decode     :
-			case Proc::Encode     : ::serdes(s,fd) ; ::serdes(s,ok ) ; ::serdes(s,txt) ; ::serdes(s,crc) ; break ;
-		DF}                                                                                                        // NO_COV
+			case Proc::Encode     : ::serdes( s , fd , ok , txt , crc                 ) ; break ;
+		DF}                                                                                       // NO_COV
 	}
 	// data
 	Proc                  proc          = {}    ;

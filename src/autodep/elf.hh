@@ -110,8 +110,9 @@ DoSection :
 		Shdr const& shdr         = file_map.get<Shdr>(shdr_offset)   ;
 		size_t      shdr_name    = string_offset + shdr.sh_name      ;
 		const char* section_name = &file_map.get<char>(shdr_name)    ;
-		if (section_name==".dynamic"s) {
+		if (::strcmp(section_name,".dynamic")==0) {
 			dyn_offset = shdr.sh_offset ;
+			break ;
 		}
 	}
 	return &file_map.get<Dyn>(dyn_offset) ;

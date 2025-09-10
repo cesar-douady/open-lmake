@@ -129,16 +129,10 @@ namespace Engine::Makefiles {
 		;
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
-			char pfx = FileInfo(d).exists() ? '+' : '!' ;
-			if (is_abs(d)) {
-				for( auto const& [sd_s,a] : glb_sds_s ) {
-					if (!(d+'/').starts_with(sd_s))                                                        continue     ;
-					if (!a                        ) { deps_str << pfx << mk_rel(d,*g_repo_root_s) <<'\n' ; goto NextDep ; }
-					break ;
-				}
-			}
-			deps_str << pfx << d <<'\n' ;
-		NextDep : ;
+			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
+			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return (d+'/').starts_with(sd_s_a.first) && !sd_s_a.second ; } ) ) deps_str << mk_rel(d,*g_repo_root_s) ;
+			else                                                                                                                                 deps_str <<        d                 ;
+			deps_str <<'\n' ;
 		}
 		for( auto const& [key,val] : deps.user_env ) {
 			SWEAR(+key) ;
@@ -313,19 +307,19 @@ namespace Engine::Makefiles {
 		//
 		Bool3 changed_srcs  = No    ;
 		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                            // invalidate because of config
-		auto diff_config = [&]( Config const& old , Config const& new_ )->void {
-			if (!old) {                                                          // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                          // Maybe means new
-				changed_rules = Maybe ;                                          // .
+		bool  invalidate    = false ;                                      // invalidate because of config
+		auto diff_config = [&]( Config const& old , Config const& new_ ) {
+			if (!old) {                                                    // no old config means first time, all is new
+				changed_srcs  = Maybe ;                                    // Maybe means new
+				changed_rules = Maybe ;                                    // .
 				invalidate    = true  ;
 				return ;
 			}
-			if (!new_) return ;                                                  // no new config means we keep old config, no modification
+			if (!new_) return ;                                            // no new config means we keep old config, no modification
 			//
 			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
 			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;               // this changes matching exceptions, which means it changes matching
+			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;         // this changes matching exceptions, which means it changes matching
 		} ;
 		try {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

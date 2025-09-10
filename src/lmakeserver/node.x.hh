@@ -216,6 +216,8 @@ namespace Engine {
 	//
 
 	struct DepsIter {
+		using value_type      = Dep       ;
+		using difference_type = ptrdiff_t ;
 		struct Digest {
 			friend ::string& operator+=( ::string& , Digest const& ) ;
 			bool operator==(Digest const&) const = default ;
@@ -272,6 +274,7 @@ namespace Engine {
 	} ;
 
 	struct Deps : DepsBase {
+		using value_type = Dep ;
 		// cxtors & casts
 		using DepsBase::DepsBase ;
 		Deps( ::vector<Node> const& , Accesses , Dflags , bool parallel ) ;

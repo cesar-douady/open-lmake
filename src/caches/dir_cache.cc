@@ -121,8 +121,8 @@ namespace Caches {
 			auto     job_info = _full_deserialize<JobInfo            >( /*out*/info_sz , df_s+"info" ) ;
 			Sz       entry_sz = _entry_sz( entry_s , df_s+"data" , deps_sz , info_sz )                 ;
 			//
-			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }          // lru file size is already estimated
-			catch (::string const&) { entry.old_lru = {}                                                     ; }          // avoid partial info
+			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }                             // lru file size is already estimated
+			catch (::string const&) { entry.old_lru = {}                                                     ; }                             // avoid partial info
 			//
 			// check coherence
 			//
@@ -149,7 +149,7 @@ namespace Caches {
 		::umap_s<RepairEntry>  entries  ;
 		::umap_ss              hints    ;
 		//
-		auto uphill = [&](::string const& d)->void {
+		auto uphill = [&](::string const& d) {
 			for( ::string u = d ;; u=dir_name_s(u) ) {
 				auto [it,inserted] = dirs_s.try_emplace(u,true/*keep*/) ;
 				if (!inserted) {
@@ -162,7 +162,7 @@ namespace Caches {
 		//
 		for( auto const& [af,t] : walk(dir_s) ) {
 			if (!af) continue ;
-			::string f = af.substr(1) ;                                                                                   // suppress leading /
+			::string f = af.substr(1) ;                                                                                                      // suppress leading /
 			switch (t) {
 				case FileTag::Dir :
 					dirs_s.try_emplace(with_slash(f),false/*keep*/) ;
@@ -171,7 +171,7 @@ namespace Caches {
 				case FileTag::Reg   :
 				case FileTag::Empty :
 					if (f.starts_with(HeadS)) {
-						::string_view sv = substr_view(f,sizeof(HeadS)-1) ;                                               // -1 to account for terminating null
+						::string_view sv = substr_view(f,sizeof(HeadS)-1) ;                                                                  // -1 to account for terminating null
 						if (sv=="lru"    ) continue ;
 						if (sv=="size"   ) continue ;
 						if (sv=="version") continue ;
@@ -208,7 +208,7 @@ namespace Caches {
 			else                                    to_unlnk.insert  (f)  ;
 		}
 		//
-		SWEAR_PROD(+dir_s) ;                                                                                              // avoid unlinking random files
+		SWEAR_PROD(+dir_s) ;                                                                                                                 // avoid unlinking random files
 		for( ::string const& f : to_unlnk ) {
 			::string df = dir_s+f ;
 			Fd::Stdout.write(cat("rm ",df,'\n')) ;
@@ -217,7 +217,7 @@ namespace Caches {
 		//
 		::vector_s to_rmdir ;
 		for( auto const& [d_s,k] : dirs_s ) { if (!k) to_rmdir.push_back(d_s) ; }
-		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;                         // sort to ensure subdirs are rmdir'ed before their parent
+		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;                                            // sort to ensure subdirs are rmdir'ed before their parent
 		for( ::string const& d_s : to_rmdir ) {
 			::string dd = no_slash(dir_s+d_s) ;
 			Fd::Stdout.write(cat("rmdir ",dd,'\n')) ;
@@ -226,12 +226,12 @@ namespace Caches {
 		//
 		::vmap_s<RepairEntry> to_mk_lru ;
 		for( auto const& f_e : entries ) if (+f_e.second) to_mk_lru.push_back(f_e) ;
-		::sort(                                                                                                           // sort in LRU order, newer first
+		::sort(                                                                                                                              // sort in LRU order, newer first
 			to_mk_lru
 		,	[]( ::pair_s<RepairEntry> const& a , ::pair_s<RepairEntry> const& b )->bool { return a.second.old_lru.last_access>b.second.old_lru.last_access ; }
 		) ;
-		Sz     total_sz = 0 ;
-		size_t w        = 0 ; for ( auto const& [_,e] : to_mk_lru ) w = ::max(w,to_short_string_with_unit(e.sz).size()) ; // too expensive to filter out only non-printed entries
+		Sz     total_sz = 0                                                                                                                ;
+		size_t w        = ::max<size_t>( to_mk_lru , [&](auto const& n_re) { return to_short_string_with_unit(n_re.second.sz).size() ; } ) ; // too expensive to filter out only non-printed entries
 		for( size_t i : iota(to_mk_lru.size()) ) {
 			RepairEntry const& here     = to_mk_lru[i].second           ;
 			Lru         const& old_lru  = here.old_lru                  ;
@@ -251,7 +251,7 @@ namespace Caches {
 		::string head_lru_file = _lru_file(HeadS) ;
 		Lru      old_head_lru  ;
 		try                     { old_head_lru = deserialize<Lru>(AcFd(head_lru_file).read()) ; }
-		catch (::string const&) { old_head_lru = {} ;                                           }                         // ensure no partial info
+		catch (::string const&) { old_head_lru = {} ;                                           }                                            // ensure no partial info
 		Lru new_head_lru {
 			.newer_s = +to_mk_lru ? to_mk_lru.back ().first : HeadS
 		,	.older_s = +to_mk_lru ? to_mk_lru.front().first : HeadS

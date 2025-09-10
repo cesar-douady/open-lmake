@@ -79,11 +79,8 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 	if ( ad.write==Yes && late                     ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
 	flags |= ad.flags ;
 	//
-	if (+di) {
-		for( Access a : iota(All<Access>) ) if (_read[+a]<=pd) goto NotFirst ;
-		dep_info = di ;
-	NotFirst : ;
-	}
+	if ( +di && ::all_of( iota(All<Access>) , [&](Access a) { return pd<_read[+a] ; } ) ) dep_info = di ;
+	//
 	for( Access a : iota(All<Access>) )   if ( pd<_read[+a] && ad.accesses[a]                           ) _read[+a] = pd   ;
 	/**/                                  if ( pd<_read_dir && ad.read_dir                              ) _read_dir = pd   ;
 	if (late)                           { if ( pd<_write    && ad.write==Yes                            ) _write    = pd   ; }
@@ -311,11 +308,11 @@ Status Gather::exec_child() {
 	bool                     timeout_fired  = false       ;
 	size_t                   kill_step      = 0           ;
 	//
-	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
+	auto set_status = [&]( Status status_ , ::string const& msg_={} ) {
 		if (status==Status::New) status = status_ ;                                                             // only record first status
 		if (+msg_              ) msg << set_nl << msg_ ;
 	} ;
-	auto kill = [&](bool next_step=false)->void {
+	auto kill = [&](bool next_step=false) {
 		trace("kill",STR(next_step),kill_step,STR(as_session),_child.pid,_wait) ;
 		if      (next_step             ) SWEAR(kill_step<=kill_sigs.size()) ;
 		else if (kill_step             ) return ;
@@ -334,7 +331,7 @@ Status Gather::exec_child() {
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
 	} ;
-	auto open_fast_report_fd = [&]()->void {
+	auto open_fast_report_fd = [&]() {
 		SWEAR(+autodep_env.fast_report_pipe) ;
 		fast_report_fd = AcFd( autodep_env.fast_report_pipe , true/*err_ok*/ , {.flags=O_RDONLY|O_NONBLOCK} ) ; // avoid blocking waiting for child, no impact on epoll-controled ops
 		//
@@ -407,10 +404,12 @@ Status Gather::exec_child() {
 		bool  must_wait = +epoll || +_wait ;
 		Delay wait_for  ;
 		if ( must_wait && !delayed_jerrs && !_wait[Kind::ChildStart] ) {
-			Pdate event_date =                     end_child       ;
-			/**/  event_date = ::min( event_date , end_kill      ) ;
-			/**/  event_date = ::min( event_date , end_timeout   ) ;
-			/**/  event_date = ::min( event_date , end_heartbeat ) ;
+			Pdate event_date = ::min({
+				end_child
+			,	end_kill
+			,	end_timeout
+			,	end_heartbeat
+			}) ;
 			wait_for = event_date<Pdate::Future ? event_date-now : Delay::Forever ;
 		}
 		::vector<Event> events = epoll.wait(wait_for) ;

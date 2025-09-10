@@ -10,6 +10,7 @@
 #include "types.hh"
 #include "fd.hh"
 #include "lib.hh"
+#include "serialize.hh"
 #include "time.hh"
 
 enum class Access : uint8_t {                                          // in all cases, dirs are deemed non-existing
@@ -164,6 +165,8 @@ namespace Disk {
 		bool    exists    (               ) const { return tag()>=FileTag::Target  ; }
 		FileTag tag       (               ) const { return date.tag()              ; }
 		FileSig sig       (               ) const ;
+		// services
+		template<IsStream T> void serdes(T& s) { ::serdes( s , sz,date ) ; }
 		// data
 		DiskSz sz   = 0 ;
 		Ddate  date ;

@@ -90,7 +90,7 @@ namespace Engine {
 		}
 		// rm enclosing dirs of unlinked targets
 		::vmap<Node,NodeIdx/*depth*/> to_rmdir_vec ; for( auto [k,v] : to_rmdirs ) to_rmdir_vec.emplace_back(k,v) ;
-		::sort( to_rmdir_vec , [&]( ::pair<Node,NodeIdx/*depth*/> const& a , ::pair<Node,NodeIdx/*depth*/> const& b ) { return a.second>b.second ; } ) ; // sort deeper first, to rmdir after children
+		::sort( to_rmdir_vec , [&]( auto const& a , auto const& b ) { return a.second>b.second ; } ) ;              // sort deeper first, to rmdir after children
 		for( auto [d,_] : to_rmdir_vec ) actions.emplace_back(d,FileAction({FileActionTag::Rmdir})) ;
 		//
 		// mark target dirs to protect from deletion by other jobs
@@ -111,7 +111,7 @@ namespace Engine {
 			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!dir_uphills.insert(hd).second) break ;
 		//
-		auto dec = [&]( ::umap<Node,Idx/*cnt*/>& dirs , Node d )->void {
+		auto dec = [&]( ::umap<Node,Idx/*cnt*/>& dirs , Node d ) {
 			auto it = dirs.find(d) ;
 			SWEAR(it!=dirs.end()) ;
 			if (it->second==1) dirs.erase(it) ;
@@ -281,7 +281,7 @@ namespace Engine {
 		JobInfo             res   ;
 		BitMap<JobInfoKind> found ;
 		SWEAR(+(need&~JobInfoKind::None)) ;                                            // else, this is useless
-		auto do_entry = [&](::pair<Job,JobInfo1> const& jji)->void {
+		auto do_entry = [&](::pair<Job,JobInfo1> const& jji) {
 			if (jji.first!=self) return ;
 			JobInfo1 const& ji = jji.second ;
 			if ( ji.is_a<JobInfoKind::Start>() && +found ) {                           // start event is a new record
@@ -339,15 +339,10 @@ namespace Engine {
 		JobData& jd = *self ;
 		if (+req) {
 			ReqInfo& ri = jd.req_info(req) ;
-			ri.step(Step::End,self) ;                                                    // ensure no confusion with previous run
+			ri.step(Step::End,self)            ;                                                                           // ensure no confusion with previous run
 			jd.make( ri , MakeAction::GiveUp ) ;
-			for( Req r : jd.running_reqs(false/*with_zombies*/) ) {
-				SWEAR(r!=req) ;
-				if (report) req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
-				goto NotKilled ;
-			}
-			for( Node t : self->targets() ) t->busy = false ;                            // if job does not continue, targets are no more busy
-		NotKilled :
+			if      (!jd.running_reqs(false/*with_zombies*/)) for( Node t : self->targets() ) t->busy = false ;            // if job does not continue, targets are no more busy
+			else if (report                                 ) req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
 			req.chk_end() ;
 		} else {
 			for( Req r : jd.running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                ;
@@ -951,12 +946,12 @@ namespace Engine {
 	RestartFullAnalysis :
 		JobReason pre_reason    ;                                                               // reason to run job when deps are ready before deps analysis
 		JobReason report_reason ;
-		auto reason = [&](ReqInfo::State const& s)->JobReason {
+		auto reason = [&](ReqInfo::State const& s) {
 			if (ri.force) return pre_reason | ri.reason | s.reason             ;
 			else          return pre_reason |             s.reason | ri.reason ;
 		} ;
 		// /!\ no_run_reason_tag and inc_submits must stay in sync
-		auto no_run_reason_tag = [&](JobReasonTag const& jrt)->NoRunReason {                    // roughly equivalent to !jrt||jrt>=Err but give reason and take care of limits
+		auto no_run_reason_tag = [&](JobReasonTag const& jrt) {                                 // roughly equivalent to !jrt||jrt>=Err but give reason and take care of limits
 			switch (jrt) {
 				case JobReasonTag::None      :                             return NoRunReason::Dep ;
 				case JobReasonTag::Retry     :
@@ -975,11 +970,11 @@ namespace Engine {
 				bool option_constraint = req->n_submits && ri.n_submits>=req->n_submits ;
 				return rule_constraint || option_constraint ? NoRunReason::SubmitLoop : NoRunReason::None ;
 		} ;
-		auto no_run_reason = [&](ReqInfo::State const& s)->NoRunReason {
+		auto no_run_reason = [&](ReqInfo::State const& s) {
 			return no_run_reason_tag(reason(s).tag) ;
 		} ;
 		// /!\ no_run_reason_tag and inc_submits must stay in sync
-		auto inc_submits = [&](JobReasonTag jrt)->void {                                        // inc counter associated with no_run_reason_tag (returning None)
+		auto inc_submits = [&](JobReasonTag jrt) {                                              // inc counter associated with no_run_reason_tag (returning None)
 			NoRunReason nrr = no_run_reason_tag(jrt) ;
 			SWEAR( !nrr , jrt,pre_reason,nrr ) ;
 			switch (jrt) {
@@ -1308,7 +1303,7 @@ namespace Engine {
 				msg << cat("max path limit ("     ,g_config->path_max     ,") reached, consider : lmake.config.max_path = "     ,(*deps.begin())->name().size()," (or larger)") ;
 			DoInfinite :
 				if (short_msg) {
-					auto gen_dep = [&](::string const& dn)->void {
+					auto gen_dep = [&](::string const& dn) {
 						if (dn.size()>111) stderr << dn.substr(0,50)<<"...("<<widen(cat(dn.size()-100),3,true/*right*/)<<")..."<<dn.substr(dn.size()-50) ;
 						else               stderr << dn                                                                                                  ;
 						stderr <<'\n' ;

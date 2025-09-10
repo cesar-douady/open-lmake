@@ -14,7 +14,6 @@ using namespace Disk ;
 using namespace Hash ;
 
 int main( int argc , char* argv[] ) {
-
 	app_init(true/*read_only_ok*/,No/*chk_version*/,No/*cd_root*/) ;
 	#if PROFILING
 		::string gmon_dir_s ; if (g_repo_root_s) gmon_dir_s = *g_repo_root_s+AdminDirS+"gmon.out/" ;

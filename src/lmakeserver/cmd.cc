@@ -22,7 +22,7 @@ namespace Engine {
 		::umap_ss                 static_ignore ;                             for( auto const& [k,v] : collect.static_ignore ) static_ignore.try_emplace( v , k ) ;
 		::vmap<RegExpr,::string>  star_ignore   ;
 		//
-		auto keep = [&](::string const& dir_s)->void {
+		auto keep = [&](::string const& dir_s) {
 			for( ::string d_s=dir_s ; +d_s ; d_s=dir_name_s(d_s) ) {          // mark uphill dirs as kept
 				auto [it,inserted] = dirs.try_emplace(d_s,true/*keep*/) ;
 				if (!inserted) {
@@ -36,7 +36,7 @@ namespace Engine {
 			for( auto const& [re,k] : star_ignore ) if (+re.match(path)        ) return &k          ;
 			/**/                                                                 return nullptr     ;
 		} ;
-		auto prune = [&](::string const& dir_s)->bool {
+		auto prune = [&](::string const& dir_s) {
 			::string const* key = nullptr ;
 			{	/**/                         if ( !dir_s                           ) goto Keep  ;
 				/**/                         if ( is_repo_root && dir_s==AdminDirS ) goto Prune ;
@@ -143,9 +143,9 @@ namespace Engine {
 		ReqOptions const& ro = ecr.options ;
 		Trace trace("freeze",ecr) ;
 		if (_is_mark_glb(ro.key)) {
-			::vector<Job > jobs  = Job ::s_frozens() ;
-			::vector<Node> nodes = Node::s_frozens() ;
-			size_t         w     = 0                 ; for( Job j : jobs ) w = ::max(w,j->rule()->name.size()) ;
+			::vector<Job > jobs  = Job ::s_frozens()                                                      ;
+			::vector<Node> nodes = Node::s_frozens()                                                      ;
+			size_t         w     = ::max<size_t>( jobs , [&](Job j) { return j->rule()->name.size() ; } ) ;
 			if (ro.key==ReqKey::Clear) {
 				for( Job  j : jobs  ) j->status = Status::New ;
 				for( Node n : nodes ) n->mk_no_src() ;
@@ -163,7 +163,7 @@ namespace Engine {
 			::vector<Job > jobs  ;
 			::vector<Node> nodes ;
 			//
-			auto handle_job = [&](Job j)->void {
+			auto handle_job = [&](Job j) {
 				/**/       if ( !j || j->rule().is_shared() ) throw "job not found " +mk_file(j->name()) ;
 				if (add) { if (  j.frozen  ()               ) throw "already frozen "+mk_file(j->name()) ; }
 				else     { if ( !j.frozen  ()               ) throw "not frozen "    +mk_file(j->name()) ; }
@@ -172,7 +172,7 @@ namespace Engine {
 				w = ::max( w , j->rule()->name.size() ) ;
 				jobs.push_back(j) ;
 			} ;
-			auto handle_node = [&](Node n)->void {
+			auto handle_node = [&](Node n) {
 				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw cat(n.frozen()?"already":"not"," frozen ",mk_file(nn)) ; }
 				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw cat("cannot freeze source/anti "         ,mk_file(nn)) ; }
 				//
@@ -788,14 +788,14 @@ namespace Engine {
 							size_t                                      w   = 0                 ;
 							if (porcelaine) {
 								char sep = '{' ;
-								for( auto     const& [k,v] : env.first  ) w = ::max(w,mk_py_str(k).size()) ;
-								for( ::string const&  k    : env.second ) w = ::max(w,mk_py_str(k).size()) ; //!                       as_is
+								for( auto     const& [k,v] : env.first  ) w = ::max( w , mk_py_str(k).size() ) ;
+								for( ::string const&  k    : env.second ) w = ::max( w , mk_py_str(k).size() ) ; //!                   as_is
 								for( auto     const& [k,v] : env.first  ) { audit( fd , ro , widen(mk_py_str(k),w)+" : "+mk_py_str(v) , true , lvl+1 , sep ) ; sep = ',' ; }
 								for( ::string const&  k    : env.second ) { audit( fd , ro , widen(mk_py_str(k),w)+" : ..."           , true , lvl+1 , sep ) ; sep = ',' ; }
 								/**/                                        audit( fd , ro , "}"                                      , true , lvl         ) ;
 							} else if (+start) {
-								for( auto     const& [k,v] : env.first  ) w = ::max(w,k.size()) ;
-								for( ::string const&  k    : env.second ) w = ::max(w,k.size()) ; //!          as_is
+								for( auto     const& [k,v] : env.first  ) w = ::max( w , k.size() ) ;
+								for( ::string const&  k    : env.second ) w = ::max( w , k.size() ) ; //!      as_is
 								for( auto     const& [k,v] : env.first  ) audit( fd , ro , widen(k,w)+" : "+v , true , lvl ) ;
 								for( ::string const&  k    : env.second ) audit( fd , ro , widen(k,w)+" ..."  , true , lvl ) ;
 							} else {
@@ -839,13 +839,9 @@ namespace Engine {
 							if (!end) { audit( fd , ro , Color::Note , "no info available" , true/*as_is*/ , lvl ) ; break ; }
 							::sort( end.exec_trace , [](ExecTraceEntry const& a , ExecTraceEntry const& b )->bool { return ::pair(a.date,a.file)<::pair(b.date,b.file) ; } ) ;
 							if (porcelaine) {
-								size_t wk = 0 ;
-								size_t wf = 0 ;
-								char sep = '(' ;
-								for( ExecTraceEntry const& e : end.exec_trace ) {
-									wk = ::max(wk,mk_py_str(e.step()).size()) ;
-									wf = ::max(wf,mk_py_str(e.file  ).size()) ;
-								}
+								size_t wk  = ::max<size_t>( end.exec_trace , [&](ExecTraceEntry const& e) { return mk_py_str(e.step()).size() ; } ) ;
+								size_t wf  = ::max<size_t>( end.exec_trace , [&](ExecTraceEntry const& e) { return mk_py_str(e.file  ).size() ; } ) ;
+								char   sep = '('                                                                                                    ;
 								for( ExecTraceEntry const& e : end.exec_trace ) {
 									::string l = "( "+mk_py_str(e.date.str(3/*prec*/,true/*in_day*/))+" , "+widen(mk_py_str(e.step()),wk)+" , "+widen(mk_py_str(e.file),wf)+" )" ;
 									audit( fd , ro , l , true/*as_is*/ , lvl+1 , sep ) ;
@@ -853,8 +849,7 @@ namespace Engine {
 								}
 								audit( fd , ro , ")" , true/*as_is*/ , lvl ) ;
 							} else {
-								size_t w = 0 ;
-								for( ExecTraceEntry const& e : end.exec_trace ) w = ::max(w,e.step().size()) ;
+								size_t w = ::max<size_t>( end.exec_trace , [&](ExecTraceEntry const& e) { return e.step().size() ; } ) ;
 								for( ExecTraceEntry const& e : end.exec_trace ) //!                                                      as_is
 									if (+e.file) audit( fd , ro , e.date.str(3/*prec*/,true/*in_day*/)+' '+widen(e.step(),w)+' '+e.file , true , lvl+1 ) ;
 									else         audit( fd , ro , e.date.str(3/*prec*/,true/*in_day*/)+' '+      e.step()               , true , lvl+1 ) ;
@@ -868,7 +863,7 @@ namespace Engine {
 							} ;
 							::string        su         = porcelaine ? ""s : ro.startup_dir_s ;
 							::vmap_s<Entry> tab        ;
-							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool protect=true )->void {
+							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool protect=true ) {
 								tab.emplace_back( k , Entry{v,c,protect} ) ;
 							} ;
 							//
@@ -992,10 +987,10 @@ namespace Engine {
 							if (+end.msg_stderr.msg) push_entry( "message"       , localize(end.msg_stderr.msg,su) ) ;
 							// generate output
 							if (porcelaine) {
-								auto audit_map = [&]( ::string const& key , ::map_ss const& m , bool protect )->void {
+								auto audit_map = [&]( ::string const& key , ::map_ss const& m , bool protect ) {
 									if (!m) return ;
-									size_t w   = 0   ; for( auto const& [k,_] : m  ) w = ::max(w,mk_py_str(k).size()) ;
-									char   sep = ' ' ;
+									size_t w   = ::max<size_t>( m , [&](auto const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
+									char   sep = ' '                                                                                ;
 									audit( fd , ro , mk_py_str(key)+" : {" , true/*as_is*/ , lvl+1 , ',' ) ;
 									for( auto const& [k,v] : m ) {
 										::string v_str ;
@@ -1007,7 +1002,7 @@ namespace Engine {
 									}
 									audit( fd , ro , "}" , true/*as_is*/ , lvl+1 ) ;
 								} ;
-								size_t   w     = 0 ; for( auto const& [k,_] : tab ) w = ::max(w,mk_py_str(k).size()) ;
+								size_t   w     = ::max<size_t>( tab , [&](auto const& k_e) { return mk_py_str(k_e.first).size() ; } ) ;
 								::map_ss views ;
 								for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
 									::string vd_str ;
@@ -1044,8 +1039,8 @@ namespace Engine {
 								audit_map( "allocated resources" , allocated_rsrcs , true  ) ;
 								audit( fd , ro , "}" , true , lvl ) ;
 							} else {
-								size_t w  = 0 ; for( auto const& [k,e ] : tab                   ) if (e.txt.find('\n')==Npos) w  = ::max(w ,k.size()) ;
-								size_t w2 = 0 ; for( auto const& [v,vd] : start.job_space.views ) if (+vd                   ) w2 = ::max(w2,v.size()) ;
+								size_t w  = ::max<size_t>( tab                   , [&](auto const& k_e ) { return k_e.second.txt.find('\n')==Npos ? k_e .first.size() : 0 ; } ) ;
+								size_t w2 = ::max<size_t>( start.job_space.views , [&](auto const& v_vd) { return +v_vd.second                    ? v_vd.first.size() : 0 ; } ) ;
 								for( auto const& [k,e] : tab ) //!                                                   as_is
 									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , widen(k,w)+" : "+e.txt , true , lvl+1 ) ;
 									else                        { audit( fd , ro , e.color ,       k   +" :"        , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
@@ -1257,13 +1252,9 @@ namespace Engine {
 				break ;
 				case ReqKey::Info :
 					if ( target->status()==NodeStatus::Plain && !porcelaine ) {
-						Job    cj             = target->conform_job_tgt() ;
-						size_t w              = 0                         ;
-						bool   seen_candidate = false                     ;
-						for( Job j : target->conform_job_tgts() ) {
-							w               = ::max(w,j->rule()->name.size()) ;
-							seen_candidate |= j!=cj                           ;
-						}
+						Job    cj             = target->conform_job_tgt()                                                                    ;
+						size_t w              = ::max<size_t>( target->conform_job_tgts() , [ ](Job j) { return j->rule()->name.size() ; } ) ;
+						bool   seen_candidate = ::any_of     ( target->conform_job_tgts() , [&](Job j) { return j!=cj                  ; } ) ;
 						for( Job j : target->conform_job_tgts() ) if (j!=job) {
 							Rule r = j->rule() ;
 							if      (!seen_candidate) audit( fd , ro , Color::Note , "official job " +widen(r->name,w)+" : "+mk_file(j->name()) ) ; // no need to align
@@ -1332,13 +1323,8 @@ namespace Engine {
 						else                         for( Target const& t : j->targets() ) { if (t==target) { jobs.push_back(j) ; break ; } }
 					}
 					First  first ;
-					size_t wr    = 0    ;
-					size_t wj    = 0    ;
-					for( Job j : jobs ) {
-						Rule r = j->rule() ;
-						if (+r) wr = ::max( wr , (porcelaine?mk_py_str(r->user_name()):r->user_name()    ).size() ) ;
-						/**/    wj = ::max( wj , (porcelaine?mk_py_str(j->name()     ):mk_file(j->name())).size() ) ;
-					}
+					size_t wr    = ::max<size_t>( jobs , [&](Job j) { Rule r = j->rule() ; return +r ? (porcelaine?mk_py_str(r->user_name()):r->user_name()    ).size() : 0 ; } ) ;
+					size_t wj    = ::max<size_t>( jobs , [&](Job j) {                      return      (porcelaine?mk_py_str(j->name()     ):mk_file(j->name())).size()     ; } ) ;
 					for( Job j : jobs ) {
 						Rule r = j->rule() ;
 						::string run = +r ? r->user_name() : ""s ; //!                                                                                                 as_is

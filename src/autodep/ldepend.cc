@@ -98,25 +98,19 @@ int main( int argc , char* argv[]) {
 			rc = dep_infos.second ? 0 : 1 ;
 		} else {
 			SWEAR( dep_infos.first.size()==cmd_line.args.size() , dep_infos.first.size() , cmd_line.args.size() ) ;
-			size_t   w_ok  = 0 ;
-			size_t   w_crc = 3 ;
-			for( VerboseInfo vi : dep_infos.first ) {
-				const char* ok_str ;
-				switch (vi.ok) {
-					case Yes   : ok_str = "ok"    ; break ;
-					case Maybe : ok_str = "???"   ; break ;
-					case No    : ok_str = "error" ; break ;
+			auto ok_str = [](Bool3 ok)->const char* {
+				switch (ok) {
+					case Yes   : return "ok"    ;
+					case Maybe : return "???"   ;
+					case No    : return "error" ;
 				DF}                                                                                    // NO_COV
-				w_ok  = ::max( w_ok  , ::strlen(ok_str)       ) ;
-				w_crc = ::max( w_crc , ::string(vi.crc).size()) ;
-			}
+			} ;
+			size_t w_ok  = ::max<size_t>( dep_infos.first , [&](VerboseInfo const& vi) { return ::strlen(ok_str(vi.ok)) ; } ) ;
+			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo const& vi) { return ::string(vi.crc).size() ; } ) ;
 			for( size_t i : iota(dep_infos.first.size()) ) {
 				VerboseInfo const& vi = dep_infos.first[i] ;
-				switch (vi.ok) {
-					case Yes   : out << widen("ok"   ,w_ok) ;          break ;
-					case Maybe : out << widen("???"  ,w_ok) ; rc = 1 ; break ;
-					case No    : out << widen("error",w_ok) ; rc = 1 ; break ;
-				DF}                                                                                    // NO_COV
+				if (vi.ok!=Yes) rc = 1 ;
+				out <<      widen(ok_str(vi.ok)   ,w_ok ) ;
 				out <<' '<< widen(::string(vi.crc),w_crc) ;
 				out <<' '<< cmd_line.args[i]              ;
 				out <<'\n'                                ;

@@ -575,15 +575,9 @@ namespace Engine {
 
 	inline bool JobData::sure() const {
 		if (match_gen<Rule::s_match_gen) {
-			_sure     = false             ;
-			match_gen = Rule::s_match_gen ;
-			for( Dep const& d : deps ) {
-				if (!d.dflags[Dflag::Static]   ) continue    ; // we are only interested in static targets, other ones may not exist and do not prevent job from being built
-				if (d->buildable<Buildable::Yes) goto Return ;
-			}
-			_sure = true ;
+			match_gen = Rule::s_match_gen                                                                                        ;
+			_sure     = ::none_of( deps , [](Dep const& d) { return d.dflags[Dflag::Static] && d->buildable<Buildable::Yes ; } ) ; // only static deps are required to exist for job to be selected
 		}
-	Return :
 		return _sure ;
 	}
 

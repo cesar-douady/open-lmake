@@ -113,7 +113,7 @@ int main( int argc , char* /*argv*/[] ) {
 	::string rm_bck_admin_dir ;
 	::string startup_s        ;
 	//
-	auto mk_lad = [&]()->void {
+	auto mk_lad = [&]() {
 		phy_lad          = {}                     ; if (FileInfo(std_lad    ).tag()==FileTag::Lnk) phy_lad           = mk_glb( read_lnk(std_lad    ) , dir_name_s(std_lad    ) ) ;
 		bck_phy_lad      = {}                     ; if (FileInfo(bck_std_lad).tag()==FileTag::Lnk) bck_phy_lad       = mk_glb( read_lnk(bck_std_lad) , dir_name_s(bck_std_lad) ) ;
 		rm_admin_dir     = "rm -r "+admin_dir     ; if (+phy_lad                                 ) rm_admin_dir     << ' '<<phy_lad                                              ;

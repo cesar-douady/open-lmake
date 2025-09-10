@@ -329,7 +329,7 @@ namespace Backends::Slurm {
 			uint32_t         n    = p==Npos ? 0          : from_string<uint32_t>(kn.substr(p+1  )) ;
 			RsrcsDataSingle& rsds = grow(self,n)                                                   ;
 			//
-			auto chk_first = [&]()->void {
+			auto chk_first = [&]() {
 				throw_unless( n==0 , k," is only for 1st component of job, not component ",n ) ;
 			} ;
 			switch (k[0]) { //!                                                                                              RndUp

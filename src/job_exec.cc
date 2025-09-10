@@ -282,7 +282,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	bool       nl_seen    = false       ;
 	bool       cmd_seen   = false       ;
 	//
-	auto special_cmd = [&]()->bool {
+	auto special_cmd = [&]() {
 		return v.size()==1 && !slash_seen && SpecialWords.contains(v[0]) ;
 	} ;
 	//
@@ -349,11 +349,10 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		auto            it       = cmd_env.find("PATH")                     ;
 		::string const& path     = it==cmd_env.end() ? StdPath : it->second ;
 		::vector_s      path_vec = split(path,':')                          ;
-		::string      &  v0      = v[0]                                     ;
 		for( ::string& p : split(path,':') ) {
-			::string candidate = with_slash(::move(p)) + v0 ;
+			::string candidate = with_slash(::move(p)) + v[0] ;
 			if (FileInfo(candidate).tag()==FileTag::Exe) {
-				v0 = ::move(candidate) ;
+				v[0] = ::move(candidate) ;
 				goto CmdFound ;
 			}
 		}

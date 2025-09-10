@@ -132,13 +132,13 @@ namespace Engine {
 	::string subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) ;
 	// provide shortcut when pos or cb_fixed are unused
 	inline ::string subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , SubstTargetFuncFixed cb_fixed , VarIdx stop_above=Rule::NoVar ) {
-		return subst_target( str , [&](Disk::FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , cb_fixed                                       , stop_above ) ;
+		return subst_target( str , [&](Disk::FileNameIdx,VarIdx s) { return cb_stem(s) ; } , cb_fixed                                       , stop_above ) ;
 	}
 	inline ::string subst_target( ::string const& str , SubstTargetFuncStem const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
-		return subst_target( str , cb_stem                                                           , [](::string const& s)->::string { return s ; } , stop_above ) ;
+		return subst_target( str , cb_stem                                                 , [](::string const& s)->::string { return s ; } , stop_above ) ;
 	}
 	inline ::string subst_target( ::string const& str , ::function<string(VarIdx)> const& cb_stem , VarIdx stop_above=Rule::NoVar ) {
-		return subst_target( str , [&](Disk::FileNameIdx,VarIdx s)->::string { return cb_stem(s) ; } , [](::string const& s)->::string { return s ; } , stop_above ) ;
+		return subst_target( str , [&](Disk::FileNameIdx,VarIdx s) { return cb_stem(s) ; } , [](::string const& s)->::string { return s ; } , stop_above ) ;
 	}
 
 	struct EngineClosureGlobal {

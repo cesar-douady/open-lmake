@@ -53,7 +53,7 @@ static uint8_t _mk_uint8( Object const& o , ::string const& arg_name={} ) {
 static ::vector_s _get_files(Tuple const& py_args) {
 	::vector_s res  ;
 	//
-	auto push = [&](Object const& o)->void {
+	auto push = [&](Object const& o) {
 		if (+o) res.push_back(*o.str()) ;
 	} ;
 	//

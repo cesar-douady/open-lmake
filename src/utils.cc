@@ -49,8 +49,8 @@ int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
 	if ( creat && +action.perm_ext ) {
 		static mode_t umask_ = get_umask() ;
 		switch (action.perm_ext) {
-			case PermExt::Other : if (!((action.mod&umask_)     )) goto PermOk ; break ;
-			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; break ;
+			case PermExt::Other : if (!((action.mod&umask_)     )) goto PermOk ; else break ;
+			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; else break ;
 		DN}
 		//
 		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",::strerror(errno),") to extend permissions : ",file_msg(at,file)) ;
@@ -66,7 +66,6 @@ int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
 				throw cat("cannot chmod (",::strerror(errno),") to extend permissions : ",file_msg(at,file)) ;
 	}
 PermOk :
-	//
 	return res ;
 }
 

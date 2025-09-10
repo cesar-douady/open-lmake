@@ -516,6 +516,7 @@ namespace Py {
 		static constexpr const char* Name = "dict" ;
 		using Base = Object ;
 		template<bool C> friend struct DictIter ;
+		using value_type = ::pair<Object const&,Object&> ;
 		// statics
 		static Dict* s_builtins ;
 		// services

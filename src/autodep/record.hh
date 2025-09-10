@@ -213,7 +213,7 @@ public :
 			//
 			SolveReport sr = r._real_path.solve( at , file?(::string_view(file)):(::string_view()) , no_follow ) ;
 			//
-			auto handle_dep = [&]( FileLoc fl , ::string&& file_ , Accesses a , bool store , CommentExt exts )->void {
+			auto handle_dep = [&]( FileLoc fl , ::string&& file_ , Accesses a , bool store , CommentExt exts ) {
 				if ( ::vmap_s<::vector_s> const& views = s_autodep_env().views ; +views ) {
 					Fd repo_root_fd = s_repo_root_fd() ;
 					for( auto const& [view,phys] : s_autodep_env().views ) {
@@ -255,11 +255,9 @@ public :
 		}
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes(s,real      ) ;
-			::serdes(s,real0     ) ;
-			::serdes(s,accesses  ) ;
-			::serdes(s,file_loc  ) ;
-			::serdes(s,file_loc0 ) ;
+			::serdes( s , real    ,real0     ) ;
+			::serdes( s , accesses           ) ;
+			::serdes( s , file_loc,file_loc0 ) ;
 		}
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		void report_dep( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {

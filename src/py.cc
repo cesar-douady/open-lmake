@@ -105,7 +105,7 @@ namespace Py {
 			py_flush = py_stderr.get_attr<Callable>("flush") ;
 			try { py_flush->call() ; } catch (::string const&) {}               // flush stderr buffer before manipulation (does not justify the burden of error in error if we cant)
 		}
-		auto read_all = [&](Fd fd)->void {
+		auto read_all = [&](Fd fd) {
 			#if !HAS_MEMFD
 				t_thread_key = 'Y' ;
 			#endif

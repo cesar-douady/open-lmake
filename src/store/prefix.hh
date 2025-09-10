@@ -82,6 +82,8 @@ namespace Store {
 			uint8_t val ;
 		} ;
 		struct KindIterator {
+			using value_type      = bool      ;
+			using difference_type = ptrdiff_t ;
 			// cxtors & casts
 			KindIterator(Nxt n) : val{n.val} {}
 			// services
@@ -509,6 +511,8 @@ namespace Store {
 		struct Lst {
 			using value_type = Idx ;
 			struct Iterator {
+				using value_type      = Idx       ;
+				using difference_type = ptrdiff_t ;
 				// cxtors & casts
 				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _legalize() ; }
 				// accesses

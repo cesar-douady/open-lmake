@@ -59,7 +59,7 @@ struct IMsgBuf : MsgBuf {
 			catch (...) { throw cat("cannot resize message to length ",len) ; }
 			_data_pass = true ;
 			_len       = 0    ;
-			goto DataPass ;
+			goto DataPass/*BACKWARD*/ ;
 		}
 	}
 } ;

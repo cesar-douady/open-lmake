@@ -64,7 +64,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	::uset_s                  existing_dirs_s ;
 	::umap<UniqKey,UniqEntry> uniq_tab        ;
 	//
-	auto dir_exists = [&](::string const& f)->void {
+	auto dir_exists = [&](::string const& f) {
 		for( ::string d_s=dir_name_s(f) ; +d_s ; d_s = dir_name_s(d_s) )
 			if (!existing_dirs_s.insert(d_s).second) break ;
 	} ;
@@ -315,8 +315,8 @@ namespace Caches {
 				SWEAR(!_flushed) ;
 				if (lvl) {
 					while (sz) {
-						size_t cnt = ::min(sz,DiskBufSz) ;
-						::string s = fd_.read(cnt) ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
+						size_t   cnt = ::min( sz , DiskBufSz ) ;
+						::string s   = fd_.read(cnt)           ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
 						write(s) ;
 						sz -= cnt ;
 					}
@@ -472,15 +472,15 @@ namespace Caches {
 			#if HAS_ZSSTD || HAS_ZLIB
 				if (lvl) {
 					while (sz) {
-						size_t   cnt = ::min(sz,DiskBufSz) ;
-						::string s   = read(cnt)           ; SWEAR(s.size()==cnt,s.size(),cnt) ;
+						size_t   cnt = ::min( sz , DiskBufSz ) ;
+						::string s   = read(cnt)               ; SWEAR(s.size()==cnt,s.size(),cnt) ;
 						fd_.write(s) ;
 						sz -= cnt ;
 					}
 					return ;
 				}
 			#endif
-			size_t cnt = ::min(sz,_len) ;
+			size_t cnt = ::min( sz , _len ) ;
 			if (cnt) {                                                                                                           // gather available data from _buf
 				fd_.write({_buf+_pos,cnt}) ;
 				_pos += cnt ;
@@ -997,7 +997,7 @@ void JobSpace::exit() {
 }
 
 void JobSpace::mk_canon(::string const& phy_repo_root_s) {
-	auto do_top = [&]( ::string& dir_s , bool slash_ok , ::string const& key )->void {
+	auto do_top = [&]( ::string& dir_s , bool slash_ok , ::string const& key ) {
 		if ( !dir_s                                       ) return ;
 		if ( !is_canon(dir_s)                             ) dir_s = Disk::mk_canon(dir_s) ;
 		if ( slash_ok && dir_s=="/"                       ) return ;
@@ -1025,7 +1025,7 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 	}
 	//
 	::string const& job_repo_root_s = repo_view_s | phy_repo_root_s ;
-	auto do_path = [&](::string& path)->void {
+	auto do_path = [&](::string& path) {
 		if      (!is_canon(path)                  ) path = Disk::mk_canon(path)         ;
 		if      (path.starts_with("../")          ) path = mk_glb(path,job_repo_root_s) ;
 		else if (path.starts_with(job_repo_root_s)) path.erase(0,job_repo_root_s.size()) ;

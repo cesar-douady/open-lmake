@@ -68,7 +68,7 @@ namespace EnumHelper {
 	// XXX? : support signed enum's if necessary
 
 	// search by dichotomy, assuming E(Start) has a value and E(Start+Cnt) does not
-	template<UEnum E,size_t Start=0,size_t Cnt=::min(size_t(Max<EnumInt<E>>)+1,Max<size_t>)> constexpr size_t search_enum_sz() { // ensure we resist to size_t based enums
+	template<UEnum E,size_t Start=0,size_t Cnt=size_t(Max<EnumInt<E>>)+1> constexpr size_t search_enum_sz() { // ensure we resist to size_t based enums
 		if constexpr (Cnt==1) return Start+1 ;
 		//
 		constexpr size_t CntLeft  = Cnt/2         ;

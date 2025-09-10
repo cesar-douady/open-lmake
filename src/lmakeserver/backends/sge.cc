@@ -183,7 +183,7 @@ namespace Backends::Sge {
 			return cat("sge_id:",se.id.load()) ;
 		}
 		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const override {
-			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                        // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                     // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			::string msg ;
 			try                       { msg = AcFd(get_stderr_file(j)).read() ; }
 			catch (::string const& e) { msg = e                               ; }
@@ -197,10 +197,10 @@ namespace Backends::Sge {
 				catch (::string const& e) { msg = e                                 ; }
 			else
 				msg = "lost job "+::to_string(se.id) ;
-			return { ::move(msg) , HeartbeatState::Lost } ;                                            // XXX! : try to distinguish between Lost and Err
+			return { ::move(msg) , HeartbeatState::Lost } ;                                         // XXX! : try to distinguish between Lost and Err
 		}
 		void kill_queued_job(SpawnedEntry const& se) const override {
-			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                     // asynchronous (as faster and no return value) cancel
+			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                  // asynchronous (as faster and no return value) cancel
 		}
 		SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
 			::string stderr = se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s ;
@@ -220,8 +220,8 @@ namespace Backends::Sge {
 				sge_cmd_line.emplace_back("-v"   ) ;
 				sge_cmd_line.emplace_back(env_str) ;
 			}
-			SWEAR(+reqs) ;                                                                             // why launch a job if for no req ?
-			int16_t prio = Min<int16_t> ; for( ReqIdx r : reqs ) prio = ::max( prio , req_prios[r] ) ;
+			SWEAR(+reqs) ;                                                                                   // why launch a job if for no req ?
+			int16_t prio = ::max<int16_t>( reqs , [&](ReqIdx r) { return req_prios[r] ; } , Min<int16_t> ) ;
 			//
 			Rsrcs const& rs = se.rsrcs ;
 			if ( prio                 )            { sge_cmd_line.emplace_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
@@ -284,8 +284,8 @@ namespace Backends::Sge {
 			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child
-				SWEAR( c2p.read .fd>Fd::Std.fd , c2p.read  ) ;                                                      // ensure we can safely close what needs to be closed
-				SWEAR( c2p.write.fd>Fd::Std.fd , c2p.write ) ;                                                      // .
+				SWEAR( c2p.read .fd>Fd::Std.fd , c2p.read  ) ;                                                  // ensure we can safely close what needs to be closed
+				SWEAR( c2p.write.fd>Fd::Std.fd , c2p.write ) ;                                                  // .
 				::dup2(c2p.write,Fd::Stdout) ;
 				::close(Fd::Stdin) ;                                                                            // ensure no stdin (defensive programming)
 				::close(c2p.read ) ;                                                                            // dont touch c2p object as it is shared with parent

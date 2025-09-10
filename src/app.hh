@@ -113,7 +113,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 	if (!sub_option) err_msg << "--version    : print version and exit\n"   ; // .
 	//
 	if (has_keys) {
-		size_t wk = 0 ; for( Key  k : iota(All<Key>) ) if (keys[+k].short_name) wk = ::max( wk , snake(k).size() ) ;
+		size_t wk = ::max<size_t>( iota(All<Key>) , [&](Key k) { return keys[+k].short_name ? snake(k).size() : 0 ; } ) ;
 		if (has_dflt_key) { err_msg << "keys (at most 1) :\n"                             ; wk = ::max(wk,NoKeySz) ; }
 		else                err_msg << "keys (exactly 1) :\n"                             ;
 		if (has_dflt_key)   err_msg << NoKey << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
@@ -124,7 +124,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 	}
 	//
 	if (has_flags) {
-		size_t wf = 0 ; for( Flag f : iota(All<Flag>) ) if (flags[+f].short_name) wf = ::max( wf , snake(f).size() ) ;
+		size_t wf = ::max<size_t>( iota(All<Flag>) , [&](Flag f) { return flags[+f].short_name ? snake(f).size() : 0 ; } ) ;
 		err_msg << "flags (0 or more) :\n"  ;
 		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;

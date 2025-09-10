@@ -402,7 +402,7 @@ namespace Engine {
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,static_cast<DynBase&>(self)) ;
-			::serdes(s,spec) ;
+			::serdes(s,spec                       ) ;
 		}
 		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const {
 			// START_OF_VERSIONING
@@ -714,7 +714,7 @@ namespace Engine {
 			bool   updated = false      ;
 			size_t n       = dst.size() ;
 			size_t i       = 0          ;
-			auto handle_entry = [&](Py::Object const& py_item)->void {
+			auto handle_entry = [&](Py::Object const& py_item) {
 				if (py_item==Py::None) return ;
 				try {
 					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & repo roots by markers ...
@@ -789,12 +789,12 @@ namespace Engine {
 		}
 		::serdes(s,ctx ) ;
 		switch (kind_) {
-			case Kind::None         :                                                                                                                 break ;
-			case Kind::ShellCmd     : ::serdes(s,code_str) ;                                                                                          break ;
-			case Kind::PythonCmd    : ::serdes(s,code_str) ; ::serdes(s,glbs_str ) ; { if (!IsHash) ::serdes(s,dbg_info) ; }                          break ; // dbg_info is not hashed as it no ...
-			case Kind::Dyn          : ::serdes(s,code_str) ; ::serdes(s,glbs_str ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } ::serdes(s,may_import) ; break ; // ... semantic value
-			case Kind::Compiled     : ::serdes(s,code    ) ; ::serdes(s,glbs_code) ;                                       ; ::serdes(s,may_import) ; break ;
-			case Kind::CompiledGlbs : ::serdes(s,code    ) ; ::serdes(s,buf      ) ;                                       ; ::serdes(s,may_import) ; break ; // buf is marshaled info
+			case Kind::None         :                                                                                             break ;
+			case Kind::ShellCmd     : ::serdes( s , code_str                          ) ;                                         break ;
+			case Kind::PythonCmd    : ::serdes( s , code_str , glbs_str               ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } break ; // dbg_info is not hashed as it no ...
+			case Kind::Dyn          : ::serdes( s , code_str , glbs_str  , may_import ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } break ; // ... semantic value
+			case Kind::Compiled     : ::serdes( s , code     , glbs_code , may_import ) ;                                       ; break ;
+			case Kind::CompiledGlbs : ::serdes( s , code     , buf       , may_import ) ;                                       ; break ; // buf is marshaled info
 		}
 		if constexpr (IsHash) {
 			if ( kind_>=Kind::Dyn && +may_import ) { SWEAR(rs) ; ::serdes(s,rs->sys_path_crc) ; }
@@ -853,12 +853,12 @@ namespace Engine {
 		//
 		Py::Ptr<Py::Dict> tmp_glbs = entry().glbs ;                        // use a modifyable copy as we restore after use
 		eval_ctx( job , match , rsrcs
-		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) -> void {
+		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) {
 				to_del.push_back(key) ;
 				if (vc!=VarCmd::StarMatch) tmp_glbs->set_item(key,*Py::Ptr<Py::Str>(val)) ;
 				else                       to_eval += r->gen_py_line( job , match , vc , i , key , val ) ;
 			}
-		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) -> void {
+		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) {
 				to_del.push_back(key) ;
 				Py::Ptr<Py::Dict> py_dct { New } ;
 				for( auto const& [k,v] : val ) py_dct->set_item(k,*Py::Ptr<Py::Str>(v)) ;

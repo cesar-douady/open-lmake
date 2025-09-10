@@ -174,12 +174,12 @@ struct ReqOptions {
 	}
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes(s,startup_dir_s) ;
-		::serdes(s,reverse_video) ;
-		::serdes(s,key          ) ;
-		::serdes(s,flags        ) ;
-		::serdes(s,flag_args    ) ;
-		::serdes(s,user_env     ) ;
+		::serdes( s , startup_dir_s   ) ;
+		::serdes( s , reverse_video   ) ;
+		::serdes( s , key             ) ;
+		::serdes( s , flags,flag_args ) ;
+		if constexpr (IsIStream<S>) ::serdes( s , user_env         ) ;
+		else                        ::serdes( s , mk_map(user_env) ) ;
 	}
 	// data
 	::string               startup_dir_s ;
