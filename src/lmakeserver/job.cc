@@ -1433,6 +1433,7 @@ namespace Engine {
 						req->audit_job( Color::Warning , "bad_cache_match" , job , true/*at_end*/ ) ;
 						req->audit_stderr( job , {.msg=e} ) ;
 					}
+					cache_hit_info = cache_match->hit_info ;
 					switch (cache_match->hit) {
 						case Yes :
 							try {

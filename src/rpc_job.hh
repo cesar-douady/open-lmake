@@ -46,6 +46,15 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
+enum class CacheHitInfo : uint8_t {
+	None
+,	Hit
+,	NoRule
+,	BadDeps
+} ;
+// END_OF_VERSIONING
+
+// START_OF_VERSIONING
 enum class FileActionTag : uint8_t {
 	Src                              // file is src, no action
 ,	Unlink                           // used in ldebug, so it cannot be Unlnk
@@ -615,9 +624,10 @@ namespace Caches {
 		using Sz  = Disk::DiskSz ;
 		using Tag = CacheTag     ;
 		struct Match {
-			Bool3               hit   = No ;
-			::vmap_s<DepDigest> deps  = {} ;                                                          // if hit==Maybe : deps that need to be done before answering hit/miss
-			::string            key   = {} ;                                                          // if hit==Yes   : an id to easily retrieve matched results when calling download
+			Bool3               hit      = No ;
+			CacheHitInfo        hit_info = {} ;
+			::vmap_s<DepDigest> deps     = {} ;                                                       // if hit==Maybe : deps that need to be done before answering hit/miss
+			::string            key      = {} ;                                                       // if hit==Yes   : an id to easily retrieve matched results when calling download
 		} ;
 		// statics
 		static Cache* s_new   ( Tag                               ) ;
@@ -854,8 +864,8 @@ struct ExecTraceEntry {
 		::serdes( s , file                   ) ;
 	}
 	::string step() const {
-		if (+comment_exts) return cat     (snake(comment),comment_exts) ;
-		else               return ::string(snake(comment)             ) ;
+		if (+comment_exts) return cat(comment,comment_exts) ;
+		else               return cat(comment             ) ;
 	}
 	// data
 	Time::Pdate date         ;

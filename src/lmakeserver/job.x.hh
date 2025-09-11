@@ -442,14 +442,15 @@ namespace Engine {
 			Job   asking_job ;                   //     32 bits
 		} ;
 	public :
-		//JobName        name         ;          //     32 bits, inherited
-		Deps             deps         ;          // 31<=32 bits, owned
-		RuleCrc          rule_crc     ;          //     32 bits
-		Tokens1          tokens1      = 0  ;     //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
-		mutable MatchGen match_gen    = 0  ;     //      8 bits,        if <Rule::s_match_gen => deemed !sure
-		RunStatus        run_status:3 = {} ;     //      3 bits
-		Status           status    :4 = {} ;     //      4 bits
-		BackendTag       backend   :2 = {} ;     //      2 bits         backend asked for last execution
+		//JobName        name             ;      //     32 bits, inherited
+		Deps             deps             ;      // 31<=32 bits, owned
+		RuleCrc          rule_crc         ;      //     32 bits
+		Tokens1          tokens1          = 0  ; //      8 bits,        for plain jobs, number of tokens - 1 for eta estimation
+		mutable MatchGen match_gen        = 0  ; //      8 bits,        if <Rule::s_match_gen => deemed !sure
+		RunStatus        run_status    :3 = {} ; //      3 bits
+		Status           status        :4 = {} ; //      4 bits
+		BackendTag       backend       :2 = {} ; //      2 bits         backend asked for last execution
+		CacheHitInfo     cache_hit_info:2 = {} ; //      2 bits
 	private :
 		mutable bool _sure          :1 = false ; //      1 bit
 		Bool3        _reliable_stats:2 = No    ; //      2 bits,        if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info

@@ -364,6 +364,8 @@ namespace Engine {
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
 				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
+				if ( !c && !dep.up_to_date() ) c = Color::Warning ;
+				//
 				::string                               dep_str =       dep.dflags_str  ()      ;
 				/**/                                   dep_str <<' '<< dep.accesses_str()      ;
 				if      ( verbose                    ) dep_str <<' '<< widen(dep.crc_str(),wc) ;
@@ -532,14 +534,14 @@ namespace Engine {
 		}
 	NoJob :
 		bool porcelaine = ro.flags[ReqFlag::Porcelaine] ;
-		if (!porcelaine) {
-			target->set_buildable() ;
-			if (!target->is_src_anti()) { //!                                                                   as_is
+		target->set_buildable() ;
+		if (porcelaine) {
+			if (ro.key!=ReqKey::Info) audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
+		} else {
+			if ( target->buildable>Buildable::No && !target->is_src_anti() ) { //!                              as_is
 				audit( fd , ro , Color::Err  , "target not built"                                             , true  , lvl   ) ;
 				audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name(),FileDisplay::Shell) , false , lvl+1 ) ;
 			}
-		} else if (ro.key!=ReqKey::Info) {
-			audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
 		}
 		return {} ;
 	}
@@ -767,7 +769,7 @@ namespace Engine {
 								if (verbose) audit( fd , ro , ")"                          , true , lvl         ) ;
 							} else { //!                                           as_is
 								audit( fd , ro , Color::Note , msg_stderr.msg    , false , lvl+1 ) ;
-								audit( fd , ro ,               msg_stderr.stderr , true  , lvl+1 ) ;
+								audit( fd , ro ,               msg_stderr.stderr , true          ) ;
 							}
 						} break ;
 						case ReqKey::Cmd    :
@@ -900,6 +902,7 @@ namespace Engine {
 								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
 								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
+							if (+job->cache_hit_info) push_entry( "cache hit info" , snake_str(job->cache_hit_info) ) ;
 							if (+start) {
 								JobInfoStart const& rs       = job_info.start          ;
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;
@@ -937,7 +940,7 @@ namespace Engine {
 								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(::vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
 							} catch(MsgStderr const&) {}
 							//
-							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , cat(RunStatus(job->run_status)) , Color::Err ) ;
+							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , snake_str(RunStatus(job->run_status)) , Color::Err ) ;
 							if (+end) {
 								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
 								Color status_color =
@@ -945,7 +948,7 @@ namespace Engine {
 								:	StatusAttrs[+digest.status].second.first==Maybe ? Color::Note
 								:	                                                  Color::Err
 								;
-								push_entry( "status" , cat(digest.status) , status_color ) ;
+								push_entry( "status" , snake_str(digest.status) , status_color ) ;
 							}
 							if ( +end && digest.status>Status::Early ) {
 								// no need to localize phy_tmp_dir as this is an absolute dir
@@ -1042,10 +1045,10 @@ namespace Engine {
 								size_t w  = ::max<size_t>( tab                   , [&](auto const& k_e ) { return k_e.second.txt.find('\n')==Npos ? k_e .first.size() : 0 ; } ) ;
 								size_t w2 = ::max<size_t>( start.job_space.views , [&](auto const& v_vd) { return +v_vd.second                    ? v_vd.first.size() : 0 ; } ) ;
 								for( auto const& [k,e] : tab ) //!                                                   as_is
-									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , widen(k,w)+" : "+e.txt , true , lvl+1 ) ;
-									else                        { audit( fd , ro , e.color ,       k   +" :"        , true , lvl+1 ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+2) ; }
+									if (e.txt.find('\n')==Npos)   audit( fd , ro , e.color , widen(k,w)+" : "+e.txt , true , lvl ) ;
+									else                        { audit( fd , ro , e.color ,       k   +" :"        , true , lvl ) ; audit(fd,ro,e.txt,true/*as_is*/,lvl+1) ; }
 								if (w2) {
-									audit( fd , ro , "views :" , true/*as_is*/ , lvl+1 ) ;
+									audit( fd , ro , "views :" , true/*as_is*/ , lvl ) ;
 									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
 										::string vd_str ;
 										if (vd.phys.size()==1) {
@@ -1062,7 +1065,7 @@ namespace Engine {
 												for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << cu ;
 											}
 										}
-										audit( fd , ro , widen(v,w2)+" : "+vd_str , true/*as_is*/ , lvl+2 ) ;
+										audit( fd , ro , widen(v,w2)+" : "+vd_str , true/*as_is*/ , lvl+1 ) ;
 									}
 								}
 								if ( +required_rsrcs || +allocated_rsrcs ) {
@@ -1074,7 +1077,7 @@ namespace Engine {
 									if      (!allocated_rsrcs) hdr  = "required "  ;
 									else if (!required_rsrcs ) hdr  = "allocated " ;
 									else                       both = true         ;
-									audit( fd , ro , ::move(hdr)+"resources :" , true/*as_is*/ , lvl+1 ) ;
+									audit( fd , ro , ::move(hdr)+"resources :" , true/*as_is*/ , lvl ) ;
 									::string no_msg        ;
 									::string required_msg  ;
 									::string allocated_msg ;
@@ -1090,13 +1093,13 @@ namespace Engine {
 									}
 									for( auto const& [k,rv] : required_rsrcs ) {
 										auto it = allocated_rsrcs.find(k) ; //!                                                                         as_is
-										if ( it!=allocated_rsrcs.end() && rv==it->second ) audit( fd , ro , widen(k,w2)+no_msg       +" : "+rv         , true , lvl+2 ) ;
-										else                                               audit( fd , ro , widen(k,w2)+required_msg +" : "+rv         , true , lvl+2 ) ;
-										if ( it!=allocated_rsrcs.end() && rv!=it->second ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+it->second , true , lvl+2 ) ;
+										if ( it!=allocated_rsrcs.end() && rv==it->second ) audit( fd , ro , widen(k,w2)+no_msg       +" : "+rv         , true , lvl+1 ) ;
+										else                                               audit( fd , ro , widen(k,w2)+required_msg +" : "+rv         , true , lvl+1 ) ;
+										if ( it!=allocated_rsrcs.end() && rv!=it->second ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+it->second , true , lvl+1 ) ;
 									}
 									for( auto const& [k,av] : allocated_rsrcs ) {
 										auto it = required_rsrcs.find(k) ;
-										if ( it==required_rsrcs.end()                    ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+av         , true , lvl+2 ) ;
+										if ( it==required_rsrcs.end()                    ) audit( fd , ro , widen(k,w2)+allocated_msg+" : "+av         , true , lvl+1 ) ;
 									}
 								}
 							}
@@ -1263,19 +1266,27 @@ namespace Engine {
 						}
 					}
 					if (!job) {
-						Node n = target ;
-						while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-						if (n!=target) {
-							if (porcelaine) { //!                                                                         as_is
-								if (+n->asking) audit( fd , ro , "{ 'required by' : "+mk_py_str(Job(n->asking)->name()) , true  , lvl ) ;
-								else            audit( fd , ro , "{ 'required by' : "+mk_py_str(    n         ->name()) , true  , lvl ) ;
-							} else {
-								if (+n->asking) audit( fd , ro , "required by : "    +mk_file  (Job(n->asking)->name()) , false , lvl ) ;
-								else            audit( fd , ro , "required by : "    +mk_file  (    n         ->name()) , false , lvl ) ;
-							}
+						Node                      n       = target ; while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
+						::vmap_s<::pair_s<Color>> entries ;
+						if      (+n->asking) entries.push_back({ "required" , {Job(n->asking)->name(),{}} }) ;
+						else if (n!=target ) entries.push_back({ "required" , {    n         ->name(),{}} }) ;
+						if (target->is_src_anti()) {
+							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())==target->date().sig ) c = Color::Warning ;
+							//
+							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
+							if (verbose) entries.push_back({ "checksum" , {::string(target->crc)               ,c } }) ;
 						} else {
-							if (porcelaine) audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
+							entries.push_back({"special",{}}) ;
 						}
+						size_t w     = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
+						First  first ;
+						if (porcelaine) audit( fd , ro , "{None:{" , true/*as_is*/ , lvl ) ;
+						for( auto const& k_vc : entries ) {
+							::string v = !k_vc.second.first ? "None"s : porcelaine ? mk_py_str(k_vc.second.first) : k_vc.second.first ;
+							//
+							audit( fd , ro , k_vc.second.second , cat(widen('\''+k_vc.first+'\'',w+2)," : ",v) , true/*as_is*/ , lvl+1 , first(char(0),',') ) ;
+						}
+						if (porcelaine) audit( fd , ro , "}}" , true/*as_is*/ , lvl ) ;
 						continue ;
 					}
 					_show_job( fd , ro , job , target , lvl ) ;

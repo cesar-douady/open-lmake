@@ -699,7 +699,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->emplace_back( end_overhead , Comment::endOverhead , CommentExts() , cat(end_report.digest.status) ) ;
+			g_exec_trace->emplace_back( end_overhead , Comment::endOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
 			end_report.digest.exec_time      = end_overhead - start_overhead ;                                                            // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;

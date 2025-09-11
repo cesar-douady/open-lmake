@@ -387,7 +387,8 @@ namespace Caches {
 		::vector_s/*lazy*/                      repos         ;
 		::optional<::vmap_s<DepDigest>>         matching_deps ;
 		::optional<::umap_s<DepDigest>>/*lazy*/ repo_dep_map  ;                                              // map used when not in order
-		bool                                    truncated     = false ;                                      // if true <= matching_deps has been truncated because of multi-match
+		bool                                    truncated     = false                ;                       // if true <= matching_deps has been truncated because of multi-match
+		CacheHitInfo                            hit_info      = CacheHitInfo::NoRule ;
 		for( ssize_t candidate=-1 ;; candidate++ ) {                                                         // candidate==-1 means try deps_hint
 			::string r ;
 			switch (candidate) {
@@ -410,6 +411,9 @@ namespace Caches {
 			size_t                      idx          = 0                  ;                                  // index in repo_deps used when in order, maintain count when not in order
 			bool                        hit          = true               ;
 			size_t                      dvg          = 0                  ;                                  // first index in cache_deps not found in repo_deps/repo_dep_map
+			//
+			hit_info = CacheHitInfo::BadDeps ;                                                               // used only when not hit
+			//
 			for( auto const& [dn,dd] : cache_deps ) {
 				DepDigest const* repo_dd ;
 				if (idx>=repo_deps.size()) { hit = false ; break ; }                                         // repo_deps is exhausted, no more need to search for mismatch
@@ -429,7 +433,7 @@ namespace Caches {
 				/**/     idx++ ;                                                                             // count entries even when not in order or early break
 				if (hit) dvg++ ;
 			}
-			if (hit) return { r , { .hit=Yes , .key=cat(job,'/',r,'/') } } ;
+			if (hit) return { r , { .hit=Yes , .hit_info=CacheHitInfo::Hit , .key=cat(job,'/',r,'/') } } ;
 			//
 			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {                                                 // stop recording deps at the first unmatched critical dep
 				if (!cache_deps[i].second.dflags[Dflag::Critical]) continue ;
@@ -462,12 +466,12 @@ namespace Caches {
 				,	[&](auto const& n_dd) { return !repo_dep_map->contains(n_dd.first) ; }
 				)
 			;
-			if (has_new_deps) return { {} , {.hit=Maybe,.deps{::move(*matching_deps)}} } ;
+			if (has_new_deps) return { {} , { .hit=Maybe , .hit_info=hit_info , .deps{::move(*matching_deps)} } } ;
 			trace("no_new_deps") ;
 		} else {
 			trace("miss") ;
 		}
-		return { {} , {.hit=No} } ;
+		return { {} , { .hit=No , .hit_info=hit_info } } ;
 	}
 
 	::optional<Cache::Match> DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {

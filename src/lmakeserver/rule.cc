@@ -802,9 +802,9 @@ namespace Engine {
 					if ( !is_star                             ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , flags , kind==MatchKind::SideDep ) ;
 					// check
-					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(snake_str(kind)," must be relative to root dir : "        ,target) ;
-					if ( !target                                                                   ) throw cat(snake_str(kind)," must not be empty"                             ) ;
-					if ( !is_lcl(target)                                                           ) throw cat(snake_str(kind)," must be local : "                       ,target) ;
+					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(kind," must be relative to root dir : "                   ,target) ;
+					if ( !target                                                                   ) throw cat(kind," must not be empty"                                        ) ;
+					if ( !is_lcl(target)                                                           ) throw cat(kind," must be local : "                                  ,target) ;
 					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "          ,target) ;
 					if (  is_star                                    && is_special()               ) throw cat("star ",kind,"s are meaningless for source and anti-rules"       ) ;
 					if (  is_star                                    && is_stdout                  ) throw     "stdout cannot be directed to a star target"s                      ;

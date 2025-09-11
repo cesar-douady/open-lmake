@@ -54,6 +54,7 @@ namespace Engine::Makefiles {
 			switch (line[0]) {
 				case '#' :                                                       break ;         // comment
 				case '*' : if (d!=*g_lmake_root_s) return "lmake root changed" ; break ;
+				case '~' : if (d!=*g_repo_root_s ) return "repo root changed"  ; break ;
 				case '+' : {
 					FileInfo fi { nfs_guard.access(d) } ;
 					if (!fi.exists()     ) return cat(mk_rel(d,startup_dir_s)," was removed" ) ;
@@ -67,12 +68,9 @@ namespace Engine::Makefiles {
 					size_t   pos = line.find('=',1)     ;
 					::string key = line.substr(1,pos-1) ;
 					auto     it  = user_env.find(key)   ;
-					if (pos==Npos) {
-						if (it!=user_env.end()            ) return cat("environment variable ",key," appeared"   ) ;
-					} else {
-						if (it==user_env.end()            ) return cat("environment variable ",key," disappeared") ;
-						if (it->second!=line.substr(pos+1)) return cat("environment variable ",key," changed"    ) ;
-					}
+					if      ( pos==Npos && it!=user_env.end()             ) return cat("environment variable ",key," appeared"   ) ;
+					else if ( pos!=Npos && it==user_env.end()             ) return cat("environment variable ",key," disappeared") ;
+					else if ( pos!=Npos && it->second!=line.substr(pos+1) ) return cat("environment variable ",key," changed"    ) ;
 				} break ;
 			DF}                                                                                  // NO_COV
 		}
@@ -120,13 +118,15 @@ namespace Engine::Makefiles {
 		for( ::string const& sd_s : *g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_glb_s(sd_s,*g_repo_root_s),is_abs_s(sd_s)) ;
 		//
-		::string deps_str =
+		::string deps_str = cat(
 			"# * : lmake root\n"
-			"# ! : file does not exist\n"
-			"# + : file exists and date is compared with last read date\n"
-			"# = : env variable (no value if not found in environ)\n"
-			"*"+*g_lmake_root_s+'\n'
-		;
+		,	"# ~ : lmake root\n"
+		,	"# ! : file does not exist\n"
+		,	"# + : file exists and date is compared with last read date\n"
+		,	"# = : env variable (no value if not found in environ)\n"
+		,	"*",*g_lmake_root_s,'\n'
+		,	"~",*g_repo_root_s ,'\n'
+		) ;
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
