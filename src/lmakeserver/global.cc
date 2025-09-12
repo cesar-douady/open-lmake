@@ -150,16 +150,17 @@ namespace Engine {
 		return                                  os << ')' ;
 	}                                                                                       // END_OF_NO_COV
 
-	::vector<Node> EngineClosureReq::targets(::string const& startup_dir_s) const {
+	::vector<Node> EngineClosureReq::targets( ::string const& startup_dir_s , bool with_deps ) const {
 		SWEAR(!is_job()) ;
-		RealPathEnv    rpe       { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
-		RealPath       real_path { rpe                                                              } ;
-		::vector<Node> targets   ; targets.reserve(files.size()) ;                                      // typically, there is no bads
-		::string       err_str   ;
+		FileLoc        max_file_loc = with_deps ? FileLoc::Dep : FileLoc::Repo                                                       ;
+		RealPathEnv    rpe          { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .src_dirs_s=*g_src_dirs_s } ;
+		RealPath       real_path    { rpe                                                                                          } ;
+		::vector<Node> targets      ;                                                                                                  targets.reserve(files.size()) ; // typically, there is no bads
+		::string       err_str      ;
 		for( ::string const& target : files ) {
-			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                      // we may refer to a symbolic link
-			if (rp.file_loc==FileLoc::Repo) targets.emplace_back(rp.real) ;
-			else                            err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
+			RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ; // we may refer to a symbolic link
+			if (rp.file_loc<=max_file_loc) targets.emplace_back(rp.real) ;
+			else                           err_str << _audit_indent(mk_rel(target,startup_dir_s),1) << '\n' ;
 		}
 		//
 		throw_unless( !err_str , "files are outside repo :\n",err_str ) ;

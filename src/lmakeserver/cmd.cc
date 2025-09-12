@@ -1054,7 +1054,7 @@ namespace Engine {
 		char           sep        = '{'                           ;                                                                                 // used with porcelaine
 		::vector<Node> targets    ;
 		try {
-			targets = ecr.targets() ;
+			targets = ecr.targets( ro.startup_dir_s , ro.key==ReqKey::InvDeps ) ;
 		} catch (::string const&) {
 			if (g_writable) throw ;                                                                                                                 // dont know this case : propagate
 			switch (ecr.files.size()) {

@@ -125,8 +125,8 @@ namespace Engine {
 			else                             {                                return false ; }
 		}
 		// services
-		::vector<Node> targets(::string const& startup_dir_s={}) const ; // startup_dir_s for error reporting only
-		Job            job    (::string const& startup_dir_s={}) const ; // .
+		::vector<Node> targets( ::string const& startup_dir_s={} , bool with_deps=false ) const ; // startup_dir_s for error reporting only
+		Job            job    ( ::string const& startup_dir_s={}                        ) const ; // .
 		// data
 		ReqProc    proc    = ReqProc::None ;
 		Req        req     = {}            ;                             // if proc==Close | Kill | Make
