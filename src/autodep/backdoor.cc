@@ -40,7 +40,7 @@ namespace Backdoor {
 		if (+s.comment  ) os << ','<<s.comment     ;
 		return            os << ')'                ;
 	}
-	size_t Solve::reply_len() const { return JobExecRpcReq::MaxSz ; }         // 100 is plenty for overhead
+	size_t Solve::reply_len() const { return sizeof(Reply)+2*PATH_MAX ; }
 	Solve::Reply Solve::process(Record& r) const {
 		Solve::Reply res { r , file , no_follow , read , create , comment } ;
 		res.file_info = FileInfo(r.s_repo_root_fd(),res.real) ;               // file info must be probed in process as we are protected against recording

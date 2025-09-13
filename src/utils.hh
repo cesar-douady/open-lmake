@@ -638,7 +638,7 @@ template<::integral T=size_t> constexpr inline T msb_msk (uint8_t b) { return -(
 
 template<size_t D,class N> inline constexpr N round_down(N n) { return n - n%D              ; }
 template<size_t D,class N> inline constexpr N round_up  (N n) { return round_down<D>(n+D-1) ; }
-template<size_t D,class N> inline constexpr N div_up    (N n) { return (n+D-1)/D            ; }
+template<size_t D,class N> inline constexpr N div_up    (N n) { return n ? N(n-1)/D+1 : 0   ; }
 
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;

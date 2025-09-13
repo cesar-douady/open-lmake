@@ -27,7 +27,10 @@ namespace Backdoor {
 		::string file = ""s+MagicPfx+T::Cmd+'/'+mk_printable(serialize(args))            ;
 		::string buf  ( args.reply_len()+1 , 0 )                                         ; // +1 to distinguish truncation
 		ssize_t  cnt  = ::readlinkat( MagicFd , file.c_str() , buf.data() , buf.size() ) ; // try to go through autodep to process args
-		if (cnt<0) return args.process(::ref(Record(New,Yes/*enabled*/))) ;                // no autodep available, directly process args
+		if (cnt<0) {
+			if (cnt<-1) throw cat("backdoor error",cnt) ;
+			else        return args.process(::ref(Record(New,Yes/*enabled*/))) ;           // no autodep available, directly process args
+		}
 		size_t ucnt = cnt ;
 		SWEAR(ucnt<buf.size(),cnt,buf.size()) ;
 		buf.resize(ucnt) ;
@@ -38,7 +41,7 @@ namespace Backdoor {
 		size_t   pos       = 0 ;
 		::string reply_str ;
 		try         { reply_str = serialize(deserialize<T>(parse_printable(args_str,pos)).process(r)) ; throw_unless(pos==args_str.size()) ; }
-		catch (...) { errno = EIO ; return -1 ;                                                                                              }
+		catch (...) { errno = EIO ; return -3 ;                                                                                              }
 		sz = ::min( reply_str.size() , sz ) ;
 		::memcpy( buf , reply_str.data() , sz ) ;
 		return sz ;

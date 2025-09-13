@@ -270,6 +270,7 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
 	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
 	if ((emulated=it!=func_tab.end())) len = it->second( r , cmd.substr(slash+1) , buf , sz ) ;
+	SWEAR( len<=ssize_t(sz) , len,sz ) ;
 	return len ;
 }
 

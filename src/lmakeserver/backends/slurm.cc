@@ -466,15 +466,15 @@ namespace Backends::Slurm {
 		return res ;
 	}
 	RsrcsData parse_args(::string const& args) {
-		static ::string         s_slurm     = "slurm"          ;                   // apparently "slurm"s.data() does not work as memory is freed right away
+		static ::string         s_slurm     = "slurm"          ;               // apparently "slurm"s.data() does not work as memory is freed right away
 		static cxxopts::Options s_opt_parse = _create_parser() ;
 		//
 		Trace trace(BeChnl,"parse_args",args) ;
 		//
-		if (!args) return {} ;                                                     // fast path
+		if (!args) return {} ;                                                 // fast path
 		//
-		::vector_s      arg_vec = split(args,' ') ; arg_vec.push_back(":")       ; // sentinel to parse last args
-		::vector<char*> argv    ;                   argv.reserve(arg_vec.size()) ;
+		::vector_s      arg_vec = split(args) ; arg_vec.push_back(":")       ; // sentinel to parse last args
+		::vector<char*> argv    ;               argv.reserve(arg_vec.size()) ;
 		RsrcsData       res     ;
 		//
 		argv.push_back(s_slurm.data()) ;
