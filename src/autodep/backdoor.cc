@@ -44,7 +44,7 @@ namespace Backdoor {
 		return            os << ')'                ;
 	}                                                       // END_OF_NO_COV
 
-	size_t Solve::reply_len() const { return JobExecRpcReq::MaxSz ; } // 100 is plenty for overhead
+	size_t Solve::reply_len() const { return sizeof(Reply)+2*PATH_MAX ; }
 
 	Solve::Reply Solve::process(Record& r) const {
 		Solve::Reply res { r , file , no_follow , read , create , comment } ;

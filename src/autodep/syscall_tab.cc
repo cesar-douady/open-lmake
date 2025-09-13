@@ -193,11 +193,13 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void*& ctx , Rec
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
 	if (ctx) {
 		RLB* rlb = static_cast<RLB*>(ctx) ;
-		SWEAR( res<=ssize_t(rlb->first.sz) , res , rlb->first.sz ) ;
-		if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
+		SWEAR( res<=ssize_t(rlb->first.sz) , 1,res,rlb->first.sz ) ; // 1 or 2 to distinguish in case of approximative backtrace
 		res = (rlb->first)(r,res) ;
+		SWEAR( res<=ssize_t(rlb->first.sz) , 2,res,rlb->first.sz ) ; // .
 		if (pid) {
-			if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
+			if ( rlb->first.emulated && res>=0 )                                    // access to backdoor was emulated, we must transport result to actual user space
+				try         { _poke( pid , rlb->second , rlb->first.buf , res ) ; }
+				catch (int) { res = -2 ;                                          }
 			delete[] rlb->first.buf ;
 		}
 		delete rlb ;
