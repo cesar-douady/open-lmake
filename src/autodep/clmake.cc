@@ -185,15 +185,20 @@ template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const&
 		throw "unexpected keyword arg "+key ;
 	}
 	//
-	::vector_s files = JobSupport::list( *_g_record , No|Target , dir , regexpr ) ;
-	Ptr<Tuple> res   { files.size() }                                             ;
-	for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
-	return res ;
+	try {
+		::vector_s files = JobSupport::list( *_g_record , No|Target , dir , regexpr ) ;
+		Ptr<Tuple> res   { files.size() }                                             ;
+		for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
+		return res ;
+	} catch (::string const& e) {
+		throw ::pair(PyException::RuntimeErr,e) ;
+	}
 }
 
 static Ptr<Str> list_root( Tuple const& py_args , Dict const& py_kwds ) {
 	if (!( py_args.size()==1 && !py_kwds )) throw cat("accept only a single arg") ;
-	return Ptr<Str>( no_slash( JobSupport::list_root_s(*py_args[0].str()) ) ) ;
+	try                       { return Ptr<Str>( no_slash( JobSupport::list_root_s(*py_args[0].str()) ) ) ; }
+	catch (::string const& e) { throw ::pair(PyException::RuntimeErr,e) ;                                   }
 }
 
 // encode and decode are very similar, it is easier to define a template for both
@@ -231,12 +236,16 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	/**/         throw_unless( +cv      , "missing arg ",Cv        ) ;
 	if (!Encode) throw_if    ( +min_len , "unexpected arg min_len" ) ;
 	//
-	::pair_s<bool/*ok*/> reply =
-		Encode ? JobSupport::encode( *_g_record , ::move(*file) , ::move(*cv/*val*/ ) , ::move(*ctx) , min_len.value_or(1) )
-		:        JobSupport::decode( *_g_record , ::move(*file) , ::move(*cv/*code*/) , ::move(*ctx)                       )
-	;
-	throw_unless( reply.second , reply.first ) ;
-	return reply.first ;
+	try {
+		::pair_s<bool/*ok*/> reply =
+			Encode ? JobSupport::encode( *_g_record , ::move(*file) , ::move(*cv/*val*/ ) , ::move(*ctx) , min_len.value_or(1) )
+			:        JobSupport::decode( *_g_record , ::move(*file) , ::move(*cv/*code*/) , ::move(*ctx)                       )
+		;
+		throw_unless( reply.second , reply.first ) ;
+		return reply.first ;
+	} catch (::string const& e) {
+		throw ::pair(PyException::RuntimeErr,e) ;
+	}
 }
 
 template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const& py_kwds ) {

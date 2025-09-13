@@ -77,32 +77,37 @@ void AutodepPtrace::init(pid_t cp) {
 	child_pid = cp ;
 	//
 	int   wstatus ;
-	pid_t pid     = ::wait(&wstatus) ;                                         // first signal is only there to start tracing as we are initially traced to next signal
-	if (pid!=child_pid) return ;                                               // child_pid will be waited for in process
+	pid_t pid     = ::wait(&wstatus) ;                                           // first signal is only there to start tracing as we are initially traced to next signal
+	if (pid!=child_pid) return ;                                                 // child_pid will be waited for in process
 	int options =
 		PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-	|	PTRACE_O_TRACESYSGOOD                                                  // necessary to have a correct syscall_info.op field
+	|	PTRACE_O_TRACESYSGOOD                                                    // necessary to have a correct syscall_info.op field
 	;
 	#if HAS_SECCOMP
 		options |= PTRACE_O_TRACESECCOMP ;
 	#endif
-	#ifdef PTRACE_O_EXITKILL                                                   // XXX! : implement the same feature in all cases
-		options |= PTRACE_O_EXITKILL ;                                         // ensure no process is left stopped, even if alive at end of job
+	#ifdef PTRACE_O_EXITKILL                                                     // XXX! : implement the same feature in all cases
+		options |= PTRACE_O_EXITKILL ;                                           // ensure no process is left stopped, even if alive at end of job
 	#endif
-	long rc = ::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ , options ) ;
-	if (rc!=0) return ;                                                        // child_pid will be waited for in process
+	if (::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ , options )!=0) return ;   // child_pid will be waited for in process
 	SWEAR( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
-	rc = ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ; SWEAR( rc==0 , rc,int(errno) ) ;
-	// if pid disappeared, child_pid will be waited for in process, we have nothing to do
+	long rc = ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ;
+	SWEAR( rc==0 , rc,int(errno) ) ;                                             // .
 }
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
 	#if HAS_SECCOMP
-		if (::seccomp_load(s_scmp)!=0) ::_exit(+Rc::System) ;
+		if (::seccomp_load(s_scmp)!=0) {
+			Fd::Stderr.write("cannot set up seccomp when launching job\n") ;
+			::_exit(+Rc::System) ;
+		}
 	#endif
-	::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ ) ;
-	kill_self(FirstSignal) ;                                        // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
+	if (::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ )!=0) {
+		Fd::Stderr.write("cannot set up ptrace when launching job\n") ;
+		::_exit(+Rc::System) ;
+	}
+	kill_self(FirstSignal) ; // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
 	return 0 ;
 }
 

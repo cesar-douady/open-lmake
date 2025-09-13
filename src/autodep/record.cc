@@ -40,42 +40,59 @@ Fd                                          Record::_s_report_fd[2]       ;
 pid_t                                       Record::_s_report_pid[2]      = { 0 , 0 } ;
 
 bool Record::s_is_simple( const char* file , bool empty_is_simple ) {
-	if (!file        ) return empty_is_simple ;                                  // no file is simple (not documented, but used in practice)
-	if (!file[0]     ) return empty_is_simple ;                                  // empty file is simple
-	if ( file[0]!='/') return false           ;                                  // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
+	if (!file        ) return empty_is_simple ;                       // no file is simple (not documented, but used in practice)
+	if (!file[0]     ) return empty_is_simple ;                       // empty file is simple
+	if ( file[0]!='/') return false           ;                       // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
 Restart :
 	size_t pfx_sz = 0 ;
-	switch (file[1]) {                                                           // recognize simple and frequent top level system directories
-		case 0   :                                                 return true ; // / is simple
-		case 'b' : if (::strncmp(file+1,"bin" ,3)==0) pfx_sz = 5 ; break       ;
-		case 'd' : if (::strncmp(file+1,"dev" ,3)==0) pfx_sz = 5 ; break       ;
-		case 'e' : if (::strncmp(file+1,"etc" ,3)==0) pfx_sz = 5 ; break       ;
-		case 'o' : if (::strncmp(file+1,"opt" ,3)==0) pfx_sz = 5 ; break       ; // used to install 3rd party software, not a data dir
-		case 'r' : if (::strncmp(file+1,"run" ,3)==0) pfx_sz = 5 ; break       ;
-		case 's' : if (::strncmp(file+1,"sbin",4)==0) pfx_sz = 6 ;
-		/**/       if (::strncmp(file+1,"sys" ,3)==0) pfx_sz = 5 ; break       ;
-		case 'u' : if (::strncmp(file+1,"usr" ,3)==0) pfx_sz = 5 ; break       ;
-		case 'v' : if (::strncmp(file+1,"var" ,3)==0) pfx_sz = 5 ; break       ;
+	switch (file[1]) {                                                                                                              // recognize simple and frequent top level system directories
+		case 0   : return true ;                                                                                                    // / is simple
+		case 'b' : if (::strncmp(file+1,"bin" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 'e' : if (::strncmp(file+1,"etc" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 'o' : if (::strncmp(file+1,"opt" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;                                       // used to install 3rd party software, not a data dir
+		case 'r' : if (::strncmp(file+1,"run" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 's' : if (::strncmp(file+1,"sbin",4)!=0) goto ReturnFalse ; pfx_sz = 6 ;
+		/**/       if (::strncmp(file+1,"sys" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 'u' : if (::strncmp(file+1,"usr" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 'v' : if (::strncmp(file+1,"var" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 'd' :
+			if (::strncmp(file+1,"dev",3)!=0) goto ReturnFalse ;                                                                    // not in /dev  => not simple
+			if (!file[4]                    ) return true      ;                                                                    // /dev         =>     simple
+			if (file[4]!='/'                ) goto ReturnFalse ;                                                                    // false prefix => not simple
+			switch (file[5]) {
+				case 'f' : if ( ::strncmp(file+5,"fd",2   )==0 && (!file[7]||file[7]=='/') ) goto ReturnFalse ; break ;             // in /dev/fd   => not simple
+				case 'r' : if ( ::strcmp (file+5,"random" )==0                             ) return false     ; break ;             // /dev/random  => not simple
+				case 'u' : if ( ::strcmp (file+5,"urandom")==0                             ) return false     ; break ;             // /dev/urandom => not simple
+				case 's' :
+					if (::strncmp(file+5,"std",3)==0)
+						switch (file[8]) {
+							case 'e' : if ( ::strncmp(file+8,"err",3)==0 && (!file[11]||file[11]=='/') ) goto ReturnFalse ; break ; // /dev/stderr => not simple
+							case 'i' : if ( ::strncmp(file+8,"in" ,2)==0 && (!file[10]||file[10]=='/') ) goto ReturnFalse ; break ; // /dev/stdin  => not simple
+							case 'o' : if ( ::strncmp(file+8,"out",3)==0 && (!file[11]||file[11]=='/') ) goto ReturnFalse ; break ; // /dev/stdout => not simple
+						DN}
+				break ;
+			DN}
+			pfx_sz = 5 ;
+		break ;
 		case 'l' :
-			if      (::strncmp(file+1,"lib",3)!=0) break ;          // not in lib* => not simple
-			if      (::strncmp(file+4,"32" ,2)==0) pfx_sz = 7 ;     // in lib32    => simple
-			else if (::strncmp(file+4,"64" ,2)==0) pfx_sz = 7 ;     // in lib64    => simple
-			else                                   pfx_sz = 5 ;     // in lib      => simple
-		break ;                                                     // else        => not simple
+			if      (::strncmp(file+1,"lib",3)!=0) goto ReturnFalse ;                                                               // not in lib* => not simple
+			if      (::strncmp(file+4,"32" ,2)==0) pfx_sz = 7 ;                                                                     // in lib32    =>     simple
+			else if (::strncmp(file+4,"64" ,2)==0) pfx_sz = 7 ;                                                                     // in lib64    =>     simple
+			else                                   pfx_sz = 5 ;                                                                     // in lib      =>     simple
+		break ;
 		case 'p' :                                                  // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-			if ( ::strncmp(file+1,"proc",4)!=0 ) break            ; // not in /proc      => not simple
-			if ( !file[5]                      ) return true      ; // /proc             => simple
-			if ( file[5]!='/'                  ) goto ReturnFalse ; // false prefix      => not simple
-			if ( file[6]>='0' && file[6]<='9'  ) goto ReturnFalse ; // in /proc/<pid>    => not simple
-			if ( ::strncmp(file+6,"self",4)!=0 ) goto SimpleProc  ; // not in /proc/self => simple
-			if ( !file[10]                     ) return true      ; // /proc/self        => simple
-			if ( file[10]=='/'                 ) goto ReturnFalse ; // in /proc/self     => not simple
-		SimpleProc :
+			if ( ::strncmp(file+1,"proc",4)!=0 ) goto ReturnFalse ; // not in /proc            => not simple
+			if ( !file[5]                      ) return true      ; // /proc                   =>     simple
+			if ( file[5]!='/'                  ) goto ReturnFalse ; // false prefix            => not simple
+			if ( file[6]>='0' && file[6]<='9'  ) goto ReturnFalse ; // probably in /proc/<pid> => not simple
+			if ( ::strncmp(file+6,"self",4)==0 ) goto ReturnFalse ; // probably in /proc/self  => not simple
 			pfx_sz = 6 ;
 		break ;
-	DN}
-	if ( !pfx_sz                               ) goto ReturnFalse ; // no prefix
-	if ( file[pfx_sz-1] && file[pfx_sz-1]!='/' ) goto ReturnFalse ; // false prefix
+		default : goto ReturnFalse ;
+	}
+	SWEAR( pfx_sz , file ) ;
+	if (!file[pfx_sz-1]     ) return true      ;                    // known top level dir =>     simple
+	if ( file[pfx_sz-1]!='/') goto ReturnFalse ;                    // false prefix        => not simple
 	//
 	{	int depth = 0 ;
 		for ( const char* p=file+pfx_sz ; *p ; p++ ) {              // ensure we do not escape from top level dir
@@ -329,13 +346,17 @@ Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , 
 }
 
 ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
-	if (at!=Backdoor::MagicFd                                      ) return len ;
-	if (::strncmp(file,Backdoor::MagicPfx,Backdoor::MagicPfxLen)!=0) return len ;
+	if (!( at==Backdoor::MagicFd && ::strncmp(file,Backdoor::MagicPfx,Backdoor::MagicPfxLen)==0 )) return len ;
+	//
 	::string                        cmd      = file+Backdoor::MagicPfxLen         ;
 	size_t                          slash    = cmd.find('/')                      ;
 	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
 	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
-	if ((emulated=it!=func_tab.end())) len = it->second( r , cmd.substr(slash+1) , buf , sz ) ;
+	if ((magic=it!=func_tab.end())) {
+		if (!buf) buf = new char[sz] ;                                               // if no buf, we are in ptrace mode and we allocate it when necessary, it will be deleted by caller
+		tie(backdoor_descr,len) = it->second( r , cmd.substr(slash+1) , buf , sz ) ;
+	}
+	SWEAR( len<=ssize_t(sz) , len,sz ) ;
 	return len ;
 }
 

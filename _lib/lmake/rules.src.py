@@ -204,3 +204,55 @@ class DirRule(Rule) :
 	target  = fr'{{Dir:.+}}/{marker}'
 	backend = 'local'                 # command is faster than any other backend overhead
 	cmd     = ''
+
+class MultiOsRule(Rule) :
+	'''
+		Base rule to distinguish and check OS on which job is executed.
+		OS is characterized by its ID and VERSION_ID as found in /etc/os-release (including " if any), as well as the output of uname -m.
+		By default, job is checked to run on the same os as the server.
+		Else, the OS information must be provided as the os_info attribute as a string of the form '<ID>/<VERSION_ID>/<MACHINE>'.
+		The actual Rule may be a python or shell rule.
+		The major consequences are in case the os changes :
+		- all jobs will be rerun
+		- the cache will not mix up jobs between the old os and new os
+
+		Examples :
+		# ensure executing os is the one of the server
+		class MyRule(MultiOsRule) :
+			target = 'multi_os_target1'
+			cmd    = 'echo multi_os_content'
+		# ensure executing os is the one provided by os_info attribute
+		class MyRule(MultiOsRule) :
+			target  = 'multi_os_target2'
+			os_info = 'ubuntu/"24.04"/x86_64'
+			cmd     = 'echo multi_os_content'
+	'''
+	virtual = True
+	def get_os_info() :
+		for l in open('/etc/os-release') :
+			if '=' not in l : continue                    # not a pertinent line
+			k,v = l.split('=',1)
+			if k=='ID'         : id         = v[:-1]      # suppress terminating newline
+			if k=='VERSION_ID' : version_id = v[:-1]      # .
+		return f'{id}/{version_id}/{_os.uname().machine}'
+	os_info = get_os_info()
+	def cmd() :
+		running_os_info = get_os_info()
+		assert os_info!=running_os_info , f'os mismatch, expected {os_info} while running on {running_os_info}'
+	cmd.shell = '''
+		OS_INFO={os_info}
+		RUNNING_OS_INFO="$(
+			awk -F= '
+				$1=="ID"         { id         = $2 }
+				$1=="VERSION_ID" { version_id = $2 }
+				END              {
+					"uname -m" | getline machine
+					printf( "%s/%s/%s\n" , id , version_id , machine )
+				}
+			' /etc/os-release
+		)"
+		[ "$OS_INFO" = "$RUNNING_OS_INFO" ] || {
+			echo "os mismatch, expected $OS_INFO while running on $RUNNING_OS_INFO"
+			exit 1
+		}
+	'''

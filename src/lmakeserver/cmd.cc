@@ -78,7 +78,7 @@ namespace Engine {
 			star_ignore.emplace_back( pattern , k ) ;
 		}
 		//
-		for( ::string const& target_dir : ecr.target_strs(true/*root_ok*/) ) {
+		for( ::string const& target_dir : ecr.dirs() ) {
 			is_repo_root = target_dir=="." ;
 			//
 			for( auto& [target,tag] : walk( target_dir , TargetTags|FileTag::Dir , target_dir , prune ) ) {
@@ -232,7 +232,7 @@ namespace Engine {
 			bool           add   = ro.key==ReqKey::Add ;
 			::vector<Node> nodes ;
 			if (ecr.is_job()) nodes = mk_vector<Node>(ecr.job()->targets()) ;
-			else              nodes = ecr.targets()                         ;
+			else              nodes = ecr.deps()                            ;
 			//check
 			for( Node n : nodes )
 				if (n.no_trigger()==add) {
@@ -1202,9 +1202,13 @@ namespace Engine {
 		bool           ok         = true                          ;
 		bool           porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		char           sep        = '{'                           ;                                                                                 // used with porcelaine
-		::vector<Node> targets    ;
+		::vector<Node> nodes      ;
 		try {
-			targets = ecr.targets() ;
+			switch (ro.key) {
+				case ReqKey::Info    :                                                                                                              // we may ask info on sources
+				case ReqKey::InvDeps : nodes = ecr.deps   () ; break ;
+				default              : nodes = ecr.targets() ;
+			}
 		} catch (::string const&) {
 			if (g_writable) throw ;                                                                                                                 // dont know this case : propagate
 			switch (ecr.files.size()) {
@@ -1218,10 +1222,10 @@ namespace Engine {
 			}
 		}
 		switch (ro.key) {
-			case ReqKey::Bom     : { ShowBom     sb {fd,ro} ; for( Node t : targets ) sb.show_node(t) ; goto Return ; }
-			case ReqKey::Running : { ShowRunning sr {fd,ro} ; for( Node t : targets ) sr.show_node(t) ; goto Return ; }
+			case ReqKey::Bom     : { ShowBom     sb {fd,ro} ; for( Node t : nodes ) sb.show_node(t) ; goto Return ; }
+			case ReqKey::Running : { ShowRunning sr {fd,ro} ; for( Node t : nodes ) sr.show_node(t) ; goto Return ; }
 		DN}
-		for( Node target : targets ) {
+		for( Node target : nodes ) {
 			trace("target",target) ;
 			DepDepth lvl = 0 ;
 			if (porcelaine) {
@@ -1229,7 +1233,7 @@ namespace Engine {
 				audit( fd , ro , cat(sep)                       , true       ) ;
 				audit( fd , ro , mk_py_str(target->name())+" :" , true , lvl ) ;
 				sep = ',' ;
-			} else if (targets.size()>1) {
+			} else if (nodes.size()>1) {
 				_audit_node( fd , ro , true/*always*/ , Maybe/*hide*/ , {} , target ) ;
 				lvl++ ;
 			}

@@ -153,40 +153,41 @@ namespace Engine {
 			else                             {                                return false ; }
 		}
 		// services
-		Job            job        (                  ) const ;
-		::vector<Node> targets    (bool root_ok=false) const { return _targets<Node    >(root_ok) ; }
-		::vector_s     target_strs(bool root_ok=false) const { return _targets<::string>(root_ok) ; }
+		Job            job    () const ; //!                       as_deps root_ok
+		::vector<Node> targets() const { return _targets<Node    >( false , false ) ; }
+		::vector<Node> deps   () const { return _targets<Node    >( true  , false ) ; }
+		::vector_s     dirs   () const { return _targets<::string>( false , true  ) ; }
 	private :
-		template<class T> ::vector<T> _targets(bool root_ok=false) const {
+		template<class T> requires(IsOneOf<T,Node,::string>) ::vector<T> _targets( bool as_deps , bool root_ok ) const {
 			SWEAR(!is_job()) ;
-			Disk::RealPathEnv rpe           { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
-			Disk::RealPath    real_path     { rpe                                                              } ;
-			::vector<T>       targets       ; targets.reserve(files.size()) ;                                      // typically, there is no bads
+			Disk::RealPathEnv rpe           { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .src_dirs_s=*g_src_dirs_s } ;
+			Disk::RealPath    real_path     { rpe                                                                                          } ;
+			::vector<T>       targets       ; targets.reserve(files.size()) ;                                                                           // typically, there is no bads
 			::string          err_ext_str   ;
 			::string          err_admin_str ;
 			for( ::string const& target : files ) {
-				static constexpr bool NeedNew = requires(::string s) { T(New,s) ; } ;
+				Disk::RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                            // we may refer to a sym link
+				switch (rp.file_loc) {
+					case FileLoc::Repo     :                                                                                                    break ;
+					case FileLoc::SrcDir   :                  throw_unless( as_deps , "file is in a source dir"," : ",Disk::mk_file(target) ) ; break ;
+					case FileLoc::RepoRoot : rp.real = "."s ; throw_unless( root_ok , "file is repo root"      ," : ",Disk::mk_file(target) ) ; break ; // /!\ gcc-12 would not accept "."
+					case FileLoc::Admin    :                  throw    cat(           "file is in admin dir"   ," : ",Disk::mk_file(target) ) ;
+					default                :                  throw    cat(           "file is outside repo"   ," : ",Disk::mk_file(target) ) ;
+				}
 				//
-				Disk::RealPath::SolveReport rp           = real_path.solve(target,true/*no_follow*/) ;             // we may refer to a sym link
-				bool                        is_repo_root = rp.file_loc==FileLoc::RepoRoot            ;
-				::string                    real         = is_repo_root ? "."s : ::move(rp.real)     ;
-				//
-				if ( rp.file_loc!=FileLoc::Repo && !(root_ok&&is_repo_root) ) throw cat("file is outside repo : ",Disk::mk_file(target)) ;
-				if ( with_slash(real).starts_with(AdminDirS)                ) throw cat("file is in admin dir : ",Disk::mk_file(target)) ;
-				//
-				if constexpr (NeedNew) targets.emplace_back( New , real ) ;
-				else                   targets.emplace_back(       real ) ;
+				if constexpr (::is_same_v<T,Node>) targets.emplace_back( New , ::move(rp.real) ) ;
+				else                               targets.emplace_back(       ::move(rp.real) ) ;
 			}
 			return targets ;
 		}
 		// data
 	public :
 		ReqProc    proc    = ReqProc::None ;
-		Req        req     = {}            ;                                                                       // if proc==Close | Kill | Make
-		Fd         in_fd   = {}            ;                                                                       // if proc!=Close
-		Fd         out_fd  = {}            ;                                                                       // .
-		::vector_s files   = {}            ;                                                                       // if proc>=HasHargs
-		ReqOptions options = {}            ;                                                                       // .
+		Req        req     = {}            ;                                                                                                            // if proc==Close | Kill | Make
+		Fd         in_fd   = {}            ;                                                                                                            // if proc!=Close
+		Fd         out_fd  = {}            ;                                                                                                            // .
+		::vector_s files   = {}            ;                                                                                                            // if proc>=HasHargs
+		ReqOptions options = {}            ;                                                                                                            // .
 	} ;
 
 	struct EngineClosureJobStart {

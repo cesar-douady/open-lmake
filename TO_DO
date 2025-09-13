@@ -50,6 +50,9 @@ items (also used in XXX comments) :
 
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
+	- as getting a hard error on a very big base is not really user friendly
+	- better to be told upfront that we have redimension id's
+	- should not occur as id's are comfortably sized (but never knows...)
 ? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later
@@ -67,6 +70,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* forbid mount & chroot
+	- as deps become untrackable
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -74,7 +79,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? add a dep to all jobs that represents system
 	- semantically a crc computed over /usr, /etc, etc. everything that has an impact on job execution
 	- beware to take chroot into account
-	- deault to the content of /etc/os-release or something like that
+	- deault to the content of /etc/os-release ID+VERSION_ID + uname -m
 	- but should also take into account all installed packages/software
 ? use a Path struct instead of at/file
 	- everywhere applicable
@@ -89,6 +94,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* provide a list of forbidden src dirs
+	- like src dirs, but access generates fail
+	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
 * check_deps
 	- pass a delay argument
 	- execute lcheck_deps as soon as no new deps for delay seconds

@@ -63,7 +63,8 @@ int main( int argc , char* argv[]) {
 		::optional_s dir     ; if ( cmd_line.flags[Flag::Dir]                       ) dir     = cmd_line.flag_args[+Flag::Dir] ;
 		::optional_s regexpr ; if ( cmd_line.flags[Flag::Regexpr] && +cmd_line.args ) regexpr = cmd_line.args[0]               ;
 		//
-		for( ::string const& d : JobSupport::list( {New,Yes/*enabled*/} , No/*write*/ , dir , regexpr ) ) out << d <<'\n' ;
+		try                       { for( ::string const& d : JobSupport::list( {New,Yes/*enabled*/} , No/*write*/ , dir , regexpr ) ) out << d <<'\n' ; }
+		catch (::string const& e) { exit(Rc::System,e) ;                                                                                                }
 		//
 	} else {
 		//

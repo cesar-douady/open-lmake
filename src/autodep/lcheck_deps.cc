@@ -18,9 +18,13 @@ int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
 		{ Flag::Sync , { .short_name='s' , .doc="wait for server reply that previous deps are up-to-date with no error" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
-	bool              sync     = cmd_line.flags[Flag::Sync]                            ;
-	Bool3             ok       = JobSupport::check_deps( {New,Yes/*enabled*/} , sync ) ;
-	if (!sync) return 0       ;
-	else       return ok!=Yes ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }     ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
+	bool              sync     = cmd_line.flags[Flag::Sync] ;
+	try {
+		Bool3 ok = JobSupport::check_deps( {New,Yes/*enabled*/} , sync ) ;
+		if (!sync) return 0       ;
+		else       return ok!=Yes ;
+	} catch(::string const&e) {
+		exit(Rc::System,e) ;
+	}
 }

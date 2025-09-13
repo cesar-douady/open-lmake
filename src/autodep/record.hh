@@ -206,6 +206,8 @@ public :
 		using Base = _Path<Writable> ;
 		using Base::at   ;
 		using Base::file ;
+		static const size_t MaxSz ;
+		// cxtors & casts
 		_Solve()= default ;
 		_Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , Comment c , CommentExts ces={} ) : Base{::move(path)} {
 			using namespace Disk ;
@@ -424,11 +426,12 @@ public :
 		// buf and sz are only used when mapping tmp
 		Readlink( Record& , Path&& , char* buf , size_t sz , Comment ) ;
 		// services
-		ssize_t operator()( Record& , ssize_t len=0 ) ;
+		ssize_t operator() ( Record& , ssize_t len=0 ) ;
 		// data
-		char*  buf      = nullptr ;
-		size_t sz       = 0       ;
-		bool   emulated = false   ;                                                                                                                        // if true <=> backdoor was used
+		char*    buf            = nullptr ;
+		size_t   sz             = 0       ;
+		::string backdoor_descr ;
+		bool     magic          = false   ;                                                                                                                // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts
@@ -470,6 +473,8 @@ private :
 	Disk::RealPath _real_path ;
 	mutable bool   _seen_tmp  = false ; // record that tmp usage has been reported, no need to report any further
 } ;
+
+template<bool Writable,bool ChkSimple> constexpr size_t Record::_Solve<Writable,ChkSimple>::MaxSz = 2*PATH_MAX+sizeof(_Solve<Writable,ChkSimple>) ;
 
 template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) { // START_OF_NO_COV
 	const char* sep = "" ;

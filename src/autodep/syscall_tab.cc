@@ -5,6 +5,7 @@
 
 #include <syscall.h> // for SYS_* macros
 
+#include "backdoor.hh"
 #include "ptrace.hh"
 #include "record.hh"
 
@@ -16,9 +17,9 @@
 	::string res ;
 	errno = 0 ;
 	for(;;) {
-		uint64_t offset = src%sizeof(long)                                               ;
+		uint64_t offset = src%sizeof(long)                                                 ;
 		long     word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw errno ;
+		throw_if( errno , "cannot peek data from address ",src-offset ) ;
 		char* word_char = ::launder(reinterpret_cast<char*>(&word)) ;
 		for( uint64_t len : iota(sizeof(long)-offset) ) if (!word_char[offset+len]) { res.append( word_char+offset , len                 ) ; return res ; }
 		/**/                                                                          res.append( word_char+offset , sizeof(long)-offset ) ;
@@ -30,37 +31,37 @@
 [[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
 	SWEAR(pid) ;
 	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                   // invariant : copy src[i:sz] to dst
-		size_t offset = src%sizeof(long) ;
+	for( size_t copied ; sz ; src+=copied,dst+=copied,sz-=copied ) {                       // invariant : copy src[0:sz] to dst
+		size_t offset = src%sizeof(long)                                                 ;
 		long   word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		if (errno) throw errno ;
-		chunk = ::min( sizeof(long) - offset , sz ) ;
-		::memcpy( dst , reinterpret_cast<char*>(&word)+offset , chunk ) ;
+		throw_if( errno , "cannot peek data from address ",src-offset ) ;
+		copied = ::min( sizeof(long) - offset , sz ) ;
+		::memcpy( dst , ::launder(reinterpret_cast<char*>(&word))+offset , copied ) ;
 	}
 }
 // copy src to process pid's space @ dst
 [[maybe_unused]] static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
 	SWEAR(pid) ;
 	errno = 0 ;
-	for( size_t chunk ; sz ; src+=chunk , dst+=chunk , sz-=chunk) {                   // invariant : copy src[i:sz] to dst
+	for( size_t copied ; sz ; src+=copied,dst+=copied,sz-=copied) {                        // invariant : copy src[0:sz] to dst
 		size_t offset = dst%sizeof(long) ;
 		long   word   = 0/*garbage*/     ;
-		chunk = ::min( sizeof(long) - offset , sz ) ;
-		if ( offset || offset+chunk<sizeof(long) ) {                                  // partial word
+		copied = ::min( sizeof(long) - offset , sz ) ;
+		if ( offset || offset+copied<sizeof(long) ) {                                      // partial word
 			word = ::ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
-			if (errno) throw errno ;
+			throw_if( errno , "cannot peek data from address ",dst-offset ) ;
 		}
-		::memcpy( reinterpret_cast<char*>(&word)+offset , src , chunk ) ;
+		::memcpy( ::launder(reinterpret_cast<char*>(&word))+offset , src , copied ) ;
 		::ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
-		if (errno) throw errno ;
+		throw_if( errno , "cannot poke data to address ",dst-offset ) ;
 	}
 	}
 
-template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
+template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args , bool simple_ok=false ) {
 	::string arg = _get_str(pid,args[At]) ;
-	if (Record::s_is_simple(arg)) throw 0                      ;
-	if (At                      ) return { Fd(args[0]) , arg } ;
-	else                          return {               arg } ;
+	if ( !simple_ok && Record::s_is_simple(arg) ) throw ""s                    ;
+	if ( At                                     ) return { Fd(args[0]) , arg } ;
+	else                                          return {               arg } ;
 }
 
 static constexpr int FlagAlways = -1 ;
@@ -76,9 +77,9 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 // chdir
 template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])           , c } ; ctx = cd ; }
-		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At>(pid,args+0) , c } ; ctx = cd ; }
-	} catch (int) {}
+		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])                             , c } ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At>(pid,args+0,true/*simple_ok*/) , c } ; ctx = cd ; }
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -93,7 +94,7 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		ctx = new Record::Chmod{ r , _path<At>(pid,args+0) , bool(args[1+At]&S_IXUSR) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -108,7 +109,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 [[maybe_unused]] static void _entry_creat( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		ctx = new Record::Open{ r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , c } ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 // use _exit_open as exit proc
 
@@ -116,8 +117,8 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Exec( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
-	} catch (int) {}
+		Record::Exec( r , _path<At>(pid,args+0,true/*simple_ok*/) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+	} catch (::string const&) {}
 }
 
 // getdents
@@ -135,12 +136,9 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*&
 
 // hard link
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
-	Record::Path old ;
-	try           { old = _path<At>(pid,args+0) ; }
-	catch (int e) { if (e) return ;               } // if e==0, old is simple, else there is an error and access will not be done
 	try {
-		ctx = new Record::Lnk{ r , ::move(old) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
-	} catch (int) {}
+		ctx = new Record::Lnk{ r , _path<At>(pid,args+0,true/*simple_ok*/) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -155,21 +153,21 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ct
 template<bool At> [[maybe_unused]] static void _entry_mkdir( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		Record::Mkdir( r , _path<At>(pid,args+0) , c ) ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 
 // mount
 [[maybe_unused]] static void _entry_mount( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (args[3]&MS_BIND) Record::Mount( r , _path<false>(pid,args+0) , _path<false>(pid,args+1) , c ) ;
-	} catch (int) {}
+		if (args[3]&MS_BIND) Record::Mount( r , _path<false>(pid,args+0,true/*simple_ok*/) , _path<false>(pid,args+1) , c ) ;
+	} catch (::string const&) {}
 }
 
 // open
 template<bool At> [[maybe_unused]] static void _entry_open( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		ctx = new Record::Open{ r , _path<At>(pid,args+0) , int(args[1+At])/*flags*/ , c } ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -181,24 +179,29 @@ template<bool At> [[maybe_unused]] static void _entry_open( void*& ctx , Record&
 }
 
 // read_lnk
-using RLB = ::pair<Record::Readlink,uint64_t/*buf*/> ;
+using ReadLinkBuf = ::pair<Record::Readlink,uint64_t/*buf*/> ;
 template<bool At> [[maybe_unused]] static void _entry_read_lnk( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		uint64_t orig_buf = args[At+1]                                             ;
-		size_t   sz       = args[At+2]                                             ;
-		char*    buf      = pid ? new char[sz] : reinterpret_cast<char*>(orig_buf) ;
-		ctx = new RLB( Record::Readlink{ r , _path<At>(pid,args+0) , buf , sz , c } , orig_buf ) ;
-	} catch (int) {}
+		uint64_t orig_buf = args[At+1]                                        ;
+		size_t   sz       = args[At+2]                                        ;
+		char*    buf      = pid ? nullptr : reinterpret_cast<char*>(orig_buf) ;
+		ctx = new ReadLinkBuf( Record::Readlink{ r , _path<At>(pid,args+0) , buf , sz , c } , orig_buf ) ;
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
 	if (ctx) {
-		RLB* rlb = static_cast<RLB*>(ctx) ;
-		SWEAR( res<=ssize_t(rlb->first.sz) , res , rlb->first.sz ) ;
-		if ( pid && res>=0 ) _peek( pid , rlb->first.buf , rlb->second , res ) ;
-		res = (rlb->first)(r,res) ;
-		if (pid) {
-			if ( rlb->first.emulated && res>=0 ) _poke( pid , rlb->second , rlb->first.buf , res ) ; // access to backdoor was emulated, we must transport result to actual user space
-			delete[] rlb->first.buf ;
+		ReadLinkBuf* rlb = static_cast<ReadLinkBuf*>(ctx) ;
+		res = (rlb->first)(r,res) ; SWEAR( res<=ssize_t(rlb->first.sz) , res,rlb->first.sz ) ;
+		if ( pid && rlb->first.magic ) {                                                       // access to backdoor was emulated, we must transport result to actual user space
+			if (res>=0)
+				try {
+					_poke( pid , rlb->second , rlb->first.buf , res ) ;
+				} catch (::string const&) {
+					Fd::Stderr.write(cat("poke error when processing ",rlb->first.backdoor_descr,'\n')) ;
+					errno = EFAULT                 ;
+					res   = -+BackdoorErr::PokeErr ;                                           // distinguish between backdoor error and absence of support
+				}
+			delete[] rlb->first.buf ;                                                          // buf has been allocated when processing magic
 		}
 		delete rlb ;
 	}
@@ -220,7 +223,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void*&
 		#endif
 		// renaming a simple file (either src or dst) is non-sense, non need to take precautions
 		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , c } ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -235,7 +238,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void*&
 template<bool At> [[maybe_unused]] static void _entry_symlink( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
 		ctx = new Record::Symlink{ r , _path<At>(pid,args+1) , c } ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -252,7 +255,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void*&
 		bool rmdir = _flag<FlagArg>(args,AT_REMOVEDIR) ;
 		if (rmdir)           Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , c ) ; // rmdir calls us without exit, and we must not set ctx in that case
 		else       ctx = new Record::Unlnk{ r , _path<At>(pid,args+0) , rmdir , c } ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res ) {
 	if (ctx) {
@@ -267,7 +270,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void*&
 template<bool At,int FlagArg> [[maybe_unused]] static void _do_stat( Record& r , pid_t pid , uint64_t args[6] , Accesses a , Comment c ) {
 	try {
 		Record::Stat( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , a , c ) ;
-	} catch (int) {}
+	} catch (::string const&) {}
 }
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_access( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	Accesses a ; if (args[At+1]&X_OK) a |= Access::Reg ;
