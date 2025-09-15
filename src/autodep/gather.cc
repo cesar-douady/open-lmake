@@ -291,22 +291,22 @@ Status Gather::exec_child() {
 	if (env) { trace("env",*env) ; swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ; }
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
-	ServerSockFd             job_master_fd  { New }       ;
-	AcFd                     fast_report_fd ;                                                                   // always open, never waited for
-	AcFd                     child_fd       ;
-	Epoll<Kind>              epoll          { New }       ;
-	Status                   status         = Status::New ;
-	::umap<Fd,Jerr>          delayed_jerrs  ;                                                                   // events that analyze deps and targets are delayed until all accesses are processed ...
-	size_t                   live_out_pos   = 0           ;                                                     // ... to ensure complete info
-	::umap<Fd,IMsgBuf      > server_slaves  ;
-	::umap<Fd,JobSlaveEntry> job_slaves     ;                                                                   // Jerr's waiting for confirmation
-	bool                     panic_seen     = false       ;
-	PD                       end_timeout    = PD::Future  ;
-	PD                       end_child      = PD::Future  ;
-	PD                       end_kill       = PD::Future  ;
-	PD                       end_heartbeat  = PD::Future  ;                                                     // heartbeat to probe server when waiting for it
-	bool                     timeout_fired  = false       ;
-	size_t                   kill_step      = 0           ;
+	ServerSockFd              job_master_fd  { New }       ;
+	AcFd                      fast_report_fd ;                                                                  // always open, never waited for
+	AcFd                      child_fd       ;
+	Epoll<Kind>               epoll          { New }       ;
+	Status                    status         = Status::New ;
+	::map<PD,::pair<Fd,Jerr>> delayed_jerrs  ;                                                                  // events that analyze deps and targets are delayed until all accesses are processed ...
+	size_t                    live_out_pos   = 0           ;                                                    // ... to ensure complete info
+	::umap<Fd,IMsgBuf      >  server_slaves  ;
+	::umap<Fd,JobSlaveEntry>  job_slaves     ;                                                                  // Jerr's waiting for confirmation
+	bool                      panic_seen     = false       ;
+	PD                        end_timeout    = PD::Future  ;
+	PD                        end_child      = PD::Future  ;
+	PD                        end_kill       = PD::Future  ;
+	PD                        end_heartbeat  = PD::Future  ;                                                    // heartbeat to probe server when waiting for it
+	bool                      timeout_fired  = false       ;
+	size_t                    kill_step      = 0           ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} ) {
 		if (status==Status::New) status = status_ ;                                                             // only record first status
@@ -324,9 +324,9 @@ Status Gather::exec_child() {
 		if ( sig && _child.pid>1 ) kill_process(_child.pid,sig,as_session/*as_group*/) ;
 		//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		set_status(Status::Killed) ;
-		if      (kill_step==kill_sigs.size()) end_kill = Pdate::Future      ;
-		else if (end_kill==Pdate::Future    ) end_kill = now      +Delay(1) ;
-		else                                  end_kill = end_kill +Delay(1) ;
+		if      (kill_step==kill_sigs.size()) end_kill = Pdate::Future       ;
+		else if (end_kill==Pdate::Future    ) end_kill = now      + Delay(1) ;
+		else                                  end_kill = end_kill + Delay(1) ;
 		_exec_trace( now , Comment::kill , {} , cat(sig) ) ;
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
@@ -403,20 +403,25 @@ Status Gather::exec_child() {
 		}
 		bool  must_wait = +epoll || +_wait ;
 		Delay wait_for  ;
-		if ( must_wait && !delayed_jerrs && !_wait[Kind::ChildStart] ) {
+		if ( must_wait && !_wait[Kind::ChildStart] ) {
 			Pdate event_date = ::min({
 				end_child
 			,	end_kill
 			,	end_timeout
 			,	end_heartbeat
 			}) ;
+			if (+delayed_jerrs) event_date = ::min( event_date , delayed_jerrs.begin()->first ) ;
 			wait_for = event_date<Pdate::Future ? event_date-now : Delay::Forever ;
 		}
 		::vector<Event> events = epoll.wait(wait_for) ;
 		if (!events) {
-			if (+delayed_jerrs) {                        // process delayed check deps after all other events
-				for( auto& [fd,jerr] : delayed_jerrs ) {
-					trace("delayed_jerr",fd,jerr) ;
+			if (+delayed_jerrs) {                 // process delayed jerrs after all other events
+				while (+delayed_jerrs) {
+					auto  it           = delayed_jerrs.begin() ;
+					auto& [pd,fd_jerr] = *it                   ;
+					if (pd>now) break ;
+					trace("delayed_jerr",fd_jerr) ;
+					auto& [fd,jerr] = fd_jerr ;
 					switch (jerr.proc) {
 						case Proc::ChkDeps : _send_to_server( fd , ::move(jerr) ) ; break ;
 						case Proc::List    : {
@@ -431,9 +436,9 @@ Status Gather::exec_child() {
 							sync( fd , ::move(reply) ) ;
 						} break ;
 					DF}
+					delayed_jerrs.erase(it) ;
 				}
-				delayed_jerrs.clear() ;
-			} else if (_wait[Kind::ChildStart]) {        // handle case where we are killed before starting : create child when we have processed waiting connections from server
+			} else if (_wait[Kind::ChildStart]) { // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
 					child_fd = _spawn_child() ;
 				} catch(::string const& e) {
@@ -441,7 +446,7 @@ Status Gather::exec_child() {
 					if (child_stderr==Child::PipeFd) stderr = ensure_nl(e) ;
 					else                             child_stderr.write(ensure_nl(e)) ;
 					status = Status::EarlyErr ;
-					break ;                              // cannot start, exit loop
+					break ;                       // cannot start, exit loop
 				}
 				if (+timeout) end_timeout = start_date + timeout ;
 				_exec_trace( start_date , Comment::startJob ) ;
@@ -454,7 +459,7 @@ Status Gather::exec_child() {
 				/**/                               epoll.add_read( job_master_fd , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
 			} else if (!must_wait) {
-				break ;                                  // we are done, exit loop
+				break ;                           // we are done, exit loop
 			}
 		}
 		for( Event const& event : events ) {
@@ -653,35 +658,35 @@ Status Gather::exec_child() {
 						jse.buf_sz += cnt ;
 						size_t pos = 0 ;
 						for(;;) {
-							{ if (pos+sizeof(MsgBuf::Len)   >jse.buf_sz) break ; } MsgBuf::Len sz = decode_int<MsgBuf::Len>(jse.buf+pos) ;  // read message size
-							{ if (pos+sizeof(MsgBuf::Len)+sz>jse.buf_sz) break ; } pos += sizeof(MsgBuf::Len) ;                             // read message
+							{ if (pos+sizeof(MsgBuf::Len)   >jse.buf_sz) break ; } MsgBuf::Len sz = decode_int<MsgBuf::Len>(jse.buf+pos) ;     // read message size
+							{ if (pos+sizeof(MsgBuf::Len)+sz>jse.buf_sz) break ; } pos += sizeof(MsgBuf::Len) ;                                // read message
 							auto jerr = deserialize<Jerr>({ jse.buf+pos , sz }) ;
 							pos += sz ;
 							//
-							Proc proc  = jerr.proc      ;                                                                                   // capture before jerr is ::move()'ed
-							bool sync_ = jerr.sync==Yes ;                                                                                   // Maybe means not sync, only for transport
-							if ( fd==fast_report_fd          ) SWEAR(!sync_) ;                                                              // cannot reply on fast_report_fd
-							if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                             // accesses are traced when processed
+							Proc proc  = jerr.proc      ;                                                                                      // capture before jerr is ::move()'ed
+							bool sync_ = jerr.sync==Yes ;                                                                                      // Maybe means not sync, only for transport
+							if ( fd==fast_report_fd          ) SWEAR(!sync_) ;                                                                 // cannot reply on fast_report_fd
+							if ( proc!=Proc::Access || sync_ ) trace(kind,fd,proc,STR(sync_)) ;                                                // accesses are traced when processed
 							switch (proc) {
 								case Proc::DepPush    : jse.pushed_deps.emplace_back(::move(jerr.file)) ;  break ;
 								case Proc::CodecFile  : jse.codec.file =             ::move(jerr.file)  ;  break ;
 								case Proc::CodecCtx   : jse.codec.ctx  =             ::move(jerr.file)  ;  break ;
 								case Proc::Guard      : _new_guard(fd,::move(jerr.file)) ;                 break ;
 								case Proc::List       :
-								case Proc::ChkDeps    : delayed_jerrs[fd] = ::move(jerr) ; sync_ = false ; break ;                          // if sync, reply is delayed as well
+								case Proc::ChkDeps    : delayed_jerrs.try_emplace(jerr.date,::pair(fd,::move(jerr))) ; sync_ = false ; break ; // if sync, reply is delayed as well
 								case Proc::DepDirect  :
 								case Proc::DepVerbose :
 								case Proc::Decode     :
 								case Proc::Encode     : {
 									jse.jerr = ::move(jerr) ;
 									_send_to_server( fd , ::move(jse.jerr) , jse ) ;
-									sync_ = false ;                                                                                         // reply is delayed until server reply
+									sync_ = false ;                                                                                            // reply is delayed until server reply
 								} break ;
 								case Proc::Confirm : {
 									trace("confirm",kind,fd,jerr.digest.write,jerr.id) ;
 									Trace trace2 ;
 									auto it = jse.to_confirm.find(jerr.id) ; SWEAR( it!=jse.to_confirm.end() , jerr.id , jse.to_confirm ) ;
-									SWEAR(jerr.digest.write!=Maybe) ;                                                                       // ensure we confirm/infirm
+									SWEAR(jerr.digest.write!=Maybe) ;                                                                          // ensure we confirm/infirm
 									for ( Jerr& j : it->second ) {
 										SWEAR(j.digest.write==Maybe) ;
 										/**/                    j.digest.write  = jerr.digest.write ;

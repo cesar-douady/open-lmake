@@ -46,8 +46,8 @@ else :
 	ut.lmake( 'test' , done=2 , new=1 )
 
 	log = sp.check_output(('lshow','-o','dut'),universal_newlines=True)
-	ref = textwrap.indent(textwrap.dedent('''
+	ref = textwrap.dedent('''
 			+ ./sub_script
 			+ cat /tmp/tmp
-	'''[1:]),'\t')                             # strip initial \n
+	'''[1:])
 	assert log==ref,f'log={log!r} ref={ref!r}'

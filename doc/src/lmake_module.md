@@ -180,7 +180,7 @@ Notes:
 - (1):
 	The same functionality is provided with the `ltarget` executable.
 
-### `check_deps(sync=False)`
+### `check_deps(delay=0,sync=False)`
 
 Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
 Job will be killed in case condition above is not met.
@@ -188,9 +188,11 @@ Job will be killed in case condition above is not met.
 This means that rerun reasons are checked.
 This can be usefully called before heavy computation so that such heavy computation is run only once.
 
-If `sync`, wait for server reply. Return value is False if at least a dep is in error.
+If not null, the previous check is delayed by `delay` seconds. unless `sync`, function returns immediately, though (cf. note (2).
+
+If `sync`, wait for server reply. Return value is `True` if all deps are ok (no error), `False` otherwise.
 This is necessary, even without checking return value, to ensure that after this call,
-the dirs of previous deps actually exist if such deps are not read (such as with lmake.depend).
+the dirs of previous deps actually exist if such deps are not read (e.g. when using `lmake.depend` without `read=True`).
 
 **CAVEAT**
 
@@ -207,6 +209,12 @@ Notes:
 
 - (1):
 	The same functionality is provided with the `lcheck_deps` executable.
+- (2):
+	The `delay` argument is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
+	Because there is no way to insert a call to `check_deps` after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
+	If `delay` is long enough for all files to be read but substantially smaller than the compilation time,
+	time can be save by avoiding full compilation with bad inputs when deps are being discovered.
+
 
 ### `get_autodep()`
 

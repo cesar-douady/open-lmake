@@ -338,8 +338,7 @@ class TarLmake(BaseRule) :
 		if sys_config('HAS_LD_AUDIT') : files.append('_lib/ld_audit.so')
 		return files
 	cmd = '''
-		for f in       {' '.join(gen_files())} ; do echo $f ; done
-		tar -czf {TAR} {' '.join(gen_files())}
+		tar -czvf {TAR} {' '.join(gen_files())}
 	'''
 
 class CpyPy(BaseRule) :

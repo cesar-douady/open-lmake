@@ -122,8 +122,8 @@ namespace JobSupport {
 		}
 	}
 
-	Bool3 check_deps( Record const& r , bool sync ) {
-		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::chkDeps , .date=New }).ok ;
+	Bool3 check_deps( Record const& r , Delay delay , bool sync ) {
+		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::chkDeps , .date=Pdate(New)+delay }).ok ;
 	}
 
 	::vector_s list( Record const& r , Bool3 write , ::optional_s const& dir , ::optional_s const& regexpr ) {

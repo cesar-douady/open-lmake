@@ -727,14 +727,15 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <li>(1):
 The same functionality is provided with the <code>ltarget</code> executable.</li>
 </ul>
-<h3 id="check_depssyncfalse"><a class="header" href="#check_depssyncfalse"><code>check_deps(sync=False)</code></a></h3>
+<h3 id="check_depsdelay0syncfalse"><a class="header" href="#check_depsdelay0syncfalse"><code>check_deps(delay=0,sync=False)</code></a></h3>
 <p>Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
 Job will be killed in case condition above is not met.</p>
 <p>This means that rerun reasons are checked.
 This can be usefully called before heavy computation so that such heavy computation is run only once.</p>
-<p>If <code>sync</code>, wait for server reply. Return value is False if at least a dep is in error.
+<p>If not null, the previous check is delayed by <code>delay</code> seconds. unless <code>sync</code>, function returns immediately, though (cf. note (2).</p>
+<p>If <code>sync</code>, wait for server reply. Return value is <code>True</code> if all deps are ok (no error), <code>False</code> otherwise.
 This is necessary, even without checking return value, to ensure that after this call,
-the dirs of previous deps actually exist if such deps are not read (such as with lmake.depend).</p>
+the dirs of previous deps actually exist if such deps are not read (e.g. when using <code>lmake.depend</code> without <code>read=True</code>).</p>
 <p><strong>CAVEAT</strong></p>
 <p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
 and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
@@ -747,6 +748,11 @@ This has a small cost in the general case where deps are actually up-to-date, bu
 <ul>
 <li>(1):
 The same functionality is provided with the <code>lcheck_deps</code> executable.</li>
+<li>(2):
+The <code>delay</code> argument is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
+Because there is no way to insert a call to <code>check_deps</code> after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
+If <code>delay</code> is long enough for all files to be read but substantially smaller than the compilation time,
+time can be save by avoiding full compilation with bad inputs when deps are being discovered.</li>
 </ul>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>

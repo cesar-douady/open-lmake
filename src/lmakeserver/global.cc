@@ -18,7 +18,7 @@ namespace Engine {
 
 	::string _audit_indent( ::string&& t , DepDepth l , char sep ) {
 		if (!l) {
-			SWEAR(!sep) ;      // cannot have a sep if we have no room to put it
+			SWEAR( !sep || sep=='\t' ) ;      // cannot have a sep if we have no room to put it
 			return ::move(t) ;
 		}
 		if (sep=='\t') {

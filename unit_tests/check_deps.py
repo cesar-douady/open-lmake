@@ -16,10 +16,18 @@ if __name__!='__main__' :
 		,	'STAR' : 'dut{D}.dir/{*:.*}'
 		}
 		stderr_ok = True
-		cmd = 'cat dep > {OUT} ; cat {OUT}.dir/1 || echo star > {OUT}.dir/1 ; lcheck_deps ; sleep 2' # sleep to ensure job is killed when lcheck_deps fails
+		cmd = '''
+			cat dep1 > {OUT}
+			lcheck_deps -s
+			lcheck_deps -d 2
+			sleep 1
+			cat dep2 > {OUT} ; cat {OUT}.dir/1 || echo star > {OUT}.dir/1
+			sleep 2
+			cat dep3 > {OUT} ; cat {OUT}.dir/1 || echo star > {OUT}.dir/1
+		''' # sleep to ensure job is killed when lcheck_deps fails
 
 	class Dep(Rule) :
-		target = 'dep'
+		target = r'dep{D:\d+}'
 		cmd    = ''
 
 else :
@@ -28,8 +36,8 @@ else :
 
 	import ut
 
-	ut.lmake( 'dut1' , rerun=1 , done=2 ) # ensure rerun
-	ut.lmake( 'dut2' ,           done=1 ) # ensure no rerun
+	ut.lmake( 'dut1' , rerun=2 , may_rerun=1 , done=4 ) # ensure rerun
+	ut.lmake( 'dut2' ,                         done=1 ) # ensure no rerun
 
 	os.makedirs('dut3.dir',exist_ok=True)
 	print('manual',file=open('dut3.dir/1','w'))

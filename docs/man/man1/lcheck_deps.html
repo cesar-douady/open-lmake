@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Sep  8 20:30:15 2025 -->
+<!-- CreationDate: Mon Sep 15 17:25:26 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -107,8 +107,14 @@ star-targets), such targets must be written before
 </h2>
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>-s</b>,
-<b>--sync</b></p>
+<p style="margin-left:9%; margin-top: 1em"><b>-d</b>
+<i>delay</i>, <b>--delay</b>=<i>delay</i></p>
+
+<p style="margin-left:18%;">delay check by <i>delay</i>
+seconds. Unless <b>--sync</b> is also specified, this
+command returns immediately, though (cf. NOTES).</p>
+
+<p style="margin-left:9%;"><b>-s</b>, <b>--sync</b></p>
 
 <p style="margin-left:18%;">wait for server answer rather
 than letting job go speculatively while it is interrogated.
@@ -116,7 +122,7 @@ return code will be 1 if at least one dep is in error. This
 is necessary, even without checking return code, to ensure
 that after this call, the dirs of previous deps actually
 exist if such deps are not read (such as with
-<b>lmake.depend</b>).</p>
+<b>lmake.depend</b>) (cf. CAVEAT).</p>
 
 <h2>EXAMPLES
 <a name="EXAMPLES"></a>
@@ -177,6 +183,17 @@ seconds instead of 10 minutes.</p>
 <p style="margin-left:9%; margin-top: 1em">Despite these
 remarks, there are case where <b>lcheck_deps</b> is very
 welcome.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The <i>delay</i>
+option is useful in situations such as compilation where all
+input files are read upfront before spending time doing the
+actual job. Because there is no way to insert a call to this
+command after having read the files but before carrying out
+compilation, an alternative consists in executing it with a
+delay upfront. If <i>delay</i> is long enough for all files
+to be read but substantially smaller than the compilation
+time, time can be save by avoiding full compilation with bad
+inputs when deps are being discovered.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>

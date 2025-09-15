@@ -805,13 +805,13 @@ namespace Engine {
 							}
 						} break ;
 						case ReqKey::Cmd : //!                                                        as_is
-							if      (porcelaine) audit( fd , ro ,               mk_py_str(start.cmd) , true          ) ;
-							else if (+start    ) audit( fd , ro ,                         start.cmd  , true , 1,'\t' ) ;
-							else                 audit( fd , ro , Color::Note , "no info available"  , true , lvl    ) ;
+							if      (porcelaine) audit( fd , ro ,               mk_py_str(start.cmd) , true                  ) ;
+							else if (+start    ) audit( fd , ro ,                         start.cmd  , true , bool(lvl),'\t' ) ;
+							else                 audit( fd , ro , Color::Note , "no info available"  , true ,      lvl       ) ;
 						break ;
 						case ReqKey::Stdout : //!                                         as_is
-							if      (porcelaine) audit( fd , ro , mk_py_str(end.stdout) , true          ) ;
-							else if (+end      ) audit( fd , ro ,           end.stdout  , true , 1,'\t' ) ;
+							if      (porcelaine) audit( fd , ro , mk_py_str(end.stdout) , true                  ) ;
+							else if (+end      ) audit( fd , ro ,           end.stdout  , true , bool(lvl),'\t' ) ;
 							else {
 								audit( fd , ro , Color::Note , "no info available" , true , lvl ) ;
 								if (+start) {
@@ -830,9 +830,9 @@ namespace Engine {
 								/**/         audit( fd , ro , mk_py_str(end.msg_stderr.stderr) , true               ) ;
 								if (verbose) audit( fd , ro , ")"                              , true , lvl         ) ;
 							} else if ( +end || (+start&&verbose) ) {
-								if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg         , false , lvl+1  ) ;
-								if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg_stderr.msg    , false , lvl+1  ) ;
-								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , 1,'\t' ) ;      // ensure internal alignment of stderr is maintained
+								if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg         , false ,      lvl       ) ;
+								if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg_stderr.msg    , false ,      lvl       ) ;
+								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , bool(lvl),'\t' ) ;      // ensure internal alignment of stderr is maintained
 							} else {
 								audit( fd , ro , Color::Note , "no info available" , true , lvl ) ;
 							}

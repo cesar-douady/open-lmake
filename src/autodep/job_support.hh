@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "hash.hh"
+#include "time.hh"
 
 #include "record.hh"
 #include "rpc_job_exec.hh"
@@ -12,7 +13,7 @@ namespace JobSupport {
 
 	::pair<::vector<VerboseInfo>,bool/*ok*/> depend     ( Record const& , ::vector_s&& files , AccessDigest , bool no_follow , bool regexpr=false ) ;
 	void                                     target     ( Record const& , ::vector_s&& files , AccessDigest ,                  bool regexpr=false ) ;
-	Bool3                                    check_deps ( Record const& ,                                                      bool sync   =false ) ;
+	Bool3                                    check_deps ( Record const& , Time::Delay , bool sync=false                                           ) ; // date is used for delayed action
 	::vector_s                               list       ( Record const& , Bool3 write , ::optional_s const& dir , ::optional_s const& regexpr     ) ; // No:deps, Yes:targets, Maybe:both
 	::string                                 list_root_s(                               ::string     const& dir                                   ) ;
 	::pair_s<                    bool/*ok*/> decode     ( Record const& , ::string&& file , ::string&& code , ::string&& ctx                      ) ;

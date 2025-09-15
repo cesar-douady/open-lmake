@@ -97,10 +97,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * provide a list of forbidden src dirs
 	- like src dirs, but access generates fail
 	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
-* check_deps
-	- pass a delay argument
-	- execute lcheck_deps as soon as no new deps for delay seconds
-	- this allows to call check_deps before a program such as a compiler that read its deps early
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

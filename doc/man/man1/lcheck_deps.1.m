@@ -30,9 +30,12 @@ Note that to be imunised against pre-existing targets (only pertinent for star-t
 
 .SH OPTIONS
 .LP
+Item(B(-d) I(delay),B(--delay)=I(delay)) delay check by I(delay) seconds.
+Unless B(--sync) is also specified, this command returns immediately, though (cf. NOTES).
+.LP
 Item(B(-s),B(--sync)) wait for server answer rather than letting job go speculatively while it is interrogated.
 return code will be 1 if at least one dep is in error.
-This is necessary, even without checking return code, to ensure that after this call, the dirs of previous deps actually exist if such deps are not read (such as with B(lmake.depend)).
+This is necessary, even without checking return code, to ensure that after this call, the dirs of previous deps actually exist if such deps are not read (such as with B(lmake.depend)) (cf. CAVEAT).
 
 .SH EXAMPLES
 .LP
@@ -61,5 +64,10 @@ In the case where I(generated.h) is rebuilt identically to its previous content,
 so B(lcheck_deps) has a (minor) adverse effect leading to an overall time of 10 minutes 10 seconds instead of 10 minutes.
 .LP
 Despite these remarks, there are case where B(lcheck_deps) is very welcome.
+.LP
+The I(delay) option is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
+Because there is no way to insert a call to this command after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
+If I(delay) is long enough for all files to be read but substantially smaller than the compilation time,
+time can be save by avoiding full compilation with bad inputs when deps are being discovered.
 
 Footer

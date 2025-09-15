@@ -126,7 +126,6 @@ struct Gather {                                                       // NOLINT(
 private :
 	static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
 	// services
-	void         _kill          ( bool force                            ) ;
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                  ) ;
 	void         _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                              // files are required for DepVerbose and forbidden for other
 	void _new_guard( Fd fd , ::string&& file ) {                                                         // fd for trace purpose only

@@ -146,17 +146,30 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
-	if (py_args.size()>1) throw "too many args"s ;
-	bool sync = +py_args && +py_args[0] ;
-	if ( +py_args && +py_kwds ) throw "too many args"s ;
+	size_t n_args = py_args.size() ;
+	//
+	::optional<Delay> delay ;
+	::optional<bool > sync  ;
+	if (n_args>2) throw cat("too many args : ",n_args,">2") ;
+	switch (n_args) {
+		case 2 :                         sync  = +            py_args[1]                 ; [[fallthrough]] ;
+		case 1 : if (&py_args[0]!=&None) delay = Delay(double(py_args[0].as_a<Float>())) ; [[fallthrough]] ;
+		case 0 : break ;
+	DF}                                            // NO_COV
 	for( auto const& [py_key,py_val] : py_kwds ) {
+		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
-		if (key=="sync") sync = +py_val ;
-		else             throw "unexpected keyword arg "+key ;
+		switch (key[0]) {
+			case 'd' : if (key=="delay") { throw_if(+delay,"arg ",key,MsgEnd) ; { if (&py_val!=&None) delay = Delay(double(py_val.as_a<Float>())) ; } continue ; } break ;
+			case 's' : if (key=="sync" ) { throw_if(+sync ,"arg ",key,MsgEnd) ; { if (&py_val!=&None) sync  =             +py_val                 ; } continue ; } break ;
+		DN}
+		throw "unexpected keyword arg "+key ;
 	}
+	//
 	try {
-		Bool3 ok = JobSupport::check_deps( *_g_record , sync ) ;
-		if (!sync) return &None ;
+		bool  is_sync = sync.value_or(false)                                                     ;
+		Bool3 ok      = JobSupport::check_deps( *_g_record , delay.value_or(Delay()) , is_sync ) ;
+		if (!is_sync) return &None ;
 		throw_if(ok==Maybe,"some deps are out-of-date") ; // in case handler catches killing signal as job will be killed in that case
 		return Ptr<Bool>(ok==Yes) ;
 	} catch (::string const& e) {
