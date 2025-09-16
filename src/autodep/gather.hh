@@ -146,7 +146,7 @@ public :
 	void new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di , Bool3 l    , Comment c=Comment::None , CommentExts ces={} ) { new_access({},pd,::move(f),ad,di,l    ,c,ces) ; }
 	void new_access(      PD pd , ::string&& f    , AccessDigest ad , DI const& di ,              Comment c=Comment::None , CommentExts ces={} ) { new_access({},pd,::move(f),ad,di,Maybe,c,ces) ; }
 	//
-	void new_exec  ( PD , ::string const& exe , Comment=Comment::staticExec ) ;
+	void new_exec  ( PD , ::string const& exe , Comment=Comment::StaticExec ) ;
 	//
 	void new_guard (::string const& f) { guards.insert(f) ; }
 	//

@@ -230,37 +230,38 @@ enum class Comment : uint8_t {
 ,	__realpath_chk
 ,	__xstat                , __xstat64
 // lmake functions
-,	analyzed
-,	chkDeps            , chkTargets
-,	computedCrcs
-,	decode
-,	depAndTarget
-,	depend
-,	encode
-,	endJob             , endOverhead
-,	enteredNamespace
-,	hot
-,	kill
-,	list
-,	lostServer
-,	panic
-,	startInfo
-,	startJob           , startOverhead
-,	staticDep          , staticDepAndTarget
-,	staticExec
-,	staticMatch
-,	staticTarget
-,	staticUnlnk
-,	stderr             , stdin              , stdout
-,	stillAlive
-,	timeout
-,	target
-,	tmp
-,	trace
-,	unexpectedTarget
-,	unstable
-,	uploadedToCache
-,	wash               , washed
+,	Analyzed
+,	ChkDeps            , ChkTargets
+,	ComputedCrcs
+,	Decode
+,	DepAndTarget
+,	Depend
+,	Encode
+,	EndJob             , EndOverhead
+,	EnteredNamespace
+,	Hot
+,	Kill
+,	List
+,	LostServer
+,	OsInfo
+,	Panic
+,	StartInfo
+,	StartJob           , StartOverhead
+,	StaticDep          , StaticDepAndTarget
+,	StaticExec
+,	StaticMatch
+,	StaticTarget
+,	StaticUnlnk
+,	Stderr             , Stdin              , Stdout
+,	StillAlive
+,	Timeout
+,	Target
+,	Tmp
+,	Trace
+,	UnexpectedTarget
+,	Unstable
+,	UploadedToCache
+,	Wash               , Washed
 } ;
 // END_OF_VERSIONING
 

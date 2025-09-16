@@ -768,33 +768,32 @@ struct JobStartRpcReply {                                                       
 	bool operator+() const { return +interpreter ; }                               // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes(s,addr          ) ;
-		::serdes(s,autodep_env   ) ;
-		::serdes(s,cache_idx     ) ;
-		::serdes(s,cmd           ) ;
-		::serdes(s,ddate_prec    ) ;
-		::serdes(s,deps          ) ;
-		::serdes(s,env           ) ;
-		::serdes(s,interpreter   ) ;
-		::serdes(s,job_space     ) ;
-		::serdes(s,keep_tmp      ) ;
-		::serdes(s,key           ) ;
-		::serdes(s,kill_sigs     ) ;
-		::serdes(s,live_out      ) ;
-		::serdes(s,method        ) ;
-		::serdes(s,network_delay ) ;
-		::serdes(s,nice          ) ;
-		::serdes(s,pre_actions   ) ;
-		::serdes(s,rule          ) ;
-		::serdes(s,small_id      ) ;
-		::serdes(s,star_matches  ) ;
-		::serdes(s,static_matches) ;
-		::serdes(s,stderr_ok     ) ;
-		::serdes(s,stdin         ) ;
-		::serdes(s,stdout        ) ;
-		::serdes(s,timeout       ) ;
-		::serdes(s,use_script    ) ;
-		::serdes(s,z_lvl         ) ;
+		::serdes( s , addr                            ) ;
+		::serdes( s , autodep_env                     ) ;
+		::serdes( s , cache_idx                       ) ;
+		::serdes( s , cmd                             ) ;
+		::serdes( s , ddate_prec                      ) ;
+		::serdes( s , deps                            ) ;
+		::serdes( s , env                             ) ;
+		::serdes( s , interpreter                     ) ;
+		::serdes( s , job_space                       ) ;
+		::serdes( s , keep_tmp                        ) ;
+		::serdes( s , key                             ) ;
+		::serdes( s , kill_sigs                       ) ;
+		::serdes( s , live_out                        ) ;
+		::serdes( s , method                          ) ;
+		::serdes( s , network_delay                   ) ;
+		::serdes( s , nice                            ) ;
+		::serdes( s , os_info        , os_info_file   ) ;
+		::serdes( s , pre_actions                     ) ;
+		::serdes( s , rule                            ) ;
+		::serdes( s , small_id                        ) ;
+		::serdes( s , star_matches   , static_matches ) ;
+		::serdes( s , stderr_ok                       ) ;
+		::serdes( s , stdin          , stdout         ) ;
+		::serdes( s , timeout                         ) ;
+		::serdes( s , use_script                      ) ;
+		::serdes( s , z_lvl                           ) ;
 		//
 		CacheTag tag ;
 		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
@@ -834,6 +833,8 @@ struct JobStartRpcReply {                                                       
 	AutodepMethod                           method         = AutodepMethod::Dflt ;
 	Time::Delay                             network_delay  ;
 	uint8_t                                 nice           = 0                   ;
+	::string                                os_info        ;                       // a regexpr of acceptable OS's
+	::string                                os_info_file   ;                       // a system file containing OS info, defaults to ID/VERSION_ID/architecture (from /etc/os-release and uname -m)
 	::vmap_s<FileAction>                    pre_actions    ;
 	::string                                rule           ;                       // rule name
 	SmallId                                 small_id       = 0                   ;

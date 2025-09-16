@@ -49,10 +49,10 @@ namespace JobSupport {
 		bool               sync      = verbose || direct ;
 		for( ::string& f : files ) {
 			if (regexpr) {
-				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
+				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::Depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
 				continue ;
 			}
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(f) , .no_follow=no_follow , .read=true , .write=false , .comment=Comment::depend }) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(f) , .no_follow=no_follow , .read=true , .write=false , .comment=Comment::Depend }) ;
 			if (!sync) {
 				if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) {                // when passing flag readdir_ok, we may want to report top-level dir
 					sr.file_loc = FileLoc::Repo ;
@@ -60,7 +60,7 @@ namespace JobSupport {
 					sr.accesses = {}            ;                                    // besides passing ReadirOk flag, top-level dir is external
 					ad.accesses = {}            ;                                    // .
 				}
-				r.report_access( sr.file_loc , { .comment=Comment::depend , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+				r.report_access( sr.file_loc , { .comment=Comment::Depend , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
 			} else if (sr.file_loc<=FileLoc::Dep) {
 				ad |= sr.accesses ;                                                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 				// not actually sync, but transport as sync to use the same fd as DepVerbose
@@ -77,7 +77,7 @@ namespace JobSupport {
 		CommentExts ces  = verbose ? CommentExt::Verbose     : CommentExt::Direct     ;
 		//
 		if (verbose) ad.accesses |= ~Accesses() ;
-		JobExecRpcReply                          reply = r.report_sync( { .proc=proc , .sync=Yes , .comment=Comment::depend , .comment_exts=ces , .digest=ad , .date=now } , true/*force*/ ) ;
+		JobExecRpcReply                          reply = r.report_sync( { .proc=proc , .sync=Yes , .comment=Comment::Depend , .comment_exts=ces , .digest=ad , .date=now } , true/*force*/ ) ;
 		::pair<::vector<VerboseInfo>,bool/*ok*/> res   { {} , true/*ok*/ }                                                                                                                   ;
 		SWEAR(verbose!=direct) ;
 		if (verbose)
@@ -101,7 +101,7 @@ namespace JobSupport {
 		Pdate              now     { New } ;                                                                                        // for perf and in trace, we will see all targets with same date
 		for( ::string& f : files ) {
 			if (regexpr) {
-				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::target , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
+				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::Target , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
 				continue ;
 			}
 			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
@@ -110,11 +110,11 @@ namespace JobSupport {
 			,	.read      = false
 			,	.write     = true
 			,	.create    = true
-			,	.comment   = Comment::target
+			,	.comment   = Comment::Target
 			}) ;
 			r.report_access(
 				sr.file_loc
-			,	{ .comment=Comment::target , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
+			,	{ .comment=Comment::Target , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
 			,	sr.file_loc0
 			,	::move(sr.real0)
 			,	true/*force*/
@@ -123,7 +123,7 @@ namespace JobSupport {
 	}
 
 	Bool3 check_deps( Record const& r , Delay delay , bool sync ) {
-		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::chkDeps , .date=Pdate(New)+delay }).ok ;
+		return r.report_sync({ .proc=Proc::ChkDeps , .sync=No|sync , .comment=Comment::ChkDeps , .date=Pdate(New)+delay }).ok ;
 	}
 
 	::vector_s list( Record const& r , Bool3 write , ::optional_s const& dir , ::optional_s const& regexpr ) {
@@ -131,7 +131,7 @@ namespace JobSupport {
 		::string const& repo_root_s = Record::s_autodep_env().repo_root_s ;
 		::optional_s    abs_dir_s   ;
 		if (+dir) {
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::copy(*dir) , .no_follow=true , .read=false , .write=false , .comment=Comment::list }) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::copy(*dir) , .no_follow=true , .read=false , .write=false , .comment=Comment::List }) ;
 			abs_dir_s = mk_glb_s( with_slash(sr.real) , repo_root_s ) ;
 		}
 		::vector_s          res       ;
@@ -139,7 +139,7 @@ namespace JobSupport {
 		::optional_s        lcl_cwd_s ;           if ( abs_cwd_s.starts_with(repo_root_s) ) lcl_cwd_s = mk_lcl_s(abs_cwd_s,repo_root_s) ;
 		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = *regexpr                        ;
 		//
-		for( ::string& f : r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::list , .digest{.write=write} , .date=New }).files ) {
+		for( ::string& f : r.report_sync({ .proc=Proc::List , .sync=Yes , .comment=Comment::List , .digest{.write=write} , .date=New }).files ) {
 			::string abs_f = mk_glb( ::move(f) , repo_root_s ) ;
 			//
 			if ( +dir && !abs_f.starts_with(*abs_dir_s) ) continue ;
@@ -158,7 +158,7 @@ namespace JobSupport {
 	::string list_root_s( ::string const& dir ) {
 		// report dir as used as prefix when listing dir
 		::string const&        repo_root_s = Record::s_autodep_env().repo_root_s                                                                                            ;
-		Backdoor::Solve::Reply sr          = Backdoor::call<Backdoor::Solve>({ .file=::copy(dir) , .no_follow=true , .read=false , .write=false , .comment=Comment::list }) ;
+		Backdoor::Solve::Reply sr          = Backdoor::call<Backdoor::Solve>({ .file=::copy(dir) , .no_follow=true , .read=false , .write=false , .comment=Comment::List }) ;
 		::string               dir_s       = with_slash(sr.real)                                                                                                            ;
 		::string               abs_dir_s   = mk_glb_s( dir_s , repo_root_s )                                                                                                ;
 		::string               abs_cwd_s   = cwd_s()                                                                                                                        ;
@@ -172,7 +172,7 @@ namespace JobSupport {
 			if (min_len<=1            ) return { cat("min_len (",min_len,") must be at least 1"                                 ) , false } ;
 			if (min_len> sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
 		}
-		Comment comment = Encode ? Comment::encode : Comment::decode ;
+		Comment comment = Encode ? Comment::Encode : Comment::Decode ;
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;
 		//
 		r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;

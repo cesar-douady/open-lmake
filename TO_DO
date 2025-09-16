@@ -76,11 +76,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
 	- or write such functions in C, so that malloc are necessary visible
-? add a dep to all jobs that represents system
-	- semantically a crc computed over /usr, /etc, etc. everything that has an impact on job execution
-	- beware to take chroot into account
-	- deault to the content of /etc/os-release ID+VERSION_ID + uname -m
-	- but should also take into account all installed packages/software
 ? use a Path struct instead of at/file
 	- everywhere applicable
 	- possibly too expensive performance wise
@@ -94,6 +89,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* distinguish lmake return code depending on necessary user corrective action
+	- such as must git clean
+	- so as to be script friendly
 * provide a list of forbidden src dirs
 	- like src dirs, but access generates fail
 	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)

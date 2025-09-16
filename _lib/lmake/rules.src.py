@@ -9,6 +9,7 @@ import sys     as _sys
 import os      as _os
 import os.path as _osp
 import pwd     as _pwd
+import re      as _re
 import signal  as _signal
 
 import lmake
@@ -20,6 +21,21 @@ python           = '$PYTHON'                            # .
 _std_path        = '$STD_PATH'                          # .
 _ld_library_path = '$LD_LIBRARY_PATH'                   # .
 _lmake_lib       = _osp.dirname(_osp.dirname(__file__))
+
+# /!\ must stay in sync with src/job_exec.cc:get_os_info
+def _get_os_info() :
+	id         = ''
+	version_id = ''
+	machine    = ''
+	try :
+		for l in open('/etc/os-release') :
+			l = l.strip()
+			if   l.startswith('ID='        ) : id         = l.split('=',1)[1]
+			elif l.startswith('VERSION_ID=') : version_id = l.split('=',1)[1]
+	except ... : pass
+	try        : machine = _os.uname().machine
+	except ... : pass
+	return f'{id}/{version_id}/{machine}'
 
 class _RuleBase :
 	def __init_subclass__(cls) :
@@ -87,6 +103,9 @@ class Rule(_RuleBase) :
 	max_retries_on_lost = 1                            # max number of retries in case of job lost. 1 is a reasonable value
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
+	os_info             = _re.escape(_get_os_info())   # regexpr matching acceptable os_info from job execution environment
+#	os_info_file        = '/os_info'                   # custom system file to distinguish OS'es from one anothe to ensure job is executed under proper system
+	#                                                  # defaults to : <id>/<version_id>/<machine> where <id> and <version_id> are taken from /etc/os-release and <machine> from os.uname().machine
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
 #	readdir_ok          = False                        # if set, listing a local non-ignored dir is not an error

@@ -327,7 +327,7 @@ Status Gather::exec_child() {
 		if      (kill_step==kill_sigs.size()) end_kill = Pdate::Future       ;
 		else if (end_kill==Pdate::Future    ) end_kill = now      + Delay(1) ;
 		else                                  end_kill = end_kill + Delay(1) ;
-		_exec_trace( now , Comment::kill , {} , cat(sig) ) ;
+		_exec_trace( now , Comment::Kill , {} , cat(sig) ) ;
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
 	} ;
@@ -362,7 +362,7 @@ Status Gather::exec_child() {
 	for(;;) {
 		Pdate now = New ;
 		if (now>=end_child) {
-			_exec_trace(now,Comment::stillAlive) ;
+			_exec_trace(now,Comment::StillAlive) ;
 			if (!_wait[Kind::ChildEnd]) {
 				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;       // else we should already have exited
 				::string msg_ ;
@@ -382,7 +382,7 @@ Status Gather::exec_child() {
 			kill(true/*next*/) ;
 		}
 		if ( now>=end_timeout && !timeout_fired ) {
-			_exec_trace(now,Comment::timeout) ;
+			_exec_trace(now,Comment::Timeout) ;
 			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
 			kill() ;
 			timeout_fired = true          ;
@@ -432,7 +432,7 @@ Status Gather::exec_child() {
 							chk_deps_cb( /*out*/targets , /*out*/deps ) ;
 							if (jerr.digest.write!=No ) { ces |= CommentExt::Write ; for( auto& [tn,td] : targets ) if (td.crc!=Crc::None) reply.files.push_back(::move(tn)) ; }
 							if (jerr.digest.write!=Yes) { ces |= CommentExt::Read  ; for( auto& [dn,_ ] : deps    )                        reply.files.push_back(::move(dn)) ; }
-							_exec_trace( jerr.date , Comment::list , ces ) ;
+							_exec_trace( jerr.date , Comment::List , ces ) ;
 							sync( fd , ::move(reply) ) ;
 						} break ;
 					DF}
@@ -449,7 +449,7 @@ Status Gather::exec_child() {
 					break ;                       // cannot start, exit loop
 				}
 				if (+timeout) end_timeout = start_date + timeout ;
-				_exec_trace( start_date , Comment::startJob ) ;
+				_exec_trace( start_date , Comment::StartJob ) ;
 				trace("started","wait",_wait,+epoll) ;
 				//
 				if (child_stdout==Child::PipeFd) { epoll.add_read( _child.stdout , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
@@ -508,7 +508,7 @@ Status Gather::exec_child() {
 					SWEAR( !WIFSTOPPED(ws) , _child.pid ) ;                                               // child must have ended if we are here
 					end_date  = New                      ;
 					end_child = end_date + network_delay ;                                                // wait at most network_delay for reporting & stdout & stderr to settle down
-					_exec_trace( end_date , Comment::endJob , {}/*CommentExt*/ , to_hex(uint16_t(ws)) ) ;
+					_exec_trace( end_date , Comment::EndJob , {}/*CommentExt*/ , to_hex(uint16_t(ws)) ) ;
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
 					else                      FAIL("unexpected wstatus : ",ws) ;                                              // NO_COV defensive programming
@@ -549,9 +549,9 @@ Status Gather::exec_child() {
 								if (verbose)
 									for( VerboseInfo const& vi : jmrr.verbose_infos )
 										switch (vi.ok) {
-											case Yes   : _exec_trace( now , Comment::depend , {CommentExt::Verbose,CommentExt::Reply} , ::string(vi.crc) ) ; break ;
-											case Maybe : _exec_trace( now , Comment::depend , {CommentExt::Verbose,CommentExt::Reply} , "???"            ) ; break ;
-											case No    : _exec_trace( now , Comment::depend , {CommentExt::Verbose,CommentExt::Reply} , "error"          ) ; break ;
+											case Yes   : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , ::string(vi.crc) ) ; break ;
+											case Maybe : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , "???"            ) ; break ;
+											case No    : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , "error"          ) ; break ;
 										}
 								else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
@@ -559,7 +559,7 @@ Status Gather::exec_child() {
 										nfs_guard.access(pd) ;
 										_access_info(::copy(pd)).second.no_hot(now) ;                                         // dep has been built and we are guarded : it cannot be hot from now on
 									}
-									_exec_trace( now , Comment::depend , {CommentExt::Direct,CommentExt::Reply} ) ;
+									_exec_trace( now , Comment::Depend , {CommentExt::Direct,CommentExt::Reply} ) ;
 								}
 								for( ::string const& pd : jse.pushed_deps )
 									new_access( rfd , now , ::copy(pd) , jse.jerr.digest , FileInfo(pd) , Yes/*late*/ , jse.jerr.comment , jse.jerr.comment_exts ) ;
@@ -567,8 +567,8 @@ Status Gather::exec_child() {
 								jse.jerr        = {} ;
 							} break ;
 							case JobMngtProc::Heartbeat  :                                                                                                      break ;
-							case JobMngtProc::Kill       : _exec_trace( New , Comment::kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
-							case JobMngtProc::None       : _exec_trace( New , Comment::lostServer                     ) ; set_status(Status::Killed) ; kill() ; break ;
+							case JobMngtProc::Kill       : _exec_trace( New , Comment::Kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
+							case JobMngtProc::None       : _exec_trace( New , Comment::LostServer                     ) ; set_status(Status::Killed) ; kill() ; break ;
 							case JobMngtProc::ChkDeps    :
 							case JobMngtProc::ChkTargets : {
 								bool        is_target = jmrr.proc==JobMngtProc::ChkTargets ;
@@ -585,7 +585,7 @@ Status Gather::exec_child() {
 										ces |= CommentExt::Err ;
 									break ;
 								DN}
-								_exec_trace( New , is_target?Comment::chkTargets:Comment::chkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
+								_exec_trace( New , is_target?Comment::ChkTargets:Comment::ChkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
 							} break ;
 							case JobMngtProc::Decode :
 							case JobMngtProc::Encode : {
@@ -593,7 +593,7 @@ Status Gather::exec_child() {
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								auto           it  = job_slaves.find(jmrr.fd) ; SWEAR(it!=job_slaves.end(),jmrr)        ;
 								JobSlaveEntry& jse = it->second                                                         ;
-								Comment        c   = jmrr.proc==JobMngtProc::Encode ? Comment::encode : Comment::decode ;
+								Comment        c   = jmrr.proc==JobMngtProc::Encode ? Comment::Encode : Comment::Decode ;
 								//
 								_exec_trace( New , c , CommentExt::Reply , jmrr.txt ) ;
 								new_access( rfd , PD(New) , ::move(jse.codec.name) , {.accesses=Access::Reg} , jmrr.crc , Yes/*late*/ , c ) ;
@@ -720,25 +720,25 @@ Status Gather::exec_child() {
 								case Proc::Tmp :
 									if (!seen_tmp) {
 										if (no_tmp) {
-											_exec_trace( jerr.date , Comment::tmp , CommentExt::Err ) ;
+											_exec_trace( jerr.date , Comment::Tmp , CommentExt::Err ) ;
 											set_status(Status::Err,"tmp access with no tmp dir") ;
 											kill() ;
 										} else {
-											_exec_trace( jerr.date , Comment::tmp ) ;
+											_exec_trace( jerr.date , Comment::Tmp ) ;
 										}
 										seen_tmp = true ;
 									}
 								break ;
 								case Proc::Panic :                                                                                            // START_OF_NO_COV defensive programming
 									if (!panic_seen) {                                                                                        // report only first panic
-										_exec_trace( jerr.date , Comment::panic , {} , jerr.file ) ;
+										_exec_trace( jerr.date , Comment::Panic , {} , jerr.file ) ;
 										set_status(Status::Err,jerr.file) ;
 										kill() ;
 										panic_seen = true ;
 									}
 								[[fallthrough]] ;                                                                                             // END_OF_NO_COV
 								case Proc::Trace :                                                                                            // START_OF_NO_COV debug only
-									_exec_trace( jerr.date , Comment::trace , {} , jerr.file ) ;
+									_exec_trace( jerr.date , Comment::Trace , {} , jerr.file ) ;
 									trace(jerr.file) ;
 								break ;                                                                                                       // END_OF_NO_COV
 							DF}                                                                                                               // NO_COV

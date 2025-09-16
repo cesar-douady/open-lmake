@@ -304,6 +304,30 @@ However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
 
 This attribute is typically used to execute the job in a different environment, such as a different OS distribution or release, leveraging a `docker` image.
 
+### `os_info`
+
+| Inheritance | Type    | Default                                  | Dynamic | Example                   |
+|-------------|---------|------------------------------------------|---------|---------------------------|
+| python      | `f-str` | re.escape(`<ID>/<VERSION_ID>/<machine>`) | Full    | `r'ubuntu/22\.04/x86_64'` |
+
+This attribute specifies a regexpr characterizing if the OS environment in which jobs execute are acceptable.
+When a job starts, the same information is computed on the executing host and the value must match this regexpr.
+
+In the default value above, `<ID>` and `<VERSION_ID>` are taken from the corresponding lines in `/etc/os-release` and `<machine>` is `os.uname().machine`.
+
+If `None` or `''` no check is performed.
+
+This attribute is typically used jobs are executed in various OS environment, for example when using the `chroot_dir` attribute or when jobs are dispatched using slurm or SGE.
+
+### `os_info_file`
+
+| Inheritance | Type    | Default | Dynamic | Example        |
+|-------------|---------|---------|---------|----------------|
+| python      | `f-str` | `''`    | Full    | `'/my_os_tag'` |
+
+This attribute specifies a file from which to get OS information for use with the `os_info` attribute above.
+When specified, the content of this file is used instead of `<ID>/<VERSION_ID>/<machine>` as described above.
+
 ### `repo_view`
 
 | Inheritance | Type    | Default | Dynamic | Example   |

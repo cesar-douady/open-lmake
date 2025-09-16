@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <sys/utsname.h>
+
 #include "app.hh"
 #include "disk.hh"
 #include "fd.hh"
@@ -63,8 +65,39 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		else if (+e          ) exit(Rc::Fail,"cannot connect to server at",g_service_start,':',e) ; // this may be a server config problem, better to report if verbose
 		else                   exit(Rc::Fail,"cannot connect to server at",g_service_start      ) ; // .
 	}
-	g_exec_trace->emplace_back( New/*date*/ , Comment::startInfo , CommentExt::Reply ) ;
+	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
+	return res ;
+}
+
+// /!\ must stay in sync with _lib/lmake/rules.src.py:_get_os_info
+::string get_os_info( RealPath& real_path , ::string const& file={} ) {
+	Trace trace("get_os_info",file) ;
+	::string res ;
+	if (+file) {
+		Pdate                 now { New }                 ;
+		RealPath::SolveReport sr  = real_path.solve(file) ;
+		for( ::string& l : sr.lnks )   g_gather.new_access(now,::move(l      ),{.accesses= Access::Lnk },FileInfo(l      ),Comment::OsInfo,CommentExt::Lnk  ) ;
+		if (sr.file_loc<=FileLoc::Dep) g_gather.new_access(now,::move(sr.real),{.accesses=~Access::Stat},FileInfo(sr.real),Comment::OsInfo,CommentExt::Read ) ;
+		//
+		try                     { res = AcFd(file).read() ; }
+		catch (::string const&) {                         ; }                                                                 // report empty in case of error
+	} else {
+		::string         id             ;
+		::string         version_id     ;
+		struct ::utsname uname_info     ; if (::uname(&uname_info)!=0) uname_info.machine[0] = 0 ;                             // .
+		::string         etc_os_release ; try { etc_os_release = AcFd("/etc/os-release").read() ; } catch (::string const&) {} // .
+		for( ::string const& line : split(etc_os_release,'\n') ) {
+			size_t   pos = line.find('=')            ; if (pos==Npos) continue ;
+			::string key = strip(line.substr(0,pos)) ;
+			switch (key[0]) {
+				case 'I' : if (key=="ID"        ) id         = line.substr(pos+1) ; break ;
+				case 'V' : if (key=="VERSION_ID") version_id = line.substr(pos+1) ; break ;
+			DN}
+		}
+		res = cat(id,'/',version_id,'/',uname_info.machine) ;
+	}
+	trace("done",res) ;
 	return res ;
 }
 
@@ -135,8 +168,8 @@ Digest analyze(Status status=Status::New) {                                     
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (status!=Status::New) { // only trace for user at end of job as intermediate analyses are of marginal interest for user
 				//                                            Pdate
-				if      (unstable) g_exec_trace->emplace_back( New , Comment::unstable , CommentExts() , file ) ;
-				else if (dd.hot  ) g_exec_trace->emplace_back( New , Comment::hot      , CommentExts() , file ) ;
+				if      (unstable) g_exec_trace->emplace_back( New , Comment::Unstable , CommentExts() , file ) ;
+				else if (dd.hot  ) g_exec_trace->emplace_back( New , Comment::Hot      , CommentExts() , file ) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,g_start_info.ddate_prec,file) ;
 			else        trace("dep    ",dd,                                                 file) ;
@@ -155,8 +188,8 @@ Digest analyze(Status status=Status::New) {                                     
 			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                    // if SourceOk => ok to simultaneously be a dep and a target
 				const char* written_msg = unlnk ? "unlinked" : was_written ? "written to" : "declared as target" ;
 				if (flags.dflags[Dflag::Static]) { //!    date
-					if (unlnk) g_exec_trace->emplace_back( New , Comment::staticDepAndTarget , CommentExt::Unlnk , file ) ;
-					else       g_exec_trace->emplace_back( New , Comment::staticDepAndTarget , CommentExts()     , file ) ;
+					if (unlnk) g_exec_trace->emplace_back( New , Comment::StaticDepAndTarget , CommentExt::Unlnk , file ) ;
+					else       g_exec_trace->emplace_back( New , Comment::StaticDepAndTarget , CommentExts()     , file ) ;
 					res.msg << "static dep was "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
 					if (!flags.extra_tflags[ExtraTflag::SourceOk]) {
 						res.msg << "  if file is a source, consider calling :\n"                                  ;
@@ -165,7 +198,7 @@ Digest analyze(Status status=Status::New) {                                     
 					}
 				} else if (!unlnk) {                                                                                   // if file is unlinked, ignore writing to it even if not allowed ...
 					if (!allow) {                                                                                      // ... as it is common practice to write besides the final target and mv to it
-						g_exec_trace->emplace_back( New/*date*/ , Comment::unexpectedTarget , CommentExts() , file ) ;
+						g_exec_trace->emplace_back( New/*date*/ , Comment::UnexpectedTarget , CommentExts() , file ) ;
 						res.msg << "file was unexpectedly "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
 					} else {
 						bool        read_lnk = false   ;
@@ -175,7 +208,7 @@ Digest analyze(Status status=Status::New) {                                     
 						else if (accesses[Access::Stat]       )   read = "stat'ed"     ;
 						else if (flags.dflags[Dflag::Required])   read = "required"    ;
 						else                                      read = "accessed"    ;
-						g_exec_trace->emplace_back( New/*date*/ , Comment::depAndTarget , CommentExts() , file ) ;
+						g_exec_trace->emplace_back( New/*date*/ , Comment::DepAndTarget , CommentExts() , file ) ;
 						/**/          res.msg << "file was "<<read<<" and later "<<written_msg<<" : "<<mk_file(file)<<'\n'               ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
@@ -198,7 +231,7 @@ Digest analyze(Status status=Status::New) {                                     
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}
-	g_exec_trace->emplace_back( New/*date*/ , Comment::analyzed ) ;
+	g_exec_trace->emplace_back( New/*date*/ , Comment::Analyzed ) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -434,7 +467,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
-	g_exec_trace->emplace_back( New/*date*/ , Comment::computedCrcs ) ;
+	g_exec_trace->emplace_back( New/*date*/ , Comment::ComputedCrcs ) ;
 	return msg ;
 }
 
@@ -460,23 +493,22 @@ int main( int argc , char* argv[] ) {
 	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead             ;
 	g_exec_trace        = &end_report.exec_trace     ;
-	g_exec_trace->emplace_back( start_overhead , Comment::startOverhead ) ;
+	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
-	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                    // START_OF_NO_COV defensive programming
-		get_start_info(server_fd) ;                                                                 // getting start_info is useless, but necessary to be allowed to report end
-		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s)<<'\n' ;
+	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                              // START_OF_NO_COV defensive programming
+		get_start_info(server_fd) ;                                                           // getting start_info is useless, but necessary to be allowed to report end
+		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s) ;
 		goto End ;
-	}                                                                                               // END_OF_NO_COV
-	Trace::s_sz = 10<<20 ;                                                                          // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                         // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                            // dont cd, but check we are in a repo
+	}                                                                                         // END_OF_NO_COV
+	Trace::s_sz = 10<<20 ;                                                                    // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                   // necessary to capture it using signalfd
+	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                      // dont cd, but check we are in a repo
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info(server_fd) ;
-		if (!g_start_info) return 0 ;                                                                                                   // server ask us to give up
+		g_start_info = get_start_info(server_fd) ; if (!g_start_info) return 0 ;                                                        // if !g_start_info, server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
 		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;          }                                              // NO_COV defensive programming
 		//
@@ -488,12 +520,12 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , nfs_guard )) ;
 		} catch (::string const& e) {                                                                                                   // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
-			end_report.msg_stderr.msg += ensure_nl(e)        ;
+			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
 		}                                                                                                                               // END_OF_NO_COV
 		Pdate washed { New } ;
-		g_exec_trace->emplace_back( washed , Comment::washed ) ;
+		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
@@ -521,33 +553,47 @@ int main( int argc , char* argv[] ) {
 		::vmap_s<MountAction> enter_actions   ;
 		::string              top_repo_root_s ;
 		try {
-			if (
-				g_start_info.enter(
-					/*out*/enter_actions
-				,	/*out*/cmd_env
-				,	/*out*/end_report.dyn_env
-				,	/*out*/g_gather.first_pid
-				,	/*out*/top_repo_root_s
-				,	       *g_lmake_root_s
-				,	       g_phy_repo_root_s
-				,	       end_report.phy_tmp_dir_s
-				,	       g_seq_id
-				)
-			) {
-				RealPath real_path { g_start_info.autodep_env } ;
+			bool entered = g_start_info.enter(
+				/*out*/enter_actions
+			,	/*out*/cmd_env
+			,	/*out*/end_report.dyn_env
+			,	/*out*/g_gather.first_pid
+			,	/*out*/top_repo_root_s
+			,	       *g_lmake_root_s
+			,	       g_phy_repo_root_s
+			,	       end_report.phy_tmp_dir_s
+			,	       g_seq_id
+			) ;
+			RealPath real_path { g_start_info.autodep_env } ;
+			if (+g_start_info.os_info) {
+				RegExpr  os_info_re { g_start_info.os_info }                               ;
+				::string os_info    = get_os_info( real_path , g_start_info.os_info_file ) ;
+				if (!os_info_re.match(os_info)) {
+					trace("os_info_mismatch",g_start_info.os_info) ;
+					/**/                            end_report.msg_stderr.msg << "unexpected os_info (" << os_info <<')'                                                                         ;
+					if (+g_start_info.os_info_file) end_report.msg_stderr.msg << " from file "          <<                                                      g_start_info.os_info_file        ;
+					/**/                            end_report.msg_stderr.msg << " does not match expected regexpr from " << g_start_info.rule <<".os_info ("<< g_start_info.os_info <<')'<<'\n' ;
+					/**/                            end_report.msg_stderr.msg << "  consider :"                                                                                           <<'\n' ;
+					/**/                            end_report.msg_stderr.msg << "  - "<< (+g_start_info.os_info     ?"fix":"set") <<' '<< g_start_info.rule <<".os_info"                 <<'\n' ;
+					/**/                            end_report.msg_stderr.msg << "  - "<< (+g_start_info.os_info_file?"fix":"set") <<' '<< g_start_info.rule <<".os_info_file"                   ;
+					goto End ;
+				}
+				trace("os_info_match",g_start_info.os_info) ;
+			}
+			if (entered) {
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
-					for( ::string& l : sr.lnks ) //!                                                                                                    late
-						/**/                            { FileInfo fi{l      } ; g_gather.new_access(washed,::move(l      ),{.accesses= Access::Lnk },fi,    Comment::mount,CommentExt::Lnk  ) ; }
+					for( ::string& l : sr.lnks ) //!                                                                                          late
+						/**/                            g_gather.new_access(washed,::move(l      ),{.accesses= Access::Lnk },FileInfo(l      ),    Comment::mount,CommentExt::Lnk  ) ;
 					if (sr.file_loc<=FileLoc::Dep) {
-						if      (a==MountAction::Read ) { FileInfo fi{sr.real} ; g_gather.new_access(washed,::move(sr.real),{.accesses=~Access::Stat},fi,    Comment::mount,CommentExt::Read ) ; }
-						else if (sr.file_accessed==Yes) { FileInfo fi{sr.real} ; g_gather.new_access(washed,::move(sr.real),{.accesses= Access::Lnk },fi,    Comment::mount,CommentExt::Read ) ; }
+						if      (a==MountAction::Read ) g_gather.new_access(washed,::move(sr.real),{.accesses=~Access::Stat},FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
+						else if (sr.file_accessed==Yes) g_gather.new_access(washed,::move(sr.real),{.accesses= Access::Lnk },FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
 					}
-					if (sr.file_loc<=FileLoc::Repo) {                                                                                   // writing lasts for the whole job
-						if      (a==MountAction::Write) { FileInfo fi{       } ; g_gather.new_access(washed,::move(sr.real),{.write=Yes             },fi,Yes,Comment::mount,CommentExt::Write) ; }
+					if (sr.file_loc<=FileLoc::Repo) {
+						if      (a==MountAction::Write) g_gather.new_access(washed,::move(sr.real),{.write=Yes             },FileInfo(       ),Yes,Comment::mount,CommentExt::Write) ;
 					}
 				}
-				g_exec_trace->emplace_back( New/*date*/ , Comment::enteredNamespace ) ;
+				g_exec_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 			}
 			g_start_info.job_space.update_env(
 				/*inout*/cmd_env
@@ -601,7 +647,7 @@ int main( int argc , char* argv[] ) {
 				if (!dd.accesses) dd.set_sig(FileInfo(d)) ;                                                   // record now if not previously accessed
 				dd.accesses |= Access::Reg ;
 			}
-			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::stdin:Comment::staticDep ) ;
+			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::Stdin:Comment::StaticDep ) ;
 		}
 		for( auto& [dt,mf] : g_start_info.static_matches ) {
 			if (mf.tflags[Tflag::Target]) {
@@ -612,7 +658,7 @@ int main( int argc , char* argv[] ) {
 			if (mf.extra_tflags[ExtraTflag::Optional]) {                                                      // consider Optional as a star target with a fixed pattern
 				if (+mf) g_gather.pattern_flags.emplace_back( Re::escape(dt) , ::pair(washed,mf) ) ;          // fast path : no need to match against a pattern that brings nothing
 			} else {
-				g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::staticMatch ) ; // always insert an entry for static targets, even with no flags
+				g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch ) ; // always insert an entry for static targets, even with no flags
 			}
 		}
 		for( auto& [p ,mf] : g_start_info.star_matches ) {
@@ -624,7 +670,7 @@ int main( int argc , char* argv[] ) {
 			if (+mf) g_gather.pattern_flags.emplace_back( p , ::pair(washed,mf) ) ; // fast path : no need to match against a pattern that brings nothing
 		}
 		for( ::string& t : g_washed )
-			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , No/*late*/ , Comment::wash ) ;
+			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , No/*late*/ , Comment::Wash ) ;
 		//                                                                      err_ok
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd( g_start_info.stdin , true  ) ;
 		else                     g_gather.child_stdin = Fd( "/dev/null"        , false ) ;
@@ -634,7 +680,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
 			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;
-			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::stdout ) ;      // writing to stdout last for the whole job
+			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;      // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line(cmd_env) ;
@@ -662,7 +708,7 @@ int main( int argc , char* argv[] ) {
 				end_report.msg_stderr.msg <<"cannot cache : "<<e<<'\n' ;
 			}
 			CommentExts ces ; if (!upload_key) ces |= CommentExt::Err ;
-			g_exec_trace->emplace_back( New/*date*/ , Comment::uploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
+			g_exec_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
 		}
 		//
 		if (+g_start_info.autodep_env.file_sync) {                                                                                        // fast path : avoid listing targets & guards if !file_sync
@@ -699,7 +745,7 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->emplace_back( end_overhead , Comment::endOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
+			g_exec_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
 			end_report.digest.exec_time      = end_overhead - start_overhead ;                                                            // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
