@@ -211,7 +211,7 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 						p++ ;
 						if      (*p      ) flag_args[+f] = p         ;
 						else if (a+1<argc) flag_args[+f] = argv[++a] ;
-						else               throw "no value for option -"s+*p ;
+						else               throw "no value for option -"s+p[-1] ;
 						break ;
 					} else if (*p=='h') {
 						print_help = true ;
