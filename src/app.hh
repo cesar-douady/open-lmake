@@ -188,7 +188,7 @@ template<StdEnum Key,StdEnum Flag> template<bool OptionsAnywhere> CmdLine<Key,Fl
 						p++ ;
 						if      (*p      ) flag_args[+f] = p         ;
 						else if (a+1<argc) flag_args[+f] = argv[++a] ;
-						else               throw "no value for option -"s+*p ;
+						else               throw "no value for option -"s+p[-1] ;
 						break ;
 					} else if (*p=='h') {
 						throw ""s ;
