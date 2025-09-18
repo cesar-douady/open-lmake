@@ -9,7 +9,7 @@
 |------------------------------------------|-------------|------------------|------------------|------------------|-------------------|-----------------------------------------------------------|
 | [Automatic dependencies](src/autodep.md) | ❌          | ❌               | ❌               | ❌               | ✅                |                                                           |
 | Concurrent builds                        | ❌          | ❌               | ❌ (locked)      | ❌               | ✅                | can safely launch `build a & build b` ?                   |
-| Concurrent source editition              | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?              |
+| Concurrent source edition                | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?              |
 | symbolic link support                    | ❌          | ❌               | ❌               | ❌               | ✅                | can you use symbolic links and while staying consistent ? |
 | `unzip` like job support                 | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?            |
 | Multiple target                          | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                   |
