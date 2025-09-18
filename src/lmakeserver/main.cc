@@ -31,7 +31,7 @@ static ServerSockFd _g_server_fd      ;
 static bool         _g_is_daemon      = true   ;
 static Atomic<bool> _g_done           = false  ;
 static bool         _g_server_running = false  ;
-static ::string     _g_host           = host() ;
+static ::string     _g_fqdn           = fqdn() ;
 static bool         _g_seen_make      = false  ;
 static Fd           _g_watch_fd       ;          // watch LMAKE/server
 
@@ -52,7 +52,7 @@ static void _server_cleanup() {
 	pid_t           pid  = getpid()             ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	trace("pid",mrkr,pid) ;
-	if (mrkr!=::pair(_g_host,pid)) return ;                 // not our file, dont touch it
+	if (mrkr!=::pair(_g_fqdn,pid)) return ;                 // not our file, dont touch it
 	unlnk(ServerMrkr) ;
 	trace("cleaned") ;
 }
@@ -66,9 +66,9 @@ static void _report_server( Fd fd , bool running ) {
 static bool/*crashed*/ _start_server() {
 	bool  crashed = false    ;
 	pid_t pid     = getpid() ;
-	Trace trace("_start_server",_g_host,pid) ;
+	Trace trace("_start_server",_g_fqdn,pid) ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
-	if ( +mrkr.first && mrkr.first!=_g_host ) {
+	if ( +mrkr.first && mrkr.first!=_g_fqdn ) {
 		trace("already_existing_elsewhere",mrkr) ;
 		return false/*unused*/ ;                   // if server is running on another host, we cannot qualify with a kill(pid,0), be pessimistic
 	}
@@ -85,7 +85,7 @@ static bool/*crashed*/ _start_server() {
 		_g_server_running = true ;
 	} else {
 		_g_server_fd.listen() ;
-		::string tmp = cat(ServerMrkr,'.',_g_host,'.',pid) ;
+		::string tmp = cat(ServerMrkr,'.',_g_fqdn,'.',pid) ;
 		AcFd(tmp,Fd::Write).write(cat(
 			_g_server_fd.service() , '\n'
 		,	getpid()               , '\n'

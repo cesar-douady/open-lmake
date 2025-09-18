@@ -43,7 +43,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			::string const& server_service_str = lines[0]                    ;
 			::string const& pid_str            = lines[1]                    ;
 			try {
-				if (host()==SockFd::s_host(server_service_str)) {
+				if (fqdn()==SockFd::s_host(server_service_str)) {
 					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary
 					server_is_local = true                                                                                               ;
 				}
