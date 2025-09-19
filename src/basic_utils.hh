@@ -53,41 +53,43 @@ template<class T> static constexpr T Max = ::numeric_limits<T>::max() ;
 template<class T> static constexpr T Min = ::numeric_limits<T>::min() ;
 
 #define VT(T) typename T::value_type
+#define RC(T) remove_const_t<T>
 
 // easy transformation of a container into another
-template<class K,        class V> ::set   <K                                                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,        class V> ::uset  <K                                                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> ::vector<                                  T                 > mk_vector(V const& v) { return ::vector<T>( v.begin() , v.end() ) ; }
-template<class K,class T,class V> ::map   <K                                ,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,class T,class V> ::umap  <K                                ,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<class K,class T,class V> ::vmap  <K                                ,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<class K,        class V> ::set   <K                                       > mk_set   (V const& v) { return { v.begin() , v.end() } ; }
+template<class K,        class V> ::uset  <K                                       > mk_uset  (V const& v) { return { v.begin() , v.end() } ; }
+template<        class T,class V> ::vector<                      T                 > mk_vector(V const& v) { return { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::map   <K                    ,T                 > mk_map   (V const& v) { return { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::umap  <K                    ,T                 > mk_umap  (V const& v) { return { v.begin() , v.end() } ; }
+template<class K,class T,class V> ::vmap  <K                    ,T                 > mk_vmap  (V const& v) { return { v.begin() , v.end() } ; }
 // with implicit key type
-template<        class T,class V> ::map   <remove_const_t<VT(V)::first_type>,T                 > mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> ::umap  <remove_const_t<VT(V)::first_type>,T                 > mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<        class T,class V> ::vmap  <remove_const_t<VT(V)::first_type>,T                 > mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<        class T,class V> ::map   <RC(VT(V)::first_type),T                 > mk_map   (V const& v) { return { v.begin() , v.end() } ; }
+template<        class T,class V> ::umap  <RC(VT(V)::first_type),T                 > mk_umap  (V const& v) { return { v.begin() , v.end() } ; }
+template<        class T,class V> ::vmap  <RC(VT(V)::first_type),T                 > mk_vmap  (V const& v) { return { v.begin() , v.end() } ; }
 // with implicit item type
-template<                class V> ::set   <remove_const_t<VT(V)            >                   > mk_set   (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::uset  <remove_const_t<VT(V)            >                   > mk_uset  (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::vector<                                  VT(V)             > mk_vector(V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::map   <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_map   (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::umap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_umap  (V const& v) { return            { v.begin() , v.end() } ; }
-template<                class V> ::vmap  <remove_const_t<VT(V)::first_type>,VT(V)::second_type> mk_vmap  (V const& v) { return            { v.begin() , v.end() } ; }
+template<                class V> ::set   <RC(VT(V)            )                   > mk_set   (V const& v) { return { v.begin() , v.end() } ; }
+template<                class V> ::uset  <RC(VT(V)            )                   > mk_uset  (V const& v) { return { v.begin() , v.end() } ; }
+template<                class V> ::vector<                      VT(V)             > mk_vector(V const& v) { return { v.begin() , v.end() } ; }
+template<                class V> ::map   <RC(VT(V)::first_type),VT(V)::second_type> mk_map   (V const& v) { return { v.begin() , v.end() } ; }
+template<                class V> ::umap  <RC(VT(V)::first_type),VT(V)::second_type> mk_umap  (V const& v) { return { v.begin() , v.end() } ; }
+template<                class V> ::vmap  <RC(VT(V)::first_type),VT(V)::second_type> mk_vmap  (V const& v) { return { v.begin() , v.end() } ; }
 
 // keys & vals
-template<class K,class M> ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
-template<class K,class M> ::uset  <K> const mk_key_uset  (M const& m) { ::uset  <K> res ;                         for( auto const& [k,v] : m) res.insert   (k) ; return res ; }
-template<class K,class M> ::vector<K> const mk_key_vector(M const& m) { ::vector<K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(k) ; return res ; }
-template<class T,class M> ::set   <T>       mk_val_set   (M const& m) { ::set   <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
-template<class T,class M> ::uset  <T>       mk_val_uset  (M const& m) { ::uset  <T> res ;                         for( auto const& [k,v] : m) res.insert   (v) ; return res ; }
-template<class T,class M> ::vector<T>       mk_val_vector(M const& m) { ::vector<T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m) res.push_back(v) ; return res ; }
+template<class K,class M> ::set   <K> const mk_key_set   (M const& m) { ::set   <K> res ;                         for( auto const& [k,v] : m ) res.insert   (k) ; return res ; }
+template<class K,class M> ::uset  <K> const mk_key_uset  (M const& m) { ::uset  <K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m ) res.insert   (k) ; return res ; }
+template<class K,class M> ::vector<K> const mk_key_vector(M const& m) { ::vector<K> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m ) res.push_back(k) ; return res ; }
+template<class T,class M> ::set   <T>       mk_val_set   (M const& m) { ::set   <T> res ;                         for( auto const& [k,v] : m ) res.insert   (v) ; return res ; }
+template<class T,class M> ::uset  <T>       mk_val_uset  (M const& m) { ::uset  <T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m ) res.insert   (v) ; return res ; }
+template<class T,class M> ::vector<T>       mk_val_vector(M const& m) { ::vector<T> res ; res.reserve(m.size()) ; for( auto const& [k,v] : m ) res.push_back(v) ; return res ; }
 // with implicit item type
-template<class M> ::set   <remove_const_t<VT(M)::first_type >> const mk_key_set   (M const& m) { return mk_key_set   <remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> ::uset  <remove_const_t<VT(M)::first_type >> const mk_key_uset  (M const& m) { return mk_key_uset  <remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> ::vector<remove_const_t<VT(M)::first_type >> const mk_key_vector(M const& m) { return mk_key_vector<remove_const_t<VT(M)::first_type >>(m) ; }
-template<class M> ::set   <               VT(M)::second_type >       mk_val_set   (M const& m) { return mk_val_set   <               VT(M)::second_type >(m) ; }
-template<class M> ::uset  <               VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <               VT(M)::second_type >(m) ; }
-template<class M> ::vector<               VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<               VT(M)::second_type >(m) ; }
+template<class M> ::set   <RC(VT(M)::first_type )> const mk_key_set   (M const& m) { return mk_key_set   <RC(VT(M)::first_type )>(m) ; }
+template<class M> ::uset  <RC(VT(M)::first_type )> const mk_key_uset  (M const& m) { return mk_key_uset  <RC(VT(M)::first_type )>(m) ; }
+template<class M> ::vector<RC(VT(M)::first_type )> const mk_key_vector(M const& m) { return mk_key_vector<RC(VT(M)::first_type )>(m) ; }
+template<class M> ::set   <   VT(M)::second_type >       mk_val_set   (M const& m) { return mk_val_set   <   VT(M)::second_type >(m) ; }
+template<class M> ::uset  <   VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <   VT(M)::second_type >(m) ; }
+template<class M> ::vector<   VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<   VT(M)::second_type >(m) ; }
 
+#undef RC
 #undef VT
 
 namespace std {                                                             // cannot specialize std::hash from global namespace with gcc-11

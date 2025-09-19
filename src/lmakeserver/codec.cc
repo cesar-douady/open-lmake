@@ -37,9 +37,10 @@ namespace Codec {
 
 	void Closure::s_init() {
 		g_codec_queue = new QueueThread<Closure>{'D',Codec::codec_thread_func} ;
-		//
-		Persistent::val_file .init( cat(CodecPfxS,"vals" ) , g_writable ) ;
-		Persistent::code_file.init( cat(CodecPfxS,"codes") , g_writable ) ;
+		// START_OF_VERSIONING
+		Persistent::val_file .init( cat(g_config->local_admin_dir_s,"codec/vals" ) , g_writable ) ;
+		Persistent::code_file.init( cat(g_config->local_admin_dir_s,"codec/codes") , g_writable ) ;
+		// END_OF_VERSIONING
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
@@ -65,7 +66,18 @@ namespace Codec {
 		return res ;
 	}
 
+	static void _create_entry( ::string const& file , ::string const& ctx , Node decode_node , ::string const& val ,  Node encode_node , ::string const& code ) {
+		AcFd(file,{.flags=O_WRONLY|O_APPEND}).write(_codec_line(ctx,code,val,true/*with_nl*/)) ;                                                                  // Maybe means append
+		//
+		Closure::Entry& entry = Closure::s_tab.at(file) ;
+		_create_pair( file , decode_node , val , encode_node , code ) ;
+		decode_node->log_date() = entry.log_date  ;
+		encode_node->log_date() = entry.log_date  ;
+		entry.phy_date          = file_date(file) ; // we have touched the file but not the semantic, update phy_date but not log_date
+	}
+
 	static bool _buildable_ok( ::string const& file , Node node ) {
+		if (!node) return false ;
 		switch (node->buildable) {
 			case Buildable::No      :
 			case Buildable::Unknown : return false                                              ;
@@ -106,8 +118,9 @@ namespace Codec {
 		::vector_s                         lines      = AcFd(file,true/*err_ok*/).read_lines() ;
 		//
 		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val ) {
-			Node dn { New , mk_decode_node(file,ctx,code) , true/*no_dir*/ } ; nodes.emplace_back(dn) ;
-			Node en { New , mk_encode_node(file,ctx,val ) , true/*no_dir*/ } ; nodes.emplace_back(en) ;
+			//                                             no_dir
+			Node dn { New , mk_decode_node(file,ctx,code) , true } ; nodes.emplace_back(dn) ;
+			Node en { New , mk_encode_node(file,ctx,val ) , true } ; nodes.emplace_back(en) ;
 			_create_pair( file , dn , val , en , code ) ;
 		} ;
 		Trace trace("_s_canonicalize",file,lines.size()) ;
@@ -167,7 +180,7 @@ namespace Codec {
 				for( auto const& [code,val] : d_entry )
 					lines << _codec_line(ctx,code,val,true/*with_nl*/) ;
 			AcFd(file,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}).write(lines) ;
-			for( ReqIdx r : reqs ) Req(r)->audit_info( Color::Note , "refresh" , file ) ;
+			for( ReqIdx r : reqs ) Req(r)->audit_info( Color::Note , "reformat" , file ) ;
 		}
 		for( auto const& [ctx,e_entry] : encode_tab )
 			for( auto const& [val,code] : e_entry )
@@ -185,9 +198,8 @@ namespace Codec {
 		if ( !inserted && ::none_of( reqs , [&](ReqIdx ri) { return entry.sample_date<Req(ri)->start_pdate ; } ) ) return true/*ok*/ ; // we sample disk once per Req
 		Trace trace("refresh",file,reqs) ;
 		//
-		Node file_node { New , file } ;
-		file_node->set_buildable() ;
-		if (file_node->buildable!=Buildable::Src) {
+		Node file_node { file } ;
+		if ( !file_node || (file_node->set_buildable(),file_node->buildable!=Buildable::Src) ) {
 			for( ReqIdx r : reqs ) {
 				Req(r)->audit_node(Color::Err ,"encode/decode association file must be a plain source :",file_node  ) ;
 				Req(r)->audit_node(Color::Note,"consider : git add"                                     ,file_node,1) ;
@@ -197,9 +209,9 @@ namespace Codec {
 		//
 		Ddate phy_date = file_date(file) ;
 		entry.sample_date = New ;
-		if (inserted) {
-			Node node { ni } ;
-			if ( inserted && node->buildable==Buildable::Decode ) entry.phy_date = entry.log_date  = node->log_date() ;                // initialize from known info
+		if ( inserted && ni ) {
+			if ( Node node{ni} ; node->buildable==Buildable::Decode )
+				entry.phy_date = entry.log_date  = node->log_date() ;                                                                  // initialize from known info
 		}
 		if (phy_date==entry.phy_date) return true/*ok*/ ;                                                                              // file has not changed, nothing to do
 		entry.log_date = phy_date ;
@@ -229,9 +241,9 @@ namespace Codec {
 		Trace trace("encode",self) ;
 		SWEAR( proc==JobMngtProc::Encode , proc ) ;
 		Node             encode_node { New , mk_encode_node(file,ctx,txt) , true/*no_dir*/ } ;
-		::vector<ReqIdx> reqs        ;                                                       ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
-		bool             refreshed   = s_refresh( file , +encode_node , reqs )               ;
-		if (!refreshed) {
+		::vector<ReqIdx> reqs        ;                                                         for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
+		//
+		if (!s_refresh( file , +encode_node , reqs )) {
 			trace("no_refresh") ;
 			return { .proc=JobMngtProc::Encode , .crc=Crc::None , .ok=No } ;                     // codec file not available, seq_id and fd will be filled in later
 		}
@@ -247,32 +259,62 @@ namespace Codec {
 		Node     decode_node ;
 		for(; code.size()<=crc.size() ; code.push_back(crc[code.size()]) ) {
 			decode_node = { New , mk_decode_node(file,ctx,code) , true/*no_dir*/ } ;
-			if (!_buildable_ok(file,decode_node)) goto NewCode ;
+			if (!_buildable_ok(file,decode_node)) {
+				trace("new_code",code) ;
+				_create_entry( file , ctx , decode_node , txt , encode_node , code ) ;
+				return { .proc=JobMngtProc::Encode , .txt=code , .crc=encode_node->crc , .ok=Yes } ;
+			}
 		}
 		trace("clash") ;
 		return { .proc=JobMngtProc::Encode , .txt="checksum clash" , .ok=No } ;                  // this is a true full crc clash, seq_id and fd will be filled in later
-	NewCode :
-		trace("new_code",code) ;
-		AcFd(file,{.flags=O_WRONLY|O_APPEND}).write(_codec_line(ctx,code,txt,true/*with_nl*/)) ; // Maybe means append
-		Entry& entry = s_tab.at(file) ;
-		Pdate  now   { New }          ;
-		_create_pair( file , decode_node , txt , encode_node , code ) ;
-		decode_node->log_date() = entry.log_date  ;
-		encode_node->log_date() = entry.log_date  ;
-		entry.phy_date          = file_date(file) ;                                              // we have touched the file but not the semantic, update phy_date but not log_date
-		//
-		trace("found",code) ;
-		return { .proc=JobMngtProc::Encode , .txt=code , .crc=encode_node->crc , .ok=Yes } ;
 	}
 
 	bool/*ok*/ refresh( NodeIdx ni , ReqIdx r ) {
-		Node     node { ni }                         ; SWEAR( node->is_decode() || node->is_encode() ) ;
-		::string file = Codec::mk_file(node->name()) ;
+		Node     node { ni }                          ; SWEAR( node->is_decode() || node->is_encode() ) ;
+		::string file = Codec::get_file(node->name()) ;                                                   // extract codec file
 		if ( !Closure::s_refresh( file , ni , {r} ) ) {
 			node->refresh(Crc::None) ;
 			return false/*ok*/ ;
 		}
 		return node->crc!=Crc::None && node->log_date()!=Closure::s_tab.at(file).log_date ;
+	}
+
+	Bool3/*ok*/ _mk_codec_entries( CodecMap const& map , ReqIdx r , bool create ) {
+		bool must_create = false ;
+		//
+		for( auto const& [file,file_entry] : map ) {
+			if (!Closure::s_refresh(file,0/*node*/,{r})) goto Bad ;
+			for( auto const& [ctx,ctx_entry] : file_entry )
+				for( auto const& [code,val] : ctx_entry ) {
+					Trace trace("mk_codec_entries",file,ctx,code,val) ;
+					//
+					//
+					::string decode_name = mk_decode_node(file,ctx,code) ;
+					::string encode_name = mk_encode_node(file,ctx,val ) ;
+					//                                              no_dir
+					Node decode_node = create ? Node(New,decode_name,true) : Node(decode_name) ;
+					Node encode_node = create ? Node(New,encode_name,true) : Node(encode_name) ;
+					if (_buildable_ok(file,encode_node)) {
+						::string_view found_code = encode_node->codec_code().str_view() ; //! ok
+						if (code==found_code) { trace("found"                      ) ; continue ; }
+						else                  { trace("bad_code_for_val",found_code) ; goto Bad ; } // when create, we should have verified it's possible
+					}
+					if (_buildable_ok(file,decode_node)) {
+						::string_view found_val = decode_node->codec_val().str_view() ;
+						SWEAR( val!=found_val ) ;                                                   // else we would have found encode_node
+						trace("bad_val_for_code",found_val) ;
+						goto Bad ;
+					}
+					trace("new_entry") ;
+					must_create = true ;
+					if (create) _create_entry( file , ctx , decode_node , val , encode_node , code ) ;
+				}
+		}
+		return must_create ? Maybe : Yes ;
+		//
+	Bad :
+		SWEAR( !create , map ) ;                                                                    // when create, we should have verified it's possible
+		return No/*ok*/ ;
 	}
 
 	void codec_thread_func(Closure const& cc) {

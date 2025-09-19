@@ -37,7 +37,7 @@ namespace Hash {
 	struct Crc {
 		friend ::string& operator+=( ::string& , Crc const ) ;
 		using Val = uint64_t ;
-		static constexpr uint8_t NChkBits = 8 ;                                                                       // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t NChkBits = 8 ;                                       // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
 		static constexpr Val ChkMsk = ~lsb_msk<Val>(NChkBits) ;
 		//
@@ -47,7 +47,8 @@ namespace Hash {
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static bool s_sense( Accesses a , FileTag t ) {                                                               // return whether accesses a can see the difference between files with tag t
+		static Crc s_from_hex(::string_view sv) ;                                     // inverse of hex()
+		static bool s_sense( Accesses a , FileTag t ) {                               // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
@@ -68,7 +69,7 @@ namespace Hash {
 				case FileTag::Reg   :
 				case FileTag::Exe   : self = Crc::Reg   ; break ;
 				case FileTag::Empty : self = Crc::Empty ; break ;
-			DF}                                                                                                       // NO_COV
+			DF}                                                                       // NO_COV
 		}
 		Crc( ::string const& file_name                             ) ;
 		Crc( ::string const& file_name , Disk::FileInfo&/*out*/ fi ) {
@@ -76,9 +77,9 @@ namespace Hash {
 			self = Crc(file_name)           ;
 			Disk::FileSig sig_before = fi.sig()                 ;
 			Disk::FileSig sig_after  = Disk::FileSig(file_name) ;
-			if (sig_after!=sig_before) {                                                                              // file was moving, association date<=>crc is not reliable
-				if (sig_after.tag()==sig_before.tag()) self = Crc(sig_before.tag()) ;                                 // file type is reliable
-				else                                   self = {}                    ;                                 // nothing is reliable
+			if (sig_after!=sig_before) {                                              // file was moving, association date<=>crc is not reliable
+				if (sig_after.tag()==sig_before.tag()) self = Crc(sig_before.tag()) ; // file type is reliable
+				else                                   self = {}                    ; // nothing is reliable
 			}
 		}
 		Crc( ::string const& file_name , Disk::FileSig&/*out*/ sig ) {

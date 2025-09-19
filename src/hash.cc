@@ -78,6 +78,21 @@ namespace Hash {
 		return res ;
 	}
 
+	Crc Crc::s_from_hex(::string_view sv) {
+		SWEAR( sv.size()==2*sizeof(Val) , sv.size() , sv ) ;
+		Crc res { Val(0) } ;
+		for( size_t i : iota(sizeof(res._val)) ) {
+			char msb = sv[2*i  ] ;
+			char lsb = sv[2*i+1] ;
+			uint8_t b =
+				( '0'<=msb && msb<='9' ? msb-'0' : 'a'<=msb && msb<='f' ? 10+msb-'a' : (FAIL(sv),0) )<<4
+			|	( '0'<=lsb && lsb<='9' ? lsb-'0' : 'a'<=lsb && lsb<='f' ? 10+lsb-'a' : (FAIL(sv),0) )
+			;
+			res._val |= Val(b)<<(8*i) ;
+		}
+		return res ;
+	}
+
 	Accesses Crc::diff_accesses( Crc other ) const {
 		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
 			uint64_t diff = _val ^ other._val ;

@@ -46,9 +46,9 @@ else :
 
 	print('',file=open('codec_file','w'))
 
-	ut.lmake      ( 'codec_sh.ok' , 'codec_py.ok' , refresh=1   , new=1 , done=4 )
-	cnt = ut.lmake( 'codec_sh'    , 'codec_py.ok' , refresh=... , changed=...    )
-	assert cnt.refresh in (0,1) and cnt.changed in (0,1)                           # depend on job order and crc details
+	ut.lmake      ( 'codec_sh.ok' , 'codec_py.ok' , reformat=1   , new=1 , done=4 )
+	cnt = ut.lmake( 'codec_sh'    , 'codec_py.ok' , reformat=... , changed=...    )
+	assert cnt.reformat in (0,1) and cnt.changed in (0,1)                           # depend on job order and crc details
 
 	os.unlink('codec_sh')
 	os.unlink('codec_py')
@@ -57,7 +57,7 @@ else :
 	assert cnt.changed in (0,1)                                        # depend on previous job order and crc details
 
 	print(file=open('codec_file','a'))
-	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=1 )
+	ut.lmake( 'codec_sh' , 'codec_py' , reformat=1 , changed=1 )
 
 	print(r' ctx py codec_py\n',file=open('codec_file','a'))
-	ut.lmake( 'codec_sh' , 'codec_py' , refresh=1 , changed=... , done=1 ) # changed may be 1 or 2, its ok
+	ut.lmake( 'codec_sh' , 'codec_py' , reformat=1 , changed=... , done=1 ) # changed may be 1 or 2, its ok

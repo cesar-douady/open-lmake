@@ -191,17 +191,17 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 			jmrr.deps.reserve(jse.pushed_deps.size()) ;
 			for( auto const& f : jse.pushed_deps )
 				jmrr.deps.emplace_back( ::copy(f) , DepDigest(jerr.digest.accesses,Dflags(),true/*parallel*/) ) ; // no need for flags to ask info
+			jse.jerr = ::move(jerr) ;
 		} break ;
 		case Proc::Decode :
 		case Proc::Encode : {
 			SWEAR( jerr.sync==Yes , jerr ) ;
-			if (jerr.proc==Proc::Encode) { jmrr.proc = JobMngtProc::Encode ; jmrr.min_len = jerr.min_len() ; jse.codec.name = Codec::mk_encode_node( jse.codec.file , jse.codec.ctx , jerr.file ) ; }
-			else                         { jmrr.proc = JobMngtProc::Decode ;                                 jse.codec.name = Codec::mk_decode_node( jse.codec.file , jse.codec.ctx , jerr.file ) ; }
-			jmrr.file      = ::move(jse.codec.file) ;
-			jmrr.ctx       = ::move(jse.codec.ctx ) ;
-			jmrr.txt       = ::move(jerr.file     ) ;
-			jse.codec.file = {}                     ;
-			jse.codec.ctx  = {}                     ;
+			jse.codec.txt = ::move(jerr.file) ;
+			if (jerr.proc==Proc::Encode) { jmrr.proc = JobMngtProc::Encode ; jmrr.min_len = jerr.min_len() ; }
+			else                           jmrr.proc = JobMngtProc::Decode ;
+			/**/                           jmrr.file = jse.codec.file      ;
+			/**/                           jmrr.ctx  = jse.codec.ctx       ;
+			/**/                           jmrr.txt  = jse.codec.txt       ;
 		} break ;
 	DF}                                                                                                           // NO_COV
 	if (_send_to_server(jmrr)) { _n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ; }
@@ -587,17 +587,33 @@ Status Gather::exec_child() {
 								DN}
 								_exec_trace( New , is_target?Comment::ChkTargets:Comment::ChkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
 							} break ;
-							case JobMngtProc::Decode :
+							case JobMngtProc::Decode : {
+								SWEAR(+jmrr.fd) ;
+								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
+								//
+								auto           it  = job_slaves.find(jmrr.fd) ; SWEAR(it!=job_slaves.end(),jmrr) ;
+								JobSlaveEntry& jse = it->second               ;
+								//
+								_exec_trace( New , Comment::Decode , CommentExt::Reply , jmrr.txt ) ;
+								new_access( rfd , PD(New) , Codec::mk_decode_node(jse.codec.file,jse.codec.ctx,jse.codec.txt) , {.accesses=Access::Reg} , jmrr.crc , Yes/*late*/ , Comment::Decode ) ;
+								//
+								codec_map[jse.codec.file][jse.codec.ctx].try_emplace( jse.codec.txt , jmrr.txt ) ;            // code    ->val
+								//
+								jse.codec = {} ;
+							} break ;
 							case JobMngtProc::Encode : {
 								SWEAR(+jmrr.fd) ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
-								auto           it  = job_slaves.find(jmrr.fd) ; SWEAR(it!=job_slaves.end(),jmrr)        ;
-								JobSlaveEntry& jse = it->second                                                         ;
-								Comment        c   = jmrr.proc==JobMngtProc::Encode ? Comment::Encode : Comment::Decode ;
 								//
-								_exec_trace( New , c , CommentExt::Reply , jmrr.txt ) ;
-								new_access( rfd , PD(New) , ::move(jse.codec.name) , {.accesses=Access::Reg} , jmrr.crc , Yes/*late*/ , c ) ;
-								jse.codec.name = {} ;
+								auto           it  = job_slaves.find(jmrr.fd) ; SWEAR(it!=job_slaves.end(),jmrr) ;
+								JobSlaveEntry& jse = it->second               ;
+								//
+								_exec_trace( New , Comment::Encode , CommentExt::Reply , jmrr.txt ) ;
+								new_access( rfd , PD(New) , Codec::mk_encode_node(jse.codec.file,jse.codec.ctx,jse.codec.txt) , {.accesses=Access::Reg} , jmrr.crc , Yes/*late*/ , Comment::Encode ) ;
+								//
+								codec_map[jse.codec.file][jse.codec.ctx].try_emplace( jmrr.txt , jse.codec.txt ) ;            // code    ->val
+								//
+								jse.codec = {} ;
 							} break ;
 							case JobMngtProc::AddLiveOut : {
 								trace("add_live_out",STR(live_out),live_out_pos) ;
@@ -677,11 +693,7 @@ Status Gather::exec_child() {
 								case Proc::DepDirect  :
 								case Proc::DepVerbose :
 								case Proc::Decode     :
-								case Proc::Encode     : {
-									jse.jerr = ::move(jerr) ;
-									_send_to_server( fd , ::move(jse.jerr) , jse ) ;
-									sync_ = false ;                                                                                            // reply is delayed until server reply
-								} break ;
+								case Proc::Encode     : _send_to_server( fd , ::move(jerr) , jse ) ;                   sync_ = false ; break ; // reply is delayed until server reply
 								case Proc::Confirm : {
 									trace("confirm",kind,fd,jerr.digest.write,jerr.id) ;
 									Trace trace2 ;

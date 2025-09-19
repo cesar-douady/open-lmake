@@ -33,9 +33,10 @@ static bool _server_ok( Fd fd , ::string const& tag ) {
 static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { // if sync, ensure we launch our own server
 	Trace trace("_connect_to_server",STR(refresh)) ;
 	::string server_service  ;
-	bool     server_is_local = false ;
-	pid_t    server_pid      = 0     ;
-	Pdate    now             = New   ;
+	bool     server_is_local = false  ;
+	pid_t    server_pid      = 0      ;
+	Pdate    now             = New    ;
+	::string fqdn_           = fqdn() ;
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
@@ -45,8 +46,8 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			::string const& server_service_str = lines[0]                      ;
 			::string const& pid_str            = lines[1]                      ;
 			try {
-				if (host()==SockFd::s_host(server_service_str)) {
-					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary
+				if (fqdn_==SockFd::s_host(server_service_str)) {                                                                          // dont use network if not necessary
+					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ;
 					server_is_local = true                                                                                               ;
 				}
 				ClientSockFd req_fd { server_service , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ;

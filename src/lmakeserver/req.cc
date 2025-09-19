@@ -544,8 +544,8 @@ namespace Engine {
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {
 		if (!n_err) return true/*overflow*/ ;
 		n_err-- ;
-		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , widen(pfx,::max(size_t(8)/*dangling*/,Rule::s_rules->name_sz)) , target , lvl ) ;
-		else       audit_info( Color::Warning                            , "..."                                                                         ) ;
+		if (n_err) audit_info( intermediate?Color::HiddenNote:Color::Err , widen(pfx,::max(size_t(26)/*missing transient sub-file*/,Rule::s_rules->name_sz)) , target , lvl ) ;
+		else       audit_info( Color::Warning                            , "..."                                                                                            ) ;
 		return !n_err/*overflow*/ ;
 	}
 

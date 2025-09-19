@@ -129,9 +129,9 @@ namespace Engine {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;
 			if (!msg) {
-				if      (frozen                      )                                                                                    msg = Frozen           ;
-				else if (buildable!=Buildable::DynSrc)                                                                                    msg = Src              ;
-				else                                   { ::vector<RuleTgt> v = rule_tgts().view() ; SWEAR(v.size()==1,idx(),v,status()) ; msg = v[0]->rule->name ; }
+				if      (frozen                      )                                                                                    msg = Frozen                  ;
+				else if (buildable!=Buildable::DynSrc)                                                                                    msg = Src                     ;
+				else                                   { ::vector<RuleTgt> v = rule_tgts().view() ; SWEAR(v.size()==1,idx(),v,status()) ; msg = v[0]->rule->user_name() ; }
 			}
 			return msg ;
 		} ;

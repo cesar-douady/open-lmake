@@ -47,10 +47,13 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 
 // START_OF_VERSIONING
 enum class CacheHitInfo : uint8_t {
-	None
-,	Hit
+	Hit                             // cache hit
+,	Match                           // cache match, but not hit (some deps are missing, hence dont know if hit or miss)
 ,	NoRule
 ,	BadDeps
+,	BadCodec
+// aliases
+,	Miss = NoRule                   // >=Miss means cache miss
 } ;
 // END_OF_VERSIONING
 
@@ -618,16 +621,27 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 
 struct JobInfo ;
 
+//                file     ctx      code->val
+using CodecMap  = ::map_s <::map_s <::map_ss >> ; // these are compatible when serializing
+using CodecUmap = ::umap_s<::umap_s<::umap_ss>> ; // .
+using CodecVmap = ::vmap_s<::vmap_s<::vmap_ss>> ; // .
+
 namespace Caches {
 
 	struct Cache {
 		using Sz  = Disk::DiskSz ;
 		using Tag = CacheTag     ;
 		struct Match {
-			Bool3               hit      = No ;
-			CacheHitInfo        hit_info = {} ;
-			::vmap_s<DepDigest> deps     = {} ;                                                       // if hit==Maybe : deps that need to be done before answering hit/miss
-			::string            key      = {} ;                                                       // if hit==Yes   : an id to easily retrieve matched results when calling download
+			CacheHitInfo        hit_info          = CacheHitInfo::NoRule ;
+			::string            key               = {}                   ;                            // if hit_info==Hit   : an id to easily retrieve matched results when calling download
+			::vmap_s<DepDigest> deps              = {}                   ;                            // if hit_info==Match : deps that need to be done before answering hit/miss
+			CodecMap            missing_codec_map = {}                   ;                            // if hit_info==Hit, codec entries to set (Hit)
+		} ;
+		struct Hdr {
+			// START_OF_VERSIONING
+			::vector<Sz> target_szs ;
+			CodecMap     codec_map  ;
+			// END_OF_VERSIONING
 		} ;
 		// statics
 		static Cache* s_new   ( Tag                               ) ;
@@ -636,11 +650,12 @@ namespace Caches {
 		static ::vector<Cache*> s_tab ;
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
-		::optional<Match>      match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
-		JobInfo                download( ::string const& match_key , Disk::NfsGuard& repo_nfs_guard                        ) ;
-		uint64_t/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , uint8_t z_lvl=0 ) ;
-		void                   commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
-		void                   dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
+		::optional<Match>        match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps  ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
+		::pair<JobInfo,CodecMap> download( ::string const& job , ::string const& key , Disk::NfsGuard& ) ;
+		void                     commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&   ) ;
+		void                     dismiss ( uint64_t upload_key                                         ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
+		//
+		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , CodecMap&& codec_map , uint8_t z_lvl=0 ) ;
 		// default implementation : no caching, but enforce protocol
 		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false ) {}
 		virtual ::vmap_ss descr (                                            ) { return {}        ; }
@@ -650,7 +665,7 @@ namespace Caches {
 		virtual void      serdes( ::string_view&                             ) {}                     // deserialize
 		//
 		virtual ::optional<Match>                   sub_match   ( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) const { return Match() ; }
-		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const& /*match_key*/                                 ) ;
+		virtual ::pair<JobInfo,AcFd>                sub_download( ::string const&   job   , ::string const& key                 ) ;
 		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 )       { return {}      ; }
 		virtual void                                sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& )       {                  }
 		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       )       {                  }
@@ -1062,12 +1077,26 @@ struct JobInfo {
 
 namespace Codec {
 
-	static constexpr char CodecPfxS[] = ADMIN_DIR_S "codec/" ;
+	struct Split {
+		// cxtors & casts
+		Split(::string const& node) ;
+		// data
+		::string  file    ;
+		::string  ctx     ;
+		bool      encode  = false/*garbage*/ ;
+		::string  code    ;                    // if !encode
+		Hash::Crc val_crc ;                    // if  encode
+	} ;
+
+	// START_OF_VERSIONING
+	static constexpr char CodecPfxS[] = PRIVATE_ADMIN_DIR_S "codec/" ;
+	// END_OF_VERSIONING
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) ;
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val  ) ;
 
-	::string mk_file(::string const& node) ; // node may have been obtained from mk_decode_node or mk_encode_node
+	bool     is_codec(::string const& node) ;
+	::string get_file(::string const& node) ; // node has been obtained from mk_decode_node or mk_encode_node
 
 }
 
@@ -1075,4 +1104,4 @@ namespace Codec {
 // implementation
 //
 
-inline ::pair<JobInfo,AcFd> Caches::Cache::sub_download(::string const& /*key*/) { return {} ; }
+inline ::pair<JobInfo,AcFd> Caches::Cache::sub_download( ::string const& /*job*/ , ::string const& /*key*/ ) { return {} ; }

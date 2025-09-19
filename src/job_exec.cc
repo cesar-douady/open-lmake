@@ -263,7 +263,6 @@ static const ::uset_s SpecialWords {
 ,	"ulimit"  , "umask"     , "unalias"  , "unset"   , "until"
 ,	"while"
 } ;
-
 static const ::vector_s SpecialVars {
 	"BASH_ALIASES"
 ,	"BASH_ENV"
@@ -272,7 +271,6 @@ static const ::vector_s SpecialVars {
 ,	"IFS"
 ,	"SHELLOPTS"
 } ;
-
 enum class State : uint8_t {
 	None
 ,	SingleQuote
@@ -280,7 +278,6 @@ enum class State : uint8_t {
 ,	BackSlash
 ,	DoubleQuoteBackSlash // after a \ within ""
 } ;
-
 static bool is_special( char c , int esc_lvl , bool first=false ) {
 	switch (c) {
 		case '$' :
@@ -299,7 +296,6 @@ static bool is_special( char c , int esc_lvl , bool first=false ) {
 		default  :            return false ;
 	}
 }
-
 // replace call to BASH by direct execution if a single command can be identified
 bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_ss const& cmd_env ) {
 	if (res.size()!=1) return false/*done*/ ;                                                        // options passed to bash
@@ -701,7 +697,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			try {
-				upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.z_lvl ) ;
+				upload_key = g_start_info.cache->upload( digest.targets , target_fis , ::move(g_gather.codec_map) , g_start_info.z_lvl ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;

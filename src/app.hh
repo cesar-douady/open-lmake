@@ -198,8 +198,8 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 				// short options
 				const char* p ;
 				for( p=arg+1 ; *p ; p++ ) {
-					if (key_map.contains(*p)) {
-						Key k = key_map.at(*p) ;
+					if ( auto it=key_map.find(*p) ; it!=key_map.end() ) {
+						Key k = it->second ;
 						throw_if( has_key , "cannot specify both --",key," and --",k ) ;
 						key     = k    ;
 						has_key = true ;
@@ -209,8 +209,7 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 						//
 						if (!syntax.flags[+f].has_arg) continue ;
 						//
-						p++ ;
-						if      (*p      ) flag_args[+f] = p         ;
+						if      (p[1]    ) flag_args[+f] = p+1       ;
 						else if (a+1<argc) flag_args[+f] = argv[++a] ;
 						else               throw cat("no value for option -",*p) ;
 						break ;

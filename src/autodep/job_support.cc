@@ -168,9 +168,9 @@ namespace JobSupport {
 	}
 
 	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {
-		if (Encode) { //!                                                                                                           ok
-			if (min_len<=1            ) return { cat("min_len (",min_len,") must be at least 1"                                 ) , false } ;
-			if (min_len> sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
+		if (Encode) { //!                                                                                                          ok
+			if (min_len<1            ) return { cat("min_len (",min_len,") must be at least 1"                                 ) , false } ;
+			if (min_len>sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
 		}
 		Comment comment = Encode ? Comment::Encode : Comment::Decode ;
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;

@@ -7,6 +7,7 @@
 
 #include "disk.hh"
 #include "hash.hh"
+#include "msg.hh"
 #include "time.hh"
 #include "trace.hh"
 #include "caches/dir_cache.hh" // PER_CACHE : add include line for each cache method
@@ -532,35 +533,33 @@ namespace Caches {
 		}
 	}
 
-	JobInfo Cache::download( ::string const& match_key , NfsGuard& repo_nfs_guard ) {
-		Trace trace("Cache::download",match_key) ;
+	::pair<JobInfo,CodecMap> Cache::download( ::string const& job , ::string const& key , NfsGuard& repo_nfs_guard ) {
+		Trace trace("Cache::download",key) ;
 		//
-		::pair<JobInfo,AcFd>    info_fd  = sub_download(match_key)     ;
+		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key )   ;
 		JobInfo               & job_info = info_fd.first               ;
 		::vmap_s<TargetDigest>& targets  = job_info.end.digest.targets ;
 		NodeIdx                 n_copied = 0                           ;
 		try {
-			#if !HAS_ZLIB
-				throw_if( job_info.start.start.z_lvl , "cannot uncompress without zlib" ) ;
+			#if !( HAS_ZSTD || HAS_ZLIB )
+				throw_if( job_info.start.start.z_lvl , "cannot uncompress without zstd nor zlib" ) ;
 			#endif
 			//
-			NodeIdx   n_targets = targets.size()                                              ;
-			InflateFd data_fd   { ::move(info_fd.second) , bool(job_info.start.start.z_lvl) } ;
+			InflateFd data_fd { ::move(info_fd.second) , bool(job_info.start.start.z_lvl) } ;
+			Hdr       hdr     = IMsgBuf().receive<Hdr>(data_fd)                             ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
 			//
-			::string     target_szs_str = data_fd.read(n_targets*sizeof(Sz)) ;
-			::vector<Sz> target_szs     ( n_targets )                        ; for( NodeIdx ti : iota(n_targets) ) ::memcpy( &target_szs[ti] , &target_szs_str[ti*sizeof(Sz)] , sizeof(Sz) ) ;
-			for( NodeIdx ti : iota(n_targets) ) {
+			for( NodeIdx ti : iota(targets.size()) ) {
 				auto&           entry = targets[ti]            ;
 				::string const& tn    = entry.first            ;
 				FileTag         tag   = entry.second.sig.tag() ;
-				Sz              sz    = target_szs[ti]         ;
+				Sz              sz    = hdr.target_szs[ti]     ;
 				n_copied = ti+1 ;                                                                           // this is a protection, so record n_copied *before* action occurs
 				repo_nfs_guard.change(tn) ; //!                     dir_ok
 				if (tag==FileTag::None) try { unlnk(           tn  , false ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
 				else                          unlnk( dir_guard(tn) , true  ) ;
 				switch (tag) {
 					case FileTag::None  :                                                                                                 break ;
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(target_szs[ti]) )                            ; break ;
+					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(hdr.target_szs[ti]) )                        ; break ;
 					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666} ) ; break ;
 					case FileTag::Exe   :
 					case FileTag::Reg   : {
@@ -574,30 +573,34 @@ namespace Caches {
 			job_info.end.end_date = New ;                                                                   // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
-			return job_info ;
+			return { ::move(job_info) , ::move(hdr.codec_map) } ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
 			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                   // clean up partial job
-			throw e ;
+			throw ;
 		}
 	}
 
-	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , uint8_t z_lvl ) {
+	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , CodecMap&& codec_map , uint8_t z_lvl ) {
 		Trace trace("DirCache::upload",targets.size(),z_lvl) ;
+		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
-		Sz                                  tgts_sz  = 0                                  ; { for( FileInfo fi : target_fis ) tgts_sz += fi.sz ;}
+		Sz  tgts_sz  = 0 ;
+		Hdr hdr      ;     hdr.target_szs.reserve(target_fis.size()) ;
+		for( FileInfo fi : target_fis ) {
+			tgts_sz += fi.sz ;
+			hdr.target_szs.push_back(fi.sz) ;
+		}
+		hdr.codec_map = ::move(codec_map) ;
+		//
 		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,z_lvl) ;
 		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)               ;
 		//
 		try {
-			NodeIdx n_targets = targets.size()                  ;
 			DeflateFd data_fd { ::move(key_fd.second) , z_lvl } ;
+			OMsgBuf().send( data_fd , hdr ) ;
 			//
-			SWEAR( target_fis.size()==n_targets , target_fis.size() , n_targets ) ;
-			::string target_szs_str ( n_targets*sizeof(Sz) , 0 ) ; for( NodeIdx ti : iota(n_targets) ) ::memcpy( &target_szs_str[ti*sizeof(Sz)] , &target_fis[ti].sz , sizeof(Sz) ) ;
-			data_fd.write(target_szs_str) ;
-			//
-			for( NodeIdx ti : iota(n_targets) ) {
+			for( NodeIdx ti : iota(targets.size()) ) {
 				::pair_s<TargetDigest> const& entry = targets[ti]            ;
 				::string               const& tn    = entry.first            ;
 				FileTag                       tag   = entry.second.sig.tag() ;
@@ -625,7 +628,7 @@ namespace Caches {
 		} catch (::string const& e) {
 			dismiss(key_fd.first) ;
 			trace("failed") ;
-			throw e ;
+			throw ;
 		}
 		trace("done",tgts_sz,z_max_sz) ;
 		return key_fd.first ;
@@ -1109,9 +1112,11 @@ void JobEndRpcReq::cache_cleanup() {
 	digest.upload_key = {} ;               // .
 	phy_tmp_dir_s     = {} ;               // execution dependent
 	for( auto& [_,td] : digest.targets ) {
-		SWEAR(!td.pre_exist) ;             // else cannot be a candidate for upload as this must have failed
+		SWEAR(!td.pre_exist) ;             // else cannot be a candidate for upload
 		td.sig = td.sig.tag() ;            // forget date, just keep tag
 	}
+	for( auto& [_,dd] : digest.deps )
+		dd.hot = false ;                   // execution dependent
 }
 
 void JobEndRpcReq::chk(bool for_cache) const {
@@ -1385,15 +1390,32 @@ void JobInfo::chk(bool for_cache) const {
 namespace Codec {
 
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return CodecPfxS+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+"/decode-"+mk_printable(code) ;
+		return cat(CodecPfxS,mk_printable<'/'>(file),'/',mk_printable<'/'>(ctx),"/decode-",mk_printable(code)) ;
 	}
 
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return CodecPfxS+mk_printable<'/'>(file)+'/'+mk_printable<'/'>(ctx)+"/encode-"+Crc(New,val).hex() ;
+		return cat(CodecPfxS,mk_printable<'/'>(file),'/',mk_printable<'/'>(ctx),"/encode-",Crc(New,val).hex()) ;
 	}
 
-	::string mk_file(::string const& node) {
+	::string get_file(::string const& node) {
 		return parse_printable<'/'>(node,::ref(sizeof(CodecPfxS)-1)) ; // account for terminating null in CodecPfx
+	}
+
+	bool is_codec(::string const& node) {
+		return node.starts_with(CodecPfxS) ;
+	}
+
+	Split::Split(::string const& node) {
+		size_t pos = sizeof(CodecPfxS)-1 ; // account for terminating null in CodecPfx
+		//
+		file = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
+		ctx  = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
+		//
+		::string_view sv = substr_view(node,pos) ;
+		switch (node[pos]) {
+			case 'd' : SWEAR( sv.starts_with("decode-") , node ) ; pos += 7 ; encode = false ; code    = parse_printable(            node,pos ) ; break ;
+			case 'e' : SWEAR( sv.starts_with("encode-") , node ) ; pos += 7 ; encode = true  ; val_crc = Crc::s_from_hex(substr_view(node,pos)) ; break ;
+		DF}
 	}
 
 }

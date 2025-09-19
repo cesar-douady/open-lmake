@@ -813,7 +813,7 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 	return res ;
 }
 // stop at Delimiter or any non printable char
-template<char Delimiter> ::string parse_printable( ::string const& x , size_t& pos ) {
+template<char Delimiter> ::string parse_printable( ::string const& x , size_t&/*inout*/ pos ) {
 	static_assert(_can_be_delimiter(Delimiter)) ;
 	SWEAR( pos<=x.size() , x,pos ) ;
 	::string res ;

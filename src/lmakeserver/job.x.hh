@@ -450,7 +450,7 @@ namespace Engine {
 		RunStatus        run_status    :3 = {} ; //      3 bits
 		Status           status        :4 = {} ; //      4 bits
 		BackendTag       backend       :2 = {} ; //      2 bits         backend asked for last execution
-		CacheHitInfo     cache_hit_info:2 = {} ; //      2 bits
+		CacheHitInfo     cache_hit_info:3 = {} ; //      3 bits
 	private :
 		mutable bool _sure          :1 = false ; //      1 bit
 		Bool3        _reliable_stats:2 = No    ; //      2 bits,        if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info

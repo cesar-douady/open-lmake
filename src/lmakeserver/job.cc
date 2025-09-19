@@ -221,7 +221,7 @@ namespace Engine {
 			trace("not_accepted") ;
 			::pair_s<RuleData::MatchEntry> const& k_me = rule->matches[msg.second] ;
 			MatchKind                             mk   = k_me.second.flags.kind()  ;
-			req->audit_job( Color::Warning , cat("bad_",mk) , rule->name , match.name() ) ;
+			req->audit_job( Color::Warning , cat("bad_",mk) , rule , match.name() ) ;
 			req->audit_stderr( self , {.msg=cat(mk,' ',k_me.first," : ",msg.first)} ) ;
 			return ;
 		}
@@ -233,7 +233,7 @@ namespace Engine {
 		} catch (MsgStderr const& msg_err) {
 			trace("no_dep_subst") ;
 			if (+req) {
-				req->audit_job( Color::Note , "deps_not_avail" , rule->name , match.name() ) ;
+				req->audit_job( Color::Note , "deps_not_avail" , rule , match.name() ) ;
 				req->audit_stderr( self , {ensure_nl(rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg,msg_err.stderr} ) ;
 			}
 			return ;
@@ -256,14 +256,14 @@ namespace Engine {
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
 			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
-		if (+digest.first) {                                                           // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
-			req->audit_job( Color::Warning , "bad_dep" , rule->name , match.name() ) ;
+		if (+digest.first) {                                                     // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
+			req->audit_job( Color::Warning , "bad_dep" , rule , match.name() ) ;
 			req->audit_stderr( self , {.msg=digest.first} ) ;
 			return ;
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//          args for store         args for JobData
-		self = Job( match.full_name(),Dflt , match,deps   ) ;                          // initially, static deps are deemed read, then actual accesses will be considered
+		self = Job( match.full_name(),Dflt , match,deps   ) ;                    // initially, static deps are deemed read, then actual accesses will be considered
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("found",self,self->deps) ;
 	}
@@ -644,6 +644,7 @@ namespace Engine {
 		bool                              has_new_deps         = false ;
 		bool                              has_updated_dep_crcs = false ;                                  // record acquired dep crc's if we acquired any
 		::vector<::pair<Crc,bool/*err*/>> dep_crcs             ;
+		bool                              can_upload           = true  ;
 		if (fresh_deps) {
 			::uset<Node>  old_deps ;
 			::vector<Dep> deps     ; deps    .reserve(digest.deps.size()) ;
@@ -656,11 +657,15 @@ namespace Engine {
 				Dep dep { dn , dd } ;
 				if (!old_deps.contains(dep)) {
 					has_new_deps = true ;
-					// dep.hot means dep has been accessed within g_config->date_prc after its mtime (according to Pdate::now())
-					// because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP)
-					// this means that the file could actually have been accessed before and have gotten wrong data.
-					// if this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finished before job started).
-					if (dep.hot) { trace("reset",dep) ; dep.del_crc() ; }
+					// dep.hot means dep has been accessed within g_config->date_prc after its mtime (according to Pdate::now()).
+					// Because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP).
+					// This means that the file could actually have been accessed before and have gotten wrong data.
+					// If this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finished before job started).
+					if (dep.hot) {
+						trace("reset",dep) ;
+						dep.del_crc() ;
+						can_upload = false ;                                                              // dont upload cache with unstable execution
+					}
 				}
 				bool updated_dep_crc = false ;
 				if (!dep.is_crc) {
@@ -701,10 +706,10 @@ namespace Engine {
 		//^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
 		MsgStderr      msg_stderr  ;
-		bool           upload      = jd.run_status==RunStatus::Ok && ok==Yes ;
 		::vector<bool> must_wakeup ;
+		can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;             // only cache execution without errors
 		//
-		trace("wrap_up",ok,digest.cache_idx,jd.run_status,STR(upload),digest.upload_key) ;
+		trace("wrap_up",ok,digest.cache_idx,jd.run_status,STR(can_upload),digest.upload_key) ;
 		if ( +severe_msg || digest.has_msg_stderr ) {
 			JobInfo ji = job_info() ;
 			if (digest.has_msg_stderr) msg_stderr = ji.end.msg_stderr ;
@@ -757,19 +762,19 @@ namespace Engine {
 			,	digest.exec_time
 			,	is_retry(job_reason.tag)
 			) ;
-			upload &= maybe_done ;                                     // if job is not done, cache entry will be overwritten (with dircache at least) when actually rerun
+			can_upload &= maybe_done ;                                 // if job is not done, cache entry will be overwritten (with dir_cache at least) when actually rerun
 			must_wakeup.push_back(done) ;
 			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
 			trace("req_after",ri,job_reason,STR(done)) ;
 		}
 		if (+digest.upload_key) {
 			Cache* cache = Cache::s_tab[digest.cache_idx] ;
-			SWEAR( cache , digest.cache_idx ) ;                                                      // cannot commit/dismiss without cache
+			SWEAR( cache , digest.cache_idx ) ;                                                                               // cannot commit/dismiss without cache
 			try {
-				if (upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ; // cache only successful results
-				else        cache->dismiss( digest.upload_key                                    ) ; // free up temporary storage copied in job_exec
+				if (can_upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;
+				else            cache->dismiss( digest.upload_key                                    ) ;                      // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
-				const char* action = upload ? "upload" : "dismiss" ;
+				const char* action = can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;
 				for( Req req : running_reqs_ ) {
 					req->audit_job( Color::Warning , cat("bad_cache_",action) , self , true/*at_end*/ ) ;
@@ -777,7 +782,7 @@ namespace Engine {
 				}
 			}
 		}
-		for( ReqIdx i : iota(running_reqs_.size()) ) {                                               // wakeup only after all messages are reported to user and cache->commit may generate user messages
+		for( ReqIdx i : iota(running_reqs_.size()) ) { // wakeup only after all messages are reported to user and cache->commit may generate user messages
 			Req      req = running_reqs_[i] ;
 			ReqInfo& ri  = jd.req_info(req) ;
 			trace("wakeup_watchers",ri) ;
@@ -1425,8 +1430,9 @@ namespace Engine {
 					}
 					Cache*                   cache       = Cache::s_tab[cache_idx] ;
 					::optional<Cache::Match> cache_match ;
+					::string                 job_name    = unique_name()           ;
 					try {
-						cache_match = cache->match( unique_name() , dns ) ;
+						cache_match = cache->match( job_name , dns ) ;
 						if (!cache_match) FAIL("delayed cache not yet implemented") ;
 					} catch (::string const& e) {
 						trace("cache_match_throw",e) ;
@@ -1434,8 +1440,9 @@ namespace Engine {
 						req->audit_stderr( job , {.msg=e} ) ;
 					}
 					cache_hit_info = cache_match->hit_info ;
-					switch (cache_match->hit) {
-						case Yes :
+					trace("hit",cache_hit_info) ;
+					switch (cache_hit_info) {
+						case CacheHitInfo::Hit :
 							try {
 								NfsGuard nfs_guard { g_config->file_sync } ;
 								//
@@ -1449,8 +1456,8 @@ namespace Engine {
 									trace("hit_msg",dfa_msg,ri) ;
 								}
 								//
-								JobExec je       { job , New }                                 ;                                // job starts and ends, no host
-								JobInfo job_info = cache->download(cache_match->key,nfs_guard) ;
+								JobExec je       { job , New }                                                      ;           // job starts and ends, no host
+								JobInfo job_info = cache->download( job_name , cache_match->key , nfs_guard ).first ;
 								job_info.start.pre_start.job       = +job      ;                                                // repo dependent
 								job_info.start.submit_attrs.reason = ri.reason ;                                                // context dependent
 								job_info.end  .end_date            = New       ;                                                // execution dependnt
@@ -1462,30 +1469,32 @@ namespace Engine {
 								if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
 								//
 								ri.step(Step::Hit,job) ;
-								trace("hit_result") ;
 								je.end(::move(digest)) ;
 								req->stats.add(JobReport::Hit) ;
 								req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
-								goto ResetReqInfo ;
+								if ( Codec::mk_codec_entries( cache_match->missing_codec_map , +req ) ) goto ReportHit ;
+								else                                                                    goto BadCodec  ;
 							} catch (::string const&e) {                                                                        // if we cant download result, it is like a miss
 								trace("cache_hit_throw",e) ;
 								req->audit_job( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
 								req->audit_stderr( job , {.msg=e} ) ;
 							}
 						break ;
-						case Maybe : {
+						case CacheHitInfo::Match : {
+							status = Status::CacheMatch ;
+							if ( !Codec::can_mk_codec_entries( cache_match->missing_codec_map , +req ) ) goto BadCodec ;
+						ReportHit :
 							::vector<Dep> ds ; ds.reserve(cache_match->deps.size()) ; for( auto& [dn,dd] : cache_match->deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 							deps.assign(ds) ;
-							status = Status::CacheMatch ;
-							trace("hit_deps") ;
-						}
-						ResetReqInfo :
 							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
 							return true/*maybe_new_deps*/ ;                                                                     // ... so we have to ensure ri.iter is still a legal iterator
-						case No :
-							trace("hit_miss") ;
+						}
+						BadCodec :
+							cache_hit_info = CacheHitInfo::BadCodec ;
 						break ;
-					DF}                                                                                                         // NO_COV
+						default :
+							SWEAR( cache_hit_info>=CacheHitInfo::Miss , cache_hit_info ) ;
+					}                                                                                                           // NO_COV
 				}
 			}
 		}

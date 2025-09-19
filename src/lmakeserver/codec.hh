@@ -16,6 +16,19 @@ namespace Codec {
 
 	bool/*ok*/ refresh( NodeIdx , ReqIdx ) ;
 
+	Bool3 _mk_codec_entries( CodecMap const& , ReqIdx , bool create ) ; // No means cannot create, Maybe means must create, Yes means already created
+	//
+	inline bool/*ok*/ can_mk_codec_entries( CodecMap const& map , ReqIdx r ) {
+		return _mk_codec_entries( map , r , false/*create*/ )!=No ;
+	}
+	inline bool/*ok*/ mk_codec_entries( CodecMap const& map , ReqIdx r ) {
+		switch ( _mk_codec_entries( map , r , false/*create*/ ) ) { //!         ok
+			case No    :                                                 return false ;
+			case Maybe : _mk_codec_entries( map , r , true/*create*/ ) ; return true  ;
+			case Yes   :                                                 return true  ;
+		DF}
+	}
+
 	struct Closure {
 		friend ::string& operator+=( ::string& , Closure const& ) ;
 		using Proc = JobMngtProc ;
@@ -31,7 +44,7 @@ namespace Codec {
 		static void s_init    () ;
 		static void s_finalize() ;
 		//
-		static bool/*ok*/ s_refresh( ::string const& file , NodeIdx , ::vector<ReqIdx> const& ) ;
+		static bool/*ok*/ s_refresh( ::string const& file , NodeIdx=0 , ::vector<ReqIdx> const& ={} ) ;
 	private :
 		static void _s_canonicalize( ::string const& file , ::vector<ReqIdx> const& ) ;
 		// static data

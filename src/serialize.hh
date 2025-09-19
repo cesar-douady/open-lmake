@@ -266,6 +266,10 @@ template<class T,size_t N> struct Serdeser<::array<T,N>> {
 	template<IsIStream S> static void s_serdes( S& is , ::array<T,N>      & a ) { for( T      & x : a ) serdes(is,x) ; }
 } ;
 
+// serializations of following types must be compatible as we may serialize with one and deserialize with another :
+// - ::vector, ::set and ::uset
+// - ::vmap  , ::map and ::umap
+
 template<class T> struct Serdeser<::vector<T>> {
 	template<IsOStream S> static void s_serdes( S& os , ::vector<T> const& v ) {
 		serdes(os,_sz32(v)) ;

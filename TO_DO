@@ -25,6 +25,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* implement lmake.marker, a function that is called at start-up
+	- trigger config/rules/source re-read if returned value changes
+* config.backends.slurm.interface must be dynamically computed
+	- so lmakeserver can be launched from several hosts
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -75,7 +79,13 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
-	- or write such functions in C, so that malloc are necessary visible
+	- or write such functions in C, so that malloc calls are necessarily visible
+! manage resource deadlocks with direct rebuild of deps
+	- suspend waiting job (tell backend job is suspended)
+	- tell backend job is resumed
+	- while suspended, consider resources to be freed
+	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
+	- then resume participates to allocation competition
 ? use a Path struct instead of at/file
 	- everywhere applicable
 	- possibly too expensive performance wise
@@ -92,14 +102,14 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * distinguish lmake return code depending on necessary user corrective action
 	- such as must git clean
 	- so as to be script friendly
-* provide a list of forbidden src dirs
-	- like src dirs, but access generates fail
-	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :
 	- use a daemon
+? provide a list of forbidden src dirs
+	- like src dirs, but access generates fail
+	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
 ? make readdir_ok mandatory to mv a directory
 	- as there is an implicit dir listing underneath
 	- on the other hand, deps are recorded to all of them
@@ -125,16 +135,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- at the end, transport targets to their real location
 	- drop other written files
 	- generate an error or not if any such files, depending on user declaration
-? support direct rebuild of deps
-	- specify a target flag 'direct' for use by pattern
-	- specify a dep    flag 'direct' for dynamic use (through ldepend)
-	- pass known hidden deps to job_exec to avoid connection to server when known
-	- the difficult point : manage resource deadlocks
-		- suspend waiting job (tell backend job is suspended)
-		- tell backend job is resumed
-		- while suspended, consider resources to be freed
-		- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
-		- then resume participates to allocation competition
 ? provide more options to stderr management :
 	- redirect to stdout
 	- hide it (still accessible in lshow -e)
@@ -178,7 +178,12 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* codec management in cache can be thoroughly optimized
+	- maintain codec_map in the deps file so as to be readily accessible when matching
+	- overall review code
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
+* direct rebuild of deps
+	- pass known hidden deps to job_exec to avoid connection to server in that case
 ! share deps to non-buildable Node's in job deps
 	- define a new prefix file non_buildable_deps (reversed)
 	- store such entries in deps rather than the explicit list
