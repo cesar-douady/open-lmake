@@ -32,12 +32,16 @@ StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 }
 
 ::string fqdn() {
-	char buf[DOMAIN_NAME_MAX+1] ;
-	int rc                      = ::getdomainname(buf,sizeof(buf)) ;
-	if (rc<0          ) return host()         ;
-	if (!buf[0]       ) return host()         ;
-	if (buf=="(none)"s) return host()         ;
-	/**/                return host()+'.'+buf ;
+	struct addrinfo  hints = {}     ; hints.ai_family = AF_UNSPEC ; hints.ai_flags = AI_CANONNAME ;
+	struct addrinfo* ai    ;
+	::string         fqdn  = host() ; // default to hostname
+	//
+	if ( ::getaddrinfo( fqdn.c_str() , nullptr/*service*/ , &hints , &ai )!=0 ) goto Return ;
+	if ( !ai->ai_canonname                                                    ) goto Return ;
+	fqdn = ai->ai_canonname ;
+Return :
+	::freeaddrinfo(ai) ;
+	return fqdn ;
 }
 
 ::string const& SockFd::s_host(in_addr_t a) {                                // implement a cache as getnameinfo implies network access and can be rather long

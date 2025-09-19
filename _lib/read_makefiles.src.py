@@ -91,6 +91,7 @@ if '.config.' in actions :
 			expr = serialize.get_expr(
 				be['interface']
 			,	ctx            = (config.__dict__,)
+			,	no_imports     = fmt_rule.lcl_mod_file                                                            # local imports not supported for now
 			,	call_callables = True
 			)
 			be['interface'] = expr.glbs+'interface = '+expr.expr

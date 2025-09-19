@@ -503,9 +503,9 @@ namespace Engine {
 			::string res = name ; if (+sub_repo_s) res <<':'<< no_slash(sub_repo_s) ;
 			return mk_printable(res) ;
 		}
-		Disk::FileNameIdx job_sfx_len(                ) const ;
-		::string          job_sfx    (                ) const ;
-		void              validate   (::string job_sfx) const ;
+		Disk::FileNameIdx job_sfx_len(                       ) const ;
+		::string          job_sfx    (                       ) const ;
+		void              validate   (::string const& job_sfx) const ;
 		// services
 		::string add_cwd( ::string&& file , bool top=false ) const {
 			if ( !top && +sub_repo_s ) return Disk::mk_glb(file,sub_repo_s) ;
@@ -941,9 +941,10 @@ namespace Engine {
 		return res ;
 	}
 	// END_OF_VERSIONING
-	inline void RuleData::validate(::string job_sfx) const {
+	inline void RuleData::validate(::string const& job_sfx) const {
+		if (job_sfx.size()<sizeof(Crc::Val)) FAIL( mk_printable(job_sfx) ) ;
 		Crc crc_ { decode_int<Crc::Val>(&job_sfx[job_sfx.size()-sizeof(Crc::Val)]) } ;
-		SWEAR( crc_==crc->match , name , sub_repo_s , crc_ , crc->match ) ;
+		if (crc_!=crc->match) FAIL( name , sub_repo_s , crc_ , crc->match , mk_printable(job_sfx) ) ;
 	}
 
 	//
