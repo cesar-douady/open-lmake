@@ -981,7 +981,8 @@ namespace Engine {
 							static_deps.back().accesses = {} ;
 						}
 						deps.replace_tail(iter,static_deps) ;
-						seen_all = !static_deps ;
+						status   = Status::EarlyChkDeps ;                                                 // we hve suppressed some deps, ensure job will be rerun
+						seen_all = !static_deps         ;
 					}
 					stamped_seen_waiting = proto_seen_waiting ;
 					if ( query && (stamped_seen_waiting||state.stamped_modif||+state.stamped_err) ) {     // no reason to analyze any further, we have the answer
