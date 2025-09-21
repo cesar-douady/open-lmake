@@ -214,6 +214,8 @@ This value may be empty (using `hostname` for addresse look up), given in standa
 or the name of a host (looked up as for `ping`).
 In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.
 
+If it is defined as a function, then this function is called when server launches, which allows it to be tailored to each particular host.
+
 ### `backends.*.environ` : Dynamic (`{}`)
 
 Environment to pass when launching job in backend.
