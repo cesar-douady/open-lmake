@@ -155,6 +155,15 @@ This attribute provide the list of sub-repos.
 Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a `Lmakefile.py`.
 Inside such sub-repos, the applied flow is the one described in it (cf. [Subrepos](experimental_subrepos.html)).
 
+### `system_tag` : Static (see below)
+
+This attribute provide a way to identify hosts by category to ensure proper config reload.
+
+Some configuration elements, such as backend interfaces, may vary from one host to another.
+To ensure config is reloaded when elements change, this attribute, which must be function, is run and if its result is not the same as last time, config is reloaded.
+
+By default, the `hostname` is returned, so config is reloaded as soon as the open-lmake server is launched on a different host.
+
 ### `backends` : Dynamic
 
 This attribute is a `pdict` with one entry for each active backend (cf. [backends](backends.html)).
@@ -164,7 +173,7 @@ Each entry is a `pdict` providing resources. Such resources are backend specific
 #### `backends.*.interface` : Dynamic (best guess)
 
 When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
-The same is true if the job is launche locally but it launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
+The same is true if the job is launched locally but launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
 This is done by connecting to a socket open-lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
 The host running open-lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
 There is no generic way to determine this address, so in general, open-lmake cannot determine it automatically.
@@ -172,6 +181,8 @@ There is no generic way to determine this address, so in general, open-lmake can
 This value may be empty (using `hostname` for addresse look up), given in standard dot notation, as the name of an interface (as shown by `ifconfig`)
 or the name of a host (looked up as for `ping`).
 In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.
+
+If it is defined as a function, then this function is called when server launches, which allows it to be tailored to each particular host.
 
 #### `backends.*.environ` : Dynamic (`{}`)
 
@@ -200,7 +211,7 @@ This attribute is a `pdict` with one entry for each cache.
 
 Caches are named with an arbitrary `str` and are referenced in rules using this name.
 
-By default, no cache is configured, but an example can be found in [lib/lmake/config.py](../../lib/lmake/config.py), commented out.
+By default, no cache is configured, but an example can be found in [lib/lmake/config_.py](../../lib/lmake/config_.py), commented out.
 
 #### `caches.*.tag` : Static (-)
 

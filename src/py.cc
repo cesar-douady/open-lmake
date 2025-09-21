@@ -190,6 +190,11 @@ namespace Py {
 	Callable* Ptr<Object>::s_dumps = nullptr ;
 	Callable* Ptr<Object>::s_loads = nullptr ;
 
+	Ptr<Str> Object::repr() const {
+		try                     { return PyObject_Repr(to_py()) ;                                           }
+		catch (::string const&) { py_err_clear() ; return cat("'<",type_name()," object at 0x",this,">/") ; } // catch any error so calling repr is reliable
+	}
+
 	Ptr<Str> Object::str() const {
 		try                     { return PyObject_Str(to_py()) ;                                          }
 		catch (::string const&) { py_err_clear() ; return cat('<',type_name()," object at 0x",this,'>') ; } // catch any error so calling str is reliable

@@ -109,31 +109,31 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # - St      : -fsanitize threads
 # - P       : -pg
 # - C       : coverage (not operational yet)
-LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR) ),-flto=2     ,-flto                  )
+LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR) ) , -flto=2 , -flto )
 EXTRA_LINK_FLAGS :=
-EXTRA_LINK_FLAGS :=     $(if $(findstring O4, $(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_LINK_FLAGS)    )
-EXTRA_LINK_FLAGS :=     $(if $(findstring O3, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
-EXTRA_LINK_FLAGS :=     $(if $(findstring O2, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
-EXTRA_LINK_FLAGS :=     $(if $(findstring O1, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
-EXTRA_LINK_FLAGS :=     $(if $(findstring O0, $(LMAKE_FLAGS)),            ,$(EXTRA_LINK_FLAGS)    )
-EXTRA_LINK_FLAGS +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
-EXTRA_LINK_FLAGS +=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
-EXTRA_CC_FLAGS   :=                                           -O3
-EXTRA_CC_FLAGS   :=     $(if $(findstring P,  $(LMAKE_FLAGS)),-O1         ,$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   :=     $(if $(findstring C,  $(LMAKE_FLAGS)),-O0         ,$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   :=     $(if $(findstring O4, $(LMAKE_FLAGS)),$(LTO_FLAGS),$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   :=     $(if $(findstring O3, $(LMAKE_FLAGS)),-O3         ,$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   :=     $(if $(findstring O2, $(LMAKE_FLAGS)),-O2         ,$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   :=     $(if $(findstring O1, $(LMAKE_FLAGS)),-O1         ,$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   :=     $(if $(findstring O0, $(LMAKE_FLAGS)),-O0         ,$(EXTRA_CC_FLAGS)      )
-EXTRA_CC_FLAGS   +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-g                     )
-EXTRA_CC_FLAGS   +=     $(if $(findstring d,  $(LMAKE_FLAGS)),-DNDEBUG                            )
-EXTRA_CC_FLAGS   +=     $(if $(findstring T,  $(LMAKE_FLAGS)),-DTRACE                             )
-EXTRA_CC_FLAGS   +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-pg                                 )
-EXTRA_CC_FLAGS   +=     $(if $(findstring C,  $(LMAKE_FLAGS)),--coverage                          )
-HIDDEN_CC_FLAGS  +=     $(if $(findstring g,  $(LMAKE_FLAGS)),            ,-fno-omit-frame-pointer)
-HIDDEN_CC_FLAGS  +=     $(if $(findstring P,  $(LMAKE_FLAGS)),-DPROFILING                         )
-HIDDEN_CC_FLAGS  +=     $(if $(findstring O0, $(LMAKE_FLAGS)),-fno-inline                         )
+EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS) ) , $(LTO_FLAGS) , $(EXTRA_LINK_FLAGS)     )
+EXTRA_LINK_FLAGS := $(if $(findstring O3,$(LMAKE_FLAGS) ) ,              , $(EXTRA_LINK_FLAGS)     )
+EXTRA_LINK_FLAGS := $(if $(findstring O2,$(LMAKE_FLAGS) ) ,              , $(EXTRA_LINK_FLAGS)     )
+EXTRA_LINK_FLAGS := $(if $(findstring O1,$(LMAKE_FLAGS) ) ,              , $(EXTRA_LINK_FLAGS)     )
+EXTRA_LINK_FLAGS := $(if $(findstring O0,$(LMAKE_FLAGS) ) ,              , $(EXTRA_LINK_FLAGS)     )
+EXTRA_LINK_FLAGS += $(if $(findstring P, $(LMAKE_FLAGS) ) , -pg                                    )
+EXTRA_LINK_FLAGS += $(if $(findstring C, $(LMAKE_FLAGS) ) , --coverage                             )
+EXTRA_CC_FLAGS   :=                                         -O3
+EXTRA_CC_FLAGS   := $(if $(findstring P, $(LMAKE_FLAGS) ) , -O1          , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   := $(if $(findstring C, $(LMAKE_FLAGS) ) , -O0          , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   := $(if $(findstring O4,$(LMAKE_FLAGS) ) , $(LTO_FLAGS) , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   := $(if $(findstring O3,$(LMAKE_FLAGS) ) , -O3          , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   := $(if $(findstring O2,$(LMAKE_FLAGS) ) , -O2          , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   := $(if $(findstring O1,$(LMAKE_FLAGS) ) , -O1          , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   := $(if $(findstring O0,$(LMAKE_FLAGS) ) , -O0          , $(EXTRA_CC_FLAGS)       )
+EXTRA_CC_FLAGS   += $(if $(findstring g, $(LMAKE_FLAGS) ) ,              , -g                      )
+EXTRA_CC_FLAGS   += $(if $(findstring d, $(LMAKE_FLAGS) ) , -DNDEBUG                               )
+EXTRA_CC_FLAGS   += $(if $(findstring T, $(LMAKE_FLAGS) ) , -DTRACE                                )
+EXTRA_CC_FLAGS   += $(if $(findstring P, $(LMAKE_FLAGS) ) , -pg                                    )
+EXTRA_CC_FLAGS   += $(if $(findstring C, $(LMAKE_FLAGS) ) , --coverage                             )
+HIDDEN_CC_FLAGS  += $(if $(findstring g, $(LMAKE_FLAGS) ) ,              , -fno-omit-frame-pointer )
+HIDDEN_CC_FLAGS  += $(if $(findstring P, $(LMAKE_FLAGS) ) , -DPROFILING                            )
+HIDDEN_CC_FLAGS  += $(if $(findstring O0,$(LMAKE_FLAGS) ) , -fno-inline                            )
 #
 SAN_FLAGS := $(if $(findstring Sa,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
 SAN_FLAGS += $(if $(findstring St,$(LMAKE_FLAGS)),-fsanitize=thread                      )
@@ -206,7 +206,7 @@ LMAKE_SERVER_PY_FILES := \
 	_lib/serialize.py                   \
 	lib/lmake/__init__.py               \
 	lib/lmake/auto_sources.py           \
-	lib/lmake/config.py                 \
+	lib/lmake/config_.py                \
 	lib/lmake/import_machinery.py       \
 	lib/lmake/py_clmake.py              \
 	lib/lmake/rules.py                  \

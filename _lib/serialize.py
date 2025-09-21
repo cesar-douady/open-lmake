@@ -129,10 +129,11 @@ class Serialize :
 		if   not root           : self.root_s = root
 		elif root.endswith('/') : self.root_s = root
 		else                    : self.root_s = root+'/'
-		if   not        no_imports      : self.no_imports_proc = lambda m : False
-		elif isinstance(no_imports,set) : self.no_imports_proc = no_imports.__contains__
-		elif callable  (no_imports    ) : self.no_imports_proc = no_imports
-		elif isinstance(no_imports,str) :
+		if   not        no_imports               : self.no_imports_proc = lambda m : False
+		elif isinstance(no_imports,(list,tuple)) : self.no_imports_proc = set(no_imports).__contains__
+		elif isinstance(no_imports, set        ) : self.no_imports_proc = no_imports.__contains__
+		elif callable  (no_imports             ) : self.no_imports_proc = no_imports
+		elif isinstance(no_imports, str        ) :
 			no_imports_re = re.compile(no_imports)
 			def no_imports_proc(mod_name) :
 				try    : return no_imports_re.fullmatch(sys.modules[mod_name].__file__)
@@ -166,11 +167,12 @@ class Serialize :
 		for name,(mod,var) in self.modules.items() :
 			self.may_import.add('static')
 			if var :
-				if '.' in var : modules += f"from {mod} import {var.split('.',1)[0]} as {name} ; {name} = {name}.{var.split('.',1)[1]}" # use name as intermediate var as it is avail for sure
-				else          : modules += f'from {mod} import {var} as {name}'
+				if   '.' in var : modules += f"from {mod} import {var.split('.',1)[0]} as {name} ; {name} = {name}.{var.split('.',1)[1]}" # use name as intermediate var as it is avail for sure
+				elif var==name  : modules += f'from {mod} import {var}'
+				else            : modules += f'from {mod} import {var} as {name}'
 			else :
-				if name==mod  : modules += f'import {mod}'
-				else          : modules += f'import {mod} as {name}'
+				if name==mod    : modules += f'import {mod}'
+				else            : modules += f'import {mod} as {name}'
 			modules += '\n'
 		res = pdict(
 			src      = modules + '\n'.join(self.src)

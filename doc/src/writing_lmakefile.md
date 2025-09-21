@@ -30,7 +30,7 @@ A typical `Lmakefile.py` will then contain lines such as:
 lmake.config.path_max = 500 # default is 400
 ```
 
-[lib/lmake/config.py](../../lib/lmake/config.py) can be used as a handy helper as it contains all the fields with a short comment.
+[lib/lmake/config_.py](../../lib/lmake/config_.py) can be used as a handy helper as it contains all the fields with a short comment.
 
 ## The sources
 

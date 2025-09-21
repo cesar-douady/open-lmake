@@ -39,9 +39,17 @@ def _maybe_lcl(file) :
 	'fast check for local files, avoiding full absolute path generation'
 	return not file or file[0]!='/' or file.startswith(top_repo_root)
 
-from .config import config
+#
+# config, manifest and _rules are meant to be overwritten when import Lmakefile
+#
+
+from .config_ import config
 manifest = []
 _rules   = []
+
+#
+#
+#
 
 class Autodep :
 	"""
@@ -233,7 +241,7 @@ def mv_target_tree( from_dir , to_dir , regexpr=None ) :
 			dirs.add(d)
 			d = osp.dirname(d)
 	# remove dirs
-	dirs = sorted(dirs,reverse=True)                                               # sort dirs so that sub-dirs appear before parent
+	dirs = sorted(dirs,reverse=True)                                                                 # sort dirs so that sub-dirs appear before parent
 	for d in dirs :
 		try    : _os.rmdir(pfx+d)
 		except : pass

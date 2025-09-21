@@ -41,6 +41,12 @@ namespace Engine {
 		return os<<')' ;
 	}                                                                                           // END_OF_NO_COV
 
+	::string ConfigStatic::system_tag_val() const {
+		if (!system_tag) return {} ;
+		Gil gil ;
+		return *py_run(system_tag)->get_item("system_tag").repr() ;
+	}
+
 	ConfigStatic::Cache::Cache(Dict const& py_map) {
 		::string field     ;
 		bool     found_tag = false ;
@@ -73,16 +79,15 @@ namespace Engine {
 		//
 		::vector_s fields = {{}} ;
 		try {
-			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "nice"                ; if (py_map.contains(fields[0])) nice                   = uint8_t                   (py_map[fields[0]].as_a<Int  >())           ;
-			// XXX> : suppress when backward compatibility is no more required
-			fields[0] = "reliable_dirs"       ; if (py_map.contains(fields[0])) file_sync              = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt                  ;
+			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
+			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())                  ;
+			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay()        ;
+			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay()        ;
+			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
+			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
+			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
+			fields[0] = "nice"                ; if (py_map.contains(fields[0])) nice                   = uint8_t                   (py_map[fields[0]].as_a<Int  >())                  ;
+			fields[0] = "system_tag"          ; if (py_map.contains(fields[0])) system_tag             = ensure_nl                 (py_map[fields[0]].as_a<Str  >())                  ;
 			//
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
@@ -97,6 +102,8 @@ namespace Engine {
 				else if (py_lnk_support==True) lnk_support = LnkSupport::Full                                ;
 				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
 			}
+			fields[0] = "reliable_dirs" ;
+			if (py_map.contains(fields[0])) file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ;                        // XXX> : suppress when backward compatibility is no more required
 			fields[0] = "file_sync" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_file_sync = py_map[fields[0]] ;
@@ -314,6 +321,7 @@ namespace Engine {
 		/**/                             res << "\tnetwork_delay       : " << network_delay .short_str() <<'\n' ;
 		if (path_max!=size_t(-1)       ) res << "\tpath_max            : " << size_t(path_max     )      <<'\n' ;
 		else                             res << "\tpath_max            : " <<        "<unlimited>"       <<'\n' ;
+		if (+system_tag                ) res << "\tsystem_tag :\n"         << indent(system_tag,2)              ;
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
@@ -357,14 +365,17 @@ namespace Engine {
 			res <<"\t\t"<< t <<" :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			if ( +be.ifce)                    w = ::max(w,::strlen("interface")) ;
-			/**/                              w = ::max(w,::strlen("address"  )) ;
-			for( auto const& [k,v] : be.dct ) w = ::max(w,k.size()             ) ;
-			for( auto const& [k,v] : descr  ) w = ::max(w,k.size()             ) ;
-			if ( +be.ifce)                    res <<"\t\t\t"<< widen("interface",w) <<" : "<< be.ifce                       <<'\n' ;
-			/**/                              res <<"\t\t\t"<< widen("address"  ,w) <<" : "<< SockFd::s_addr_str(bbe->addr) <<'\n' ;
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k          ,w) <<" : "<< v                             <<'\n' ;
+			if ( +be.ifce && be.ifce.find('\n')==Npos ) w = ::max(w,::strlen("interface")) ;
+			/**/                                        w = ::max(w,::strlen("address"  )) ;
+			for( auto const& [k,v] : be.dct )           w = ::max(w,k.size()             ) ;
+			for( auto const& [k,v] : descr  )           w = ::max(w,k.size()             ) ;
+			//
+			if      ( !be.ifce                 ) {}
+			else if ( be.ifce.find('\n')==Npos ) res <<"\t\t\t"<< widen("interface",w) <<" : " << be.ifce                       <<'\n' ;
+			else                                 res <<"\t\t\t"<<       "interface"    <<" :\n"<< indent(be.ifce,4)             <<'\n' ;
+			/**/                                 res <<"\t\t\t"<< widen("address"  ,w) <<" : " << SockFd::s_addr_str(bbe->addr) <<'\n' ;
+			for( auto const& [k,v] : be.dct )    res <<"\t\t\t"<< widen(k          ,w) <<" : " << v                             <<'\n' ;
+			for( auto const& [k,v] : descr  )    res <<"\t\t\t"<< widen(k          ,w) <<" : " << v                             <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
 				size_t w2 = ::max<size_t>( be.env , [](auto const& k_v) { return k_v.first.size() ; } ) ;

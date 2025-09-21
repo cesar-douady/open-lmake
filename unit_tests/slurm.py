@@ -11,8 +11,10 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
+	ifce = lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname()) # forces config reread if $LMAKE_INTERFACE changes
+	def get_ifce() : return ifce
 	lmake.config.backends.slurm = {
-		'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
+		'interface' : get_ifce                                            # ensure dynamic interface is ok
 	,	'environ'   : { 'DUT':'dut' }
 	}
 

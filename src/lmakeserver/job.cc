@@ -28,17 +28,12 @@ namespace Engine {
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
 		::uset<Node>                  to_mkdirs          = match.target_dirs() ;
 		::uset<Node>                  to_mkdir_uphills   ;
-		::uset<Node>                  dep_locked_dirs    ;
 		::uset<Node>                  target_locked_dirs ;
 		::umap<Node,NodeIdx/*depth*/> to_rmdirs          ;
 		::vmap<Node,FileAction>       actions            ;
 		for( Node d : to_mkdirs )
 			for( Node hd=d->dir() ; +hd ; hd=hd->dir() )
 				if (!to_mkdir_uphills.insert(hd).second) break ;
-		for( Node dep : deps )
-			if (dep->has_file()!=No)
-				for( Node hd=dep->dir() ; +hd ; hd=hd->dir() )
-					if (!dep_locked_dirs.insert(hd).second) break ;                                               // if dir contains an existing dep, it cannot be rmdir'ed
 		//
 		// remove old targets
 		for( Target t : targets() ) {
@@ -69,7 +64,6 @@ namespace Engine {
 							if (_s_target_dirs.contains(hd)) goto NextTarget ; // everything under a protected dir is protected, dont even start walking from td
 						for( Node hd=td ; +hd ; hd=hd->dir() ) {
 							if (_s_hier_target_dirs.contains(hd)) break ;      // dir is protected
-							if (dep_locked_dirs    .contains(hd)) break ;      // dir contains a dep    => no     hope and no desire to remove it
 							if (target_locked_dirs .contains(hd)) break ;      // dir contains a target => little hope and no desire to remove it
 							if (to_mkdirs          .contains(hd)) break ;      // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
 							if (to_mkdir_uphills   .contains(hd)) break ;      // .
@@ -84,7 +78,6 @@ namespace Engine {
 		}
 		// make target dirs
 		for( Node d : to_mkdirs ) {
-			if (dep_locked_dirs .contains(d)) continue ;                       // dir contains a dep          => it already exists (targets may have been unlinked)
 			if (to_mkdir_uphills.contains(d)) continue ;                       // dir is a dir of another dir => it will be automatically created
 			actions.emplace_back( d , ::FileAction({FileActionTag::Mkdir}) ) ; // note that protected dirs (in _s_target_dirs and _s_hier_target_dirs) may not be created yet, so mkdir them to be sure
 		}
@@ -148,14 +141,15 @@ namespace Engine {
 	// JobReqInfo
 	//
 
-	::string& operator+=( ::string& os , JobReqInfo::State const& ris ) {                                           // START_OF_NO_COV
-		const char* sep = "" ;
-		/**/                                            os <<'('                                                  ;
-		if (+ris.reason                             ) { os <<            ris.reason                               ; sep = "," ; }
-		if ( +ris.stamped_err   || +ris.proto_err   ) { os <<sep<<"E:"<< ris.stamped_err  <<"->"<<ris.proto_err   ; sep = "," ; }
-		if ( +ris.stamped_modif || +ris.proto_modif )   os <<sep<<"M:"<< ris.stamped_modif<<"->"<<ris.proto_modif ;
-		return                                          os <<')'                                                  ;
-	}                                                                                                               // END_OF_NO_COV
+	::string& operator+=( ::string& os , JobReqInfo::State const& ris ) {                                                            // START_OF_NO_COV
+		First first ;
+		/**/                                                os <<'('                                                               ;
+		if ( +ris.reason                                  ) os <<first("",",")<<       ris.reason                                  ;
+		if (  ris.missing_dsk                             ) os <<first("",",")<<'D'                                                ;
+		if ( +ris.stamped.err      || +ris.proto.err      ) os <<first("",",")<<"E:"<< ris.stamped.err     <<"->"<<ris.proto.err   ;
+		if (  ris.stamped.modif    ||  ris.proto.modif    ) os <<first("",",")<<"M:"<< ris.stamped.modif   <<"->"<<ris.proto.modif ;
+		return                                              os <<')'                                                               ;
+	}                                                                                                                                // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , JobReqInfo const& ri ) { // START_OF_NO_COV
 		/**/                   os << "JRI(" << ri.req     ;
@@ -1023,53 +1017,46 @@ namespace Engine {
 			else                                                                                         goto NoReason ;
 			ri.reason              = jrt  ;
 			ri.force               = true ;
-			ri.state.proto_modif   = true ;                                                               // ensure we can copy proto_modif to stamped_modif anytime when pertinent
-			ri.state.stamped_modif = true ;
+			ri.state.proto  .modif = true ;                                                           // ensure we can copy proto_modif to stamped_modif anytime when pertinent
+			ri.state.stamped.modif = true ;
 		NoReason : ;
 		}
 		g_kpi.n_job_make++ ;
 		SWEAR(ri.step()==Step::Dep) ;
 		{
-		RestartAnalysis :                                                                                 // restart analysis here when it is discovered we need deps to run the job
-			bool           stamped_seen_waiting = false    ;
-			bool           proto_seen_waiting   = false    ;
-			bool           critical_modif       = false    ;
-			bool           critical_waiting     = false    ;
-			bool           sure                 = true     ;
-			ReqInfo::State state                = ri.state ;
+		RestartAnalysis :                                                                             // restart analysis here when it is discovered we need deps to run the job
+			bool           proto_seen_waiting    = false    ;
+			bool           stamped_seen_waiting  = false    ;
+			bool           proto_seen_critical   = false    ;                                         // seen critical modif or error or waiting
+			bool           stamped_seen_critical = false    ;
+			bool           sure                  = true     ;
+			ReqInfo::State state                 = ri.state ;
 			//
-			ri.speculative_wait = false                  ;                                                // initially, we are not waiting at all
+			ri.speculative_wait = false                  ;                                            // initially, we are not waiting at all
 			report_reason       = {}                     ;
 			pre_reason          = _mk_pre_reason(status) ;
 			if ( pre_reason.tag==JobReasonTag::Lost && !at_end ) pre_reason = JobReasonTag::WasLost ;
 			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				bool       seen_all = iter==deps.end()            ;
-				Dep const& dep      = seen_all ? Sentinel : *iter ;                                       // use empty dep as sentinel
+				Dep const& dep      = seen_all ? Sentinel : *iter ;                                   // use empty dep as sentinel
 				//
 				if (!dep.parallel) {
-					state.stamped_err   = state.proto_err   ;                                             // proto become stamped upon sequential dep
-					state.stamped_modif = state.proto_modif ;                                             // .
-					if ( critical_modif && !seen_all ) {                                                  // suppress deps following modified critical one, except static deps as no-access
-						::vector<Dep> static_deps ; static_deps.reserve(r->deps_attrs.spec.deps.size()) ; // anticipate no dynamic static deps
-						for( DepsIter it=iter ; it!=deps.end() ; it++ ) if (it->dflags[Dflag::Static]) {
-							static_deps.push_back(*it) ;
-							static_deps.back().accesses = {} ;
-						}
-						deps.replace_tail(iter,static_deps) ;
-						seen_all = !static_deps ;
-					}
-					stamped_seen_waiting = proto_seen_waiting ;
-					if ( query && (stamped_seen_waiting||state.stamped_modif||+state.stamped_err) ) {     // no reason to analyze any further, we have the answer
+					state.stamped.err     = state.proto.err     ;                                     // proto become stamped upon sequential dep
+					state.stamped.modif   = state.proto.modif   ;                                     // .
+					stamped_seen_waiting  = proto_seen_waiting  ;
+					stamped_seen_critical = proto_seen_critical ;
+					if ( query && (stamped_seen_waiting||state.stamped.modif||+state.stamped.err) ) { // no reason to analyze any further, we have the answer
 						report_reason = reason(ri.state) ;
 						goto Return ;
 					}
 				}
 				if (!proto_seen_waiting) {
-					ri.iter  = iter.digest(deps) ;                                                        // fast path : info is recorded in ri, next time, restart analysis here
-					ri.state = state             ;                                                        // .
+					ri.iter  = iter.digest(deps) ;                                                    // fast path : info is recorded in ri, next time, restart analysis here
+					ri.state = state             ;                                                    // .
 				}
-				if ( seen_all || (!dep.parallel&&critical_waiting) ) break ;
+				if (seen_all             ) break ;
+				if (stamped_seen_critical) break ;
 				NodeData &         dnd         = *Node(dep)                                   ;
 				bool               dep_modif   = false                                        ;
 				RunStatus          dep_err     = RunStatus::Ok                                ;
@@ -1077,10 +1064,10 @@ namespace Engine {
 				bool               required    =  dep.dflags[Dflag::Required   ]              ;
 				bool               sense_err   = !dep.dflags[Dflag::IgnoreError]              ;
 				bool               is_critical = +dep.accesses && dep.dflags[Dflag::Critical] ;
-				bool               modif       = state.stamped_modif || ri.force              ;
-				bool               may_care    = +dep.accesses || (modif&&is_static)          ;           // if previous modif, consider static deps as fully accessed, as initially
-				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ;           // avoid allocating req_info as long as not necessary
-				NodeReqInfo      * dri         = nullptr                                      ;           // .
+				bool               modif       = state.stamped.modif || ri.force              ;
+				bool               may_care    = +dep.accesses || (modif&&is_static)          ;       // if previous modif, consider static deps as fully accessed, as initially
+				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ;       // avoid allocating req_info as long as not necessary
+				NodeReqInfo      * dri         = nullptr                                      ;       // .
 				NodeGoal           dep_goal    =
 					query                                        ? NodeGoal::Dsk
 				:	(may_care&&!no_run_reason(state)) || archive ? NodeGoal::Dsk
@@ -1088,36 +1075,37 @@ namespace Engine {
 				:	is_static || required                        ? NodeGoal::Status
 				:	                                               NodeGoal::None
 				;
-				if (!dep_goal) continue ;                                                                 // this is not a dep (not static while asked for makable only)
+				if (!dep_goal) continue ;                                                             // this is not a dep (not static while asked for makable only)
 			RestartDep :
 				if (!cdri->waiting()) {
-					ReqInfo::WaitInc sav_n_wait { ri } ;                                                  // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-					if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ;                             // refresh cdri in case dri allocated a new one
-					if (dep_live_out) dri->live_out = true                  ;                             // ask live output for last level if user asked it
+					ReqInfo::WaitInc sav_n_wait { ri } ;                                              // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+					if (!dri        ) cdri = dri    = &dep->req_info(*cdri) ;                         // refresh cdri in case dri allocated a new one
+					if (dep_live_out) dri->live_out = true                  ;                         // ask live output for last level if user asked it
 					Bool3 speculate_dep =
-						is_static                     ? ri.speculate                                      // static deps do not disappear
-					:	stamped_seen_waiting || modif ?              Yes                                  // this dep may disappear
-					:	+state.stamped_err            ? ri.speculate|Maybe                                // this dep is not the origin of the error
-					:	                                ri.speculate                                      // this dep will not disappear from us
+						is_static                     ? ri.speculate                                  // static deps do not disappear
+					:	stamped_seen_waiting || modif ?              Yes                              // this dep may disappear
+					:	+state.stamped.err            ? ri.speculate|Maybe                            // this dep is not the origin of the error
+					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
-					if (special!=Special::Req) dnd.asking = idx() ;                                       // Req jobs are fugitive, dont record them
+					if (special!=Special::Req) dnd.asking = idx() ;                                   // Req jobs are fugitive, dont record them
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
-				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ;                           // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
+				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ;                       // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
 				if (cdri->waiting()) {
 					if      ( is_static                                            ) ri.speculative_wait = false ; // we are non-speculatively waiting, even if after a speculative wait
-					else if ( !stamped_seen_waiting && (+state.stamped_err||modif) ) ri.speculative_wait = true  ;
-					proto_seen_waiting = true ;
+					else if ( !stamped_seen_waiting && (+state.stamped.err||modif) ) ri.speculative_wait = true  ;
+					proto_seen_waiting   = true        ;
+					proto_seen_critical |= is_critical ;
 					if (!dri) cdri = dri = &dnd.req_info(*cdri) ;                                                  // refresh cdri in case dri allocated a new one
 					dnd.add_watcher(*dri,idx(),ri,dep_pressure) ;
-					critical_waiting |= is_critical                            ;
-					report_reason    |= { JobReasonTag::BusyDep , +Node(dep) } ;
+					report_reason |= { JobReasonTag::BusyDep , +Node(dep) } ;
 				} else if (!dnd.done(*cdri,dep_goal)) {
 					SWEAR(query) ;                                                                                 // unless query, after having called make, dep must be either waiting or done
-					proto_seen_waiting  = true                              ;                                      // if queried dep is not done, it would have been waiting if not queried
-					state.reason       |= {JobReasonTag::DepOutOfDate,+dep} ;
+					proto_seen_waiting   = true                              ;                                     // if queried dep is not done, it would have been waiting if not queried
+					proto_seen_critical |= is_critical                       ;
+					state.reason        |= {JobReasonTag::DepOutOfDate,+dep} ;
 				} else {
 					bool dep_missing_dsk = !query && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
 					state.missing_dsk |= dep_missing_dsk   ;                                                       // job needs this dep if it must run
@@ -1128,7 +1116,7 @@ namespace Engine {
 						if      (!dep.dflags[Dflag::Full])   dep_modif = false ;
 						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.push(dep) ; }
 					}
-					if ( +state.stamped_err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
+					if ( +state.stamped.err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
 					if ( !is_static && modif ) goto Continue ;                                                     // if not static, errors may be washed by previous modifs, dont record them
 					// analyze error
 					if (dep_modif) {
@@ -1173,24 +1161,24 @@ namespace Engine {
 					DF}                                                                                            // NO_COV
 				}
 			Continue :
-				trace("dep",ri,dep,dep_goal,*cdri,STR(dnd.done(*cdri)),STR(dnd.ok()),dnd.crc,dep_err,STR(dep_modif),STR(critical_modif),STR(critical_waiting),state.reason) ;
+				trace("dep",ri,dep,dep_goal,*cdri,STR(dnd.done(*cdri)),STR(dnd.ok()),dnd.crc,dep_err,STR(dep_modif),state.reason) ;
 				//
 				if ( state.missing_dsk && !no_run_reason(state) ) {
-					SWEAR(!query) ;                                       // when query, we cannot miss dsk
+					SWEAR(!query) ;                                             // when query, we cannot miss dsk
 					trace("restart_analysis") ;
-					SWEAR( !ri.reason , ri.reason ) ;                     // we should have asked for dep on disk if we had a reason to run
-					ri.reason = state.reason ;                            // record that we must ask for dep on disk
+					SWEAR( !ri.reason , ri.reason ) ;                           // we should have asked for dep on disk if we had a reason to run
+					ri.reason = state.reason ;                                  // record that we must ask for dep on disk
 					ri.reset(idx()) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
-				SWEAR(!( +dep_err && modif && !is_static )) ;             // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
-				state.proto_err    = ::max( state.proto_err , dep_err ) ; // |= is forbidden for bit fields
-				state.proto_modif  = state.proto_modif | dep_modif      ; // .
-				critical_modif    |= dep_modif && is_critical           ;
+				SWEAR(!( +dep_err && modif && !is_static )) ;                   // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
+				state.proto.err      = ::max( state.proto.err   , dep_err   ) ; // |= is forbidden for bit fields
+				state.proto.modif    =        state.proto.modif | dep_modif   ; // .
+				proto_seen_critical |= is_critical && (+dep_err||dep_modif)   ;
 			}
 			if (ri.waiting()                             ) goto Wait ;
-			if (sure                                     ) mk_sure() ;    // improve sure (sure is pessimistic)
-			if (+(run_status=ri.state.stamped_err)       ) goto Done ;
+			if (sure                                     ) mk_sure() ;          // improve sure (sure is pessimistic)
+			if (+(run_status=ri.state.stamped.err)       ) goto Done ;
 			if (no_run_reason(ri.state)==NoRunReason::Dep) goto Done ;
 		}
 	Run :
@@ -1199,11 +1187,11 @@ namespace Engine {
 			case NoRunReason::LostLoop   : trace("lost_loop"  ) ; status     = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; goto Done ;
 			case NoRunReason::SubmitLoop : trace("submit_loop") ; status     = Status::SubmitLoop                                                ; goto Done ;
 		DN}
-		report_reason = ri.reason = reason(ri.state) ;                    // ensure we have a reason to report that we would have run if not queried
+		report_reason = ri.reason = reason(ri.state) ;                          // ensure we have a reason to report that we would have run if not queried
 		trace("run",ri,pre_reason,run_status) ;
 		if (query) goto Return ;
-		if (ri.state.missing_dsk) {                                       // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
-			SWEAR( !is_infinite(special) , special,idx() ) ;              // Infinite do not process their deps
+		if (ri.state.missing_dsk) {                                             // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
+			SWEAR( !is_infinite(special) , special,idx() ) ;                    // Infinite do not process their deps
 			ri.reset(idx()) ;
 			goto RestartAnalysis/*BACKWARD*/ ;
 		}

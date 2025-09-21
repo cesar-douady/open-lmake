@@ -259,15 +259,17 @@ namespace Engine {
 		// data
 		struct State {
 			friend ::string& operator+=( ::string& , State const& ) ;
+			struct Bits {
+				RunStatus err  :2 = {}    ;
+				bool      modif:1 = false ;
+			} ;
 			// cxtors & casts
 			State() = default ;
 			// data
-			JobReason reason          = {}    ;                        //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
-			bool      missing_dsk  :1 = false ;                        //          1 bit , if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
-			RunStatus stamped_err  :2 = {}    ;                        //          2 bits, errors seen in dep until iter before    last parallel chunk
-			RunStatus proto_err    :2 = {}    ;                        //          2 bits, errors seen in dep until iter including last parallel chunk
-			bool      stamped_modif:1 = false ;                        //          1 bit , modifs seen in dep until iter before    last parallel chunk
-			bool      proto_modif  :1 = false ;                        //          1 bit , modifs seen in dep until iter including last parallel chunk
+			JobReason reason      = {}    ;                            //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
+			bool      missing_dsk = false ;                            //   1  <=  8 bits, if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
+			Bits      proto       = {}    ;                            //   3  <=  8 bits, seen including last parallel chunk
+			Bits      stamped     = {}    ;                            //   3  <=  8 bits, seen before    last parallel chunk
 		} ;
 //		ReqInfo                                                        //        128 bits, inherits
 		State            state                ;                        //  43  <= 96 bits, dep analysis state

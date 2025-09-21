@@ -37,6 +37,7 @@ if True   : os.environ['REPO_ROOT'    ] = cwd
 import lmake
 from   lmake import _maybe_lcl
 import fmt_rule
+import serialize
 
 if is_top : lmake.sub_repo = '.'
 else      : lmake.sub_repo = cwd[len(top_cwd)+1:]
@@ -63,7 +64,7 @@ sys.path.append('.') # add access to repo      (only for user usage)
 config = pdict()
 if '.config.' in actions :
 	from importlib.util import find_spec
-	import Lmakefile                                                                                                      # import only when necessary
+	import Lmakefile                                             # import only when necessary
 	is_pkg = hasattr(Lmakefile,'__path__')
 	if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
 	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
@@ -83,17 +84,25 @@ if '.config.' in actions :
 	elif is_pkg and find_spec('Lmakefile.rules')    : rules_action  = 'rules_import'
 	else                                            : actions      += 'rules.'
 	#
+	if 'system_tag' in config :
+		expr = serialize.get_expr(
+			config.system_tag
+		,	ctx            = (config.__dict__,)
+		,	no_imports     = fmt_rule.lcl_mod_file           # dynamic attributes cannot afford local imports, so serialize in place all of them
+		,	call_callables = True
+		)
+		config.system_tag = expr.glbs+'system_tag = '+expr.expr
 	if is_top :
 		for be in config.get('backends',{}).values() :
 			if 'interface' not in be : continue
-			import serialize
 			expr = serialize.get_expr(
 				be['interface']
 			,	ctx            = (config.__dict__,)
+			,	no_imports     = fmt_rule.lcl_mod_file           # dynamic attributes cannot afford local imports, so serialize in place all of them
 			,	call_callables = True
 			)
 			be['interface'] = expr.glbs+'interface = '+expr.expr
-		git = '$GIT'                                                                                                      # value is substitued at installation configuration
+		git = '$GIT'                                             # value is substitued at installation configuration
 		for cache in config.get('caches',{}).values() :
 			if 'key' in cache : continue
 			key = cwd

@@ -16,6 +16,14 @@ using namespace Re   ;
 using namespace Time ;
 using namespace Py   ;
 
+enum class Action : uint8_t {
+	Config
+,	Rules
+,	Sources
+// aliases
+,	Plural = Rules // >=Plural means messages must be made plural
+} ;
+
 namespace Engine::Makefiles {
 
 	struct Deps {
@@ -26,11 +34,14 @@ namespace Engine::Makefiles {
 	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"  ; // provided to user, contains only variables used in Lmakefile.py
 	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest" ; // provided to user, contains the list of source files
 
-	static ::string _deps_file(::string const& action) { return AdminDirS+action+"_deps" ; }
-
 	static ::map_ss _g_env          ;
 	static ::string _g_tmp_dir_s    = cat(AdminDirS,"lmakefile_tmp/") ;
 	static ::string _g_user_env_str ;
+
+	static ::string _deps_file( Action action , bool new_=false ) {
+		if (new_) return cat(PrivateAdminDirS,action,"_new_deps") ;
+		else      return cat(AdminDirS       ,action,"_deps"    ) ;
+	}
 
 	// dep file line format :
 	// - first dep is special, marked with *, and provide lmake_root
@@ -39,12 +50,12 @@ namespace Engine::Makefiles {
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
-	static ::string _chk_deps( ::string const& action , ::umap_ss const& user_env , ::string const& startup_dir_s , FileSync file_sync=FileSync::Dflt ) { // startup_dir_s for diagnostic purpose only
+	static ::string _chk_deps( Action action , ::umap_ss const& user_env , ::string const& startup_dir_s , FileSync file_sync=FileSync::Dflt ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
 		NfsGuard nfs_guard { file_sync }          ;
 		::string deps_file = _deps_file(action)   ;
-		Ddate    deps_date = file_date(deps_file) ; if (!deps_date) { trace("not_found") ; return action.back()=='s'?"they were never read":"it was never read" ; }
+		Ddate    deps_date = file_date(deps_file) ; if (!deps_date) { trace("not_found") ; return action>=Action::Plural ? "they were never read" : "it was never read" ; }
 		::string reason    ;
 		//
 		::vector_s deps = AcFd(deps_file,true/*err_ok*/).read_lines() ;
@@ -52,9 +63,10 @@ namespace Engine::Makefiles {
 			SWEAR(+line) ;
 			::string d = line.substr(1) ;
 			switch (line[0]) {
-				case '#' :                                                       break ;         // comment
-				case '*' : if (d!=*g_lmake_root_s) return "lmake root changed" ; break ;
-				case '~' : if (d!=*g_repo_root_s ) return "repo root changed"  ; break ;
+				case '#' :                                                                                                                           break ; // comment
+				case '*' :                                         if (d!=*g_lmake_root_s                          ) return "lmake root changed" ;   break ;
+				case '~' :                                         if (d!=*g_repo_root_s                           ) return "repo root changed"  ;   break ;
+				case '^' : if (action==Action::Config) { Gil gil ; if (!+py_run(parse_printable(d))->get_item("ok")) return "system tag changed" ; } break ;
 				case '+' : {
 					FileInfo fi { nfs_guard.access(d) } ;
 					if (!fi.exists()     ) return cat(mk_rel(d,startup_dir_s)," was removed" ) ;
@@ -77,32 +89,28 @@ namespace Engine::Makefiles {
 		trace("ok") ;
 		return {} ;
 	}
-	static void _recall_env( ::umap_ss&/*out*/ user_env , ::string const& action ) {
+
+	static void _recall_env( ::umap_ss&/*out*/ user_env , Action action ) {
 		Trace trace("_recall_env",action) ;
 		//
 		::vector_s deps = AcFd(_deps_file(action),true/*err_ok*/).read_lines() ;
 		for( ::string const& line : deps ) {
 			SWEAR(+line) ;
-			/**/                            if (line[0]!='=') continue ;                         // not an env var definition
-			size_t pos = line.find('=',1) ; if (pos==Npos   ) continue ;                         // if no variable, nothing to recall
-			user_env[line.substr(1,pos-1)] = line.substr(pos+1) ;                                // lien contains =<key>=<value>
+			/**/                            if (line[0]!='=') continue ; // not an env var definition
+			size_t pos = line.find('=',1) ; if (pos==Npos   ) continue ; // if no variable, nothing to recall
+			user_env[line.substr(1,pos-1)] = line.substr(pos+1) ;        // lien contains =<key>=<value>
 		}
 		trace("ok",user_env.size()) ;
 	}
 
-	static ::string _deps_file( ::string const& action , bool new_ ) {
-		if (new_) return PrivateAdminDirS+action+"_new_deps" ;
-		else      return AdminDirS       +action+"_deps"     ;
-	}
-
-	static void _chk_dangling( ::string const& action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
+	static void _chk_dangling( Action action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
 		::vector_s deps = AcFd(_deps_file(action,new_),true/*err_ok*/).read_lines() ;
 		for( ::string const& line : deps ) {
-			if (line[0]!='+') continue ;                                                              // not an existing file
+			if (line[0]!='+') continue ;                                                     // not an existing file
 			::string d = line.substr(1) ;
-			if (is_abs(d)) continue ;                                                                 // d is outside repo and cannot be dangling, whether it is in a src_dir or not
+			if (is_abs(d)) continue ;                                                        // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n { New , d } ;
 			n->set_buildable() ;                                                                                           // this is mandatory before is_src_anti() can be called
 			if ( !n->is_src_anti() ) throw cat("while reading ",action,", dangling makefile : ",mk_rel(d,startup_dir_s)) ;
@@ -110,23 +118,24 @@ namespace Engine::Makefiles {
 		trace("ok") ;
 	}
 
-	static void _gen_deps( ::string const& action , Deps const& deps , ::string const& startup_dir_s ) {
-		SWEAR(+deps.files) ;                                                                             // there must at least be Lmakefile.py
-		::string              new_deps_file = _deps_file(action,true /*new*/) ;
+	static void _gen_deps( Action action , Deps const& deps , ::string const& startup_dir_s ) {
+		SWEAR(+deps.files) ;                                                                    // there must at least be Lmakefile.py
+		::string              new_deps_file = _deps_file(action,true/*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s )
 			if (!is_lcl_s(sd_s)) glb_sds_s.emplace_back(mk_glb_s(sd_s,*g_repo_root_s),is_abs_s(sd_s)) ;
 		//
-		::string deps_str = cat(
-			"# * : lmake root\n"
-		,	"# ~ : lmake root\n"
-		,	"# ! : file does not exist\n"
-		,	"# + : file exists and date is compared with last read date\n"
-		,	"# = : env variable (no value if not found in environ)\n"
-		,	"*",*g_lmake_root_s,'\n'
-		,	"~",*g_repo_root_s ,'\n'
-		) ;
+		::string deps_str ;
+		/**/                        deps_str << "# * : lmake root"                                                                   <<'\n' ;
+		/**/                        deps_str << "# ~ : repo root"                                                                    <<'\n' ;
+		if (action==Action::Config) deps_str << "# ^ : system tag"                                                                   <<'\n' ;
+		/**/                        deps_str << "# ! : file does not exist"                                                          <<'\n' ;
+		/**/                        deps_str << "# + : file exists and date is compared with last read date"                         <<'\n' ;
+		/**/                        deps_str << "# = : env variable (no value if not found in environ)"                              <<'\n' ;
+		/**/                        deps_str << '*'<<*g_lmake_root_s                                                                 <<'\n' ;
+		/**/                        deps_str << '~'<<*g_repo_root_s                                                                  <<'\n' ;
+		if (action==Action::Config) deps_str << '^'<<mk_printable(g_config->system_tag+"ok=system_tag=="+g_config->system_tag_val()) <<'\n' ;
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
@@ -141,10 +150,10 @@ namespace Engine::Makefiles {
 		}
 		AcFd( new_deps_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(deps_str) ;
 		//
-		_chk_dangling(action,true/*new*/,startup_dir_s) ;
+		_chk_dangling( action , true/*new*/ , startup_dir_s ) ;
 	}
 
-	static void _stamp_deps(::string const& action) {
+	static void _stamp_deps(Action action) {
 		swear_prod( ::rename( _deps_file(action,true/*new*/).c_str() , _deps_file(action,false/*new*/).c_str() )==0 , "stamp deps for" , action ) ;
 	}
 
@@ -154,20 +163,20 @@ namespace Engine::Makefiles {
 	static void _read_makefile( ::string&/*out*/ msg , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::string const& action , ::string const& sub_repos ) {
 		Trace trace("_read_makefile",action,Pdate(New)) ;
 		//
-		::string data_file = PrivateAdminDirS+action+"_data.py" ;
+		::string data_file = cat(PrivateAdminDirS,action,"_data.py") ;
 		Gather   gather    ;
-		::string tmp_dir_s = _g_tmp_dir_s+action+'/'            ;
+		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
 		_g_env["TMPDIR"] = no_slash(*g_repo_root_s+tmp_dir_s) ;
 		mk_dir_empty_s(tmp_dir_s) ;                                 // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
-		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                ;
-		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                       ;
-		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , '.'+action+".top." , sub_repos } ;
-		gather.env                     = &_g_env                                                                                                              ;
-		gather.child_stdin             = Child::NoneFd                                                                                                        ;
-		gather.child_stdout            = Child::PipeFd                                                                                                        ;
-		gather.child_stderr            = Child::JoinFd                                                                                                        ;
+		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                     ;
+		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                            ;
+		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
+		gather.env                     = &_g_env                                                                                                                   ;
+		gather.child_stdin             = Child::NoneFd                                                                                                             ;
+		gather.child_stdout            = Child::PipeFd                                                                                                             ;
+		gather.child_stderr            = Child::JoinFd                                                                                                             ;
 		//
 		{	SavPyLdLibraryPath spllp ;
 			//              vvvvvvvvvvvvvvvvvvv
@@ -203,13 +212,13 @@ namespace Engine::Makefiles {
 	// msg may be updated even if throwing
 	static bool/*done*/ _refresh_config( ::string&/*out*/ msg , Config&/*out*/ config , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::umap_ss const& user_env , ::string const& startup_dir_s ) {
 		Trace trace("refresh_config") ;
-		::string reason = _chk_deps( "config" , user_env , startup_dir_s ) ;
-		if (!reason) return false/*done*/ ;
+		::string reason = _chk_deps( Action::Config , user_env , startup_dir_s ) ; if (!reason) return false/*done*/ ;
+		//
 		msg << "read config because "<<reason<<'\n' ;
 		Gil gil ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		_read_makefile( /*out*/msg , /*out*/py_info , /*out*/deps , "config","..."/*sub_repos*/ ) ; // discover sub-repos while recursing into them
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		_read_makefile( /*out*/msg , /*out*/py_info , /*out*/deps , "config" , "..."/*sub_repos*/ ) ; // discover sub-repos while recursing into them
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		try                      { config = (*py_info)["config"].as_a<Dict>() ;    }
 		catch(::string const& e) { throw "while processing config :\n"+indent(e) ; }
 		config.rules_action = py_info->get_item("rules_action"  ).as_a<Str>() ;
@@ -218,7 +227,7 @@ namespace Engine::Makefiles {
 		return true/*done*/ ;
 	}
 
-	template<bool IsRules,class T> static Bool3/*done*/ _refresh_rules_srcs(                                    // Maybe means not split
+	template<Action A,class T> static Bool3/*done*/ _refresh_rules_srcs(                                        // Maybe means not split
 		::string&/*out*/ msg                                                                                    // msg may be updated even if throwing
 	,	T       &/*out*/ res
 	,	Deps    &/*out*/ deps
@@ -227,29 +236,28 @@ namespace Engine::Makefiles {
 	,	::umap_ss const& user_env
 	,	::string  const& startup_dir_s
 	) {
-		::string const& action = IsRules ? g_config->rules_action : g_config->srcs_action ;
-		Trace trace("_refresh_rules_srcs",STR(IsRules),changed,action) ;
-		if ( !action && !py_info && changed==No ) return Maybe/*done*/ ;                                        // sources has not been read
+		::string const& config_action = A==Action::Rules ? g_config->rules_action : g_config->srcs_action ;
+		Trace trace("_refresh_rules_srcs",A,changed,config_action) ;
+		if ( !config_action && !py_info && changed==No ) return Maybe/*done*/ ;                                 // sources has not been read
 		::string  reason      ;
 		Gil       gil         ;                                                                                 // ensure Gil is taken when py_new_info is destroyed
 		Ptr<Dict> py_new_info ;
-		::string  kind        = IsRules ? "rules" : "sources" ;
-		if (+action) {
+		if (+config_action) {
 			switch (changed) {
 				case Yes   :
-					if      (action.find("import"  )!=Npos) reason = "module "   ;
-					else if (action.find("callable")!=Npos) reason = "function " ;
-					reason += "Lmakefile."+kind+" appeared" ;
+					if      (config_action.find("import"  )!=Npos) reason = "module "   ;
+					else if (config_action.find("callable")!=Npos) reason = "function " ;
+					reason << "Lmakefile."<<A<<" appeared" ;
 				break ;
 				case Maybe :
-					reason = "Lmakefile."+kind ;
-					if      (action.find("import"  )!=Npos) reason = "module "   +reason+" was never imported" ;
-					else if (action.find("callable")!=Npos) reason = "function " +reason+"() was never called" ;
-					else if (action.find("dflt"    )!=Npos) reason = "default sources were never read"         ;
-					else                                    reason =              reason+" was never read"     ;
+					reason = cat("Lmakefile.",A) ;
+					if      (config_action.find("import"  )!=Npos) reason = "module "   +reason+" was never imported" ;
+					else if (config_action.find("callable")!=Npos) reason = "function " +reason+"() was never called" ;
+					else if (config_action.find("dflt"    )!=Npos) reason = "default sources were never read"         ;
+					else                                           reason =              reason+" was never read"     ;
 				break ;
 				case No    :
-					reason = _chk_deps( kind , user_env , startup_dir_s , g_config->file_sync ) ;
+					reason = _chk_deps( A , user_env , startup_dir_s , g_config->file_sync ) ;
 					if (!reason) return No/*done*/ ;
 				break ;
 			}
@@ -259,14 +267,14 @@ namespace Engine::Makefiles {
 			/**/                                                sub_repos_s << "("                            ;
 			for( ::string const& sr_s : g_config->sub_repos_s ) sub_repos_s <<first("",",")<< mk_py_str(sr_s) ; // use sub-repos list discovered during config
 			/**/                                                sub_repos_s <<first("",",","")<<')'           ; // singletons must have a terminating ','
-			msg<<"read "<<kind<<" because "<<reason<<'\n' ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_read_makefile( /*out*/msg , /*out*/py_new_info , /*out*/deps , kind+'.'+action , sub_repos_s ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			msg<<"read "<<A<<" because "<<reason<<'\n' ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			_read_makefile( /*out*/msg , /*out*/py_new_info , /*out*/deps , cat(A,'.',config_action) , sub_repos_s ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			py_info = py_new_info ;
 		}
-		try                      { res = (*py_info)[kind].as_a<typename T::PyType>() ;    }
-		catch(::string const& e) { throw cat("while processing ",kind+" :\n",indent(e)) ; }
+		try                      { res = (*py_info)[snake_str(A)].as_a<typename T::PyType>() ; }
+		catch(::string const& e) { throw cat("while processing ",A+" :\n",indent(e)) ;         }
 		return Maybe|+reason/*done*/ ;                                                                          // cannot be split without reason
 	}
 
@@ -331,17 +339,17 @@ namespace Engine::Makefiles {
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
-		Sources       srcs        ; //!                IsRule   out   out    out
-		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<false>( msg , srcs , srcs_deps , changed_srcs , py_info , user_env , startup_dir_s ) ;    // Maybe means not split
-		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                  ;
+		Sources       srcs        ;
+		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<Action::Sources>( /*out*/msg , /*out*/srcs , /*out*/srcs_deps , changed_srcs , py_info , user_env , startup_dir_s ) ;   // Maybe means not split
+		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                                                 ;
 		if (new_srcs) //!                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn , ManifestFile ) ; }
 			//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string const& e) { throw cat("cannot ",dyn?"dynamically ":"","update sources : ",e) ;        }
 		//
-		Rules         rules        ; //!                IsRule  out   out     out
-		Bool3/*done*/ rules_digest = _refresh_rules_srcs<true>( msg , rules , rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
-		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                  ;
+		Rules         rules        ;
+		Bool3/*done*/ rules_digest = _refresh_rules_srcs<Action::Rules>( /*out*/msg , /*out*/rules , /*out*/rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
+		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                                                ;
 		if (new_rules) //!                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                       { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;     }
 			//                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -349,19 +357,19 @@ namespace Engine::Makefiles {
 		//
 		if (invalidate) Persistent::invalidate_match() ;
 		//
-		if      ( config_digest                 ) _gen_deps    ( "config"  , config_deps  , startup_dir_s ) ;
-		else if (                      new_srcs ) _chk_dangling( "config"  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
-		if      ( srcs_digest ==Yes             ) _gen_deps    ( "sources" , srcs_deps    , startup_dir_s ) ;
+		if      ( config_digest                 ) _gen_deps    ( Action::Config  , config_deps  , startup_dir_s ) ;
+		else if (                      new_srcs ) _chk_dangling( Action::Config  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
+		if      ( srcs_digest ==Yes             ) _gen_deps    ( Action::Sources , srcs_deps    , startup_dir_s ) ;
 		else if ( srcs_digest ==No  && new_srcs ) FAIL() ;
-		if      ( rules_digest==Yes             ) _gen_deps    ( "rules"   , rules_deps   , startup_dir_s ) ;
-		else if ( rules_digest==No  && new_srcs ) _chk_dangling( "rules"   , false/*new*/ , startup_dir_s ) ; // .
+		if      ( rules_digest==Yes             ) _gen_deps    ( Action::Rules   , rules_deps   , startup_dir_s ) ;
+		else if ( rules_digest==No  && new_srcs ) _chk_dangling( Action::Rules   , false/*new*/ , startup_dir_s ) ; // .
 		//
 		// once all error cases have been cleared, stamp deps and generate environ file for user
 		if ( config_digest || srcs_digest==Yes || rules_digest==Yes ) {
 			::umap_ss ue ;
-			if (config_digest    ) { _stamp_deps("config" ) ; for( auto const& [k,v] : config_deps.user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,"config") ;
-			if (srcs_digest ==Yes) { _stamp_deps("sources") ; for( auto const& [k,v] : srcs_deps  .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,"srcs"  ) ;
-			if (rules_digest==Yes) { _stamp_deps("rules"  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,"rules" ) ;
+			if (config_digest    ) { _stamp_deps(Action::Config ) ; for( auto const& [k,v] : config_deps.user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,Action::Config ) ;
+			if (srcs_digest ==Yes) { _stamp_deps(Action::Sources) ; for( auto const& [k,v] : srcs_deps  .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,Action::Sources) ;
+			if (rules_digest==Yes) { _stamp_deps(Action::Rules  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,Action::Rules  ) ;
 			::string user_env_str ;
 			for( auto const& [k,v] : ue ) user_env_str << k<<'='<<mk_printable(v)<<'\n' ;
 			AcFd( EnvironFile , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;

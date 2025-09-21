@@ -20,8 +20,12 @@ if _sys.version_info.major<3 :
 else :
 	try    : _cpu = len(_os.sched_getaffinity(0))
 	except : _cpu = _os.cpu_count()
-#_interface = _socket.getfqdn()
+
 #_group     = _os.getgroups()[0]
+#def _interface() : return _socket.getfqdn()
+
+def _system_tag() :              # by default re-read Lmakefile as soon as the executing host changes
+	return _os.uname().nodename
 
 # /!\ default values must stay in sync with src/lmakeserver/config.hh
 config = pdict(
@@ -41,6 +45,7 @@ config = pdict(
 #,	nice                = 0                                 # nice value to apply to all jobs
 ,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
 ,	sub_repos           = []                                # list of sub_repos
+,	system_tag          = _system_tag                       # force config re-read if the result of this function changes
 ,	backends = pdict(                                       # PER_BACKEND : provide a default configuration for each backend
 		local = pdict(                                      # entries mention the total availability of resources
 			cpu =     _cpu                                  # total number of cpus available for the process, and hence for all jobs launched locally

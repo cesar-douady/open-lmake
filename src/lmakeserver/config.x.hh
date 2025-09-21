@@ -89,6 +89,7 @@ namespace Engine {
 		//
 		// services
 		bool operator==(ConfigStatic const&) const = default ;
+		::string system_tag_val() const ;
 		// data
 		// /!\ default values must stay in sync with _lib/lmake/config.src.py
 		// START_OF_VERSIONING
@@ -99,6 +100,7 @@ namespace Engine {
 		Time::Delay       network_delay  { 1    } ;
 		size_t            path_max       = 200    ; // if -1 <=> unlimited
 		::vector_s        sub_repos_s    ;
+		::string          system_tag     ;
 		TraceConfig       trace          ;
 		::vector<Cache>   caches         ;
 		::map_s<CacheIdx> cache_idxs     ;
@@ -163,7 +165,7 @@ namespace Engine {
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
 		// START_OF_VERSIONING
-		FileSync                                                                file_sync     = FileSync::Dflt ; // if true => dirs coherence is enforced when files are modified
+		FileSync                                                                file_sync     = FileSync::Dflt ; // method to ensure file sync when over an unreliable filesystem such as NFS
 		size_t                                                                  max_err_lines = 0              ; // unlimited
 		uint8_t                                                                 nice          = 0              ; // nice value applied to jobs
 		Collect                                                                 collect       ;

@@ -131,6 +131,7 @@ namespace Py {
 		/**/      Object      & unboost    ()       { { if (ref_cnt()==1) Gil::s_swear_locked() ; } Py_DECREF(to_py()) ; return self ; }
 		/**/      Object const& unboost    () const { { if (ref_cnt()==1) Gil::s_swear_locked() ; } Py_DECREF(to_py()) ; return self ; }
 		// services
+		Ptr<Str> repr     () const ;
 		Ptr<Str> str      () const ;
 		::string type_name() const { return ob_type->tp_name ; }
 		ssize_t  ref_cnt  () const { return ob_refcnt        ; }
