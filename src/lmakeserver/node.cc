@@ -746,7 +746,7 @@ namespace Engine {
 		RuleIdx prio = 0    ;
 		for( Job j : job_tgts().subvec(0,n_job_tgts) ) {
 			RuleIdx p = j->rule()->prio ;
-			if (p<prio) break ;              // all jobs above or besides conform job(s)
+			if (p<prio) break ;             // all jobs above or besides conform job(s)
 			ok &= j->forget(targets,deps) ;
 			if (k==conform_idx()) prio = p ;
 			k++ ;
@@ -818,6 +818,7 @@ namespace Engine {
 		::string ndn = nd.name() ;
 		if ( m==Manual::Empty && nd.crc==Crc::Empty ) {             // fast path : no need to open file
 			nd.date() = FileSig(ndn) ;
+			return {Manual::Ok,false/*refreshed*/} ;                // dont report empty files as it is frequent that dates are off by a few ms
 		} else {
 			FileSig sig ;
 			Crc     crc { ndn , /*out*/sig } ;
