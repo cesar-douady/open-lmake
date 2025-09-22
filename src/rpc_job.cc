@@ -58,7 +58,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	return                              os <<')'                      ;
 }                                                                       // END_OF_NO_COV
 
-::string do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
+::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
 	::uset_s                  keep_dirs       ;
 	::string                  msg             ;
 	::string                  trash           ;
@@ -71,7 +71,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	} ;
 	//
 	Trace trace("do_file_actions") ;
-	if (unlnks) unlnks->reserve(unlnks->size()+pre_actions.size()) ;                   // most actions are unlinks
+	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                 // most actions are unlinks
 	for( auto const& [f,a] : pre_actions ) {                                           // pre_actions are adequately sorted
 		SWEAR(+f) ;                                                                    // acting on root dir is non-sense
 		switch (a.tag) {
@@ -111,23 +111,24 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 				} else {
 					SWEAR(is_lcl(f)) ;
 					if (!unlnk(nfs_guard.change(f))) throw "cannot unlink "+f ;
-					if ( a.tag==FileActionTag::None && !a.no_warning ) msg <<"unlinked "<<mk_file(f)<<'\n' ;                   // if a file has been unlinked, its dir necessarily exists
+					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) msg <<"unlinked "<<mk_file(f)<<'\n' ;     // if a file has been unlinked, its dir necessarily exists
 				}
 				trace(a.tag,STR(quarantine),f) ;
-				if ( +sig && unlnks ) unlnks->push_back(f) ;
+				if (+sig) unlnks.push_back(f) ;
 			} break ;
 			case FileActionTag::Uniquify : {
 				FileStat fs ;
-				if (   ::lstat(f.c_str(),&fs)!=0               ) { trace(a.tag,"no_file"  ,f) ; continue ; }                   // file does not exist, nothing to do
+				if (::lstat(f.c_str(),&fs)!=0                  ) { trace(a.tag,"no_file"    ,f) ; continue ;           }       // file does not exist, nothing to do
+				if (a.tflags[Tflag::Target]                    ) { trace(a.tag,"incremental",f) ; incremental = true ; }
 				dir_exists(f) ;                                                                                                // if file exists, certainly its dir exists as well
-				if (   fs.st_nlink<=1                          ) { trace(a.tag,"single"   ,f) ; continue ; }                   // file is already unique (or unlinked in parallel), nothing to do
-				if (!( fs.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only",f) ; continue ; }                   // if file is read-only, assume it is immutable
-				if (!  S_ISREG(fs.st_mode)                     ) { trace(a.tag,"awkward"  ,f) ; continue ; }                   // do not handle awkward files and symlinks are immutable
+				if (   fs.st_nlink<=1                          ) { trace(a.tag,"single"     ,f) ; continue ;           }       // file is already unique (or unlinked in parallel), nothing to do
+				if (!( fs.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only"  ,f) ; continue ;           }       // if file is read-only, assume it is immutable
+				if (!  S_ISREG(fs.st_mode)                     ) { trace(a.tag,"awkward"    ,f) ; continue ;           }       // do not handle awkward files and symlinks are immutable
 				UniqEntry& e = uniq_tab[{fs.st_dev,fs.st_ino}] ;                                                               // accumulate all links per file identified by dev/inode
 				if (!e.files) {      e.n_lnks= fs.st_nlink ;  e.sz= fs.st_size ;  e.mode= fs.st_mode ;  e.mtim= fs.st_mtim ; }
 				else          SWEAR( e.n_lnks==fs.st_nlink && e.sz==fs.st_size && e.mode==fs.st_mode && e.mtim==fs.st_mtim ) ; // check consistency
 				e.files.push_back(f) ;
-				e.no_warning &= a.no_warning ;
+				e.no_warning &= a.tflags[Tflag::NoWarning] ;
 			} break ;
 			case FileActionTag::Mkdir : {
 				::string f_s = with_slash(f) ;
@@ -533,20 +534,24 @@ namespace Caches {
 		}
 	}
 
-	::pair<JobInfo,CodecMap> Cache::download( ::string const& job , ::string const& key , NfsGuard& repo_nfs_guard ) {
+	::pair<JobInfo,CodecMap> Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard& repo_nfs_guard ) {
 		Trace trace("Cache::download",key) ;
 		//
-		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key )   ;
-		JobInfo               & job_info = info_fd.first               ;
-		::vmap_s<TargetDigest>& targets  = job_info.end.digest.targets ;
-		NodeIdx                 n_copied = 0                           ;
+		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key )  ;
+		JobInfo               & job_info = info_fd.first              ;
+		uint8_t               & z_lvl    = job_info.start.start.z_lvl ;
+		JobEndRpcReq          & end      = job_info.end               ;
+		JobDigest<>           & digest   = end.digest                 ; throw_if( digest.incremental && no_incremental , "cached job was incremental" ) ;
+		::vmap_s<TargetDigest>& targets  = digest.targets             ;
+		NodeIdx                 n_copied = 0                          ;
+		//
 		try {
 			#if !( HAS_ZSTD || HAS_ZLIB )
-				throw_if( job_info.start.start.z_lvl , "cannot uncompress without zstd nor zlib" ) ;
+				throw_if( z_lvl , "cannot uncompress without zstd nor zlib" ) ;
 			#endif
 			//
-			InflateFd data_fd { ::move(info_fd.second) , bool(job_info.start.start.z_lvl) } ;
-			Hdr       hdr     = IMsgBuf().receive<Hdr>(data_fd)                             ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
+			InflateFd data_fd { ::move(info_fd.second) , bool(z_lvl) } ;
+			Hdr       hdr     = IMsgBuf().receive<Hdr>(data_fd)        ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
 				auto&           entry = targets[ti]            ;
@@ -570,7 +575,7 @@ namespace Caches {
 				DN}
 				entry.second.sig = FileSig(tn) ;                                                            // target digest is not stored in cache
 			}
-			job_info.end.end_date = New ;                                                                   // date must be after files are copied
+			end.end_date = New ;                                                                            // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 			return { ::move(job_info) , ::move(hdr.codec_map) } ;

@@ -530,43 +530,43 @@ namespace Engine {
 		// START_OF_VERSIONING
 	public :
 		struct IfPlain {
-			SigDate  date               ;                // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
-			Node     dir                ;                //  31   < 32 bits, shared
-			JobTgts  job_tgts           ;                //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
-			RuleTgts rule_tgts          ;                // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			RuleTgts rejected_rule_tgts ;                // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
-			Job      actual_job         ;                //  31   < 32 bits, shared,   job that generated node
-			Job      polluting_job      ;                //         32 bits,           polluting job when polluted was last set to Polluted::Job
+			SigDate  date               ;                           // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
+			Node     dir                ;                           //  31   < 32 bits, shared
+			JobTgts  job_tgts           ;                           //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
+			RuleTgts rule_tgts          ;                           // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+			RuleTgts rejected_rule_tgts ;                           // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
+			Job      actual_job         ;                           //  31   < 32 bits, shared,   job that generated node
+			Job      polluting_job      ;                           //         32 bits,           polluting job when polluted was last set to Polluted::Job
 		} ;
 		struct IfDecode {
-			Ddate      log_date ;                        // ~40   < 64 bits,           logical date to detect overwritten
-			Codec::Val val      ;                        //         32 bits,           offset in association file where the association line can be found
+			Ddate      log_date ;                                   // ~40   < 64 bits,           logical date to detect overwritten
+			Codec::Val val      ;                                   //         32 bits,           offset in association file where the association line can be found
 		} ;
 		struct IfEncode {
-			Ddate       log_date ;                       // ~40   < 64 bits,           logical date to detect overwritten
-			Codec::Code code     ;                       //         32 bits,           offset in association file where the association line can be found
+			Ddate       log_date ;                                  // ~40   < 64 bits,           logical date to detect overwritten
+			Codec::Code code     ;                                  //         32 bits,           offset in association file where the association line can be found
 		} ;
-		//NodeName name   ;                              //         32 bits, inherited
-		Watcher    asking ;                              //         32 bits,           last watcher needing this node
-		Crc        crc    = Crc::None ;                  // ~45   < 64 bits,           disk file CRC when file's mtime was date.p. 45 bits : MTBF=1000 years @ 1000 files generated per second.
+		//NodeName name   ;                                         //         32 bits, inherited
+		Watcher    asking ;                                         //         32 bits,           last watcher needing this node
+		Crc        crc    = Crc::None ;                             // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
 	private :
 		union {
-			IfPlain  _if_plain  = {} ;                   //        320 bits
-			IfDecode _if_decode ;                        //         96 bits
-			IfEncode _if_encode ;                        //         96 bits
+			IfPlain  _if_plain  = {} ;                              //        320 bits
+			IfDecode _if_decode ;                                   //         96 bits
+			IfEncode _if_encode ;                                   //         96 bits
 		} ;
 	public :
-		RuleIdx   n_job_tgts  = 0                  ;     //         16 bits,           number of actual meaningful JobTgt's in job_tgts
-		MatchGen  match_gen   = 0                  ;     //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
-		Buildable buildable:4 = Buildable::Unknown ;     //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
-		Polluted  polluted :2 = Polluted::Clean    ;     //          2 bits,           reason for pollution
-		bool      busy     :1 = false              ;     //          1 bit ,           a job is running with this node as target
+		RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
+		MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
+		Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+		Polluted  polluted :NBits<Polluted > = Polluted::Clean    ; //          2 bits,           reason for pollution
+		bool      busy     :1                = false              ; //          1 bit ,           a job is running with this node as target
 	private :
-		Tflags  _actual_tflags ;                         //   6   <  8 bits,           tflags associated with actual_job
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ; //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		Tflags  _actual_tflags ;                                    //   6   <  8 bits,           tflags associated with actual_job
+		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;            //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(NodeData)==64) ;                // ensure size is a power of 2 to maximize cache perf
+	static_assert(sizeof(NodeData)==64) ;                           // ensure size is a power of 2 to maximize cache perf
 
 }
 
@@ -597,9 +597,9 @@ namespace Engine {
 		return false ;
 	}
 
-	inline bool NodeData::done( ReqInfo const& cri , NodeGoal na ) const {
-		if (cri.done(na)) return true ;
-		switch (na) {                                                               // if not actually done, report obvious cases
+	inline bool NodeData::done( ReqInfo const& cri , NodeGoal ng ) const {
+		if (cri.done(ng)) return true ;
+		switch (ng) {                                                               // if not actually done, report obvious cases
 			case NodeGoal::None   : return true                                   ;
 			case NodeGoal::Status : return match_ok() && buildable<=Buildable::No ;
 			case NodeGoal::Dsk    : return false                                  ;

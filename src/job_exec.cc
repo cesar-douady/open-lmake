@@ -81,7 +81,7 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		if (sr.file_loc<=FileLoc::Dep) g_gather.new_access(now,::move(sr.real),{.accesses=~Access::Stat},FileInfo(sr.real),Comment::OsInfo,CommentExt::Read ) ;
 		//
 		try                     { res = AcFd(file).read() ; }
-		catch (::string const&) {                         ; }                                                                 // report empty in case of error
+		catch (::string const&) {                         ; }                                                                  // report empty in case of error
 	} else {
 		::string         id             ;
 		::string         version_id     ;
@@ -276,12 +276,12 @@ enum class State : uint8_t {
 ,	SingleQuote
 ,	DoubleQuote
 ,	BackSlash
-,	DoubleQuoteBackSlash // after a \ within ""
+,	DoubleQuoteBackSlash                                                                             // after a \ within ""
 } ;
 static bool is_special( char c , int esc_lvl , bool first=false ) {
 	switch (c) {
 		case '$' :
-		case '`' :            return true ;               // recognized even in ""
+		case '`' :            return true ;                                                          // recognized even in ""
 		case '#' :
 		case '&' :
 		case '(' : case ')' :
@@ -290,9 +290,9 @@ static bool is_special( char c , int esc_lvl , bool first=false ) {
 		case '<' : case '>' :
 		case '?' :
 		case '[' : case ']' :
-		case '|' :            return esc_lvl<2          ; // recognized anywhere if not quoted
-		case '~' :            return esc_lvl<2 && first ; // recognized as first char of any word
-		case '=' :            return esc_lvl<1          ; // recognized only in first word
+		case '|' :            return esc_lvl<2          ;                                            // recognized anywhere if not quoted
+		case '~' :            return esc_lvl<2 && first ;                                            // recognized as first char of any word
+		case '=' :            return esc_lvl<1          ;                                            // recognized only in first word
 		default  :            return false ;
 	}
 }
@@ -438,7 +438,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 		e.second.sig       = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
 		*sz               += fi.sz    ;
-		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,e.second.sig,e.first) ;
+		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,fi,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
 			*msg <<set_nl<< "cannot compute checksum for "<<e.first ;
@@ -504,29 +504,30 @@ int main( int argc , char* argv[] ) {
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info(server_fd) ; if (!g_start_info) return 0 ;                                                        // if !g_start_info, server ask us to give up
+		g_start_info = get_start_info(server_fd) ; if (!g_start_info) return 0 ;                                                  // if !g_start_info, server ask us to give up
 		try                       { g_start_info.job_space.mk_canon(g_phy_repo_root_s) ; }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;          }                                              // NO_COV defensive programming
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;          }                                        // NO_COV defensive programming
 		//
 		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
 		//
-		NfsGuard nfs_guard { g_start_info.autodep_env.file_sync } ;
+		NfsGuard nfs_guard   { g_start_info.autodep_env.file_sync } ;
+		bool     incremental = false/*garbage*/                     ;
 		//
 		try {
-			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , ::move(g_start_info.pre_actions) , nfs_guard )) ;
-		} catch (::string const& e) {                                                                                                   // START_OF_NO_COV defensive programming
+			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , /*out*/incremental , ::move(g_start_info.pre_actions) , nfs_guard )) ;
+		} catch (::string const& e) {                                                                                             // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
-		}                                                                                                                               // END_OF_NO_COV
+		}                                                                                                                         // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                                                          // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                                                                    // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
@@ -605,8 +606,8 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_host        = host()                                                                      ;       // host on which fast_report_pipe works
-		g_start_info.autodep_env.fast_report_pipe = cat(top_repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;       // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.fast_host        = host()                                                                      ; // host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = cat(top_repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ; // fast_report_pipe is a pipe and only works locally
 		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                          ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
@@ -723,11 +724,12 @@ int main( int argc , char* argv[] ) {
 		,	.job = g_gather.end_date-g_gather.start_date
 		} ;
 		end_report.digest = {
-			.upload_key = upload_key
-		,	.targets    = ::move(digest.targets)
-		,	.deps       = ::move(digest.deps   )
-		,	.cache_idx  = g_start_info.cache_idx
-		,	.status     = status
+			.upload_key  = upload_key
+		,	.targets     = ::move(digest.targets)
+		,	.deps        = ::move(digest.deps   )
+		,	.cache_idx   = g_start_info.cache_idx
+		,	.status      = status
+		,	.incremental = incremental
 		} ;
 		end_report.end_date          =        g_gather.end_date  ;
 		end_report.stats             = ::move(stats            ) ;

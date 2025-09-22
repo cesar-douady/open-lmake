@@ -187,9 +187,9 @@ namespace Disk {
 		FileSig(const char* name) : FileSig{::string(name)} {} // ensure no confusion
 		// accesses
 	public :
-		bool    operator==(FileSig const& fs) const {
+		bool operator==(FileSig const& fs) const {
 			if( !self && !fs ) return true          ;          // consider Dir and None as identical
-			else                return _val==fs._val ;
+			else               return _val==fs._val ;
 		}
 		//
 		bool    operator+() const { return tag()>=FileTag::Target                ; }

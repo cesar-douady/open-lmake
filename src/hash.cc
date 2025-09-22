@@ -23,16 +23,16 @@ namespace Hash {
 	Crc::Crc(::string const& file_name) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
-		if ( AcFd fd { file_name , true/*err_ok*/ , {.flags=O_RDONLY|O_NOFOLLOW} } ; +fd ) {
-			FileInfo fi  { fd }                         ;
-			::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+		if ( AcFd fd{file_name,true/*err_ok*/,{.flags=O_RDONLY|O_NOFOLLOW}} ; +fd ) {
+			FileInfo fi { fd } ;
 			switch (fi.tag()) {
 				case FileTag::Empty :
 					self = Empty ;
 				break ;
 				case FileTag::Reg :
 				case FileTag::Exe : {
-					Xxh ctx { fi.tag() } ;
+					Xxh      ctx { fi.tag() }                   ;
+					::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 					for( size_t sz=fi.sz ;;) {
 						ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 						if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -49,7 +49,7 @@ namespace Hash {
 					self = ctx.digest() ;
 				} break ;
 			DN}
-		} else if ( ::string lnk_target = read_lnk(file_name) ; +lnk_target ) {
+		} else if ( ::string lnk_target=read_lnk(file_name) ; +lnk_target ) {
 			Xxh ctx { FileTag::Lnk } ;
 			ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 			self = ctx.digest() ;

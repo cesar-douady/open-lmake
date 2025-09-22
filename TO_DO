@@ -25,10 +25,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* ensure system_tag can return other than str
-* implement lmake.system_tag, a function that is called at start-up
-	- trigger config/rules/source re-read if returned value changes
-* ensure lencode/ldecode works outside lmake
+* note in cache if compressed with zlib or zstd
+	- and use adequate decompressor to decompress
+* ensure lencode/ldecode work outside lmake
 	- at least in ldebug within lautodep
 	- more generally autonomously
 	- ensure depend verbose works outside lmake
@@ -77,9 +76,21 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* forbid accesses to files :
+	- /dev/random
+	- /dev/urandom
+	- /etc/passwd
 * protect against getpwnam, getpwsuid and the like
-	- forbid or overwrite the pw_dir field
+	- consider masking home dir with an adequate mount
+		- if repo is in home dir, generate a sub-mount if repo_view is not used
+	- or forbid or overwrite the pw_dir field
 	- so as to ensure that real home dir is not accessed
+	- getpw
+	- getpwent
+	- getpwname
+	- getpwname_r
+	- getpwuid
+	- getpwuid_r
 * forbid mount & chroot
 	- as deps become untrackable
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
@@ -105,9 +116,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide an lmake option to not trust incremental runs
-	- process all rules as if incremental was not set
-	- including reruning jobs that actually ran with existing targets
 * distinguish lmake return code depending on necessary user corrective action
 	- such as must git clean
 	- so as to be script friendly
@@ -214,6 +222,8 @@ M port to Darwin
 	- to improve lmakeserver memory footprint
 ! find a way to serialize global dict
 	- like marshal, with functions
+? ensure preference in cache entries to non-incremental jobs over incremental jobs
+	- when uploading
 ? evaluate dynamic deps only if static deps match
 	- at least for those deps placed before
 	- is it worth ?

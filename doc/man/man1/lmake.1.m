@@ -118,6 +118,10 @@ Contrarily to B(-e), this concerns all jobs.
 Previous errors are counted as 1 trial.
 Hence, B(-r) encompasses B(-e), but retries more jobs in error.
 
+Item(B(-I),B(--no-incremental))
+With this option, jobs that had existing incremental targets during their last run are not trusted and they are rerun by first erasing all targets.
+Also, cache entry, if any is specified, are not downloaded if they had been built with existing targets.
+
 Item(B(-l),B(--local))
 With this option, jobs are launched locally (i.e. using the I(local) backend) instead of the backend mentioned in the rule.
 Note that if 2 B(lmake) commands with different values for this option are running simultaneously, in case a job is necessary for both, it may be launched locally or remotely.

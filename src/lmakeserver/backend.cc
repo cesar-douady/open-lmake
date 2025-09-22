@@ -338,13 +338,15 @@ namespace Backends {
 		size_t                     n_submit_deps         = deps.size()                    ;
 		int                        step                  = 0                              ;
 		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;         // this cannot fail as it was already run to construct job
+		//
+		bool no_incremental = ::any_of( reqs , [&](ReqIdx ri) { return Req(ri)->options.flags[ReqFlag::NoIncremental] ; } ) ;
 		try {
 			try {
 				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
 				start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps                                                      ) ; step = 2 ;
 				cmd               = rd.cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
 				//
-				pre_actions = job->pre_actions( match , true/*mark_target_dirs*/ ) ; step = 4 ;
+				pre_actions = job->pre_actions( match , no_incremental , true/*mark_target_dirs*/ ) ; step = 4 ;
 				for( auto const& [t,a] : pre_actions )
 					switch (a.tag) {
 						case FileActionTag::UnlinkWarning  :

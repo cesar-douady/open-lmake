@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Sep 22 11:27:09 2025 -->
+<!-- CreationDate: Mon Sep 22 19:26:55 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -654,7 +654,15 @@ level.</p>
 <b>-e</b>, this concerns all jobs. Previous errors are
 counted as 1 trial. Hence, <b>-r</b> encompasses <b>-e</b>,
 but retries more jobs in error. <b><br>
--l</b>, <b>--local</b></p>
+-</b>, <b>--no-incremental</b></p>
+
+<p style="margin-left:18%;">With this option, jobs that had
+existing incremental targets during their last run are not
+trusted and they are rerun by first erasing all targets.
+Also, cache entry, if any is specified, are not downloaded
+if they had been built with existing targets.</p>
+
+<p style="margin-left:9%;"><b>-l</b>, <b>--local</b></p>
 
 <p style="margin-left:18%;">With this option, jobs are
 launched locally (i.e. using the <i>local</i> backend)

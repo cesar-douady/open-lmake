@@ -70,6 +70,7 @@ int main( int argc , char* argv[] ) {
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"   } }
 	,	{ ReqFlag::CacheMethod     , { .short_name='c' , .has_arg=true  , .doc="cache method (none, download, check or plain)" } }
 	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transient"               } }
+	,	{ ReqFlag::NoIncremental   , { .short_name='I' , .has_arg=false , .doc="ignore incremental flag on targets"            } }
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                            } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                       } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"             } }

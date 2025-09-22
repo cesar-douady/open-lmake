@@ -363,13 +363,24 @@ namespace Disk {
 		return os<< "FileSig(" << to_hex(sig._val>>NBits<FileTag>) <<':'<< sig.tag() <<')' ;
 	}                                                                                        // END_OF_NO_COV
 
-	FileSig::FileSig( FileInfo const& fi ) : FileSig{fi.tag()} {
-		if (!fi.exists()) return ;
-		Hash::Xxh h ;
-		h += fi.date ;
-		h += fi.sz   ;
-		_val |= (+h.digest()<<NBits<FileTag>) ;
+	// START_OF_VERSIONING
+	FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
+		switch (fi.tag()) {
+			case FileTag::None    :
+			case FileTag::Unknown :
+			case FileTag::Dir     :                                           break ;
+			case FileTag::Empty   : _val |= fi.date.val() << NBits<FileTag> ; break ; // improve traceability when size is predictible
+			case FileTag::Lnk     :
+			case FileTag::Reg     :
+			case FileTag::Exe     : {
+				Hash::Xxh h ;
+				h    += fi.date                       ;
+				h    += fi.sz                         ;
+				_val |= +h.digest() << NBits<FileTag> ;
+			} break ;
+		DF}
 	}
+	// END_OF_VERSIONING
 
 	//
 	// SigDate

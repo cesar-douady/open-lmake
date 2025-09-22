@@ -95,6 +95,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	MaxSubmits                 // if proc==Make    , max submit count, on top of rule prescription
 ,	Nice                       // if proc==Make    , dont execute, just generate files
 ,	NoExec                     // if proc==Debug   , dont execute, just generate files
+,	NoIncremental              // if proc==Make    , ignore incremental flag for targets
 ,	NoTrigger                  // if proc==Mark    , prevent lmake from rebuilding dependent jobs
 ,	Porcelaine                 //                    generate easy to parse output
 ,	Quiet                      //                    do not generate user oriented messages

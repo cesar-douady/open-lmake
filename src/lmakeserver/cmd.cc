@@ -466,9 +466,10 @@ namespace Engine {
 			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ;
 			res << first("",",","") << ")\n" ;
 		}
-		{	res << ",\tpre_actions = {" ;
-			First first ;
-			for( auto const& [t,a] : job->pre_actions(job->rule_match()) ) res << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
+		{	First first ;
+			res << ",\tpre_actions = {" ;
+			for( auto const& [t,a] : job->pre_actions(job->rule_match(),ro.flags[ReqFlag::NoIncremental]) )
+				res << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (+*g_src_dirs_s) {
@@ -948,7 +949,8 @@ namespace Engine {
 								:	StatusAttrs[+digest.status].second.first==Maybe ? Color::Note
 								:	                                                  Color::Err
 								;
-								push_entry( "status" , snake_str(digest.status) , status_color ) ;
+								/**/                    push_entry( "status"      , snake_str(digest.status) , status_color ) ;
+								if (digest.incremental) push_entry( "incremental" , "true"                                  ) ;
 							}
 							if ( +end && digest.status>Status::Early ) {
 								// no need to localize phy_tmp_dir as this is an absolute dir

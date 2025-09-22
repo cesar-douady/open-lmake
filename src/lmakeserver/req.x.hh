@@ -207,17 +207,18 @@ namespace Engine {
 			return propag ;
 		}
 		// data
-		WatcherIdx  n_wait  :NBits<WatcherIdx>-1 = 0     ;        // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
-		bool        live_out:1                   = false ;        //       1 bit , if true <=> generate live output
-		CoarseDelay pressure                     ;                //      16 bits, critical delay from end of job to end of req
-		Req         req                          ;                //       8 bits
+		WatcherIdx  n_wait     = 0     ;                            // ~20<=31 bits, INVARIANT : number of watchers pointing to us + 1 if job is submitted
+		CoarseDelay pressure   ;                                    //      16 bits, critical delay from end of job to end of req
+		Req         req        ;                                    //       8 bits
+		bool        live_out:1 = false ;                            //       1 bit , if true <=> generate live output
 	private :
-		uint8_t _n_watchers:2 = 0 ; static_assert(VectorMrkr<4) ; //       2 bits, number of watchers, if NWatcher <=> watchers is a vector
+		uint8_t _n_watchers:7 = 0 ; static_assert(VectorMrkr<128) ; //   2<= 7 bits, number of watchers, if NWatcher <=> watchers is a vector
 		union {
-			::unique_ptr<::vector<Watcher>> _watchers_v ;         //      64 bits, if _n_watchers==VectorMrkr
-			::array <Watcher,NWatchers>     _watchers_a ;         //      64 bits, if _n_watchers< VectorMrkr
+			::unique_ptr<::vector<Watcher>> _watchers_v ;           //      64 bits, if _n_watchers==VectorMrkr
+			::array <Watcher,NWatchers>     _watchers_a ;           //      64 bits, if _n_watchers< VectorMrkr
 		} ;
 	} ;
+	static_assert(sizeof(ReqInfo)==16) ;
 
 }
 

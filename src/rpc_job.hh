@@ -125,6 +125,7 @@ enum class JobReasonTag : uint8_t {            // see explanations in table belo
 ,	Killed
 ,	Lost
 ,	New
+,	WasIncremental
 ,	WasLost
 //	with node
 ,	BusyTarget
@@ -169,6 +170,7 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::Killed             , "job was killed"                             }
 ,	{ JobReasonTag::Lost               , "job lost"                                   }
 ,	{ JobReasonTag::New                , "job was never run"                          }
+,	{ JobReasonTag::WasIncremental     , "job was built incremental"                  }
 ,	{ JobReasonTag::WasLost            , "job was lost"                               }
 //	with node
 ,	{ JobReasonTag::BusyTarget         , "busy target"                                }
@@ -203,12 +205,13 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::PollutedTargets    ,  22 }
 ,	{ JobReasonTag::ChkDeps            ,  41 }
 ,	{ JobReasonTag::CacheMatch         ,  40 }
-,	{ JobReasonTag::Cmd                ,  63 }
-,	{ JobReasonTag::Force              ,  61 }
-,	{ JobReasonTag::Killed             ,  62 }
-,	{ JobReasonTag::Lost               ,  60 }
+,	{ JobReasonTag::Cmd                ,  64 }
+,	{ JobReasonTag::Force              ,  62 }
+,	{ JobReasonTag::Killed             ,  63 }
+,	{ JobReasonTag::Lost               ,  61 }
 ,	{ JobReasonTag::New                , 100 }
-,	{ JobReasonTag::WasLost            ,  60 }
+,	{ JobReasonTag::WasIncremental     ,  60 } // job was built incrementally but asked not-incremental
+,	{ JobReasonTag::WasLost            ,  61 }
 //	with node
 ,	{ JobReasonTag::BusyTarget         ,  10 } // this should not occur as there is certainly another reason to be running
 ,	{ JobReasonTag::NoTarget           ,  30 }
@@ -297,14 +300,15 @@ namespace Caches {
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;
 	// data
-	FileActionTag tag        = {}    ;
-	bool          no_warning = false ;
-	Hash::Crc     crc        = {}    ; // expected (else, quarantine)
-	Disk::FileSig sig        = {}    ; // .
+	// START_OF_VERSIONING
+	FileActionTag tag    = {} ;
+	Tflags        tflags = {} ;
+	Hash::Crc     crc    = {} ; // expected (else, quarantine)
+	Disk::FileSig sig    = {} ; // .
+	// END_OF_VERSIONING
 } ;
-/**/   ::string do_file_actions( ::vector_s* /*out*/ unlnks , ::vmap_s<FileAction>&&    , Disk::NfsGuard&    ) ;
-inline ::string do_file_actions( ::vector_s& /*out*/ unlnks , ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/&unlnks,::move(pa),ng) ; }
-inline ::string do_file_actions(                              ::vmap_s<FileAction>&& pa , Disk::NfsGuard& ng ) { return do_file_actions(/*out*/nullptr,::move(pa),ng) ; }
+// incremental means existing increment targets have been seen
+::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , Disk::NfsGuard& ) ;
 
 struct AccDflags {
 	// services
@@ -577,6 +581,7 @@ template<class Key=::string> struct JobDigest {                                 
 		,	.cache_idx      = cache_idx
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
+		,	.incremental    = incremental
 		} ;
 		static constexpr bool NeedNew = requires(Key k) { KeyTo(New,k) ; } ;
 		if constexpr (NeedNew) {
@@ -599,6 +604,7 @@ template<class Key=::string> struct JobDigest {                                 
 	CacheIdx                 cache_idx      = {}          ;
 	Status                   status         = Status::New ;
 	bool                     has_msg_stderr = false       ;                                                              // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     incremental    = false       ;                                                              // if true <= job was run with existing incremental targets
 	// END_OF_VERSIONING
 } ;
 template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                    // START_OF_NO_COV
@@ -650,10 +656,10 @@ namespace Caches {
 		static ::vector<Cache*> s_tab ;
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
-		::optional<Match>        match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps  ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
-		::pair<JobInfo,CodecMap> download( ::string const& job , ::string const& key , Disk::NfsGuard& ) ;
-		void                     commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&   ) ;
-		void                     dismiss ( uint64_t upload_key                                         ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
+		::optional<Match>        match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
+		::pair<JobInfo,CodecMap> download( ::string const& job , ::string const& key , bool no_incremental , Disk::NfsGuard& ) ;
+		void                     commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
+		void                     dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		//
 		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , CodecMap&& codec_map , uint8_t z_lvl=0 ) ;
 		// default implementation : no caching, but enforce protocol

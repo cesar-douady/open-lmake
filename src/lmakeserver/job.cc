@@ -24,7 +24,7 @@ namespace Engine {
 	// jobs thread
 	//
 
-	::vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool mark_target_dirs ) const {  // thread-safe
+	::vmap<Node,FileAction> JobData::pre_actions( Rule::RuleMatch const& match , bool no_incremental , bool mark_target_dirs ) const { // thread-safe
 		Trace trace("pre_actions",idx(),STR(mark_target_dirs)) ;
 		::uset<Node>                  to_mkdirs          = match.target_dirs() ;
 		::uset<Node>                  to_mkdir_uphills   ;
@@ -37,15 +37,17 @@ namespace Engine {
 		//
 		// remove old targets
 		for( Target t : targets() ) {
-			FileActionTag fat = {}/*garbage*/ ;
+			bool          incremental = t.tflags[Tflag::Incremental] && (!t.tflags[Tflag::Target]||!no_incremental) ;
+			FileActionTag fat         = {}/*garbage*/                                                               ;
 			//
-			if      (  t->crc==Crc::None                                  ) fat = FileActionTag::None           ; // nothing to wash
-			else if (  t->is_src_anti()                                   ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
-			else if ( +t->polluted       &&  t.tflags[Tflag::Target     ] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted targets
-			else if ( +t->polluted       && !t.tflags[Tflag::Incremental] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted non-incremental
-			else if (                       !t.tflags[Tflag::Incremental] ) fat = FileActionTag::Unlink         ; // wahs non-polluted non-incremental
-			else                                                            fat = FileActionTag::Uniquify       ;
-			FileAction fa { .tag=fat , .no_warning=t.tflags[Tflag::NoWarning] , .crc=t->crc , .sig=t->date().sig } ;
+			if      (  t->crc==Crc::None                            ) fat = FileActionTag::None           ;                            // nothing to wash
+			else if (  t->is_src_anti()                             ) fat = FileActionTag::Src            ;                            // dont touch sources, not even integrity check
+			else if ( +t->polluted       && t.tflags[Tflag::Target] ) fat = FileActionTag::UnlinkPolluted ;                            // wash     polluted targets
+			else if ( +t->polluted       && !incremental            ) fat = FileActionTag::UnlinkPolluted ;                            // wash     polluted non-incremental
+			else if (                       !incremental            ) fat = FileActionTag::Unlink         ;                            // wash non-polluted non-incremental
+			else                                                      fat = FileActionTag::Uniquify       ;
+			//
+			FileAction fa { .tag=fat , .tflags=t.tflags , .crc=t->crc , .sig=t->date().sig } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
@@ -695,15 +697,16 @@ namespace Engine {
 		jd.set_exec_ok() ;                                                                                // effect of old cmd has gone away with job execution
 		fence() ;                                                                                         // only update status once other info is set to anticipate crashes
 		if ( !lost && +target_reason && status>Status::Garbage ) status = Status::BadTarget ;
-		//vvvvvvvvvvvvvvvv
-		jd.status = status ;
-		//^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		jd.incremental = digest.incremental ;
+		jd.status      = status             ;
+		//^^^^^^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
 		MsgStderr      msg_stderr  ;
 		::vector<bool> must_wakeup ;
 		can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;             // only cache execution without errors
 		//
-		trace("wrap_up",ok,digest.cache_idx,jd.run_status,STR(can_upload),digest.upload_key) ;
+		trace("wrap_up",ok,digest.cache_idx,jd.run_status,STR(can_upload),digest.upload_key,STR(digest.incremental)) ;
 		if ( +severe_msg || digest.has_msg_stderr ) {
 			JobInfo ji = job_info() ;
 			if (digest.has_msg_stderr) msg_stderr = ji.end.msg_stderr ;
@@ -1034,8 +1037,9 @@ namespace Engine {
 			//
 			ri.speculative_wait = false                  ;                                            // initially, we are not waiting at all
 			report_reason       = {}                     ;
-			pre_reason          = _mk_pre_reason(status) ;
-			if ( pre_reason.tag==JobReasonTag::Lost && !at_end ) pre_reason = JobReasonTag::WasLost ;
+			if ( incremental && ro.flags[ReqFlag::NoIncremental] ) pre_reason  = JobReasonTag::WasIncremental ;
+			/**/                                                   pre_reason |= _mk_pre_reason(status)       ;
+			if ( pre_reason.tag==JobReasonTag::Lost && !at_end   ) pre_reason  = JobReasonTag::WasLost        ;
 			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				bool       seen_all = iter==deps.end()            ;
@@ -1413,7 +1417,7 @@ namespace Engine {
 				if ( cache_idx && has_download(req->cache_method) ) {
 					::vmap_s<DepDigest> dns ;
 					for( Dep const& d : deps ) {
-						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                                                     // provide node actual crc as this is the hit criteria
+						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                        // provide node actual crc as this is the hit criteria
 						dns.emplace_back(d->name(),dd) ;
 					}
 					Cache*                   cache       = Cache::s_tab[cache_idx] ;
@@ -1434,9 +1438,10 @@ namespace Engine {
 							try {
 								NfsGuard nfs_guard { g_config->file_sync } ;
 								//
-								::vmap<Node,FileAction> fas     = pre_actions(match) ;
-								::vmap_s<FileAction>    actions ;                                                  for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-								::string                dfa_msg = do_file_actions( ::move(actions) , nfs_guard ) ;
+								::vmap<Node,FileAction> fas     = pre_actions( match , true/*no_incremental*/ ) ;
+								::vmap_s<FileAction>    actions ;                                                 for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
+								//
+								::string dfa_msg = do_file_actions( ::ref(::vector_s()) , ::ref(false) , ::move(actions) , nfs_guard ) ;
 								//
 								if (+dfa_msg) {
 									req->audit_job ( Color::Note , "wash"  , job     ) ;
@@ -1444,11 +1449,11 @@ namespace Engine {
 									trace("hit_msg",dfa_msg,ri) ;
 								}
 								//
-								JobExec je       { job , New }                                                      ;           // job starts and ends, no host
-								JobInfo job_info = cache->download( job_name , cache_match->key , nfs_guard ).first ;
-								job_info.start.pre_start.job       = +job      ;                                                // repo dependent
-								job_info.start.submit_attrs.reason = ri.reason ;                                                // context dependent
-								job_info.end  .end_date            = New       ;                                                // execution dependnt
+								JobExec je       { job , New }                                                                                                   ; // job starts and ends, no host
+								JobInfo job_info = cache->download( job_name , cache_match->key , req->options.flags[ReqFlag::NoIncremental] , nfs_guard ).first ;
+								job_info.start.pre_start.job       = +job      ;                                                                                   // repo dependent
+								job_info.start.submit_attrs.reason = ri.reason ;                                                                                   // context dependent
+								job_info.end  .end_date            = New       ;                                                                                   // execution dependnt
 								//
 								JobDigest<Node> digest = job_info.end.digest ;                                                  // gather info before being moved
 								Job::s_record_thread.emplace(job,::move(job_info.start)) ;

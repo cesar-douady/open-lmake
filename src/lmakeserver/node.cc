@@ -806,26 +806,23 @@ namespace Engine {
 		return modified ;
 	}
 
-	static ::pair<Manual,bool/*refreshed*/> _manual_refresh( NodeData& nd , FileSig const& sig ) {
-		Manual m = nd.manual(sig) ;
-		if (m<Manual::Changed) return {m,false/*refreshed*/} ;      // file was not modified
-		if (nd.crc==Crc::None) return {m,false/*refreshed*/} ;      // file appeared, it cannot be steady
-		//
-		::string ndn = nd.name() ;
-		if ( m==Manual::Empty && nd.crc==Crc::Empty ) {             // fast path : no need to open file
-			nd.date() = FileSig(ndn) ;
-		} else {
-			FileSig sig ;
-			Crc     crc { ndn , /*out*/sig } ;
-			if (!nd.crc.match(crc)) return {m,false/*refreshed*/} ; // real modif
-			nd.date() = sig ;
-		}
-		return {Manual::Ok,true/*refreshed*/} ;                     // file is steady
-	}
 	Manual NodeData::manual_refresh( Req req , FileSig const& sig ) {
-		auto [m,refreshed] = _manual_refresh(self,sig) ;
-		if ( refreshed && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ;
-		return m ;
+		Manual m = manual(sig) ; //! refreshed
+		if (m<Manual::Changed) return m ;                           // file was not modified
+		if (crc==Crc::None   ) return m ;                           // file appeared, it cannot be steady
+		//
+		::string n = name() ;
+		if ( m==Manual::Empty && crc==Crc::Empty ) {                // fast path : no need to open file
+			date() = FileSig(n) ;                                   // /!\ do not inform user when an empty file is updated as this happens spuriously with no reason
+			return Manual::Ok ;
+		}
+		//
+		FileSig sig_ ;
+		Crc     crc_ { n , /*out*/sig_ } ;
+		if (!crc.match(crc_)) return m ;                             // real modif
+		date() = sig_ ;
+		if (+req) req->audit_node(Color::Note,"manual_steady",idx()) ;
+		return Manual::Ok ;
 	}
 
 	//
