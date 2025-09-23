@@ -71,6 +71,15 @@ Item(B(-`I'),B(--ignore))        From now on, ignore all reads of deps (includin
 Item(B(-X),B(--regexpr))         Pass flags to all deps matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
 Default is to optimize dep check as much as possible.
 
+.SH "EXIT STATUS"
+.LP
+B(ldepend) exits with a status of zero if dep flags were correctly set.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  the B(--direct) or B(--verbose) options were passed and a dep was in error
+Item(B(2))  internal error, should not occur
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+
 .SH EXAMPLES
 .LP
 V(ldepend --ignore a_file) # must be put before reading I(a_file).

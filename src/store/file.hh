@@ -77,7 +77,7 @@ namespace Store {
 			//
 			if (sz<=size   ) return ;
 			if (sz>Capacity)
-				exit( Rc::Param
+				exit( Rc::BadState
 				,	"file ",name," capacity has been under-dimensioned at ",Capacity," bytes\n"
 				,	"\tconsider to recompile open-lmake with increased corresponding parameter in src/types.hh\n"
 				) ;

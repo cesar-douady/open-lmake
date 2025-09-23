@@ -217,14 +217,14 @@ struct ReqRpcReply {
 	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
 	ReqRpcReply(                          ) = default ;
-	ReqRpcReply( Proc p , bool       ok_  ) : proc{p} , ok {ok_         } { SWEAR( p==Proc::Status                                     ) ; }
+	ReqRpcReply( Proc p , Rc         rc_  ) : proc{p} , rc {rc_         } { SWEAR( p==Proc::Status                                     ) ; }
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Stderr || p==Proc::Stdout ) ; }
 	//
 	template<IsStream T> void serdes(T& s) {
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None   :                   break ;
-			case Proc::Status : ::serdes(s,ok ) ; break ;
+			case Proc::Status : ::serdes(s,rc ) ; break ;
 			case Proc::File   :
 			case Proc::Stderr :
 			case Proc::Stdout : ::serdes(s,txt) ; break ;
@@ -232,6 +232,6 @@ struct ReqRpcReply {
 	}
 	// data
 	Proc     proc = Proc::None ;
-	bool     ok   = false      ;
+	Rc       rc   = Rc::Ok     ;
 	::string txt  ;
 } ;

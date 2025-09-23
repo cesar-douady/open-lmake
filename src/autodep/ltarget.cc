@@ -53,7 +53,6 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::SourceOk      , { .short_name=ExtraTflagChars[+ExtraTflag::SourceOk   ].second , .doc="accept if targets are actually sources and accept them to also be deps if not incremental" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
-	int               rc       = 0                      ;
 	::string          out      ;
 	//
 	if (cmd_line.flags[Flag::List]) {
@@ -93,5 +92,5 @@ int main( int argc , char* argv[]) {
 		//
 	}
 	if (+out) Fd::Stdout.write(out) ;
-	return rc ;
+	exit(Rc::Ok) ;
 }

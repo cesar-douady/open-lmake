@@ -111,7 +111,7 @@ else :
 		os.system('rm -rf LMAKE')
 		for s in range(len(lst)) :
 			print(f'bad=True ; src_dir={src_dir!r} ; step={s}',file=open('step.py','w'))
-			ut.lmake( rc = 0 if lst[s]['ok'] else 4 )
+			ut.lmake( rc = 0 if lst[s]['ok'] else 8 )
 
 	os.system('rm -rf LMAKE')
 	print(f'bad=False',file=open('step.py','w'))

@@ -45,5 +45,5 @@ int main( int argc , char* argv[]) {
 		::pair_s<bool/*ok*/> reply = JobSupport::encode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , Fd::Stdin.read() , ::move(fa[+Flag::Context]) , min_len ) ;
 		if (reply.second) { Fd::Stdout.write(          ::move(reply.first)+'\n') ; return 0 ; }
 		else              { Fd::Stderr.write(ensure_nl(::move(reply.first))    ) ; return 1 ; }
-	} catch (::string const& e) { exit(Rc::Format,e) ; }
+	} catch (::string const& e) { exit(Rc::Internal,e) ; }
 }

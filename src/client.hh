@@ -24,19 +24,11 @@ struct ClientFdPair {
 
 extern ClientFdPair g_server_fds ;
 
-inline Rc mk_rc(Bool3 ok) {
-	switch (ok) {
-		case Yes   : return Rc::Ok     ;
-		case Maybe : return Rc::Format ;
-		case No    : return Rc::Fail   ;
-	DF}                                  // NO_COV
-}
-
 using OutProcCb = ::function<void(bool start)> ;
 
-Bool3/*ok*/ _out_proc( ::vector_s* /*out*/ files , ReqProc , bool read_only , bool refresh , ReqSyntax const& , ReqCmdLine const& , OutProcCb const& =[](bool/*start*/)->void{} ) ;
+Rc _out_proc( ::vector_s* /*out*/ files , ReqProc , bool read_only , bool refresh , ReqSyntax const& , ReqCmdLine const& , OutProcCb const& =[](bool/*start*/)->void{} ) ;
 //
 #define C const
-inline Bool3/*ok*/ out_proc( ::vector_s& fs , ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(&fs    ,p,ro,r,s,cl,cb) ; }
-inline Bool3/*ok*/ out_proc(                  ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(nullptr,p,ro,r,s,cl,cb) ; }
+inline Rc out_proc( ::vector_s& fs , ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(&fs    ,p,ro,r,s,cl,cb) ; }
+inline Rc out_proc(                  ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(nullptr,p,ro,r,s,cl,cb) ; }
 #undef C

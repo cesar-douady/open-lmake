@@ -76,12 +76,12 @@ namespace Engine {
 	inline void audit_err( Fd out , ReqOptions const& ro , Color c , ::string const& t , bool as_is=false ) { _audit(out,{},ro,c          ,t,as_is,0/*lvl*/,0/*sep*/,true/*err*/) ; }
 	inline void audit_err( Fd out , ReqOptions const& ro ,           ::string const& t , bool as_is=false ) { _audit(out,{},ro,Color::None,t,as_is,0/*lvl*/,0/*sep*/,true/*err*/) ; }
 	//
-	/**/   void audit_file( Fd out , ::string&& f ) ;
+	/**/   void audit_file( Fd out , ::string&& ) ;
 	//
-	/**/   void audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok ) ;
-	inline void audit_status( Fd out ,          ReqOptions const& ro , bool ok ) { audit_status(out,{},ro,ok) ; }
+	/**/   void audit_status( Fd out , Fd log , ReqOptions const&    , Rc    ) ;
+	inline void audit_status( Fd out ,          ReqOptions const& ro , Rc rc ) { audit_status(out,{},ro,rc) ; }
 	//
-	/**/   void audit_ctrl_c( Fd out , Fd log , ReqOptions const& ro ) ;
+	/**/   void audit_ctrl_c( Fd out , Fd log , ReqOptions const&    ) ;
 	inline void audit_ctrl_c( Fd out ,          ReqOptions const& ro ) { audit_ctrl_c(out,{},ro) ; }
 
 	inline ::string title    ( ReqOptions const& , ::string const& ) ;

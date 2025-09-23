@@ -124,16 +124,16 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	app_init(false/*read_only_ok*/) ;
 	//
-	if (argc!=1)                                                              exit(Rc::Usage ,"must be called without arg"                                               ) ;
-	try { startup_s = search_root().startup_s ; } catch (::string const& e) { exit(Rc::Usage ,e                                                                          ) ; }
-	if (+startup_s)                                                           exit(Rc::Usage ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
-	if (is_target(ServerMrkr))                                                exit(Rc::Format,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
+	if (argc!=1              )                                                exit(Rc::Usage   ,"must be called without arg"                                               ) ;
+	try { startup_s = search_root().startup_s ; } catch (::string const& e) { exit(Rc::Usage   ,e                                                                          ) ; }
+	if (+startup_s           )                                                exit(Rc::Usage   ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
+	if (is_target(ServerMrkr))                                                exit(Rc::BadState,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
 	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,true/*dir_ok*/) ; // if last lrepair was interrupted, admin_dir contains no useful information
 	if (is_dir_s(bck_admin_dir_s)) {
 		if (is_dir_s(admin_dir_s)) {
 			mk_lad() ;
-			exit(Rc::Format,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
+			exit(Rc::BadState,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
 		}
 		if (::rename(bck_admin_dir.c_str(),admin_dir.c_str())!=0) FAIL("cannot rename",bck_admin_dir,"to",admin_dir) ;
 	}
@@ -158,8 +158,8 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	// make a fresh local admin dir
 	{	::string msg ;
-		try                       { Makefiles::refresh( msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
-		catch (::string const& e) {                                                                  if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
+		try                       { Makefiles::refresh( /*out*/msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                        }
+		catch (::string const& e) {                                                                         if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::BadState,e) ; }
 	}
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
@@ -187,5 +187,5 @@ int main( int argc , char* /*argv*/[] ) {
 		msg << "to clean up after having ensured everything runs smoothly, consider : "<<rm_bck_admin_dir                                     <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}
-	return 0 ;
+	exit(Rc::Ok) ;
 }

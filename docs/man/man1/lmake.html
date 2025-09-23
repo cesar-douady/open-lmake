@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Sep 22 19:26:55 2025 -->
+<!-- CreationDate: Tue Sep 23 19:35:23 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -25,8 +25,8 @@
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
 <a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
-<a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#OUTPUT">OUTPUT</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#ENVIRONMENT">ENVIRONMENT</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
@@ -698,16 +698,6 @@ execution information from backend. This is not done
 systematicly as this may incur a performance hit. These
 information are available by using <b>lshow -i</b>.</p>
 
-<h2>EXIT STATUS
-<a name="EXIT STATUS"></a>
-</h2>
-
-
-<p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
-exits with a status of zero if the asked targets could be
-built or were already up-to-date. Else it exits with a
-non-zero status.</p>
-
 <h2>OUTPUT
 <a name="OUTPUT"></a>
 </h2>
@@ -841,6 +831,158 @@ we necessary to carry out the build.</p></td></tr>
 
 <p>The jobs in error (the first of them is accompanied with
 its stderr).</p></td></tr>
+</table>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lmake</b>
+exits with a status of zero if the asked targets could be
+built or were already up-to-date. Else it exits with a
+non-zero status:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p style="margin-top: 1em"><b>1</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">some targets could not be
+built</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>2</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>internal error, should not occur</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>3</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p><i>Lmakefile.py</i> could not be read or contained an
+error</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>4</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>server could not be started</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>5</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>internal repo state was inconsistent</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>6</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>repo need to be cleaned, e.g. with <b>git clean
+-ffdx</b></p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>7</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>adequate permissions were missing, typically write
+access</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>8</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>server crashed, should not occur</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>9</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>repo need to be steady (no on-going lmake running)</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>10</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>some syscall failed</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>11</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad usage : command line options and arguments coul not
+be parsed</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>12</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad repo version, repo need to be cleaned, e.g. with
+<b>git clean -ffdx</b></p></td></tr>
 </table>
 
 <h2>ENVIRONMENT

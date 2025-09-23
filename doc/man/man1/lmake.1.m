@@ -141,11 +141,6 @@ Enable the generation of some execution information from backend.
 This is not done systematicly as this may incur a performance hit.
 These information are available by using B(lshow -i).
 
-.SH "EXIT STATUS"
-.LP
-B(lmake) exits with a status of zero if the asked targets could be built or were already up-to-date.
-Else it exits with a non-zero status.
-
 .SH OUTPUT
 .LP
 While B(lmake) runs, it outputs a log.
@@ -163,6 +158,24 @@ Bullet A frozen file or a target of a frozen job is needed.
 Once the build process is complete, a summary is generated with :
 Bullet The frozen files and jobs that we necessary to carry out the build.
 Bullet The jobs in error (the first of them is accompanied with its stderr).
+
+.SH "EXIT STATUS"
+.LP
+B(lmake) exits with a status of zero if the asked targets could be built or were already up-to-date.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  some targets could not be built
+Item(B(2))  internal error, should not occur
+Item(B(3))  I(Lmakefile.py) could not be read or contained an error
+Item(B(4))  server could not be started
+Item(B(5))  internal repo state was inconsistent
+Item(B(6))  repo need to be cleaned, e.g. with B(git clean -ffdx)
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(8))  server crashed, should not occur
+Item(B(9))  repo need to be steady (no on-going lmake running)
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
 
 .SH ENVIRONMENT
 .LP

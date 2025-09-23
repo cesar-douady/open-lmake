@@ -25,6 +25,18 @@ While repairing B(lrepair) generates a file I(LMAKE/repaired_jobs) that contains
 
 ClientGeneralities()
 
+.SH "EXIT STATUS"
+.LP
+B(lrepair) exits with a status of zero if the repo could be successfully repaired.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(3))  I(Lmakefile.py) could not be read or contained an error
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 .LP
 V(lrepair)

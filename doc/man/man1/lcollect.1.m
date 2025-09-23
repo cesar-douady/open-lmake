@@ -33,6 +33,23 @@ ClientOptions(,color)
 SpecificOptions
 Item(B(-n),B(--dry-run)) report only, dont actually execute actions.
 
+.SH "EXIT STATUS"
+.LP
+B(lcollect) exits with a status of zero if the whole process went out smoothly.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(3))  I(Lmakefile.py) could not be read or contained an error
+Item(B(4))  server could not be started
+Item(B(5))  internal repo state was inconsistent
+Item(B(6))  repo need to be cleaned, e.g. with B(git clean -ffdx)
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(8))  server crashed, should not occur
+Item(B(9))  repo need to be steady (no on-going lmake running)
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 .LP
 V(lcollect)

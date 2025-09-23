@@ -26,5 +26,5 @@ int main( int argc , char* argv[] ) {
 		/**/        out <<'\n'                    ;
 	}
 	Fd::Stdout.write(out) ;
-	return 0 ;
+	exit(Rc::Ok) ;
 }

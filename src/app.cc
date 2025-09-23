@@ -66,7 +66,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 	//
 	if (chk_version_!=No)
 		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
-		catch (::string const& e) { exit(Rc::Format,e) ;                               }
+		catch (::string const& e) { exit(Rc::Version,e) ;                              }
 	//
 	if (!read_only)
 		try                       { Trace::s_start() ; }

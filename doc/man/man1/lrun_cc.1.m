@@ -9,6 +9,11 @@ Title(lrun_cc,run a C/C++ compiler protecting include dirs)
 .SH SYNOPSIS
 B(lrun_cc) [-m I(marker)] I(compiler) I(args)...
 
+.SH "EXIT STATUS"
+.LP
+B(lrun_cc) exits with the status of the C(ldepend) the files described above, C(lcheck_deps) or the passed command it launches,
+as soon as one of such command exits with a non-zero exit code, in that order.
+
 .SH DESCRIPTION
 .LP
 B(lrun_cc) runs the program I(compiler) with any given arguments I(args)... .

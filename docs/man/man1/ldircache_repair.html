@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Sep 22 19:26:54 2025 -->
+<!-- CreationDate: Tue Sep 23 19:35:23 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -23,6 +23,7 @@
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#OPTIONS">OPTIONS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
@@ -114,6 +115,77 @@ incoherent cache entry is removed.</p>
 ensure proper LRU evection is rebuilt. If the LRU data is
 missing, the corresponding entry will be deemed to have been
 accessed and will be preferred candidates for eviction.</p>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>ldircache_repair</b>
+exits with a status of zero if the cache was successfully
+repaired. Else it exits with a non-zero status:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>2</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>internal error, should not occur</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>7</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>adequate permissions were missing, typically write
+access</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>10</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>some syscall failed</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>11</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad usage : command line options and arguments coul not
+be parsed</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>12</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad cache version, cache needs to be cleaned</p></td></tr>
+</table>
 
 <h2>OPTIONS
 <a name="OPTIONS"></a>

@@ -49,6 +49,15 @@ V(first line)
 .LP
 V(second line)
 
+.SH "EXIT STATUS"
+.LP
+B(lencode) exits with a status of zero if the code could be decoded.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  the code was not found with given file and context
+Item(B(2))  internal error, should not occur
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+
 .SH NOTES
 Item((1))
 	The same functionality is provided with the B(lmake.encode) python function.

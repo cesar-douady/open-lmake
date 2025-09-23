@@ -78,6 +78,22 @@ Item(B($LMAKE_DEBUG_KEY))    The key provided by the B(-k) or B(--key) option.
 Item(B($LMAKE_DEBUG_STDIN))  The file connected as stdin to B(ldebug) when it was launched (usually a tty) if the job has its stdin redirected (in case the B(dep) rule attribute is defined).
 Item(B($LMAKE_DEBUG_STDOUT)) The file connected as stdout to B(ldebug) when it was launched (usually a tty) if the job has its stdout redirected (in case the B(target) rule attribute is defined).
 
+.SH "EXIT STATUS"
+.LP
+B(ldebug) exits with a status of zero if debug session could be run with no error/debug files could be generated.
+If a debug session was launched, the exit code is the one of the debug session.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(4))  server could not be started
+Item(B(5))  internal repo state was inconsistent
+Item(B(6))  repo need to be cleaned, e.g. with B(git clean -ffdx)
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(8))  server crashed, should not occur
+Item(B(10)) some syscall failed (including debug session could not be B(exec)'ed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 
 .LP

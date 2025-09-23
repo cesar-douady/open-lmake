@@ -252,7 +252,7 @@ namespace Engine::Persistent {
 				invalidate_match(true/*force_physical*/) ; // then rely only on essential data that should be crash-safe
 				Fd::Stderr.write("seems ok\n")           ;
 			} catch (::string const&) {
-				exit(Rc::Format,"failed to rescue, consider running lrepair") ;
+				throw "failed to rescue, consider running lrepair"s ;
 			}
 		}
 		//
@@ -302,10 +302,10 @@ namespace Engine::Persistent {
 		/**/                                                diff(*g_config,config) ;
 		//
 		/**/                                                ConfigDiff d = +config ? g_config->diff(config) : ConfigDiff::None ;
-		if (          d>ConfigDiff::Static  && +*g_config ) throw "repo must be clean"s  ;
-		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw "repo must be steady"s ;
+		if (          d>ConfigDiff::Static  && +*g_config ) throw ::pair( "repo must be clean"s  , Rc::CleanRepo  ) ;
+		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw ::pair( "repo must be steady"s , Rc::SteadyRepo ) ;
 		//
-		if (  dyn && !d                                   ) return                       ;                             // fast path, nothing to update
+		if (  dyn && !d                                   ) return ;                                                   // fast path, nothing to update
 		//
 		/**/                                                Config old_config = *g_config ;
 		if (         +d                                   ) *g_config = ::move(config) ;

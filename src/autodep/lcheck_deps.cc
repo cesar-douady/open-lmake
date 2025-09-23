@@ -31,6 +31,6 @@ int main( int argc , char* argv[]) {
 		if (!sync) return 0       ;
 		else       return ok!=Yes ;
 	} catch(::string const&e) {
-		exit(Rc::System,e) ;
+		exit(Rc::Internal,e) ;
 	}
 }

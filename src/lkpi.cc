@@ -21,7 +21,7 @@ int main( int argc , char* /*argv*/[] ) {
 	Py::init(*g_lmake_root_s) ;
 	//
 	try                       { Persistent::new_config({}/*config*/,false/*dyn*/) ; }
-	catch (::string const& e) { exit(Rc::Format,e) ;                                }
+	catch (::string const& e) { exit(Rc::BadState,e) ;                              }
 	//
 	for( const Rule r : Persistent::rule_lst(true/*with_shared*/) ) {
 		n_rules[+r->special]++ ;

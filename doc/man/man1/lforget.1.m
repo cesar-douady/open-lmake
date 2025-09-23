@@ -42,6 +42,24 @@ This is useful in scenarios such as the following one :
 Item(B(-t),B(--targets))
 In addition to being out-of-date, job will forget about star targets.
 
+.SH "EXIT STATUS"
+.LP
+B(lforget) exits with a status of zero if the asked targets could be forgotten.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  some targets could not be forgotten
+Item(B(2))  internal error, should not occur
+Item(B(3))  the B(--resources) option was used and I(Lmakefile.py) could not be read or contained an error
+Item(B(4))  server could not be started
+Item(B(5))  the B(--resources) option was used and internal repo state was inconsistent
+Item(B(6))  the B(--resources) option was used and repo need to be cleaned, e.g. with B(git clean -ffdx)
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(8))  server crashed, should not occur
+Item(B(9))  the B(--resources) option was used and repo need to be steady (no on-going lmake running)
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 .LP
 V(lforget a_file)

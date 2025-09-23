@@ -503,8 +503,8 @@ namespace Engine {
 		last_info = {} ;
 	}
 
-	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok) ; } // allow access to global function ...
-	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok) ; } // ... w/o naming namespace
+	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok?Rc::Ok:Rc::Fail) ; } // allow access to global function ...
+	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok                ) ; } // ... w/o naming namespace
 
 	bool/*seen*/ ReqData::audit_stderr( Job j , MsgStderr const& msg_stderr , uint16_t max_stderr_len , DepDepth lvl ) const {
 		if (+msg_stderr.msg   ) audit_info( Color::Note , msg_stderr.msg , lvl+1 ) ;

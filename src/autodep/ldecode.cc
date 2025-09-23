@@ -33,7 +33,7 @@ int main( int argc , char* argv[]) {
 	try {
 		auto&                fa    = cmd_line.flag_args                                                                                                          ;
 		::pair_s<bool/*ok*/> reply = JobSupport::decode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , ::move(fa[+Flag::Code]) , ::move(fa[+Flag::Context]) ) ;
-		if (reply.second) { Fd::Stdout.write(reply.first) ; return 0 ; }
-		else              { Fd::Stderr.write(reply.first) ; return 1 ; }
-	} catch (::string const& e) { exit(Rc::Format,e) ; }
+		if (reply.second) { Fd::Stdout.write(reply.first) ; exit(Rc::Ok  ) ; }
+		else              { Fd::Stderr.write(reply.first) ; exit(Rc::Fail) ; }
+	} catch (::string const& e) { exit(Rc::Internal,e) ; }
 }

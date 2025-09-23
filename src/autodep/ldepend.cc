@@ -52,7 +52,7 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Verbose       , { .short_name=DflagChars     [+Dflag     ::Verbose    ].second , .doc="write dep checksums on stdout"           } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
-	int               rc       = 0                      ;
+	Rc                rc       = Rc::Ok                 ;
 	::string          out      ;
 	//
 	if (cmd_line.flags[Flag::List]) {
@@ -96,7 +96,7 @@ int main( int argc , char* argv[]) {
 		//
 		SWEAR(!( verbose && direct )) ;
 		if (direct) {
-			rc = dep_infos.second ? 0 : 1 ;
+			rc = dep_infos.second ? Rc::Ok : Rc::Fail ;
 		} else {
 			SWEAR( dep_infos.first.size()==cmd_line.args.size() , dep_infos.first.size() , cmd_line.args.size() ) ;
 			auto ok_str = [](Bool3 ok)->const char* {
@@ -110,16 +110,16 @@ int main( int argc , char* argv[]) {
 			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo const& vi) { return ::string(vi.crc).size() ; } ) ;
 			for( size_t i : iota(dep_infos.first.size()) ) {
 				VerboseInfo const& vi = dep_infos.first[i] ;
-				if (vi.ok!=Yes) rc = 1 ;
+				if (vi.ok!=Yes) rc = Rc::Fail ;
 				out <<      widen(ok_str(vi.ok)   ,w_ok ) ;
 				out <<' '<< widen(::string(vi.crc),w_crc) ;
 				out <<' '<< cmd_line.args[i]              ;
 				out <<'\n'                                ;
 			}
-			if (cmd_line.flags[Flag::IgnoreError]) rc = 0 ;
+			if (cmd_line.flags[Flag::IgnoreError]) rc = Rc::Ok ;
 		}
 		//
 	}
 	if (+out) Fd::Stdout.write(out) ;
-	return rc ;
+	exit(rc) ;
 }

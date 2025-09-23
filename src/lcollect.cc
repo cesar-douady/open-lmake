@@ -21,8 +21,8 @@ int main( int argc , char* argv[] ) {
 	} ;
 	ReqCmdLine cmd_line { syntax , argc , argv } ;
 	//
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Collect , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	exit(mk_rc(ok)) ;
+	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Rc rc = out_proc( ReqProc::Collect , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line ) ;
+	//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	exit(rc) ;
 }

@@ -116,16 +116,16 @@ else :
 		def lcl_job_func() : return 3
 	'''[1:]),file=open('lcl_job.py','w'))    # strip initial \n
 
-	print('step=2',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=4 ) # job script is prepared in server, no local module access
+	print('step=2',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=8 ) # job script is prepared in server, no local module access
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'cmd_import_job_sh'          , new=1 , failed=1 , early_rerun=... , rc=1 ) # .
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'cmd_from_config_sh.01'      ,         done  =2                          ) # ok as local module is inlined
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'cmd_import_config_py.01'    , new=1 , done  =2                          ) # job can import local module
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'cmd_import_job_py.23'       , new=1 , done  =2                          ) # .
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'cmd_from_config_py.01'      ,         done  =2                          ) # local module is inlined
 
-	print('step=3',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=4 ) # dynamic attribute is prepared in server, no local module access
+	print('step=3',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=8 ) # dynamic attribute is prepared in server, no local module access
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dyn_attr_import_job_sh'     ,         failed=1 , early_rerun=... , rc=1 ) # .
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dyn_attr_from_config_sh.01' ,         done  =2                          ) # ok as local module is inlined
-	print('step=4',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=4 ) # same for python
+	print('step=4',file=open('step.py','w')) ; ut.lmake( no_ldump=True                                                     , rc=8 ) # same for python
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dyn_attr_import_job_py'     ,         failed=1 , early_rerun=... , rc=1 ) # .
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dyn_attr_from_config_py.01' ,         done  =2                          ) # .

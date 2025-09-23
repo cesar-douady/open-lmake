@@ -21,6 +21,14 @@ Bullet I(code) cannot be found with the accompanying I(context)
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
 
+.SH "EXIT STATUS"
+.LP
+B(ldecode) exits with a status of zero if the value could be encoded.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+
 .SH EXAMPLES
 .LP
 See C(lencode,1).

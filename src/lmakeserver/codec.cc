@@ -199,7 +199,7 @@ namespace Codec {
 		Trace trace("refresh",file,reqs) ;
 		//
 		Node file_node { file } ;
-		if ( !file_node || (file_node->set_buildable(),file_node->buildable!=Buildable::Src) ) {
+		if ( !file_node || file_node->buildable!=Buildable::Src ) {   // file_node->set_builable() can only be executed in main thread and is useless here
 			for( ReqIdx r : reqs ) {
 				Req(r)->audit_node(Color::Err ,"encode/decode association file must be a plain source :",file_node  ) ;
 				Req(r)->audit_node(Color::Note,"consider : git add"                                     ,file_node,1) ;
@@ -211,9 +211,9 @@ namespace Codec {
 		entry.sample_date = New ;
 		if ( inserted && ni ) {
 			if ( Node node{ni} ; node->buildable==Buildable::Decode )
-				entry.phy_date = entry.log_date  = node->log_date() ;                                                                  // initialize from known info
+				entry.phy_date = entry.log_date  = node->log_date() ; // initialize from known info
 		}
-		if (phy_date==entry.phy_date) return true/*ok*/ ;                                                                              // file has not changed, nothing to do
+		if (phy_date==entry.phy_date) return true/*ok*/ ;             // file has not changed, nothing to do
 		entry.log_date = phy_date ;
 		//
 		_s_canonicalize( file , reqs ) ;

@@ -202,5 +202,5 @@ int main( int argc , char* argv[] ) {
 	//
 	if (cmd_line.flags[CmdFlag::Out]) AcFd(cmd_line.flag_args[+CmdFlag::Out],{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}).write(files) ;
 	else                              Fd::Stdout                                                                         .write(files) ;
-	return status!=Status::Ok ;
+	exit( status==Status::Ok ? Rc::Ok : Rc::Fail ) ;
 }

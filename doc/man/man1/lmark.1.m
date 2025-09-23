@@ -57,6 +57,20 @@ SpecificOptions
 Item(B(-f),B(--freeze))     mark is freeze.
 Item(B(-t),B(--no-trigger)) mark is no-trigger.
 
+.SH "EXIT STATUS"
+.LP
+B(lmark) exits with a status of zero if the asked targets could be marked.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  some targets could not be marked
+Item(B(2))  internal error, should not occur
+Item(B(4))  server could not be started
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(8))  server crashed, should not occur
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 .LP
 V(lmark -fa a_dep)

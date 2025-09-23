@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Sep 22 19:26:55 2025 -->
+<!-- CreationDate: Tue Sep 23 19:35:24 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -23,6 +23,7 @@
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
@@ -92,6 +93,90 @@ dir. For example, if you launch <b>lrepair b</b> from dir
 the root of the repo and reports containing file names
 (initially seen from the root of the repo) will be shown
 relative the the current working dir.</p>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lrepair</b>
+exits with a status of zero if the repo could be
+successfully repaired. Else it exits with a non-zero
+status:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>2</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>internal error, should not occur</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>3</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p><i>Lmakefile.py</i> could not be read or contained an
+error</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>7</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>adequate permissions were missing, typically write
+access</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>10</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>some syscall failed</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>11</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad usage : command line options and arguments coul not
+be parsed</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>12</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad repo version, repo need to be cleaned, e.g. with
+<b>git clean -ffdx</b></p></td></tr>
+</table>
 
 <h2>EXAMPLES
 <a name="EXAMPLES"></a>

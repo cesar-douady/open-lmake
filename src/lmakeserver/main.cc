@@ -27,13 +27,13 @@ enum class EventKind : uint8_t {
 
 static constexpr Delay StatsRefresh { 1 } ;
 
-static ServerSockFd _g_server_fd  ;
-static bool         _g_is_daemon      = true   ;
-static Atomic<bool> _g_done           = false  ;
-static ::string     _g_fqdn           = fqdn() ;
-static bool         _g_seen_make      = false  ;
-static bool         _g_server_running = false ;
-static Fd           _g_watch_fd       ;         // watch LMAKE/server
+static ServerSockFd _g_server_fd    ;
+static bool         _g_is_daemon    = true   ;
+static Atomic<bool> _g_done         = false  ;
+static ::string     _g_fqdn         = fqdn() ;
+static bool         _g_seen_make    = false  ;
+static bool         _g_need_cleanup = false  ;
+static Fd           _g_watch_fd     ;          // watch LMAKE/server
 
 static ::pair_s<int> _get_mrkr_host_pid() {
 	try {
@@ -47,12 +47,12 @@ static ::pair_s<int> _get_mrkr_host_pid() {
 }
 
 static void _server_cleanup() {
-	Trace trace("_server_cleanup",STR(_g_server_running)) ;
-	if (!_g_server_running) return ;                        // not running, nothing to clean
+	Trace trace("_server_cleanup",STR(_g_need_cleanup)) ;
+	if (!_g_need_cleanup) return ;                        // not running, nothing to clean
 	pid_t           pid  = getpid()             ;
 	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
 	trace("pid",mrkr,pid) ;
-	if (mrkr!=::pair(_g_fqdn,pid)) return ;                 // not our file, dont touch it
+	if (mrkr!=::pair(_g_fqdn,pid)) return ;               // not our file, dont touch it
 	unlnk(ServerMrkr) ;
 	trace("cleaned") ;
 }
@@ -63,22 +63,22 @@ static void _report_server( Fd fd , bool running ) {
 	if (cnt!=sizeof(bool)) trace("no_report") ;         // client is dead
 }
 
-static ::pair_s/*msg*/<Bool3/*started*/> _start_server() {          // Maybe means last server crashed
-	pid_t                             pid  = getpid()             ;
-	::pair_s<pid_t>                   mrkr = _get_mrkr_host_pid() ;
-	::pair_s/*msg*/<Bool3/*started*/> res  = { {} , Yes }         ;
+static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means last server crashed
+	pid_t               pid  = getpid()             ;
+	::pair_s<pid_t>     mrkr = _get_mrkr_host_pid() ;
+	::pair_s/*msg*/<Rc> res  = { {} , Rc::Ok }      ;
 	Trace trace("_start_server",_g_fqdn,pid) ;
 	if ( +mrkr.first && mrkr.first!=_g_fqdn ) {
 		trace("already_existing_elsewhere",mrkr) ;
-		return { {}/*msg*/ , No/*started*/ } ;
+		return { {}/*msg*/ , Rc::BadServer } ;
 	}
 	if (mrkr.second) {
-		if (sense_process(mrkr.second)) {                           // another server exists on same host
+		if (sense_process(mrkr.second)) {                       // another server exists on same host
 			trace("already_existing",mrkr) ;
-			return { {}/*msg*/ , No/*started*/ } ;
+			return { {}/*msg*/ , Rc::BadServer } ;
 		}
-		unlnk(ServerMrkr) ;                                         // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
-		res.second = Maybe ;
+		unlnk(ServerMrkr) ;                                     // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		rescue = true ;
 		trace("vanished",mrkr) ;
 	}
 	if (g_writable) {
@@ -93,13 +93,14 @@ static ::pair_s/*msg*/<Bool3/*started*/> _start_server() {          // Maybe mea
 		//^^^^v^v^v^v^v^v^v^v^v^vvvvvvvvvv
 		if (::link(tmp.c_str(),ServerMrkr)==0) {
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			_g_need_cleanup = true ;
 			// if server marker is touched by user, we do as we received a ^C
 			// ideally, we should watch ServerMrkr before it is created to be sure to miss nothing, but inotify requires an existing file
 			if ( +(_g_watch_fd=::inotify_init1(O_CLOEXEC)) )
 				if ( ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
 					_g_watch_fd.close() ;                                                                        // useless if we cannot watch
 		} else {
-			res = { ::strerror(errno) , No/*started*/ } ;
+			res = { ::strerror(errno) , Rc::System } ;
 		}
 		unlnk(tmp) ;
 	}
@@ -218,8 +219,8 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 								r = New ;
 							} catch (::string const& e) {
 								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
-								try                       { OMsgBuf().send( ofd , ReqRpcReply(ReqRpcReplyProc::Status,false/*ok*/) ) ; }
-								catch (::string const& e) { trace("lost_client",e) ;                                                   } // there is nothing much we can do if we cant communicate
+								try                       { OMsgBuf().send( ofd , ReqRpcReply( ReqRpcReplyProc::Status , Rc::Fail ) ) ; }
+								catch (::string const& e) { trace("lost_client",e) ;                                                    } // there is nothing much we can do if we cant communicate
 								if (ofd!=fd) ::close   (ofd        ) ;
 								else         ::shutdown(ofd,SHUT_WR) ;
 								break ;
@@ -227,7 +228,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 							r.zombie(false) ;
 							in_tab.at(fd).second = r ;
 							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;                         // urgent to ensure in order Kill/None
+							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;                          // urgent to ensure in order Kill/None
 							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							trace("make",r) ;
 						} break ;
@@ -335,10 +336,10 @@ static bool/*interrupted*/ _engine_loop() {
 							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+no_slash(startup_dir_s) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
-						try                       { OMsgBuf().send( ecr.out_fd , ReqRpcReply(ReqRpcReplyProc::Status,ok) ) ; }
-						catch (::string const& e) { trace("lost_client",e) ;                                                 } // there is nothing we can do if we cant communicate
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                                        // close out_fd before in_fd as closing clears out_fd, ...
-						/**/                       ecr.in_fd .close() ;                                                        // ... defeating the equality test
+						try                       { OMsgBuf().send( ecr.out_fd , ReqRpcReply( ReqRpcReplyProc::Status , ok?Rc::Ok:Rc::Fail ) ) ; }
+						catch (::string const& e) { trace("lost_client",e) ;                                                                     } // there is nothing we can do if we cant communicate
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                                                            // close out_fd before in_fd as closing clears ...
+						/**/                       ecr.in_fd .close() ;                                                                            // ... out_fd, defeating the equality test
 					} break ;
 					// 2 possible orders : Make-Kill-Close or Make-Close-Kill
 					// None counts as Kill
@@ -352,19 +353,21 @@ static bool/*interrupted*/ _engine_loop() {
 							goto NoMake ;
 						}
 						try {
-							Makefiles::dyn_refresh( msg , ecr.options.user_env , startup_dir_s ) ;
-							if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
-							trace("new_req",req) ;
-							req.alloc() ; allocated = true ;
-							//vvvvvvvvvvv
-							req.make(ecr) ;
-							//^^^^^^^^^^^
-							_g_seen_make = true ;
-						} catch(::string const& e) {
+							try {
+								Makefiles::dyn_refresh( /*out*/msg , ecr.options.user_env , startup_dir_s ) ;
+								if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
+								trace("new_req",req) ;
+								req.alloc() ; allocated = true ;
+								//vvvvvvvvvvv
+								req.make(ecr) ;
+								//^^^^^^^^^^^
+								_g_seen_make = true ;
+							} catch(::string const& e) { throw ::pair(e,Rc::BadState) ; }
+						} catch(::pair_s<Rc> const& e) {
 							if (allocated) req.dealloc() ;
-							if (+msg) audit_err   ( ecr.out_fd , ecr.options , msg            ) ;
-							/**/      audit_err   ( ecr.out_fd , ecr.options , Color::Err , e ) ;
-							/**/      audit_status( ecr.out_fd , ecr.options , false/*ok*/    ) ;
+							if (+msg) audit_err   ( ecr.out_fd , ecr.options , msg                  ) ;
+							/**/      audit_err   ( ecr.out_fd , ecr.options , Color::Err , e.first ) ;
+							/**/      audit_status( ecr.out_fd , ecr.options , e.second             ) ;
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
 						}
@@ -486,19 +489,26 @@ int main( int argc , char** argv ) {
 	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                            // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                       // ... must be done before any thread is launched so that all threads block the signal
 	mk_dir_s(PrivateAdminDirS) ;
-	//                                               vvvvvvvvvvvvvvv
-	::pair_s/*msg*/<Bool3/*started*/> start_digest = _start_server() ;
-	//                                               ^^^^^^^^^^^^^^^
-	_g_server_running = start_digest.second!=No ;
-	if (!_g_is_daemon     ) _report_server( out_fd , _g_server_running ) ;                   // inform lmake we did not start
-	if (!_g_server_running) {
-		if (+start_digest.first) exit( Rc::System , "cannot start server : ",start_digest.first ) ;
-		else                     exit( Rc::Ok                                                   ) ;
+	bool rescue = false ;
+	//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	::pair_s<Rc> start_digest = _start_server(/*out*/rescue) ;
+	//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if (!_g_is_daemon       ) _report_server( out_fd , start_digest.second==Rc::Ok ) ;       // inform lmake we did not start
+	if (+start_digest.second) {
+		if (+start_digest.first) exit( start_digest.second , "cannot start server : ",start_digest.first ) ;
+		else                     exit( Rc::Ok                                                            ) ;
 	}
-	::string msg ; //!          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                       { Makefiles::refresh( msg , start_digest.second!=Yes , refresh_ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
-	catch (::string const& e) { /*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/   if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
-	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/) ;                                       // once we have reported we have started, lmake will send us a message to kill us
+	::string     msg ;
+	::pair_s<Rc> rc  { {} , Rc::Ok } ;
+	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                          { Makefiles::refresh( /*out*/msg , rescue , refresh_ ) ; }
+	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch(::string     const& e) { rc = { e , Rc::BadState } ;                            }
+	catch(::pair_s<Rc> const& e) { rc = e                    ;                            }
+	//
+	if (+msg         ) Fd::Stderr.write(ensure_nl(msg)) ;
+	if (+rc.second   ) exit( rc.second , rc.first )     ;
+	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)    ;                                    // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	mk_dir_s(cat(AdminDirS       ,"auto_tmp/"    ),true/*unlnk_ok*/) ;                       // prepare job execution so no dir_guard is necessary for each job

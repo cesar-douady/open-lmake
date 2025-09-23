@@ -28,6 +28,17 @@ Item(erase entry) Any incomplete or otherwise incoherent cache entry is removed.
 Item(rebuild lru) The book-keeping information to ensure proper LRU evection is rebuilt.
 If the LRU data is missing, the corresponding entry will be deemed to have been accessed and will be preferred candidates for eviction.
 
+.SH "EXIT STATUS"
+.LP
+B(ldircache_repair) exits with a status of zero if the cache was successfully repaired.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad cache version, cache needs to be cleaned
+
 .SH OPTIONS
 .LP
 Item(B(-n),B(--dry-run)) Report actions to carry out but do not actually perform them.

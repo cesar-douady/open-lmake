@@ -22,8 +22,8 @@ int main( int argc , char* argv[] ) {
 	//
 	bool refresh = cmd_line.key==ReqKey::Resources ;
 	if ( refresh && +cmd_line.args ) syntax.usage("must not have targets when forgetting resources" ) ;
-	//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	Bool3 ok = out_proc( ReqProc::Forget , false/*read_only*/ , refresh , syntax , cmd_line ) ;
-	//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	exit(mk_rc(ok)) ;
+	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	Rc rc = out_proc( ReqProc::Forget , false/*read_only*/ , refresh , syntax , cmd_line ) ;
+	//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	exit(rc) ;
 }

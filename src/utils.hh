@@ -8,6 +8,23 @@
 #include "basic_utils.hh"
 #include "enum.hh"
 
+enum class Rc : uint8_t {
+	Ok
+,	Fail
+,	Internal // should not occur
+//
+,	BadMakefile
+,	BadServer
+,	BadState
+,	CleanRepo
+,	Perm
+,	ServerCrash
+,	SteadyRepo
+,	System
+,	Usage
+,	Version
+} ;
+
 //
 // string
 //
@@ -663,16 +680,6 @@ private :
 template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) {                           // START_OF_NO_COV
 	return os << sup._ptr ;
 }                                                                                                                             // END_OF_NO_COV
-
-enum class Rc : uint8_t {
-	Ok
-,	Fail
-,	Perm
-,	Usage
-,	Format
-,	Param
-,	System
-} ;
 
 template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
 	Fd::Stderr.write(ensure_nl(cat(args...))) ;

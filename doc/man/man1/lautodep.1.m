@@ -85,6 +85,19 @@ Item(B(-V) I(dict),B(--views)=I(dict))
 I(dict) must be provided as a dict mapping str to view descriptions using the python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(views)=I(dict).
 
+.SH "EXIT STATUS"
+.LP
+B(lautodep) exits with a status of zero if the command was executed with no error.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  command did not exit without error
+Item(B(2))  internal error, should not occur
+Item(B(5))  internal repo state was inconsistent
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 
 A typical call could be:

@@ -38,7 +38,11 @@ Bullet file is a non-executable regular empty file : output is B(empty-R)
 .SH "EXIT STATUS"
 .LP
 B(xxhsum) exits with a status of zero if the checksum could be computed.
-Else it exits with a non-zero status.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(10)) some syscall failed
 
 .SH OUTPUT
 .LP

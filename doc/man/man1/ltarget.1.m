@@ -47,6 +47,14 @@ Item(B(-D),B(--readdir-ok))   Allow C(readdir,3) on passed deps even if not B(ig
 Item(B(-e),B(--ignore-error)) Ignore the error status of the passed deps.
 Item(B(-r),B(--no-required))  Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
 
+.SH "EXIT STATUS"
+.LP
+B(ltarget) exits with a status of zero if target flags were correctly set.
+Else it exits with a non-zero status:
+.LP
+Item(B(2))  internal error, should not occur
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+
 .SH EXAMPLES
 .LP
 V(ltarget --ignore a_file) # reading/writing to a_file will be ignored

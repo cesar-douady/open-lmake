@@ -55,7 +55,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 				if (_server_ok(req_fd,"old")) {
 					req_fd.set_receive_timeout() ;                                                                     // restore
 					g_server_fds = ::move(req_fd) ;
-					if (sync) exit(Rc::Format,"server already exists") ;
+					if (sync) exit(Rc::BadServer,"server already exists") ;
 					return 0 ;
 				}
 			} catch(::string const&) { trace("cannot_connect",server_service_str,server_service) ; }
@@ -106,7 +106,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 	if ( server_pid                          ) kill_server_msg << "kill "<<server_pid                        ;
 	if ( +kill_server_msg                    ) kill_server_msg =  '\t'+kill_server_msg+'\n'                  ;
 	trace("cannot_connect",server_service,kill_server_msg) ;
-	exit(Rc::Format
+	exit(Rc::BadServer
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
 	,	"\trm ",AdminDirS,"server\n"
@@ -190,7 +190,7 @@ static void _out_thread_func(ReqRpcReply const& rrr) {
 	DF}                                                                    // NO_COV
 }
 
-Bool3/*ok*/ _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb ) {
+Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb ) {
 	Trace trace("out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
@@ -215,7 +215,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only
 	trace("reverse_video",rv) ;
 	//
 	ReqRpcReq rrr        { proc , cmd_line_files , { rv , cmd_line } } ;
-	Bool3     rc         = Maybe                                       ;
+	Rc        rc         = Rc::ServerCrash                             ;
 	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)  ;
 	trace("starting") ;
 	cb(true/*start*/) ;                                                                                 // block INT once server is initialized so as to be interruptible at all time
@@ -228,7 +228,7 @@ Bool3/*ok*/ _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only
 			ReqRpcReply report = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
 			switch (report.proc) {
 				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
-				case Proc::Status : trace("status",STR(report.ok)) ; rc = No|report.ok ;                           goto Return ; // XXX! : why is it necessary to goto Return here ? ...
+				case Proc::Status : trace("status",STR(report.rc)) ; rc = report.rc ;                              goto Return ; // XXX! : why is it necessary to goto Return here ? ...
 				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
 				case Proc::Stderr :
 				case Proc::Stdout : out_thread.push(::move(report)) ;                                              break       ; // queue reports to avoid blocking server should std/stdout be blocked

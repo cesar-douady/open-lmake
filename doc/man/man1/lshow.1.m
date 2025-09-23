@@ -262,6 +262,21 @@ Also,reported files are relative to the root of the repo, not the current workin
 If argument is a job, the output is as described for each sub-command.
 unless mentioned otherwise, if arguments are files, the output is a B(dict) whose keys are the arguments and values are as described above.
 
+.SH "EXIT STATUS"
+.LP
+B(lshow) exits with a status of zero if the asked targets could be shown.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  some targets could not be shown
+Item(B(2))  internal error, should not occur
+Item(B(4))  server could not be started
+Item(B(5))  internal repo state was inconsistent
+Item(B(7))  adequate permissions were missing, typically write access
+Item(B(8))  server crashed, should not occur
+Item(B(10)) some syscall failed
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
+
 .SH EXAMPLES
 .LP
 V(lmake a_file)

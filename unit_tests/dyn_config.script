@@ -19,7 +19,7 @@ sleep 1
 
 echo new_src > new_src                # create new source
 echo new_src >>Manifest               # and tell lmake
-ut_launch -done 0 -rc 1 lmake new_src # cannot dynamically modify sources
+ut_launch -done 0 -rc 5 lmake new_src # cannot dynamically modify sources
 
 wait %1 # -s option ensures server is done
 

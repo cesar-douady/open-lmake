@@ -37,6 +37,15 @@ Item(B(-s),B(--sync)) wait for server answer rather than letting job go speculat
 return code will be 1 if at least one dep is in error.
 This is necessary, even without checking return code, to ensure that after this call, the dirs of previous deps actually exist if such deps are not read (such as with B(lmake.depend)) (cf. CAVEAT).
 
+.SH "EXIT STATUS"
+.LP
+B(lcheck_deps) exits with a status of zero if deps were up-to-date and no pre-existing targets have been seen so far.
+Else it exits with a non-zero status:
+.LP
+Item(B(1))  some deps were not up-to-date or a pre-existing target has been seen so far
+Item(B(2))  internal error, should not occur
+Item(B(11)) bad usage : command line options and arguments coul not be parsed
+
 .SH EXAMPLES
 .LP
 V(lcheck_deps)
