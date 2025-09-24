@@ -362,12 +362,12 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                           // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                  // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                         // if necessary, we must take care of the union
+		NodeData() = delete ;                                                                                                // if necessary, we must take care of the union
 		NodeData( NodeName n             ) : NodeDataBase{n} {                }
 		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir() = dir_ ; }
 		~NodeData() {
@@ -406,7 +406,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                       // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -418,19 +418,19 @@ namespace Engine {
 		bool has_actual_job(     ) const {                     return is_plain() && +actual_job() && +actual_job()->rule() ; }
 		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return is_plain() && actual_job()==j                        ; }
 		//
-		Manual manual        (         FileSig const& ) const ;
-		Manual manual        (                        ) const { return manual(FileSig(name())) ; }
-		Manual manual_refresh( Req   , FileSig const& ) ;                                                             // refresh date if file was updated but steady
-		Manual manual_refresh( Req r                  )       { return manual_refresh(r,FileSig(name())) ; }
+		Manual           manual          (                       Accesses ,                        FileSig  const& ) const ;
+		Manual           manual_refresh  (                       Accesses , Req                  , FileSig  const& ) ;       // refresh date if file was updated but steady
+		bool/*modified*/ refresh_src_anti( bool report_no_file , Accesses , ::vector<Req> const& , ::string const& ) ;       // Req's are for reporting only
 		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const&      , ::string const& name ) ; // Req's are for reporting only
-		bool/*modified*/ refresh_src_anti( bool report_no_file , ::vector<Req> const& reqs                        ) { return refresh_src_anti(report_no_file,reqs,name()) ; }
+		Manual           manual          (                       Accesses a=~Accesses()                                ) const { return manual          (               a,     {name()}) ; }
+		Manual           manual_refresh  (                       Accesses a=~Accesses() , Req                  r   ={} )       { return manual_refresh  (               a,r   ,{name()}) ; }
+		bool/*modified*/ refresh_src_anti( bool report_no_file , Accesses a=~Accesses() , ::vector<Req> const& reqs={} )       { return refresh_src_anti(report_no_file,a,reqs, name() ) ; }
 		//
-		void full_refresh( bool report_no_file , ::vector<Req> const& reqs={} ) {
+		void full_refresh( bool report_no_file , Accesses a=~Accesses() , ::vector<Req> const& reqs={} ) {
 			if (+reqs) set_buildable(reqs[0]) ;
 			else       set_buildable(       ) ;
-			if (is_src_anti()) refresh_src_anti(report_no_file,reqs) ;
-			else               manual_refresh  (Req()              ) ;                                  // no manual_steady diagnostic as this may be because of another job
+			if      (is_src_anti()) refresh_src_anti(report_no_file,a,reqs) ;
+			else if (is_plain   ()) manual_refresh  (               a     ) ;                           // no manual_steady diagnostic as this may be because of another job
 		}
 		//
 		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
@@ -514,7 +514,7 @@ namespace Engine {
 		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
 		bool/*modified*/ refresh( Crc , SigDate const& ={} ) ;
-		void             refresh(                          ) ;
+		void             refresh( Accesses=~Accesses()     ) ;
 	private :
 		void           _do_set_buildable( Req      , RejectSet&/*lazy*/ known_rejected , DepDepth=0 ) ; // req is for error reporting only
 		bool/*solved*/ _make_pre        ( ReqInfo& , bool query                                     ) ;
@@ -609,13 +609,12 @@ namespace Engine {
 	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
-	inline Manual NodeData::manual(FileSig const& sig) const {
-		if (sig==date().sig) return Manual::Ok ;               // None and Dir are deemed identical
-		Manual res = Manual::Modif ;
-		if      (!sig                     ) res = Manual::Unlnked ;
-		else if (sig.tag()==FileTag::Empty) res = Manual::Empty   ;
-		Trace("manual",res,idx(),sig,crc,date()) ;
-		return res ;
+	inline Manual NodeData::manual( Accesses a , FileSig const& sig ) const {
+		if (    sig       ==         date().sig          )                                                    return Manual::Ok      ;   // None and Dir are deemed identical
+		if (Crc(sig.tag()).match(Crc(date().sig.tag()),a))                                                    return Manual::Ok      ;   // if tags are enough, do as if no modif
+		if (!sig                                         ) { Trace("manual","unlnked",idx(),sig,crc,date()) ; return Manual::Unlnked ; }
+		if (sig.tag()==FileTag::Empty                    ) { Trace("manual","empty"  ,idx(),sig,crc,date()) ; return Manual::Empty   ; }
+		/**/                                               { Trace("manual","modif"  ,idx(),sig,crc,date()) ; return Manual::Modif   ; }
 	}
 
 	inline ::span<JobTgt const> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
@@ -663,9 +662,9 @@ namespace Engine {
 		_do_make(ri,ma,s) ;
 	}
 
-	inline void NodeData::refresh() {
+	inline void NodeData::refresh(Accesses a) {
 		FileSig sig { name() } ;
-		switch (manual(sig)) {
+		switch (manual(a,sig)) {
 			case Manual::Ok      :                                      break ;
 			case Manual::Unlnked : refresh( Crc::None  , Pdate(New) ) ; break ;
 			case Manual::Empty   : refresh( Crc::Empty , sig        ) ; break ;

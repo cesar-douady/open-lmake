@@ -27,10 +27,6 @@ items (also used in XXX comments) :
 
 * note in cache if compressed with zlib or zstd
 	- and use adequate decompressor to decompress
-* ensure lencode/ldecode work outside lmake
-	- at least in ldebug within lautodep
-	- more generally autonomously
-	- ensure depend verbose works outside lmake
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -116,9 +112,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* distinguish lmake return code depending on necessary user corrective action
-	- such as must git clean
-	- so as to be script friendly
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

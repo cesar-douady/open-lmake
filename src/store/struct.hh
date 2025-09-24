@@ -94,10 +94,6 @@ namespace Store {
 		static constexpr size_t _Offset1 = Struct::_offset<Hdr,Idx,Data>(1) ;
 		static constexpr size_t _s_offset(Sz idx) { return Struct::_offset<Hdr,Idx,Data>(idx) ; }
 		// cxtors & casts
-		template<class... A> void _alloc_hdr(A&&... hdr_args) {
-			Base::expand(_s_offset(1)) ;                                                                  // 1 is the first used idx
-			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
-		}
 	public :
 		StructFile() = default ;
 		template<class... A> StructFile( NewType                              , A&&... hdr_args ) { init( New             , ::forward<A>(hdr_args)... ) ; }
@@ -108,7 +104,8 @@ namespace Store {
 			Base::init( name , writable ) ;
 			if (Base::operator+()) return ;
 			throw_unless( writable , "cannot init read-only file ",name ) ;
-			_alloc_hdr(::forward<A>(hdr_args)...) ;
+			Base::expand( _s_offset(1) , false/*thread_chk*/ ) ;                                                                  // 1 is the first used idx
+			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
 		// accesses
 		bool         operator+(               ) const                  {               return size()>1                                                        ; }

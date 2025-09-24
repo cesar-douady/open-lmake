@@ -23,6 +23,8 @@ namespace Codec::Persistent {
 
 namespace Codec {
 
+	static Mutex<MutexLvl::Codec> _mutex ;
+
 	StaticUniqPtr<QueueThread<Codec::Closure>> g_codec_queue ;
 
 	::umap_s<Closure::Entry> Closure::s_tab ;
@@ -36,11 +38,11 @@ namespace Codec {
 	}                                                                                                // END_OF_NO_COV
 
 	void Closure::s_init() {
-		g_codec_queue = new QueueThread<Closure>{'D',Codec::codec_thread_func} ;
 		// START_OF_VERSIONING
 		Persistent::val_file .init( cat(g_config->local_admin_dir_s,"codec/vals" ) , g_writable ) ;
 		Persistent::code_file.init( cat(g_config->local_admin_dir_s,"codec/codes") , g_writable ) ;
 		// END_OF_VERSIONING
+		g_codec_queue = new QueueThread<Closure>{'D',Codec::codec_thread_func} ;
 	}
 
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
@@ -48,10 +50,12 @@ namespace Codec {
 		bool mk_new = node->buildable!=buildable ;
 		if      (mk_new        ) node->buildable = buildable ;
 		else if (node->crc==crc) return ;
-		switch (buildable) {
-			case Buildable::Decode : if (mk_new) node->codec_val () = txt ; else node->codec_val ().assign(txt) ; break ;
-			case Buildable::Encode : if (mk_new) node->codec_code() = txt ; else node->codec_code().assign(txt) ; break ;
-		DF}                                                                                                               // NO_COV
+		{	Lock lock { _mutex } ;
+			switch (buildable) {
+				case Buildable::Decode : if (mk_new) node->codec_val () = txt ; else node->codec_val ().assign(txt) ; break ;
+				case Buildable::Encode : if (mk_new) node->codec_code() = txt ; else node->codec_code().assign(txt) ; break ;
+			DF}                                                                                                               // NO_COV
+		}
 		Trace trace("_create_node",node,crc,Closure::s_tab.at(file).log_date) ;
 		node->crc = crc ;
 	}
@@ -60,14 +64,8 @@ namespace Codec {
 		_create_node( file , encode_node , Buildable::Encode , code ) ;
 	}
 
-	static ::string _codec_line( ::string const& ctx , ::string const& code , ::string const& val , bool with_nl ) {
-		::string res = ' '+mk_printable<' '>(ctx)+' '+mk_printable<' '>(code)+' '+mk_printable(val) ;                // format : " <ctx> <code> <val>" exactly
-		if (with_nl) res += '\n' ;
-		return res ;
-	}
-
 	static void _create_entry( ::string const& file , ::string const& ctx , Node decode_node , ::string const& val ,  Node encode_node , ::string const& code ) {
-		AcFd(file,{.flags=O_WRONLY|O_APPEND}).write(_codec_line(ctx,code,val,true/*with_nl*/)) ;                                                                  // Maybe means append
+		AcFd(file,{.flags=O_WRONLY|O_APPEND}).write(_mk_codec_line(ctx,code,val)+'\n') ;                                                                          // Maybe means append
 		//
 		Closure::Entry& entry = Closure::s_tab.at(file) ;
 		_create_pair( file , decode_node , val , encode_node , code ) ;
@@ -110,6 +108,7 @@ namespace Codec {
 	}
 
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
+		LockedFd                           lock       { file }                                 ; // in case lmake and lencode/ldecode outside lmake run simultaneously
 		::map_s<umap_ss>/*ctx->val->code*/ encode_tab ;
 		::string                           prev_ctx   ;
 		::string                           prev_code  ;
@@ -127,17 +126,18 @@ namespace Codec {
 		//
 		bool first = true ;
 		for( ::string const& line : lines ) {
-			size_t pos = 0 ;
-			// /!\ format must stay in sync with Record::report_sync_direct
-			/**/                                             if (line[pos++]!=' ') { trace("no_space_0") ; is_canonic=false ; continue ; }
-			::string ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_1") ; is_canonic=false ; continue ; }
-			::string code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') { trace("no_space_2") ; is_canonic=false ; continue ; }
-			::string val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) { trace("no_end"    ) ; is_canonic=false ; continue ; }
+			::string ctx  ;
+			::string code ;
+			::string val  ;
+			if (!_parse_codec_line( /*out*/ctx , /*out*/code , /*out*/val , line )) {
+				is_canonic = false ;
+				continue ;
+			}
 			//
 			if (is_canonic) {
 				// use same order as in decode_tab below when rewriting file and ensure standard line formatting
 				if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
-				else if ( ::string l=_codec_line(ctx,code,val,false/*with_nl*/) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
+				else if ( ::string l=_mk_codec_line(ctx,code,val) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
 			}
 			//
 			auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
@@ -151,14 +151,14 @@ namespace Codec {
 					trace("duplicate",line) ;
 				} else {
 					::string crc = Crc(New,val).hex() ;
-					if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ; // keep best code
+					if (_code_prio(code,crc)>_code_prio(it->second,crc)) it->second = code ;     // keep best code
 					trace("val_conflict",prev_code,code,it->second) ;
 				}
 			}
 		}
 		trace(STR(is_canonic)) ;
 		//
-		if (!is_canonic) {                                                                   // if already canonic, nothing to do, there may not be any code conflict as they are strictly increasing
+		if (!is_canonic) { // if already canonic, nothing to do, there may not be any code conflict as they are strictly increasing
 			// disambiguate in case the same code is used for the several vals
 			::map_s<map_ss>/*ctx->code->val*/ decode_tab ;
 			bool                              has_clash  = false ;
@@ -178,7 +178,7 @@ namespace Codec {
 			::string lines ;
 			for( auto const& [ctx,d_entry] : decode_tab )
 				for( auto const& [code,val] : d_entry )
-					lines << _codec_line(ctx,code,val,true/*with_nl*/) ;
+					lines << _mk_codec_line(ctx,code,val) <<'\n' ;
 			AcFd(file,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}).write(lines) ;
 			for( ReqIdx r : reqs ) Req(r)->audit_info( Color::Note , "reformat" , file ) ;
 		}
@@ -228,7 +228,8 @@ namespace Codec {
 		bool             refreshed   = s_refresh( file , +decode_node , reqs )               ;
 		if (refreshed) {                                                                            // else codec file not available
 			if (_buildable_ok(file,decode_node)) {
-				::string val { decode_node->codec_val().str_view() } ;
+				Lock     lock { _mutex }                              ;
+				::string val  { decode_node->codec_val().str_view() } ;
 				trace("found",val) ;
 				return { .proc=JobMngtProc::Decode , .txt=val , .crc=decode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
 			}
@@ -249,6 +250,7 @@ namespace Codec {
 		}
 		//
 		if (_buildable_ok(file,encode_node)) {
+			Lock     lock { _mutex }                               ;
 			::string code { encode_node->codec_code().str_view() } ;
 			trace("found",code) ;
 			return { .proc=JobMngtProc::Encode , .txt=code , .crc=encode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
@@ -295,11 +297,13 @@ namespace Codec {
 					Node decode_node = create ? Node(New,decode_name,true) : Node(decode_name) ;
 					Node encode_node = create ? Node(New,encode_name,true) : Node(encode_name) ;
 					if (_buildable_ok(file,encode_node)) {
+						Lock          lock       { _mutex }                             ;
 						::string_view found_code = encode_node->codec_code().str_view() ; //! ok
 						if (code==found_code) { trace("found"                      ) ; continue ; }
 						else                  { trace("bad_code_for_val",found_code) ; goto Bad ; } // when create, we should have verified it's possible
 					}
 					if (_buildable_ok(file,decode_node)) {
+						Lock          lock      { _mutex }                            ;
 						::string_view found_val = decode_node->codec_val().str_view() ;
 						SWEAR( val!=found_val ) ;                                                   // else we would have found encode_node
 						trace("bad_val_for_code",found_val) ;

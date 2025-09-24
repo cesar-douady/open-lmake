@@ -1277,22 +1277,28 @@ namespace Engine {
 						if      (+n->asking) entries.push_back({ "required" , {Job(n->asking)->name(),{}} }) ;
 						else if (n!=target ) entries.push_back({ "required" , {    n         ->name(),{}} }) ;
 						if (target->is_src_anti()) {
-							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())==target->date().sig ) c = Color::Warning ;
+							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->date().sig ) c = Color::Warning ;
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
 							if (verbose) entries.push_back({ "checksum" , {::string(target->crc)               ,c } }) ;
 						} else {
 							entries.push_back({"special",{}}) ;
 						}
-						size_t w     = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
-						First  first ;
-						if (porcelaine) audit( fd , ro , "{None:{" , true/*as_is*/ , lvl ) ;
-						for( auto const& k_vc : entries ) {
-							::string v = !k_vc.second.first ? "None"s : porcelaine ? mk_py_str(k_vc.second.first) : k_vc.second.first ;
-							//
-							audit( fd , ro , k_vc.second.second , cat(widen('\''+k_vc.first+'\'',w+2)," : ",v) , true/*as_is*/ , lvl+1 , first(char(0),',') ) ;
+						size_t w = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
+						if (porcelaine) {
+							First first ;
+							audit( fd , ro , "{None:{" , true/*as_is*/ , lvl ) ;
+							for( auto const& k_vc : entries ) {
+								::string v = !k_vc.second.first ? "None"s : mk_py_str(k_vc.second.first) ;
+								audit( fd , ro , k_vc.second.second , cat(widen(cat('\'',k_vc.first,'\''),w+2)," : ",v) , true/*as_is*/ , lvl+1 , first(char(0),',') ) ;
+							}
+							audit( fd , ro , "}}" , true/*as_is*/ , lvl ) ;
+						} else {
+							for( auto const& k_vc : entries ) {
+								::string v = !k_vc.second.first ? "None"s : k_vc.second.first ;
+								audit( fd , ro , k_vc.second.second , cat(widen(k_vc.first,w)," : ",v) , true/*as_is*/ , lvl ) ;
+							}
 						}
-						if (porcelaine) audit( fd , ro , "}}" , true/*as_is*/ , lvl ) ;
 						continue ;
 					}
 					_show_job( fd , ro , job , target , lvl ) ;

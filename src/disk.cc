@@ -368,8 +368,8 @@ namespace Disk {
 		switch (fi.tag()) {
 			case FileTag::None    :
 			case FileTag::Unknown :
-			case FileTag::Dir     :                                           break ;
-			case FileTag::Empty   : _val |= fi.date.val() << NBits<FileTag> ; break ; // improve traceability when size is predictible
+			case FileTag::Dir     :                                                                break ;
+			case FileTag::Empty   : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
 			case FileTag::Lnk     :
 			case FileTag::Reg     :
 			case FileTag::Exe     : {

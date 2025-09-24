@@ -45,8 +45,6 @@ namespace Store {
 			name     = name_     ;
 			writable = writable_ ;
 			//
-			chk_thread() ;
-			//
 			_alloc() ;
 			if (+name) {
 				if (writable) Disk::dir_guard(name) ;
@@ -61,8 +59,6 @@ namespace Store {
 			}
 		}
 		void close() {
-			chk_thread() ;
-			//
 			if (!base) return ;
 			//
 			_dealloc()  ;
@@ -71,9 +67,9 @@ namespace Store {
 		// accesses
 		bool operator+() const { return size ; }
 		// services
-		void expand(size_t sz) {
-			chk_thread  () ;
-			chk_writable() ;
+		void expand( size_t sz , bool thread_chk=true ) {
+			if (thread_chk) chk_thread  () ;
+			/**/            chk_writable() ;
 			//
 			if (sz<=size   ) return ;
 			if (sz>Capacity)

@@ -22,6 +22,7 @@ if __name__!='__main__' :
 			code=$( echo {File}_sh | lencode -f codec_file -x ctx -l 4 )
 			echo $code
 			ldecode -f codec_file -x ctx -c $code
+			lcheck_deps
 		'''
 
 	class CodecPy(PyRule) :
@@ -30,6 +31,7 @@ if __name__!='__main__' :
 			code = lmake.encode('codec_file','ctx',File+'_py\n',3)
 			print(code)
 			print(lmake.decode('codec_file','ctx',code))
+			lmake.check_deps()
 
 	class Chk(PyRule) :
 		target = r'{File:.*}.ok'

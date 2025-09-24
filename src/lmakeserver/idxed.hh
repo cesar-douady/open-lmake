@@ -7,13 +7,6 @@
 
 #include "utils.hh"
 
-#include "store/store_utils.hh"
-#include "store/struct.hh"
-#include "store/alloc.hh"
-#include "store/vector.hh"
-#include "store/prefix.hh"
-#include "store/side_car.hh"
-
 //
 // Idxed
 //

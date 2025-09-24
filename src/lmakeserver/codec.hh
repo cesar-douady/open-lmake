@@ -5,10 +5,14 @@
 
 #pragma once
 
+#include "codec_format.hh"
 #include "fd.hh"
+#include "hash.hh"
 #include "thread.hh"
 #include "rpc_job.hh"
 #include "time.hh"
+
+#include "store/vector.hh"
 
 #include "idxed.hh"
 
@@ -52,15 +56,7 @@ namespace Codec {
 		static ::umap_s<Entry> s_tab ;
 		// cxtors & casts
 		Closure() = default ;
-		Closure(
-			Proc       p
-		,	JobIdx     j
-		,	Fd         fd_
-		,	SeqId      id
-		,	::string&& code
-		,	::string&& f
-		,	::string&& c
-		) :
+		Closure( Proc p , JobIdx j , Fd fd_ , SeqId id , ::string&& code , ::string&& f , ::string&& c ) :
 			proc   {        p     }
 		,	job    {        j     }
 		,	fd     {        fd_   }
@@ -69,16 +65,7 @@ namespace Codec {
 		,	ctx    { ::move(c   ) }
 		,	txt    { ::move(code) }
 		{ SWEAR(p==Proc::Decode) ; }
-		Closure(
-			Proc       p
-		,	JobIdx     j
-		,	Fd         fd_
-		,	SeqId      id
-		,	::string&& val
-		,	::string&& f
-		,	::string&& c
-		,	uint8_t    ml
-		) :
+		Closure( Proc p , JobIdx j , Fd fd_ , SeqId id , ::string&& val , ::string&& f , ::string&& c , uint8_t ml ) :
 			proc     {        p    }
 		,	_min_len {        ml   }
 		,	job      {        j    }
@@ -118,8 +105,9 @@ namespace Codec {
 
 namespace Codec::Persistent {
 
-	using ValFile  = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , NCodecIdxBits , char , uint32_t , 64/*MinSz*/ > ;
-	using CodeFile = Store::VectorFile< false/*autolock*/ , void/*Hdr*/ , CodecIdx , NCodecIdxBits , char , uint32_t ,  4/*MinSz*/ > ;
+	//                                ThreadKey Hdr                               Item   Sz       MinSz
+	using ValFile  = Store::VectorFile< 0     , void , CodecIdx , NCodecIdxBits , char , uint32_t , 64 > ;
+	using CodeFile = Store::VectorFile< 0     , void , CodecIdx , NCodecIdxBits , char , uint32_t ,  4 > ;
 
 	extern ValFile  val_file  ;
 	extern CodeFile code_file ;

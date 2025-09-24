@@ -82,9 +82,8 @@ namespace JobSupport {
 		SWEAR(verbose!=direct) ;
 		if (verbose)
 			for( size_t i : iota(files.size()) )
-				if      (!dep_idxs1[i]) res.first.push_back({ .ok=Maybe                      }         ) ;                                 // 0 is reserved to mean no dep info
-				else if (!reply       ) res.first.push_back({ .ok=Yes   , .crc=Crc(files[i]) }         ) ;                                 // there was no server, mimic it
-				else                    res.first.push_back(::move(reply.verbose_infos[dep_idxs1[i]-1])) ;
+				if (!dep_idxs1[i]) res.first.push_back({ .ok=Maybe                      }         ) ;                                 // 0 is reserved to mean no dep info
+				else               res.first.push_back(::move(reply.verbose_infos[dep_idxs1[i]-1])) ;
 		else
 			res.second = reply.ok==Yes ;
 		return res ;
@@ -167,7 +166,7 @@ namespace JobSupport {
 		else                                                          return abs_dir_s                                           ;
 	}
 
-	template<bool Encode> static ::pair_s<bool/*ok*/> codec( Record const& r , ::string&& file , ::string&& code_val , ::string&& ctx , uint8_t min_len=0 ) {
+	template<bool Encode> static ::pair_s<bool/*ok*/> _codec( Record const& r , ::string&& file , ::string&& ctx , ::string&& code_val , uint8_t min_len=0 ) {
 		if (Encode) { //!                                                                                                          ok
 			if (min_len<1            ) return { cat("min_len (",min_len,") must be at least 1"                                 ) , false } ;
 			if (min_len>sizeof(Crc)*2) return { cat("min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')') , false } ; // codes are output in hex, 4 bits/digit
@@ -176,17 +175,18 @@ namespace JobSupport {
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;
 		//
 		r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
-		// transport as sync to use the same fd as Encode/Decode
-		r.report_sync(     { .proc=Proc::CodecFile                  , .sync=Maybe , .comment=comment , .file=::move(sr.real ) } , true/*force*/ ) ;
-		r.report_sync(     { .proc=Proc::CodecCtx                   , .sync=Maybe , .comment=comment , .file=::move(ctx     ) } , true/*force*/ ) ;
-		JobExecRpcReq jerr { .proc=Encode?Proc::Encode:Proc::Decode , .sync=Yes   , .comment=comment , .file=::move(code_val) } ;
+		// transport as sync to use the same fd as Encode/Decode                                                                 force
+		r.report_sync(     { .proc=Proc::CodecFile                  , .sync=Maybe , .comment=comment , .file=::move(sr.real ) } , true ) ;
+		r.report_sync(     { .proc=Proc::CodecCtx                   , .sync=Maybe , .comment=comment , .file=::move(ctx     ) } , true ) ;
+		JobExecRpcReq jerr { .proc=Encode?Proc::Encode:Proc::Decode , .sync=Yes   , .comment=comment , .file=::move(code_val) }          ;
 		if (Encode) jerr.min_len() = min_len ;
 		//
 		JobExecRpcReply reply = r.report_sync( ::move(jerr) , true/*force*/ ) ;
 		return { ::move(reply.txt) , reply.ok==Yes } ;
 	}
 
-	::pair_s<bool/*ok*/> decode(Record const& r,::string&& file,::string&& code,::string&& ctx                ) { return codec<false/*Encode*/>(r,::move(file),::move(code),::move(ctx)        ) ; }
-	::pair_s<bool/*ok*/> encode(Record const& r,::string&& file,::string&& val ,::string&& ctx,uint8_t min_len) { return codec<true /*Encode*/>(r,::move(file),::move(val ),::move(ctx),min_len) ; }
+	//       ok                                                                                                                    Encode
+	::pair_s<bool> decode( Record const& r , ::string&& file , ::string&& code , ::string&& ctx                   ) { return _codec<false>(r,::move(file),::move(ctx),::move(code)        ) ; }
+	::pair_s<bool> encode( Record const& r , ::string&& file , ::string&& val  , ::string&& ctx , uint8_t min_len ) { return _codec<true >(r,::move(file),::move(ctx),::move(val ),min_len) ; }
 
 }

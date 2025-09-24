@@ -225,6 +225,7 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 // level 5
 ,	Autodep2                    // must follow Autodep1
 // inner (locks that take no other locks)
+,	Codec
 ,	File
 ,	Hash
 ,	Sge

@@ -7,6 +7,8 @@
 
 #include "disk.hh"
 
+#include "codec_format.hh"
+
 #include "backdoor.hh"
 
 #include "record.hh"
@@ -177,29 +179,22 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 	}
 	// not under lmake (typically ldebug), try to mimic server as much as possible
 	switch (jerr.proc) {
-		case Proc::DepPush   : pushed_deps.push_back(::move(jerr.file)) ; break ;
-		case Proc::CodecFile : codec_file = ::move(jerr.file) ;           break ;
-		case Proc::CodecCtx  : codec_ctx  = ::move(jerr.file) ;           break ;
+		case Proc::DepPush   : pushed_deps.push_back(::move(jerr.file)) ; break                                ;
+		case Proc::CodecFile : codec_file = ::move(jerr.file) ;           break                                ;
+		case Proc::CodecCtx  : codec_ctx  = ::move(jerr.file) ;           break                                ;
+		case Proc::ChkDeps   :                                            return { .proc=jerr.proc , .ok=Yes } ;
+		case Proc::DepDirect :                                            return { .proc=jerr.proc , .ok=Yes } ;
 		case Proc::DepVerbose : {
 			::vector<VerboseInfo> verbose_infos ; for( ::string& f : pushed_deps ) verbose_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
 			pushed_deps.clear() ;
 			return { .proc=jerr.proc , .verbose_infos=::move(verbose_infos) } ;
 		}
 		break ;
-		case Proc::Decode :
 		case Proc::Encode :
-			// /!\ format must stay in sync with Codec::_s_canonicalize
-			for( ::string const& line : AcFd(codec_file,true/*err_ok*/).read_lines() ) {
-				size_t pos = 0 ;
-				/**/                                             if ( line[pos++]!=' '                   ) continue ; // bad format
-				::string ctx  = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' ' || ctx!=codec_ctx ) continue ; // .          or bad ctx
-				::string code = parse_printable<' '>(line,pos) ; if ( line[pos++]!=' '                   ) continue ; // .
-				::string val  = parse_printable     (line,pos) ; if ( line[pos  ]!=0                     ) continue ; // .
-				//
-				if (jerr.proc==Proc::Decode) { if (code==jerr.file) return { .proc=jerr.proc , .ok=Yes , .txt=val } ; }
-				else                         { if (val ==jerr.file) return { .proc=jerr.proc , .ok=Yes , .txt=code} ; }
-			}
-			return { .proc=jerr.proc , .ok=No , .txt="0" } ;
+			/**/                      return { .proc=jerr.proc , .ok=Yes , .txt=Codec::encode(codec_file,codec_ctx,jerr.file/*val */) } ;
+		case Proc::Decode :
+			try                     { return { .proc=jerr.proc , .ok=Yes , .txt=Codec::decode(codec_file,codec_ctx,jerr.file/*code*/) } ; }
+			catch (::string const&) { return { .proc=jerr.proc , .ok=No                                                               } ; }
 	DN}
 	return {} ;
 }
