@@ -7,8 +7,6 @@
 
 #include "disk.hh"
 
-#include "codec_format.hh"
-
 #include "backdoor.hh"
 
 #include "record.hh"
@@ -169,34 +167,14 @@ Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 }
 
 JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
-	thread_local ::string   codec_file  ;
-	thread_local ::string   codec_ctx   ;
-	thread_local ::vector_s pushed_deps ;
+	thread_local JobExecRpcReq::MimicCtx mimic_ctx  ;
 	//
 	if (+report_direct(::move(jerr),force)) {
 		/**/                                   if (jerr.sync!=Yes) return {}    ;
 		JobExecRpcReply reply = _get_reply() ; if (+reply        ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
 	}
 	// not under lmake (typically ldebug), try to mimic server as much as possible
-	switch (jerr.proc) {
-		case Proc::DepPush   : pushed_deps.push_back(::move(jerr.file)) ; break                                ;
-		case Proc::CodecFile : codec_file = ::move(jerr.file) ;           break                                ;
-		case Proc::CodecCtx  : codec_ctx  = ::move(jerr.file) ;           break                                ;
-		case Proc::ChkDeps   :                                            return { .proc=jerr.proc , .ok=Yes } ;
-		case Proc::DepDirect :                                            return { .proc=jerr.proc , .ok=Yes } ;
-		case Proc::DepVerbose : {
-			::vector<VerboseInfo> verbose_infos ; for( ::string& f : pushed_deps ) verbose_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
-			pushed_deps.clear() ;
-			return { .proc=jerr.proc , .verbose_infos=::move(verbose_infos) } ;
-		}
-		break ;
-		case Proc::Encode :
-			/**/                      return { .proc=jerr.proc , .ok=Yes , .txt=Codec::encode(codec_file,codec_ctx,jerr.file/*val */) } ;
-		case Proc::Decode :
-			try                     { return { .proc=jerr.proc , .ok=Yes , .txt=Codec::decode(codec_file,codec_ctx,jerr.file/*code*/) } ; }
-			catch (::string const&) { return { .proc=jerr.proc , .ok=No                                                               } ; }
-	DN}
-	return {} ;
+	return ::move(jerr).mimic_server(/*inout*/mimic_ctx) ;
 }
 
 // for modifying accesses :

@@ -63,3 +63,5 @@ else :
 
 	print(r' ctx py codec_py\n',file=open('codec_file','a'))
 	ut.lmake( 'codec_sh' , 'codec_py' , reformat=1 , changed=... , done=1 ) # changed may be 1 or 2, its ok
+
+	assert os.system("ldebug codec_sh")==0 # ensure lencode/ldecode is compatible with ldebug

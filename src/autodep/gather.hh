@@ -59,10 +59,10 @@ struct Gather {                                                       // NOLINT(
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
-		PD                       first_read () const ;
-		PD                       first_write() const ;
-		::pair<PD,bool/*write*/> sort_key   () const ;
-		Accesses                 accesses   () const ;
+		PD                       first_read (bool with_readdir=true) const ;
+		PD                       first_write(                      ) const ;
+		::pair<PD,bool/*write*/> sort_key   (                      ) const ;
+		Accesses                 accesses   (                      ) const ;
 		//
 		void clear_accesses() { for( Access a : iota(All<Access>) ) _read[+a          ] = PD::Future ; }
 		void clear_lnk     () {                                     _read[+Access::Lnk] = PD::Future ; }
@@ -76,7 +76,8 @@ struct Gather {                                                       // NOLINT(
 		PD _max_read (bool phys) const ;                              // max date for a read  to be taken into account, always <Future
 		// services
 	public :
-		void update( PD , AccessDigest , bool late , DI const& ={} ) ;
+		void update( PD , AccessDigest    , bool late , DI const&   ={} ) ;
+		void update(      AccessDigest ad , bool late , DI const& di={} ) { update( {} , ad , late , di ) ; }
 		void no_hot( PD                                            ) ;
 		bool is_hot( Time::Delay prec                              ) const {
 			// if file date is not comfortable enough, we make it hot and server will ensure job producing dep was done before this job started
@@ -105,30 +106,31 @@ struct Gather {                                                       // NOLINT(
 		PD   _no_hot          = PD::Future                             ;                                 // first date at which dep is known sync'ed on disk
 		bool _washed          = false                                  ;
 	} ;
+	struct Digest {
+		::vmap_s<TargetDigest> targets ;
+		::vmap_s<DepDigest   > deps    ;
+		::vector<NodeIdx     > crcs    ; // index in targets of entry for which we need to compute a crc
+		::string               msg     ;
+	} ;
 	struct JobSlaveEntry {
 		friend ::string& operator+=( ::string& , JobSlaveEntry const& ) ;
 		static constexpr size_t BufSz = 1<<16 ;
 		static_assert(BufSz>2*Jerr::MaxSz) ;                                                             // buf must be able to hold at least 2 messages
-		struct CodecEntry {
-			::string file ;
-			::string ctx  ;
-			::string txt  ;
-		} ;
 		// data
-		Jerr                            jerr        ;                                                    // used for DepDirect/DepVerbose until server reply
-		::umap<Jerr::Id,::vector<Jerr>> to_confirm  ;                                                    // jerrs waiting for confirmation
-		::vector_s                      pushed_deps ;
-		CodecEntry                      codec       ;
-		size_t                          buf_sz      = 0 ;                                                // part of buf actually filled
-		char                            buf[BufSz]  ;
+		Jerr                            jerr       ;                                                    // used for DepDirect/DepVerbose until server reply
+		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                                    // jerrs waiting for confirmation
+		JobExecRpcReq::MimicCtx         mimic_ctx  ;
+		::string                        txt        ;
+		size_t                          buf_sz     = 0 ;                                                // part of buf actually filled
+		char                            buf[BufSz] ;
 	} ;
 	// statics
 private :
 	static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
 	// services
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                  ) ;
-	void         _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                              // files are required for DepVerbose and forbidden for other
-	void _new_guard( Fd fd , ::string&& file ) {                                                         // fd for trace purpose only
+	void         _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;            // files are required for DepVerbose and forbidden for other
+	void _new_guard( Fd fd , ::string&& file ) {                                       // fd for trace purpose only
 		Trace trace("_new_guards",fd,file) ;
 		guards.insert(::move(file)) ;
 	}
@@ -153,62 +155,64 @@ public :
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;
 		try                     { OMsgBuf().send(fd,jerr) ; }
-		catch (::string const&) {                           }                                            // dont care if we cannot report the reply to job
+		catch (::string const&) {                           }                          // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child() ;
 	//
-	void reorder(bool at_end) ;                                                                          // reorder accesses by first read access and suppress superfluous accesses
+	void   reorder(bool at_end              ) ;                                        // reorder accesses by first read access and suppress superfluous accesses
+	Digest analyze(Status status=Status::New) ;                                        // status==New means job is not done
 private :
 	Fd   _spawn_child (                               ) ;
 	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
 	//
-	void _exec_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const {
-		if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ;
-	}
+	void _exec_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ; }
+	void _exec_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _exec_trace( New , c , ces , file ) ;                     }
 	// data
 public :
-	::vector_s                                cmd_line         ;
-	Fd                                        child_stdin      = Fd::Stdin           ;
-	Fd                                        child_stdout     = Fd::Stdout          ;
-	Fd                                        child_stderr     = Fd::Stderr          ;
-	CodecMap                                  codec_map        ;                            // codec_map[file][ctx][code]=val, ordered to make it serializable
 	::umap_s<NodeIdx   >                      access_map       ;
 	::vmap_s<AccessInfo>                      accesses         ;
-	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> pattern_flags    ;                            // apply flags to matching accesses
-	in_addr_t                                 addr             = 0                   ;      // local addr to which we can be contacted by running job
-	bool                                      as_session       = false               ;      // if true <=> process is launched in its own group
+	in_addr_t                                 addr             = 0                   ; // local addr to which we can be contacted by running job
+	bool                                      as_session       = false               ; // if true <=> process is launched in its own group
+	::vector_s                                cmd_line         ;
+	Fd                                        child_stdin      = Fd::Stdin           ;
+	Fd                                        child_stderr     = Fd::Stderr          ;
+	Fd                                        child_stdout     = Fd::Stdout          ;
+	CodecMap                                  codec_map        ;                       // codec_map[file][ctx][code]=val, ordered to make it serializable
+	Time::Delay                               ddate_prec       ;
 	uint8_t                                   nice             = 0                   ;
 	AutodepEnv                                autodep_env      ;
 	PD                                        end_date         ;
 	::map_ss const*                           env              = nullptr             ;
 	::vector<ExecTraceEntry>*                 exec_trace       = nullptr             ;
 	pid_t                                     first_pid        = 0                   ;
-	uset_s                                    guards           ;                            // dir creation/deletion that must be guarded against NFS
+	uset_s                                    guards           ;                       // dir creation/deletion that must be guarded against NFS
 	JobIdx                                    job              = 0                   ;
-	::vector<uint8_t>                         kill_sigs        ;                            // signals used to kill job
+	::vector<uint8_t>                         kill_sigs        ;                       // signals used to kill job
 	bool                                      live_out         = false               ;
 	AutodepMethod                             method           = AutodepMethod::Dflt ;
-	::string                                  msg              ;                            // contains error messages not from job
-	Time::Delay                               network_delay    = Time::Delay(1)      ;      // 1s is reasonable when nothing is said
-	bool                                      no_tmp           = false               ;      // if true <=> no tmp access is allowed
-	pid_t                                     pid              = -1                  ;      // pid to kill
+	::string                                  msg              ;                       // contains error messages not from job
+	Time::Delay                               network_delay    = Time::Delay(1)      ; // 1s is reasonable when nothing is said
+	bool                                      no_tmp           = false               ; // if true <=> no tmp access is allowed
+	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> pattern_flags    ;                       // apply flags to matching accesses
+	pid_t                                     pid              = -1                  ; // pid to kill
+	::string                                  rule             ;
 	bool                                      seen_tmp         = false               ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
 	::string                                  service_mngt     ;
+	::vector<Re::RegExpr>                     star_targets     ;                       // excludes Target flag as it must be fully predictible to ensure a sound rule selection process
 	PD                                        start_date       ;
-	::string                                  stdout           ;                            // contains child stdout if child_stdout==Pipe
-	::string                                  stderr           ;                            // contains child stderr if child_stderr==Pipe
+	::uset_s                                  static_targets   ;                       // .
+	::string                                  stderr           ;                       // contains child stderr if child_stderr==Pipe
+	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe
 	Time::Delay                               timeout          ;
 	Atomic<int>                               wstatus          = 0                   ;
-	//
-	::function<void(::vmap_s<TargetDigest>&/*out*/,::vmap_s<DepDigest>&/*out*/)> chk_deps_cb = [&](::vmap_s<TargetDigest>&/*out*/,::vmap_s<DepDigest>/*out*/) {} ;
 private :
 	::map_ss     _add_env              ;
 	Child        _child                ;
 	size_t       _n_server_req_pending = 0 ;
-	NodeIdx      _parallel_id          = 0 ;                                                             // id to identify parallel deps
-	BitMap<Kind> _wait                 ;                                                                 // events we are waiting for
+	NodeIdx      _parallel_id          = 0 ; // id to identify parallel deps
+	BitMap<Kind> _wait                 ;     // events we are waiting for
 	::jthread    _ptrace_thread        ;
 } ;

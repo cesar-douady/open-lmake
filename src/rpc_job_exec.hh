@@ -34,6 +34,9 @@ enum class JobExecProc : uint8_t {
 ,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
 } ;
 
+struct JobExecRpcReq   ;
+struct JobExecRpcReply ;
+
 struct AccessDigest {                                                                    // semantic access order is first read, first write, last write, unlink
 	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
@@ -59,6 +62,11 @@ struct JobExecRpcReq {
 	using Id   = uint64_t    ;
 	//
 	static const size_t MaxSz ;
+	struct MimicCtx {
+		::string   codec_file  ;
+		::string   codec_ctx   ;
+		::vector_s pushed_deps ;
+	} ;
 	// accesses
 	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *::launder(reinterpret_cast<uint8_t const*>(&file_info)) ; }
 	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *::launder(reinterpret_cast<uint8_t      *>(&file_info)) ; }
@@ -103,6 +111,7 @@ struct JobExecRpcReq {
 			case Proc::AccessPattern : ::serdes( s , digest       ,      date ) ; break ;
 		DN}
 	}
+	JobExecRpcReply mimic_server(MimicCtx&/*inout*/) && ;
 	// data
 	Proc           proc         = {}            ;
 	Bool3          sync         = No            ;                        // Maybe means transport as sync (not using fast_report), but not actually sync

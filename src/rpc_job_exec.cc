@@ -3,6 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "codec_format.hh"
 #include "disk.hh"
 #include "hash.hh"
 
@@ -48,6 +49,26 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	if      (+jerr.comment_exts             ) os <<','  << jerr.comment_exts      ;
 	return                                    os <<')'                            ;
 }                                                                                   // END_OF_NO_COV
+
+JobExecRpcReply JobExecRpcReq::mimic_server(MimicCtx&/*inout*/ mimic_ctx) && {
+	switch (proc) {
+		case Proc::CodecFile : mimic_ctx.codec_file =          ::move(file)  ; break ;
+		case Proc::CodecCtx  : mimic_ctx.codec_ctx  =          ::move(file)  ; break ;
+		case Proc::DepPush   : mimic_ctx.pushed_deps.push_back(::move(file)) ; break ;
+		case Proc::DepVerbose : {
+			::vector<VerboseInfo> verbose_infos ; for( ::string& f : mimic_ctx.pushed_deps ) verbose_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
+			mimic_ctx.pushed_deps.clear() ;
+			return { .proc=proc , .verbose_infos=::move(verbose_infos) } ;
+		} break ;
+		case Proc::Encode : {
+			/**/                      return { .proc=proc , .ok=Yes , .txt=Codec::encode(mimic_ctx.codec_file,mimic_ctx.codec_ctx,file/*val */) } ;
+		}
+		case Proc::Decode :
+			try                     { return { .proc=proc , .ok=Yes , .txt=Codec::decode(mimic_ctx.codec_file,mimic_ctx.codec_ctx,file/*code*/) } ; }
+			catch (::string const&) { return { .proc=proc , .ok=No                                                                              } ; }
+	DN}
+	return { .proc=proc , .ok=Yes } ;
+}
 
 //
 // JobExecRpcReply
