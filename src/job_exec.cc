@@ -549,14 +549,14 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			try {
-				upload_key = g_start_info.cache->upload( digest.targets , target_fis , ::move(g_gather.codec_map) , g_start_info.z_lvl ) ;
+				upload_key = g_start_info.cache->upload( digest.targets , target_fis , ::move(g_gather.codec_map) , g_start_info.zlvl ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
 				end_report.msg_stderr.msg <<"cannot cache : "<<e<<'\n' ;
 			}
 			CommentExts ces ; if (!upload_key) ces |= CommentExt::Err ;
-			g_exec_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.z_lvl) ) ;
+			g_exec_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.zlvl) ) ;
 		}
 		//
 		if (+g_start_info.autodep_env.file_sync) {                                                                                        // fast path : avoid listing targets & guards if !file_sync

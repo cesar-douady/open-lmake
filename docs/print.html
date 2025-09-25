@@ -1787,15 +1787,20 @@ If space is needed (all caches are constrained in size), any other entry can be 
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.</p>
 <h3 id="compression"><a class="header" href="#compression"><code>compression</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>int</code></td><td><code>0</code></td><td>Full</td><td><code>1</code></td></tr>
+<tr><td>python</td><td><code>None</code> or <code>str</code> or <code>int</code> or <code>tuple</code> or <code>list</code></td><td>None</td><td>Full</td><td><code>1</code></td></tr>
 </tbody></table>
 </div>
-<p>This attribute specifies the compression level used when caching.
-It is passed to the zlib library used to compress job targets.</p>
+<p>This attribute specifies the compression used when caching.</p>
 <ul>
-<li><code>0</code> means no compression.</li>
-<li><code>9</code> means maximum compression.</li>
+<li>if <code>None</code>       , no compression occurs.</li>
+<li>If it is a <code>str</code>, it specifies the method and can be <code>'zstd'</code> or <code>'zlib'</code>, and the level defaults to 1.</li>
+<li>If it is a <code>int</code>, it specifies the compression level: from <code>0</code> which means no compression to <code>9</code> which means best (and slowest) compression.
+The method defaults to <code>'zstd'</code> if supported, else to <code>'zlib'</code>.
+Note that <code>1</code> seems to be a good compromize.</li>
+<li>If a <code>tuple</code> or a <code>list</code>, it specifies both a method and a level (in that order).</li>
 </ul>
+<p>When downloading from cache, the method and level used at upload time is honored.
+If the compression method is not supported, no download occurs.</p>
 <h3 id="force"><a class="header" href="#force"><code>force</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>

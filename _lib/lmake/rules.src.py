@@ -84,7 +84,11 @@ class Rule(_RuleBase) :
 #	chroot_dir          = '/'                          # chroot directory to execute cmd (if None, empty or absent, no chroot is not done)
 #	cache               = None                         # cache used to store results for this rule. None means no caching
 #	cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
-#	compression         = 0                            # compression level to use when caching, 0 means no compression, 9 means maximum compression
+#	compression         = None                         # compression to use when caching :
+	#                                                  # - if None  : no compression
+	#                                                  # - if a str : the compression method : zlib or zstd, level defaults to 1
+	#                                                  # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib
+	#                                                  # - if a tuple : (method,level), as described above
 #	cwd                 = ''                           # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
 	#                                                  # defaults to the nearest root dir of the module in which the rule is defined
 	deps                = {}                           # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}

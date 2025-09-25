@@ -163,7 +163,7 @@ LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 CC_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
 
 PCRE_LIB := $(if $(HAS_PCRE),-lpcre2-8)
-Z_LIB    := $(if $(HAS_ZSTD),-lzstd,$(if $(HAS_ZLIB),-lz))
+Z_LIB    := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
 PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))  # .

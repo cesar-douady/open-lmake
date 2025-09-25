@@ -378,7 +378,7 @@ namespace Backends {
 				}
 				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
-					reply.z_lvl = start_ancillary_attrs.z_lvl ;                                                                                     // if zlib is not available, dont compress
+					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                                     // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
@@ -808,8 +808,9 @@ namespace Backends {
 			if (+cfg.ifce) {
 				Gil gil ;
 				try {
-					Ptr<Dict> glbs = py_run(cfg.ifce) ;
-					ifce = (*glbs)["interface"].as_a<Str>() ;
+					Ptr<Dict>     glbs    = py_run(cfg.ifce)            ;
+					Object const& py_ifce = glbs->get_item("interface") ;
+					if (+py_ifce) ifce = py_ifce.as_a<Str>() ;
 				} catch (::string const& e) {
 					throw cat("bad interface for ",t,'\n',indent(e)) ;
 				}

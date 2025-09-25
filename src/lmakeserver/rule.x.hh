@@ -143,6 +143,7 @@ namespace Engine {
 		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                      ) ;
 		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest ) ;
 		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                      ) ;
+		/**/                   bool/*updated*/ acquire( Zlvl               & dst , Py::Object const* py_src                                                      ) ;
 		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>         ) ;
 		template<UEnum      E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
 		//
@@ -307,7 +308,7 @@ namespace Engine {
 			using namespace Attrs ;
 			dyn_env = false ;                                                                              // update solves dynamic val
 			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
-			Attrs::acquire_from_dct( z_lvl          , py_dct , "compression"                           ) ;
+			Attrs::acquire_from_dct( zlvl           , py_dct , "compression"                           ) ;
 			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_from_dct( kill_sigs      , py_dct , "kill_sigs"                             ) ;
 			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len"                        ) ;
@@ -322,7 +323,7 @@ namespace Engine {
 		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
 		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
 		bool              keep_tmp       = false ;
-		uint8_t           z_lvl          = 0     ;
+		Zlvl              zlvl           = {}    ;
 		bool              dyn_env        = false ;
 		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
 		::vmap_ss         env            ;

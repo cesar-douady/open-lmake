@@ -256,13 +256,13 @@ class LinkRule(PathRule,PyRule) :
 		lst = sys_config('LIB_STACKTRACE')
 		lnz = need_compress
 		if lnz :
-			if   sys_config('HAS_ZSTD') : lnz = '-lzstd'
-			elif sys_config('HAS_ZLIB') : lnz = '-lz'
-			else                        : lnz = ''
+			lnz = []
+			if sys_config('HAS_ZSTD') : lnz.append('-lzstd')
+			if sys_config('HAS_ZLIB') : lnz.append('-lz'   )
 		if True : post_opts = ['-ldl']
-		if lst  : post_opts.append(f'-l{lst}')
+		if lst  : post_opts.append(f'-l{lst}'          )
 		if ns   : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
-		if lnz  : post_opts.append(lnz                 )
+		if lnz  : post_opts.extend(lnz                 )
 		if need_python :
 			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
 			lib = sysconfig.get_config_var('LDLIBRARY')

@@ -16,7 +16,8 @@
 
 #if HAS_ZSTD
 	#include <zstd.h>
-#elif HAS_ZLIB
+#endif
+#if HAS_ZLIB
 	#define ZLIB_CONST
 	#include <zlib.h>
 #endif
@@ -230,140 +231,182 @@ void JobRpcReq::chk(bool for_cache) const {
 }
 
 //
+// Zlvl
+//
+
+::string& operator+=( ::string& os , Zlvl zl ) { // START_OF_NO_COV
+	/**/     os <<      zl.tag ;
+	if (+zl) os <<':'<< zl.lvl ;
+	return   os                ;
+}                                                // END_OF_NO_COV
+
+//
 // Cache
 //
 
 namespace Caches {
 
 	struct DeflateFd : AcFd {
-		static Cache::Sz s_max_sz( Cache::Sz sz , uint8_t lvl=0 ) {
-			#if HAS_ZSTD
-				static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ; // ZSTD_compressBound manages size_t and we need a Sz
-				if (lvl) return ::ZSTD_compressBound(sz) ;
-			#elif HAS_ZLIB
-				static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;  // compressBound manages ulong and we need a Sz
-				if (lvl) return ::compressBound(sz) ;
-			#else
-				SWEAR( !lvl , lvl ) ;
-			#endif
-			return sz ;
+		static Cache::Sz s_max_sz( Cache::Sz sz , Zlvl zlvl={} ) {
+			if (!zlvl) return sz ;
+			switch (zlvl.tag) {
+				case ZlvlTag::Zlib :
+					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
+					#if HAS_ZLIB
+						static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;                                                     // compressBound manages ulong and we need a Sz
+						return ::compressBound(sz) ;
+					#endif
+				break ;
+				case ZlvlTag::Zstd :
+					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
+					#if HAS_ZSTD
+						static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ;                                                    // ZSTD_compressBound manages size_t and we need a Sz
+						return ::ZSTD_compressBound(sz) ;
+					#endif
+				break ;
+			DF}
+			FAIL() ;
 		}
 		// cxtors & casts
 		DeflateFd() = default ;
-		#if HAS_ZSTD
-			DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{::min(lvl_,uint8_t(::ZSTD_maxCLevel()))} {
-				if (lvl) {
-					_zs = ::ZSTD_createCCtx() ; SWEAR(_zs) ;
-					::ZSTD_CCtx_setParameter( _zs , ZSTD_c_compressionLevel , lvl );
-				}
-			}
-			~DeflateFd() {
-				flush() ;
-				if (lvl) ::ZSTD_freeCCtx(_zs) ;
-			}
-		#elif HAS_ZLIB
-			DeflateFd( AcFd&& fd , uint8_t lvl_=0 ) : AcFd{::move(fd)} , lvl{::min(lvl_,uint8_t(Z_BEST_COMPRESSION))} {
-				if (lvl) {
-					int rc = deflateInit(&_zs,lvl) ; SWEAR(rc==Z_OK) ;
-					_zs.next_in  = ::launder(reinterpret_cast<uint8_t const*>(_buf)) ;
-					_zs.avail_in = 0                                                 ;
-				}
-			}
-			~DeflateFd() {
-				flush() ;
-				deflateEnd(&_zs) ;
-			}
-		#else
-			DeflateFd( AcFd&& fd , uint8_t lvl=0 ) : AcFd{::move(fd)} { SWEAR(!lvl,lvl) ; }
-			~DeflateFd() { flush() ; }
-		#endif
+		DeflateFd( AcFd&& fd , Zlvl zl={} ) : AcFd{::move(fd)} , zlvl{zl} {
+			if (!zlvl) return ;
+			switch (zlvl.tag) {
+				case ZlvlTag::Zlib : {
+					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
+					#if HAS_ZLIB
+						zlvl.lvl    = ::min( zlvl.lvl , uint8_t(Z_BEST_COMPRESSION) ) ;
+						_zlib_state = {}                                              ;
+						int rc = ::deflateInit(&_zlib_state,zlvl.lvl) ; SWEAR(rc==Z_OK) ;
+						_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>(_buf)) ;
+						_zlib_state.avail_in = 0                                                 ;
+					#endif
+				} break ;
+				case ZlvlTag::Zstd :
+					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
+					#if HAS_ZSTD
+						zlvl.lvl    = ::min( zlvl.lvl , uint8_t(::ZSTD_maxCLevel()) ) ;
+						_zstd_state = ::ZSTD_createCCtx()                             ; SWEAR(_zstd_state) ;
+						::ZSTD_CCtx_setParameter( _zstd_state , ZSTD_c_compressionLevel , zlvl.lvl ) ;
+					#endif
+				break ;
+			DF}
+		}
+		~DeflateFd() {
+			flush() ;
+			if (!zlvl) return ;
+			switch (zlvl.tag) {
+				case ZlvlTag::Zlib :
+					SWEAR(HAS_ZLIB) ;
+					#if HAS_ZLIB
+						::deflateEnd(&_zlib_state) ;
+					#endif
+				break ;
+				case ZlvlTag::Zstd :
+					SWEAR(HAS_ZSTD) ;
+					#if HAS_ZSTD
+						::ZSTD_freeCCtx(_zstd_state) ;
+					#endif
+				break ;
+			DF}
+		}
 		// services
 		void write(::string const& s) {
 			if (!s) return ;
 			SWEAR(!_flushed) ;
-			#if HAS_ZSTD
-				if (lvl) {
-					::ZSTD_inBuffer  in_buf  { .src=s.data() , .size=s.size()  , .pos=0 } ;
-					::ZSTD_outBuffer out_buf { .dst=_buf     , .size=DiskBufSz , .pos=0 } ;
-					while (in_buf.pos<in_buf.size) {
-						out_buf.pos = _pos ;
-						::ZSTD_compressStream2( _zs , &out_buf , &in_buf , ZSTD_e_continue ) ;
-						_pos = out_buf.pos ;
-						_flush(1/*room*/) ;
-					}
-					return ;
-				}
-			#elif HAS_ZLIB
-				if (lvl) {
-					_zs.next_in  = ::launder(reinterpret_cast<uint8_t const*>(s.data())) ;
-					_zs.avail_in = s.size()                                              ;
-					while (_zs.avail_in) {
-						_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>( _buf + _pos )) ;
-						_zs.avail_out = DiskBufSz - _pos                                     ;
-						deflate(&_zs,Z_NO_FLUSH) ;
-						_pos = DiskBufSz - _zs.avail_out ;
-						_flush(1/*room*/) ;
-					}
-					return ;
-				}
-			#endif
-			// no compression
-			if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; }                                                  // small data : put in _buf
-			else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; total_sz += s.size() ; }                                                  // large data : send directly
+			if (+zlvl) {
+				switch (zlvl.tag) {
+					case ZlvlTag::Zlib :
+						SWEAR(HAS_ZLIB) ;
+						#if HAS_ZLIB
+							_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>(s.data())) ;
+							_zlib_state.avail_in = s.size()                                              ;
+							while (_zlib_state.avail_in) {
+								_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>( _buf + _pos )) ;
+								_zlib_state.avail_out = DiskBufSz - _pos                                     ;
+								::deflate(&_zlib_state,Z_NO_FLUSH) ;
+								_pos = DiskBufSz - _zlib_state.avail_out ;
+								_flush(1/*room*/) ;
+							}
+						#endif
+					break ;
+					case ZlvlTag::Zstd : {
+						SWEAR(HAS_ZSTD) ;
+						#if HAS_ZSTD
+							::ZSTD_inBuffer  in_buf  { .src=s.data() , .size=s.size()  , .pos=0 } ;
+							::ZSTD_outBuffer out_buf { .dst=_buf     , .size=DiskBufSz , .pos=0 } ;
+							while (in_buf.pos<in_buf.size) {
+								out_buf.pos = _pos ;
+								::ZSTD_compressStream2( _zstd_state , &out_buf , &in_buf , ZSTD_e_continue ) ;
+								_pos = out_buf.pos ;
+								_flush(1/*room*/) ;
+							}
+						#endif
+					} break ;
+				DF}
+			} else {                                                                                                          // no compression
+				if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; } // small data : put in _buf
+				else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; total_sz += s.size() ; } // large data : send directly
+			}
 		}
 		void send_from( Fd fd_ , size_t sz ) {
 			if (!sz) return ;
-			#if HAS_ZSTD || HAS_ZLIB
+			if (+zlvl) {
 				SWEAR(!_flushed) ;
-				if (lvl) {
-					while (sz) {
-						size_t   cnt = ::min( sz , DiskBufSz ) ;
-						::string s   = fd_.read(cnt)           ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
-						write(s) ;
-						sz -= cnt ;
-					}
-					return ;
+				while (sz) {
+					size_t   cnt = ::min( sz , DiskBufSz ) ;
+					::string s   = fd_.read(cnt)           ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
+					write(s) ;
+					sz -= cnt ;
 				}
-			#endif
-			if (_flush(sz)) {                size_t c=fd_.read_to({_buf+_pos,sz})               ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos    +=c  ; } // small data : put in _buf
-			else            { SWEAR(!_pos) ; size_t c=::sendfile(self,fd_,nullptr/*offset*/,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz+=sz ; } // large data : send directly
+			} else {
+				if (_flush(sz)) {                size_t c=fd_.read_to({_buf+_pos,sz})               ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos    +=c  ; } // small : put in _buf
+				else            { SWEAR(!_pos) ; size_t c=::sendfile(self,fd_,nullptr/*offset*/,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz+=sz ; } // large : send directly
+			}
 		}
 		void flush() {
 			if (_flushed) return ;
 			_flushed = true ;
-			#if HAS_ZSTD
-				if (lvl) {
-					::ZSTD_inBuffer  in_buf  { .src=nullptr , .size=0         , .pos=0 } ;
-					::ZSTD_outBuffer out_buf { .dst=_buf    , .size=DiskBufSz , .pos=0 } ;
-					for (;;) {
-						out_buf.pos = _pos ;
-						size_t rc = ::ZSTD_compressStream2( _zs , &out_buf , &in_buf , ZSTD_e_end ) ;
-						_pos = out_buf.pos ;
-						if (::ZSTD_isError(rc)) throw cat("cannot flush ",self) ;
-						_flush() ;
-						if (!rc) return ;
-					}
-				}
-			#elif HAS_ZLIB
-				if (lvl) {
-					_zs.next_in  = nullptr ;
-					_zs.avail_in = 0       ;
-					for (;;) {
-						_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>(_buf+_pos)) ;
-						_zs.avail_out = DiskBufSz - _pos                                 ;
-						int rc = deflate(&_zs,Z_FINISH) ;
-						_pos = DiskBufSz - _zs.avail_out ;
-						if (rc==Z_BUF_ERROR) throw cat("cannot flush ",self) ;
-						_flush() ;
-						if (rc==Z_STREAM_END) return ;
-					}
-				}
-			#endif
+			if (+zlvl) {
+				switch (zlvl.tag) {
+					case ZlvlTag::Zlib :
+						SWEAR(HAS_ZLIB) ;
+						#if HAS_ZLIB
+							_zlib_state.next_in  = nullptr ;
+							_zlib_state.avail_in = 0       ;
+							for (;;) {
+								_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>(_buf+_pos)) ;
+								_zlib_state.avail_out = DiskBufSz - _pos                                 ;
+								int rc = ::deflate(&_zlib_state,Z_FINISH) ;
+								_pos = DiskBufSz - _zlib_state.avail_out ;
+								if (rc==Z_BUF_ERROR) throw cat("cannot flush ",self) ;
+								_flush() ;
+								if (rc==Z_STREAM_END) return ;
+							}
+						#endif
+					break ;
+					case ZlvlTag::Zstd : {
+						SWEAR(HAS_ZSTD) ;
+						#if HAS_ZSTD
+							::ZSTD_inBuffer  in_buf  { .src=nullptr , .size=0         , .pos=0 } ;
+							::ZSTD_outBuffer out_buf { .dst=_buf    , .size=DiskBufSz , .pos=0 } ;
+							for (;;) {
+								out_buf.pos = _pos ;
+								size_t rc = ::ZSTD_compressStream2( _zstd_state , &out_buf , &in_buf , ZSTD_e_end ) ;
+								_pos = out_buf.pos ;
+								if (::ZSTD_isError(rc)) throw cat("cannot flush ",self) ;
+								_flush() ;
+								if (!rc) return ;
+							}
+						#endif
+					} break ;
+				DF}
+			}
 			_flush() ;
 		}
 	private :
-		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {                                                                                                                    // flush if not enough room
-			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ;                                                                                                             // enough room
+		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {        // flush if not enough room
+			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ; // enough room
 			if (_pos) {
 				AcFd::write({_buf,_pos}) ;
 				total_sz += _pos ;
@@ -374,145 +417,169 @@ namespace Caches {
 		// data
 	public :
 		Disk::DiskSz total_sz = 0 ;
-		#if HAS_ZLIB
-			uint8_t lvl = 0 ;
-		#endif
+		Zlvl         zlvl     ;
 	private :
 		char   _buf[DiskBufSz] ;
 		size_t _pos            = 0     ;
 		bool   _flushed        = false ;
-		#if HAS_ZSTD
-			::ZSTD_CCtx* _zs = nullptr ;
+		#if HAS_ZLIB && HAS_ZSTD
+			union {
+				::z_stream   _zlib_state = {} ;
+				::ZSTD_CCtx* _zstd_state ;
+			} ;
 		#elif HAS_ZLIB
-			z_stream     _zs = {}      ;
+			::z_stream   _zlib_state = {} ;
+		#elif HAS_ZSTD
+			::ZSTD_CCtx* _zstd_state = nullptr ;
 		#endif
 	} ;
 
 	struct InflateFd : AcFd {
 		// cxtors & casts
 		InflateFd() = default ;
-		#if HAS_ZSTD
-			InflateFd( AcFd&& fd , bool lvl_=false ) : AcFd{::move(fd)} , lvl{lvl_} {
-				if (lvl) { _zs = ::ZSTD_createDCtx() ; SWEAR(_zs,self) ; }
-			}
-			~InflateFd() {
-				if (lvl) { size_t rc = ::ZSTD_freeDCtx(_zs) ; SWEAR(!::ZSTD_isError(rc),rc,self) ; }
-			}
-		#elif HAS_ZLIB
-			InflateFd( AcFd&& fd , bool lvl_=false ) : AcFd{::move(fd)} , lvl{lvl_} {
-				if (lvl) { int rc = inflateInit(&_zs) ; SWEAR(rc==Z_OK,self) ; }
-			}
-			~InflateFd() {
-				if (lvl) { int rc = inflateEnd(&_zs) ; SWEAR(rc==Z_OK,rc,self) ; }
-			}
-		#else
-			InflateFd( AcFd&& fd , bool lvl=false ) : AcFd{::move(fd)} {
-				SWEAR( !lvl , lvl ) ;
-			}
-			~InflateFd() {}
-		#endif
+		InflateFd( AcFd&& fd , Zlvl zl={} ) : AcFd{::move(fd)} , zlvl{zl} {
+			if (!zlvl) return ;
+			switch (zlvl.tag) {
+				case ZlvlTag::Zlib : {
+					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
+					#if HAS_ZLIB
+						int rc = ::inflateInit(&_zlib_state) ; SWEAR(rc==Z_OK,self) ;
+					#endif
+				} break ;
+				case ZlvlTag::Zstd :
+					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
+					#if HAS_ZSTD
+						_zstd_state = ::ZSTD_createDCtx() ; SWEAR(_zstd_state,self) ;
+					#endif
+				break ;
+			DF}
+		}
+		~InflateFd() {
+			if (!zlvl) return ;
+			switch (zlvl.tag) {
+				case ZlvlTag::Zlib : {
+					SWEAR( HAS_ZLIB , zlvl ) ;
+					#if HAS_ZLIB
+						int rc = ::inflateEnd(&_zlib_state) ; SWEAR( rc==Z_OK , rc,self ) ;
+					#endif
+				} break ;
+				case ZlvlTag::Zstd : {
+					SWEAR( HAS_ZSTD , zlvl ) ;
+					#if HAS_ZSTD
+						size_t rc = ::ZSTD_freeDCtx(_zstd_state) ; SWEAR( !::ZSTD_isError(rc) , rc,self ) ;
+					#endif
+				} break ;
+			DF}
+		}
 		// services
 		::string read(size_t sz) {
 			if (!sz) return {} ;
 			::string res ( sz , 0 ) ;
-			#if HAS_ZSTD
-				if (lvl) {
-					::ZSTD_inBuffer  in_buf  { .src=_buf       , .size=0  , .pos=0 } ;
-					::ZSTD_outBuffer out_buf { .dst=res.data() , .size=sz , .pos=0 } ;
-					while (out_buf.pos<sz) {
-						if (!_len) {
-							_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",sz-out_buf.pos," bytes from ",self) ;
-							_pos = 0                               ;
-						}
-						in_buf.pos  = _pos      ;
-						in_buf.size = _pos+_len ;
-						size_t rc = ::ZSTD_decompressStream( _zs , &out_buf , &in_buf ) ; SWEAR(!::ZSTD_isError(rc)) ;
-						_pos = in_buf.pos               ;
-						_len = in_buf.size - in_buf.pos ;
-					}
-					return res ;
+			if (+zlvl)
+				switch (zlvl.tag) {
+					case ZlvlTag::Zlib :
+						SWEAR( HAS_ZLIB , zlvl ) ;
+						#if HAS_ZLIB
+							_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>(res.data())) ;
+							_zlib_state.avail_out = res.size()                                        ;
+							while (_zlib_state.avail_out) {
+								if (!_len) {
+									_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",_zlib_state.avail_out," bytes from ",self) ;
+									_pos = 0                               ;
+								}
+								_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>( _buf + _pos )) ;
+								_zlib_state.avail_in = _len                                                       ;
+								::inflate(&_zlib_state,Z_NO_FLUSH) ;
+								_pos = ::launder(reinterpret_cast<char const*>(_zlib_state.next_in)) - _buf ;
+								_len = _zlib_state.avail_in                                                 ;
+							}
+						#endif
+					break ;
+					case ZlvlTag::Zstd : {
+						SWEAR( HAS_ZSTD , zlvl ) ;
+						#if HAS_ZSTD
+							::ZSTD_inBuffer  in_buf  { .src=_buf       , .size=0  , .pos=0 } ;
+							::ZSTD_outBuffer out_buf { .dst=res.data() , .size=sz , .pos=0 } ;
+							while (out_buf.pos<sz) {
+								if (!_len) {
+									_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",sz-out_buf.pos," bytes from ",self) ;
+									_pos = 0                               ;
+								}
+								in_buf.pos  = _pos      ;
+								in_buf.size = _pos+_len ;
+								size_t rc = ::ZSTD_decompressStream( _zstd_state , &out_buf , &in_buf ) ; SWEAR(!::ZSTD_isError(rc)) ;
+								_pos = in_buf.pos               ;
+								_len = in_buf.size - in_buf.pos ;
+							}
+						#endif
+					} break ;
+				DF}
+			else {
+				size_t cnt = ::min( sz , _len ) ;
+				if (cnt) {                                                                                                           // gather available data from _buf
+					::memcpy( res.data() , _buf+_pos , cnt ) ;
+					_pos += cnt ;
+					_len -= cnt ;
+					sz   -= cnt ;
 				}
-			#elif HAS_ZLIB
-				if (lvl) {
-					_zs.next_out  = ::launder(reinterpret_cast<uint8_t*>(res.data())) ;
-					_zs.avail_out = res.size()                                        ;
-					while (_zs.avail_out) {
-						if (!_len) {
-							_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",_zs.avail_out," bytes from ",self) ;
-							_pos = 0                               ;
-						}
-						_zs.next_in  = ::launder(reinterpret_cast<uint8_t const*>( _buf + _pos )) ;
-						_zs.avail_in = _len                                                       ;
-						inflate(&_zs,Z_NO_FLUSH) ;
-						_pos = ::launder(reinterpret_cast<char const*>(_zs.next_in)) - _buf ;
-						_len = _zs.avail_in                                                 ;
+				if (sz) {
+					SWEAR( !_len , _len ) ;
+					if (sz>=DiskBufSz) {                                                                                             // large data : read directly
+						size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
+					} else {                                                                                                         // small data : bufferize
+						_len = AcFd::read_to({_buf,DiskBufSz}) ;   throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
+						::memcpy( &res[cnt] , _buf , sz ) ;
+						_pos  = sz ;
+						_len -= sz ;
 					}
-					return res ;
-				}
-			#endif
-			size_t cnt = ::min( sz , _len ) ;
-			if (cnt) {                                                                                                           // gather available data from _buf
-				::memcpy( res.data() , _buf+_pos , cnt ) ;
-				_pos += cnt ;
-				_len -= cnt ;
-				sz   -= cnt ;
-			}
-			if (sz) {
-				SWEAR( !_len , _len ) ;
-				if (sz>=DiskBufSz) {                                                                                             // large data : read directly
-					size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-				} else {                                                                                                         // small data : bufferize
-					_len = AcFd::read_to({_buf,DiskBufSz}) ;   throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-					::memcpy( &res[cnt] , _buf , sz ) ;
-					_pos  = sz ;
-					_len -= sz ;
 				}
 			}
 			return res ;
 		}
 		void receive_to( Fd fd_ , size_t sz ) {
-			#if HAS_ZSSTD || HAS_ZLIB
-				if (lvl) {
-					while (sz) {
-						size_t   cnt = ::min( sz , DiskBufSz ) ;
-						::string s   = read(cnt)               ; SWEAR(s.size()==cnt,s.size(),cnt) ;
-						fd_.write(s) ;
-						sz -= cnt ;
-					}
-					return ;
+			if (+zlvl) {
+				while (sz) {
+					size_t   cnt = ::min( sz , DiskBufSz ) ;
+					::string s   = read(cnt)               ; SWEAR(s.size()==cnt,s.size(),cnt) ;
+					fd_.write(s) ;
+					sz -= cnt ;
 				}
-			#endif
-			size_t cnt = ::min( sz , _len ) ;
-			if (cnt) {                                                                                                           // gather available data from _buf
-				fd_.write({_buf+_pos,cnt}) ;
-				_pos += cnt ;
-				_len -= cnt ;
-				sz   -= cnt ;
-			}
-			if (sz) {
-				SWEAR( !_len , _len ) ;
-				if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
-					size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-				} else {                                                                                                         // small data : bufferize
-					_len = AcFd::read_to({_buf,DiskBufSz}) ;     throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-					fd_.write({_buf,sz}) ;
-					_pos  = sz ;
-					_len -= sz ;
+			} else {
+				size_t cnt = ::min( sz , _len ) ;
+				if (cnt) {                                                                                                           // gather available data from _buf
+					fd_.write({_buf+_pos,cnt}) ;
+					_pos += cnt ;
+					_len -= cnt ;
+					sz   -= cnt ;
+				}
+				if (sz) {
+					SWEAR( !_len , _len ) ;
+					if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
+						size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
+					} else {                                                                                                         // small data : bufferize
+						_len = AcFd::read_to({_buf,DiskBufSz}) ;     throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
+						fd_.write({_buf,sz}) ;
+						_pos  = sz ;
+						_len -= sz ;
+					}
 				}
 			}
 		}
 		// data
-		#if HAS_STD || HAS_ZLIB
-			bool lvl = false ;
-		#endif
+		Zlvl zlvl ;
 	private :
 		char   _buf[DiskBufSz] ;
 		size_t _pos            = 0 ;
 		size_t _len            = 0 ;
-		#if HAS_ZSTD
-			::ZSTD_DCtx* _zs = nullptr ;
+		#if HAS_ZLIB && HAS_ZSTD
+			union {
+				::z_stream   _zlib_state = {} ;
+				::ZSTD_DCtx* _zstd_state ;
+			} ;
 		#elif HAS_ZLIB
-			z_stream     _zs = {}      ;
+			::z_stream _zlib_state = {} ;
+		#elif HAS_ZSTD
+			::ZSTD_DCtx* _zstd_state = nullptr ;
 		#endif
 	} ;
 
@@ -537,21 +604,24 @@ namespace Caches {
 	::pair<JobInfo,CodecMap> Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard& repo_nfs_guard ) {
 		Trace trace("Cache::download",key) ;
 		//
-		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key )  ;
-		JobInfo               & job_info = info_fd.first              ;
-		uint8_t               & z_lvl    = job_info.start.start.z_lvl ;
-		JobEndRpcReq          & end      = job_info.end               ;
-		JobDigest<>           & digest   = end.digest                 ; throw_if( digest.incremental && no_incremental , "cached job was incremental" ) ;
-		::vmap_s<TargetDigest>& targets  = digest.targets             ;
-		NodeIdx                 n_copied = 0                          ;
+		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key ) ;
+		JobInfo               & job_info = info_fd.first             ;
+		Zlvl                    zlvl     = job_info.start.start.zlvl ;
+		JobEndRpcReq          & end      = job_info.end              ;
+		JobDigest<>           & digest   = end.digest                ; throw_if( digest.incremental && no_incremental , "cached job was incremental" ) ;
+		::vmap_s<TargetDigest>& targets  = digest.targets            ;
+		NodeIdx                 n_copied = 0                         ;
 		//
 		try {
-			#if !( HAS_ZSTD || HAS_ZLIB )
-				throw_if( z_lvl , "cannot uncompress without zstd nor zlib" ) ;
+			#if !HAS_ZLIB
+				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;
+			#endif
+			#if !HAS_ZSTD
+				throw_if( zlvl.tag==ZlvlTag::Zstd , "cannot uncompress without zstd" ) ;
 			#endif
 			//
-			InflateFd data_fd { ::move(info_fd.second) , bool(z_lvl) } ;
-			Hdr       hdr     = IMsgBuf().receive<Hdr>(data_fd)        ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
+			InflateFd data_fd { ::move(info_fd.second) , zlvl } ;
+			Hdr       hdr     = IMsgBuf().receive<Hdr>(data_fd) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
 				auto&           entry = targets[ti]            ;
@@ -586,8 +656,8 @@ namespace Caches {
 		}
 	}
 
-	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , CodecMap&& codec_map , uint8_t z_lvl ) {
-		Trace trace("DirCache::upload",targets.size(),z_lvl) ;
+	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , CodecMap&& codec_map , Zlvl zlvl ) {
+		Trace trace("DirCache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
 		Sz  tgts_sz  = 0 ;
@@ -598,11 +668,11 @@ namespace Caches {
 		}
 		hdr.codec_map = ::move(codec_map) ;
 		//
-		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,z_lvl) ;
-		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)               ;
+		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
+		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)              ;
 		//
 		try {
-			DeflateFd data_fd { ::move(key_fd.second) , z_lvl } ;
+			DeflateFd data_fd { ::move(key_fd.second) , zlvl } ;
 			OMsgBuf().send( data_fd , hdr ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {

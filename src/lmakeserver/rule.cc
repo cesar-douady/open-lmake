@@ -439,6 +439,27 @@ namespace Engine {
 			return true/*updated*/ ;
 		}
 
+		bool/*updated*/ acquire( Zlvl& dst , Object const* py_src ) {
+			//                                     updated
+			if (!py_src       )              return false ;
+			if ( py_src==&None) { dst = {} ; return true  ; }
+			if (py_src->is_a<Int>()) {
+				dst.tag = ZlvlTag::Dflt ;
+				acquire( dst.lvl , py_src ) ;
+			} else if (py_src->is_a<Str>()) {
+				acquire( dst.tag , py_src ) ;
+				dst.lvl = 1 ;
+			} else if (py_src->is_a<Sequence>()) {
+				Sequence const& py_seq = py_src->as_a<Sequence>() ;
+				throw_unless( py_seq.size()==2 , "cannot understand compression which is a sequence of len !=2" ) ;
+				acquire( dst.tag , &py_seq[0] ) ;
+				acquire( dst.lvl , &py_seq[1] ) ;
+			} else {
+				throw "cannot understand compression"s ;
+			}
+			return true/*updated*/ ;
+		}
+
 	}
 
 	//
@@ -1263,7 +1284,7 @@ namespace Engine {
 			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs    .spec.backend                ) ) ;
 			if (+submit_ancillary_attrs .spec.cache                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache                  ) ;
 			if (+start_cmd_attrs      .spec.job_space.chroot_dir_s ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs       .spec.job_space.chroot_dir_s ) ) ;
-			if ( start_ancillary_attrs.spec.z_lvl                  ) entries.emplace_back( "compression"         , ::to_string(start_ancillary_attrs .spec.z_lvl                  ) ) ;
+			if (+start_ancillary_attrs.spec.zlvl                   ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;
 			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
 			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                          ) ;
 			if ( start_ancillary_attrs.spec.keep_tmp               ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs .spec.keep_tmp               ) ) ;

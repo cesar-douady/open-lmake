@@ -604,15 +604,21 @@ The cache replacement policy (described in its own section, in the config chapte
 
 ### `compression`
 
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `0`     | Full    | `1`     |
+| Inheritance | Type                                          | Default | Dynamic | Example |
+|-------------|-----------------------------------------------|---------|---------|---------|
+| python      | `None` or `str` or `int` or `tuple` or `list` | None    | Full    | `1`     |
 
-This attribute specifies the compression level used when caching.
-It is passed to the zlib library used to compress job targets.
+This attribute specifies the compression used when caching.
 
-- `0` means no compression.
-- `9` means maximum compression.
+- if `None`       , no compression occurs.
+- If it is a `str`, it specifies the method and can be `'zstd'` or `'zlib'`, and the level defaults to 1.
+- If it is a `int`, it specifies the compression level: from `0` which means no compression to `9` which means best (and slowest) compression.
+  The method defaults to `'zstd'` if supported, else to `'zlib'`.
+  Note that `1` seems to be a good compromize.
+- If a `tuple` or a `list`, it specifies both a method and a level (in that order).
+
+When downloading from cache, the method and level used at upload time is honored.
+If the compression method is not supported, no download occurs.
 
 ### `force`
 

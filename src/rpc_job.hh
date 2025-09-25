@@ -286,6 +286,23 @@ static_assert(chk_enum_tab(StatusAttrs)) ;
 inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }
 inline bool  is_lost(Status s) { return StatusAttrs[+s].second.second ; }
 
+// START_OF_VERSIONING
+enum class ZlvlTag : uint8_t {
+	None
+,	Zlib
+,	Zstd
+// aliases
+,	Dflt =
+		#if HAS_STD
+			Zstd
+		#elif HAS_ZLIB
+			Zlib
+		#else
+			None
+		#endif
+} ;
+// END_OF_VERSIONING
+
 static const ::string PassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
 static const ::string DynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed variable
 
@@ -632,6 +649,13 @@ using CodecMap  = ::map_s <::map_s <::map_ss >> ; // these are compatible when s
 using CodecUmap = ::umap_s<::umap_s<::umap_ss>> ; // .
 using CodecVmap = ::vmap_s<::vmap_s<::vmap_ss>> ; // .
 
+struct Zlvl {
+	friend ::string& operator+=( ::string& , Zlvl ) ;
+	bool operator+() const { return +tag && lvl ; }
+	ZlvlTag tag = {} ;
+	uint8_t lvl = 0  ;
+} ;
+
 namespace Caches {
 
 	struct Cache {
@@ -661,7 +685,7 @@ namespace Caches {
 		void                     commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
 		void                     dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		//
-		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , CodecMap&& codec_map , uint8_t z_lvl=0 ) ;
+		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , CodecMap&& codec_map , Zlvl zlvl={} ) ;
 		// default implementation : no caching, but enforce protocol
 		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false ) {}
 		virtual ::vmap_ss descr (                                            ) { return {}        ; }
@@ -814,7 +838,7 @@ struct JobStartRpcReply {                                                       
 		::serdes( s , stdin          , stdout         ) ;
 		::serdes( s , timeout                         ) ;
 		::serdes( s , use_script                      ) ;
-		::serdes( s , z_lvl                           ) ;
+		::serdes( s , zlvl                            ) ;
 		//
 		CacheTag tag ;
 		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
@@ -866,7 +890,7 @@ struct JobStartRpcReply {                                                       
 	::string                                stdout         ;
 	Time::Delay                             timeout        ;
 	bool                                    use_script     = false               ;
-	uint8_t                                 z_lvl          = 0                   ;
+	Zlvl                                    zlvl           {}                    ;
 	// END_OF_VERSIONING
 private :
 	::string _tmp_dir_s ;                                                          // for use in exit (autodep.tmp_dir_s may be moved)
