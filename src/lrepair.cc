@@ -48,7 +48,7 @@ RepairDigest repair(::string const& from_dir) {
 				if ( !td.crc                                     ) { trace("no_crc"             ,jd,tn) ; goto NextJob ; }
 				//
 				Node t { New , tn } ;
-				t->refresh( td.crc , {td.sig,{}} ) ;                                                                       // if file does not exist, the Epoch as a date is fine
+				t->set_crc_date( td.crc , {td.sig,{}} ) ;                                                                  // if file does not exist, the Epoch as a date is fine
 				targets.emplace_back( t , td.tflags ) ;
 			}
 			::sort(targets) ;                                                                              // ease search in targets

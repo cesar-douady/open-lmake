@@ -76,17 +76,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- /dev/random
 	- /dev/urandom
 	- /etc/passwd
-* protect against getpwnam, getpwsuid and the like
-	- consider masking home dir with an adequate mount
-		- if repo is in home dir, generate a sub-mount if repo_view is not used
-	- or forbid or overwrite the pw_dir field
-	- so as to ensure that real home dir is not accessed
-	- getpw
-	- getpwent
-	- getpwname
-	- getpwname_r
-	- getpwuid
-	- getpwuid_r
 * forbid mount & chroot
 	- as deps become untrackable
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
@@ -99,6 +88,17 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- while suspended, consider resources to be freed
 	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 	- then resume participates to allocation competition
+? protect against getpwnam, getpwsuid and the like
+	- consider masking home dir with an adequate mount
+		- if repo is in home dir, generate a sub-mount if repo_view is not used
+	- or forbid or overwrite the pw_dir field
+	- so as to ensure that real home dir is not accessed
+	- getpw
+	- getpwent
+	- getpwname
+	- getpwname_r
+	- getpwuid
+	- getpwuid_r
 ? use a Path struct instead of at/file
 	- everywhere applicable
 	- possibly too expensive performance wise

@@ -362,12 +362,12 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                                  // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                                  // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                                // if necessary, we must take care of the union
+		NodeData() = delete ;                                                                                                                // if necessary, we must take care of the union
 		NodeData( NodeName n             ) : NodeDataBase{n} {                }
 		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir() = dir_ ; }
 		~NodeData() {
@@ -406,7 +406,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                       // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                       // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -414,23 +414,23 @@ namespace Engine {
 		bool           done      ( Req            , NodeGoal ) const ;
 		bool           done      ( Req                       ) const ;
 		//
-		bool match_ok      (     ) const {                     return match_gen>=Rule::s_match_gen                         ; }
-		bool has_actual_job(     ) const {                     return is_plain() && +actual_job() && +actual_job()->rule() ; }
-		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return is_plain() && actual_job()==j                        ; }
+		bool match_ok      (     ) const {                     return !is_plain() || match_gen>=Rule::s_match_gen           ; }
+		bool has_actual_job(     ) const {                     return  is_plain() && +actual_job() && +actual_job()->rule() ; }
+		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return  is_plain() && actual_job()==j                        ; }
 		//
-		Manual           manual          (                       Accesses ,                        FileSig  const& ) const ;
-		Manual           manual_refresh  (                       Accesses , Req                  , FileSig  const& ) ;       // refresh date if file was updated but steady
-		bool/*modified*/ refresh_src_anti( bool report_no_file , Accesses , ::vector<Req> const& , ::string const& ) ;       // Req's are for reporting only
+		Manual manual        ( Accesses               ,            FileSig const& ) const ;
+		Manual manual_refresh( Accesses               , Req      , FileSig const& ) ;                                                        // refresh date if file was updated but steady
+		void   refresh       ( Accesses               ,            FileSig const& ) ;
+		Manual manual        ( Accesses a=~Accesses()                             ) const { if (!is_plain()) return Manual::Ok ; return manual        (a,  {name()}) ; }
+		Manual manual_refresh( Accesses a=~Accesses() , Req r={}                  )       { if (!is_plain()) return Manual::Ok ; return manual_refresh(a,r,{name()}) ; }
+		void   refresh       ( Accesses a=~Accesses()                             )       { if (!is_plain()) return            ;        refresh       (a,  {name()}) ; }
 		//
-		Manual           manual          (                       Accesses a=~Accesses()                                ) const { return manual          (               a,     {name()}) ; }
-		Manual           manual_refresh  (                       Accesses a=~Accesses() , Req                  r   ={} )       { return manual_refresh  (               a,r   ,{name()}) ; }
-		bool/*modified*/ refresh_src_anti( bool report_no_file , Accesses a=~Accesses() , ::vector<Req> const& reqs={} )       { return refresh_src_anti(report_no_file,a,reqs, name() ) ; }
-		//
-		void full_refresh( bool report_no_file , Accesses a=~Accesses() , ::vector<Req> const& reqs={} ) {
-			if (+reqs) set_buildable(reqs[0]) ;
-			else       set_buildable(       ) ;
-			if      (is_src_anti()) refresh_src_anti(report_no_file,a,reqs) ;
-			else if (is_plain   ()) manual_refresh  (               a     ) ;                           // no manual_steady diagnostic as this may be because of another job
+		bool/*modified*/ refresh_src_anti( bool report_no_file , Accesses               , ::vector<Req> const&         , ::string const& ) ; // Req's are for reporting only
+		void             full_refresh    ( bool report_no_file , Accesses a=~Accesses() , ::vector<Req> const& reqs={}                   ) { // .
+			if      (+reqs        ) set_buildable(reqs[0])                         ;
+			else                    set_buildable(       )                         ;
+			if      (is_src_anti()) refresh_src_anti(report_no_file,a,reqs,name()) ;
+			else if (is_plain   ()) manual_refresh  (               a            ) ;                    // no manual_steady diagnostic as this may be because of another job
 		}
 		//
 		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
@@ -513,8 +513,7 @@ namespace Engine {
 		//
 		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
-		bool/*modified*/ refresh( Crc , SigDate const& ={} ) ;
-		void             refresh( Accesses=~Accesses()     ) ;
+		bool/*modified*/ set_crc_date( Crc={} , SigDate const& ={} ) ;
 	private :
 		void           _do_set_buildable( Req      , RejectSet&/*lazy*/ known_rejected , DepDepth=0 ) ; // req is for error reporting only
 		bool/*solved*/ _make_pre        ( ReqInfo& , bool query                                     ) ;
@@ -662,14 +661,13 @@ namespace Engine {
 		_do_make(ri,ma,s) ;
 	}
 
-	inline void NodeData::refresh(Accesses a) {
-		FileSig sig { name() } ;
+	inline void NodeData::refresh( Accesses a , FileSig const& sig ) {
 		switch (manual(a,sig)) {
-			case Manual::Ok      :                                      break ;
-			case Manual::Unlnked : refresh( Crc::None  , Pdate(New) ) ; break ;
-			case Manual::Empty   : refresh( Crc::Empty , sig        ) ; break ;
-			case Manual::Modif   : refresh( {}         , sig        ) ; break ;
-		DF}                                                                     // NO_COV
+			case Manual::Ok      :                                           break ;
+			case Manual::Unlnked : set_crc_date( Crc::None  , Pdate(New) ) ; break ;
+			case Manual::Empty   : set_crc_date( Crc::Empty , sig        ) ; break ;
+			case Manual::Modif   : set_crc_date( {}         , sig        ) ; break ;
+		DF}                                                                          // NO_COV
 	}
 
 	//

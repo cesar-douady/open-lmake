@@ -275,7 +275,7 @@ namespace Codec {
 		Node     node { ni }                          ; SWEAR( node->is_decode() || node->is_encode() ) ;
 		::string file = Codec::get_file(node->name()) ;                                                   // extract codec file
 		if ( !Closure::s_refresh( file , ni , {r} ) ) {
-			node->refresh(Crc::None) ;
+			node->set_crc_date(Crc::None) ;
 			return false/*ok*/ ;
 		}
 		return node->crc!=Crc::None && node->log_date()!=Closure::s_tab.at(file).log_date ;
