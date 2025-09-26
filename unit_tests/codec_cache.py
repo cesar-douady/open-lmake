@@ -39,8 +39,8 @@ else :
 	print('1M',file=open('CACHE/LMAKE/size','w'))
 
 	open('codec_file','w').write(
-		' ctx code2 val2\n'       # lines are out of order to generate refresh line
-	+	' ctx code1 val1\n'
+		' code2 ctx val2\n'       # lines are out of order to generate refresh line
+	+	' code1 ctx val1\n'
 	)
 
 	ut.lmake( 'dut11' , 'dut22' , reformat=1 , new=1 , done=2 )
@@ -56,8 +56,8 @@ else :
 
 	os.rename('LMAKE','LMAKE.bck3')
 	open('codec_file','w').write(
-		' ctx code1 val2\n'
-	+	'\n'                                                                         # force refresh line
+		' code1 ctx val2\n'
+	+	'\n'                                                                          # force refresh line
 	)
 	ut.lmake( 'dut11' , 'dut22' , reformat=1 , unlinked=2 , new=1 , failed=2 , rc=1 ) # check we do not use old codec entries from cache
 

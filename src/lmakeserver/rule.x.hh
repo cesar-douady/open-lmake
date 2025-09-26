@@ -120,6 +120,7 @@ namespace Engine {
 		static Atomic<Pdate> s_last_dyn_date ;  // used to check dynamic attribute computation does not take too long
 		static Job           s_last_dyn_job  ;
 		static const char*   s_last_dyn_msg  ;
+		static Rule          s_last_dyn_rule ;
 		// cxtors & casts
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb) : RuleBase{rb} {}
@@ -852,8 +853,10 @@ namespace Engine {
 		::string   to_eval ;
 		//
 		SWEAR( !Rule::s_last_dyn_date , Rule::s_last_dyn_date ) ;
-		Rule::s_last_dyn_job  = job    ;
-		Rule::s_last_dyn_msg  = T::Msg ;
+		Rule::s_last_dyn_job  = job                             ;
+		Rule::s_last_dyn_msg  = T::Msg                          ;
+		Rule::s_last_dyn_rule = +job ? job->rule() : match.rule ;
+		fence() ;
 		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , New } ;
 		//
 		Py::Ptr<Py::Dict> tmp_glbs = entry().glbs ;                        // use a modifyable copy as we restore after use

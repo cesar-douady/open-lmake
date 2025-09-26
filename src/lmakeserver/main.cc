@@ -27,32 +27,31 @@ enum class EventKind : uint8_t {
 
 static constexpr Delay StatsRefresh { 1 } ;
 
-static ServerSockFd _g_server_fd    ;
-static bool         _g_is_daemon    = true   ;
-static Atomic<bool> _g_done         = false  ;
-static ::string     _g_fqdn         = fqdn() ;
-static bool         _g_seen_make    = false  ;
-static bool         _g_need_cleanup = false  ;
-static Fd           _g_watch_fd     ;          // watch LMAKE/server
+static ServerSockFd    _g_server_fd    ;
+static bool            _g_is_daemon    = true                  ;
+static Atomic<bool>    _g_done         = false                 ;
+static ::pair_s<pid_t> _g_mrkr         { fqdn() , ::getpid() } ;
+static bool            _g_seen_make    = false                 ;
+static bool            _g_need_cleanup = false                 ;
+static Fd              _g_watch_fd     ;                         // watch LMAKE/server
 
-static ::pair_s<int> _get_mrkr_host_pid() {
+static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 	try {
-		::vector_s      lines      = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
-		::string const& service    = lines[0]                      ;
-		::string const& server_pid = lines[1]                      ;
-		return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
+		::vector_s      lines   = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		::string const& service = lines[0]                      ;
+		::string const& pid     = lines[1]                      ;
+		return { SockFd::s_host(service) , from_string<pid_t>(pid) } ; }
 	catch (::string const&) {
-		return { {}/*host*/ , 0/*pid*/ } ;
+		return { {}/*fqdn*/ , 0/*pid*/ } ;
 	}
 }
 
 static void _server_cleanup() {
 	Trace trace("_server_cleanup",STR(_g_need_cleanup)) ;
 	if (!_g_need_cleanup) return ;                        // not running, nothing to clean
-	pid_t           pid  = getpid()             ;
-	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
-	trace("pid",mrkr,pid) ;
-	if (mrkr!=::pair(_g_fqdn,pid)) return ;               // not our file, dont touch it
+	::pair_s<pid_t> mrkr = _get_mrkr() ;
+	trace("mrkr",mrkr,_g_mrkr) ;
+	if (mrkr!=_g_mrkr) return ;                           // not our file, dont touch it
 	unlnk(ServerMrkr) ;
 	trace("cleaned") ;
 }
@@ -64,11 +63,10 @@ static void _report_server( Fd fd , bool running ) {
 }
 
 static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means last server crashed
-	pid_t               pid  = getpid()             ;
-	::pair_s<pid_t>     mrkr = _get_mrkr_host_pid() ;
-	::pair_s/*msg*/<Rc> res  = { {} , Rc::Ok }      ;
-	Trace trace("_start_server",_g_fqdn,pid) ;
-	if ( +mrkr.first && mrkr.first!=_g_fqdn ) {
+	::pair_s<pid_t>     mrkr = _get_mrkr()     ;
+	::pair_s/*msg*/<Rc> res  = { {} , Rc::Ok } ;
+	Trace trace("_start_server",_g_mrkr) ;
+	if ( +mrkr.first && mrkr.first!=_g_mrkr.first ) {
 		trace("already_existing_elsewhere",mrkr) ;
 		return { {}/*msg*/ , Rc::BadServer } ;
 	}
@@ -83,10 +81,10 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 	}
 	if (g_writable) {
 		_g_server_fd.listen() ;
-		::string tmp = cat(ServerMrkr,'.',_g_fqdn,'.',pid) ;
+		::string tmp = cat(ServerMrkr,'.',_g_mrkr.first,'.',_g_mrkr.second) ;
 		AcFd( tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(cat(
-			_g_server_fd.service() , '\n'
-		,	getpid()               , '\n'
+			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
+		,	_g_mrkr.second                                       , '\n'
 		)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;

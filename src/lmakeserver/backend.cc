@@ -378,7 +378,7 @@ namespace Backends {
 				}
 				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
-					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                                     // if zlib is not available, dont compress
+					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                                       // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
@@ -470,7 +470,7 @@ namespace Backends {
 				//
 				if ( ::all_of( entry.reqs , [](ReqIdx ri) { return Req(ri).zombie() ; } ) ) return false ;
 				//
-				SWEAR( !entry.start_date , job,reply.addr,entry.start_date ) ;                                       // ensure we do not overwrite an already started entry
+				SWEAR( !entry.start_date , job,reply.addr,entry.start_date ) ;  // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvvvvvvvv
 				jis.pre_start.msg <<set_nl<< s_start(entry.tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^^^^^^^
@@ -737,11 +737,11 @@ namespace Backends {
 				goto Next ;
 			}
 		Wakeup :
-			if (now-start_date<started_min_job_age) continue ;                                                                      // job is too young ==> no check, no wait
+			if (now-start_date<started_min_job_age) continue ;                 // job is too young ==> no check, no wait
 			_s_wakeup_remote(job,conn,start_date,JobMngtProc::Heartbeat) ;
 		Next :
-			if (!g_config->heartbeat_tick.sleep_for(stop)) break ;                                                                  // limit job checks
-			continue ;
+			if (g_config->heartbeat_tick.sleep_for(stop)) continue ;           // limit job checks
+			else                                          break    ;
 		WrapAround :
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t)) {
 				TraceLock lock { _s_mutex , BeChnl , "_heartbeat_thread_func2" } ;
@@ -749,13 +749,21 @@ namespace Backends {
 			}
 			//
 			job = {} ;
-			Delay d = g_config->heartbeat ;
 			//
 			Pdate last_dyn_date = Rule::s_last_dyn_date ;
-			if ( +last_dyn_date && last_dyn_date+d<now ) Fd::Stderr.write(cat("dead-lock while computing ",Rule::s_last_dyn_msg," for ",Rule::s_last_dyn_job->name(),'\n')) ;
+			if ( +last_dyn_date && last_dyn_date+g_config->heartbeat<now ) {
+				/**/      Job         last_dyn_job   = Rule::s_last_dyn_job  ;
+				/**/      const char* last_dyn_msg   = Rule::s_last_dyn_msg  ;
+				/**/      Rule        last_dyn_rule  = Rule::s_last_dyn_rule ;
+				fence() ; Pdate       last_dyn_date2 = Rule::s_last_dyn_date ; // resample atomic value after associated info
+				if ( last_dyn_date2==last_dyn_date ) {                         // when both dates are equal, we are sure job and msg are associated to it
+					if (+last_dyn_job) Fd::Stderr.write(cat("dead-lock while computing ",last_dyn_msg," for ",last_dyn_job ->name     (),'\n')) ;
+					else               Fd::Stderr.write(cat("dead-lock while computing ",last_dyn_msg," for ",last_dyn_rule->user_name(),'\n')) ;
+				}
+			}
 			//
-			if ((last_wrap_around+d).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; }               // limit job checks
-			else                                                                                         break    ;
+			if ((last_wrap_around+g_config->heartbeat).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; } // limit job checks
+			else                                                                                                           break    ;
 		}
 		trace("done") ;
 	}

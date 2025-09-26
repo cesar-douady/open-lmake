@@ -14,20 +14,22 @@ namespace Codec {
 	// declared inline so as to be include-only lib
 	//
 
+	// START_OF_VERSIONING
 	inline ::string _mk_codec_line( ::string const& ctx , ::string const& code , ::string const& val ) {
 		return cat(                                                                                      // format : " <ctx> <code> <val>" exactly
-			' ',mk_printable<' '>(ctx )
-		,	' ',mk_printable<' '>(code)
+			' ',mk_printable<' '>(code)
+		,	' ',mk_printable<' '>(ctx )
 		,	' ',mk_printable     (val )
 		) ;
 	}
+	// END_OF_VERSIONING
 
 	inline bool/*ok*/ _parse_codec_line( ::string&/*out*/ ctx , ::string&/*out*/ code , ::string&/*out*/ val , ::string const& line ) {
 		// /!\ format must stay in sync with Record::report_sync_direct
 		size_t pos = 0 ; //!                                                 ok
 		/**/                                    if (line[pos++]!=' ') return false ;
-		ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') return false ;
 		code = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') return false ;
+		ctx  = parse_printable<' '>(line,pos) ; if (line[pos++]!=' ') return false ;
 		val  = parse_printable     (line,pos) ; if (line[pos  ]!=0  ) return false ;
 		return true/*ok*/ ;
 	}
