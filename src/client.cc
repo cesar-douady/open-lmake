@@ -31,29 +31,28 @@ static bool _server_ok( Fd fd , ::string const& tag ) {
 static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { // if sync, ensure we launch our own server
 	Trace trace("_connect_to_server",STR(refresh)) ;
 	::string server_service  ;
-	bool     server_is_local = false ;
+	Bool3    server_is_local = Maybe ;
 	pid_t    server_pid      = 0     ;
 	Pdate    now             = New   ;
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
 			// try to connect to an existing server
-			AcFd            server_mrkr_fd     { ServerMrkr }                ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
-			::vector_s      lines              = server_mrkr_fd.read_lines() ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
-			::string const& server_service_str = lines[0]                    ;
-			::string const& pid_str            = lines[1]                    ;
+			AcFd            server_mrkr_fd { ServerMrkr }                ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
+			::vector_s      lines          = server_mrkr_fd.read_lines() ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
+			::string const& pid_str        = lines[1]                    ;
+			server_service = ::move(lines[0]) ;
 			try {
-				if (fqdn()==SockFd::s_host(server_service_str)) {
-					server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service_str) ) ; // dont use network if not necessary
-					server_is_local = true                                                                                               ;
-				}
+				server_is_local = No | (host()==SockFd::s_host(server_service)) ;
+				if (server_is_local==Yes) server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service) ) ; // dont use network if not necessary
+				//
 				ClientSockFd req_fd { server_service , Delay(3)/*timeout*/ } ;
 				if (_server_ok(req_fd,"old")) {
 					g_server_fds = ::move(req_fd) ;
 					if (sync) exit(Rc::Format,"server already exists") ;
 					return 0 ;
 				}
-			} catch(::string const&) { trace("cannot_connect",server_service_str,server_service) ; }
+			} catch(::string const&) { trace("cannot_connect",server_service) ; }
 			server_pid = from_string<pid_t>(pid_str) ;
 			trace("server",server_pid) ;
 			//
@@ -97,9 +96,12 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		now.sleep_until() ;
 	}
 	::string kill_server_msg ;
-	if ( +server_service && !server_is_local ) kill_server_msg << "ssh "<<SockFd::s_host(server_service)+' ' ;
-	if ( server_pid                          ) kill_server_msg << "kill "<<server_pid                        ;
-	if ( +kill_server_msg                    ) kill_server_msg =  '\t'+kill_server_msg+'\n'                  ;
+	if ( server_pid && server_is_local!=Maybe && (server_is_local==No||kill_process(server_pid,0)) ) {
+		/**/                     kill_server_msg << '\t'                                       ;
+		if (server_is_local==No) kill_server_msg << "ssh "<<SockFd::s_host(server_service)+' ' ;
+		/**/                     kill_server_msg << "kill "<<server_pid                        ;
+		/**/                     kill_server_msg << '\n'                                       ;
+	}
 	trace("cannot_connect",server_service,kill_server_msg) ;
 	exit(Rc::Format
 	,	"cannot connect to server, consider :\n"
