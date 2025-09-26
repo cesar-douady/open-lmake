@@ -446,6 +446,7 @@ namespace Engine {
 	Atomic<Pdate> Rule::s_last_dyn_date ;
 	Job           Rule::s_last_dyn_job  ;
 	const char*   Rule::s_last_dyn_msg  = nullptr ;
+	Rule          Rule::s_last_dyn_rule ;
 
 	::string& operator+=( ::string& os , Rule const r ) { // START_OF_NO_COV
 		/**/    os << "R(" ;
