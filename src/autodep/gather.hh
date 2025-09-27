@@ -109,7 +109,7 @@ struct Gather {                                                       // NOLINT(
 	struct Digest {
 		::vmap_s<TargetDigest> targets ;
 		::vmap_s<DepDigest   > deps    ;
-		::vector<NodeIdx     > crcs    ; // index in targets of entry for which we need to compute a crc
+		::vector<NodeIdx     > crcs    ;                                                                 // index in targets of entry for which we need to compute a crc
 		::string               msg     ;
 	} ;
 	struct JobSlaveEntry {
@@ -117,12 +117,14 @@ struct Gather {                                                       // NOLINT(
 		static constexpr size_t BufSz = 1<<16 ;
 		static_assert(BufSz>2*Jerr::MaxSz) ;                                                             // buf must be able to hold at least 2 messages
 		// data
-		Jerr                            jerr       ;                                                    // used for DepDirect/DepVerbose until server reply
-		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                                    // jerrs waiting for confirmation
-		JobExecRpcReq::MimicCtx         mimic_ctx  ;
-		::string                        txt        ;
-		size_t                          buf_sz     = 0 ;                                                // part of buf actually filled
-		char                            buf[BufSz] ;
+		Jerr                            jerr        ;                                                    // used for DepDirect/DepVerbose until server reply
+		::umap<Jerr::Id,::vector<Jerr>> to_confirm  ;                                                    // jerrs waiting for confirmation
+		::vector_s                      pushed_deps ;
+		::string                        file        ;                                                    // for codec
+		::string                        ctx         ;                                                    // .
+		::string                        code_val    ;                                                    // .
+		size_t                          buf_sz      = 0 ;                                                // part of buf actually filled
+		char                            buf[BufSz]  ;
 	} ;
 	// statics
 private :
@@ -212,7 +214,7 @@ private :
 	::map_ss     _add_env              ;
 	Child        _child                ;
 	size_t       _n_server_req_pending = 0 ;
-	NodeIdx      _parallel_id          = 0 ; // id to identify parallel deps
-	BitMap<Kind> _wait                 ;     // events we are waiting for
+	NodeIdx      _parallel_id          = 0 ;                                           // id to identify parallel deps
+	BitMap<Kind> _wait                 ;                                               // events we are waiting for
 	::jthread    _ptrace_thread        ;
 } ;

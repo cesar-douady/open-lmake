@@ -175,11 +175,10 @@ namespace JobSupport {
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;
 		//
 		r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
-		// transport as sync to use the same fd as Encode/Decode                                                                 force
-		r.report_sync(     { .proc=Proc::CodecFile                  , .sync=Maybe , .comment=comment , .file=::move(sr.real ) } , true ) ;
-		r.report_sync(     { .proc=Proc::CodecCtx                   , .sync=Maybe , .comment=comment , .file=::move(ctx     ) } , true ) ;
-		JobExecRpcReq jerr { .proc=Encode?Proc::Encode:Proc::Decode , .sync=Yes   , .comment=comment , .file=::move(code_val) }          ;
-		if (Encode) jerr.min_len() = min_len ;
+		// transport as sync to use the same fd as Encode/Decode
+		JobExecRpcReq jerr { .sync=Yes   , .comment=comment , .file=::move(sr.real ) , .ctx=::move(ctx) , .txt=::move(code_val) } ;
+		if (Encode) { jerr.proc = Proc::Encode ; jerr.min_len = min_len ; }
+		else          jerr.proc = Proc::Decode ;
 		//
 		JobExecRpcReply reply = r.report_sync( ::move(jerr) , true/*force*/ ) ;
 		return { ::move(reply.txt) , reply.ok==Yes } ;

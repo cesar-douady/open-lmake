@@ -146,8 +146,8 @@ public :
 	//
 	#define FL FileLoc
 	/**/         void report_guard(FL fl,::string&& f) const { if (fl<=FL::Repo)   report_direct({ .proc=Proc::Guard , .file=::move(f) }) ;                      }
-	[[noreturn]] void report_panic(::string&& m      ) const {                     report_direct({ .proc=Proc::Panic , .file=::move(m) }) ; exit(Rc::Usage) ;    }
-	/**/         void report_trace(::string&& m      ) const {                     report_direct({ .proc=Proc::Trace , .file=::move(m) }) ;                      }
+	[[noreturn]] void report_panic(::string&& m      ) const {                     report_direct({ .proc=Proc::Panic , .txt =::move(m) }) ; exit(Rc::Usage) ;    }
+	/**/         void report_trace(::string&& m      ) const {                     report_direct({ .proc=Proc::Trace , .txt =::move(m) }) ;                      }
 	/**/         void report_tmp  (                  ) const { if (!_seen_tmp  ) { report_direct({ .proc=Proc::Tmp   , .date=New       }) ; _seen_tmp = true ; } }
 	//
 	void report_confirm( int rc , ::pair<Sent/*confirm*/,JobExecRpcReq::Id> const& confirm ) const {

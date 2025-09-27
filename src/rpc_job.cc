@@ -1336,7 +1336,7 @@ void JobStartRpcReply::chk(bool for_cache) const {
 		case JobMngtProc::ChkDeps    : os <<','<< jmrr.targets <<','<<jmrr.deps ;               break ;
 		case JobMngtProc::DepVerbose : os <<','<< jmrr.deps ;                                   break ;
 		case JobMngtProc::Encode     : os <<','<< jmrr.min_len ;                                [[fallthrough]] ;
-		case JobMngtProc::Decode     : os <<','<< jmrr.ctx <<','<< jmrr.file <<','<< jmrr.txt ; break ;
+		case JobMngtProc::Decode     : os <<','<< jmrr.file <<','<< jmrr.ctx <<','<< jmrr.txt ; break ;
 	DN}
 	return                             os <<')' ;
 }                                                                                                                                 // END_OF_NO_COV

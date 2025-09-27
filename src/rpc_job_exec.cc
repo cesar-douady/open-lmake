@@ -37,35 +37,35 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 // JobExecRpcReq
 //
 
-::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {                  // START_OF_NO_COV
-	/**/                                      os << "JobExecRpcReq(" << jerr.proc ;
-	if      (+jerr.date                     ) os <<','  << jerr.date              ;
-	if      ( jerr.sync!=No                 ) os <<",S:"<< jerr.sync              ;
-	if      (+jerr.digest                   ) os <<','  << jerr.digest            ;
-	if      (+jerr.file                     ) os <<','  << jerr.file              ;
-	if      ( jerr.proc==JobExecProc::Encode) os <<','  << jerr.min_len()         ; // Encode uses file_info to transport min_len
-	else if (+jerr.file_info                ) os <<':'  << jerr.file_info         ;
-	if      (+jerr.comment                  ) os <<','  << jerr.comment           ;
-	if      (+jerr.comment_exts             ) os <<','  << jerr.comment_exts      ;
-	return                                    os <<')'                            ;
-}                                                                                   // END_OF_NO_COV
+::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) {                                                          // START_OF_NO_COV
+	/**/                                                                           os << "JobExecRpcReq(" << jerr.proc    ;
+	if      ( +jerr.date                                                         ) os <<','  << jerr.date                 ;
+	if      (  jerr.sync!=No                                                     ) os <<",S:"<< jerr.sync                 ;
+	if      ( +jerr.digest                                                       ) os <<','  << jerr.digest               ;
+	if      ( +jerr.file                                                         ) os <<','  << jerr.file                 ;
+	if      (  jerr.proc==JobExecProc::Encode                                    ) os <<','  << jerr.min_len              ;
+	if      (  jerr.proc==JobExecProc::Encode  || jerr.proc==JobExecProc::Decode ) os <<','  << jerr.ctx <<','<< jerr.txt ;
+	else if ( +jerr.file_info                                                    ) os <<':'  << jerr.file_info            ;
+	if      ( +jerr.comment                                                      ) os <<','  << jerr.comment              ;
+	if      ( +jerr.comment_exts                                                 ) os <<','  << jerr.comment_exts         ;
+	return                                                                         os <<')'                               ;
+}                                                                                                                           // END_OF_NO_COV
 
-JobExecRpcReply JobExecRpcReq::mimic_server(MimicCtx&/*inout*/ mimic_ctx) && {
+JobExecRpcReply JobExecRpcReq::mimic_server(::vector_s&/*inout*/ pushed_deps) && {
 	switch (proc) {
-		case Proc::CodecFile : mimic_ctx.codec_file =          ::move(file)  ; break ;
-		case Proc::CodecCtx  : mimic_ctx.codec_ctx  =          ::move(file)  ; break ;
-		case Proc::DepPush   : mimic_ctx.pushed_deps.push_back(::move(file)) ; break ;
+		case Proc::DepPush :
+			pushed_deps.push_back(::move(file)) ;
+		break ;
 		case Proc::DepVerbose : {
-			::vector<VerboseInfo> verbose_infos ; for( ::string& f : mimic_ctx.pushed_deps ) verbose_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
-			mimic_ctx.pushed_deps.clear() ;
+			::vector<VerboseInfo> verbose_infos ; for( ::string& f : pushed_deps ) verbose_infos.push_back({ .ok=Yes , .crc=Crc(f) }) ;
+			pushed_deps.clear() ;
 			return { .proc=proc , .verbose_infos=::move(verbose_infos) } ;
 		} break ;
-		case Proc::Encode : {
-			/**/                      return { .proc=proc , .ok=Yes , .txt=Codec::encode(mimic_ctx.codec_file,mimic_ctx.codec_ctx,file/*val */) } ;
-		}
+		case Proc::Encode :
+			/**/                      return { .proc=proc , .ok=Yes , .txt=Codec::encode(file,ctx,txt/*val */) } ;
 		case Proc::Decode :
-			try                     { return { .proc=proc , .ok=Yes , .txt=Codec::decode(mimic_ctx.codec_file,mimic_ctx.codec_ctx,file/*code*/) } ; }
-			catch (::string const&) { return { .proc=proc , .ok=No                                                                              } ; }
+			try                     { return { .proc=proc , .ok=Yes , .txt=Codec::decode(file,ctx,txt/*code*/) } ; }
+			catch (::string const&) { return { .proc=proc , .ok=No                                             } ; }
 	DN}
 	return { .proc=proc , .ok=Yes } ;
 }

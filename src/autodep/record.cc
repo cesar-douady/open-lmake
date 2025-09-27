@@ -127,7 +127,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 	}
 }
 
-Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
+Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {                                    // dont touch jerr when returning false
 	jerr.chk() ;
 	//
 	if ( !force && !enable )                                  return Sent::NotSent ;
@@ -140,8 +140,7 @@ Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {
 		try                       { msg.send(fd) ;                                                                                                }
 		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',::getpid(),") : cannot report access to ",jerr.file," : ",e) ; } // NO_COV this justifies panic : do our best
 	}
-	Sent sent = !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
-	return sent ;
+	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 }
 
 Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
@@ -167,14 +166,15 @@ Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 }
 
 JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
-	thread_local JobExecRpcReq::MimicCtx mimic_ctx  ;
+	thread_local ::vector_s pushed_deps ;
 	//
+	Bool3 sync = jerr.sync ;                                                 // sample before move
 	if (+report_direct(::move(jerr),force)) {
-		/**/                                   if (jerr.sync!=Yes) return {}    ;
-		JobExecRpcReply reply = _get_reply() ; if (+reply        ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
+		/**/                                   if (sync!=Yes) return {}    ;
+		JobExecRpcReply reply = _get_reply() ; if (+reply   ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
 	}
 	// not under lmake (typically ldebug), try to mimic server as much as possible
-	return ::move(jerr).mimic_server(/*inout*/mimic_ctx) ;
+	return ::move(jerr).mimic_server(/*inout*/pushed_deps) ;                 // report_direct does not touch jerr if it returns false
 }
 
 // for modifying accesses :

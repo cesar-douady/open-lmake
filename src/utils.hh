@@ -830,8 +830,10 @@ template<char Delimiter> ::string parse_printable( ::string const& x , size_t&/*
 		if      (c==Delimiter    ) break/*for*/ ;
 		else if (!is_printable(c)) break/*for*/ ;
 		else if (c!='\\'         ) res += c ;
-		else
-			switch (x_c[++pos]) {
+		else {
+			pos++ ;
+			throw_unless( pos<x.size() , "\\ at end of string" ) ;
+			switch (x_c[pos]) {
 				case 'a'  : res += '\a'       ; break/*switch*/ ;
 				case 'b'  : res += '\b'       ; break/*switch*/ ;
 				case 'e'  : res += char(0x1b) ; break/*switch*/ ;
@@ -843,13 +845,16 @@ template<char Delimiter> ::string parse_printable( ::string const& x , size_t&/*
 				case '\\' : res += '\\'       ; break/*switch*/ ;
 				//
 				case 'x' : {
-					char x = 0 ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw cat("illegal hex digit ",d) ;
-					x <<= 4    ; if ( char d=x_c[++pos] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw cat("illegal hex digit ",d) ;
+					pos += 2 ;
+					throw_unless( pos<x.size() , "\\x near end of string" ) ;
+					char x = 0 ; if ( char d=x_c[pos-1] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw cat("illegal \\x hex digit ",d) ;
+					x <<= 4    ; if ( char d=x_c[pos  ] ; d>='0' && d<='9' ) x += d-'0' ; else if ( d>='a' && d<='f' ) x += 10+d-'a' ; else throw cat("illegal \\x hex digit ",d) ;
 					res += x ;
 				} break/*switch*/ ;
 				//
-				default : throw cat("illegal code \\",x_c[pos]) ;
+				default : throw cat("illegal \\",x_c[pos]) ;
 			}
+		}
 	return res ;
 }
 

@@ -16,22 +16,22 @@ enum class JobExecProc : uint8_t {
 ,	Confirm
 ,	DepDirect
 ,	DepVerbose
-,	List                   // list deps/targets
-,	Tmp                    // write activity in tmp has been detected (hence clean up is required)
-,	CodecCtx
-,	CodecFile
+,	List                 // list deps/targets
+,	Tmp                  // write activity in tmp has been detected (hence clean up is required)
+,	Panic                // ensure job is in error
+,	Trace                // no algorithmic info, just for tracing purpose
+// with file
 ,	Decode
+,	Encode
 ,	Guard
-,	Panic                  // ensure job is in error
-,	Trace                  // no algorithmic info, just for tracing purpose
+// with file info
 ,	Access
-,	AccessPattern          // pass flags on a regexpr basis
+,	AccessPattern        // pass flags on a regexpr basis
 ,	DepPush
-,	Encode                 // file_info is used to transport min_len
 //
 // aliases
-,	HasFile     = CodecCtx // >=HasFile     means file      field is significative
-,	HasFileInfo = Access   // >=HasFileInfo means file_info field is significative
+,	HasFile     = Decode // >=HasFile     means file      field is significative
+,	HasFileInfo = Access // >=HasFileInfo means file_info field is significative
 } ;
 
 struct JobExecRpcReq   ;
@@ -62,36 +62,26 @@ struct JobExecRpcReq {
 	using Id   = uint64_t    ;
 	//
 	static const size_t MaxSz ;
-	struct MimicCtx {
-		::string   codec_file  ;
-		::string   codec_ctx   ;
-		::vector_s pushed_deps ;
-	} ;
-	// accesses
-	uint8_t const& min_len() const { SWEAR(proc==Proc::Encode) ; return *::launder(reinterpret_cast<uint8_t const*>(&file_info)) ; }
-	uint8_t      & min_len()       { SWEAR(proc==Proc::Encode) ; return *::launder(reinterpret_cast<uint8_t      *>(&file_info)) ; }
 	// services
 	void chk() const {
 		SWEAR( (proc>=Proc::HasFile    ) == +file      , proc,file           ) ;
-		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;                                                          // Encode uses file_info to store min_len
+		SWEAR( (proc< Proc::HasFileInfo) <= !file_info , proc,file,file_info ) ;
 		switch (proc) {
 			case Proc::ChkDeps       :
-			case Proc::Tmp           : SWEAR(                !digest            &&  !id                       && +date , self ) ; break ;
-			case Proc::List          : SWEAR( sync==Yes   && !digest.has_read() &&  !id                       && +date , self ) ; break ;
+			case Proc::Tmp           : SWEAR(                !min_len && !digest            &&  !id                       && +date && !ctx && !txt , self ) ; break ;
+			case Proc::List          : SWEAR( sync==Yes   && !min_len && !digest.has_read() &&  !id                       && +date && !ctx && !txt , self ) ; break ;
 			case Proc::DepDirect     :
-			case Proc::DepVerbose    : SWEAR( sync==Yes   &&                        !id                       && +date , self ) ; break ;
+			case Proc::DepVerbose    : SWEAR( sync==Yes   && !min_len &&                        !id                       && +date && !ctx && !txt , self ) ; break ;
 			case Proc::Trace         :
-			case Proc::Panic         : SWEAR( sync==No    && !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::CodecFile     :
-			case Proc::CodecCtx      :
-			case Proc::DepPush       : SWEAR( sync==Maybe && !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::Confirm       : SWEAR(                !digest.has_read() && ( id&&digest.write!=Maybe) && !date , self ) ; break ;
-			case Proc::Guard         : SWEAR(                !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::Decode        :
-			case Proc::Encode        : SWEAR( sync==Yes   && !digest            &&  !id                       && !date , self ) ; break ;
-			case Proc::Access        : SWEAR(                                      ( id||digest.write!=Maybe) && +date , self ) ; break ;
-			case Proc::AccessPattern : SWEAR( sync!=Yes   && !digest.has_read() && (!id&&digest.write!=Maybe) && +date , self ) ; break ;
-		DF}                                                                                                                               // NO_COV
+			case Proc::Panic         : SWEAR( sync==No    && !min_len && !digest            &&  !id                       && !date && !ctx         , self ) ; break ;
+			case Proc::DepPush       : SWEAR( sync==Maybe && !min_len && !digest            &&  !id                       && !date && !ctx && !txt , self ) ; break ;
+			case Proc::Confirm       : SWEAR(                !min_len && !digest.has_read() && ( id&&digest.write!=Maybe) && !date && !ctx && !txt , self ) ; break ;
+			case Proc::Guard         : SWEAR(                !min_len && !digest            &&  !id                       && !date && !ctx && !txt , self ) ; break ;
+			case Proc::Decode        : SWEAR( sync==Yes   && !min_len && !digest            &&  !id                       && !date                 , self ) ; break ;
+			case Proc::Encode        : SWEAR( sync==Yes   &&             !digest            &&  !id                       && !date                 , self ) ; break ;
+			case Proc::Access        : SWEAR(                !min_len &&                       ( id||digest.write!=Maybe) && +date && !ctx && !txt , self ) ; break ;
+			case Proc::AccessPattern : SWEAR( sync!=Yes   && !min_len && !digest.has_read() && (!id&&digest.write!=Maybe) && +date && !ctx && !txt , self ) ; break ;
+		DF}                                                                                                                                                           // NO_COV
 	}
 	template<IsStream T> void serdes(T& s) {
 		/**/                         ::serdes(s,proc        ) ;
@@ -103,24 +93,31 @@ struct JobExecRpcReq {
 		switch (proc) {
 			case Proc::ChkDeps       :
 			case Proc::Tmp           : ::serdes( s ,                     date ) ; break ;
-			case Proc::List          : ::serdes( s , digest.write ,      date ) ; break ;
 			case Proc::Confirm       : ::serdes( s , digest.write , id        ) ; break ;
+			case Proc::List          : ::serdes( s , digest.write ,      date ) ; break ;
+			case Proc::Panic         :
+			case Proc::Trace         : ::serdes( s ,                 txt      ) ; break ;
+			case Proc::Decode        : ::serdes( s ,           ctx , txt      ) ; break ;
+			case Proc::Encode        : ::serdes( s , min_len , ctx , txt      ) ; break ;
 			case Proc::DepDirect     :
 			case Proc::DepVerbose    : ::serdes( s , digest       ,      date ) ; break ;
 			case Proc::Access        : ::serdes( s , digest       , id , date ) ; break ;
 			case Proc::AccessPattern : ::serdes( s , digest       ,      date ) ; break ;
 		DN}
 	}
-	JobExecRpcReply mimic_server(MimicCtx&/*inout*/) && ;
+	JobExecRpcReply mimic_server(::vector_s&/*inout*/ pushed_deps) && ;
 	// data
 	Proc           proc         = {}            ;
 	Bool3          sync         = No            ;                        // Maybe means transport as sync (not using fast_report), but not actually sync
 	Comment        comment      = Comment::None ;
 	CommentExts    comment_exts = {}            ;
+	uint8_t        min_len      = 0             ;
 	AccessDigest   digest       = {}            ;
 	Id             id           = 0             ;                        // used to distinguish flows from different processes when muxed on fast report fd
 	Time::Pdate    date         = {}            ;                        // access date to reorder accesses during analysis
-	::string       file         = {}            ;                        // contains all text info for CodecCtx, Encode, Decode, Trace and Panic
+	::string       file         = {}            ;
+	::string       ctx          = {}            ;                        // for Decode and Encode
+	::string       txt          = {}            ;                        // code for Decode, val for Encode, text for Panic and Trace
 	Disk::FileInfo file_info    = {}            ;
 } ;
 constexpr size_t JobExecRpcReq::MaxSz = PATH_MAX+sizeof(JobExecRpcReq) ; // maximum size of a message : a file + overhead
