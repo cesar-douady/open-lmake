@@ -141,14 +141,15 @@ public :
 	Sent                                      report_direct(              JobExecRpcReq&&      ,                               bool force=false ) const ; // if force, report even if diabled
 	Sent                                      report_cached(              JobExecRpcReq&&      ,                               bool force=false ) const ; // .
 	JobExecRpcReply                           report_sync  (              JobExecRpcReq&&      ,                               bool force=false ) const ; // .
+	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access(              JobExecRpcReq&& jerr ,                               bool force=false ) const ; // .
 	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr ,                               bool force=false ) const ; // .
 	::pair<Sent/*confirm*/,JobExecRpcReq::Id> report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force=false ) const ; // .
 	//
 	#define FL FileLoc
-	/**/         void report_guard(FL fl,::string&& f) const { if (fl<=FL::Repo)   report_direct({ .proc=Proc::Guard , .file=::move(f) }) ;                      }
-	[[noreturn]] void report_panic(::string&& m      ) const {                     report_direct({ .proc=Proc::Panic , .txt =::move(m) }) ; exit(Rc::Usage) ;    }
-	/**/         void report_trace(::string&& m      ) const {                     report_direct({ .proc=Proc::Trace , .txt =::move(m) }) ;                      }
-	/**/         void report_tmp  (                  ) const { if (!_seen_tmp  ) { report_direct({ .proc=Proc::Tmp   , .date=New       }) ; _seen_tmp = true ; } }
+	/**/         void report_guard(FL fl,::string&& f) const { if (fl<=FL::Repo)   report_direct({ .proc=Proc::Guard , .date=New , .files={{::move(f),{}}} }) ;                      }
+	[[noreturn]] void report_panic(::string&& m      ) const {                     report_direct({ .proc=Proc::Panic , .date=New , .files={{::move(m),{}}} }) ; exit(Rc::Usage) ;    }
+	/**/         void report_trace(::string&& m      ) const {                     report_direct({ .proc=Proc::Trace , .date=New , .files={{::move(m),{}}} }) ;                      }
+	/**/         void report_tmp  (                  ) const { if (!_seen_tmp  ) { report_direct({ .proc=Proc::Tmp   , .date=New                           }) ; _seen_tmp = true ; } }
 	//
 	void report_confirm( int rc , ::pair<Sent/*confirm*/,JobExecRpcReq::Id> const& confirm ) const {
 		if (+confirm.first) {
@@ -232,9 +233,9 @@ public :
 								else if (found) { real  = f ; file_loc  = fl ; }
 								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                       // real0 is only significative when not equal to real
 							}
-							if      (last ) { if (+a) r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a             } , .file=::move(f) , .file_info=fi } ) ; return ; }
-							else if (found) {         r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a|Access::Stat} , .file=::move(f) , .file_info=fi } ) ; return ; }
-							else                      r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=  Access::Stat} , .file=::move(f) , .file_info=fi } ) ;
+							if      (last ) { if (+a) r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a             } , .files={{::move(f),fi}} } ) ; return ; }
+							else if (found) {         r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a|Access::Stat} , .files={{::move(f),fi}} } ) ; return ; }
+							else                      r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=  Access::Stat} , .files={{::move(f),fi}} } ) ;
 						}
 						return ;
 					}
@@ -244,7 +245,7 @@ public :
 					real     = +a ? ::copy(file_) : ::move(file_) ;
 					file_loc = sr.file_loc                        ;
 				}
-				if (+a) r.report_access( fl , { .comment=c , .comment_exts=exts , .digest={.accesses=a} , .file=::move(file_) } ) ;
+				if (+a) r.report_access( fl , { .comment=c , .comment_exts=exts , .digest={.accesses=a} , .files={{::move(file_),{}}} } ) ;
 			} ;
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
@@ -263,7 +264,7 @@ public :
 		}
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		void report_dep( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
-			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|a} , .date{date} , .file=::move(real) } ) ;
+			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|a} , .date{date} , .files={{::move(real),{}}} } ) ;
 		}
 		//
 		::string const& real_write() const { return real0 | real ; }
@@ -289,12 +290,13 @@ public :
 			if (+confirm_fds)      ::serdes(s,confirm_id ) ;
 		}
 		void report_update( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
-			JobExecRpcReq                                jerr    { .comment=c , .comment_exts=ces , .digest={.write=Maybe,.accesses=accesses|a} , .id=confirm_id , .date{date} , .file=::move(real) } ;
-			::pair<Sent/*confirm_fd*/,JobExecRpcReq::Id> confirm = r.report_access( file_loc , ::move(jerr) , file_loc0 , ::move(real0) )                                                             ;
+			JobExecRpcReq jerr { .comment=c , .comment_exts=ces , .digest={.write=Maybe,.accesses=accesses|a} , .id=confirm_id , .date{date} , .files={{::move(real),{}}} } ;
+			//
+			::pair<Sent/*confirm_fd*/,JobExecRpcReq::Id> confirm = r.report_access( file_loc , ::move(jerr) , file_loc0 , ::move(real0) ) ;
 			if (+confirm.first) {
 				confirm_fds |= confirm.first  ;
-				if (confirm_id)   SWEAR( confirm.second==confirm_id , confirm.second,confirm_id,jerr ) ;
-				else            { SWEAR( confirm.second             ,                           jerr ) ; confirm_id = confirm.second ; }
+				if (confirm_id)   SWEAR( confirm.second==confirm_id , confirm.second,confirm_id ) ;
+				else            { SWEAR( confirm.second                                         ) ; confirm_id = confirm.second ; }
 			}
 		}
 		int operator()( Record& r , int rc ) {
@@ -321,6 +323,10 @@ public :
 		Chmod() = default ;
 		Chmod( Record& , Path&& , bool exe , bool no_follow , Comment ) ;
 	} ;
+	struct Chroot : Solve {
+		Chroot() = default ;
+		Chroot( Record& , Path&& , Comment ) ;
+	} ;
 	struct Hide {
 		Hide( Record&          ) {              } // in case nothing to hide, just to ensure invariants
 		Hide( Record& , int fd ) { s_hide(fd) ; }
@@ -344,7 +350,7 @@ public :
 			SolveReport sr {.real=real,.file_loc=file_loc} ;
 			try {
 				for( auto&& [file,a] : r._real_path.exec(::move(sr)) )
-					r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .file=::move(file) } ) ;
+					r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .files={{::move(file),{}}} } ) ;
 			} catch (::string& e) { r.report_panic(::move(e)) ; }
 		}
 	} ;
@@ -392,7 +398,7 @@ public :
 		_Read() = default ;
 		_Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c , CommentExts ces={} ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c,ces} {
 			if ( ChkSimple && !real ) return ;
-			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|Access::Reg} , .file=keep_real?(::copy(real)):(::move(real)) } ) ;
+			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|Access::Reg} , .files={{keep_real?(::copy(real)):(::move(real)),{}}} } ) ;
 		}
 	} ; //!             ChkSimple
 	using Read   = _Read<false  > ;
@@ -411,8 +417,8 @@ public :
 			else if constexpr (::is_pointer_v <T>) ok = rc   ;
 			//
 			if ( ok && !s_autodep_env().readdir_ok ) {
-				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .file="."          } ) ; // repo root must be analyzed when ...
-				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .file=::move(real) } ) ; // ... reading it
+				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .files={{"."         ,{}}} } ) ; // repo root must be analyzed ...
+				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .files={{::move(real),{}}} } ) ; // ... whenreading it
 			}
 			//
 			return rc ;

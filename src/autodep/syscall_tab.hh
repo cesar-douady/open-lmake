@@ -95,6 +95,7 @@ struct SyscallDescr {
 #define ENUMERATE_LIBCALLS \
 	LIBCALL_ENTRY(chdir            ) \
 ,	LIBCALL_ENTRY(chmod            ) \
+,	LIBCALL_ENTRY(chroot           ) \
 ,	LIBCALL_ENTRY(clone            ) \
 ,	LIBCALL_ENTRY(__clone2         ) \
 ,	LIBCALL_ENTRY(close            ) \

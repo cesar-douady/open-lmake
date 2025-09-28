@@ -181,6 +181,7 @@ enum class Comment : uint8_t {
 ,	                                           faccessat         , faccessat2
 ,	fchdir
 ,	                                           fchmodat
+,	chroot
 ,	fopen                  , fopen64
 ,	freopen                , freopen64
 ,	                                           fstatat           , fstatat64

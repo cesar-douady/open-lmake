@@ -42,82 +42,99 @@ namespace JobSupport {
 		}
 		_chk_files(files) ;
 		//
-		::vmap_s<FileInfo> deps      ;
-		Pdate              now       { New }             ;                           // all dates must be identical to be recognized as parallel deps
-		NodeIdx            di        = 0                 ;
-		::vector<NodeIdx>  dep_idxs1 ;
+		if (regexpr) {
+			::vmap_s<FileInfo> deps ; for( ::string& f : files ) deps.emplace_back(::move(f),FileInfo()) ;
+			r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::Depend , .digest=ad , .date=New , .files=deps } , true/*force*/ ) ;
+			return {{},true/*ok*/} ;                                                                                                        // dont send request if nothing to ask
+		}
 		bool               sync      = verbose || direct ;
+		::vector<NodeIdx>  dep_idxs1 ;                     if (sync) dep_idxs1.reserve(files.size()) ;
+		::vmap_s<FileInfo> deps      ;                               deps     .reserve(files.size()) ;                                      // typically all files are pertinent
 		for( ::string& f : files ) {
-			if (regexpr) {
-				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::Depend , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
+			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(f) , .no_follow=no_follow , .read=true , .write=false , .comment=Comment::Depend }) ;
+			if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) { // when passing flag readdir_ok, we may want to report top-level dir
+				sr.file_loc = FileLoc::Repo ;
+				sr.real     = "."s          ;                     // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
+			}
+			if (sr.file_loc>FileLoc::Dep) {
+				if (sync) dep_idxs1.push_back(0) ;                // 0 means no dep info
 				continue ;
 			}
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(f) , .no_follow=no_follow , .read=true , .write=false , .comment=Comment::Depend }) ;
-			if (!sync) {
-				if ( readdir_ok && sr.file_loc==FileLoc::RepoRoot ) {                // when passing flag readdir_ok, we may want to report top-level dir
-					sr.file_loc = FileLoc::Repo ;
-					sr.real     = "."s          ;                                    // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
-					sr.accesses = {}            ;                                    // besides passing ReadirOk flag, top-level dir is external
-					ad.accesses = {}            ;                                    // .
-				}
-				r.report_access( sr.file_loc , { .comment=Comment::Depend , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
-			} else if (sr.file_loc<=FileLoc::Dep) {
-				ad |= sr.accesses ;                                                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
-				// not actually sync, but transport as sync to use the same fd as DepVerbose
-				r.report_sync( { .proc=Proc::DepPush , .sync=Maybe , .file=::move(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
-				dep_idxs1.push_back(++di) ;                                                                                                // 0 is reserved to mean no dep info
+			ad |= sr.accesses ;                                   // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
+			if (sync) {
+				sr.file_info = {} ;
+				dep_idxs1.push_back(deps.size()+1) ;              // start at 1 as 0 is reserved to mean no dep info
+			}
+			deps.emplace_back(::move(sr.real),sr.file_info) ;
+		}
+		::pair<::vector<VerboseInfo>,bool/*ok*/> res { {} , true/*ok*/ } ;
+		if (+deps) {
+			JobExecRpcReq jerr { .comment=Comment::Depend , .digest=ad , .date=New , .files=deps } ;
+			if (verbose) {
+				jerr.proc            = JobExecProc::DepVerbose ;
+				jerr.sync            = Yes                     ;
+				jerr.comment_exts    = CommentExt::Verbose     ;
+				jerr.digest.accesses = ~Accesses()             ;                                          // verbose captures full content of dep
+				//
+				JobExecRpcReply reply = r.report_sync( ::move(jerr) , true/*force*/ ) ;
+				//
+				res.first.reserve(files.size()) ;
+				for( size_t i : iota(files.size()) )
+					if (!dep_idxs1[i]) res.first.push_back({.ok=Maybe}                                ) ; // 0 is reserved to mean no dep info
+					else               res.first.push_back(::move(reply.verbose_infos[dep_idxs1[i]-1])) ;
+			} else if (direct) {
+				jerr.proc         = JobExecProc::DepDirect ;
+				jerr.sync         = Yes                    ;
+				jerr.comment_exts = CommentExt::Direct     ;
+				//
+				JobExecRpcReply reply = r.report_sync( ::move(jerr) , true/*force*/ ) ;
+				//
+				res.second = reply.ok==Yes ;
 			} else {
-				dep_idxs1.push_back(0) ;                                                                                                   // .
+				r.report_access( ::move(jerr) , true/*force*/ ) ;
 			}
 		}
-		if ( !sync || !di ) return {{},true/*ok*/} ;                                                                                       // dont send request if nothing to ask
-		//
-		SWEAR(verbose!=direct) ;
-		JobExecProc proc = verbose ? JobExecProc::DepVerbose : JobExecProc::DepDirect ;
-		CommentExts ces  = verbose ? CommentExt::Verbose     : CommentExt::Direct     ;
-		//
-		if (verbose) ad.accesses |= ~Accesses() ;
-		JobExecRpcReply                          reply = r.report_sync( { .proc=proc , .sync=Yes , .comment=Comment::Depend , .comment_exts=ces , .digest=ad , .date=now } , true/*force*/ ) ;
-		::pair<::vector<VerboseInfo>,bool/*ok*/> res   { {} , true/*ok*/ }                                                                                                                   ;
-		SWEAR(verbose!=direct) ;
-		if (verbose)
-			for( size_t i : iota(files.size()) )
-				if (!dep_idxs1[i]) res.first.push_back({ .ok=Maybe                      }         ) ;                                 // 0 is reserved to mean no dep info
-				else               res.first.push_back(::move(reply.verbose_infos[dep_idxs1[i]-1])) ;
-		else
-			res.second = reply.ok==Yes ;
 		return res ;
 	}
 
 	void target( Record const& r , ::vector_s&& files , AccessDigest ad , bool regexpr ) {
-		SWEAR(ad.write!=Maybe) ;                                                                                                    // useless, but if necessary, implement a confirmation mecanism
+		using Reply = Backdoor::Solve::Reply ;
+		SWEAR(ad.write!=Maybe) ;                                                                                         // useless, but if necessary, implement a confirmation mecanism
 		if (regexpr) {
 			throw_unless( ad.write==No , "regexpr and write are exclusive" ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                                                          // it is meaningless to exclude regexpr when we are a regexpr
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                                               // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		_chk_files(files) ;
-		::vmap_s<FileInfo> targets ;
-		Pdate              now     { New } ;                                                                                        // for perf and in trace, we will see all targets with same date
+		if (regexpr) {
+			::vmap_s<FileInfo> targets ; for( ::string& f : files ) targets.emplace_back( ::move(f) , FileInfo() ) ;
+			r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::Target , .digest=ad , .date=New , .files=targets } , true/*force*/ ) ;
+			return ;
+		}
+		::vector<Reply> srs ; srs.reserve(files.size()) ;
 		for( ::string& f : files ) {
-			if (regexpr) {
-				r.report_direct( { .proc=JobExecProc::AccessPattern , .comment=Comment::Target , .digest=ad , .date=now , .file=f } , true/*force*/ ) ;
-				continue ;
-			}
-			Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({
+			srs.push_back( Backdoor::call<Backdoor::Solve>({
 				.file      = ::move(f)
 			,	.no_follow = true
 			,	.read      = false
 			,	.write     = true
 			,	.create    = true
 			,	.comment   = Comment::Target
-			}) ;
-			r.report_access(
-				sr.file_loc
-			,	{ .comment=Comment::Target , .digest=ad|sr.accesses , .date=now , .file=::move(sr.real) , .file_info=sr.file_info } // sr.accesses is defensive only as it is empty when no_follow
-			,	sr.file_loc0
-			,	::move(sr.real0)
-			,	true/*force*/
-			) ;
+			}) ) ;
+			ad |= srs.back().accesses ;                                                                                  // defensive only as sr.accesses is empty when no_follow
+		}
+		if (::all_of( srs , [](Reply const& sr) { return sr.file_loc<=FileLoc::Repo && !sr.real0 ; } )) {                // fast path : only a single call to report_access (most common case)
+			::vmap_s<FileInfo> targets ; for( Reply& sr : srs ) targets.emplace_back( ::move(sr.real) , sr.file_info ) ;
+			r.report_access( { .comment=Comment::Target , .digest=ad , .date=New , .files=targets } , true/*force*/ ) ;
+		} else {
+			Pdate now { New } ;    // for perf and in trace, we will see all targets with same date, but after potential link accesses while solving
+			for( Reply& sr : srs )
+				r.report_access(
+					sr.file_loc
+				,	{ .comment=Comment::Target , .digest=ad , .date=now , .files={{::move(sr.real),sr.file_info}} }
+				,	sr.file_loc0
+				,	::move(sr.real0)
+				,	true/*force*/
+				) ;
 		}
 	}
 
@@ -174,9 +191,9 @@ namespace JobSupport {
 		Comment comment = Encode ? Comment::Encode : Comment::Decode ;
 		Backdoor::Solve::Reply sr = Backdoor::call<Backdoor::Solve>({ .file=::move(file) , .read=true , .write=true , .comment=comment }) ;
 		//
-		r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .file=::copy(sr.real) , .file_info=sr.file_info } , true/*force*/ ) ;
+		if (+sr.accesses) r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .files={{::copy(sr.real),sr.file_info}} } , true/*force*/ ) ;
 		// transport as sync to use the same fd as Encode/Decode
-		JobExecRpcReq jerr { .sync=Yes   , .comment=comment , .file=::move(sr.real ) , .ctx=::move(ctx) , .txt=::move(code_val) } ;
+		JobExecRpcReq jerr { .sync=Yes   , .comment=comment , .date=New , .files={{::move(sr.real),{}},{::move(ctx),{}},{::move(code_val),{}}} } ;
 		if (Encode) { jerr.proc = Proc::Encode ; jerr.min_len = min_len ; }
 		else          jerr.proc = Proc::Decode ;
 		//

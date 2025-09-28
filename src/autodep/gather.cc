@@ -103,13 +103,12 @@ void Gather::AccessInfo::no_hot( PD pd ) {
 
 ::string& operator+=( ::string& os , Gather::JobSlaveEntry const& jse ) { // START_OF_NO_COV
 	First first ;
-	/**/                  os << "JobSlaveEntry("               ;
-	if (+jse.pushed_deps) os <<first("",",")<< jse.pushed_deps ;
-	if (+jse.file       ) os <<first("",",")<< jse.file        ;
-	if (+jse.ctx        ) os <<first("",",")<< jse.ctx         ;
-	if (+jse.code_val   ) os <<first("",",")<< jse.code_val    ;
-	if ( jse.buf_sz     ) os <<first("",",")<< jse.buf_sz      ;
-	return                os <<')'                             ;
+	/**/               os << "JobSlaveEntry("               ;
+	if (+jse.file    ) os <<first("",",")<< jse.file        ;
+	if (+jse.ctx     ) os <<first("",",")<< jse.ctx         ;
+	if (+jse.code_val) os <<first("",",")<< jse.code_val    ;
+	if (+jse.buf     ) os <<first("",",")<< jse.buf.size()  ;
+	return             os <<')'                             ;
 }                                                                         // END_OF_NO_COV
 
 ::string& operator+=( ::string& os , Gather const& gd ) { // START_OF_NO_COV
@@ -184,7 +183,7 @@ Gather::Digest Gather::analyze(Status status) {
 		Accesses accesses    = info.accesses()                  ;
 		bool     was_written = info.first_write()<Pdate::Future ;
 		//
-		if (file==".") { SWEAR( !accesses && !was_written , info ) ; continue ; }                             // . is only reported when reading dir but otherwise is an external file
+		if (file==".") continue ;                                                                             // . is only reported when reading dir but otherwise is an external file
 		//
 		Pdate first_read = info.first_read(false/*with_readdir*/)                               ;
 		bool  was_read   = first_read<Pdate::Future                                             ;
@@ -309,7 +308,7 @@ bool/*sent*/ Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
 void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=::ref(JobSlaveEntry()) ) {
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
-	if (!jerr.sync) fd = {} ;                                                                                     // dont reply if not sync
+	if (!jerr.sync) fd = {} ;                                                                             // dont reply if not sync
 	JobMngtRpcReq jmrr   ;
 	jmrr.seq_id = seq_id ;
 	jmrr.job    = job    ;
@@ -326,26 +325,26 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 		case Proc::DepDirect  :
 		case Proc::DepVerbose :
 			jmrr.proc = jerr.proc==Proc::DepVerbose ? JobMngtProc::DepVerbose : JobMngtProc::DepDirect ;
-			jmrr.deps.reserve(jse.pushed_deps.size()) ;
-			for( auto const& f : jse.pushed_deps )
-				jmrr.deps.emplace_back( ::copy(f) , DepDigest(jerr.digest.accesses,Dflags(),true/*parallel*/) ) ; // no need for flags to ask info
+			jmrr.deps.reserve(jerr.files.size()) ;
+			for( auto const& [f,_] : jerr.files )
+				jmrr.deps.emplace_back( f , DepDigest(jerr.digest.accesses,Dflags(),true/*parallel*/) ) ; // no need for flags to ask info
 			jse.jerr = ::move(jerr) ;
 		break ;
 		case Proc::Decode :
 		case Proc::Encode :
 			SWEAR( jerr.sync==Yes , jerr ) ;
-			jse.file     = ::move(jerr.file) ;
-			jse.ctx      = ::move(jerr.ctx ) ;
-			jse.code_val = ::move(jerr.txt ) ;
+			jse.file     = ::move(jerr.file    ()) ;
+			jse.ctx      = ::move(jerr.ctx     ()) ;
+			jse.code_val = ::move(jerr.code_val()) ;
 			if (jerr.proc==Proc::Encode) { jmrr.proc = JobMngtProc::Encode ; jmrr.min_len = jerr.min_len ; }
 			else                           jmrr.proc = JobMngtProc::Decode ;
 			/**/                           jmrr.file = jse.file            ;
 			/**/                           jmrr.ctx  = jse.ctx             ;
 			/**/                           jmrr.txt  = jse.code_val        ;
 		break ;
-	DF}                                                                                                           // NO_COV
+	DF}                                                                                                   // NO_COV
 	if (_send_to_server(jmrr)) { _n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ; }
-	else                         sync(fd,{}) ;                                                                    // send an empty reply, job will invent something reasonable
+	else                         sync(fd,{}) ;                                                            // send an empty reply, job will invent something reasonable
 }
 
 void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
@@ -687,9 +686,9 @@ Status Gather::exec_child() {
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								JobSlaveEntry& jse     = job_slaves.at(rfd)                 ;
 								bool           verbose = jmrr.proc==JobMngtProc::DepVerbose ;
+								Pdate          now     { New }                              ;
 								//
 								if (verbose) {
-									Pdate now { New } ;
 									for( VerboseInfo const& vi : jmrr.verbose_infos )
 										switch (vi.ok) {
 											case Yes   : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , ::string(vi.crc) ) ; break ;
@@ -698,16 +697,17 @@ Status Gather::exec_child() {
 										}
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
-									for( ::string const& pd : jse.pushed_deps ) {
-										nfs_guard.access(pd) ;
-										_access_info(::copy(pd)).second.no_hot(now) ;                                         // dep has been built and we are guarded : it cannot be hot from now on
+									for( auto const& [f,_] : jse.jerr.files ) {
+										nfs_guard.access(f) ;
+										_access_info(::copy(f)).second.no_hot(now) ;                                          // dep has been built and we are guarded : it cannot be hot from now on
 									}
-									_exec_trace( Comment::Depend , {CommentExt::Direct,CommentExt::Reply} ) ;
+									_exec_trace( now , Comment::Depend , {CommentExt::Direct,CommentExt::Reply} ) ;
 								}
-								for( ::string const& pd : jse.pushed_deps )
-									new_access( rfd , now , ::copy(pd) , jse.jerr.digest , FileInfo(pd) , Yes/*late*/ , jse.jerr.comment , jse.jerr.comment_exts ) ;
-								jse.pushed_deps = {} ;
-								jse.jerr        = {} ;
+								for( auto& [f,_] : jse.jerr.files ) {
+									FileInfo fi { f } ;
+									new_access( rfd , now , ::move(f) , jse.jerr.digest , fi , Yes/*late*/ , jse.jerr.comment , jse.jerr.comment_exts ) ;
+								}
+								jse.jerr = {} ;
 							} break ;
 							case JobMngtProc::Heartbeat  :                                                                                                break ;
 							case JobMngtProc::Kill       : _exec_trace( Comment::Kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
@@ -817,9 +817,11 @@ Status Gather::exec_child() {
 					auto  sit = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
 					auto& jse = sit->second         ;
 					//
-					ssize_t cnt = ::read( fd , jse.buf+jse.buf_sz , JobSlaveEntry::BufSz-jse.buf_sz ) ;
+					size_t  buf_sz = jse.buf.size() ;
+					jse.buf.resize(buf_sz+4096) ;
+					ssize_t cnt = ::read( fd , &jse.buf[buf_sz] , 4096 ) ;
 					if (cnt<=0) {
-						SWEAR( jse.buf_sz==0 , jse.buf_sz ) ;            // ensure no partial message is left unprocessed
+						SWEAR( buf_sz==0 , buf_sz ) ;                    // ensure no partial message is left unprocessed
 						if (fd==fast_report_fd) {
 							epoll.del(false/*write*/,fd,false/*wait*/) ; // fast_report_fd is not waited as it is always open and will be closed as it is an AcFd
 							open_fast_report_fd() ;                      // reopen as job may close the pipe and reopen it later
@@ -829,16 +831,17 @@ Status Gather::exec_child() {
 						trace("close",kind,fd,"wait",_wait,+epoll) ;
 						for( auto& [_,um] : jse.to_confirm )
 							for( Jerr& j : um )
-								_new_access(fd,::move(j)) ;              // process deferred entries although with uncertain outcome
+								_new_accesses(fd,::move(j)) ;            // process deferred entries although with uncertain outcome
 						job_slaves.erase(sit) ;
 					} else {
-						jse.buf_sz += cnt ;
+						buf_sz += cnt ;
+						jse.buf.resize(buf_sz) ;
 						size_t pos = 0 ;
 						for(;;) {
-							{ if (pos+sizeof(MsgBuf::Len)   >jse.buf_sz) break ; } MsgBuf::Len sz = decode_int<MsgBuf::Len>(jse.buf+pos) ;       // read message size
-							{ if (pos+sizeof(MsgBuf::Len)+sz>jse.buf_sz) break ; } pos += sizeof(MsgBuf::Len) ;                                  // read message
-							auto jerr = deserialize<Jerr>({ jse.buf+pos , sz }) ;
-							pos += sz ;
+							{ if (pos+sizeof(MsgBuf::Len)   >buf_sz) break ; } MsgBuf::Len sz = decode_int<MsgBuf::Len>(&jse.buf[pos]) ;         // read message size
+							{ if (pos+sizeof(MsgBuf::Len)+sz>buf_sz) break ; }
+							auto jerr = deserialize<Jerr>({ &jse.buf[pos+sizeof(MsgBuf::Len)] , sz }) ;
+							pos += sizeof(MsgBuf::Len) + sz ;
 							//
 							Proc proc  = jerr.proc      ;                                                                                        // capture before jerr is ::move()'ed
 							bool sync_ = jerr.sync==Yes ;                                                                                        // Maybe means not sync, only for transport
@@ -851,8 +854,7 @@ Status Gather::exec_child() {
 								case Proc::DepVerbose :
 								case Proc::Decode     :
 								case Proc::Encode     : if (has_server) { _send_to_server( fd , ::move(jerr) , jse ) ; sync_ = false ; } break ; // if sent to server, reply is delayed
-								case Proc::DepPush    : jse.pushed_deps.emplace_back(::move(jerr.file)) ;                                break ;
-								case Proc::Guard      : _new_guard(fd,::move(jerr.file)) ;                                               break ;
+								case Proc::Guard      : for( auto& [f,_] : jerr.files ) guards.insert(::move(f)) ;                       break ;
 								case Proc::Confirm : {
 									trace("confirm",kind,fd,jerr.digest.write,jerr.id) ;
 									Trace trace2 ;
@@ -862,7 +864,7 @@ Status Gather::exec_child() {
 										SWEAR(j.digest.write==Maybe) ;
 										/**/                    j.digest.write  = jerr.digest.write ;
 										if (!jerr.digest.write) j.comment_exts |= CommentExt::Err   ;
-										_new_access(fd,::move(j)) ;
+										_new_accesses(fd,::move(j)) ;
 									}
 									jse.to_confirm.erase(it) ;
 								} break ;
@@ -876,17 +878,17 @@ Status Gather::exec_child() {
 									trace("close",kind,fd,"wait",_wait,+epoll) ;
 									for( auto& [_,um] : jse.to_confirm )
 										for( Jerr& j : um )
-											_new_access(fd,::move(j)) ;              // process deferred entries although with uncertain outcome
+											_new_accesses(fd,::move(j)) ;            // process deferred entries although with uncertain outcome
 									job_slaves.erase(sit) ;
 								break ;
 								case Proc::Access :
 									// for read accesses, trying is enough to trigger a dep, so confirm is useless
 									if (jerr.digest.write==Maybe) { trace("maybe",jerr) ; jse.to_confirm[jerr.id].push_back(::move(jerr)) ; } // delay until confirmed/infirmed
-									else                            _new_access(fd,::move(jerr)) ;
+									else                            _new_accesses(fd,::move(jerr)) ;
 								break ;
 								case Proc::AccessPattern :
-									trace("access_pattern",kind,fd,jerr.date,jerr.digest,jerr.file) ;
-									pattern_flags.emplace_back( jerr.file/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
+									trace("access_pattern",kind,fd,jerr.date,jerr.digest,jerr.files) ;
+									for( auto const& [f,_] : jerr.files ) pattern_flags.emplace_back( f/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
 								break ;
 								case Proc::Tmp :
 									if (!seen_tmp) {
@@ -902,21 +904,24 @@ Status Gather::exec_child() {
 								break ;
 								case Proc::Panic :                                                                                            // START_OF_NO_COV defensive programming
 									if (!panic_seen) {                                                                                        // report only first panic
-										_exec_trace( jerr.date , Comment::Panic , {} , jerr.txt ) ;
-										set_status(Status::Err,jerr.txt) ;
+										_exec_trace( jerr.date , Comment::Panic , {} , jerr.txt() ) ;
+										set_status(Status::Err,jerr.txt()) ;
 										kill() ;
 										panic_seen = true ;
 									}
 								[[fallthrough]] ;                                                                                             // END_OF_NO_COV
 								case Proc::Trace :                                                                                            // START_OF_NO_COV debug only
-									_exec_trace( jerr.date , Comment::Trace , {} , jerr.txt ) ;
-									trace(jerr.txt) ;
+									_exec_trace( jerr.date , Comment::Trace , {} , jerr.txt() ) ;
+									trace(jerr.txt()) ;
 								break ;                                                                                                       // END_OF_NO_COV
 							DF}                                                                                                               // NO_COV
-							if (sync_) sync( fd , ::move(jerr).mimic_server(jse.pushed_deps) ) ;
+							if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;
 						}
-						jse.buf_sz -= pos ;
-						::memmove( jse.buf , jse.buf+pos , jse.buf_sz ) ;
+						if (pos) {
+							buf_sz -= pos ;
+							::memmove( &jse.buf[0] , &jse.buf[pos] , buf_sz ) ;
+							jse.buf.resize(buf_sz) ;
+						}
 					}
 				} break ;
 			DF}                                                                                                                               // NO_COV

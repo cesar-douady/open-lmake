@@ -105,6 +105,13 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 	return res ;
 }
 
+// chroot
+[[maybe_unused]] static void _entry_chroot( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+	try {
+		Record::Chroot( r , _path<false>(pid,args+0) , c ) ;
+	} catch (::string const&) {}
+}
+
 // creat
 [[maybe_unused]] static void _entry_creat( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
@@ -313,6 +320,7 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	FILL_ENTRY( SYS_fchdir            , { _entry_chdir    <true            > , _exit_chdir    , 0  , Comment::fchdir            } ) ;
 	FILL_ENTRY( SYS_chmod             , { _entry_chmod    <false,FlagNever > , _exit_chmod    , 1  , Comment::chmod             } ) ;
 	FILL_ENTRY( SYS_fchmodat          , { _entry_chmod    <true ,3         > , _exit_chmod    , 2  , Comment::fchmodat          } ) ;
+	FILL_ENTRY( SYS_chroot            , { _entry_chroot                      , nullptr        , 0  , Comment::chroot            } ) ;
 	FILL_ENTRY( SYS_creat             , { _entry_creat                       , _exit_open     , 1  , Comment::creat             } ) ;
 	FILL_ENTRY( SYS_execve            , { _entry_execve   <false,FlagNever > , nullptr        , 0  , Comment::execve            } ) ;
 	FILL_ENTRY( SYS_execveat          , { _entry_execve   <true ,4         > , nullptr        , 0  , Comment::execveat          } ) ;

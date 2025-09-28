@@ -141,6 +141,7 @@ template<class Action,int NPaths> struct AuditAction : SaveErrno,Action {
 //                                           NPaths
 using Chdir    = AuditAction<Record::Chdir   ,1   > ;
 using Chmod    = AuditAction<Record::Chmod   ,1   > ;
+using Chroot   = AuditAction<Record::Chroot  ,1   > ;
 using Glob     = AuditAction<Record::Glob    ,0   > ;
 using Hide     = AuditAction<Record::Hide    ,0   > ;
 using Mkdir    = AuditAction<Record::Mkdir   ,1   > ;
@@ -365,6 +366,14 @@ struct Mkstemp : WSolve {
 	//                                                                                                           exe   no_follow
 	int chmod   (      CC* p,mode_t m      ) NE { HDR1(chmod   ,p,(  p,m  )) ; NO_SERVER(chmod   ) Chmod r{   p ,EXE(m),false   ,Comment::chmod   } ; return r(orig(  p,m  )) ; }
 	int fchmodat(int d,CC* p,mode_t m,int f) NE { HDR1(fchmodat,p,(d,p,m,f)) ; NO_SERVER(fchmodat) Chmod r{{d,p},EXE(m),ASLNF(f),Comment::fchmodat} ; return r(orig(d,p,m,f)) ; }
+
+	// chroot
+	int chroot(CC* path) {
+		HDR0( chroot , (path) ) ;
+		NO_SERVER(chroot) ;
+		Chroot r{path,Comment::chroot} ;
+		return r(orig(path)) ;
+		}
 
 	// clone
 	// cf fork about why this wrapper is necessary

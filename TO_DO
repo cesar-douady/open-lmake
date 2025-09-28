@@ -76,6 +76,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- /etc/passwd
 * forbid mount & chroot
 	- as deps become untrackable
+	- provide a mount_ok and chroot_ok flag
+	- test (how ?!?)
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -186,6 +188,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* bufferize reports
 * codec management in cache can be thoroughly optimized
 	- maintain codec_map in the deps file so as to be readily accessible when matching
 	- overall review code

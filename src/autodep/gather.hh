@@ -114,17 +114,13 @@ struct Gather {                                                       // NOLINT(
 	} ;
 	struct JobSlaveEntry {
 		friend ::string& operator+=( ::string& , JobSlaveEntry const& ) ;
-		static constexpr size_t BufSz = 1<<16 ;
-		static_assert(BufSz>2*Jerr::MaxSz) ;                                                             // buf must be able to hold at least 2 messages
 		// data
-		Jerr                            jerr        ;                                                    // used for DepDirect/DepVerbose until server reply
-		::umap<Jerr::Id,::vector<Jerr>> to_confirm  ;                                                    // jerrs waiting for confirmation
-		::vector_s                      pushed_deps ;
-		::string                        file        ;                                                    // for codec
-		::string                        ctx         ;                                                    // .
-		::string                        code_val    ;                                                    // .
-		size_t                          buf_sz      = 0 ;                                                // part of buf actually filled
-		char                            buf[BufSz]  ;
+		Jerr                            jerr       ;                                                     // used for DepDirect/DepVerbose until server reply
+		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                                     // jerrs waiting for confirmation
+		::string                        file       ;                                                     // for Decode and Encode
+		::string                        ctx        ;                                                     // .
+		::string                        code_val   ;                                                     // .
+		::string                        buf        ;
 	} ;
 	// statics
 private :
@@ -132,12 +128,8 @@ private :
 	// services
 	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                  ) ;
 	void         _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;            // files are required for DepVerbose and forbidden for other
-	void _new_guard( Fd fd , ::string&& file ) {                                       // fd for trace purpose only
-		Trace trace("_new_guards",fd,file) ;
-		guards.insert(::move(file)) ;
-	}
-	void _new_access( Fd fd , Jerr&& jerr ) {
-		new_access( fd , jerr.date , ::move(jerr.file) , jerr.digest , jerr.file_info , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
+	void _new_accesses( Fd fd , Jerr&& jerr ) {
+		for( auto& [f,fi] : jerr.files ) new_access( fd , jerr.date , ::move(f) , jerr.digest , fi , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
 	}
 	::pair_s<AccessInfo>& _access_info(::string&& file) {
 		auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;

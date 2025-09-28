@@ -119,9 +119,10 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 		case Proc::Confirm :
 		case Proc::Guard   : break ;
 		case Proc::Access :
-			if      (jerr.digest.write!=No) *s_deps_err<<"unexpected write/unlink to "<<jerr.file<<'\n' ; // can have only deps from within server
-			else if (!s_deps              ) *s_deps_err<<"unexpected access of "      <<jerr.file<<'\n' ; // cant have deps when no way to record them
-			else                            s_deps->emplace_back( ::move(jerr.file) , DepDigest(jerr.digest.accesses,jerr.file_info,jerr.digest.flags.dflags) ) ;
+			if      (jerr.digest.write!=No) for( auto const& [f,_] : jerr.files ) *s_deps_err<<"unexpected write/unlink to "<<f<<'\n' ; // can have only deps from within server
+			else if (!s_deps              ) for( auto const& [f,_] : jerr.files ) *s_deps_err<<"unexpected access of "      <<f<<'\n' ; // cant have deps when no way to record them
+			else
+				for( auto const& [f,fi] : jerr.files ) s_deps->emplace_back( ::move(f) , DepDigest(jerr.digest.accesses,fi,jerr.digest.flags.dflags) ) ;
 		break ;
 		default : *s_deps_err<<"unexpected "<<jerr.proc<<'\n' ;
 	}
@@ -137,44 +138,45 @@ Sent Record::report_direct( JobExecRpcReq&& jerr , bool force ) const {         
 	bool    fast = jerr.sync==No && msg.size()<=PIPE_BUF                                                 ; // several processes share fast report, so only small messages can be sent
 	Fd      fd   = fast ? s_report_fd<true/*Fast*/>(::getpid()) : s_report_fd<false/*Fast*/>(::getpid()) ;
 	if (+fd) {
-		try                       { msg.send(fd) ;                                                                                                }
-		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',::getpid(),") : cannot report access to ",jerr.file," : ",e) ; } // NO_COV this justifies panic : do our best
+		try                       { msg.send(fd) ;                                                                                                 }
+		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',::getpid(),") : cannot report access to ",jerr.files," : ",e) ; } // NO_COV this justifies panic : do our best
 	}
 	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 }
 
 Sent Record::report_cached( JobExecRpcReq&& jerr , bool force ) const {
 	SWEAR( jerr.proc==Proc::Access , jerr.proc ) ;
-	if ( !force && !enable ) return {}/*sent*/ ;                                      // dont update cache as report is not actually done
+	if ( !force && !enable ) return {}/*sent*/ ;                                         // dont update cache as report is not actually done
 	if (!jerr.sync) {
-		SWEAR( +jerr.file , jerr ) ;
-		auto        [it,inserted] = s_access_cache->try_emplace(jerr.file) ;
-		CacheEntry& entry         = it->second                             ;
-		if (jerr.digest.write==No) {                                                  // modifying accesses cannot be cached as we do not know what other processes may have done in between
+		if (jerr.digest.write==No) {                                                     // modifying accesses cannot be cached as we do not know what other processes may have done in between
 			CacheEntry::Acc acc { jerr.digest.accesses , jerr.digest.read_dir } ;
-			if (!inserted) { //!                                              sent
-				if (jerr.file_info.exists()) { if (entry.seen    >=acc) return {} ; } // no new seen accesses
-				else                         { if (entry.accessed>=acc) return {} ; } // no new      accesses
-			}
-			/**/                         entry.accessed |= acc ;
-			if (jerr.file_info.exists()) entry.seen     |= acc ;
+			::erase_if( jerr.files , [&]( ::pair_s<FileInfo> const& f_fi ) {
+				auto        [it,inserted] = s_access_cache->try_emplace(f_fi.first) ;
+				CacheEntry& entry         = it->second                              ;
+				if (!inserted) { //!                                           erase
+					if (f_fi.second.exists()) { if (entry.seen    >=acc) return true ; } // no new seen accesses
+					else                      { if (entry.accessed>=acc) return true ; } // no new      accesses
+				}
+				/**/                         entry.accessed |= acc ;
+				if (f_fi.second.exists()) entry.seen     |= acc ;
+				return false/*erase*/ ;
+			} ) ;
 		} else {
-			entry = ~CacheEntry() ;                                                   // from now on, read accesses need not be reported as file has been written
+			for( auto const& [f,_] : jerr.files ) (*s_access_cache)[f] = ~CacheEntry() ; // from now on, read accesses need not be reported as file has been written
 		}
 	}
-	return report_direct(::move(jerr),force) ;
+	if (+jerr.files) return report_direct(::move(jerr),force) ;
+	else             return {}/*sent*/                        ;
 }
 
 JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
-	thread_local ::vector_s pushed_deps ;
-	//
-	Bool3 sync = jerr.sync ;                                                 // sample before move
+	Bool3 sync = jerr.sync ;                                                     // sample before move
 	if (+report_direct(::move(jerr),force)) {
 		/**/                                   if (sync!=Yes) return {}    ;
-		JobExecRpcReply reply = _get_reply() ; if (+reply   ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
+		JobExecRpcReply reply = _get_reply() ; if (+reply   ) return reply ;     // else job_exec could not contact server and generated an empty reply, process as if no job_exec
 	}
 	// not under lmake (typically ldebug), try to mimic server as much as possible
-	return ::move(jerr).mimic_server(/*inout*/pushed_deps) ;                 // report_direct does not touch jerr if it returns false
+	return ::move(jerr).mimic_server() ;                                         // report_direct does not touch jerr if it returns false
 }
 
 // for modifying accesses :
@@ -185,10 +187,8 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 // - it is then confirmed (with an ok arg to manage errors) after the access
 // in job_exec, if an access is left Maybe, i.e. if job is interrupted between the Maybe reporting and the actual access, disk is interrogated to see if access did occur
 //
-::pair<Sent/*confirm*/,JobExecRpcReq::Id> Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force ) const {
+::pair<Sent/*confirm*/,JobExecRpcReq::Id> Record::report_access( JobExecRpcReq&& jerr , bool force ) const {
 	using Jerr = JobExecRpcReq ;
-	if (fl>FileLoc::Dep ) return { {}/*confirm*/ , 0 } ;
-	if (fl>FileLoc::Repo) jerr.digest.write = No ;
 	// auto-generated id must be different for all accesses (could be random)
 	// if _real_path.pid is not 0, we are ptracing, pid is meaningless but we are single thread and dates are different
 	// else, ::gettid() would be a good id but it is not available on all systems,
@@ -200,25 +200,34 @@ JobExecRpcReply Record::report_sync( JobExecRpcReq&& jerr , bool force ) const {
 	if      (need_id   ) { now = New ; id = now.val() ; if (!_real_path.pid) id += Jerr::Id(::getpid())*((uint64_t(1)<<48)+(uint64_t(1)<<32)) ; } // .
 	else if (!jerr.date)   now = New ;
 	//
-	/**/                                            jerr.proc      = JobExecProc::Access          ;
-	if ( !jerr.date                               ) jerr.date      = now                          ;
-	if ( need_id                                  ) jerr.id        = id                           ;
-	if ( !jerr.file_info && +jerr.digest.accesses ) jerr.file_info = {s_repo_root_fd(),jerr.file} ;
+	/**/                                                                 jerr.proc = JobExecProc::Access  ;
+	if (!jerr.date           )                                           jerr.date = now                  ;
+	if (need_id              )                                           jerr.id   = id                   ;
+	if (+jerr.digest.accesses) for( auto& [f,fi] : jerr.files ) if (!fi) fi        = {s_repo_root_fd(),f} ;
 	//
 	Sent sent = report_cached( ::move(jerr) , force ) ;
 	if (jerr.digest.write==Maybe) return { sent/*confirm*/ , id      } ;
 	else                          return { {}  /*confirm*/ , 0/*id*/ } ;
 }
 
+::pair<Sent/*confirm*/,JobExecRpcReq::Id> Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force ) const {
+	SWEAR( jerr.files.size()==1 , jerr ) ;
+	if (fl>FileLoc::Dep ) return { {}/*confirm*/ , 0 } ;
+	if (fl>FileLoc::Repo) jerr.digest.write = No ;
+	return report_access( ::move(jerr) , force ) ;
+}
+
 // if f0 is not empty, write is done to f0 rather than to jerr.file
 ::pair<Sent/*confirm*/,JobExecRpcReq::Id> Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force ) const {
+	SWEAR( jerr.files.size()==1 , jerr ) ;
 	if (+f0) {
+		if (!jerr.date) jerr.date = New ; // ensure read and write dates are identical
 		// read part
 		JobExecRpcReq read_jerr = jerr ; read_jerr.digest.write = No ;
 		report_access( fl , ::move(read_jerr) , force ) ;
 		// write part
-		fl        = fl0 ;
-		jerr.file = f0  ;
+		fl                  = fl0 ;
+		jerr.files[0].first = f0  ;
 	}
 	return report_access( fl , ::move(jerr) , force ) ;
 }
@@ -234,6 +243,10 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comm
 	FileInfo fi { s_repo_root_fd() , real } ;
 	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) ) // only consider as a target if exe bit changes
 		report_update( r , Access::Reg , c ) ;
+}
+
+Record::Chroot::Chroot( Record& r , Path&& path , Comment c ) : Solve{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+	r.report_panic("chroot to"+real) ;
 }
 
 static Record* _g_glob_auditor = nullptr/*garbage*/ ;
