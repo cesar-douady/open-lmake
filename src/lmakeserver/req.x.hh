@@ -47,23 +47,26 @@ namespace Engine {
 		static void s_init() {}
 		// statics
 		template<class T> requires(IsOneOf<T,JobData,NodeData>) static ::vector<Req> s_reqs(T const& jn) { // sorted by start
-			::vector<Req> res ; res.reserve(s_reqs_by_start.size()) ;                                      // pessimistic
-			for( Req r : s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
+			::vector<Req> res ; res.reserve(_s_reqs_by_start.size()) ;                                     // pessimistic
+			for( Req r : _s_reqs_by_start ) if (jn.has_req(r)) res.push_back(r) ;
 			return res ;
 		}
 		//
-		static Idx               s_n_reqs     () {                           return s_reqs_by_start.size() ; }
-		static ::vector<Req>     s_reqs_by_eta() { Lock lock{s_reqs_mutex} ; return _s_reqs_by_eta         ; }
-		static ::vmap<Req,Pdate> s_etas       () ;
-		static void              s_new_etas   () ;
+		static Idx               s_n_reqs       () {                               return  _s_reqs_by_start.size()                            ; }
+		static ::vector<Req>     s_reqs_by_eta  () { Lock lock{s_req_idxs_mutex} ; return  _s_reqs_by_eta                                     ; }
+		static ::vector<Req>     s_reqs_by_start() { Lock lock{s_req_idxs_mutex} ; return  _s_reqs_by_start                                   ; }
+		static Req               s_last_req     () { Lock lock{s_req_idxs_mutex} ; return +_s_reqs_by_start ? _s_reqs_by_start.back() : Req() ; }
+		static ::vmap<Req,Pdate> s_etas         () ;
+		static void              s_new_etas     () ;
 		// static data
-		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids     ;
-		static ::vector<Req>                       s_reqs_by_start ;                                       // INVARIANT : ordered by item->start
+		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids ;
 		//
-		static Mutex<MutexLvl::Req>                s_reqs_mutex ;                                          // protects s_store, _s_reqs_by_eta as a whole
-		static ::vector<ReqData>                   s_store      ;
+		static Mutex<MutexLvl::Req   > s_reqs_mutex     ;                                                  // protects s_store as a whole
+		static Mutex<MutexLvl::ReqIdx> s_req_idxs_mutex ;                                                  // protects _s_reqs_by_eta and _s_reqs_by_start
+		static ::vector<ReqData>       s_store          ;
 	private :
-		static ::vector<Req> _s_reqs_by_eta ;                                                              // INVARIANT : ordered by item->stats.eta
+		static ::vector<Req> _s_reqs_by_start ;                                                            // INVARIANT : ordered by item->start
+		static ::vector<Req> _s_reqs_by_eta   ;                                                            // INVARIANT : ordered by item->stats.eta
 		static_assert(sizeof(ReqIdx)==1) ;                                                                 // else an array to hold zombie state is not ideal
 		static ::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> _s_zombie_tab ;
 		// cxtors & casts
@@ -230,19 +233,16 @@ namespace Engine {
 	struct ReqData {
 		friend Req ;
 		using Idx = ReqIdx ;
-		template<IsWatcher W,bool ThreadSafe> struct InfoMap {
+		template<IsWatcher W> struct InfoMap {
 			using Idx  = typename W::Idx     ;
 			using Info = typename W::ReqInfo ;
-		private :
-			using _Mutex = ::conditional_t< ThreadSafe , Mutex<MutexLvl::ReqInfo> , NoMutex > ;
-			using _Lock  = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
 			// cxtors & casts
 		public :
 			InfoMap() = default ;
 			InfoMap (InfoMap&& im) { self = ::move(im) ; }
 			~InfoMap(            ) { _clear() ;          }
 			InfoMap& operator=(InfoMap&& im) {
-				_Lock lock {_mutex } ;
+				Lock lock {_mutex } ;
 				_idxs = ::move(im._idxs) ;
 				_dflt = ::move(im._dflt) ;
 				_sz   =        im._sz    ;
@@ -263,12 +263,12 @@ namespace Engine {
 			void   set_dflt (Req r)       { _dflt = {r} ;   }
 			// services
 			Info const& c_req_info(W w) const {
-				_Lock lock { _mutex } ;
+				Lock lock { _mutex } ;
 				if (_contains(w)) return *_idxs[+w] ;
 				else              return _dflt      ;
 			}
 			Info& req_info( Req r , W w ) {
-				_Lock lock { _mutex } ;
+				Lock lock { _mutex } ;
 				if (!_contains(w)) {
 					grow(_idxs,+w) = new Info{r} ;
 					_sz++ ;
@@ -276,7 +276,7 @@ namespace Engine {
 				return *_idxs[+w] ;
 			}
 			bool contains(W w) const {
-				_Lock lock { _mutex } ;
+				Lock lock { _mutex } ;
 				return _contains(w) ;
 			}
 			Info& req_info( Info const& ci , W w ) {
@@ -284,7 +284,7 @@ namespace Engine {
 				else             return const_cast<Info&>(ci)  ; // already allocated, no look up
 			}
 			void erase(W w) {
-				_Lock lock { _mutex } ;
+				Lock lock { _mutex } ;
 				if (_contains(w)) {
 					Info*& p=_idxs[+w] ;
 					delete p ;
@@ -296,15 +296,12 @@ namespace Engine {
 				return +w<_idxs.size() && _idxs[+w] ;
 			}
 			// data
-			_Mutex mutable  _mutex ;
-			::vector<Info*> _idxs  ;
-			Info            _dflt  ;
-			Idx             _sz    = 0 ;
+			Mutex<MutexLvl::ReqInfo> mutable _mutex ;
+			::vector<Info*>                  _idxs  ;
+			Info                             _dflt  ;
+			Idx                              _sz    = 0 ;
 		} ;
 		static constexpr size_t StepSz = 16 ;                    // size of the field representing step in output
-		// static data
-	private :
-		static Mutex<MutexLvl::Audit> _s_audit_mutex ;           // should not be static, but if per ReqData, this would prevent ReqData from being movable
 		// cxtors & casts
 	public :
 		void clear() ;
@@ -343,34 +340,34 @@ namespace Engine {
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
 		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;
 		// data
-	public : //!    ThreadSafe
-		InfoMap<Job ,false   > jobs           ;
-		InfoMap<Node,true    > nodes          ;                     // nodes are observed in job start thread
-		Idx                    idx_by_start   = Idx(-1)           ;
-		Idx                    idx_by_eta     = Idx(-1)           ;
-		Job                    job            ;                     // owned if job->rule->special==Special::Req
-		::umap<Job,JobAudit>   missing_audits ;
-		ReqStats               stats          ;
-		Fd                     audit_fd       ;                     // to report to user
-		AcFd                   log_fd         ;                     // saved output
-		Job mutable            last_info      ;                     // used to identify last message to generate an info line in case of ambiguity
-		ReqOptions             options        ;
-		Pdate                  start_pdate    ;
-		Ddate                  start_ddate    ;
-		Pdate                  eta            ;                     // Estimated Time of Arrival
-		Delay                  ete            ;                     // Estimated Time Enroute
-		::umap<Rule,JobIdx>    ete_n_rules    ;                     // number of jobs participating to stats.ete with exec_time from rule
-		uint8_t                n_retries      = 0                 ;
-		uint8_t                n_submits      = 0                 ;
-		uint8_t                nice           = -1                ; // -1 means not specified (legal values are between 0 and 20)
-		CacheMethod            cache_method   = CacheMethod::Dflt ;
-		bool                   has_backend    = false             ;
+	public :
+		InfoMap<Job >        jobs           ;
+		InfoMap<Node>        nodes          ;                     // nodes are observed in job start thread
+		Idx                  idx_by_start   = Idx(-1)           ;
+		Idx                  idx_by_eta     = Idx(-1)           ;
+		Job                  job            ;                     // owned if job->rule->special==Special::Req
+		::umap<Job,JobAudit> missing_audits ;
+		ReqStats             stats          ;
+		Fd                   audit_fd       ;                     // to report to user
+		AcFd                 log_fd         ;                     // saved output
+		Job mutable          last_info      ;                     // used to identify last message to generate an info line in case of ambiguity
+		ReqOptions           options        ;
+		Pdate                start_pdate    ;
+		Ddate                start_ddate    ;
+		Pdate                eta            ;                     // Estimated Time of Arrival
+		Delay                ete            ;                     // Estimated Time Enroute
+		::umap<Rule,JobIdx>  ete_n_rules    ;                     // number of jobs participating to stats.ete with exec_time from rule
+		uint8_t              n_retries      = 0                 ;
+		uint8_t              n_submits      = 0                 ;
+		uint8_t              nice           = -1                ; // -1 means not specified (legal values are between 0 and 20)
+		CacheMethod          cache_method   = CacheMethod::Dflt ;
+		bool                 has_backend    = false             ;
 		// summary
-		::vector<Node>                   up_to_dates  ;             // asked nodes already done when starting
-		OrderedSet<Job >                 frozen_jobs  ;             // frozen     jobs                                   (value is just for summary ordering purpose)
-		OrderedSet<Node>                 frozen_nodes ;             // frozen     nodes                                  (value is just for summary ordering purpose)
-		OrderedSet<Node>                 no_triggers  ;             // no-trigger nodes                                  (value is just for summary ordering purpose)
-		OrderedMap<Node,::pair<Job,Job>> clash_nodes  ;             // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		::vector<Node>                   up_to_dates  ;           // asked nodes already done when starting
+		OrderedSet<Job >                 frozen_jobs  ;           // frozen     jobs                                   (value is just for summary ordering purpose)
+		OrderedSet<Node>                 frozen_nodes ;           // frozen     nodes                                  (value is just for summary ordering purpose)
+		OrderedSet<Node>                 no_triggers  ;           // no-trigger nodes                                  (value is just for summary ordering purpose)
+		OrderedMap<Node,::pair<Job,Job>> clash_nodes  ;           // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }
@@ -388,14 +385,14 @@ namespace Engine {
 	inline ReqData      & Req::operator*()       { return s_store[+self] ; }
 
 	inline ::vmap<Req,Pdate> Req::s_etas() {
-		Lock              lock { s_reqs_mutex } ;
+		Lock              lock { s_req_idxs_mutex } ;
 		::vmap<Req,Pdate> res  ;
 		for ( Req r : _s_reqs_by_eta ) res.emplace_back(r,r->eta) ;
 		return res ;
 	}
 
 	inline void Req::s_new_etas() {
-		for( Req r : s_reqs_by_start ) r.new_eta() ;
+		for( Req r : _s_reqs_by_start ) r.new_eta() ;
 	}
 
 	inline void Req::alloc() {

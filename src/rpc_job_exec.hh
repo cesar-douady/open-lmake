@@ -92,7 +92,7 @@ struct JobExecRpcReq {
 			case Proc::AccessPattern : SWEAR(              !min_len && !digest.has_read() && (!id&&digest.write!=Maybe) && +date && +files           , self ) ; break ;
 		DF}                                                                                                                                                             // NO_COV
 	}
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		/**/                     ::serdes(s,proc        ) ;
 		/**/                     ::serdes(s,sync        ) ;
 		/**/                     ::serdes(s,comment     ) ;

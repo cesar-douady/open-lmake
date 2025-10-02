@@ -423,6 +423,15 @@ Fd Gather::_spawn_child() {
 }
 
 Status Gather::exec_child() {
+	try {
+		return _exec_child() ;
+	} catch (::string const& e) {      // START_OF_NO_COV defensive programming
+		if (started) _child.waited() ;
+		throw ;
+	}                                  // END_OF_NO_COV
+}
+
+Status Gather::_exec_child() {
 	//
 	using Event = Epoll<Kind>::Event ;
 	Trace trace("exec_child",STR(as_session),method,autodep_env,cmd_line) ;
@@ -593,6 +602,7 @@ Status Gather::exec_child() {
 				if (+timeout) end_timeout = start_date + timeout ;
 				_exec_trace( start_date , Comment::StartJob ) ;
 				trace("started","wait",_wait,+epoll) ;
+				started = true ;
 				//
 				if (child_stdout==Child::PipeFd) { epoll.add_read( _child.stdout , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
 				if (child_stderr==Child::PipeFd) { epoll.add_read( _child.stderr , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
@@ -689,7 +699,7 @@ Status Gather::exec_child() {
 								Pdate          now     { New }                              ;
 								//
 								if (verbose) {
-									for( VerboseInfo const& vi : jmrr.verbose_infos )
+									for( VerboseInfo vi : jmrr.verbose_infos )
 										switch (vi.ok) {
 											case Yes   : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , ::string(vi.crc) ) ; break ;
 											case Maybe : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , "???"            ) ; break ;
@@ -814,10 +824,10 @@ Status Gather::exec_child() {
 					trace("close",kind,fd,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobSlave : {
-					auto  sit = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
-					auto& jse = sit->second         ;
+					auto   sit    = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
+					auto&  jse    = sit->second         ;
+					size_t buf_sz = jse.buf.size()      ;
 					//
-					size_t  buf_sz = jse.buf.size() ;
 					jse.buf.resize(buf_sz+4096) ;
 					ssize_t cnt = ::read( fd , &jse.buf[buf_sz] , 4096 ) ;
 					if (cnt<=0) {
@@ -838,9 +848,8 @@ Status Gather::exec_child() {
 						jse.buf.resize(buf_sz) ;
 						size_t pos = 0 ;
 						for(;;) {
-							{ if (pos+sizeof(MsgBuf::Len)   >buf_sz) break ; } MsgBuf::Len sz = decode_int<MsgBuf::Len>(&jse.buf[pos]) ;         // read message size
-							{ if (pos+sizeof(MsgBuf::Len)+sz>buf_sz) break ; }
-							auto jerr = deserialize<Jerr>({ &jse.buf[pos+sizeof(MsgBuf::Len)] , sz }) ;
+							{ if (pos+sizeof(MsgBuf::Len)   >buf_sz) break ; } MsgBuf::Len sz   = decode_int<MsgBuf::Len>(&jse.buf[pos])                        ; // read message size
+							{ if (pos+sizeof(MsgBuf::Len)+sz>buf_sz) break ; } auto        jerr = deserialize<Jerr>({ &jse.buf[pos+sizeof(MsgBuf::Len)] , sz }) ; // read message
 							pos += sizeof(MsgBuf::Len) + sz ;
 							//
 							Proc proc  = jerr.proc      ;                                                                                        // capture before jerr is ::move()'ed

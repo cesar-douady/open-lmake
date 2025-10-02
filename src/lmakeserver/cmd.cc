@@ -691,7 +691,7 @@ namespace Engine {
 		// services
 		void show_job(Job job) {
 			JobStep step = {} ;
-			for( Req r : Req::s_reqs_by_start )
+			for( Req r : Req::s_reqs_by_start() )
 				if ( JobStep s = job->c_req_info(r).step() ; InterestingSteps[s] && step!=s ) { // process job as soon as one Req is waiting/running, and this must be coherent
 					SWEAR( !step , step,s ) ;
 					step = s ;
@@ -731,7 +731,7 @@ namespace Engine {
 			if (+backlog) backlog.pop_back() ;
 		}
 		void show_node(Node node) {
-			for( Req r : Req::s_reqs_by_start )
+			for( Req r : Req::s_reqs_by_start() )
 				if ( NodeReqInfo const& cri = node->c_req_info(r) ; cri.waiting() ) {           // process node as soon as one Req is waiting
 					if (!node_seen.insert(node).second) return ;
 					for( Job j : node->conform_job_tgts(cri) ) show_job(j) ;

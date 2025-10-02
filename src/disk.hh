@@ -166,7 +166,9 @@ namespace Disk {
 		FileTag tag       (               ) const { return date.tag()              ; }
 		FileSig sig       (               ) const ;
 		// services
-		template<IsStream T> void serdes(T& s) { ::serdes( s , sz,date ) ; }
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , sz,date ) ;
+		}
 		// data
 		DiskSz sz   = 0 ;
 		Ddate  date ;

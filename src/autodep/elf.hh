@@ -72,8 +72,8 @@ struct Elf {
 		simple_llp = true ;
 	}
 	// services
-	Record::Read search_elf( ::string      const& file , ::string const& runpath , Comment ) ;
-	void         elf_deps  ( Record::Solve const&      , bool top                , Comment ) ;
+	Record::Read<true/*Send*/> search_elf( ::string                     const& file , ::string const& runpath , Comment ) ;
+	void                       elf_deps  ( Record::Solve<false/*Send*/> const&      , bool top                , Comment ) ;
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
@@ -190,11 +190,11 @@ inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	return res ;
 }
 
-inline Record::Read Elf::search_elf( ::string const& file , ::string const& runpath , Comment c ) {
+inline Record::Read<true/*Send*/> Elf::search_elf( ::string const& file , ::string const& runpath , Comment c ) {
 	if (!file               ) return {} ;
 	if (file.find('/')!=Npos) {
 		if (!seen.try_emplace(file,Maybe).second) return {} ;
-		Record::Read res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , c } ;
+		Record::Read<true/*Send*/> res = { *r , file , false/*no_follow*/ , true/*keep_real*/ , c } ;
 		elf_deps( res , false/*top*/ , c ) ;
 		return res ;
 	}
@@ -213,8 +213,8 @@ inline Record::Read Elf::search_elf( ::string const& file , ::string const& runp
 			::string        full_file  = path.substr(pos,end-pos) ;
 			if (+full_file) full_file += '/'                      ;
 			/**/            full_file += file                     ;
-			Record::Read rr { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , c } ;
-			auto [it,inserted] = seen.try_emplace(rr.real,Maybe) ;
+			Record::Read<true/*Send*/> rr            { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , c } ;
+			auto                       [it,inserted] = seen.try_emplace(rr.real,Maybe)                               ;
 			if ( it->second==Maybe           )   it->second = No | is_target(Record::s_repo_root_fd(),rr.real,false/*no_follow*/) ;   // real may be a sym link in the system directories
 			if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , c ) ; return rr ;                                    }
 			if ( it->second==Yes             )                                       return {} ;
@@ -224,7 +224,7 @@ inline Record::Read Elf::search_elf( ::string const& file , ::string const& runp
 	return {} ;
 }
 
-inline void Elf::elf_deps( Record::Solve const& file , bool top , Comment c ) {
+inline void Elf::elf_deps( Record::Solve<false/*Send*/> const& file , bool top , Comment c ) {
 	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
 		FileMap   file_map { Record::s_repo_root_fd() , file.real } ; if (!file_map) return ;                                          // real may be a sym link in system dirs
@@ -240,14 +240,14 @@ inline const char* get_ld_library_path() {
 	return llp.c_str() ;
 }
 
-inline Record::Read search_elf( Record& r , const char* file , Comment c ) {
+inline Record::Read<true/*Send*/> search_elf( Record& r , const char* file , Comment c ) {
 	if (!file) return {} ;
 	static Elf::DynDigest s_digest { New } ;
 	try                       { return Elf(r,{},get_ld_library_path(),s_digest.rpath).search_elf( file , Elf::s_expand(s_digest.runpath) , c ) ; }
 	catch (::string const& e) { r.report_panic(cat("while searching elf executable ",file," : ",e)) ; return {} ;                                } // if we cannot report the dep, panic
 }
 
-inline void elf_deps( Record& r , Record::Solve const& file , const char* ld_library_path , Comment c ) {
+inline void elf_deps( Record& r , Record::Solve<false/*Send*/> const& file , const char* ld_library_path , Comment c ) {
 	try                       { Elf(r,file.real,ld_library_path).elf_deps( file , true/*top*/ , c ) ;               }
 	catch (::string const& e) { r.report_panic(cat("while analyzing elf executable ",mk_file(file.real)," : ",e)) ; } // if we cannot report the dep, panic
 }

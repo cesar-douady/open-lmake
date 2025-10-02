@@ -157,8 +157,9 @@ public :
 	void   reorder(bool at_end              ) ;                                        // reorder accesses by first read access and suppress superfluous accesses
 	Digest analyze(Status status=Status::New) ;                                        // status==New means job is not done
 private :
-	Fd   _spawn_child (                               ) ;
-	void _ptrace_child( Fd report_fd , ::latch* ready ) ;
+	Fd     _spawn_child (                               ) ;
+	Status _exec_child  (                               ) ;
+	void   _ptrace_child( Fd report_fd , ::latch* ready ) ;
 	//
 	void _exec_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ; }
 	void _exec_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _exec_trace( New , c , ces , file ) ;                     }
@@ -197,6 +198,7 @@ public :
 	::string                                  service_mngt     ;
 	::vector<Re::RegExpr>                     star_targets     ;                       // excludes Target flag as it must be fully predictible to ensure a sound rule selection process
 	PD                                        start_date       ;
+	bool                                      started          = false               ;
 	::uset_s                                  static_targets   ;                       // .
 	::string                                  stderr           ;                       // contains child stderr if child_stderr==Pipe
 	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe

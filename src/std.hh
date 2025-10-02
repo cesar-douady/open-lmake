@@ -70,6 +70,7 @@ using std::convertible_to                         ;
 using std::countl_zero                            ;
 using std::current_exception                      ;
 using std::decay_t                                ;
+using std::declval                                ;
 using std::endian                                 ;
 using std::erase_if                               ;
 using std::errc                                   ;

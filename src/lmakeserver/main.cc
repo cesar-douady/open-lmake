@@ -80,8 +80,8 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 		trace("vanished",mrkr) ;
 	}
 	if (g_writable) {
-		_g_server_fd.listen() ;
 		::string tmp = cat(ServerMrkr,'.',_g_mrkr.first,'.',_g_mrkr.second) ;
+		_g_server_fd = ServerSockFd(New) ;
 		AcFd( tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(cat(
 			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
 		,	_g_mrkr.second                                       , '\n'
@@ -194,9 +194,11 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
 						SWEAR( cnt==sizeof(event) , cnt ) ;
 					}
-					for( Req r : Req::s_reqs_by_start ) {
-						trace("all_zombie",r) ;
-						r.zombie(true) ;
+					{	Lock lock { Req::s_reqs_mutex } ;
+						for( Req r : Req::s_reqs_by_start() ) {
+							trace("all_zombie",r) ;
+							r.zombie(true) ;
+						}
 					}
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace_urgent(GlobalProc::Int) ;                                               // this will close ofd when done writing to it, urgent to ensure good reactivity

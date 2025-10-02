@@ -115,6 +115,7 @@ int/*wstatus*/ AutodepPtrace::process() {
 	Trace trace("AutodepPtrace::process") ;
 	int   wstatus ;
 	pid_t pid     ;
+	Lock  lock    { Record::s_mutex } ;                              // we have a single thread here, no need to lock record reporting, but Record code checks that lock is taken
 	while( (pid=::wait(&wstatus))>1 )
 		if (_changed(pid,/*inout*/wstatus)) {
 			trace("done",wstatus) ;
@@ -158,7 +159,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 						// XXX! : support 32 bits exe's (beware of 32 bits syscall numbers)
 						if (word_sz!=NpWordSz) {
 							Trace trace("AutodepPtrace::_changed","panic","word width") ;
-							info.record.report_direct({ .proc=JobExecProc::Panic , .date=New , .files={{cat(word_sz," bits processes on ",NpWordSz," host not supported yet with ptrace"),{}}} }) ;
+							info.record.report_panic( cat(word_sz," bits processes on ",NpWordSz," host not supported yet with ptrace") , false/*die*/ ) ;
 							info.has_exit_proc = false ;
 							info.on_going      = false ;
 							goto NextSyscall ;
@@ -240,7 +241,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 			// with seccomp, this is how we get a bad architecture as the filter is now
 			if ( (wstatus&0xff) == (0x80|SIGSYS) ) {
 				Trace trace("AutodepPtrace::_changed","panic","arch","seccomp") ;
-				info.record.report_direct({ .proc=JobExecProc::Panic , .date=New , .files={{cat("32 bits processes on ",NpWordSz," host not supported yet with ptrace"),{}}} }) ;
+				info.record.report_panic( cat(NpWordSz==64?32:64," bits processes on ",NpWordSz," host not supported yet with ptrace") , false/*die*/ ) ;
 			}
 		#endif
 	} else {

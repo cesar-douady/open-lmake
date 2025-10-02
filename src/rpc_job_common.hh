@@ -137,6 +137,8 @@ struct MatchFlags {
 	Kind kind             () const { return !extra_tflags[ExtraTflag::Allow] ? Kind::SideDep : !tflags[Tflag::Target] ? Kind::SideTarget : Kind::Target ; }
 	bool dep_and_target_ok() const { return extra_tflags[ExtraTflag::SourceOk] && !tflags[Tflag::Incremental]                                           ; }
 	// services
+	MatchFlags  operator~ (              ) const { return { ~tflags , ~dflags , ~extra_tflags , ~extra_dflags } ; }
+	MatchFlags  operator| (MatchFlags mfs) const { return ::copy(self)|=mfs                                     ; }
 	MatchFlags& operator|=(MatchFlags mfs) {
 		tflags       |= mfs.tflags       ;
 		dflags       |= mfs.dflags       ;
@@ -144,7 +146,14 @@ struct MatchFlags {
 		extra_dflags |= mfs.extra_dflags ;
 		return self ;
 	}
-	MatchFlags operator|(MatchFlags mfs) { return ::copy(self)|=mfs ; }
+	bool operator>=(MatchFlags mfs) const {
+		return
+			tflags       >= mfs.tflags
+		&&	dflags       >= mfs.dflags
+		&&	extra_tflags >= mfs.extra_tflags
+		&&	extra_dflags >= mfs.extra_dflags
+		;
+	}
 	// data
 	// START_OF_VERSIONING
 	Tflags      tflags       = {} ;                                   // if kind>=Target
@@ -289,12 +298,12 @@ using CommentExts = BitMap<CommentExt> ;
 // END_OF_VERSIONING
 
 struct VerboseInfo {
-	friend ::string& operator+=( ::string& , VerboseInfo const& ) ;
+	friend ::string& operator+=( ::string& , VerboseInfo ) ;
 	Bool3     ok      = Maybe ;
 	Hash::Crc crc     = {}    ;
 } ;
-inline ::string& operator+=( ::string& os , VerboseInfo const& dvi ) { // START_OF_NO_COV
+inline ::string& operator+=( ::string& os , VerboseInfo dvi ) { // START_OF_NO_COV
 	/**/          os <<'('<< dvi.ok  ;
 	if (+dvi.crc) os <<','<< dvi.crc ;
 	return        os <<')'           ;
-}                                                                      // END_OF_NO_COV
+}                                                               // END_OF_NO_COV

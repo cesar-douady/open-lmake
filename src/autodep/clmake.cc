@@ -92,8 +92,8 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool       sync    = verbose || direct                          ;
 	//
 	::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( *_g_record , ::copy(files) , ad , no_follow , regexpr ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                   }
+	try                       { dep_infos = JobSupport::depend( ::copy(files) , ad , no_follow , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                      }
 	//
 	if (!sync) return &None ;
 	//
@@ -105,7 +105,7 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 		//
 		SWEAR( dep_infos.first.size()==files.size() , dep_infos.first.size() , files.size() ) ;
 		for( size_t i : iota(dep_infos.first.size()) ) {
-			VerboseInfo const& vi = dep_infos.first[i] ;
+			VerboseInfo vi = dep_infos.first[i] ;
 			Object*   py_ok    ;
 			switch (vi.ok) {
 				case Yes   : py_ok = &True  ; break ;
@@ -123,15 +123,17 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 static void target( Tuple const& py_args , Dict const& py_kwds ) {
-	bool         regexpr = false                                                                      ;
-	AccessDigest ad      { .flags{.extra_tflags=ExtraTflag::Allow,.extra_dflags=ExtraDflag::NoStar} } ;
+	bool         no_follow = true                                                                       ;
+	bool         regexpr   = false                                                                      ;
+	AccessDigest ad        { .flags{.extra_tflags=ExtraTflag::Allow,.extra_dflags=ExtraDflag::NoStar} } ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
 		bool     val = +py_val                     ;
 		switch (key[0]) {
-			case 'w' : if (key=="write"  ) { ad.write = No|val ; continue ; } break ;
-			case 'r' : if (key=="regexpr") { regexpr  = val    ; continue ; } break ;
+			case 'f' : if (key=="follow_symlinks") { no_follow =   !val ; continue ; } break ;
+			case 'r' : if (key=="regexpr"        ) { regexpr   =    val ; continue ; } break ;
+			case 'w' : if (key=="write"          ) { ad.write  = No|val ; continue ; } break ;
 		DN}
 		if      (can_mk_enum<Tflag     >(key)) { if ( Tflag      tf =mk_enum<Tflag     >(key) ; tf<Tflag::NDyn ) { ad.flags.tflags      .set(tf ,val) ; continue ; } }
 		else if (can_mk_enum<ExtraTflag>(key)) {      ExtraTflag etf=mk_enum<ExtraTflag>(key) ;                    ad.flags.extra_tflags.set(etf,val) ; continue ;   }
@@ -141,11 +143,11 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 	//
 	::vector_s files = _get_files(py_args) ;
-	try                       { JobSupport::target( *_g_record , ::move(files) , ad , regexpr ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                           }
+	try                       { JobSupport::target( ::move(files) , ad , no_follow , regexpr ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                          }
 }
 
-static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
+static Ptr<> chk_deps( Tuple const& py_args , Dict const& py_kwds ) {
 	size_t n_args = py_args.size() ;
 	//
 	::optional<Delay> delay ;
@@ -155,7 +157,7 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 		case 2 :                         sync  = +            py_args[1]                 ; [[fallthrough]] ;
 		case 1 : if (&py_args[0]!=&None) delay = Delay(double(py_args[0].as_a<Float>())) ; [[fallthrough]] ;
 		case 0 : break ;
-	DF}                                            // NO_COV
+	DF}                                                   // NO_COV
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
@@ -167,8 +169,8 @@ static Ptr<> check_deps( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 	//
 	try {
-		bool  is_sync = sync.value_or(false)                                                     ;
-		Bool3 ok      = JobSupport::check_deps( *_g_record , delay.value_or(Delay()) , is_sync ) ;
+		bool  is_sync = sync.value_or(false)                                      ;
+		Bool3 ok      = JobSupport::chk_deps( delay.value_or(Delay()) , is_sync ) ;
 		if (!is_sync) return &None ;
 		throw_if(ok==Maybe,"some deps are out-of-date") ; // in case handler catches killing signal as job will be killed in that case
 		return Ptr<Bool>(ok==Yes) ;
@@ -199,8 +201,8 @@ template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const&
 	}
 	//
 	try {
-		::vector_s files = JobSupport::list( *_g_record , No|Target , dir , regexpr ) ;
-		Ptr<Tuple> res   { files.size() }                                             ;
+		::vector_s files = JobSupport::list( No|Target , ::move(dir) , ::move(regexpr) ) ;
+		Ptr<Tuple> res   { files.size() }                                                ;
 		for( size_t i : iota(files.size()) ) res->set_item( i , *Ptr<Str>(files[i]) ) ;
 		return res ;
 	} catch (::string const& e) {
@@ -208,7 +210,7 @@ template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const&
 	}
 }
 
-static Ptr<Str> list_root( Tuple const& py_args , Dict const& py_kwds ) {
+static Ptr<Str> list_root_s( Tuple const& py_args , Dict const& py_kwds ) {
 	if (!( py_args.size()==1 && !py_kwds )) throw cat("accept only a single arg") ;
 	try                       { return Ptr<Str>( no_slash( JobSupport::list_root_s(*py_args[0].str()) ) ) ; }
 	catch (::string const& e) { throw ::pair(PyException::RuntimeErr,e) ;                                   }
@@ -250,12 +252,10 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	if (!Encode) throw_if    ( +min_len , "unexpected arg min_len" ) ;
 	//
 	try {
-		::pair_s<bool/*ok*/> reply =
-			Encode ? JobSupport::encode( *_g_record , ::move(*file) , ::move(*cv/*val*/ ) , ::move(*ctx) , min_len.value_or(1) )
-			:        JobSupport::decode( *_g_record , ::move(*file) , ::move(*cv/*code*/) , ::move(*ctx)                       )
+		return
+			Encode ? JobSupport::encode( ::move(*file) , ::move(*ctx) , ::move(*cv/*val*/ ) , min_len.value_or(1) )
+			:        JobSupport::decode( ::move(*file) , ::move(*ctx) , ::move(*cv/*code*/)                       )
 		;
-		throw_unless( reply.second , reply.first ) ;
-		return reply.first ;
 	} catch (::string const& e) {
 		throw ::pair(PyException::RuntimeErr,e) ;
 	}
@@ -356,8 +356,8 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	if ( py_path && py_path!=&None ) path = _get_seq<true    >("path"    ,*py_path          ) ;
 	else                             path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
 	#if PY_MAJOR_VERSION>2
-		try                       { JobSupport::depend( *_g_record , ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
-		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                                }
+		try                       { JobSupport::depend( ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
+		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                   }
 	#endif
 	//
 	// name
@@ -373,21 +373,21 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	for( ::string const& dir : path ) {
 		::string dir_s  = with_slash(dir)                               ;
 		bool     is_lcl = dir_s.starts_with(_g_autodep_env.repo_root_s) ;
-		if (!is_abs_s(dir_s)) {                                               // fast path : dont compute cwd unless required
+		if (!is_abs_s(dir_s)) {                                           // fast path : dont compute cwd unless required
 			if (!cwd_s_) cwd_s_ = cwd_s() ;
 			dir_s = mk_glb_s(dir_s,cwd_s_) ;
 		}
-		::string base = dir_s+tail ;
+		::string   base  = dir_s+tail ;
+		::vector_s files ;
 		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs ) {             // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
 			::string file   = base + sfx              ;
 			bool     exists = FileInfo(file).exists() ;
-			if (is_lcl) {
-				static constexpr AccessDigest AccessDigestDfltDyn { .accesses=~Accesses() , .flags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflagsDfltDyn} } ;
-				try                       { JobSupport::depend( *_g_record , {file} , AccessDigestDfltDyn , false/*no_follow*/ ) ; }
-				catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                }
-			}
-			if (exists) return ;                                          // found module, dont explore path any further
+			if (is_lcl) files.push_back(::move(file)) ;
+			if (exists) break ;                                           // found module, dont explore path any further
 		}
+		static constexpr AccessDigest AccessDigestDfltDyn { .accesses=~Accesses() , .flags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflagsDfltDyn} } ;
+		try                       { JobSupport::depend( ::move(files) , AccessDigestDfltDyn , false/*no_follow*/ ) ; }
+		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                          }
 	}
 }
 
@@ -446,7 +446,7 @@ PyMODINIT_FUNC
 			"Pretend write to targets (if write==True) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"
 		)
-	,	F( "check_deps" , (py_func<Object,check_deps>) ,
+	,	F( "check_deps" , (py_func<Object,chk_deps>) ,
 			"check_deps(verbose=False)\n"
 			"Ensure that all previously seen deps are up-to-date.\n"
 			"Job will be killed in case some deps are not up-to-date.\n"
@@ -470,7 +470,7 @@ PyMODINIT_FUNC
 			"list_targets( dir=None , regexpr=None )\n"
 			"Return the list of targets in dir that match regexpr, as currently known.\n"
 		)
-	,	F( "list_root" , (py_func<Str,list_root>) ,
+	,	F( "list_root" , (py_func<Str,list_root_s>) ,
 			"list_root(dir)\n"
 			"Return passed dir as used as prefix in list_deps and list_targets.\n"
 		)

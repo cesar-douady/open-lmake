@@ -7,6 +7,11 @@
 
 #include "serialize.hh"
 
+#if FORCE_32_BITS
+	#undef HAS_PCRE
+	#define HAS_PCRE 0 // PCRE is only supported in 64 bits
+#endif
+
 #if HAS_PCRE
 	#define PCRE2_CODE_UNIT_WIDTH 8
 	#include <pcre2.h>

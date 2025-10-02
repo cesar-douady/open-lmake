@@ -20,14 +20,15 @@ struct MsgBuf {
 		Len len ; ::memcpy( &len , str , sizeof(Len) ) ;
 		return len ;
 	}
+	// accesses
+	bool operator+() const { return +_buf ; }
 	// data
 protected :
-	::string _buf       ;                                        // reading : sized after expected size, but actually filled up only with len char's   // writing : contains len+data to be sent
-	Len      _len       = 0     ;                                // data sent/received so far, reading : may also apply to len accumulated in _buf
-	bool     _data_pass = false ;                                // reading : if true <=> _buf contains partial data, else it contains partial data len // writing : if true <=> _buf contains data
+	::string _buf ;                                              // reading : sized after expected size, but actually filled up only with len char's   // writing : contains len+data to be sent
+	Len      _len = 0 ;                                          // data sent/received so far, reading : may also apply to len accumulated in _buf
 } ;
 inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { // START_OF_NO_COV
-	return os<<"MsgBuf("<<mb._len<<','<<mb._data_pass<<')' ;
+	return os<<"MsgBuf("<<mb._len<<','<<mb._buf.size()<<')' ;
 }                                                                // END_OF_NO_COV
 
 struct IMsgBuf : MsgBuf {
@@ -45,13 +46,7 @@ struct IMsgBuf : MsgBuf {
 		if (cnt<=0) throw cat("cannot receive over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
 		_len += cnt ;
 		if (_len<_buf.size()) return false/*complete*/ ; // _buf is still partial
-		if (_data_pass) {
-			//    vvvvvvvvvvvvvvvvvvvv
-			res = deserialize<T>(_buf) ;
-			//    ^^^^^^^^^^^^^^^^^^^^
-			self = {} ;
-			return true/*complete*/ ;
-		} else {
+		if (!_data_pass) {
 			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
 			Len len = s_sz(_buf.data()) ;
 			// we now expect the data
@@ -59,38 +54,42 @@ struct IMsgBuf : MsgBuf {
 			catch (...) { throw cat("cannot resize message to length ",len) ; }
 			_data_pass = true ;
 			_len       = 0    ;
-			goto DataPass/*BACKWARD*/ ;
+			goto DataPass/*BACKWARD*/ ;                  // length is acquired, process data
+		} else {
+			//    vvvvvvvvvvvvvvvvvvvv
+			res = deserialize<T>(_buf) ;
+			//    ^^^^^^^^^^^^^^^^^^^^
+			self = {} ;
+			return true/*complete*/ ;
 		}
 	}
+	// data
+	bool _data_pass = false ;                            // if true <=> _buf contains partial data, else it contains partial data len
 } ;
 
 struct OMsgBuf : MsgBuf {
 	// cxtors & casts
 	OMsgBuf() = default ;
-	template<class T> OMsgBuf(T const& x) {
-		init(x) ;
-	}
+	template<class T> OMsgBuf(T const& x) { add(x) ; }
 	// accesses
 	size_t size() const { return _buf.size() ; }
 	// services
-	template<class T> void init(T const& x) {
-		SWEAR(!_data_pass) ;
-		_buf = serialize(::pair<Len,T const&>(0,x)) ; SWEAR(_buf.size()>=sizeof(Len)) ; // directly serialize in _buf to avoid copy : serialize a pair with length+data
+	template<class T> void add(T const& x) {
+		size_t offset = _buf.size() ;
+		serialize( _buf , ::pair<Len,T const&>(0,x) ) ;
+		SWEAR(_buf.size()>=offset+sizeof(Len)) ;
 		//
-		size_t len_ = _buf.size()-sizeof(Len) ;
-		Len    len  = len_                    ; SWEAR(len==len_,len_) ;                 // ensure truncation is harmless
-		::memcpy( _buf.data() , &len , sizeof(Len) ) ;                                  // overwrite len
-		_data_pass = true ;
+		size_t len = _buf.size()-(offset+sizeof(Len)) ; SWEAR(Len(len)==len,len) ; // ensure truncation is harmless
+		encode_int( &_buf[offset] , Len(len) ) ;                                   // overwrite len
 	}
 	template<class T> void send( Fd fd , T const& x ) {
-		init(x) ;
+		add(x) ;
 		send(fd) ;
 	}
 	void send(Fd fd) {
 		while (!send_step(fd)) ;
 	}
 	bool/*complete*/ send_step(Fd fd) {
-		SWEAR(_data_pass) ;
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
 		if (cnt<=0) throw cat("cannot send over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
 		_len += cnt ;

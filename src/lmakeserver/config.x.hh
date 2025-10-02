@@ -67,9 +67,8 @@ namespace Engine {
 			Cache(Py::Dict const&) ;
 			// services
 			bool operator==(Cache const&) const = default ;
-			template<IsStream T> void serdes(T& s) {
-				::serdes(s,tag) ;
-				::serdes(s,dct) ;
+			template<IsStream S> void serdes(S& s) {
+				::serdes( s , tag,dct ) ;
 			}
 			// data
 			// START_OF_VERSIONING
@@ -120,11 +119,8 @@ namespace Engine {
 			Backend(Py::Dict const& py_map) ;
 			// services
 			bool operator==(Backend const&) const = default ;
-			template<IsStream T> void serdes(T& s) {
-				::serdes(s,ifce      ) ;
-				::serdes(s,dct       ) ;
-				::serdes(s,env       ) ;
-				::serdes(s,configured) ;
+			template<IsStream S> void serdes(S& s) {
+				::serdes( s , ifce,dct,env,configured ) ;
 			}
 			// data
 			// START_OF_VERSIONING

@@ -31,9 +31,10 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
 	try {
-		auto&                fa    = cmd_line.flag_args                                                                                                          ;
-		::pair_s<bool/*ok*/> reply = JobSupport::decode( {New,Yes/*enabled*/} , ::move(fa[+Flag::File]) , ::move(fa[+Flag::Code]) , ::move(fa[+Flag::Context]) ) ;
-		if (reply.second) { Fd::Stdout.write(reply.first) ; exit(Rc::Ok  ) ; }
-		else              { Fd::Stderr.write(reply.first) ; exit(Rc::Fail) ; }
-	} catch (::string const& e) { exit(Rc::Internal,e) ; }
+		auto&    fa    = cmd_line.flag_args                                                                                   ;
+		::string reply = JobSupport::decode( ::move(fa[+Flag::File]) , ::move(fa[+Flag::Context]) , ::move(fa[+Flag::Code]) ) ;
+		Fd::Stdout.write(reply) ;
+	} catch (::string const& e) {
+		exit(Rc::Fail,e) ;
+	}
 }

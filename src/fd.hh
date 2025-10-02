@@ -24,13 +24,14 @@ struct LockedFd : AcFd {
 	// cxtors & casts
 	LockedFd() = default ;
 	//
-	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,{.flags=O_RDWR}} { lock  (exclusive) ; }
-	~LockedFd(                                            )                              { unlock(         ) ; }
+	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,{.flags=exclusive?O_RDWR:O_RDONLY}} { _lock  (exclusive) ; }
+	~LockedFd(                                            )                                                 { _unlock(         ) ; }
 	//
 	LockedFd           (LockedFd&&) = default ;
 	LockedFd& operator=(LockedFd&&) = default ;
-	//
-	void lock(bool exclusive) {
+	// services
+private :
+	void _lock(bool exclusive) {
 		if (!self) return ;
 		struct flock lock {
 			.l_type   = short( exclusive ? F_WRLCK : F_RDLCK )
@@ -41,7 +42,7 @@ struct LockedFd : AcFd {
 		} ;
 		while (::fcntl(fd,F_SETLKW,&lock)!=0) swear_prod( errno==EINTR , +self ) ;
 	}
-	void unlock() {
+	void _unlock() {
 		if (!self) return ;
 		struct flock lock {
 			.l_type   = F_UNLCK
@@ -98,6 +99,7 @@ public :
 	//
 	void init() {
 		self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ;
+		if (!self) fail_prod("cannot create socket :",::strerror(errno)) ;
 		no_std() ;
 	}
 	// services
@@ -136,17 +138,16 @@ struct ServerSockFd : SockFd {
 	friend ::string& operator+=( ::string& , ServerSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
-	ServerSockFd( NewType , int backlog=0 ) { listen(backlog) ; }
+	ServerSockFd( NewType , int backlog=0 ) : SockFd{New} { _listen(backlog) ; }
 	// services
-	void listen(int backlog=0) {
-		if (!self   ) init() ;
-		if (!backlog) backlog = 100 ;
-		int rc = ::listen(fd,backlog) ;
-		swear_prod(rc==0,"cannot listen on",self,"with backlog",backlog,'(',rc,')') ;
-	}
 	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
 	::string service(              ) const { return s_service(     port()) ; }
 	SlaveSockFd accept() ;
+private :
+	void _listen(int backlog=0) {
+		if (!backlog               ) backlog = 100 ;
+		if (::listen(fd,backlog)!=0) fail_prod("cannot listen on",self,"with backlog",backlog,':',::strerror(errno)) ; // dont call str_error when ok
+	}
 } ;
 
 struct ClientSockFd : SockFd {

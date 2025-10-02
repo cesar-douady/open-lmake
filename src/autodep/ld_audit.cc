@@ -30,6 +30,10 @@ inline bool started() { return true ; }
 
 #include "syscall_tab.hh"
 
+using Read = Record::Read<false/*Send*/,true/*ChkSimple*/> ;
+
+static bool _g_auditor_report_sent = false ;
+
 static ::pair<bool/*is_std*/,bool/*is_libc*/> _catch_std_lib(const char* c_name) {
 	// search for string (.*/)?libc.so(.<number>)*
 	static const char LibC      [] = "libc.so"       ;
@@ -72,29 +76,40 @@ extern "C" {
 		return LAV_CURRENT ;
 	}
 
-	uint la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t *cookie ) {
+	uint la_objopen( struct link_map* map , Lmid_t lmid , uintptr_t* cookie ) {
 		const char* nm = map->l_name ;
 		if ( !nm || !*nm ) {
 			*cookie = true/*not_std*/ ;
 			return LA_FLG_BINDFROM ;
 		}
-		if (!::string_view(nm).starts_with("linux-vdso.so"))                                         // linux-vdso.so is listed, but is not a real file
-			Record::ReadCS(auditor(),nm,false/*no_follow*/,false/*keep_real*/,Comment::la_objopen) ;
+		if (!::string_view(nm).starts_with("linux-vdso.so")) {                              // linux-vdso.so is listed, but is not a real file
+			Lock lock { Record::s_mutex } ;
+			Read(auditor(),nm,false/*no_follow*/,false/*keep_real*/,Comment::la_objopen) ;
+			if (_g_auditor_report_sent) auditor().send_report() ;                           // if application calls dlopen, we will be called after la_preinit
+		}
 		::pair<bool/*is_std*/,bool/*is_libc*/> known = _catch_std_lib(nm) ;
 		*cookie = !known.first ;
 		if (known.second) {
-			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ;          // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
+			if (lmid!=LM_ID_BASE) exit(Rc::Usage,"new namespaces not supported for libc") ; // need to find a way to gather the actual map, because here we just get LM_ID_NEWLM
 			g_has_libc = true ;
 		}
 		return LA_FLG_BINDFROM | (known.first?LA_FLG_BINDTO:0) ;
 	}
 
+	void la_preinit(uintptr_t* /*cookie*/) {
+		Lock lock { Record::s_mutex } ;
+		auditor().send_report() ;
+		_g_auditor_report_sent = true ;
+	}
+
 	char* la_objsearch( const char* name , uintptr_t* /*cookie*/ , uint flag ) {
-		switch (flag) { //!                                                          no_follow keep_real
-			case LA_SER_ORIG    : if (strchr(name,'/')) Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::Orig         ) ; break ;
-			case LA_SER_LIBPATH :                       Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::LdLibraryPath) ; break ;
-			case LA_SER_RUNPATH :                       Record::ReadCS(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::RunPath      ) ; break ;
+		Lock lock { Record::s_mutex } ;
+		switch (flag) { //!                                                no_follow keep_real
+			case LA_SER_ORIG    : if (strchr(name,'/')) Read(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::Orig         ) ; break ;
+			case LA_SER_LIBPATH :                       Read(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::LdLibraryPath) ; break ;
+			case LA_SER_RUNPATH :                       Read(auditor(),name,false   ,false   ,Comment::la_objsearch,CommentExt::RunPath      ) ; break ;
 		DN}
+		if (_g_auditor_report_sent) auditor().send_report() ;
 		return const_cast<char*>(name) ;
 	}
 

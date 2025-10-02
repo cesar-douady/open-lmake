@@ -145,10 +145,12 @@ Notes:
 	In that case, using the `direct` flag reduces the number of reruns, which can occur for each step otherwise.
 	In that case, it is most probably wise to use the `critical` flag simultaneously.
 
-### `target( *targets , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )`
+### `target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )`
 
 Declare `targets` as targets and alter associated flags.
 Note that the `allow` argument default value is `True`.
+
+If `follow_symlinks`, `targets` that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).
 
 Also, calling this function does not make `targets` official targets of the job, i.e. `targets` are side targets.
 The official job of a target is the one selected if needing its content, it must be known before any job is run.

@@ -124,7 +124,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Exec( r , _path<At>(pid,args+0,true/*simple_ok*/) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+		Record::Exec<true/*Send*/,false/*ChkSimple*/>( r , _path<At>(pid,args+0,true/*simple_ok*/) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
 	} catch (::string const&) {}
 }
 

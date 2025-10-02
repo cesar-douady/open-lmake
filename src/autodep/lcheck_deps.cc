@@ -27,9 +27,8 @@ int main( int argc , char* argv[]) {
 	Delay             delay    { from_string<double>( cmd_line.flag_args[+Flag::Delay] , true/*empty_ok*/ ) } ;
 	bool              sync     = cmd_line.flags[Flag::Sync]                                                   ;
 	try {
-		Bool3 ok = JobSupport::check_deps( {New,Yes/*enabled*/} , delay , sync ) ;
-		if (!sync) return 0       ;
-		else       return ok!=Yes ;
+		Bool3 ok = JobSupport::chk_deps( delay , sync ) ;
+		if (sync) return ok!=Yes ;
 	} catch(::string const&e) {
 		exit(Rc::Internal,e) ;
 	}

@@ -63,16 +63,15 @@ int main( int argc , char* argv[]) {
 		::optional_s dir     ; if ( cmd_line.flags[Flag::Dir]                       ) dir     = cmd_line.flag_args[+Flag::Dir] ;
 		::optional_s regexpr ; if ( cmd_line.flags[Flag::Regexpr] && +cmd_line.args ) regexpr = cmd_line.args[0]               ;
 		//
-		try                       { for( ::string const& d : JobSupport::list( {New,Yes/*enabled*/} , No/*write*/ , dir , regexpr ) ) out << d <<'\n' ; }
-		catch (::string const& e) { exit(Rc::System,e) ;                                                                                                }
+		try                       { for( ::string const& d : JobSupport::list( No/*write*/ , ::move(dir) , ::move(regexpr) ) ) out << d <<'\n' ; }
+		catch (::string const& e) { exit(Rc::System,e) ;                                                                                         }
 		//
 	} else {
 		//
 		if (!cmd_line.args) return 0 ;                                                                 // fast path : depends on nothing
 		for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 		//
-		bool         no_follow = !cmd_line.flags[Flag::FollowSymlinks]                                  ;
-		AccessDigest ad        { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
+		AccessDigest ad { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
 		//
 		if (cmd_line.flags[Flag::Read         ]) ad.accesses            = ~Accesses()              ;
 		if (cmd_line.flags[Flag::Critical     ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
@@ -89,8 +88,8 @@ int main( int argc , char* argv[]) {
 		bool                                     direct    = ad.flags.extra_dflags[ExtraDflag::Direct ] ;
 		bool                                     sync      = verbose || direct                          ;
 		::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-		try                       { dep_infos = JobSupport::depend( {New,Yes/*enabled*/} , ::copy(cmd_line.args) , ad , no_follow , cmd_line.flags[Flag::Regexpr] ) ; }
-		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                               }
+		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] ) ; }
+		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                    }
 		//
 		if (!sync) return 0 ;
 		//
@@ -106,10 +105,10 @@ int main( int argc , char* argv[]) {
 					case No    : return "error" ;
 				DF}                                                                                    // NO_COV
 			} ;
-			size_t w_ok  = ::max<size_t>( dep_infos.first , [&](VerboseInfo const& vi) { return ::strlen(ok_str(vi.ok)) ; } ) ;
-			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo const& vi) { return ::string(vi.crc).size() ; } ) ;
+			size_t w_ok  = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ::strlen(ok_str(vi.ok)) ; } ) ;
+			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ::string(vi.crc).size() ; } ) ;
 			for( size_t i : iota(dep_infos.first.size()) ) {
-				VerboseInfo const& vi = dep_infos.first[i] ;
+				VerboseInfo vi = dep_infos.first[i] ;
 				if (vi.ok!=Yes) rc = Rc::Fail ;
 				out <<      widen(ok_str(vi.ok)   ,w_ok ) ;
 				out <<' '<< widen(::string(vi.crc),w_crc) ;

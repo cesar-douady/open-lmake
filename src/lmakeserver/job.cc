@@ -1595,13 +1595,13 @@ namespace Engine {
 	}
 
 	bool JobData::running( bool with_zombies , bool hit_ok ) const {
-		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running(hit_ok) ) return true ;
+		for( Req r : Req::s_reqs_by_start() ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running(hit_ok) ) return true ;
 		return false ;
 	}
 
 	::vector<Req> JobData::running_reqs( bool with_zombies , bool hit_ok ) const {                                                 // sorted by start
 		::vector<Req> res ; res.reserve(Req::s_n_reqs()) ;                                                                         // pessimistic, so no realloc
-		for( Req r : Req::s_reqs_by_start ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running(hit_ok) ) res.push_back(r) ;
+		for( Req r : Req::s_reqs_by_start() ) if ( (with_zombies||!r.zombie()) && c_req_info(r).running(hit_ok) ) res.push_back(r) ;
 		return res ;
 	}
 

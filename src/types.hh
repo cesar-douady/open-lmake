@@ -75,6 +75,9 @@ using Tokens1 = uint8_t ; // store number of tokens-1 (so tokens can go from 1 t
 // can be tailored to fit neeeds
 using MatchGen = uint8_t ;
 
+// type used to serialize size for ::string, ::vector, etc., 32 bits is already very comfortable
+using SerdesSz = uint32_t ;
+
 // Directories
 // can be tailored to fit neeeds
 #define ADMIN_DIR_S            "LMAKE/"

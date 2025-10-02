@@ -162,7 +162,6 @@ LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CC_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
 
-PCRE_LIB := $(if $(HAS_PCRE),-lpcre2-8)
 Z_LIB    := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
@@ -179,9 +178,10 @@ PY_LINK_FLAGS  = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),
 # /!\ LTO is incompatible with multiple definitions, even in different translation units
 SLURM_CC_FLAGS = $(if $(findstring src/lmakeserver/backends/slurm_api-,$<),$(<:src/lmakeserver/backends/slurm_api-%.cc=-I ext/slurm/%) -fno-lto)
 #
-PY_SO          = $(if $(and $(PYTHON2),$(findstring 2.so,             $@)),-py2)
-MOD_SO         = $(if $(and $(HAS_32) ,$(findstring d$(LD_SO_LIB_32)/,$@)),-m32)
-MOD_O          = $(if $(and $(HAS_32) ,$(findstring -m32,             $@)),-m32)
+PY_SO    = $(if $(PYTHON2) ,$(if $(findstring 2.so,             $@),-py2          ))
+MOD_SO   = $(if $(HAS_32)  ,$(if $(findstring d$(LD_SO_LIB_32)/,$@),-m32          ))
+MOD_O    = $(if $(HAS_32)  ,$(if $(findstring -m32,             $@),-m32          ))
+PCRE_LIB = $(if $(HAS_PCRE),$(if $(findstring d$(LD_SO_LIB_32)/,$@),    ,-lpcre2-8))
 
 COMPILE = $(COMPILE1) $(PY_CC_FLAGS) $(SLURM_CC_FLAGS) $(CC_FLAGS)
 
@@ -434,21 +434,21 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 # compilation
 #
 
-%.i     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
-%-m32.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E -m32         -o $@ $<
-%-py2.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E              -o $@ $<
-%-san.i : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E $(SAN_FLAGS) -o $@ $<
+%.i     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E                                      -o $@ $<
+%-m32.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E               -m32 -DFORCE_32_BITS=1 -o $@ $<
+%-py2.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E                                      -o $@ $<
+%-san.i : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E               $(SAN_FLAGS)           -o $@ $<
 
-%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
-%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm -m32         -o $@ $<
-%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
-%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S -fverbose-asm $(SAN_FLAGS) -o $@ $<
+%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm                        -o $@ $<
+%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm -m32 -DFORCE_32_BITS=1 -o $@ $<
+%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm                        -o $@ $<
+%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S -fverbose-asm $(SAN_FLAGS)           -o $@ $<
 
 COMPILE_O = $(COMPILE) -c -frtti -fPIC
-%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
-%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O) -m32         -o $@ $<
-%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)              -o $@ $<
-%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O) $(SAN_FLAGS) -o $@ $<
+%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                                       -o $@ $<
+%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                -m32 -DFORCE_32_BITS=1 -o $@ $<
+%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                                       -o $@ $<
+%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O)                $(SAN_FLAGS)           -o $@ $<
 
 %.chk   : %.cc
 	@echo $(LINT) $(USER_FLAGS) to $@
@@ -642,6 +642,7 @@ bin/xxhsum : \
 
 BASIC_REMOTE_OBJS := \
 	$(LMAKE_BASIC_OBJS)    \
+	src/re.o               \
 	src/rpc_job_exec.o     \
 	src/autodep/backdoor.o \
 	src/autodep/env.o      \
@@ -653,10 +654,9 @@ AUTODEP_OBJS := \
 AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
 
 REMOTE_OBJS  := \
-	$(BASIC_REMOTE_OBJS)   \
-	src/app.o              \
-	src/re.o               \
-	src/trace.o            \
+	$(BASIC_REMOTE_OBJS) \
+	src/app.o            \
+	src/trace.o          \
 	src/autodep/job_support.o
 
 # XXX : make job_exec compatible with SAN
@@ -740,7 +740,7 @@ _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) src/autod
 %.so :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -shared $(LIB_STDCPP) $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(LINK_LIB)
+	@$(LINK) -shared $(LIB_STDCPP) $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(PCRE_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 #

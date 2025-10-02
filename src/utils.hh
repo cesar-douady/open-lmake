@@ -203,7 +203,6 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 	Unlocked                    // used in Lock to identify when not locked
 ,	None
 // level 1
-,	Audit
 ,	JobExec
 ,	Rule
 ,	StartJob
@@ -215,24 +214,26 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	NodeCrcDate                 // must follow Backend
 ,	Req                         // must follow Backend
 ,	TargetDir                   // must follow Backend
+,	Workload                    // must follow Backend
 // level 4
-,	Autodep1                    // must follow Gil
+,	Autodep                     // must follow Gil
 ,	Gather                      // must follow Gil
 ,	Job                         // must follow Backend, by symetry with Node
 ,	Node                        // must follow NodeCrcDate
 ,	ReqInfo                     // must follow Req
 ,	Time                        // must follow BackendId
 // level 5
-,	Autodep2                    // must follow Autodep1
+,	Record                      // must follow Autodep
 // inner (locks that take no other locks)
+,	Audit
 ,	Codec
 ,	File
 ,	Hash
+,	ReqIdx
 ,	Sge
 ,	Slurm
 ,	SmallId
 ,	Thread
-,	Workload
 // very inner
 ,	Trace                       // allow tracing anywhere (but tracing may call some syscall)
 ,	SyscallTab                  // any syscall may need this mutex, which may occur during tracing
@@ -258,13 +259,13 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 #ifndef NDEBUG
 	struct NoMutex { // check exclusion is guaranteed by caller
 		// services
-		void lock         (MutexLvl&) { SWEAR(!_busy.exchange(true)) ; }
-		void lock_shared  (MutexLvl&) { SWEAR(!_busy               ) ; }
-		void unlock       (MutexLvl&) { _busy = false                ; }
-		void unlock_shared(MutexLvl&) { SWEAR(!_busy               ) ; }
-		void swear_locked (         ) { SWEAR( _busy               ) ; }
+		void lock         (MutexLvl&) { char b = _busy.exchange(t_thread_key) ; SWEAR(!b    ,b    ) ; }
+		void lock_shared  (MutexLvl&) {                                         SWEAR(!_busy,_busy) ; }
+		void unlock       (MutexLvl&) {          _busy = 0                    ;                       }
+		void unlock_shared(MutexLvl&) {                                         SWEAR(!_busy,_busy) ; }
+		void swear_locked (         ) {                                         SWEAR( _busy,_busy) ; }
 	private :
-		::atomic<bool> _busy { false } ;
+		::atomic<char> _busy { 0 } ;
 	} ;
 #else
 	struct NoMutex {
@@ -687,12 +688,14 @@ template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
 	::std::exit(+rc) ;
 }
 
-template<class... As> void dbg( ::string const& title , As const&... args ) {
+template<class... As> void dbg( Fd fd , ::string const& title , As const&... args ) {
 	::string msg = title             ;
 	/**/  (( msg <<' '<< args ),...) ;
 	/**/     msg <<'\n'              ;
-	Fd::Stderr.write(msg) ;
+	fd.write(msg) ;
 }
+template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) { dbg( AcFd(file,{O_WRONLY|O_APPEND|O_CREAT,0666}) , title , args... ) ; }
+template<class... As> void dbg(                                  ::string const& title , As const&... args ) { dbg( Fd::Stderr                                  , title , args... ) ; }
 
 template<::integral I> I random() {
 	::string buf_char = AcFd("/dev/urandom").read(sizeof(I)) ; SWEAR(buf_char.size()==sizeof(I),buf_char.size()) ;
@@ -797,6 +800,7 @@ template<char Delimiter> ::string mk_printable(::string const& s) { // encode s 
 	::string res ; res.reserve(s.size()) ;                          // typically, all characters are printable and nothing to add
 	for( char c : s ) {
 		switch (c) {
+			case 0    : res += "\\0"  ; break ;
 			case '\a' : res += "\\a"  ; break ;
 			case '\b' : res += "\\b"  ; break ;
 			case 0x1b : res += "\\e"  ; break ;
@@ -834,6 +838,7 @@ template<char Delimiter> ::string parse_printable( ::string const& x , size_t&/*
 			pos++ ;
 			throw_unless( pos<x.size() , "\\ at end of string" ) ;
 			switch (x_c[pos]) {
+				case '0'  : res += char(0   ) ; break/*switch*/ ;
 				case 'a'  : res += '\a'       ; break/*switch*/ ;
 				case 'b'  : res += '\b'       ; break/*switch*/ ;
 				case 'e'  : res += char(0x1b) ; break/*switch*/ ;

@@ -16,12 +16,13 @@ namespace Engine {
 	// Req
 	//
 
-	SmallIds<ReqIdx,true/*ThreadSafe*/>         Req::s_small_ids     ;
-	::vector<Req>                               Req::s_reqs_by_start ;
-	Mutex<MutexLvl::Req>                        Req::s_reqs_mutex    ;
-	::vector<ReqData>                           Req::s_store(1)      ;
-	::vector<Req>                               Req::_s_reqs_by_eta  ;
-	::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> Req::_s_zombie_tab   = { true } ; // Req 0 is zombie, all other ones are not
+	SmallIds<ReqIdx,true/*ThreadSafe*/>         Req::s_small_ids      ;
+	Mutex<MutexLvl::Req   >                     Req::s_reqs_mutex     ;
+	Mutex<MutexLvl::ReqIdx>                     Req::s_req_idxs_mutex ;
+	::vector<ReqData>                           Req::s_store(1)       ;
+	::vector<Req>                               Req::_s_reqs_by_start ;
+	::vector<Req>                               Req::_s_reqs_by_eta   ;
+	::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> Req::_s_zombie_tab    = { true } ; // Req 0 is zombie, all other ones are not
 
 	::string& operator+=( ::string& os , Req const r ) { // START_OF_NO_COV
 		return os << "Rq(" << int(+r) << ')' ;
@@ -41,7 +42,9 @@ namespace Engine {
 		data.jobs .set_dflt(self) ;
 		data.nodes.set_dflt(self) ;
 		//
-		s_reqs_by_start.push_back(self) ;
+		{	Lock lock { s_req_idxs_mutex } ;
+			_s_reqs_by_start.push_back(self) ;
+		}
 		_adjust_eta( {}/*eta*/ , true/*push_self*/ ) ;
 		//
 		Trace trace("Rmake",self,s_n_reqs(),data.start_ddate,data.start_pdate) ;
@@ -93,16 +96,16 @@ namespace Engine {
 		}) ;
 		if (self->has_backend) Backend::s_close_req(+self) ;
 		// erase req from sorted vectors by physically shifting reqs that are after
-		Idx n_reqs = s_n_reqs() ;
-		for( Idx i : iota( self->idx_by_start , n_reqs-1 ) ) {
-			s_reqs_by_start[i]               = s_reqs_by_start[i+1] ;
-			s_reqs_by_start[i]->idx_by_start = i                    ;
-		}
-		s_reqs_by_start.pop_back() ;
-		{	Lock lock{s_reqs_mutex} ;
+		{	Lock lock{s_req_idxs_mutex} ;
+			Idx n_reqs = s_n_reqs() ;
+			for( Idx i : iota( self->idx_by_start , n_reqs-1 ) ) {
+				_s_reqs_by_start[i]               = _s_reqs_by_start[i+1] ;
+				_s_reqs_by_start[i]->idx_by_start = i                     ; // adjust
+			}
+			_s_reqs_by_start.pop_back() ;
 			for( Idx i : iota( self->idx_by_eta , n_reqs-1 ) ) {
 				_s_reqs_by_eta[i]             = _s_reqs_by_eta[i+1] ;
-				_s_reqs_by_eta[i]->idx_by_eta = i                   ;
+				_s_reqs_by_eta[i]->idx_by_eta = i                   ;       // adjust
 			}
 			_s_reqs_by_eta.pop_back() ;
 		}
@@ -125,9 +128,9 @@ namespace Engine {
 	void Req::_adjust_eta( Pdate eta , bool push_self ) {
 			Trace trace("R_adjust_eta",self->eta,eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
-			bool changed    = false            ;
-			Lock lock       { s_reqs_mutex }   ;
-			Idx  idx_by_eta = self->idx_by_eta ;
+			bool changed    = false              ;
+			Lock lock       { s_req_idxs_mutex } ;
+			Idx  idx_by_eta = self->idx_by_eta   ;
 			//
 			if (+eta     ) self->eta = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
 			if (push_self) _s_reqs_by_eta.push_back(self) ;
@@ -361,8 +364,6 @@ namespace Engine {
 	//
 	// ReqData
 	//
-
-	Mutex<MutexLvl::Audit> ReqData::_s_audit_mutex ;
 
 	void ReqData::clear() {
 		Trace trace("clear",job) ;

@@ -159,7 +159,7 @@ namespace Py {
 		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return self ; }
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return self ; }
 		//
-		template<IsStream T> void serdes(T& s) ;
+		template<IsStream S> void serdes(S& s) ;
 		// accesses
 		bool operator+() const { return bool(ptr) ; }
 		//
@@ -548,9 +548,9 @@ namespace Py {
 		using Base::Base ;
 		Ptr(NewType) : Base{ ( Gil::s_swear_locked() , PyDict_New() ) } {}
 		//
-		template<IsStream T> void serdes(T& s) {
+		template<IsStream S> void serdes(S& s) {
 			// marshal seems very slow to fail, so avoid calling it on most common cases known to fail
-			if (!IsIStream<T>)
+			if (!IsIStream<S>)
 				for( auto const& [py_k,py_v] : *self ) throw_if( py_v.template is_a<Callable>() , "cannot serialize callables" ) ; // XXX? : why is template necessary with gcc11 ?
 			Base::serdes(s) ;
 		}
@@ -723,12 +723,12 @@ namespace Py {
 		s_loads = marshal->get_attr<Callable>("loads").boost() ; // .
 	}
 
-	template<IsStream T> void Ptr<Object>::serdes(T& s) {
+	template<IsStream S> void Ptr<Object>::serdes(S& s) {
 		s_init() ;
 		::string buf ;
-		if (!IsIStream<T>) buf  = *s_dumps->call<Bytes>(*self)    ;
+		if (!IsIStream<S>) buf  = *s_dumps->call<Bytes>(*self)    ;
 		::serdes(s,buf) ;
-		if ( IsIStream<T>) self = s_loads->call(*Ptr<Bytes>(buf)) ;
+		if ( IsIStream<S>) self = s_loads->call(*Ptr<Bytes>(buf)) ;
 	}
 
 	//

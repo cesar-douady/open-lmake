@@ -35,7 +35,7 @@ namespace Codec {
 	}
 
 	inline ::string decode( ::string const& file , ::string const& ctx , ::string const& code ) {
-		LockedFd lock { file } ;                                                                  // in case lmake and lencode/ldecode outside lmake run simultaneously
+		LockedFd lock { file , false/*exclusive*/ } ;                                             // in case lmake and lencode/ldecode outside lmake run simultaneously
 		for( ::string const& line : AcFd(file,true/*err_ok*/).read_lines() ) {
 			::string ctx_  ;
 			::string code_ ;
@@ -47,7 +47,7 @@ namespace Codec {
 	}
 
 	inline ::string encode( ::string const& file , ::string const& ctx , ::string const& val ) {
-		LockedFd lock { file } ;                                                                 // in case lmake and lencode/ldecode outside lmake run simultaneously
+		LockedFd lock { file , false/*exclusive*/ } ;                                            // in case lmake and lencode/ldecode outside lmake run simultaneously
 		for( ::string const& line : AcFd(file,true/*err_ok*/).read_lines() ) {
 			::string ctx_ ;
 			::string code ;

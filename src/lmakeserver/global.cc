@@ -16,6 +16,8 @@ namespace Engine {
 	bool                                                    g_writable     = false ;
 	Kpi                                                     g_kpi          ;
 
+	static Mutex<MutexLvl::Audit> _g_audit_mutex ;
+
 	::string _audit_indent( ::string&& t , DepDepth l , char sep ) {
 		if (!l) {
 			SWEAR( !sep || sep=='\t' ) ; // cannot have a sep if we have no room to put it
@@ -40,6 +42,7 @@ namespace Engine {
 		/**/       report_txt += '\n'                                         ;
 		//
 		ReqRpcReplyProc proc = err ? ReqRpcReplyProc::Stderr : ReqRpcReplyProc::Stdout ;
+		Lock            lock { _g_audit_mutex }                                        ;
 		try                       { OMsgBuf().send( out , ReqRpcReply( proc , _audit_indent(::move(report_txt),lvl,sep) ) ) ; } // if we lose connection, there is nothing much we ...
 		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                          } // ... can do about it (hoping that we can still trace)
 		if (+log)
@@ -48,11 +51,13 @@ namespace Engine {
 	}
 
 	void audit_file( Fd out , ::string&& file ) {
+		Lock lock { _g_audit_mutex } ;
 		try                       { OMsgBuf().send( out , ReqRpcReply( ReqRpcReplyProc::File , ::move(file) ) ) ; } // if we lose connection, there is nothing much we ...
 		catch (::string const& e) { Trace("audit_file","lost_client",e) ;                                         } // ... can do about it (hoping that we can still trace)
 	}
 
 	void audit_status( Fd out , Fd log , ReqOptions const& , Rc rc ) {
+		Lock lock { _g_audit_mutex } ;
 		try                       { OMsgBuf().send( out , ReqRpcReply( ReqRpcReplyProc::Status , rc ) ) ; } // if we lose connection, there is nothing much we ...
 		catch (::string const& e) { Trace("audit_status","lost_client",e) ;                               } // ... can do about it (hoping that we can still trace)
 		if (+log)
@@ -67,6 +72,7 @@ namespace Engine {
 		/**/                                          msg << "kill"                                                           ;
 		::string report_txt  = color_pfx(ro,Color::Note) + msg + color_sfx(ro,Color::Note) +'\n' ;
 		//
+		Lock lock { _g_audit_mutex } ;
 		try                       { OMsgBuf().send( out, ReqRpcReply( ReqRpcReplyProc::Stdout , ::move(report_txt) ) ) ; } // if we lose connection, there is nothing much we ...
 		catch (::string const& e) { Trace("audit_ctrl_c","lost_client",e) ;                                              } // ... can do about it (hoping that we can still trace)
 		if (+log)

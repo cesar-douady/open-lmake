@@ -31,8 +31,10 @@ if __name__!='__main__' :
 	class CatPy(Cat,PyRule) :
 		target = '{File1}+{File2}_py'
 		def cmd() :
+			# avoid depending on locale as deps are carefully analyzed
+			out = open(1,'wb')
 			for fn in (FIRST,SECOND) :
-				with open(fn) as f : print(f.read(),end='')
+				with open(fn,'rb') as f : out.write(f.read())
 
 	class Dut(Rule) :
 		stderr_ok = True

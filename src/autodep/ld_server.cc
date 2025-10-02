@@ -9,8 +9,8 @@
 #include "ld_server.hh"
 #include "syscall_tab.hh"
 
-thread_local bool                      AutodepLock::t_active = false ;
-/**/         Mutex<MutexLvl::Autodep1> AutodepLock::_s_mutex ;
+thread_local bool                     AutodepLock::t_active = false ;
+/**/         Mutex<MutexLvl::Autodep> AutodepLock::_s_mutex ;
 
 inline bool started() { return AutodepLock::t_active ; } // no auto-start for server
 

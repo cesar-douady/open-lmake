@@ -43,10 +43,10 @@ namespace Backends {
 		os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
 		os <<','<< wl._running_tokens                                          ;
 		//
-		os <<",[" ;
 		First first ;
-		for( Req r : Req::s_reqs_by_start ) os <<first("",",")<< r <<':'<< wl._queued_cost[+r] ;
-		os <<']' ;
+		/**/                                  os <<",["                                          ;
+		for( Req r : Req::s_reqs_by_start() ) os <<first("",",")<< r <<':'<< wl._queued_cost[+r] ;
+		/**/                                  os <<']'                                           ;
 		//
 		return os <<')' ;
 	}                                                                            // END_OF_NO_COV

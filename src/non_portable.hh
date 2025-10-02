@@ -9,9 +9,9 @@
 
 static constexpr char NpErrnoSymbolName[] = "__errno_location" ; // XXX! : find a way to stick to documented interfaces
 
-#if __x86_64__ || __aarch64__
+#if __x86_64__ || __aarch64__ || __s390x__
 	static constexpr uint8_t NpWordSz = 64 ;
-#elif __i386__ || __arm__
+#elif __i386__ || __arm__     || __s390__
 	static constexpr uint8_t NpWordSz = 32 ;
 #endif
 

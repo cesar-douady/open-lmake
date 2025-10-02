@@ -48,16 +48,21 @@
 
 using namespace Disk ;
 
+struct LockRecord {                             // ensure no reporting clash
+	// statics
+	static void s_unlock() { Record::s_mutex.unlock(::ref(MutexLvl::None)) ; }
+	// cxtors & casts
+	LockRecord() : _lock{Record::s_mutex} {}
+	// data
+	Lock<Mutex<MutexLvl::Record>> _lock ;
+} ;
 #if LD_AUDIT
-	struct SaveErrno {
-		void restore_errno() {} // our errno is not the same as user errno, so nothing to do
-	} ;
+	struct LockRecordAndErrno : LockRecord {} ; // our errno is not the same as user errno, so nothing to do
 #else
-	struct SaveErrno {
+	struct LockRecordAndErrno : LockRecord {
 		// cxtors & casts
-		SaveErrno() { errno_ = errno  ; }
-		// services
-		void restore_errno() { errno  = errno_ ; }
+		LockRecordAndErrno () { errno_ = errno  ; }
+		~LockRecordAndErrno() { errno  = errno_ ; }
 		// data
 		int errno_ ;
 	} ;
@@ -108,8 +113,7 @@ extern "C" {
 	#endif
 }
 
-static              Mutex<MutexLvl::Autodep2> _g_mutex ;         // ensure exclusivity between threads
-static thread_local bool                      _t_loop  = false ; // prevent recursion within a thread
+static thread_local bool _t_loop = false ; // prevent recursion within a thread
 
 // User program may have global variables whose cxtor/dxtor do accesses.
 // In that case, they may come before our own Audit is constructed if declared global (in the case of LD_PRELOAD).
@@ -124,39 +128,36 @@ Record& auditor() {
 	return *s_res ;
 }
 
-template<class Action,int NPaths> struct AuditAction : SaveErrno,Action {
+template<class Action,int NPaths> struct AuditAction : Action {
 	// cxtors & casts
 	// errno must be protected from our auditing actions in cxtor and operator()
 	// more specifically, errno must be the original one before the actual call to libc
-	// and must be the one after the actual call to libc when auditing code finally leave
-	// SaveErrno contains save_errno in its cxtor
-	// so here, errno must be restored at the end of cxtor
-	template<class... A> AuditAction(                                    A&&... args) requires(NPaths==0) : Action{auditor(),                      ::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(char*          p ,                  A&&... args) requires(NPaths==1) : Action{auditor(),Record::WPath(p)     ,::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(Record::Path&& p ,                  A&&... args) requires(NPaths==1) : Action{auditor(),::move(p )           ,::forward<A>(args)... } { restore_errno() ; }
-	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NPaths==2) : Action{auditor(),::move(p1),::move(p2),::forward<A>(args)... } { restore_errno() ; }
+	// and must be the one after the actual call to libc when auditing code finally leaves
+	// using a temporary LockRecordAndErrno during the call to the Action cxtor ensure errno is saved during its execution because of temporaries life time extension
+	template<class... A> AuditAction(                                    A&&... args) requires(NPaths==0) : Action{(LockRecordAndErrno(),auditor()),                      ::forward<A>(args)... } {}
+	template<class... A> AuditAction(char*          p ,                  A&&... args) requires(NPaths==1) : Action{(LockRecordAndErrno(),auditor()),Record::WPath(p)     ,::forward<A>(args)... } {}
+	template<class... A> AuditAction(Record::Path&& p ,                  A&&... args) requires(NPaths==1) : Action{(LockRecordAndErrno(),auditor()),::move(p )           ,::forward<A>(args)... } {}
+	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NPaths==2) : Action{(LockRecordAndErrno(),auditor()),::move(p1),::move(p2),::forward<A>(args)... } {}
 	// services
-	template<class T> T operator()(T res) { return Action::operator()(auditor(),res) ; }
+	template<class T> T operator()(T res) { LockRecordAndErrno lock ; return Action::operator()(auditor(),res) ; }
 } ;
-//                                           NPaths
-using Chdir    = AuditAction<Record::Chdir   ,1   > ;
-using Chmod    = AuditAction<Record::Chmod   ,1   > ;
-using Chroot   = AuditAction<Record::Chroot  ,1   > ;
-using Glob     = AuditAction<Record::Glob    ,0   > ;
-using Hide     = AuditAction<Record::Hide    ,0   > ;
-using Mkdir    = AuditAction<Record::Mkdir   ,1   > ;
-using Lnk      = AuditAction<Record::Lnk     ,2   > ;
-using Mount    = AuditAction<Record::Mount   ,2   > ;
-using Open     = AuditAction<Record::Open    ,1   > ;
-using Read     = AuditAction<Record::Read    ,1   > ;
-using ReadDir  = AuditAction<Record::ReadDir ,1   > ;
-using Readlink = AuditAction<Record::Readlink,1   > ;
-using Rename   = AuditAction<Record::Rename  ,2   > ;
-using Solve    = AuditAction<Record::Solve   ,1   > ;
-using Stat     = AuditAction<Record::Stat    ,1   > ;
-using Symlink  = AuditAction<Record::Symlink ,1   > ;
-using Unlnk    = AuditAction<Record::Unlnk   ,1   > ;
-using WSolve   = AuditAction<Record::WSolve  ,1   > ;
+//                                                      NPaths
+using Chdir    = AuditAction<Record::Chdir              ,1   > ;
+using Chmod    = AuditAction<Record::Chmod              ,1   > ;
+using Chroot   = AuditAction<Record::Chroot             ,1   > ;
+using Glob     = AuditAction<Record::Glob               ,0   > ;
+using Hide     = AuditAction<Record::Hide               ,0   > ;
+using Mkdir    = AuditAction<Record::Mkdir              ,1   > ;
+using Lnk      = AuditAction<Record::Lnk                ,2   > ;
+using Mount    = AuditAction<Record::Mount              ,2   > ;
+using Open     = AuditAction<Record::Open               ,1   > ;
+using ReadDir  = AuditAction<Record::ReadDir            ,1   > ;
+using Readlink = AuditAction<Record::Readlink           ,1   > ;
+using Rename   = AuditAction<Record::Rename             ,2   > ;
+using Solve    = AuditAction<Record::Solve<true/*Send*/>,1   > ;
+using Stat     = AuditAction<Record::Stat               ,1   > ;
+using Symlink  = AuditAction<Record::Symlink            ,1   > ;
+using Unlnk    = AuditAction<Record::Unlnk              ,1   > ;
 
 #if NEED_ELF
 
@@ -164,10 +165,11 @@ using WSolve   = AuditAction<Record::WSolve  ,1   > ;
 	// Dlopen
 	//
 
-	struct _Dlopen : Record::Read {
+	struct _Dlopen : Record::Read<true/*Send*/> {
+		using Base = Record::Read<true/*Send*/> ;
 		// cxtors & casts
 		_Dlopen() = default ;
-		_Dlopen( Record& r , const char* file , Comment c ) : Record::Read{search_elf(r,file,c)} {}
+		_Dlopen( Record& r , const char* file , Comment c ) : Base{search_elf(r,file,c)} {}
 		// services
 	} ;
 	using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
@@ -179,9 +181,10 @@ using WSolve   = AuditAction<Record::WSolve  ,1   > ;
 //
 
 #if NEED_ELF
-	struct _Exec : Record::Exec {                                                            // even if path is simple, it may load non-simple libraries, so dont use ExecCS
+	template<bool Send> struct _Exec : Record::Exec<false/*Send*/,false/*ChkSimple*/> {      // even if path is simple, it may load non-simple libraries, so dont use ExecCS
+		using Base = Record::Exec<false/*Send*/,false/*ChkSimple*/> ;
 		_Exec() = default ;
-		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Record::Exec{r,::move(path),no_follow,c} {
+		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Base{r,::move(path),no_follow,c} {
 			static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
 			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                            // -1 to account of terminating null
 			//
@@ -189,48 +192,48 @@ using WSolve   = AuditAction<Record::WSolve  ,1   > ;
 			for( llp=envp ; *llp ; llp++ ) if (::strncmp( *llp , Llpe , LlpeSz )==0) break ;
 			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                      // pass value after the LD_LIBRARY_PATH= prefix
 			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                      // /!\ dont add LlpeSz to nullptr
+			if (Send) send_report(r) ;
 		}
 	} ;
 #else
-	struct _Exec : Record::ExecCS {
+	template<bool Send> struct _Exec : Record::Exec<Send,true/*ChkSimple*/> {
+		using Base = Record::Exec<Send,true/*ChkSimple*/> ;
 		_Exec() = default ;
-		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Record::ExecCS{r,::move(path),no_follow,c} {}
+		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Base{r,::move(path),no_follow,c} {}
 	} ;
 #endif
-using Exec = AuditAction<_Exec,1/*NPaths*/> ;
+using Exec = AuditAction<_Exec<true/*Send*/>,1/*NPaths*/> ;
 
-struct _Execp : _Exec {
+struct _Execp : _Exec<false/*Send*/> {
+	using Base = _Exec<false/*Send*/> ;
 	// search executable file in PATH
 	_Execp() = default ;
 	_Execp( Record& r , const char* file , bool /*no_follow*/ , const char* const envp[] , Comment c ) {
-		if (!file) return ;
-		//
-		if (::strchr(file,'/')) {                                                 // if file contains a /, no search is performed
-			static_cast<_Exec&>(self) = _Exec(r,file,false/*no_follow*/,envp,c) ;
-			return ;
-		}
-		//
-		::string p = get_env("PATH") ;
-		if (!p) {                                                                 // gather standard path if path not provided
-			size_t n = ::confstr(_CS_PATH,nullptr/*buf*/,0/*size*/) ;
-			p.resize(n) ;
-			::confstr(_CS_PATH,p.data(),n) ;
-			SWEAR(p.back()==0) ;
-			p.pop_back() ;
-		}
-		//
-		for( size_t pos=0 ;;) {
-			size_t   end       = p.find(':',pos)                         ;
-			size_t   len       = (end==Npos?p.size():end)-pos            ;
-			::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
-			Record::Read(r,full_file,false/*no_follow*/,true/*keep_real*/,c) ;
-			if (is_exe(full_file,false/*no_follow*/)) {
-				static_cast<_Exec&>(self) = _Exec(r,full_file,false/*no_follow*/,envp,c) ;
-				return ;
+		if (+file) {
+			if (::strchr(file,'/')) {                                               // if file contains a /, no search is performed
+				static_cast<Base&>(self) = Base(r,file,false/*no_follow*/,envp,c) ;
+			} else {
+				::string p = get_env("PATH") ;
+				if (!p) {                                                           // gather standard path if path not provided
+					size_t n = ::confstr(_CS_PATH,nullptr/*buf*/,0/*size*/) ;
+					p.resize(n) ;
+					::confstr(_CS_PATH,p.data(),n) ;
+					SWEAR(p.back()==0) ;
+					p.pop_back() ;
+				}
+				//
+				for( size_t pos=0 ;;) {
+					size_t   end       = p.find(':',pos)                         ;
+					size_t   len       = (end==Npos?p.size():end)-pos            ;
+					::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
+					Record::Read<false/*Send*/>(r,full_file,false/*no_follow*/,true/*keep_real*/,c) ;
+					if (is_exe(full_file,false/*no_follow*/)) { static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,c) ; break ; }
+					if (end==Npos                           )                                                                            break ;
+					pos = end+1 ;
+				}
 			}
-			if (end==Npos) return ;
-			pos = end+1 ;
 		}
+		send_report(r) ;
 	}
 } ;
 using Execp = AuditAction<_Execp,0/*NPaths*/> ;
@@ -272,14 +275,14 @@ struct Fopen : AuditAction<Record::Open,1/*NPaths*/> {
 // Mkstemp
 //
 
-struct Mkstemp : WSolve {
-	using Base = AuditAction<Record::WSolve,1/*NPaths*/> ;
+struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
+	using Base = AuditAction<Record::Mkstemp,1/*NPaths*/> ;
 	Mkstemp( char* t , int sl , Comment c ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*create*/ , c } , tmpl{t} , sfx_len{sl} , comment{c} {}
 	Mkstemp( char* t ,          Comment c ) : Mkstemp(t,0,c) {}
 	int operator()(int fd) {
 		// in case of success, tmpl is modified to contain the file that was actually opened, and it was called with file instead of tmpl
 		if (file!=tmpl) ::memcpy( tmpl+::strlen(tmpl)-sfx_len-6 , file+::strlen(file)-sfx_len-6 , 6 ) ;
-		if (fd>=0     ) Record::Open(auditor(),file,O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW,comment)(auditor(),fd) ;
+		if (fd>=0     ) Open( static_cast<const char*>(file) , O_CREAT|O_WRONLY|O_TRUNC|O_NOFOLLOW , comment )(fd) ;
 		return Base::operator()(fd) ;
 	}
 	// data
@@ -330,26 +333,26 @@ struct Mkstemp : WSolve {
 		ORIG(libcall) ;                                                                      \
 		if ( UNLIKELY(_t_loop) || !LIKELY(started()) || LIKELY(cond) ) return (*orig) args ; \
 		SaveTloop sav_t_loop ;                                                               \
-		Lock      lock       { _g_mutex }
 	// do a first check to see if it is obvious that nothing needs to be done
 	#define HDR0(libcall,            args) HDR( libcall , false                                                    , args )
 	#define HDR1(libcall,path,       args) HDR( libcall , Record::s_is_simple(path )                               , args )
 	#define HDR2(libcall,path1,path2,args) HDR( libcall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
+	#define HDR_OPEN(libcall,path,flags,args,err_val) \
+		HDR1(libcall,path,args) ;                                                                                          \
+		if ( ( ( !((flags)&O_PATH) && ((flags)&O_ACCMODE)!=O_RDONLY ) || ((flags)&O_TRUNC) ) ) _NO_SERVER(libcall,err_val)
 	//
 	// macro for libcall that are forbidden in server when recording deps
 	#if IN_SERVER
-		#define NO_SERVER_(libcall,err_val) if (started()) { \
+		#define _NO_SERVER(libcall,err_val) if (started()) { \
+			LockRecord lock ;                                                                        \
 			*Record::s_deps_err += #libcall " is forbidden during dynamic attribute computation\n" ; \
 			errno = ENOSYS ;                                                                         \
 			return err_val ;                                                                         \
 		}
-		#define NO_SERVER(libcall) NO_SERVER_(libcall,-1)
-		#define HDR_OPEN(libcall,path,flags,args,err_val) \
-			HDR1(libcall,path,args) ;                                                                                          \
-			if ( ( ( !((flags)&O_PATH) && ((flags)&O_ACCMODE)!=O_RDONLY ) || ((flags)&O_TRUNC) ) ) NO_SERVER_(libcall,err_val)
+		#define NO_SERVER(libcall) _NO_SERVER(libcall,-1)
 	#else
-		#define NO_SERVER(libcall) {}
-		#define HDR_OPEN(libcall,path,flags,args,err_val) HDR1(libcall,path,args)
+		#define _NO_SERVER(libcall,err_val) {}
+		#define NO_SERVER( libcall        ) {}
 	#endif
 
 	#define CC const char
@@ -373,33 +376,35 @@ struct Mkstemp : WSolve {
 		NO_SERVER(chroot) ;
 		Chroot r{path,Comment::chroot} ;
 		return r(orig(path)) ;
-		}
+	}
 
 	// clone
 	// cf fork about why this wrapper is necessary
 	static int (*_clone_fn)(void*) ;                                                                                            // variable to hold actual function to call
 	static int _call_clone_fn(void* arg) {
+		// /!\ dont touch errno here as we are not protected
 		SWEAR(!_t_loop) ;
 		// contrarily to fork, clone does not proceed but calls a function and the lock must be released in both parent and child (we are the only thread here)
-		_g_mutex.unlock(::ref(MutexLvl::None)) ;
+		LockRecord::s_unlock() ;
 		return _clone_fn(arg) ;
 	}
 	int clone( int (*fn)(void*) , void *stack , int flags , void *arg , ... ) NE {
-		va_list args ;
-		va_start(args,arg) ;
-		pid_t* parent_tid = va_arg(args,pid_t*) ;
-		void * tls        = va_arg(args,void *) ;
-		pid_t* child_tid  = va_arg(args,pid_t*) ;
-		va_end(args) ;
+		// /!\ dont touch errno here as we are not protected
+		va_list args       ; va_start(args,arg   ) ;
+		pid_t*  parent_tid = va_arg  (args,pid_t*) ;
+		void *  tls        = va_arg  (args,void *) ;
+		pid_t*  child_tid  = va_arg  (args,pid_t*) ;
+		/**/                 va_end  (args       ) ;
 		//
 		ORIG(clone) ;
 		if ( _t_loop || !started() || flags&CLONE_VM ) return (*orig)(fn,stack,flags,arg,parent_tid,tls,child_tid) ;            // if flags contains CLONE_VM, lock is not duplicated : nothing to do
 		NO_SERVER(clone) ;
-		Lock lock{_g_mutex} ;                                                                                                   // no need to set _t_loop as clone calls no other piggy-backed function
-		_clone_fn = fn ;                                                                                                        // _g_mutex is held, so there is no risk of clash
+		LockRecord lock ;                                                                                                       // no need to set _t_loop as clone calls no other piggy-backed function
+		_clone_fn = fn ;                                                                                                        // Record::s_mutex is held, so there is no risk of clash
 		return (*orig)(_call_clone_fn,stack,flags,arg,parent_tid,tls,child_tid) ;
 	}
 	int __clone2( int (*fn)(void*) , void *stack , size_t stack_size , int flags , void *arg , ... ) {
+		// /!\ dont touch errno here as we are not protected
 		va_list args ;
 		va_start(args,arg) ;
 		pid_t* parent_tid = va_arg(args,pid_t*) ;
@@ -408,13 +413,12 @@ struct Mkstemp : WSolve {
 		va_end(args) ;
 		//
 		ORIG(__clone2) ;
-		if ( _t_loop || !started() || flags&CLONE_VM ) return (*orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf clone
-		Lock lock{_g_mutex} ;                                                                                                   // cf clone
-		//
+		if ( _t_loop || !started() || flags&CLONE_VM ) return (*orig)(fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ; // cf corresponding comment in clone
 		NO_SERVER(__clone2) ;
-		_clone_fn = fn ;                                                                                                        // cf clone
+		LockRecord lock ;                                                                                                       // .
+		_clone_fn = fn ;                                                                                                        // .
 		return (*orig)(_call_clone_fn,stack,stack_size,flags,arg,parent_tid,tls,child_tid) ;
-		}
+	}
 
 	#if !IN_SERVER
 		// close
@@ -463,7 +467,6 @@ struct Mkstemp : WSolve {
 		if (started()) {                                         \
 			NO_SERVER(libcall) ;                                 \
 			SaveTloop sav_t_loop ;                               \
-			Lock      lock       { _g_mutex } ;                  \
 			Exec( path , no_follow , envp , Comment::libcall ) ; \
 		}
 	//                                                                                                    no_follow
@@ -503,10 +506,10 @@ struct Mkstemp : WSolve {
 	//     if another thread has the lock while we fork => child will dead lock as it has the lock but not the thread
 	//     a simple way to stay coherent is to take the lock before fork and to release it after both in parent & child
 	// vfork does not duplicate its memory and need no special treatment (as with clone with the CLONE_VM flag)
-	pid_t fork       (       ) NE { HDR0(fork       ,(   )) ; NO_SERVER(fork       ) ; return orig  (   ) ; }
-	pid_t __fork     (       ) NE { HDR0(__fork     ,(   )) ; NO_SERVER(__fork     ) ; return orig  (   ) ; }
-	pid_t __libc_fork(       ) NE { HDR0(__libc_fork,(   )) ; NO_SERVER(__libc_fork) ; return orig  (   ) ; }
-	int   system     (CC* cmd)    { HDR0(system     ,(cmd)) ; NO_SERVER(system     ) ; return orig  (cmd) ; } // actually does a fork
+	pid_t fork       (       ) NE { HDR0(fork       ,(   )) ; NO_SERVER(fork       ) ; LockRecord lock ; return orig(   ) ; }
+	pid_t __fork     (       ) NE { HDR0(__fork     ,(   )) ; NO_SERVER(__fork     ) ; LockRecord lock ; return orig(   ) ; }
+	pid_t __libc_fork(       ) NE { HDR0(__libc_fork,(   )) ; NO_SERVER(__libc_fork) ; LockRecord lock ; return orig(   ) ; }
+	int   system     (CC* cmd)    { HDR0(system     ,(cmd)) ; NO_SERVER(system     ) ; LockRecord lock ; return orig(cmd) ; } // actually does a fork
 
 	// link                                                                                                                          no_follow
 	int link  (       CC* op,       CC* np      ) NE { HDR2(link  ,op,np,(   op,   np  )) ; NO_SERVER(link  ) ; Lnk r{    op ,    np ,false   ,Comment::link  } ; return r(orig(   op,   np  )) ; }
@@ -530,14 +533,14 @@ struct Mkstemp : WSolve {
 	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) {
 		HDR( mount , !(f&MS_BIND) || (Record::s_is_simple(sp)&&Record::s_is_simple(tp)) , (sp,tp,fst,f,d) ) ;
 		NO_SERVER(mount) ;
-		Mount r{sp,tp,Comment::mount} ;
+		Mount r { sp , tp , Comment::mount } ;
 		return r(orig(sp,tp,fst,f,d)) ;
 		}
 
 	// name_to_handle_at
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
 		HDR1( name_to_handle_at , p , (d,p,h,mount_id,f) ) ;
-		Open r{{d,p},f,Comment::name_to_handle_at} ;
+		Open r { {d,p} , f , Comment::name_to_handle_at } ;
 		return r(orig(d,p,h,mount_id,f)) ;
 	}
 
@@ -562,7 +565,7 @@ struct Mkstemp : WSolve {
 	int creat64          (      CC* p,mode_t m ) {       HDR_OPEN(creat64          ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat64          } ; return r(orig(  p,  m)) ; }
 	#undef CWT
 	#undef MOD
-	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,false/*create*/,Comment::opendir  } ; return r(orig(p)) ; }
+	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,false/*create*/,Comment::opendir} ; return r(orig(p)) ; }
 
 	// readlink
 	#define RL Readlink
@@ -755,18 +758,14 @@ struct Mkstemp : WSolve {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void*     descr_ctx = nullptr ;
-		SaveErrno audit_ctx ;                                                                                   // save user errno when required
-		//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (descr.entry) descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ;
-		//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		audit_ctx.restore_errno() ;
-		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		//                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.entry) { LockRecordAndErrno lock ; descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ; }
+		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv^v^v^v^v^v^v^v^v^v^v^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
-		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (descr.exit) return descr.exit( descr_ctx , auditor() , 0/*pid*/ , res ) ;
-		else            return res                                                  ;
-		//                     ^^^
+		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.exit) { LockRecordAndErrno lock ; return descr.exit( descr_ctx , auditor() , 0/*pid*/ , res ) ; }
+		else                                return res                                                          ;
+		//                                         ^^^
 	}
 
 	#undef NO_SERVER

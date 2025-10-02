@@ -25,6 +25,7 @@ Following symbolic links would inevitably lead to files being read (to check if 
 
 .SH OPTIONS
 .LP
+Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
 Item(B(-W),B(--write))           Report an actual write, not only target flags. Default is to only alter flags.
 Item(B(-z),B(--dir))             Specify a directory for use with I(--list).
 Item(B(-l),B(--list))            Print list of currently generated targets to stdout.

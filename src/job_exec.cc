@@ -319,26 +319,27 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 
 int main( int argc , char* argv[] ) {
 	Pdate        start_overhead { New } ;
-	ServerSockFd server_fd      { New } ;              // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
-	uint64_t     upload_key     = 0     ;              // key used to identify temporary data uploaded to the cache
+	ServerSockFd server_fd      { New } ;                // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	uint64_t     upload_key     = 0     ;                // key used to identify temporary data uploaded to the cache
 	//
-	swear_prod(argc==8,argc) ;                         // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	swear_prod(argc==8,argc) ;                           // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
 	g_service_start   =                     argv[1]  ;
 	g_service_mngt    =                     argv[2]  ;
 	g_service_end     =                     argv[3]  ;
 	g_seq_id          = from_string<SeqId >(argv[4]) ;
 	g_job             = from_string<JobIdx>(argv[5]) ;
-	g_phy_repo_root_s =                     argv[6]  ; // passed early so we can chdir and trace early
+	g_phy_repo_root_s =                     argv[6]  ;   // passed early so we can chdir and trace early
 	g_trace_id        = from_string<SeqId >(argv[7]) ;
 	//
-	g_repo_root_s = new ::string{g_phy_repo_root_s} ;  // no need to search for it
+	g_repo_root_s = new ::string{g_phy_repo_root_s} ;    // no need to search for it
 	//
 	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",g_trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = {.status=Status::EarlyErr} ; // prepare to return an error, so we can goto End anytime
-	end_report.end_date = start_overhead             ;
-	g_exec_trace        = &end_report.exec_trace     ;
+	end_report.digest   = { .status=Status::EarlyErr } ; // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                       ; // prepare to return an error, so we can goto End anytime
+	end_report.end_date = start_overhead               ;
+	g_exec_trace        = &end_report.exec_trace       ;
 	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
 	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                              // START_OF_NO_COV defensive programming
@@ -533,10 +534,14 @@ int main( int argc , char* argv[] ) {
 		}
 		g_gather.cmd_line = cmd_line(cmd_env) ;
 		Status status ;
-		//                                   vvvvvvvvvvvvvvvvvvvvv
-		try                       { status = g_gather.exec_child() ;            }
-		//                                   ^^^^^^^^^^^^^^^^^^^^^
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                                                         // NO_COV defensive programming
+		try { //!    vvvvvvvvvvvvvvvvvvvvv
+			status = g_gather.exec_child() ;
+			//       ^^^^^^^^^^^^^^^^^^^^^
+		} catch (::string const& e) {                                                                                                     // START_OF_NO_COV defensive programming
+			if (g_gather.started) end_report.digest.status = Status::Err ;                                                                // not early as soon as job is started
+			end_report.msg_stderr.msg << "open-lmake error : " << e ;
+			goto End ;
+		}                                                                                                                                 // END_OF_NO_COV
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                              // XXX> : suppress when CentOS7 bug is fixed

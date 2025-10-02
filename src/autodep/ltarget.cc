@@ -14,6 +14,7 @@ enum class Key : uint8_t { None } ;
 
 enum class Flag : uint8_t {
 	Dir
+,	FollowSymlinks
 ,	List
 ,	Regexpr
 ,	Write
@@ -34,10 +35,11 @@ enum class Flag : uint8_t {
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::Dir     , { .short_name='z' , .has_arg=true , .doc="dir in which to list targets"         } }
-	,	{ Flag::List    , { .short_name='l' ,                 .doc="list targets"                         } }
-	,	{ Flag::Regexpr , { .short_name='X' ,                 .doc="args are regexprs"                    } }
-	,	{ Flag::Write   , { .short_name='W' ,                 .doc="report a write, in addition to flags" } }
+		{ Flag::Dir            , { .short_name='z' , .has_arg=true , .doc="dir in which to list targets"         } }
+	,	{ Flag::FollowSymlinks , { .short_name='L' ,                 .doc="Logical view, follow symolic links" } }
+	,	{ Flag::List           , { .short_name='l' ,                 .doc="list targets"                         } }
+	,	{ Flag::Regexpr        , { .short_name='X' ,                 .doc="args are regexprs"                    } }
+	,	{ Flag::Write          , { .short_name='W' ,                 .doc="report a write, in addition to flags" } }
 	//
 	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="if files turn out to be deps, make them critical"                                          } }
 	,	{ Flag::Essential     , { .short_name=TflagChars     [+Tflag     ::Essential  ].second , .doc="show when generating user oriented graphs"                                                 } }
@@ -63,8 +65,8 @@ int main( int argc , char* argv[]) {
 		::optional_s dir     ; if ( cmd_line.flags[Flag::Dir]                       ) dir     = cmd_line.flag_args[+Flag::Dir] ;
 		::optional_s regexpr ; if ( cmd_line.flags[Flag::Regexpr] && +cmd_line.args ) regexpr = cmd_line.args[0]               ;
 		//
-		try                       { for( ::string const& t : JobSupport::list( {New,Yes/*enabled*/} , Yes/*write*/ , dir , regexpr ) ) out << t <<'\n' ; }
-		catch (::string const& e) { exit(Rc::System,e) ;                                                                                                 }
+		try                       { for( ::string const& t : JobSupport::list( Yes/*write*/ , ::move(dir) , ::move(regexpr) ) ) out << t <<'\n' ; }
+		catch (::string const& e) { exit(Rc::System,e) ;                                                                                          }
 		//
 	} else {
 		//
@@ -87,8 +89,8 @@ int main( int argc , char* argv[]) {
 		if ( cmd_line.flags[Flag::ReaddirOk    ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
 		if ( cmd_line.flags[Flag::NoExcludeStar]) ad.flags.extra_dflags &= ~ExtraDflag::NoStar      ;
 		//
-		try                       { JobSupport::target( {New,Yes/*enabled*/} , ::move(cmd_line.args) , ad , cmd_line.flags[Flag::Regexpr] ) ; }
-		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                       }
+		try                       { JobSupport::target( ::move(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] ) ; }
+		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                        }
 		//
 	}
 	if (+out) Fd::Stdout.write(out) ;

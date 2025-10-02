@@ -349,7 +349,7 @@ struct JobReason {
 	bool operator+() const { return +tag                           ; }
 	bool need_run () const { return +tag and tag<JobReasonTag::Err ; }
 	// services
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		/**/                            ::serdes( s , tag  ) ;
 		if (tag>=JobReasonTag::HasNode) ::serdes( s , node ) ;
 	}
@@ -513,13 +513,13 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && dflags[Dflag::Verbose] )) set_crc    (c ,false) ; } // only set crc if err is useless
 	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && dflags[Dflag::Verbose] )) set_crc_sig(di,false) ; } // .
 	// services
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		::serdes( s , sz,accesses,dflags ) ;
 		// bitfields cannot be serialized directly as no ref is allowed
 		/**/                bool      parallel_ ; bool    is_crc_ ; bool hot_ ; Accesses::Val   chunk_accesses_ ; bool err_ ;
-		if (IsOStream<T>) { parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; chunk_accesses_=chunk_accesses  ; err_=err  ; }
+		if (IsOStream<S>) { parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; chunk_accesses_=chunk_accesses  ; err_=err  ; }
 		::serdes( s ,       parallel_           , is_crc_         , hot_      , chunk_accesses_                 , err_      ) ;
-		if (IsIStream<T>) { parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; chunk_accesses =chunk_accesses_ ; err =err_ ; }
+		if (IsIStream<S>) { parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; chunk_accesses =chunk_accesses_ ; err =err_ ; }
 		//
 		if (is_crc) ::serdes( s , _crc ) ;
 		else        ::serdes( s , _sig ) ;
@@ -710,9 +710,8 @@ struct JobSpace {
 		// accesses
 		bool operator+() const { return +phys ; }
 		// services
-		template<IsStream T> void serdes(T& s) {
-			::serdes(s,phys   ) ;
-			::serdes(s,copy_up) ;
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , phys,copy_up ) ;
 		}
 		// data
 		// START_OF_VERSIONING
@@ -724,12 +723,10 @@ struct JobSpace {
 	// accesses
 	bool operator+() const { return +chroot_dir_s || +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; }
 	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,chroot_dir_s) ;
-		::serdes(s,lmake_view_s) ;
-		::serdes(s,repo_view_s ) ;
-		::serdes(s,tmp_view_s  ) ;
-		::serdes(s,views       ) ;
+	template<IsStream S> void serdes(S& s) {
+		::serdes( s , chroot_dir_s                        ) ;
+		::serdes( s , lmake_view_s,repo_view_s,tmp_view_s ) ;
+		::serdes( s , views                               ) ;
 	}
 	void update_env(
 		::map_ss        &/*inout*/ env
@@ -791,10 +788,9 @@ struct JobStartRpcReq : JobRpcReq {
 	JobStartRpcReq() = default ;
 	JobStartRpcReq( JobRpcReq jrr , in_port_t pt=0 , ::string&& m={} ) : JobRpcReq{jrr} , port{pt} , msg{::move(m)} {}
 	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,static_cast<JobRpcReq&>(self)) ;
-		::serdes(s,port                         ) ;
-		::serdes(s,msg                          ) ;
+	template<IsStream S> void serdes(S& s) {
+		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
+		::serdes( s , port,msg                      ) ;
 	}
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
@@ -904,7 +900,7 @@ struct ExecTraceEntry {
 	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
 	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
 	// services
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		::serdes( s , date                   ) ;
 		::serdes( s , comment , comment_exts ) ;
 		::serdes( s , file                   ) ;
@@ -928,7 +924,7 @@ struct JobEndRpcReq : JobRpcReq {
 	// cxtors & casts
 	JobEndRpcReq(JobRpcReq jrr={}) : JobRpcReq{jrr} {}
 	// services
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
 		::serdes( s , digest                        ) ;
 		::serdes( s , phy_tmp_dir_s                 ) ;
@@ -968,7 +964,7 @@ struct JobMngtRpcReq : JobRpcReq {
 	using MDD  = ::vmap_s<DepDigest> ;
 	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
 	// services
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
 		::serdes( s , proc                          ) ;
 		switch (proc) {
@@ -1083,10 +1079,8 @@ struct JobInfo {
 	JobInfo() = default ;
 	JobInfo( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) { fill_from(ancillary_file,need) ; }
 	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,start   ) ;
-		::serdes(s,end     ) ;
-		::serdes(s,dep_crcs) ;
+	template<IsStream S> void serdes(S& s) {
+		::serdes( s , start,end,dep_crcs ) ;
 	}
 	void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
 	//

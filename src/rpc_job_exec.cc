@@ -41,7 +41,8 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	/**/                    os << "JobExecRpcReq(" << jerr.proc ;
 	if (+jerr.date        ) os <<','  << jerr.date              ;
 	if ( jerr.sync!=No    ) os <<",S:"<< jerr.sync              ;
-	if (+jerr.digest      ) os <<','  << jerr.digest            ;
+	/**/                    os <<','  << jerr.digest            ;
+	if (+jerr.id          ) os <<','  << jerr.id                ;
 	if (+jerr.files       ) os <<','  << jerr.files             ;
 	if (+jerr.min_len     ) os <<','  << jerr.min_len           ;
 	if (+jerr.comment     ) os <<','  << jerr.comment           ;

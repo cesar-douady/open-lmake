@@ -13,7 +13,7 @@ struct AutodepLock {
 	// static data
 	static thread_local bool t_active ;
 private :
-	static Mutex<MutexLvl::Autodep1> _s_mutex ;
+	static Mutex<MutexLvl::Autodep> _s_mutex ;
 	// cxtors & casts
 public :
 	AutodepLock(                                 ) = default ;
@@ -21,6 +21,6 @@ public :
 	//
 	~AutodepLock() ;
 	// data
-	Lock<Mutex<MutexLvl::Autodep1>> lock ;
-	::string                        err  ;
+	Lock<Mutex<MutexLvl::Autodep>> lock ;
+	::string                       err  ;
 } ;

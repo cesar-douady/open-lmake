@@ -11,12 +11,12 @@
 
 namespace JobSupport {
 
-	::pair<::vector<VerboseInfo>,bool/*ok*/> depend     ( Record const& , ::vector_s&& files , AccessDigest , bool no_follow , bool regexpr=false ) ;
-	void                                     target     ( Record const& , ::vector_s&& files , AccessDigest ,                  bool regexpr=false ) ;
-	Bool3                                    check_deps ( Record const& , Time::Delay , bool sync=false                                           ) ; // date is used for delayed action
-	::vector_s                               list       ( Record const& , Bool3 write , ::optional_s const& dir , ::optional_s const& regexpr     ) ; // No:deps, Yes:targets, Maybe:both
-	::string                                 list_root_s(                               ::string     const& dir                                   ) ;
-	::pair_s<                    bool/*ok*/> decode     ( Record const& , ::string&& file , ::string&& code , ::string&& ctx                      ) ;
-	::pair_s<                    bool/*ok*/> encode     ( Record const& , ::string&& file , ::string&& val  , ::string&& ctx , uint8_t min_len=1  ) ;
+	::pair<::vector<VerboseInfo>,bool/*ok*/> depend     ( ::vector_s&& files , AccessDigest , bool no_follow , bool regexpr=false ) ;
+	void                                     target     ( ::vector_s&& files , AccessDigest , bool no_follow , bool regexpr       ) ;
+	Bool3                                    chk_deps   ( Time::Delay , bool sync=false                                           ) ; // date is used for delayed action
+	::vector_s                               list       ( Bool3 write , ::optional_s&& dir , ::optional_s&& regexpr               ) ; // No:deps, Yes:targets, Maybe:both
+	::string                                 list_root_s(               ::string    && dir                                        ) ;
+	::string                                 decode     ( ::string&& file , ::string&& ctx , ::string&& code                      ) ;
+	::string                                 encode     ( ::string&& file , ::string&& ctx , ::string&& val  , uint8_t min_len=1  ) ;
 
 }

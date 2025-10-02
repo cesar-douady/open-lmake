@@ -199,12 +199,9 @@ struct ReqRpcReq {
 	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(proc< Proc::HasArgs,proc) ; }
 	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR(proc>=Proc::HasArgs,proc) ; }
 	// services
-	template<IsStream T> void serdes(T& s) {
-		::serdes(s,proc) ;
-		if (proc>=Proc::HasArgs) {
-			::serdes(s,files  ) ;
-			::serdes(s,options) ;
-		}
+	template<IsStream S> void serdes(S& s) {
+		/**/                     ::serdes( s , proc          ) ;
+		if (proc>=Proc::HasArgs) ::serdes( s , files,options ) ;
 	}
 	// data
 	Proc       proc    = ReqProc::None ;
@@ -220,7 +217,7 @@ struct ReqRpcReply {
 	ReqRpcReply( Proc p , Rc         rc_  ) : proc{p} , rc {rc_         } { SWEAR( p==Proc::Status                                     ) ; }
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Stderr || p==Proc::Stdout ) ; }
 	//
-	template<IsStream T> void serdes(T& s) {
+	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
 		switch (proc) {
 			case Proc::None   :                   break ;
