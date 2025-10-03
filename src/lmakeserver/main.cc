@@ -27,34 +27,27 @@ enum class EventKind : uint8_t {
 
 static constexpr Delay StatsRefresh { 1 } ;
 
-static ServerSockFd _g_server_fd      ;
-static bool         _g_is_daemon      = true   ;
-static Atomic<bool> _g_done           = false  ;
-static bool         _g_server_running = false  ;
-static ::string     _g_fqdn           = fqdn() ;
-static bool         _g_seen_make      = false  ;
-static Fd           _g_watch_fd       ;          // watch LMAKE/server
+static ServerSockFd    _g_server_fd ;
+static bool            _g_is_daemon = true                  ;
+static Atomic<bool>    _g_done      = false                 ;
+static ::pair_s<pid_t> _g_mrkr      { fqdn() , ::getpid() } ;
+static bool            _g_seen_make = false                 ;
+static Fd              _g_watch_fd  ;                         // watch LMAKE/server
 
-static ::pair_s<int> _get_mrkr_host_pid() {
+static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 	try {
-		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
-		::string const& service    = lines[0] ;
-		::string const& server_pid = lines[1] ;
-		return { SockFd::s_host(service) , from_string<pid_t>(server_pid) } ; }
+		::vector_s      lines   = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		::string const& service = lines[0]                      ;
+		::string const& pid     = lines[1]                      ;
+		return { SockFd::s_host(service) , from_string<pid_t>(pid) } ; }
 	catch (::string const&) {
-		return { {}/*host*/ , 0/*pid*/ } ;
+		return { {}/*fqdn*/ , 0/*pid*/ } ;
 	}
 }
 
 static void _server_cleanup() {
-	Trace trace("_server_cleanup",STR(_g_server_running)) ;
-	if (!_g_server_running) return ;                        // not running, nothing to clean
-	pid_t           pid  = getpid()             ;
-	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
-	trace("pid",mrkr,pid) ;
-	if (mrkr!=::pair(_g_fqdn,pid)) return ;                 // not our file, dont touch it
+	Trace trace("_server_cleanup") ;
 	unlnk(ServerMrkr) ;
-	trace("cleaned") ;
 }
 
 static void _report_server( Fd fd , bool running ) {
@@ -63,46 +56,46 @@ static void _report_server( Fd fd , bool running ) {
 	if (cnt!=sizeof(bool)) trace("no_report") ;         // client is dead
 }
 
-static bool/*crashed*/ _start_server() {
-	bool  crashed = false    ;
-	pid_t pid     = getpid() ;
-	Trace trace("_start_server",_g_fqdn,pid) ;
-	::pair_s<pid_t> mrkr = _get_mrkr_host_pid() ;
-	if ( +mrkr.first && mrkr.first!=_g_fqdn ) {
+static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means last server crashed
+	::pair_s<pid_t>     mrkr = _get_mrkr()     ;
+	::pair_s/*msg*/<Rc> res  = { {} , Rc::Ok } ;
+	Trace trace("_start_server",_g_mrkr) ;
+	if ( +mrkr.first && mrkr.first!=_g_mrkr.first ) {
 		trace("already_existing_elsewhere",mrkr) ;
-		return false/*unused*/ ;                   // if server is running on another host, we cannot qualify with a kill(pid,0), be pessimistic
+		return { {}/*msg*/ , Rc::Format } ;
 	}
 	if (mrkr.second) {
-		if (kill_process(mrkr.second,0)) {         // another server exists
+		if (kill_process(mrkr.second,0/*sig*/)) {               // another server exists on same host
 			trace("already_existing",mrkr) ;
-			return false/*unused*/ ;
+			return { {}/*msg*/ , Rc::Format } ;
 		}
-		unlnk(ServerMrkr) ;                        // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
-		crashed = true ;
+		unlnk(ServerMrkr) ;                                     // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		rescue = true ;
 		trace("vanished",mrkr) ;
 	}
-	if (!g_writable) {
-		_g_server_running = true ;
-	} else {
-		_g_server_fd.listen() ;
-		::string tmp = cat(ServerMrkr,'.',_g_fqdn,'.',pid) ;
+	if (g_writable) {
+		::string tmp = cat(ServerMrkr,'.',_g_mrkr.first,'.',_g_mrkr.second) ;
+		_g_server_fd = ServerSockFd(New) ;
 		AcFd(tmp,Fd::Write).write(cat(
-			_g_server_fd.service() , '\n'
-		,	getpid()               , '\n'
+			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
+		,	_g_mrkr.second                                       , '\n'
 		)) ;
-		//vvvvvvvvvvvvvvvvvvvvvv
-		::atexit(_server_cleanup) ;
-		//^^^^^^^^^^^^^^^^^^^^^^
-		_g_server_running = true ;                 // while we link, pretend we run so cleanup can be done if necessary
-		fence() ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		_g_server_running = ::link( tmp.c_str() , ServerMrkr )==0 ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		_g_watch_fd = ::inotify_init1(O_CLOEXEC) ; // start watching file as soon as possible (ideally would be before)
+		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (::link(tmp.c_str(),ServerMrkr)==0) {
+			::atexit(_server_cleanup) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^
+			// if server marker is touched by user, we do as we received a ^C
+			// ideally, we should watch ServerMrkr before it is created to be sure to miss nothing, but inotify requires an existing file
+			if ( +(_g_watch_fd=::inotify_init1(O_CLOEXEC)) )
+				if ( ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
+					_g_watch_fd.close() ;                                                                        // useless if we cannot watch
+		} else {
+			res = { ::strerror(errno) , Rc::System } ;
+		}
 		unlnk(tmp) ;
-		trace("started",STR(crashed),STR(_g_is_daemon),STR(_g_server_running)) ;
 	}
-	return crashed ;
+	trace("started",STR(_g_is_daemon),res) ;
+	return res ;
 }
 
 ::string _os_compat(::string const& os_id) {
@@ -484,15 +477,19 @@ int main( int argc , char** argv ) {
 	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                            // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                       // ... must be done before any thread is launched so that all threads block the signal
 	mk_dir_s(PrivateAdminDirS) ;
-	//             vvvvvvvvvvvvvvv
-	bool crashed = _start_server() ;
-	//             ^^^^^^^^^^^^^^^
-	if (!_g_is_daemon     ) _report_server(out_fd,_g_server_running/*server_running*/) ;     // inform lmake we did not start
-	if (!_g_server_running) return 0 ;
-	::string msg ; //!          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                       { Makefiles::refresh( msg , crashed , refresh_ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
-	catch (::string const& e) { /*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/   if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
-	if (!_g_is_daemon) ::setpgid(0,0) ;                                                      // once we have reported we have started, lmake will send us a message to kill us
+	bool rescue = false ;
+	//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	::pair_s<Rc> start_digest = _start_server(/*out*/rescue) ;
+	//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if (!_g_is_daemon       ) _report_server( out_fd , start_digest.second==Rc::Ok ) ;       // inform lmake we did not start
+	if (+start_digest.second) {
+		if (+start_digest.first) exit( start_digest.second , "cannot start server : ",start_digest.first ) ;
+		else                     exit( Rc::Ok                                                            ) ;
+	}
+	::string msg ; //!          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                       { Makefiles::refresh( /*out*/msg , rescue , refresh_ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                      }
+	catch (::string const& e) { /*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/   if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::Format,e) ; }
+	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/) ;                                       // once we have reported we have started, lmake will send us a message to kill us
 	//
 	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	mk_dir_s(cat(AdminDirS       ,"auto_tmp/"    ),true/*unlnk_ok*/) ;                       // prepare job execution so no dir_guard is necessary for each job
@@ -517,7 +514,7 @@ int main( int argc , char** argv ) {
 	}
 	//
 	Backend::s_finalize() ;
-	Persistent::finalize() ; // XXX : suppress when bug is found
+	Persistent::finalize() ;                                                                                                         // XXX : suppress when bug is found
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;
 }
