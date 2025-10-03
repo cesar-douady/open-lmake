@@ -1160,6 +1160,7 @@ There is no generic way to determine this address, so in general, open-lmake can
 <p>This value may be empty (using <code>hostname</code> for addresse look up), given in standard dot notation, as the name of an interface (as shown by <code>ifconfig</code>)
 or the name of a host (looked up as for <code>ping</code>).
 In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.</p>
+<p>If it is defined as a function, then this function is called when server launches, which allows it to be tailored to each particular host.</p>
 <h3 id="backendsenviron--dynamic-"><a class="header" href="#backendsenviron--dynamic-"><code>backends.*.environ</code> : Dynamic (<code>{}</code>)</a></h3>
 <p>Environment to pass when launching job in backend.
 This environment is accessed when the value mentioned in the rule is <code>...</code>.</p>
