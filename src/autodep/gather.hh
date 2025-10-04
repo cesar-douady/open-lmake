@@ -126,8 +126,9 @@ struct Gather {                                                       // NOLINT(
 private :
 	static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
 	// services
-	bool/*sent*/ _send_to_server( JobMngtRpcReq const&                  ) ;
-	void         _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;            // files are required for DepVerbose and forbidden for other
+	void _send_to_server( JobMngtRpcReq const&                  ) ;
+	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;            // files are required for DepVerbose and forbidden for other
+	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		for( auto& [f,fi] : jerr.files ) new_access( fd , jerr.date , ::move(f) , jerr.digest , fi , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
 	}

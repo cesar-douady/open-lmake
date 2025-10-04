@@ -46,6 +46,10 @@ Return :
 	return fqdn ;
 }
 
+//
+// SockFd
+//
+
 ::string const& SockFd::s_host(in_addr_t a) {                                // implement a cache as getnameinfo implies network access and can be rather long
 	static ::umap<in_addr_t,::string> s_tab { {0,""} , {LoopBackAddr,""} } ; // pre-populate to return empty for local accesses
 	//
@@ -64,54 +68,109 @@ Return :
 	return it->second ;
 }
 
+SockFd::SockFd( NewType , bool reuse_addr ) {
+	static constexpr int       True    = 1   ;
+	static constexpr in_port_t PortInc = 199 ;                                                            // a prime number to ensure all ports are tried
+	//
+	self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ; no_std() ; if (!self) fail_prod("cannot create socket :",::strerror(errno)) ;
+	if (!reuse_addr) return ;
+	// if we want to set SO_REUSEADDR, we cannot auto-bind to an ephemeral port as SO_REUSEADDR is not taken into account in that case
+	// so we try random port numbers in the ephemeral range until we find a free one
+	static ::pair<in_port_t/*first*/,in_port_t/*sz*/> s_ports = []() {
+		::pair<in_port_t/*first*/,in_port_t/*sz*/> res   ;
+		::vector_s                                 ports = split(AcFd("/proc/sys/net/ipv4/ip_local_port_range").read()) ; SWEAR( ports.size()==2 , ports ) ;
+		res.first  = from_string<in_port_t>(ports[0])               ;
+		res.second = from_string<in_port_t>(ports[1])+1 - res.first ;                                     //ephemeral range is specified as "first last" inclusive
+		SWEAR( res.second>PortInc , res ) ;                                                               // else we need to reduce PortInc
+		return res ;
+	}() ;
+	//
+	struct ::sockaddr_in sa {
+			.sin_family = AF_INET
+		,	.sin_port   = 0
+		,	.sin_addr   = { .s_addr=0 }
+		,	.sin_zero   = {}
+	} ;
+	throw_unless( ::setsockopt( fd , SOL_SOCKET , SO_REUSEADDR , &True , sizeof(True) )==0 , "cannot set socket option SO_REUSEADR on ",self ) ;
+	in_port_t trial_port = s_ports.first + Pdate(New).hash()%s_ports.second ;
+	for( int i=1 ;; i++ ) {
+		sa.sin_port = trial_port ;
+		if ( ::bind( fd , &reinterpret_cast<struct sockaddr const&>(sa) , sizeof(sa) )==0 ) break ;
+		switch (errno) {
+			case EADDRINUSE :
+			case EACCES     : break ;
+			default         : FAIL(self,EPERM,errno,::strerror(errno)) ;
+		}
+		if (i>=NAddrInUseTrials) throw cat("cannot bind ",self," : ",::strerror(errno)) ;
+		if (trial_port<s_ports.first+s_ports.second-PortInc) trial_port += PortInc ;                  // increment while staying within ephemeral range ...
+		else                                                 trial_port -= s_ports.second - PortInc ; // ... and it is seems to be more efficient than incrementing by 1 ...
+	}                                                                                                 // ... and curiously more efficient than successive random numbers as well
+}
+
+//
+// ServerSockFd
+//
+
+ServerSockFd::ServerSockFd( NewType , int backlog , bool reuse_addr ) : SockFd{New,reuse_addr} {
+	if (!backlog) backlog = 100 ;
+	for( int i=1 ;; i++ ) {
+		if ( ::listen(fd,backlog)==0 ) break ;
+		SWEAR( errno==EADDRINUSE , self,backlog,reuse_addr ) ;
+		if (i>=NAddrInUseTrials) throw cat("cannot listen to ",self," : ",::strerror(errno)) ;
+		AddrInUseTick.sleep_for() ;
+	}
+}
+
 SlaveSockFd ServerSockFd::accept() {
-	SlaveSockFd slave_fd = ::accept( fd , nullptr/*addr*/ , nullptr/*adrlen*/ ) ;
-	swear_prod(+slave_fd,"cannot accept from",self) ;
+	SlaveSockFd slave_fd = ::accept( fd , nullptr/*addr*/ , nullptr/*addrlen*/ ) ;
+	swear_prod( +slave_fd , "cannot accept from",self ) ;
 	return slave_fd ;
 }
 
-void ClientSockFd::connect( in_addr_t server , in_port_t port , Delay timeout ) {
-	if (!self) init() ;
-	swear_prod(fd>=0,"cannot create socket") ;
-	struct sockaddr_in sa       = s_sockaddr(server,port) ;
-	Pdate              end      ;
-	bool               too_late = false                   ;
-	for( int i=NTrials ; i>0 ; i-- ) {
+//
+// ClientSockFd
+//
+
+ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr , Time::Delay timeout ) : SockFd{New,reuse_addr} {
+	struct ::sockaddr_in sa               = s_sockaddr(server,port) ;
+	Pdate                end              ;                           if (+timeout) end = Pdate(New) + timeout ;
+	int                  i_addr_reuse = 1 ;
+	int                  i_connect    = 1 ;
+	for( int i=1 ;; i++ ) {
 		if (+timeout) {
-			Pdate now = New ;
-			if (!end    )   end = now + timeout ;
-			if (now>=end) { too_late = true ; break ; }                                        // this cannot happen on first iteration, so we are guaranteed to try at least once
-			Pdate::TimeVal to ( end-now ) ;
+			Delay::TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                           // ensure to is positive
 			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(to) ) ;
 		}
-		if ( ::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sockaddr) )==0 ) {
-			if (+timeout) {
-				Pdate::TimeVal to {} ;
-				::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(Pdate::TimeVal) ) ; // restore no timeout
-			}
-			return ;                                                                           // success
+		if ( ::connect( fd , reinterpret_cast<sockaddr*>(&sa) , sizeof(sa) )==0 ) {
+			if (+timeout) ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &::ref(Delay::TimeVal(Delay())) , sizeof(Delay::TimeVal) ) ; // restore no timeout
+			break ;
 		}
-		if (i>1) Delay(0.001).sleep_for() ;                                                    // wait a little bit before retrying if not last trial
+		switch (errno) {
+			case EADDRNOTAVAIL :
+				if (i_addr_reuse>=NAddrInUseTrials) throw cat("cannot connect to ",self," after ",NAddrInUseTrials," trials : ",::strerror(errno)) ;
+				i_addr_reuse++ ;
+				AddrInUseTick.sleep_for() ;
+			break ;
+			case ECONNREFUSED  : { if (i_connect   >=NConnectTrials  ) throw cat("cannot connect to ",self," after ",NConnectTrials  ," trials : ",::strerror(errno)) ; } i_connect   ++ ; break ;
+			case EINTR         :                                                                                                                                                           break ;
+			case ETIMEDOUT     : { if (Pdate(New)>end     ) throw cat("cannot connect to ",self," : ",::strerror(errno)) ; }                                                               break ;
+			default            : FAIL(self,server,port,timeout,reuse_addr) ;
+		}
 	}
-	int en = errno ;                                                                           // catch errno before any other syscall
-	close() ;
-	if      (too_late ) throw cat("cannot connect to ",s_addr_str(server),':',port," : ",::strerror(en)," after ",timeout.short_str() ) ;
-	else if (NTrials>1) throw cat("cannot connect to ",s_addr_str(server),':',port," : ",::strerror(en)," after ",NTrials," trials"   ) ;
-	else                throw cat("cannot connect to ",s_addr_str(server),':',port," : ",::strerror(en)                               ) ;
 }
 
 in_addr_t SockFd::s_addr(::string const& server) {
 	if (!server) return LoopBackAddr ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;                                                                           // address being decoded
-		int       byte   = 0     ;                                                                           // ensure component is less than 256
-		int       n      = 0     ;                                                                           // ensure there are 4 components
-		bool      first  = true  ;                                                                           // prevent empty components
-		bool      first0 = false ;                                                                           // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;                                                                             // address being decoded
+		int       byte   = 0     ;                                                                             // ensure component is less than 256
+		int       n      = 0     ;                                                                             // ensure there are 4 components
+		bool      first  = true  ;                                                                             // prevent empty components
+		bool      first0 = false ;                                                                             // prevent leading 0's (unless component is 0)
 		for( char c : server ) {
 			if (c=='.') {
 				if (first) goto ByName ;
-				addr  = (addr<<8) | byte ;                                                                   // dot notation is big endian
+				addr  = (addr<<8) | byte ;                                                                     // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
 				n++ ;
@@ -131,10 +190,10 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		return addr ;
 	}
 ByName :
-	{	struct addrinfo  hint = {}                                                                         ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
+	{	struct addrinfo  hint = {}                                                                           ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
 		struct addrinfo* ai   ;
-		int              rc   = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai )                    ; throw_unless( rc==0 , "cannot get addr of ",server," (",rc,')' ) ;
-		in_addr_t        addr = ntohl(reinterpret_cast<struct sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
+		int              rc   = ::getaddrinfo( server.c_str() , nullptr , &hint , &ai )                      ; throw_unless( rc==0 , "cannot get addr of ",server," (",rc,')' ) ;
+		in_addr_t        addr = ntohl(reinterpret_cast<struct ::sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
 		freeaddrinfo(ai) ;
 		return addr ;
 	}
@@ -146,14 +205,14 @@ ByName :
 	if (::getifaddrs(&ifa)!=0) return {{{},LoopBackAddr}} ;
 	for( struct ifaddrs* p=ifa ; p ; p=p->ifa_next ) {
 		if (!( p->ifa_addr && p->ifa_addr->sa_family==AF_INET )) continue ;
-		in_addr_t addr = ntohl(reinterpret_cast<struct sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
-		if (+ifce) { if (p->ifa_name      !=ifce) continue ; }                                        // searching provided interface
-		else       { if (((addr>>24)&0xff)==127 ) continue ; }                                        // searching for any non-loopback interface
+		in_addr_t addr = ntohl(reinterpret_cast<struct ::sockaddr_in*>(p->ifa_addr)->sin_addr.s_addr) ; // dont prefix with :: as ntohl may be a macro
+		if (+ifce) { if (p->ifa_name      !=ifce) continue ; }                                          // searching provided interface
+		else       { if (((addr>>24)&0xff)==127 ) continue ; }                                          // searching for any non-loopback interface
 		res.emplace_back(p->ifa_name,addr) ;
 	}
 	freeifaddrs(ifa) ;
 	if (+res ) return res                 ;
-	if (+ifce) return {{{},s_addr(ifce)}} ;                                                           // ifce may actually be a name
+	if (+ifce) return {{{},s_addr(ifce)}} ;                                                             // ifce may actually be a name
 	/**/       return {{{},LoopBackAddr}} ;
 }
 

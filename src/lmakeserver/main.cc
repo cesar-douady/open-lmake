@@ -27,13 +27,12 @@ enum class EventKind : uint8_t {
 
 static constexpr Delay StatsRefresh { 1 } ;
 
-static ServerSockFd    _g_server_fd    ;
-static bool            _g_is_daemon    = true                  ;
-static Atomic<bool>    _g_done         = false                 ;
-static ::pair_s<pid_t> _g_mrkr         { fqdn() , ::getpid() } ;
-static bool            _g_seen_make    = false                 ;
-static bool            _g_need_cleanup = false                 ;
-static Fd              _g_watch_fd     ;                         // watch LMAKE/server
+static ServerSockFd    _g_server_fd ;
+static bool            _g_is_daemon = true                  ;
+static Atomic<bool>    _g_done      = false                 ;
+static ::pair_s<pid_t> _g_mrkr      { fqdn() , ::getpid() } ;
+static bool            _g_seen_make = false                 ;
+static Fd              _g_watch_fd  ;                         // watch LMAKE/server
 
 static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 	try {
@@ -47,13 +46,8 @@ static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 }
 
 static void _server_cleanup() {
-	Trace trace("_server_cleanup",STR(_g_need_cleanup)) ;
-	if (!_g_need_cleanup) return ;                        // not running, nothing to clean
-	::pair_s<pid_t> mrkr = _get_mrkr() ;
-	trace("mrkr",mrkr,_g_mrkr) ;
-	if (mrkr!=_g_mrkr) return ;                           // not our file, dont touch it
+	Trace trace("_server_cleanup") ;
 	unlnk(ServerMrkr) ;
-	trace("cleaned") ;
 }
 
 static void _report_server( Fd fd , bool running ) {
@@ -86,12 +80,10 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
 		,	_g_mrkr.second                                       , '\n'
 		)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvv
-		::atexit(_server_cleanup) ;
-		//^^^^v^v^v^v^v^v^v^v^v^vvvvvvvvvv
+		//  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (::link(tmp.c_str(),ServerMrkr)==0) {
-		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			_g_need_cleanup = true ;
+			::atexit(_server_cleanup) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^
 			// if server marker is touched by user, we do as we received a ^C
 			// ideally, we should watch ServerMrkr before it is created to be sure to miss nothing, but inotify requires an existing file
 			if ( +(_g_watch_fd=::inotify_init1(O_CLOEXEC)) )
@@ -206,10 +198,9 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 				} break ;
 				case EventKind::Slave :
 				case EventKind::Std   : {
-					ReqRpcReq rrr ;
-					try         { if (!in_tab.at(fd).first.receive_step(fd,rrr)) continue ; }
-					catch (...) { rrr.proc = ReqProc::None ;                                }
-					Fd ofd = kind==EventKind::Std ? out_fd : fd ;
+					::optional<ReqRpcReq> received = in_tab.at(fd).first.receive_step<ReqRpcReq>( fd , true/*eof_ok*/ ) ; if (!received) continue ;
+					ReqRpcReq&            rrr      = *received                                                          ;
+					Fd                    ofd      = kind==EventKind::Std ? out_fd : fd                                 ;
 					trace("req",rrr) ;
 					switch (rrr.proc) {
 						case ReqProc::Make : {

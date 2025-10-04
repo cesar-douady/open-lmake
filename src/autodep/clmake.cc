@@ -383,7 +383,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 			::string file   = base + sfx              ;
 			bool     exists = FileInfo(file).exists() ;
 			if (is_lcl) files.push_back(::move(file)) ;
-			if (exists) break ;                                           // found module, dont explore path any further
+			if (exists) return ;                                          // found module, dont explore path any further
 		}
 		static constexpr AccessDigest AccessDigestDfltDyn { .accesses=~Accesses() , .flags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflagsDfltDyn} } ;
 		try                       { JobSupport::depend( ::move(files) , AccessDigestDfltDyn , false/*no_follow*/ ) ; }

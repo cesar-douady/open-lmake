@@ -23,8 +23,8 @@ namespace Backends {
 		auto                       it   = Backend::_s_start_tab.find(job)    ; if (it==Backend::_s_start_tab.end()) return ; // job is dead without waiting for reply, curious but possible
 		Backend::StartEntry const& e    = it->second                         ; if (jmrr.seq_id!=e.conn.seq_id     ) return ; // .
 		try {
-			OMsgBuf().send( ClientSockFd(e.conn.host,e.conn.port) , jmrr ) ;
-		} catch (...) {                                                      // if we cannot connect to job, assume it is dead while we processed the request
+			OMsgBuf().send( ClientSockFd(e.conn.host,e.conn.port,true/*addr_reuse*/) , jmrr ) ;
+		} catch (...) {                                                                                            // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config->network_delay
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(job,e.conn.host,e.start_date) }
@@ -221,7 +221,7 @@ namespace Backends {
 			e.submit_attrs |= sa ;                                                                                // and update submit_attrs in case job was not actually started
 			if (sa.live_out)                                                                                      // tell job_exec to resend allready sent live_out messages that we missed
 				try {
-					ClientSockFd fd( e.conn.host , e.conn.port ) ;
+					ClientSockFd fd( e.conn.host , e.conn.port , true/*addr_reuse*/ ) ;
 					OMsgBuf().send( fd , JobMngtRpcReply{.proc=JobMngtProc::AddLiveOut,.seq_id=e.conn.seq_id} ) ;
 				} catch (...) {}                                                                                  // if we cannot connect to job, it cannot send live_out messages any more
 		}
@@ -258,7 +258,7 @@ namespace Backends {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
 		SWEAR( conn.seq_id , job,conn ) ;
 		try {
-			ClientSockFd fd( conn.host , conn.port ) ;
+			ClientSockFd fd( conn.host , conn.port , true/*addr_reuse*/ ) ;
 			OMsgBuf().send( fd , JobMngtRpcReply({.proc=proc,.seq_id=conn.seq_id}) ) ;
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
@@ -561,17 +561,18 @@ namespace Backends {
 		//
 		if (jmrr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                   // ensure _s_handled_job_start is done for this job
 		//
-		{	TraceLock   lock  { _s_mutex , BeChnl , "s_handle_job_mngt" } ;                 // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			auto        it    = _s_start_tab.find(+job)                   ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return false/*keep_fd*/ ; }
-			StartEntry& entry = it->second                                ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jmrr.seq_id) ; return false/*keep_fd*/ ; }
+		{	TraceLock lock { _s_mutex , BeChnl , "s_handle_job_mngt" } ;                    // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+			//                                                                                                                                                keep_fd
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return false ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jmrr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jmrr.seq_id) ; return false ; }
 			trace("entry",job,entry) ;
 			switch (jmrr.proc) {
 				case JobMngtProc::LiveOut    : //!vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				case JobMngtProc::AddLiveOut : g_engine_queue.emplace( jmrr.proc , JobExec(job,entry.conn.host,entry.start_date,New/*end*/) , ::move(jmrr.txt) ) ; break ;
-				//                          vvv^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				case JobMngtProc::Decode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , jmrr.seq_id , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
-				case JobMngtProc::Encode  : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , jmrr.seq_id , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
-				//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                         vvvv^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				case JobMngtProc::Decode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , jmrr.seq_id , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx)                ) ; break ;
+				case JobMngtProc::Encode : Codec::g_codec_queue->emplace( jmrr.proc , +job , jmrr.fd , jmrr.seq_id , ::move(jmrr.txt) , ::move(jmrr.file) , ::move(jmrr.ctx) , jmrr.min_len ) ; break ;
+				//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				case JobMngtProc::ChkDeps : {
 					::vmap<Node,TargetDigest> targets ; targets.reserve(jmrr.targets.size()) ; for( auto const& [t,td] : jmrr.targets ) targets.emplace_back( Node(New,t) , td ) ;
 					::vector<Dep>             deps    ; deps   .reserve(jmrr.deps   .size()) ; for( auto const& [d,dd] : jmrr.deps    ) deps   .emplace_back( Node(New,d) , dd ) ;

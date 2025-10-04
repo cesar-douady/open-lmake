@@ -266,7 +266,7 @@ private :
 						try {
 							Fd slave_fd = this_->fd.accept().detach() ;
 							trace("new_req",slave_fd) ;
-							epoll.add_read(slave_fd,EventKind::Slave) ;
+							epoll.add_read( slave_fd , EventKind::Slave ) ;
 							slaves.try_emplace(slave_fd) ;
 						} catch (::string const& e) { trace("cannot_accept",e) ; } // ignore error as this may be fd starvation and client will retry
 					} break ;
@@ -279,18 +279,29 @@ private :
 						else       return ;                                        // stop immediately
 					} break ;
 					case EventKind::Slave : {
-						T r ;
-						try         { if (!slaves.at(efd).receive_step(efd,r)) { trace("partial") ; continue ; } }
-						catch (...) {                                            trace("bad_msg") ; continue ;   } // ignore malformed messages
-						//
-						epoll.del(false/*write*/,efd) ;                // Func may trigger efd being closed by another thread, hence epoll.del must be done before
-						slaves.erase(efd) ;
-						SlaveSockFd ssfd { efd }                     ;
-						bool        keep = func(stop,::move(r),ssfd) ;
-						if (keep) ssfd.detach() ;                      // dont close ssfd if requested to keep it
+						auto          it = slaves.find(efd) ;
+						::optional<T> r  ;
+						try {
+							r = it->second.receive_step<T>(efd) ;
+							if (!r) { trace("partial") ; continue ; }
+						} catch (::string const& e) {
+							if (+e) trace("malformed",e) ;                         // close upon malformed messages
+							else    trace("eof"        ) ;
+							epoll.close( false/*write*/ , efd ) ;
+							slaves.erase(it) ;
+							continue ;
+						}
+						SlaveSockFd ssfd { efd }                            ;
+						bool        keep = func( stop , ::move(*r) , ssfd ) ;
+						if (keep) {
+							ssfd.detach() ;                                        // dont close ssfd if requested to keep it
+						} else {
+							slaves.erase(it) ;
+							epoll.del( false/*write*/ , efd ) ;
+						}
 						trace("called",STR(keep)) ;
 					} break ;
-				DF}                                                    // NO_COV
+				DF}                                                                // NO_COV
 			}
 		}
 		trace("done") ;
@@ -300,13 +311,13 @@ public :
 	ServerThread() = default ;
 	ServerThread( char key , ::function<bool/*keep_fd*/(             T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
 	ServerThread( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
-	void open( char key , ::function<bool/*keep_fd*/(T&&,SlaveSockFd const&)> f , int backlog=0 ) {
-		fd     = {New,backlog}                                                                                                                          ;
-		thread = ::jthread( _s_thread_func , key , this , [=](::stop_token,T&& r,SlaveSockFd const& fd)->bool/*keep_fd*/ { return f(::move(r),fd) ; } ) ;
-	}
+	//
 	void open( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) {
-		fd     = {New,backlog}                                ;
+		fd     = { New , backlog , true/*reuse_addr*/ }       ;
 		thread = ::jthread( _s_thread_func , key , this , f ) ;
+	}
+	void open( char key , ::function<bool/*keep_fd*/(T&&,SlaveSockFd const&)> f , int backlog=0 ) {
+		open( key , [=](::stop_token,T&& r,SlaveSockFd const& fd)->bool/*keep_fd*/ { return f(::move(r),fd) ; } , backlog ) ;
 	}
 	// services
 	void wait_started() {
@@ -317,5 +328,5 @@ public :
 private :
 	::latch   _ready  { 1 } ;
 public :
-	::jthread thread ;                                                 // ensure thread is last so other fields are constructed when it starts
+	::jthread thread ;                                                             // ensure thread is last so other fields are constructed when it starts
 } ;

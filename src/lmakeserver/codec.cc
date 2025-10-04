@@ -37,14 +37,6 @@ namespace Codec {
 		return                            os <<','<< cc.file <<','<< cc.ctx << ',' << cc.txt <<')' ;
 	}                                                                                                // END_OF_NO_COV
 
-	void Closure::s_init() {
-		// START_OF_VERSIONING
-		Persistent::val_file .init( cat(g_config->local_admin_dir_s,"codec/vals" ) , g_writable ) ;
-		Persistent::code_file.init( cat(g_config->local_admin_dir_s,"codec/codes") , g_writable ) ;
-		// END_OF_VERSIONING
-		g_codec_queue = new QueueThread<Closure>{'D',Codec::codec_thread_func} ;
-	}
-
 	void _create_node( ::string const& file , Node node , Buildable buildable , ::string const& txt ) {
 		Crc  crc    = Crc(New,txt)               ;
 		bool mk_new = node->buildable!=buildable ;
@@ -105,6 +97,14 @@ namespace Codec {
 			if (!codes.contains(res)) return res ;
 		}
 		FAIL("codec checksum clash for code",code,crc,val) ;                                               // NO_COV
+	}
+
+	void Closure::s_init() {
+		// START_OF_VERSIONING
+		Persistent::val_file .init( cat(g_config->local_admin_dir_s,"codec/vals" ) , g_writable ) ;
+		Persistent::code_file.init( cat(g_config->local_admin_dir_s,"codec/codes") , g_writable ) ;
+		// END_OF_VERSIONING
+		g_codec_queue = new QueueThread<Closure>{'D',Codec::codec_thread_func} ;
 	}
 
 	void Closure::_s_canonicalize( ::string const& file , ::vector<ReqIdx> const& reqs ) {
@@ -211,7 +211,7 @@ namespace Codec {
 		entry.sample_date = New ;
 		if ( inserted && ni ) {
 			if ( Node node{ni} ; node->buildable==Buildable::Decode )
-				entry.phy_date = entry.log_date  = node->log_date() ; // initialize from known info
+				entry.phy_date = entry.log_date = node->log_date() ;  // initialize from known info
 		}
 		if (phy_date==entry.phy_date) return true/*ok*/ ;             // file has not changed, nothing to do
 		entry.log_date = phy_date ;
@@ -224,18 +224,18 @@ namespace Codec {
 		Trace trace("decode",self) ;
 		SWEAR( proc==JobMngtProc::Decode , proc ) ;
 		Node             decode_node { New , mk_decode_node(file,ctx,txt) , true/*no_dir*/ } ;
-		::vector<ReqIdx> reqs        ;                                                       ; for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
+		::vector<ReqIdx> reqs        ;                                                         for( Req r : Job(job)->running_reqs() ) reqs.push_back(+r) ;
 		bool             refreshed   = s_refresh( file , +decode_node , reqs )               ;
-		if (refreshed) {                                                                            // else codec file not available
+		if (refreshed) {                                                                                    // else codec file not available
 			if (_buildable_ok(file,decode_node)) {
 				Lock     lock { _mutex }                              ;
 				::string val  { decode_node->codec_val().str_view() } ;
 				trace("found",val) ;
-				return { .proc=JobMngtProc::Decode , .txt=val , .crc=decode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
+				return { .proc=JobMngtProc::Decode , .txt=::move(val) , .crc=decode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
 			}
 		}
 		trace("fail",STR(refreshed)) ;
-		return { .proc=JobMngtProc::Decode , .crc=Crc::None , .ok=No } ;                            // seq_id and fd will be filled in later
+		return { .proc=JobMngtProc::Decode , .crc=Crc::None , .ok=No } ;                                    // seq_id and fd will be filled in later
 	}
 
 	JobMngtRpcReply Closure::encode() const {
@@ -253,7 +253,7 @@ namespace Codec {
 			Lock     lock { _mutex }                               ;
 			::string code { encode_node->codec_code().str_view() } ;
 			trace("found",code) ;
-			return { .proc=JobMngtProc::Encode , .txt=code , .crc=encode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
+			return { .proc=JobMngtProc::Encode , .txt=::move(code) , .crc=encode_node->crc , .ok=Yes } ; // seq_id and fd will be filled in later
 		}
 		//
 		::string crc         = Crc(New,txt).hex()      ;

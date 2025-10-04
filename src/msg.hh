@@ -33,20 +33,23 @@ inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { // START_OF_NO_
 
 struct IMsgBuf : MsgBuf {
 	// cxtors & casts
-	IMsgBuf() { _buf.resize(sizeof(Len)) ; }             // prepare to receive len
+	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                   // prepare to receive len
 	// services
-	template<class T> T receive(Fd fd) {
-		T res ;
-		while (!receive_step(fd,res)) ;
-		return res ;
+	template<class T> T receive( Fd fd , bool eof_ok=false ) { // if eof_ok, return T() upon eof
+		for(;;)
+			if ( ::optional<T> x = receive_step<T>(fd,eof_ok) ; +x ) return *x ;
 	}
-	template<class T> bool/*complete*/ receive_step( Fd fd , T& res ) {
+	template<class T> ::optional<T> receive_step( Fd fd , bool eof_ok=false ) {
 	DataPass :
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) throw cat("cannot receive over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
+		if (cnt<=0) {
+			if      (cnt<0 ) throw cat("cannot receive over ",fd," : ",::strerror(errno)) ;
+			else if (eof_ok) return T()                                                   ;
+			else             throw ""s                                                    ;
+		}
 		_len += cnt ;
-		if (_len<_buf.size()) return false/*complete*/ ; // _buf is still partial
-		if (!_data_pass) {
+		if (_len<_buf.size()) return {} ;                      // _buf is still partial
+		if (!_data_pass     ) {
 			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
 			Len len = s_sz(_buf.data()) ;
 			// we now expect the data
@@ -54,17 +57,17 @@ struct IMsgBuf : MsgBuf {
 			catch (...) { throw cat("cannot resize message to length ",len) ; }
 			_data_pass = true ;
 			_len       = 0    ;
-			goto DataPass/*BACKWARD*/ ;                  // length is acquired, process data
+			goto DataPass/*BACKWARD*/ ;                        // length is acquired, process data
 		} else {
-			//    vvvvvvvvvvvvvvvvvvvv
-			res = deserialize<T>(_buf) ;
-			//    ^^^^^^^^^^^^^^^^^^^^
+			//                  vvvvvvvvvvvvvvvvvvvv
+			::optional<T> res = deserialize<T>(_buf) ;
+			//                  ^^^^^^^^^^^^^^^^^^^^
 			self = {} ;
-			return true/*complete*/ ;
+			return res ;
 		}
 	}
 	// data
-	bool _data_pass = false ;                            // if true <=> _buf contains partial data, else it contains partial data len
+	bool _data_pass = false ;                                  // if true <=> _buf contains partial data, else it contains partial data len
 } ;
 
 struct OMsgBuf : MsgBuf {

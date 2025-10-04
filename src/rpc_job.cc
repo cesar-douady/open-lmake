@@ -1464,16 +1464,17 @@ void JobInfo::chk(bool for_cache) const {
 
 namespace Codec {
 
+	// START_OF_VERSIONING
 	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return cat(CodecPfxS,mk_printable<'/'>(file),'/',mk_printable<'/'>(ctx),"/decode-",mk_printable(code)) ;
+		return cat(CodecPfxS,"f-",mk_printable<'/'>(file),"/x-",mk_printable<'/'>(ctx),"/d-",mk_printable(code)) ;
 	}
-
 	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return cat(CodecPfxS,mk_printable<'/'>(file),'/',mk_printable<'/'>(ctx),"/encode-",Crc(New,val).hex()) ;
+		return cat(CodecPfxS,"f-",mk_printable<'/'>(file),"/x-",mk_printable<'/'>(ctx),"/c-",Crc(New,val).hex()) ;
 	}
+	// END_OF_VERSIONING
 
 	::string get_file(::string const& node) {
-		return parse_printable<'/'>(node,::ref(sizeof(CodecPfxS)-1)) ; // account for terminating null in CodecPfx
+		return parse_printable<'/'>(node,::ref(sizeof(CodecPfxS)-1+2)) ; // account for terminating null in CodecPfx and "f-" prefix
 	}
 
 	bool is_codec(::string const& node) {
@@ -1483,13 +1484,11 @@ namespace Codec {
 	Split::Split(::string const& node) {
 		size_t pos = sizeof(CodecPfxS)-1 ; // account for terminating null in CodecPfx
 		//
-		file = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
-		ctx  = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
-		//
-		::string_view sv = substr_view(node,pos) ;
+		SWEAR( node[pos]=='f'&&node[pos+1]=='-' , node ) ; pos += 2 ; file = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
+		SWEAR( node[pos]=='x'&&node[pos+1]=='-' , node ) ; pos += 2 ; ctx  = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
 		switch (node[pos]) {
-			case 'd' : SWEAR( sv.starts_with("decode-") , node ) ; pos += 7 ; encode = false ; code    = parse_printable(            node,pos ) ; break ;
-			case 'e' : SWEAR( sv.starts_with("encode-") , node ) ; pos += 7 ; encode = true  ; val_crc = Crc::s_from_hex(substr_view(node,pos)) ; break ;
+			case 'c' : SWEAR( node[pos]=='c'&&node[pos+1]=='-' , node ) ; pos += 2 ; encode = true  ; val_crc = Crc::s_from_hex(substr_view(node,pos)) ; break ;
+			case 'd' : SWEAR( node[pos]=='d'&&node[pos+1]=='-' , node ) ; pos += 2 ; encode = false ; code    = parse_printable(            node,pos ) ; break ;
 		DF}
 	}
 

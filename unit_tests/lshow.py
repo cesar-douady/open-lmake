@@ -32,9 +32,9 @@ if __name__!='__main__' :
 		target = '{File1}+{File2}_py'
 		def cmd() :
 			# avoid depending on locale as deps are carefully analyzed
-			out = open(1,'wb')
+			import sys
 			for fn in (FIRST,SECOND) :
-				with open(fn,'rb') as f : out.write(f.read())
+				with open(fn) as f : sys.stdout.write(f.read())
 
 	class Dut(Rule) :
 		stderr_ok = True

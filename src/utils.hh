@@ -598,7 +598,7 @@ struct AcFd : Fd {
 	~AcFd() { close() ; }
 	//
 	AcFd& operator=(int       fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
-	AcFd& operator=(Fd const& fd_ ) { self = fd_ .fd ;                      return self ; }
+	AcFd& operator=(Fd const& fd_ ) { self = fd_.fd ;                       return self ; }
 	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
 } ;
 

@@ -114,7 +114,8 @@ ReturnFalse :
 
 Sent Record::_do_send_report(pid_t pid) {
 	s_mutex.swear_locked() ;
-	bool fast = !_is_slow && _buf.size()<=PIPE_BUF                                      ; // several processes share fast report, so only small messages can be sent
+	//
+	bool fast = !_is_slow && _buf.size()<=PIPE_BUF                                      ;                                 // several processes share fast report, so only small messages can be sent
 	Fd   fd   = fast ? s_report_fd<true/*Fast*/>(pid) : s_report_fd<false/*Fast*/>(pid) ;
 	if (+fd)
 		try                       { _buf.send(fd) ;                                                                         }
@@ -185,14 +186,12 @@ void Record::report_cached( JobExecRpcReq&& jerr , bool force ) {
 }
 
 JobExecRpcReply Record::report_sync(JobExecRpcReq&& jerr) {
-	Bool3 sync = jerr.sync ;                                                 // sample before move
+	Bool3 sync = jerr.sync ;                                // sample before move
 	report_direct(::move(jerr),true/*force*/) ;
-	if (+send_report()) {
-		/**/                                   if (sync!=Yes) return {}    ;
-		JobExecRpcReply reply = _get_reply() ; if (+reply   ) return reply ; // else job_exec could not contact server and generated an empty reply, process as if no job_exec
-	}
-	// not under lmake (typically ldebug), try to mimic server as much as possible
-	return ::move(jerr).mimic_server() ;                                     // report_direct does not touch jerr if it returns false
+	send_report() ;
+	if      (sync!=Yes     ) return {}                          ;
+	else if (s_has_server()) return _get_reply()                ;
+	else                     return ::move(jerr).mimic_server() ;  // if no server, try to mimic it as much as possible
 }
 
 // for modifying accesses :
@@ -249,8 +248,8 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , Fil
 }
 
 Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	SWEAR(!accesses) ;                                                                                                                  // no access to last component when no_follow
-	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                        // in case of overlay, create dir in the view
+	SWEAR(!accesses) ;                                                                                                                    // no access to last component when no_follow
+	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                          // in case of overlay, create dir in the view
 	r.report_guard( file_loc , ::move(real_write()) ) ;
 	send_report(r) ;
 }

@@ -134,8 +134,8 @@ public :
 private :
 	void _static_report(JobExecRpcReq&& jerr) const ;
 	JobExecRpcReply _get_reply() const {
-		if (s_static_report) return {}                                                               ;
-		else                 return IMsgBuf().receive<JobExecRpcReply>(s_report_fd<false/*Fast*/>()) ;
+		if (s_static_report) return {}                                                                                  ;
+		else                 return IMsgBuf().receive<JobExecRpcReply>( s_report_fd<false/*Fast*/>() , true/*eof_ok*/ ) ;
 	}
 	Sent _do_send_report(pid_t) ;
 public :

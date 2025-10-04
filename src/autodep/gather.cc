@@ -285,24 +285,12 @@ Gather::Digest Gather::analyze(Status status) {
 	return res ;
 }
 
-bool/*sent*/ Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
+void Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
 	Trace trace("_send_to_server",jmrr) ;
-	for( int i=3 ;; i-- ) {                                                      // retry if server exists and cannot be reached
-		bool sent = false ;
-		try {
-			ClientSockFd csfd { service_mngt } ;                                 // ensure csfd is closed only after sent = true
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvv
-			OMsgBuf().send( csfd , jmrr ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			sent = true ;
-		} catch (::string const& e) {
-			if (i>1 ) { trace("retry"               ,i,STR(sent)) ; continue ; }
-			if (sent) { trace("server_not_available",e          ) ; throw    ; } // server exists but could not be reached (error when closing socket)
-			else      { trace("no_server"                       ) ; break    ; }
-		}
-		return true/*sent*/ ;
-	}
-	return false/*sent*/ ;
+	//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                       { OMsgBuf().send( ClientSockFd( service_mngt , true/*reuse_addr*/ ) , jmrr ) ; }
+	//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch (::string const& e) { trace("no_server",e) ; throw ;                                               }
 }
 
 void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=::ref(JobSlaveEntry()) ) {
@@ -343,8 +331,8 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 			/**/                           jmrr.txt  = jse.code_val        ;
 		break ;
 	DF}                                                                                                   // NO_COV
-	if (_send_to_server(jmrr)) { _n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ; }
-	else                         sync(fd,{}) ;                                                            // send an empty reply, job will invent something reasonable
+	_send_to_server(jmrr) ;
+	_n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ;
 }
 
 void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
@@ -439,26 +427,26 @@ Status Gather::_exec_child() {
 	if (env) { trace("env",*env) ; swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ; }
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
-	bool                      has_server     = +service_mngt ;
-	ServerSockFd              job_master_fd  { New }         ;
-	AcFd                      fast_report_fd ;                          // always open, never waited for
+	bool                      has_server     = +service_mngt                             ;
+	ServerSockFd              job_master_fd  { New , 0/*backlog*/ , true/*reuse_addr*/ } ;
+	AcFd                      fast_report_fd ;                                             // always open, never waited for
 	AcFd                      child_fd       ;
-	Epoll<Kind>               epoll          { New }         ;
-	Status                    status         = Status::New   ;
-	::map<PD,::pair<Fd,Jerr>> delayed_jerrs  ;                          // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
-	size_t                    live_out_pos   = 0             ;
+	Epoll<Kind>               epoll          { New }                                     ;
+	Status                    status         = Status::New                               ;
+	::map<PD,::pair<Fd,Jerr>> delayed_jerrs  ;                                             // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
+	size_t                    live_out_pos   = 0                                         ;
 	::umap<Fd,IMsgBuf      >  server_slaves  ;
-	::umap<Fd,JobSlaveEntry>  job_slaves     ;                          // Jerr's waiting for confirmation
-	bool                      panic_seen     = false         ;
-	PD                        end_timeout    = PD::Future    ;
-	PD                        end_child      = PD::Future    ;
-	PD                        end_kill       = PD::Future    ;
-	PD                        end_heartbeat  = PD::Future    ;          // heartbeat to probe server when waiting for it
-	bool                      timeout_fired  = false         ;
-	size_t                    kill_step      = 0             ;
+	::umap<Fd,JobSlaveEntry>  job_slaves     ;                                             // Jerr's waiting for confirmation
+	bool                      panic_seen     = false                                     ;
+	PD                        end_timeout    = PD::Future                                ;
+	PD                        end_child      = PD::Future                                ;
+	PD                        end_kill       = PD::Future                                ;
+	PD                        end_heartbeat  = PD::Future                                ; // heartbeat to probe server when waiting for it
+	bool                      timeout_fired  = false                                     ;
+	size_t                    kill_step      = 0                                         ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} ) {
-		if (status==Status::New) status = status_ ;                     // only record first status
+		if (status==Status::New) status = status_ ;                                        // only record first status
 		if (+msg_              ) msg << set_nl << msg_ ;
 	} ;
 	auto kill = [&](bool next_step=false) {
@@ -540,15 +528,15 @@ Status Gather::_exec_child() {
 		if (!kill_step) {
 			if (end_heartbeat==Pdate::Future) { if ( _n_server_req_pending) end_heartbeat = now + HeartbeatTick ; }
 			else                              { if (!_n_server_req_pending) end_heartbeat = Pdate::Future       ; }
-			if (now>=end_heartbeat) {
+			if (now>end_heartbeat             ) {
 				SWEAR(has_server,_n_server_req_pending) ;
 				trace("server_heartbeat") ;
 				JobMngtRpcReq jmrr ;
 				jmrr.seq_id = seq_id                 ;
 				jmrr.job    = job                    ;
 				jmrr.proc   = JobMngtProc::Heartbeat ;
-				if (_send_to_server(jmrr)) end_heartbeat += HeartbeatTick ;
-				else                       kill() ;
+				try                     { _send_to_server(jmrr) ; end_heartbeat += HeartbeatTick ; }
+				catch (::string const&) { kill() ;                                                 }
 			}
 		}
 		bool  must_wait = +epoll || +_wait ;
@@ -630,7 +618,7 @@ Status Gather::_exec_child() {
 						} else {
 							size_t old_sz = stdout.size() ;
 							stdout.append(buf_view) ;
-							if (live_out)
+							if ( live_out && has_server )
 								if ( size_t pos = buf_view.rfind('\n')+1 ;  pos ) {
 									size_t        len  = old_sz + pos - live_out_pos ;
 									JobMngtRpcReq jmrr ;
@@ -683,12 +671,14 @@ Status Gather::_exec_child() {
 					else        server_slaves[slave] ;                                                                        // .
 				} break ;
 				case Kind::ServerSlave : {
-					JobMngtRpcReply jmrr ;
-					IMsgBuf&        buf  = server_slaves.at(fd) ;
-					try         { if (!buf.receive_step(fd,jmrr)) { trace(kind,fd,"...") ; continue ; } }
-					catch (...) { trace("no_jmrr",jmrr) ; jmrr.proc = {} ;                              }                     // fd was closed, ensure no partially received jmrr
+					::optional<JobMngtRpcReply> received = server_slaves.at(fd).receive_step<JobMngtRpcReply>( fd , true/*eof_ok*/ ) ;
+					if (!received) {                                                                                                   // partial message
+						trace(kind,fd,"...") ;
+						continue ;
+					}
+					JobMngtRpcReply& jmrr = *received ;
 					trace(kind,fd,jmrr) ;
-					Fd rfd = jmrr.fd ;                                                                                        // capture before move
+					Fd rfd = jmrr.fd ;                                                                // capture before move
 					if (jmrr.seq_id==seq_id) {
 						switch (jmrr.proc) {
 							case JobMngtProc::DepDirect  :
@@ -709,7 +699,7 @@ Status Gather::_exec_child() {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
 									for( auto const& [f,_] : jse.jerr.files ) {
 										nfs_guard.access(f) ;
-										_access_info(::copy(f)).second.no_hot(now) ;                                          // dep has been built and we are guarded : it cannot be hot from now on
+										_access_info(::copy(f)).second.no_hot(now) ;                  // dep has been built and we are guarded : it cannot be hot from now on
 									}
 									_exec_trace( now , Comment::Depend , {CommentExt::Direct,CommentExt::Reply} ) ;
 								}
@@ -732,7 +722,7 @@ Status Gather::_exec_child() {
 										ces |= CommentExt::Killed ;
 										set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
 										kill() ;
-										rfd = {} ;                                                                            // dont reply to ensure job waits if sync
+										rfd = {} ;                                                    // dont reply to ensure job waits if sync
 									break ;
 									case No :
 										ces |= CommentExt::Err ;
@@ -758,7 +748,7 @@ Status Gather::_exec_child() {
 								,	Comment::Decode
 								) ;
 								//
-								codec_map[jse.file][jse.ctx].try_emplace( jse.code_val , jmrr.txt ) ;                         // code->val
+								codec_map[jse.file][jse.ctx].try_emplace( jse.code_val , jmrr.txt ) ; // code->val
 								//
 								jse.file = {} ;
 								jse.ctx  = {} ;
@@ -781,7 +771,7 @@ Status Gather::_exec_child() {
 								,	Comment::Encode
 								) ;
 								//
-								codec_map[jse.file][jse.ctx].try_emplace( jmrr.txt , jse.code_val ) ;                         // code->val
+								codec_map[jse.file][jse.ctx].try_emplace( jmrr.txt , jse.code_val ) ; // code->val
 								//
 								jse.file = {} ;
 								jse.ctx  = {} ;
@@ -798,12 +788,12 @@ Status Gather::_exec_child() {
 									jmrr.job    = job                           ;
 									jmrr.proc   = JobMngtProc::AddLiveOut       ;
 									jmrr.txt    = stdout.substr(0,live_out_pos) ;
-									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-									OMsgBuf().send( ClientSockFd(service_mngt) , jmrr ) ;
-									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+									OMsgBuf().send( ClientSockFd(service_mngt,true/*reuse_addr*/) , jmrr ) ;
+									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 								}
 							} break ;
-						DF}                                                                                                   // NO_COV
+						DF}                                                                           // NO_COV
 						if (+rfd) {
 							JobExecRpcReply jerr ;
 							switch (jmrr.proc) {

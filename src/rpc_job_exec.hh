@@ -74,22 +74,23 @@ struct JobExecRpcReq {
 	::string      & txt     ()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // .
 	// services
 	void chk() const {
+		/**/                                                 SWEAR( (+files)==(proc>=Proc::HasFile) ) ;
 		if ( proc>=Proc::HasFile && proc<Proc::HasFileInfo ) SWEAR( ::none_of(files,[](::pair_s<Disk::FileInfo> const& e) { return +e.second ; } ) , proc,files ) ;
 		switch (proc) {
-			case Proc::None          :                                                                                                                          break ;
+			case Proc::None          : SWEAR(              !min_len && !digest            &&  !id                       && !date                    , self ) ; break ;
 			case Proc::ChkDeps       :
-			case Proc::Tmp           : SWEAR(              !min_len && !digest            &&  !id                       && +date && !files           , self ) ; break ;
-			case Proc::Confirm       : SWEAR(              !min_len && !digest.has_read() && ( id&&digest.write!=Maybe) && !date && !files           , self ) ; break ;
-			case Proc::List          : SWEAR( sync==Yes && !min_len && !digest.has_read() &&  !id                       && +date && !files           , self ) ; break ;
-			case Proc::Decode        : SWEAR( sync==Yes && !min_len && !digest            &&  !id                       && +date &&  files.size()==3 , self ) ; break ; // files = {file,ctx,code}
+			case Proc::Tmp           : SWEAR(              !min_len && !digest            &&  !id                       && +date                    , self ) ; break ;
+			case Proc::Confirm       : SWEAR(              !min_len && !digest.has_read() && ( id&&digest.write!=Maybe) && !date                    , self ) ; break ;
+			case Proc::List          : SWEAR( sync==Yes && !min_len && !digest.has_read() &&  !id                       && +date                    , self ) ; break ;
+			case Proc::Decode        : SWEAR( sync==Yes && !min_len && !digest            &&  !id                       && +date && files.size()==3 , self ) ; break ; // files = {file,ctx,code}
 			case Proc::DepDirect     :
-			case Proc::DepVerbose    : SWEAR( sync==Yes && !min_len &&                        !id                       && +date && +files           , self ) ; break ;
-			case Proc::Encode        : SWEAR( sync==Yes &&             !digest            &&  !id                       && +date &&  files.size()==3 , self ) ; break ; // files = {file,ctx,val }
-			case Proc::Guard         : SWEAR(              !min_len && !digest            &&  !id                       && +date && +files           , self ) ; break ;
+			case Proc::DepVerbose    : SWEAR( sync==Yes && !min_len &&                        !id                       && +date                    , self ) ; break ;
+			case Proc::Encode        : SWEAR( sync==Yes &&             !digest            &&  !id                       && +date && files.size()==3 , self ) ; break ; // files = {file,ctx,val }
+			case Proc::Guard         : SWEAR(              !min_len && !digest            &&  !id                       && +date                    , self ) ; break ;
 			case Proc::Panic         :
-			case Proc::Trace         : SWEAR(              !min_len && !digest            &&  !id                       && +date &&  files.size()==1 , self ) ; break ; // files = {txt          }
-			case Proc::Access        : SWEAR(              !min_len &&                       ( id||digest.write!=Maybe) && +date && +files           , self ) ; break ;
-			case Proc::AccessPattern : SWEAR(              !min_len && !digest.has_read() && (!id&&digest.write!=Maybe) && +date && +files           , self ) ; break ;
+			case Proc::Trace         : SWEAR(              !min_len && !digest            &&  !id                       && +date && files.size()==1 , self ) ; break ; // files = {txt          }
+			case Proc::Access        : SWEAR(              !min_len &&                       ( id||digest.write!=Maybe) && +date                    , self ) ; break ;
+			case Proc::AccessPattern : SWEAR(              !min_len && !digest.has_read() && (!id&&digest.write!=Maybe) && +date                    , self ) ; break ;
 		DF}                                                                                                                                                             // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
@@ -100,18 +101,18 @@ struct JobExecRpcReq {
 		if (proc>=Proc::HasFile) ::serdes(s,files       ) ;
 		switch (proc) {
 			case Proc::ChkDeps       :
-			case Proc::Tmp           : ::serdes( s ,                               date         ) ; break ;
-			case Proc::Confirm       : ::serdes( s ,           digest.write , id                ) ; break ;
-			case Proc::List          : ::serdes( s ,           digest.write ,      date         ) ; break ;
-			case Proc::Decode        : ::serdes( s ,                               date , files ) ; break ;
+			case Proc::Tmp           : ::serdes( s ,                               date ) ; break ;
+			case Proc::Confirm       : ::serdes( s ,           digest.write , id        ) ; break ;
+			case Proc::List          : ::serdes( s ,           digest.write ,      date ) ; break ;
+			case Proc::Decode        : ::serdes( s ,                               date ) ; break ;
 			case Proc::DepDirect     :
-			case Proc::DepVerbose    : ::serdes( s ,           digest       ,      date         ) ; break ;
-			case Proc::Encode        : ::serdes( s , min_len ,                     date , files ) ; break ;
-			case Proc::Guard         : ::serdes( s ,                               date , files ) ; break ;
+			case Proc::DepVerbose    : ::serdes( s ,           digest       ,      date ) ; break ;
+			case Proc::Encode        : ::serdes( s , min_len ,                     date ) ; break ;
+			case Proc::Guard         : ::serdes( s ,                               date ) ; break ;
 			case Proc::Panic         :
-			case Proc::Trace         : ::serdes( s ,                               date , files ) ; break ;
-			case Proc::Access        : ::serdes( s ,           digest       , id , date         ) ; break ;
-			case Proc::AccessPattern : ::serdes( s ,           digest       ,      date         ) ; break ;
+			case Proc::Trace         : ::serdes( s ,                               date ) ; break ;
+			case Proc::Access        : ::serdes( s ,           digest       , id , date ) ; break ;
+			case Proc::AccessPattern : ::serdes( s ,           digest       ,      date ) ; break ;
 		DF}
 	}
 	JobExecRpcReply mimic_server() && ;
