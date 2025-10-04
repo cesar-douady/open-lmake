@@ -59,5 +59,5 @@ else :
 		' code1 ctx val2\n'
 	+	'\n'                                                                          # force refresh line
 	)
-	ut.lmake( 'dut11' , 'dut22' , reformat=1 , unlinked=2 , new=1 , failed=2 , rc=1 ) # check we do not use old codec entries from cache
+	ut.lmake( 'dut11' , 'dut22' , reformat=2 , unlinked=2 , new=1 , failed=2 , rc=1 ) # check we do not use old codec entries from cache
 

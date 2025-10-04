@@ -551,7 +551,7 @@ namespace Py {
 		template<IsStream S> void serdes(S& s) {
 			// marshal seems very slow to fail, so avoid calling it on most common cases known to fail
 			if (!IsIStream<S>)
-				for( auto const& [py_k,py_v] : *self ) throw_if( py_v.template is_a<Callable>() , "cannot serialize callables" ) ; // XXX? : why is template necessary with gcc11 ?
+				for( auto const& [py_k,py_v] : *self ) throw_if( py_v.template is_a<Callable>() , "cannot serialize callables" ) ; // XXX/ : why is template necessary with gcc11 ?
 			Base::serdes(s) ;
 		}
 	} ;

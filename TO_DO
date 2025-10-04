@@ -70,6 +70,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* rework Codec as code is confusing
+	- algo that caches codec file content is touchy
+	- need a crystal clear code with solid invariants
+	- as of today, the management of the log_date is obscur
+	- possibly use a PrefixFile to store content instead of a VectorFile
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -188,6 +193,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* manage to only check codec files that have been written to when refreshing codec files at end of Req
 * bufferize reports
 * codec management in cache can be thoroughly optimized
 	- maintain codec_map in the deps file so as to be readily accessible when matching
@@ -195,6 +201,9 @@ M port to Darwin
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case
+! implement UDP communication
+	- between server and job_exec
+	- as there are a lot of short-live servers an connections
 ! share deps to non-buildable Node's in job deps
 	- define a new prefix file non_buildable_deps (reversed)
 	- store such entries in deps rather than the explicit list

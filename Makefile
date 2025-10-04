@@ -659,7 +659,7 @@ REMOTE_OBJS  := \
 	src/trace.o          \
 	src/autodep/job_support.o
 
-# XXX : make job_exec compatible with SAN
+# XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
 #	$(AUTODEP_SAN_OBJS)        \
 #	$(RPC_JOB_SAN_OBJS)        \

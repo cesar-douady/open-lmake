@@ -52,4 +52,4 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	cnt = ut.lmake( 'dut' , new=1+n_files , done=1+n_targets*(1+n_encodes) , may_rerun=1+n_targets )
+	cnt = ut.lmake( 'dut' , new=1+n_files , done=1+n_targets*(1+n_encodes) , may_rerun=1+n_targets , reformat=n_files )

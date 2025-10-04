@@ -80,7 +80,7 @@ template<class T,bool Flush=true,bool QueueAccess=false,bool Urgent=false> struc
 	#define RNQA requires(!QueueAccess)
 	// statics
 private :
-	// XXX! : why gcc refuses to call both functions _s_thread_func ?
+	// XXX/ : gcc refuses to call both functions _s_thread_func
 	static void _s_thread_func1( ::stop_token stop , char key , QueueThread* this_ , ::function<void(::stop_token,T const&)> func ) RQA {
 		t_thread_key = key ;
 		Trace trace("QueueThread::_s_thread_func1") ;

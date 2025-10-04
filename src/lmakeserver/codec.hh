@@ -40,15 +40,17 @@ namespace Codec {
 			// log_date is the semantic date, i.e. :
 			// - all decode & encode nodes for this file have this common date
 			// - when file physical date was this date, it was canonic
-			Time::Pdate sample_date ; // date at which file has been sampled on disk
+			Time::Pdate sample_date ;                                                                                      // date at which file has been sampled on disk
 			Time::Ddate log_date    ;
-			Time::Ddate phy_date    ; // actual file date on disk
+			Time::Ddate phy_date    ;                                                                                      // actual file date on disk
+			bool        canonic     = true ;                                                                               // if true => file is canonic
 		} ;
 		// statics
 		static void s_init    () ;
 		static void s_finalize() ;
 		//
-		static bool/*ok*/ s_refresh( ::string const& file , NodeIdx=0 , ::vector<ReqIdx> const& ={} ) ;
+		static bool/*ok*/ s_refresh( ::string const& file , NodeIdx=0 , ::vector<ReqIdx> const& ={} , bool force=false ) ; // ignore sample date if force
+		static bool/*ok*/ s_refresh(                                             ReqIdx         =0  , bool force=false ) ;
 	private :
 		static void _s_canonicalize( ::string const& file , ::vector<ReqIdx> const& ) ;
 		// static data

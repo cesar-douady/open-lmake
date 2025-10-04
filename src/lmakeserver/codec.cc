@@ -64,6 +64,7 @@ namespace Codec {
 		decode_node->log_date() = entry.log_date  ;
 		encode_node->log_date() = entry.log_date  ;
 		entry.phy_date          = file_date(file) ; // we have touched the file but not the semantic, update phy_date but not log_date
+		entry.canonic           = false           ;
 	}
 
 	static bool _buildable_ok( ::string const& file , Node node ) {
@@ -115,13 +116,6 @@ namespace Codec {
 		::vector<Node>                     nodes      ;
 		bool                               is_canonic = true                                   ;
 		::vector_s                         lines      = AcFd(file,true/*err_ok*/).read_lines() ;
-		//
-		auto process_node = [&]( ::string const& ctx , ::string const& code , ::string const& val ) {
-			//                                             no_dir
-			Node dn { New , mk_decode_node(file,ctx,code) , true } ; nodes.emplace_back(dn) ;
-			Node en { New , mk_encode_node(file,ctx,val ) , true } ; nodes.emplace_back(en) ;
-			_create_pair( file , dn , val , en , code ) ;
-		} ;
 		Trace trace("_s_canonicalize",file,lines.size()) ;
 		//
 		bool first = true ;
@@ -136,8 +130,8 @@ namespace Codec {
 			//
 			if (is_canonic) {
 				// use same order as in decode_tab below when rewriting file and ensure standard line formatting
-				if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code)          ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
-				else if ( ::string l=_mk_codec_line(ctx,code,val) ; line!=l ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
+				if      ( !first && ::pair(prev_ctx,prev_code)>=::pair(ctx,code) ) { trace("wrong_order",prev_ctx,prev_code,ctx,code) ; is_canonic=false ; }
+				else if ( ::string l=_mk_codec_line(ctx,code,val) ; line!=l      ) { trace("fancy_line" ,'"'+line+'"',"!=",'"'+l+'"') ; is_canonic=false ; }
 			}
 			//
 			auto [it,inserted] = encode_tab[ctx].try_emplace(val,code) ;
@@ -183,27 +177,31 @@ namespace Codec {
 			for( ReqIdx r : reqs ) Req(r)->audit_info( Color::Note , "reformat" , file ) ;
 		}
 		for( auto const& [ctx,e_entry] : encode_tab )
-			for( auto const& [val,code] : e_entry )
-				process_node(ctx,code,val) ;
+			for( auto const& [val,code] : e_entry ) { //!      no_dir
+				Node dn { New , mk_decode_node(file,ctx,code) , true } ; nodes.emplace_back(dn) ;
+				Node en { New , mk_encode_node(file,ctx,val ) , true } ; nodes.emplace_back(en) ;
+				_create_pair( file , dn , val , en , code ) ;
+			}
 		// wrap up
 		Ddate log_date = s_tab.at(file).log_date ;
 		for( Node n : nodes ) n->log_date() = log_date ;
 		trace("done",nodes.size()/2) ;
 	}
 
-	bool/*ok*/ Closure::s_refresh( ::string const& file , NodeIdx ni , ::vector<ReqIdx> const& reqs ) {
+	bool/*ok*/ Closure::s_refresh( ::string const& file , NodeIdx ni , ::vector<ReqIdx> const& reqs , bool force ) {
 		auto   [it,inserted] = s_tab.try_emplace(file,Entry()) ;
 		Entry& entry         = it->second                      ;
 		//
-		if ( !inserted && ::none_of( reqs , [&](ReqIdx ri) { return entry.sample_date<Req(ri)->start_pdate ; } ) ) return true/*ok*/ ; // we sample disk once per Req
-		Trace trace("refresh",file,reqs) ;
+		if ( !inserted && !force && ::none_of( reqs , [&](ReqIdx ri) { return entry.sample_date<Req(ri)->start_pdate ; } ) ) return true/*ok*/ ; // we sample disk once per Req
+		Trace trace("s_refresh",file,ni,reqs) ;
 		//
 		Node file_node { file } ;
-		if ( !file_node || file_node->buildable!=Buildable::Src ) {   // file_node->set_builable() can only be executed in main thread and is useless here
+		if ( !file_node || file_node->buildable!=Buildable::Src ) {                    // file_node->set_builable() can only be executed in main thread and is useless here
 			for( ReqIdx r : reqs ) {
 				Req(r)->audit_node(Color::Err ,"encode/decode association file must be a plain source :",file_node  ) ;
 				Req(r)->audit_node(Color::Note,"consider : git add"                                     ,file_node,1) ;
 			}
+			trace("bad_file") ;
 			return false/*ok*/ ;
 		}
 		//
@@ -211,13 +209,26 @@ namespace Codec {
 		entry.sample_date = New ;
 		if ( inserted && ni ) {
 			if ( Node node{ni} ; node->buildable==Buildable::Decode )
-				entry.phy_date = entry.log_date = node->log_date() ;  // initialize from known info
+				entry.phy_date = entry.log_date = node->log_date() ;                   // initialize from known info
 		}
-		if (phy_date==entry.phy_date) return true/*ok*/ ;             // file has not changed, nothing to do
+		trace("phy_dates",entry.phy_date,phy_date) ;
+		if ( phy_date==entry.phy_date && (!force||entry.canonic) ) return true/*ok*/ ; // file has not changed, nothing to do unless required to sort
 		entry.log_date = phy_date ;
+		entry.canonic  = true     ;
 		//
 		_s_canonicalize( file , reqs ) ;
 		return true/*ok*/ ;
+	}
+
+	bool/*ok*/ Closure::s_refresh( ReqIdx req , bool force ) {
+		bool res = true ;
+		::vector<ReqIdx> reqs { req } ;
+		Trace trace("s_refresh",req) ;
+		for( auto const& [f,e] : s_tab ) {
+			trace(f) ;
+			res &= s_refresh( f , 0/*node*/ , reqs , force ) ;
+		}
+		return res ;
 	}
 
 	JobMngtRpcReply Closure::decode() const {
@@ -246,7 +257,7 @@ namespace Codec {
 		//
 		if (!s_refresh( file , +encode_node , reqs )) {
 			trace("no_refresh") ;
-			return { .proc=JobMngtProc::Encode , .crc=Crc::None , .ok=No } ;                     // codec file not available, seq_id and fd will be filled in later
+			return { .proc=JobMngtProc::Encode , .crc=Crc::None , .ok=No } ;                             // codec file not available, seq_id and fd will be filled in later
 		}
 		//
 		if (_buildable_ok(file,encode_node)) {
@@ -268,7 +279,7 @@ namespace Codec {
 			}
 		}
 		trace("clash") ;
-		return { .proc=JobMngtProc::Encode , .txt="checksum clash" , .ok=No } ;                  // this is a true full crc clash, seq_id and fd will be filled in later
+		return { .proc=JobMngtProc::Encode , .txt="checksum clash" , .ok=No } ;                          // this is a true full crc clash, seq_id and fd will be filled in later
 	}
 
 	bool/*ok*/ refresh( NodeIdx ni , ReqIdx r ) {

@@ -190,23 +190,31 @@ namespace Engine {
 		ReqOptions options = {}            ;                                                                                                            // .
 	} ;
 
+	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	struct EngineClosureJobStart {
 		friend ::string& operator+=( ::string& , EngineClosureJobStart const& ) ;
 		bool                       report        = false ;
 		::vmap<Node,FileActionTag> report_unlnks = {}    ;
 		MsgStderr                  msg_stderr    = {}    ;
 	} ;
+	#pragma GCC diagnostic pop
 
 	struct EngineClosureJobReportStart {
 		friend ::string& operator+=( ::string& , EngineClosureJobReportStart const& ) ;
 	} ;
 
+	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	struct EngineClosureJobGiveUp {
 		friend ::string& operator+=( ::string& , EngineClosureJobGiveUp const& ) ;
 		Req  req    = {}    ;
 		bool report = false ;
 	} ;
+	#pragma GCC diagnostic pop
 
+	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	struct EngineClosureJob
 	:	             ::variant< Void/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ >
 	{	using Base = ::variant< Void/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;
@@ -234,6 +242,7 @@ namespace Engine {
 		// data
 		JobExec job_exec = {} ;
 	} ;
+	#pragma GCC diagnostic pop
 
 	struct EngineClosureJobMngt {
 		friend ::string& operator+=( ::string& , EngineClosureJobMngt const& ) ;
@@ -280,7 +289,7 @@ namespace Engine {
 		// Job
 		EngineClosure( JRP p , JE&& je , bool r , ::vmap<Node,FileActionTag>&& rus={} , MsgStderr&& msg_stderr_={} ) :
 			Base{ECJ{ ::move(je) , EngineClosureJobStart{.report=r,.report_unlnks=::move(rus),.msg_stderr=::move(msg_stderr_)} }}
-		{ (void)p ; SWEAR( p==JRP::Start , p ) ; }
+		{ SWEAR( p==JRP::Start , p ) ; }
 		//
 		EngineClosure( JRP p , JE&& je , R rq , bool rpt ) : Base{ECJ{::move(je),EngineClosureJobGiveUp     {.req=rq,.report=rpt}}} { SWEAR( p==JRP::GiveUp      , p ) ; }
 		EngineClosure( JRP p , JE&& je                   ) : Base{ECJ{::move(je),EngineClosureJobReportStart{                   }}} { SWEAR( p==JRP::ReportStart , p ) ; }

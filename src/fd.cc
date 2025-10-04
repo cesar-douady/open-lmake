@@ -99,10 +99,10 @@ SockFd::SockFd( NewType , bool reuse_addr ) {
 		switch (errno) {
 			case EADDRINUSE :
 			case EACCES     : break ;
-			default         : FAIL(self,EPERM,errno,::strerror(errno)) ;
+			default         : FAIL(self,::strerror(errno)) ;
 		}
 		if (i>=NAddrInUseTrials) throw cat("cannot bind ",self," : ",::strerror(errno)) ;
-		if (trial_port<s_ports.first+s_ports.second-PortInc) trial_port += PortInc ;                  // increment while staying within ephemeral range ...
+		if (trial_port<s_ports.first+s_ports.second-PortInc) trial_port += PortInc                  ; // increment while staying within ephemeral range ...
 		else                                                 trial_port -= s_ports.second - PortInc ; // ... and it is seems to be more efficient than incrementing by 1 ...
 	}                                                                                                 // ... and curiously more efficient than successive random numbers as well
 }
@@ -151,10 +151,17 @@ ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr 
 				i_addr_reuse++ ;
 				AddrInUseTick.sleep_for() ;
 			break ;
-			case ECONNREFUSED  : { if (i_connect   >=NConnectTrials  ) throw cat("cannot connect to ",self," after ",NConnectTrials  ," trials : ",::strerror(errno)) ; } i_connect   ++ ; break ;
-			case EINTR         :                                                                                                                                                           break ;
-			case ETIMEDOUT     : { if (Pdate(New)>end     ) throw cat("cannot connect to ",self," : ",::strerror(errno)) ; }                                                               break ;
-			default            : FAIL(self,server,port,timeout,reuse_addr) ;
+			case ECONNREFUSED :
+				if (i_connect>=NConnectTrials) throw cat("cannot connect to ",self," after ",NConnectTrials  ," trials : ",::strerror(errno)) ;
+				i_connect++ ;
+			break ;
+			case EINTR :
+			break ;
+			case ETIMEDOUT :
+				if (Pdate(New)>end) throw cat("cannot connect to ",self," : ",::strerror(errno)) ;
+				break ;
+			default :
+				FAIL(self,server,port,timeout,reuse_addr,::strerror(errno)) ;
 		}
 	}
 }

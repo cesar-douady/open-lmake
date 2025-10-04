@@ -48,9 +48,9 @@ else :
 
 	print('',file=open('codec_file','w'))
 
-	ut.lmake      ( 'codec_sh.ok' , 'codec_py.ok' , reformat=1   , new=1 , done=4 )
-	cnt = ut.lmake( 'codec_sh'    , 'codec_py.ok' , reformat=... , changed=...    )
-	assert cnt.reformat in (0,1) and cnt.changed in (0,1)                           # depend on job order and crc details
+	ut.lmake      ( 'codec_sh.ok' , 'codec_py.ok' , reformat=2 , new=1 , done=4 )
+	cnt = ut.lmake( 'codec_sh'    , 'codec_py.ok' , reformat=0 , changed=...    )
+	assert (0,1) and cnt.changed in (0,1)                                         # depend on job order and crc details
 
 	os.unlink('codec_sh')
 	os.unlink('codec_py')

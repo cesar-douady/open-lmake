@@ -412,8 +412,6 @@ namespace Backends {
 					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
 				}
 				//
-				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                      ;
-				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                           ;
 				/**/                            reply.addr                    = fd.peer_addr()                                                      ; SWEAR(reply.addr) ;   // 0 means no address
 				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                               ;
 				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                                 ;
@@ -428,6 +426,8 @@ namespace Backends {
 				/**/                            reply.network_delay           = g_config->network_delay                                             ;
 				/**/                            reply.nice                    = submit_attrs.nice!=uint8_t(-1) ? submit_attrs.nice : g_config->nice ;
 				/**/                            reply.rule                    = rd.user_name()                                                      ;
+				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                      ;
+				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                           ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;

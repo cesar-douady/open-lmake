@@ -279,10 +279,15 @@ namespace Engine {
 		JobReqInfo const& cri     = job->c_req_info(self)   ;
 		bool              job_err = job->status!=Status::Ok ;
 		Trace trace("chk_end",self,cri,job,job->status) ;
+		//
+		Codec::Closure::s_refresh( +self , true/*force*/ ) ;                // force means ignore sample date at start of req
+		//
 		self->audit_stats  (       ) ;
 		self->audit_summary(job_err) ;
+		//
 		if (zombie()                     ) { trace("zombie") ; goto Done ; }
 		if (!job_err                     ) { trace("ok"    ) ; goto Done ; }
+		//
 		if (!job->c_req_info(self).done()) {
 			for( Dep const& d : job->deps )
 				if (!d->done(self)) { _report_cycle(d) ; trace("cycle") ; goto Done ; }

@@ -74,7 +74,7 @@ struct JobExecRpcReq {
 	::string      & txt     ()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // .
 	// services
 	void chk() const {
-		/**/                                                 SWEAR( (+files)==(proc>=Proc::HasFile) ) ;
+		/**/                                                 SWEAR( (+files)==(proc>=Proc::HasFile)                                                , proc,files ) ;
 		if ( proc>=Proc::HasFile && proc<Proc::HasFileInfo ) SWEAR( ::none_of(files,[](::pair_s<Disk::FileInfo> const& e) { return +e.second ; } ) , proc,files ) ;
 		switch (proc) {
 			case Proc::None          : SWEAR(              !min_len && !digest            &&  !id                       && !date                    , self ) ; break ;
@@ -91,7 +91,7 @@ struct JobExecRpcReq {
 			case Proc::Trace         : SWEAR(              !min_len && !digest            &&  !id                       && +date && files.size()==1 , self ) ; break ; // files = {txt          }
 			case Proc::Access        : SWEAR(              !min_len &&                       ( id||digest.write!=Maybe) && +date                    , self ) ; break ;
 			case Proc::AccessPattern : SWEAR(              !min_len && !digest.has_read() && (!id&&digest.write!=Maybe) && +date                    , self ) ; break ;
-		DF}                                                                                                                                                             // NO_COV
+		DF}                                                                                                                                                            // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
 		/**/                     ::serdes(s,proc        ) ;

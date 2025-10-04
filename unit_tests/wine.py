@@ -22,7 +22,7 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
-		chroot_dir   = '/'                                                           # ensure pid namespace is used to ensure reliale job termination
+		tmp_view = '/tmp'                                                            # ensure pid namespace is used to ensure reliable job termination
 		side_targets = {
 			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes in dir, even after init
 		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # .
@@ -42,12 +42,12 @@ if __name__!='__main__' :
 
 	class WineInit(WineRule) :
 		target       = 'wine_init'
-		targets      = { 'WINE' : (r'.wine/{*:.*}','incremental') }                                        # for init wine env is not incremental
+		targets      = { 'WINE' : (r'.wine/{*:.*}','incremental') }                 # for init wine env is not incremental
 		side_targets = { 'WINE' : None                            }
 		stderr_ok    = True
 		readdir_ok   = True
-		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; rm -f /tmp/.X$D-lock ; {xvfb} -n $D wine64 cmd && sleep 1' # do nothing, init support files (in targets) wait for wineserver to die (3s by default)
-		else    : cmd =  '                                                          wine64 cmd && sleep 1' # .
+		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; {xvfb} -n $D wine64 cmd && sleep 1' # do nothing, init support files (in targets) wait for wineserver to die (3s by default)
+		else    : cmd =  '                                   wine64 cmd && sleep 1' # .
 
 	for ext in ('','64') :
 		class Dut(Base,WineRule) :
@@ -56,8 +56,8 @@ if __name__!='__main__' :
 			deps    = { 'WINE_INIT' : 'wine_init' }
 			autodep = '{Method}'
 			# wine sends err messages, that do occur, to stdout !
-			if xvfb : cmd = f'set -o pipefail ; D=$(($SMALL_ID+50)) ; rm -rf /tmp/.X$D-lock ; {xvfb} -n $D wine{ext} hostname | head -1 && sleep 2' # wine exists before hostname has finished !
-			else    : cmd = f'set -o pipefail ;                                                            wine{ext} hostname | head -1 && sleep 2' # .
+			if xvfb : cmd = f'set -o pipefail ; D=$(($SMALL_ID+50)) ; {xvfb} -n $D wine{ext} hostname | head -1 && sleep 2' # wine exits before hostname has finished !
+			else    : cmd = f'set -o pipefail ;                                    wine{ext} hostname | head -1 && sleep 2' # .
 
 	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'
