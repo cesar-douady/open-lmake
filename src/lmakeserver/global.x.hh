@@ -216,8 +216,8 @@ namespace Engine {
 	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
 	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 	struct EngineClosureJob
-	:	             ::variant< Void/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ >
-	{	using Base = ::variant< Void/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;
+	:	             ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ >
+	{	using Base = ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;
 		//
 		friend ::string& operator+=( ::string& , EngineClosureJob const& ) ;
 		//

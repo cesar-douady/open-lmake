@@ -110,8 +110,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true      ;
 		static constexpr size_t MaxReplySz         = 0         ;
 		// services
-		Void     process(Record& r)       ;
-		::string descr  (         ) const ;
+		::monostate process(Record& r)       ;
+		::string    descr  (         ) const ;
 		// data
 		::vector_s   files         = {} ;
 		AccessDigest access_digest = {} ;
@@ -137,8 +137,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true     ;
 		static constexpr size_t MaxReplySz         = 0        ;
 		// services
-		Void     process(Record& r)       ;
-		::string descr  (         ) const { return cat(Cmd,' ',files) ; }
+		::monostate process(Record& r)       ;
+		::string    descr  (         ) const { return cat(Cmd,' ',files) ; }
 	} ;
 
 	struct DependVerbose : AccessBase {
@@ -167,8 +167,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true     ;
 		static constexpr size_t MaxReplySz         = 0        ;
 		// services
-		Void     process(Record& r)       ;
-		::string descr  (         ) const { return cat(Cmd,' ',files) ; }
+		::monostate process(Record& r)       ;
+		::string    descr  (         ) const { return cat(Cmd,' ',files) ; }
 	} ;
 
 	struct ChkDeps {

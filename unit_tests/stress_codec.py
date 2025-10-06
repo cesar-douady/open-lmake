@@ -7,8 +7,10 @@ n_jobs    = 100
 n_files   = 10
 n_ctxs    = 10
 n_codes   = 10
-n_targets = 10
+n_targets = 100
 n_encodes = 1000
+
+n_dones   = 11001 # too complicated to anticipate, juste try and report correct number
 
 if __name__!='__main__' :
 
@@ -16,7 +18,8 @@ if __name__!='__main__' :
 	from lmake.rules import Rule,PyRule
 
 	lmake.config.backends.local.cpu = n_jobs
-	lmake.config.trace.n_jobs       = 10000  # ensure we keep all traces for analysis
+	lmake.config.network_delay      = 3      # host is overloaded
+	lmake.config.trace.n_jobs       = 20000  # ensure we keep all traces for analysis
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -52,4 +55,4 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	cnt = ut.lmake( 'dut' , new=1+n_files , done=1+n_targets*(1+n_encodes) , may_rerun=1+n_targets , reformat=n_files )
+	cnt = ut.lmake( 'dut' , new=1+n_files , done=n_dones , may_rerun=1+n_targets , reformat=n_files )

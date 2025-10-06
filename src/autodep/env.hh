@@ -33,35 +33,19 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,sub_repo_s                     ) ;
 		::serdes(s,views                          ) ;
 	}
-	Fd repo_root_fd() const {
-		Fd res = { repo_root_s , true/*err_ok*/ , {.flags=O_RDONLY|O_DIRECTORY} , true/*no_std*/ } ; // avoid poluting standard descriptors
-		swear_prod( +res , "cannot open repo root dir",repo_root_s ) ;
-		return res ;
-	}
-	template<bool Fast> Fd report_fd() const {
-		if (!has_server()) return {} ;
-		//
-		Fd res ;
-		bool fast = Fast && +fast_report_pipe && host()==fast_host ;
-		try {
-			if (fast) res = { fast_report_pipe , {.flags=O_WRONLY|O_APPEND} , true/*no_std*/ } ;     // append if writing to a file
-			else      res = ClientSockFd( service , true/*addr_reuse*/ ).detach()              ;     // connect to server
-		} catch (::string const& e) {
-			fail_prod("while trying to report deps :",e) ;                                           // NO_COV
-		}
-		swear_prod( +res , Fast,fast,fast_report_pipe,service ) ;
-		return res ;
-	}
-	void chk(bool for_cache=false) const ;
+	Fd   repo_root_fd  (                    ) const ;
+	Fd   fast_report_fd(                    ) const ;
+	Fd   slow_report_fd(                    ) const ;
+	void chk           (bool for_cache=false) const ;
 	// data
-	bool                 auto_mkdir       = false ;                                                  // if true  <=> auto mkdir in case of chdir
-	bool                 enable           = true  ;                                                  // if false <=> no automatic report
-	bool                 ignore_stat      = false ;                                                  // if true  <=> stat-like syscalls do not trigger dependencies
-	bool                 readdir_ok       = false ;                                                  // if true  <=> allow reading local non-ignored dirs
-	::string             fast_report_pipe ;                                                          // pipe to report accesses, faster than sockets, but does not allow replies
+	bool                 auto_mkdir       = false ;                                                                  // if true  <=> auto mkdir in case of chdir
+	bool                 enable           = true  ;                                                                  // if false <=> no automatic report
+	bool                 ignore_stat      = false ;                                                                  // if true  <=> stat-like syscalls do not trigger dependencies
+	bool                 readdir_ok       = false ;                                                                  // if true  <=> allow reading local non-ignored dirs
+	::string             fast_report_pipe ;                                                                          // pipe to report accesses, faster than sockets, but does not allow replies
 	::string             service          ;
-	::string             sub_repo_s       ;                                                          // relative to repo_root_s
+	::string             sub_repo_s       ;                                                                          // relative to repo_root_s
 	::vmap_s<::vector_s> views            ;
 	// not transported
-	::string fast_host ;                                                                             // host on which fast_report_pipe can be used
+	::string fast_host ;                                                                                             // host on which fast_report_pipe can be used
 } ;

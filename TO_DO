@@ -4,11 +4,12 @@
 * This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 items (also used in XXX comments) :
-	* normal    : ordered by implementation priority in each section
-	! difficult : unclear how to implement it
-	? idea      : unclear whether desirable
-	> delayed   : to be implemented later (cannot be implemented today)
-	M museum    : most probably obsolete, kept in museum dir as long as not 100% sure
+	* normal     : ordered by implementation priority in each section
+	! difficult  : unclear how to implement it
+	/ system bug : linked to a system bug
+	? idea       : unclear whether desirable
+	> delayed    : to be implemented later (cannot be implemented today)
+	M museum     : most probably obsolete, kept in museum dir as long as not 100% sure
 	X abandoned
 
 ****************************************************************************************************
@@ -48,6 +49,7 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* in lshow -d, show codec files in more user-friendly way
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -194,7 +196,6 @@ M port to Darwin
 ****************************************************************************************************
 
 * manage to only check codec files that have been written to when refreshing codec files at end of Req
-* bufferize reports
 * codec management in cache can be thoroughly optimized
 	- maintain codec_map in the deps file so as to be readily accessible when matching
 	- overall review code
@@ -284,6 +285,7 @@ X manage HUGE pages in store
 * TOOLS
 ****************************************************************************************************
 
+* consider using codeclip, -ffunction-sections -fdata-sections -Wl,--gc-sections
 ! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests
 	- provide a bootstrap script

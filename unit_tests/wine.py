@@ -35,7 +35,6 @@ if __name__!='__main__' :
 		,	'CONFIG_DIR' : ('.config'      ,'readdir_ok')                            # .
 		,	'MENUS_DIR'  : ('.config/menus','readdir_ok')                            # .
 		}
-		timeout = 30                                                                 # actual time should be <5s but seems to sometimes block under heavy load
 		environ = { 'WINEDEBUG' : '-all' }
 		if xvfb : environ_resources = { 'SMALL_ID' : '$SMALL_ID'                   } # display is provided by xvfb-run
 		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display
@@ -44,6 +43,7 @@ if __name__!='__main__' :
 		target       = 'wine_init'
 		targets      = { 'WINE' : (r'.wine/{*:.*}','incremental') }                 # for init wine env is not incremental
 		side_targets = { 'WINE' : None                            }
+		timeout      = 60                                                           # actual time should be ~10s but seems to sometimes block under heavy load
 		stderr_ok    = True
 		readdir_ok   = True
 		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; {xvfb} -n $D wine64 cmd && sleep 1' # do nothing, init support files (in targets) wait for wineserver to die (3s by default)
@@ -54,6 +54,7 @@ if __name__!='__main__' :
 			name    = f'Dut{ext}'
 			target  = f'dut{ext}.{{Method}}'
 			deps    = { 'WINE_INIT' : 'wine_init' }
+			timeout = 10                                                                                                    # actual time should be ~2s
 			autodep = '{Method}'
 			# wine sends err messages, that do occur, to stdout !
 			if xvfb : cmd = f'set -o pipefail ; D=$(($SMALL_ID+50)) ; {xvfb} -n $D wine{ext} hostname | head -1 && sleep 2' # wine exits before hostname has finished !

@@ -42,8 +42,8 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	bool             found_server = false ;
 	JobStartRpcReply res          ;
 	try {
-		ClientSockFd fd { g_service_start , true/*addr_reuse*/ } ;
-		fd.set_timeout(Delay(100)) ;                               // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections, 10 jobs/s
+		ClientSockFd fd { g_service_start } ;
+		fd.set_timeout(Delay(100)) ;          // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections, 10 jobs/s
 		throw_unless(+fd) ;
 		found_server = true ;
 		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -242,12 +242,12 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	return true/*done*/ ;
 }
 
-::string g_to_unlnk ;                                                             // XXX> : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                             // XXX/ : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line(::map_ss const& cmd_env) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
 	::vector_s res = ::move(g_start_info.interpreter) ;                           // avoid copying as interpreter is used only here
 	if (g_start_info.use_script) {
-		// XXX> : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
+		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
 	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ; // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( dir_guard(cmd_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_start_info.cmd) ;
@@ -318,26 +318,26 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 }
 
 int main( int argc , char* argv[] ) {
-	Pdate        start_overhead { New }                                     ;
-	ServerSockFd server_fd      { New , 0/*backlog*/ , true/*addr_reuse*/ } ; // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
-	uint64_t     upload_key     = 0                                         ; // key used to identify temporary data uploaded to the cache
+	Pdate        start_overhead { New }                ;
+	ServerSockFd server_fd      { New , 0/*backlog*/ } ; // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	uint64_t     upload_key     = 0                    ; // key used to identify temporary data uploaded to the cache
 	//
-	swear_prod(argc==8,argc) ;                                                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	swear_prod(argc==8,argc) ;                           // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
 	g_service_start   =                     argv[1]  ;
 	g_service_mngt    =                     argv[2]  ;
 	g_service_end     =                     argv[3]  ;
 	g_seq_id          = from_string<SeqId >(argv[4]) ;
 	g_job             = from_string<JobIdx>(argv[5]) ;
-	g_phy_repo_root_s =                     argv[6]  ;                        // passed early so we can chdir and trace early
+	g_phy_repo_root_s =                     argv[6]  ;   // passed early so we can chdir and trace early
 	g_trace_id        = from_string<SeqId >(argv[7]) ;
 	//
-	g_repo_root_s = new ::string{g_phy_repo_root_s} ;                         // no need to search for it
+	g_repo_root_s = new ::string{g_phy_repo_root_s} ;    // no need to search for it
 	//
 	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",g_trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyErr } ;                      // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                       ;                      // prepare to return an error, so we can goto End anytime
+	end_report.digest   = { .status=Status::EarlyErr } ; // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                       ; // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead               ;
 	g_exec_trace        = &end_report.exec_trace       ;
 	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
@@ -544,7 +544,7 @@ int main( int argc , char* argv[] ) {
 		}                                                                                                                                 // END_OF_NO_COV
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                              // XXX> : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                              // XXX/ : suppress when CentOS7 bug is fixed
 		//
 		Gather::Digest digest = g_gather.analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -597,8 +597,8 @@ End :
 	{	Trace trace("end",end_report.digest) ;
 		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
-			ClientSockFd fd           { g_service_end , true/*addr_reuse*/ } ;
-			Pdate        end_overhead = New                                  ;
+			ClientSockFd fd           { g_service_end } ;
+			Pdate        end_overhead = New             ;
 			g_exec_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
 			end_report.digest.exec_time = end_overhead - start_overhead ;                                                                 // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

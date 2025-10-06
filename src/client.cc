@@ -33,10 +33,9 @@ static bool _server_ok( Fd fd , ::string const& tag ) {
 static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { // if sync, ensure we launch our own server
 	Trace trace("_connect_to_server",STR(refresh)) ;
 	::string server_service  ;
-	Bool3    server_is_local = Maybe  ;
-	pid_t    server_pid      = 0      ;
-	Pdate    now             = New    ;
-	::string fqdn_           = fqdn() ;
+	Bool3    server_is_local = Maybe ;
+	pid_t    server_pid      = 0     ;
+	Pdate    now             = New   ;
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
@@ -47,10 +46,10 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			server_service = ::move            (lines[0]) ;
 			server_pid     = from_string<pid_t>(lines[1]) ;
 			try {
-				server_is_local = No | (fqdn_==SockFd::s_host(server_service)) ;
+				server_is_local = No | (fqdn()==SockFd::s_host(server_service)) ;
 				if (server_is_local==Yes) server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service) ) ; // dont use network if not necessary
 				//
-				ClientSockFd req_fd { server_service , false/*addr_reuse*/ , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably ...
+				ClientSockFd req_fd { server_service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably ...
 				if (_server_ok(req_fd,"old")) {                                                                                              // ... not working properly
 					req_fd.set_receive_timeout() ;                                                                                           // restore
 					g_server_fds = ::move(req_fd) ;

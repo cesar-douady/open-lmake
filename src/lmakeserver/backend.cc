@@ -23,8 +23,8 @@ namespace Backends {
 		auto                       it   = Backend::_s_start_tab.find(job)    ; if (it==Backend::_s_start_tab.end()) return ; // job is dead without waiting for reply, curious but possible
 		Backend::StartEntry const& e    = it->second                         ; if (jmrr.seq_id!=e.conn.seq_id     ) return ; // .
 		try {
-			OMsgBuf().send( ClientSockFd(e.conn.host,e.conn.port,true/*addr_reuse*/) , jmrr ) ;
-		} catch (...) {                                                                                            // if we cannot connect to job, assume it is dead while we processed the request
+			OMsgBuf().send( ClientSockFd(e.conn.host,e.conn.port) , jmrr ) ;
+		} catch (...) {                                                      // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config->network_delay
 			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(job,e.conn.host,e.start_date) }
@@ -221,7 +221,7 @@ namespace Backends {
 			e.submit_attrs |= sa ;                                                                                // and update submit_attrs in case job was not actually started
 			if (sa.live_out)                                                                                      // tell job_exec to resend allready sent live_out messages that we missed
 				try {
-					ClientSockFd fd( e.conn.host , e.conn.port , true/*addr_reuse*/ ) ;
+					ClientSockFd fd( e.conn.host , e.conn.port ) ;
 					OMsgBuf().send( fd , JobMngtRpcReply{.proc=JobMngtProc::AddLiveOut,.seq_id=e.conn.seq_id} ) ;
 				} catch (...) {}                                                                                  // if we cannot connect to job, it cannot send live_out messages any more
 		}
@@ -258,7 +258,7 @@ namespace Backends {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
 		SWEAR( conn.seq_id , job,conn ) ;
 		try {
-			ClientSockFd fd( conn.host , conn.port , true/*addr_reuse*/ ) ;
+			ClientSockFd fd( conn.host , conn.port ) ;
 			OMsgBuf().send( fd , JobMngtRpcReply({.proc=proc,.seq_id=conn.seq_id}) ) ;
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
@@ -833,14 +833,12 @@ namespace Backends {
 				throw "cannot determine address from interface "+cfg.ifce ;
 			} else {
 				::string msg   = "multiple possible interfaces : " ;
-				::string host_ = host()                            ;
-				::string fqdn_ = fqdn()                            ;
 				First    first ;
 				for( auto const& [ifce,addr] : addrs ) msg << first("",", ") << ifce <<'('<< ServerSockFd::s_addr_str(addr) <<')' ;
-				msg += '\n' ;
+				msg << '\n'                  ;
 				msg << "consider one of :\n" ;
-				/**/              msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(host_)<<'\n' ;
-				if (fqdn_!=host_) msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(fqdn_)<<'\n' ;
+				/**/                msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(host())<<'\n' ;
+				if (fqdn()!=host()) msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(fqdn())<<'\n' ;
 				for( auto const& [ifce,addr] : addrs ) {
 					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ifce                          )<<'\n' ;
 					msg << "\tlmake.config.backends."<<snake(t)<<".interface = "<<mk_py_str(ServerSockFd::s_addr_str(addr))<<'\n' ;

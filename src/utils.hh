@@ -696,6 +696,7 @@ template<class... As> void dbg( Fd fd , ::string const& title , As const&... arg
 }
 template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) { dbg( AcFd(file,{O_WRONLY|O_APPEND|O_CREAT,0666}) , title , args... ) ; }
 template<class... As> void dbg(                                  ::string const& title , As const&... args ) { dbg( Fd::Stderr                                  , title , args... ) ; }
+template<class... As> void dbg(                                  const char*     title , As const&... args ) { dbg( Fd::Stderr                                  , title , args... ) ; } // disambiguate
 
 template<::integral I> I random() {
 	::string buf_char = AcFd("/dev/urandom").read(sizeof(I)) ; SWEAR(buf_char.size()==sizeof(I),buf_char.size()) ;

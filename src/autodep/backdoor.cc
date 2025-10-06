@@ -62,7 +62,7 @@ namespace Backdoor {
 		return os << "Regexpr(" << re.files << re.access_digest << ')' ;
 	}                                                                    // END_OF_NO_COV
 
-	Void Regexpr::process(Record& r) {
+	::monostate Regexpr::process(Record& r) {
 		::vmap_s<FileInfo> files_ ; for( ::string& f : files ) files_.emplace_back(::move(f),FileInfo()) ;
 		r.report_sync( { .proc=JobExecProc::AccessPattern , .comment=+access_digest.write?Comment::Target:Comment::Depend , .digest=access_digest , .date=New , .files=::move(files_) } ) ;
 		return {} ;
@@ -111,7 +111,7 @@ namespace Backdoor {
 		return            os << ')'                                          ;
 	}                                                                          // END_OF_NO_COV
 
-	Void Depend::process(Record& r) {
+	::monostate Depend::process(Record& r) {
 		JobExecRpcReq jerr {
 			.proc    = JobExecProc::Access
 		,	.comment = Comment::Depend
@@ -191,7 +191,7 @@ namespace Backdoor {
 		return           os << ')'                                          ;
 	}                                                                         // END_OF_NO_COV
 
-	Void Target::process(Record& r) {
+	::monostate Target::process(Record& r) {
 		::vector<Record::Solve<false/*Send*/>> srs         ;         srs.reserve(files.size()) ;
 		Accesses                               as          ;
 		bool                                   has_overlay = false ;

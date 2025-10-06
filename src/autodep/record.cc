@@ -115,8 +115,8 @@ ReturnFalse :
 Sent Record::_do_send_report(pid_t pid) {
 	s_mutex.swear_locked() ;
 	//
-	bool fast = !_is_slow && _buf.size()<=PIPE_BUF                                      ;                                 // several processes share fast report, so only small messages can be sent
-	Fd   fd   = fast ? s_report_fd<true/*Fast*/>(pid) : s_report_fd<false/*Fast*/>(pid) ;
+	bool fast = !_is_slow && _buf.size()<=PIPE_BUF                                  ;                                         // several processes share fast report, so only small messages can be sent
+	Fd   fd   = fast ? report_fd<true/*Fast*/>(pid) : report_fd<false/*Fast*/>(pid) ;
 	if (+fd)
 		try                       { _buf.send(fd) ;                                                                         }
 		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',pid,") : cannot report accesses : ",e) ; } // NO_COV this justifies panic : do our best
@@ -186,12 +186,12 @@ void Record::report_cached( JobExecRpcReq&& jerr , bool force ) {
 }
 
 JobExecRpcReply Record::report_sync(JobExecRpcReq&& jerr) {
-	Bool3 sync = jerr.sync ;                                // sample before move
+	Bool3 sync = jerr.sync ;                                      // sample before move
 	report_direct(::move(jerr),true/*force*/) ;
 	send_report() ;
 	if      (sync!=Yes     ) return {}                          ;
 	else if (s_has_server()) return _get_reply()                ;
-	else                     return ::move(jerr).mimic_server() ;  // if no server, try to mimic it as much as possible
+	else                     return ::move(jerr).mimic_server() ; // if no server, try to mimic it as much as possible
 }
 
 // for modifying accesses :

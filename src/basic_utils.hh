@@ -28,9 +28,8 @@ template<class T,class... Ts> using Largest = typename LargestHelper<T,Ts...>::t
 
 template<bool C,class T> using Const = ::conditional_t<C,const T,T> ;
 // place holder when you need a type which is semantically void but syntactically needed
-struct Void {} ;
-template<class T,class D=Void> using NoVoid = ::conditional_t<::is_void_v<T>,D,T> ;
-template<class T,T... X> requires(false) struct Err {} ;                            // for debug purpose, to be used as a tracing point through the diagnostic message
+template<class T,class D=::monostate> using NoVoid = ::conditional_t<::is_void_v<T>,D,T> ;
+template<class T,T... X> requires(false) struct Err {} ;                                   // for debug purpose, to be used as a tracing point through the diagnostic message
 
 template<size_t NB> using Uint = ::conditional_t< NB<=8 , uint8_t , ::conditional_t< NB<=16 , uint16_t , ::conditional_t< NB<=32 , uint32_t , ::conditional_t< NB<=64 , uint64_t , void > > > > ;
 

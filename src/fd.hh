@@ -8,7 +8,6 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/signalfd.h>
-#include <sys/socket.h>
 
 #include "time.hh"
 
@@ -16,8 +15,8 @@
 	#define SOCK_CLOEXEC 0 // CLOEXEC is just defensive programming, not really needed
 #endif
 
-::string host() ;
-::string fqdn() ; // fully qualified domain name (includes hostname)
+::string const& host() ;
+::string const& fqdn() ; // fully qualified domain name (includes hostname)
 
 struct LockedFd : AcFd {
 	friend ::string& operator+=( ::string& , LockedFd const& ) ;
@@ -62,23 +61,7 @@ struct SockFd : AcFd {
 	static constexpr int         NAddrInUseTrials = 1000       ;
 	static constexpr Time::Delay AddrInUseTick    { 0.010 }    ;
 	// statics
-	static ::string s_addr_str(in_addr_t addr) {
-		::string res ; res.reserve(15) ;                       // 3 digits per level + 5 digits for the port
-		res <<      ((addr>>24)&0xff) ;                        // dot notation is big endian
-		res <<'.'<< ((addr>>16)&0xff) ;
-		res <<'.'<< ((addr>> 8)&0xff) ;
-		res <<'.'<< ((addr>> 0)&0xff) ;
-		return res ;
-	}
-	static struct sockaddr_in s_sockaddr( in_addr_t a , in_port_t p ) {
-		struct sockaddr_in res {
-			.sin_family = AF_INET
-		,	.sin_port   =           htons(p)                   // dont prefix with :: as htons may be a macro
-		,	.sin_addr   = { .s_addr=htonl(a) }                 // dont prefix with :: as htonl may be a macro
-		,	.sin_zero   = {}
-		} ;
-		return res ;
-	}
+	static ::string            s_addr_str  (in_addr_t              ) ;
 	static ::string const&     s_host      (in_addr_t              ) ;
 	static ::string            s_host      (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
 	static in_port_t           s_port      (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
@@ -98,7 +81,7 @@ private :
 	// cxtors & casts
 public :
 	using AcFd::AcFd ;
-	SockFd( NewType , bool reuse_addr=false ) ;
+	SockFd( NewType , bool reuse_addr=true ) ;
 	// services
 	// if timeout is 0, it means infinity (no timeout)
 	void set_receive_timeout(Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
@@ -107,24 +90,10 @@ public :
 		set_receive_timeout(to) ;
 		set_send_timeout   (to) ;
 	}
-	in_addr_t peer_addr() const {
-		struct sockaddr_in peer_addr ;
-		socklen_t          len       = sizeof(peer_addr)                                                           ;
-		int                rc        = ::getpeername( fd , reinterpret_cast<struct sockaddr*>(&peer_addr) , &len ) ;
-		SWEAR( rc ==0                 , rc ,self ) ;
-		SWEAR( len==sizeof(peer_addr) , len,self ) ;
-		return ntohl(peer_addr.sin_addr.s_addr) ;              // dont prefix with :: as ntohl may be a macro
-	}
-	in_port_t port() const {
-		struct sockaddr_in my_addr ;
-		socklen_t          len     = sizeof(my_addr)                                                           ;
-		int                rc      = ::getsockname( fd , reinterpret_cast<struct sockaddr*>(&my_addr) , &len ) ;
-		SWEAR( rc ==0               , rc ,self ) ;
-		SWEAR( len==sizeof(my_addr) , len,self ) ;
-		return ntohs(my_addr.sin_port) ;                       // dont prefix with :: as ntohs may be a macro
-	}
+	in_port_t port     () const ;
+	in_addr_t peer_addr() const ;
 protected :
-	void _set_reuse_addr() ;                                   // ... for options to take effect
+	void _set_reuse_addr() ;                                     // ... for options to take effect
 } ;
 
 struct SlaveSockFd : SockFd {
@@ -137,7 +106,8 @@ struct ServerSockFd : SockFd {
 	friend ::string& operator+=( ::string& , ServerSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
-	ServerSockFd( NewType , int backlog=0 , bool reuse_addr=false ) ;
+	ServerSockFd( NewType ,               bool reuse_addr=true ) = delete ;
+	ServerSockFd( NewType , int backlog , bool reuse_addr=true ) ;
 	// services
 	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
 	::string service(              ) const { return s_service(     port()) ; }
@@ -148,9 +118,9 @@ struct ClientSockFd : SockFd {
 	friend ::string& operator+=( ::string& , ClientSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
-	ClientSockFd( in_addr_t              , in_port_t      , bool reuse_addr=false , Time::Delay timeout={} ) ;
-	ClientSockFd( ::string const& server , in_port_t port , bool reuse_addr=false , Time::Delay timeout={} ) : ClientSockFd{ s_addr(server)  , port            , reuse_addr , timeout } {}
-	ClientSockFd( ::string const& service                 , bool reuse_addr=false , Time::Delay timeout={} ) : ClientSockFd{ s_host(service) , s_port(service) , reuse_addr , timeout } {}
+	ClientSockFd( in_addr_t              , in_port_t      , bool reuse_addr=true , Time::Delay timeout={} ) ;
+	ClientSockFd( ::string const& server , in_port_t port , bool reuse_addr=true , Time::Delay timeout={} ) : ClientSockFd{ s_addr(server)  , port            , reuse_addr , timeout } {}
+	ClientSockFd( ::string const& service                 , bool reuse_addr=true , Time::Delay timeout={} ) : ClientSockFd{ s_host(service) , s_port(service) , reuse_addr , timeout } {}
 } ;
 
 //

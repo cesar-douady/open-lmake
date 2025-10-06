@@ -10,6 +10,7 @@ using namespace Disk ;
 ::string& operator+=( ::string& os , AutodepEnv const& ade ) {                   // START_OF_NO_COV
 	/**/                       os << "AutodepEnv("                             ;
 	/**/                       os <<      static_cast<RealPathEnv const&>(ade) ;
+	if (+ade.fast_host       ) os <<','<< ade.fast_host                        ;
 	if (+ade.fast_report_pipe) os <<','<< ade.fast_report_pipe                 ;
 	/**/                       os <<','<< ade.service                          ;
 	if ( ade.enable          ) os <<",enable"                                  ;
@@ -120,4 +121,26 @@ void AutodepEnv::chk(bool for_cache) const {
 	if (for_cache) {
 		throw_unless( !fast_report_pipe , "bad report info" ) ;
 	}
+}
+
+Fd AutodepEnv::repo_root_fd() const {
+	try                       { return { repo_root_s , {.flags=O_RDONLY|O_DIRECTORY} , true/*no_std*/ } ; } // avoid poluting standard descriptors
+	catch (::string const& e) { fail_prod("cannot open repo root dir",repo_root_s) ;                      }
+}
+
+Fd AutodepEnv::fast_report_fd() const {
+	if (!has_server()) return {} ;
+	//
+	throw_unless( +fast_report_pipe , "no fast channel"  ) ;                                                  // use slow report in that case
+	throw_unless( host()==fast_host , "from host",host() ) ;                                                  // .
+	//
+	try                       { return { fast_report_pipe , {.flags=O_WRONLY|O_APPEND} , true/*no_std*/ } ; } // append if writing to a file
+	catch (::string const& e) { fail_prod("while trying to report deps :",e) ;                              } // NO_COV
+}
+
+Fd AutodepEnv::slow_report_fd() const {
+	if (!has_server()) return {} ;
+	//
+	try                       { return ClientSockFd(service).detach() ;        } // connect to server
+	catch (::string const& e) { fail_prod("while trying to report deps :",e) ; } // NO_COV
 }

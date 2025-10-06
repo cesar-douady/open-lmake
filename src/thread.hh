@@ -118,8 +118,8 @@ public :
 	#undef RNQA
 	// data
 private :
-	bool                                _has_cur = false ;
-	::conditional_t<QueueAccess,T,Void> _cur     ;
+	bool                                       _has_cur = false ;
+	::conditional_t<QueueAccess,T,::monostate> _cur     ;
 public :
 	::jthread thread ; // ensure thread is last so other fields are constructed before it starts and destructed after it ends
 } ;
@@ -313,7 +313,7 @@ public :
 	ServerThread( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
 	//
 	void open( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) {
-		fd     = { New , backlog , true/*reuse_addr*/ }       ;
+		fd     = { New , backlog }                            ;
 		thread = ::jthread( _s_thread_func , key , this , f ) ;
 	}
 	void open( char key , ::function<bool/*keep_fd*/(T&&,SlaveSockFd const&)> f , int backlog=0 ) {

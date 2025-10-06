@@ -73,8 +73,8 @@ namespace Engine {
 namespace Engine {
 
 	struct JobInfo1
-	:	             ::variant< Void/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ >
-	{	using Base = ::variant< Void/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ > ;
+	:	             ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ >
+	{	using Base = ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ > ;
 		using Kind = JobInfoKind ;
 		// cxtors & casts
 		using Base::variant ; // necessary for clang++-14
