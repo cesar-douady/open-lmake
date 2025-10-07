@@ -56,10 +56,9 @@ private :
 
 struct SockFd : AcFd {
 	friend ::string& operator+=( ::string& , SockFd const& ) ;
-	static constexpr in_addr_t   LoopBackAddr     = 0x7f000001 ; // 127.0.0.1
-	static constexpr int         NConnectTrials   = 3          ;
-	static constexpr int         NAddrInUseTrials = 1000       ;
-	static constexpr Time::Delay AddrInUseTick    { 0.010 }    ;
+	static constexpr in_addr_t   LoopBackAddr   = 0x7f000001 ; // 127.0.0.1
+	static constexpr int         NConnectTrials = 3          ;
+	static constexpr Time::Delay AddrInUseTick  { 0.010 }    ;
 	// statics
 	static ::string            s_addr_str  (in_addr_t              ) ;
 	static ::string const&     s_host      (in_addr_t              ) ;

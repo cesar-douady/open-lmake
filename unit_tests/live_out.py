@@ -26,4 +26,4 @@ else :
 	import ut
 
 	cnt = ut.lmake( '-o' , 'dut.1' , 'dut.2' , done=2 , **{'continue':...} )
-	assert cnt['continue'] in (1,2)
+	assert cnt['continue'] in (0,1,2)

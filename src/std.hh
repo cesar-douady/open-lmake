@@ -60,6 +60,7 @@ using std::atomic                                 ;
 using std::atomic_signal_fence                    ;
 using std::basic_string                           ;
 using std::basic_string_view                      ;
+using std::bit_ceil                               ;
 using std::bit_width                              ;
 using std::chars_format                           ;
 using std::cmp_greater                            ;

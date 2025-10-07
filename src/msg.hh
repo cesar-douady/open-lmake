@@ -77,25 +77,28 @@ struct OMsgBuf : MsgBuf {
 	// accesses
 	size_t size() const { return _buf.size() ; }
 	// services
-	template<class T> void add(T const& x) {
-		size_t offset = _buf.size() ;
-		serialize( _buf , ::pair<Len,T const&>(0,x) ) ;
-		SWEAR(_buf.size()>=offset+sizeof(Len)) ;
-		//
-		size_t len = _buf.size()-(offset+sizeof(Len)) ; SWEAR(Len(len)==len,len) ; // ensure truncation is harmless
-		encode_int( &_buf[offset] , Len(len) ) ;                                   // overwrite len
-	}
-	template<class T> void send( Fd fd , T const& x ) {
-		add(x) ;
-		send(fd) ;
-	}
-	void send(Fd fd) {
-		while (!send_step(fd)) ;
-	}
+	//                                                                       Serialize
+	template<class T> void add           (         T        const& x ) { _add<true   >(x) ;      }
+	/**/              void add_serialized(         ::string const& s ) { _add<false  >(s) ;      }
+	template<class T> void send          ( Fd fd , T        const& x ) { add(x) ; send(fd) ;      }
+	/**/              void send          ( Fd fd                     ) { while (!send_step(fd)) ; }
+	//
 	bool/*complete*/ send_step(Fd fd) {
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
 		if (cnt<=0) throw cat("cannot send over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
 		_len += cnt ;
 		return _len==_buf.size()/*complete*/ ;
+	}
+private :
+	template<bool Serialize,class T> void _add(T const& x) {
+		size_t offset = _buf.size() ;
+		//
+		/**/                     serialize( _buf , Len(0) ) ;
+		if constexpr (Serialize) serialize( _buf , x      ) ;
+		else                     _buf += x                  ;
+		//
+		SWEAR( _buf.size()>=offset+sizeof(Len) ) ;
+		size_t len = _buf.size()-(offset+sizeof(Len)) ; SWEAR( Len(len)==len , len ) ;                   // ensure truncation is harmless
+		encode_int( &_buf[offset] , Len(len) ) ;                                                         // overwrite len
 	}
 } ;

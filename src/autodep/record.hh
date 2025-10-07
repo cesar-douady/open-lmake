@@ -122,7 +122,7 @@ public :
 	template<bool Fast> Fd report_fd(pid_t pid) {
 		if ( +*_s_autodep_env && !( +_s_report_fd[Fast] && _s_report_pid[Fast]==pid ) ) {
 			_s_report_pid[Fast] = pid ;
-			if (Fast) {
+			if (Fast)
 				try {
 					_s_report_fd[Fast] = _s_autodep_env->fast_report_fd() ;
 				} catch(::string const& e) {
@@ -133,11 +133,9 @@ public :
 						_s_report_fd [false] = _s_report_fd [Fast]              ; // copy to slow
 						_s_report_pid[false] = _s_report_pid[Fast]              ; // .
 					}
-					_buf.add(JobExecRpcReq{ .proc=Proc::Trace , .date=New , .files={{cat("slow report : ",e),{}}} }) ; // report_trace is too high level for this low-level function
 				}
-			} else {
+			else
 				_s_report_fd [Fast] = _s_autodep_env->slow_report_fd() ;
-			}
 		}
 		return _s_report_fd[Fast] ;
 	}
@@ -150,12 +148,10 @@ private :
 	}
 public :
 	Sent send_report() {                                                          // reports must be bufferized as doing several back-to-back writes may incur severe perf penalty (seen ~40ms)
-		if (!_buf          ) return Sent::NotSent        ;
-		if (s_static_report) return Sent::Static         ;
-		SWEAR(_buf_pid) ;
-		pid_t pid = ::getpid() ;
-		if (_buf_pid!=pid  ) return Sent::NotSent        ;
-		/**/                 return _do_send_report(pid) ;
+		/**/                   if (!_buf          ) return Sent::NotSent        ;
+		/**/                   if (s_static_report) return Sent::Static         ;
+		pid_t pid=::getpid() ; if (_buf_pid!=pid  ) return Sent::NotSent        ;
+		/**/                                        return _do_send_report(pid) ;
 	}
 	void              report_direct(           JobExecRpcReq&& ,                               bool force=false ) ; // if force, report even if disabled
 	void              report_cached(           JobExecRpcReq&& ,                               bool force=false ) ; // .
@@ -498,8 +494,8 @@ private :
 	Disk::RealPath _real_path ;
 	mutable bool   _seen_tmp  = false ;     // record that tmp usage has been reported, no need to report any further
 	OMsgBuf        _buf       ;             // buffer that accumulate messages to send
-	::pid_t        _buf_pid   = 0     ;     // pid for which _buf is valid
-	bool           _is_slow   = false ;     // if true => must be sent over slow connection
+	::pid_t        _buf_pid   = 0     ;     // valid when +_buf, pid for which _buf is valid (ignore buf is wrong pid)
+	Bool3          _is_slow   = No    ;     // valid when +_buf, if Yes => must be sent over slow connection, if Maybe => used connection must be known
 } ;
 
 template<bool Send,bool Writable,bool ChkSimple> constexpr size_t Record::Solve<Send,Writable,ChkSimple>::MaxSz = 2*PATH_MAX+sizeof(Solve<Send,Writable,ChkSimple>) ;

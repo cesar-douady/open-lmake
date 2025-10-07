@@ -25,7 +25,7 @@ if __name__!='__main__' :
 
 	class Delay(Base) :
 		target = 'dly'
-		cmd    = 'sleep 0.5'
+		cmd    = 'sleep 2'
 
 	class Src(Base) :
 		target = 'hello'
@@ -78,5 +78,5 @@ else :
 				*( f'hello.{interp}.{ad}.{ls}.cpy' for interp in ('sh','py') for ad in lmake.autodeps )
 			,	new=... , may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads
 			)
-			assert cnts.may_rerun+cnts.rerun==(p==0)*2*n_ads
-			assert cnts.new<=1                               # python may access Lmakefile.py if it generates a backtrace, which may happen
+			assert cnts.may_rerun+cnts.rerun==(p==0)*2*n_ads , cnts
+			assert cnts.new<=1                                      # python may access Lmakefile.py if it generates a backtrace, which may happen

@@ -140,38 +140,46 @@ ByName :
 	/**/       return {{{},LoopBackAddr}} ;
 }
 
+struct Ports {
+	in_port_t first = 0 ;
+	in_port_t sz    = 0 ;
+} ;
+static Ports const& _ports() {
+	static Ports s_ports = []() {
+		Ports      res   ;
+		::vector_s ports = split(AcFd("/proc/sys/net/ipv4/ip_local_port_range").read()) ; SWEAR( ports.size()==2 , ports ) ;
+		res.first = from_string<in_port_t>(ports[0])               ;
+		res.sz    = from_string<in_port_t>(ports[1])+1 - res.first ; // ephemeral range is specified as "first last" inclusive
+		return res ;
+	}() ;
+	return s_ports ;
+}
+
 SockFd::SockFd( NewType , bool reuse_addr ) {
 	static constexpr int       True    = 1   ;
-	static constexpr in_port_t PortInc = 199 ;                                                        // a prime number to ensure all ports are tried
+	static constexpr in_port_t PortInc = 199 ;                              // a prime number to ensure all ports are tried
 	//
 	self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ; no_std() ; if (!self) fail_prod("cannot create socket :",::strerror(errno)) ;
 	if (!reuse_addr) return ;
 	// if we want to set SO_REUSEADDR, we cannot auto-bind to an ephemeral port as SO_REUSEADDR is not taken into account in that case
 	// so we try random port numbers in the ephemeral range until we find a free one
-	static ::pair<in_port_t/*first*/,in_port_t/*sz*/> s_ports = []() {
-		::pair<in_port_t/*first*/,in_port_t/*sz*/> res   ;
-		::vector_s                                 ports = split(AcFd("/proc/sys/net/ipv4/ip_local_port_range").read()) ; SWEAR( ports.size()==2 , ports ) ;
-		res.first  = from_string<in_port_t>(ports[0])               ;
-		res.second = from_string<in_port_t>(ports[1])+1 - res.first ;                                 // ephemeral range is specified as "first last" inclusive
-		SWEAR( res.second>PortInc , res ) ;                                                           // else we need to reduce PortInc
-		return res ;
-	}() ;
 	//
-	SockAddr sa ;
+	Ports const& ports = _ports() ;
+	SockAddr     sa    ;
 	throw_unless( ::setsockopt( fd , SOL_SOCKET , SO_REUSEADDR , &True , sizeof(True) )==0 , "cannot set socket option SO_REUSEADR on ",self ) ;
-	in_port_t trial_port = s_ports.first + Pdate(New).hash()%s_ports.second ;
-	for( int i=1 ;; i++ ) {
-		sa.set_port(trial_port) ;
-		if ( ::bind( fd , &sa.as_sockaddr() , sizeof(sa))==0 )  break ;
+	in_port_t random   = Pdate(New).hash()              ;
+	uint64_t  n_trials = ::bit_ceil<uint64_t>(ports.sz) ;
+	in_port_t mask     = n_trials - 1                   ;
+	for( uint64_t i : iota(n_trials) ) {                                    // try all ports in random order (need bit_ceil(ports.sz) to ensure all ports are covered with the method below)
+		sa.set_port( ports.first + (((i*PortInc)&mask)^random)%ports.sz ) ;
+		if ( ::bind( fd , &sa.as_sockaddr() , sizeof(sa))==0 )  return ;
 		switch (errno) {
 			case EADDRINUSE :
 			case EACCES     : break ;
 			default         : FAIL(self,::strerror(errno)) ;
 		}
-		if (i>=NAddrInUseTrials) throw cat("cannot bind ",self," : ",::strerror(errno)) ;
-		if (trial_port<s_ports.first+s_ports.second-PortInc) trial_port += PortInc                  ; // increment while staying within ephemeral range ...
-		else                                                 trial_port -= s_ports.second - PortInc ; // ... and it is seems to be more efficient than incrementing by 1 ...
-	}                                                                                                 // ... and curiously more efficient than successive random numbers as well
+	}
+	throw cat("cannot bind ",self," : ",::strerror(errno)) ;                // we have trie all ports
 }
 
 ::string const& SockFd::s_host(in_addr_t a) {                                // implement a cache as getnameinfo implies network access and can be rather long
@@ -219,7 +227,7 @@ ServerSockFd::ServerSockFd( NewType , int backlog , bool reuse_addr ) : SockFd{N
 	for( int i=1 ;; i++ ) {
 		if ( ::listen(fd,backlog)==0 ) break ;
 		SWEAR( errno==EADDRINUSE , self,backlog,reuse_addr ) ;
-		if (i>=NAddrInUseTrials) throw cat("cannot listen to ",self," : ",::strerror(errno)) ;
+		if (i>=_ports().sz) throw cat("cannot listen to ",self," : ",::strerror(errno)) ;
 		AddrInUseTick.sleep_for() ;
 	}
 }
@@ -250,7 +258,7 @@ ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr 
 		}
 		switch (errno) {
 			case EADDRNOTAVAIL :
-				if (i_reuse_addr>=NAddrInUseTrials) throw cat("cannot connect to ",self," after ",NAddrInUseTrials," trials : ",::strerror(errno)) ;
+				if (i_reuse_addr>=_ports().sz) throw cat("cannot connect to ",self," after ",_ports().sz," trials : ",::strerror(errno)) ;
 				i_reuse_addr++ ;
 				AddrInUseTick.sleep_for() ;
 			break ;

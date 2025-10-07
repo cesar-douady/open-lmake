@@ -113,16 +113,15 @@ ReturnFalse :
 }
 
 Sent Record::_do_send_report(pid_t pid) {
+	SWEAR(+_buf) ;
 	s_mutex.swear_locked() ;
 	//
-	bool fast = !_is_slow && _buf.size()<=PIPE_BUF                                  ;                                         // several processes share fast report, so only small messages can be sent
+	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF                              ;                                         // several processes share fast report, so only small messages can be sent
 	Fd   fd   = fast ? report_fd<true/*Fast*/>(pid) : report_fd<false/*Fast*/>(pid) ;
 	if (+fd)
 		try                       { _buf.send(fd) ;                                                                         }
 		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',pid,") : cannot report accesses : ",e) ; } // NO_COV this justifies panic : do our best
-	_buf     = {}    ;
-	_buf_pid = 0     ;
-	_is_slow = false ;
+	_buf = {} ;
 	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 }
 
@@ -143,18 +142,34 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 	}
 }
 
-void Record::report_direct( JobExecRpcReq&& jerr , bool force ) { // dont touch jerr when returning false
+void Record::report_direct( JobExecRpcReq&& jerr , bool force ) {                             // dont touch jerr when returning false
 	jerr.chk() ;
 	//
 	if ( !force && !enable )                                  return ;
 	if ( s_static_report   ) { _static_report(::move(jerr)) ; return ; }
 	s_mutex.swear_locked() ;
 	//
-	_is_slow |= jerr.sync!=No ;
-	pid_t pid = ::getpid() ;
-	if      (!_buf_pid     ) { SWEAR(!_buf) ; _buf_pid = pid ; }
-	else if ( _buf_pid!=pid) { _buf = {}    ; _buf_pid = pid ; }
+	pid_t pid          = ::getpid()       ; if ( +_buf && _buf_pid!=pid ) _buf = {} ;         // if pid's do not match, we are in the child of a fork and _buf must be ignored
+	Bool3 will_be_slow = _is_slow & +_buf ;
+	//
+	if      (jerr.sync!=No) will_be_slow  = Yes   ;                                           // no reply is possible on the fast channel as it is a (monodirectional) pipe
+	else if (jerr.id      ) will_be_slow |= Maybe ;                                           // if we have an id, we need to be aware of the used channel
+	//
+	if ( +_buf && _buf.size()<=PIPE_BUF && _is_slow==No ) {                                   // send whatever can be sent over fast link
+		if (will_be_slow==Yes) {                                                              // fast path : no need to serialize on the side and copy content
+			send_report() ;                                                                   // better to send what can be sent over fast channel
+		} else {
+			::string jerr_str = serialize(jerr) ;
+			if ( _buf.size()+sizeof(MsgBuf::Len)+jerr_str.size() > PIPE_BUF ) send_report() ; // send over fast link while still below threshold so as to stay with fast link as long as possible
+			_buf.add_serialized(jerr_str) ;
+			goto Return ;
+		}
+	}
 	_buf.add(jerr) ;
+Return :
+	SWEAR( +_buf ) ;
+	_buf_pid = pid          ;
+	_is_slow = will_be_slow ;
 }
 
 void Record::report_cached( JobExecRpcReq&& jerr , bool force ) {
