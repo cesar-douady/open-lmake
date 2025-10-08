@@ -46,12 +46,14 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			server_service = ::move            (lines[0]) ;
 			server_pid     = from_string<pid_t>(lines[1]) ;
 			try {
-				server_is_local = No | (fqdn()==SockFd::s_host(server_service)) ;
-				if (server_is_local==Yes) server_service  = SockFd::s_service( SockFd::s_addr_str(SockFd::LoopBackAddr) , SockFd::s_port(server_service) ) ; // dont use network if not necessary
+				::string  server      = SockFd::s_host(server_service) ;
+				in_port_t server_port = SockFd::s_port(server_service) ;
+				server_is_local = No | (fqdn()==server) ;
+				if (server_is_local==Yes) server = {} ;                                                                                            // dont use network if not necessary
 				//
-				ClientSockFd req_fd { server_service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably ...
-				if (_server_ok(req_fd,"old")) {                                                                                              // ... not working properly
-					req_fd.set_receive_timeout() ;                                                                                           // restore
+				ClientSockFd req_fd { server , server_port , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is ...
+				if (_server_ok(req_fd,"old")) {                                                                                                    // ... probably not working properly
+					req_fd.set_receive_timeout() ;                                                                                                 // restore
 					g_server_fds = ::move(req_fd) ;
 					if (sync) exit(Rc::BadServer,"server already exists") ;
 					return 0 ;

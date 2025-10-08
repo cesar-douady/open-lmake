@@ -42,9 +42,9 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	bool             found_server = false ;
 	JobStartRpcReply res          ;
 	try {
-		ClientSockFd fd { g_service_start } ;
-		fd.set_timeout(Delay(100)) ;          // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections, 10 jobs/s
-		throw_unless(+fd) ;
+		ClientSockFd fd { SockFd::s_host(g_service_start) , SockFd::s_port(g_service_start) } ;
+		fd.set_timeout(Delay(100)) ;                                                                   // ensure we dont stay stuck in case server is in the coma : ...
+		throw_unless(+fd) ;                                                                            // ... 100s = 1000 simultaneous connections @ 10 jobs/s
 		found_server = true ;
 		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		/**/  OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
@@ -52,9 +52,9 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) {
 		trace("no_start_info",STR(found_server),e) ;
-		if      (found_server) exit(Rc::Fail                                                    ) ; // this is typically a ^C
-		else if (+e          ) exit(Rc::Fail,"cannot connect to server at",g_service_start,':',e) ; // this may be a server config problem, better to report if verbose
-		else                   exit(Rc::Fail,"cannot connect to server at",g_service_start      ) ; // .
+		if      (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
+		else if (+e          ) exit(Rc::Fail,"cannot connect to server at ",g_service_start," : ",e) ; // this may be a server config problem, better to report if verbose
+		else                   exit(Rc::Fail,"cannot connect to server at ",g_service_start        ) ; // .
 	}
 	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
@@ -462,24 +462,25 @@ int main( int argc , char* argv[] ) {
 		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                          ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
-		g_gather.addr             =        g_start_info.addr           ;
-		g_gather.as_session       =        true                        ;
-		g_gather.autodep_env      = ::move(g_start_info.autodep_env  ) ;
-		g_gather.ddate_prec       =        g_start_info.ddate_prec     ;
-		g_gather.env              =        &cmd_env                    ;
-		g_gather.exec_trace       =        g_exec_trace                ;
-		g_gather.job              =        g_job                       ;
-		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs    ) ;
-		g_gather.live_out         =        g_start_info.live_out       ;
-		g_gather.method           =        g_start_info.method         ;
-		g_gather.network_delay    =        g_start_info.network_delay  ;
-		g_gather.nice             =        g_start_info.nice           ;
-		g_gather.no_tmp           =       !end_report.phy_tmp_dir_s    ;
-		g_gather.rule             = ::move(g_start_info.rule         ) ;
-		g_gather.seq_id           =        g_seq_id                    ;
-		g_gather.server_master_fd = ::move(server_fd                 ) ;
-		g_gather.service_mngt     =        g_service_mngt              ;
-		g_gather.timeout          =        g_start_info.timeout        ;
+		g_gather.addr             =        g_start_info.addr               ;
+		g_gather.as_session       =        true                            ;
+		g_gather.autodep_env      = ::move(g_start_info.autodep_env      ) ;
+		g_gather.ddate_prec       =        g_start_info.ddate_prec         ;
+		g_gather.env              =        &cmd_env                        ;
+		g_gather.exec_trace       =        g_exec_trace                    ;
+		g_gather.job              =        g_job                           ;
+		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs        ) ;
+		g_gather.live_out         =        g_start_info.live_out           ;
+		g_gather.method           =        g_start_info.method             ;
+		g_gather.network_delay    =        g_start_info.network_delay      ;
+		g_gather.nice             =        g_start_info.nice               ;
+		g_gather.no_tmp           =       !end_report.phy_tmp_dir_s        ;
+		g_gather.rule             = ::move(g_start_info.rule             ) ;
+		g_gather.seq_id           =        g_seq_id                        ;
+		g_gather.server_master_fd = ::move(server_fd                     ) ;
+		g_gather.server_mngt      =        SockFd::s_host(g_service_mngt)  ;
+		g_gather.port_mngt        =        SockFd::s_port(g_service_mngt)  ;
+		g_gather.timeout          =        g_start_info.timeout            ;
 		//
 		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
@@ -597,8 +598,8 @@ End :
 	{	Trace trace("end",end_report.digest) ;
 		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
-			ClientSockFd fd           { g_service_end } ;
-			Pdate        end_overhead = New             ;
+			ClientSockFd fd           { SockFd::s_host(g_service_end) , SockFd::s_port(g_service_end) } ;
+			Pdate        end_overhead = New                                                             ;
 			g_exec_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
 			end_report.digest.exec_time = end_overhead - start_overhead ;                                                                 // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

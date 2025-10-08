@@ -43,9 +43,9 @@ struct IMsgBuf : MsgBuf {
 	DataPass :
 		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
 		if (cnt<=0) {
-			if      (cnt<0 ) throw cat("cannot receive over ",fd," : ",::strerror(errno)) ;
-			else if (eof_ok) return T()                                                   ;
-			else             throw ""s                                                    ;
+			throw_unless( cnt==0 , "cannot receive over ",fd," : ",StrErr()) ;
+			if (eof_ok) return T() ;
+			else        throw ""s  ;
 		}
 		_len += cnt ;
 		if (_len<_buf.size()) return {} ;                      // _buf is still partial
@@ -85,7 +85,8 @@ struct OMsgBuf : MsgBuf {
 	//
 	bool/*complete*/ send_step(Fd fd) {
 		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) throw cat("cannot send over ",fd," : ", cnt<0?::strerror(errno):"peer closed connection" ) ;
+		throw_unless( cnt>=0 , "cannot send over ",fd," : ", StrErr()             ) ;
+		throw_unless( cnt> 0 , "cannot send over ",fd," : peer closed connection" ) ;
 		_len += cnt ;
 		return _len==_buf.size()/*complete*/ ;
 	}

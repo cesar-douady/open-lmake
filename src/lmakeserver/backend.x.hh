@@ -161,7 +161,7 @@ namespace Backends {
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
-			s_tab[+t].reset(&be) ;
+			s_tab[+t] = &be ;
 		}
 	private :
 		static void            _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
@@ -175,7 +175,7 @@ namespace Backends {
 		static void            _s_start_tab_erase       ( ::map<Job,StartEntry>::iterator                           ) ;
 		// static data
 	public :
-		static ::unique_ptr<Backend> s_tab[N<Tag>] ;
+		static StaticUniqPtr<Backend> s_tab[N<Tag>] ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
@@ -251,8 +251,8 @@ namespace Backends {
 		return res ;
 	}
 
-	inline bool            Backend::s_ready     (Tag t) { return +t && s_tab[+t] && !s_tab[+t]->config_err ; }
-	inline ::string const& Backend::s_config_err(Tag t) { return                     s_tab[+t]->config_err ; }
+	inline bool            Backend::s_ready     (Tag t) { return +t && +s_tab[+t] && !s_tab[+t]->config_err ; }
+	inline ::string const& Backend::s_config_err(Tag t) { return                      s_tab[+t]->config_err ; }
 	//
 	// nj is the maximum number of job backend may run on behalf of this req
 	#define LCK(...) TraceLock lock{_s_mutex,BeChnl,"s_backend"} ; Trace trace(BeChnl,__VA_ARGS__)

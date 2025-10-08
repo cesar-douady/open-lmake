@@ -27,11 +27,11 @@ if __name__!='__main__' :
 	)
 
 	class Decode(Rule) :
-		target = r'decode_{File:.*}/{Ctx:.*}/{Code:.*}'
+		target = r'decode/{File:.*}/{Ctx:.*}/{Code:.*}'
 		cmd    = 'ldecode -f {File} -x {Ctx} -c {Code}'
 
 	class Encode(PyRule) :
-		target = r'encode_{I:\d+}'
+		target = r'encode/{I:\d+}'
 		def cmd() :
 			fail = None
 			for i in range(n_encodes) :
@@ -39,14 +39,14 @@ if __name__!='__main__' :
 				file = f'codec_{n*97%n_files}'
 				ctx  = f'ctx_{n*53%n_files}'
 				code = lmake.encode( val=('val',int(I)+i) , file=file , ctx=ctx )
-				try    : print(open(f'decode_{file}/{ctx}/{code}').read())
+				try    : print(open(f'decode/{file}/{ctx}/{code}').read())
 				except : fail = True
 			assert not fail,'missing some vals'
 
 	class Dut(PyRule) :
 		target = 'dut'
 		def cmd() :
-			lmake.depend( *(f'encode_{i}' for i in range(n_targets)) , read=True )
+			lmake.depend( *(f'encode/{i}' for i in range(n_targets)) , read=True )
 
 else :
 

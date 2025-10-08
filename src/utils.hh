@@ -722,6 +722,13 @@ template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 #define _MACRO_VAL_STR(x         ) #x                                                         // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
 #define MACRO_VAL(     macro,dflt) _macro_val_str<decltype(dflt),dflt>(_MACRO_VAL_STR(macro))
 
+struct StrErr {
+	friend ::string& operator+=( ::string& , StrErr const& ) ;
+	StrErr(int e=errno) : err{e} {}
+	operator ::string() const { return ::strerror(err) ; }
+	int err ;
+} ;
+
 //
 // Implementation
 //

@@ -107,7 +107,7 @@ template<> struct Serdeser<::string> {
 		serdes(os,_serdes_sz(s)) ;
 		os += ::string_view(s) ;
 	}
-	template<IsIStream S> static void s_serdes( S& is , ::string      & s ) {
+	template<IsIStream S> static void s_serdes( S& is , ::string& s ) {
 		SerdesSz sz ; serdes(is,sz) ;
 		if (is.size()<sz) throw "truncated stream"s ;
 		s.resize(sz) ;
@@ -273,11 +273,12 @@ template<class T,size_t N> struct Serdeser<::array<T,N>> {
 template<class T> struct Serdeser<::vector<T>> {
 	template<IsOStream S> static void s_serdes( S& os , ::vector<T> const& v ) {
 		serdes(os,_serdes_sz(v)) ;
-		if constexpr (::is_same_v<T,bool>) for( T        x : v ) serdes(os,x) ; // vector<bool> provides no reference to items
+		if constexpr (::is_same_v<T,bool>) for( T        x : v ) serdes(os,x) ;      // vector<bool> provides no reference to items
 		else                               for( T const& x : v ) serdes(os,x) ;
 	}
 	template<IsIStream S> static void s_serdes( S& is , ::vector<T>& v ) {
 		SerdesSz n = deserialize<SerdesSz>(is) ;
+		if ( n<is.size() && n<1024 ) v.reserve(n) ;                                  // limit reallocation while avoiding memory crash in case of junk message
 		for( [[maybe_unused]] size_t i : iota(n) ) v.push_back(deserialize<T>(is)) ;
 	}
 } ;
@@ -287,11 +288,12 @@ template<class T> requires( requires { typename T::key_type ; } ) struct Serdese
 		serdes(os,_serdes_sz(s)) ;
 		for( typename T::value_type const& x : s ) serdes(os,x) ;
 	}
-	template<IsIStream S> static void s_serdes( S& is , T& s ) {
+	template<IsIStream S> static void s_serdes( S& is , T& x ) {
 		using KeyType   = ::remove_const_t<typename T::key_type>                                                                    ;
 		using ValueType = conditional_t<requires { typename T::value_type ; } , ::pair<KeyType,typename T::mapped_type> , KeyType > ;
 		//
 		SerdesSz n = deserialize<SerdesSz>(is) ;
-		for( [[maybe_unused]] size_t i : iota(n) ) s.insert(deserialize<ValueType>(is)) ;
+		if constexpr ( requires (T t) { t.reserve(0) ; } ) if ( n<is.size() && n<1024 ) x.reserve(n) ;              // limit reallocation while avoiding memory crash in case of junk message
+		for( [[maybe_unused]] size_t i : iota(n) ) x.insert(deserialize<ValueType>(is)) ;
 	}
 } ;

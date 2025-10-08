@@ -287,10 +287,10 @@ Gather::Digest Gather::analyze(Status status) {
 
 void Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
 	Trace trace("_send_to_server",jmrr) ;
-	//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                       { OMsgBuf().send( ClientSockFd(service_mngt) , jmrr ) ; }
-	//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch (::string const& e) { trace("no_server",e) ; throw ;                        }
+	//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                       { OMsgBuf().send( ClientSockFd(server_mngt,port_mngt) , jmrr ) ; }
+	//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch (::string const& e) { trace("no_server",e) ; throw ;                                 }
 }
 
 void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=::ref(JobSlaveEntry()) ) {
@@ -427,7 +427,7 @@ Status Gather::_exec_child() {
 	if (env) { trace("env",*env) ; swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ; }
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
-	bool                      has_server     = +service_mngt        ;
+	bool                      has_server     = port_mngt            ;
 	ServerSockFd              job_master_fd  { New , 0/*backlog*/ } ;
 	AcFd                      fast_report_fd ;                          // always open, never waited for
 	AcFd                      child_fd       ;
@@ -478,7 +478,7 @@ Status Gather::_exec_child() {
 			epoll.dec() ;                                                              // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
 			job_slaves[fast_report_fd] ;                                               // allocate entry
 		} else {
-			trace("open_fast_report_fd",autodep_env.fast_report_pipe,::strerror(errno)) ;
+			trace("open_fast_report_fd",autodep_env.fast_report_pipe,StrErr()) ;
 			autodep_env.fast_report_pipe.clear() ;
 		}
 	} ;
@@ -734,7 +734,7 @@ Status Gather::_exec_child() {
 								SWEAR(+jmrr.fd) ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								//
-								auto           it  = job_slaves.find(jmrr.fd) ; SWEAR(it!=job_slaves.end(),jmrr) ;
+								auto           it  = job_slaves.find(jmrr.fd) ; if (it==job_slaves.end()) break ; // job is dead, ignore
 								JobSlaveEntry& jse = it->second               ;
 								//
 								_exec_trace( Comment::Decode , CommentExt::Reply , jmrr.txt ) ;
@@ -757,7 +757,7 @@ Status Gather::_exec_child() {
 								SWEAR(+jmrr.fd) ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
 								//
-								auto           it  = job_slaves.find(jmrr.fd) ; SWEAR(it!=job_slaves.end(),jmrr) ;
+								auto           it  = job_slaves.find(jmrr.fd) ; if (it==job_slaves.end()) break ; // job is dead, ignore
 								JobSlaveEntry& jse = it->second               ;
 								//
 								_exec_trace( Comment::Encode , CommentExt::Reply , jmrr.txt ) ;
@@ -788,9 +788,9 @@ Status Gather::_exec_child() {
 									jmrr.job    = job                           ;
 									jmrr.proc   = JobMngtProc::AddLiveOut       ;
 									jmrr.txt    = stdout.substr(0,live_out_pos) ;
-									//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-									OMsgBuf().send( ClientSockFd(service_mngt) , jmrr ) ;
-									//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+									//vvvvvvvvvvvvvvvvvvv
+									_send_to_server(jmrr) ;
+									//^^^^^^^^^^^^^^^^^^^
 								}
 							} break ;
 						DF}                                                                           // NO_COV

@@ -314,7 +314,7 @@ namespace Backends::Sge {
 			trace("wait_cmd_out",c2p.read) ;
 			ssize_t cnt = ::read( c2p.read , cmd_out.data() , cmd_out.size() ) ;
 			if (cnt==0                     ) FAIL("no data from"         ,cmd_line[0]                          ) ;
-			if (cnt<0                      ) FAIL("cannot read stdout of",cmd_line[0],':',::strerror(errno)    ) ;
+			if (cnt<0                      ) FAIL("cannot read stdout of",cmd_line[0],':',StrErr()             ) ;
 			if (size_t(cnt)==cmd_out.size()) FAIL("stdout overflow of"   ,cmd_line[0],':',cmd_out,"..."        ) ;
 			if (cmd_out[cnt-1]!='\n'       ) FAIL("incomplete stdout of" ,cmd_line[0],':',cmd_out.substr(0,cnt)) ;
 			cmd_out.resize(cnt) ;

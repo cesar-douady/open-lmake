@@ -104,7 +104,7 @@ namespace Store {
 		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
 		void _chk_rc( int rc, const char* msg ) {
-			if (rc<0) fail_prod("cannot",msg,'(',::strerror(errno),") for file :",name) ;
+			if (rc<0) fail_prod("cannot",msg,'(',StrErr(),") for file :",name) ;
 		}
 		void _dealloc() {
 			SWEAR(base) ;
@@ -114,7 +114,7 @@ namespace Store {
 		void _alloc() {
 			SWEAR(!base) ;
 			base = static_cast<char*>( ::mmap( nullptr/*addr*/ , Capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1/*d*/  , 0/*offfset*/ ) ) ;
-			if (base==MAP_FAILED) FAIL_PROD(::strerror(errno)) ;
+			if (base==MAP_FAILED) FAIL_PROD(StrErr()) ;
 			size = 0 ;
 		}
 		void _map(size_t sz) {
@@ -128,7 +128,7 @@ namespace Store {
 			else          map_flags |= MAP_SHARED                  ;
 			//
 			void* actual = ::mmap( base+size , sz-size , map_prot , MAP_FIXED|map_flags , _fd , size ) ;
-			if (actual!=base+size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),size,sz,::strerror(errno)) ;
+			if (actual!=base+size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),size,sz,StrErr()) ;
 			size = sz ;
 		}
 		// data

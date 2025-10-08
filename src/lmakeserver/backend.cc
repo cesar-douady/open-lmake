@@ -159,7 +159,7 @@ namespace Backends {
 	// Backend
 	//
 
-	::unique_ptr<Backend>                 Backend::s_tab[N<Tag>]                    ;
+	StaticUniqPtr<Backend>                Backend::s_tab[N<Tag>]                    ;
 	Mutex<MutexLvl::Backend >             Backend::_s_mutex                         ;
 	::string                              Backend::_s_job_exec                      ;
 	::vmap<char/*thread_key*/,::jthread*> Backend::_s_threads                       ;
@@ -194,8 +194,8 @@ namespace Backends {
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
-			SWEAR(+tag<N<Tag>) ;                                                                    // prevent compiler array bound warning in next statement
-			throw_unless( bool(s_tab[+tag]) , "open-lmake was compiled without ",tag," support" ) ;
+			SWEAR(+tag<N<Tag>) ;                                                               // prevent compiler array bound warning in next statement
+			throw_unless( +s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() , +j ) ;
 			tag   = Tag::Local                                                                 ;
 			trace("local",rsrcs) ;
@@ -221,7 +221,7 @@ namespace Backends {
 			e.submit_attrs |= sa ;                                                                                // and update submit_attrs in case job was not actually started
 			if (sa.live_out)                                                                                      // tell job_exec to resend allready sent live_out messages that we missed
 				try {
-					ClientSockFd fd( e.conn.host , e.conn.port ) ;
+					ClientSockFd fd { e.conn.host , e.conn.port } ;
 					OMsgBuf().send( fd , JobMngtRpcReply{.proc=JobMngtProc::AddLiveOut,.seq_id=e.conn.seq_id} ) ;
 				} catch (...) {}                                                                                  // if we cannot connect to job, it cannot send live_out messages any more
 		}
@@ -258,7 +258,7 @@ namespace Backends {
 		Trace trace(BeChnl,"_s_wakeup_remote",job,conn,proc) ;
 		SWEAR( conn.seq_id , job,conn ) ;
 		try {
-			ClientSockFd fd( conn.host , conn.port ) ;
+			ClientSockFd fd { conn.host , conn.port } ;
 			OMsgBuf().send( fd , JobMngtRpcReply({.proc=proc,.seq_id=conn.seq_id}) ) ;
 		} catch (::string const& e) {
 			trace("no_job",job,e) ;
@@ -412,7 +412,7 @@ namespace Backends {
 					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
 				}
 				//
-				/**/                            reply.addr                    = fd.peer_addr()                                                      ; SWEAR(reply.addr) ;   // 0 means no address
+				/**/                            reply.addr                    = fd.peer_addr()                                                      ;
 				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                               ;
 				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                                 ;
 				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                       ;
@@ -431,7 +431,7 @@ namespace Backends {
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
-		DF}                                                                                                                                                                 // NO_COV
+		DF}                                                                                                                                         // NO_COV
 		//
 		jis.stems     =                 ::move(match.stems)  ;
 		jis.pre_start =                 ::move(jsrr       )  ;
@@ -784,9 +784,9 @@ namespace Backends {
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
 		for( Tag t : iota(1,All<Tag>) ) {                                                                                               // local backend is always available
-			Backend*               be        = s_tab [+t].get() ; if (!be) { trace("not_implemented",t) ; continue ; }
-			bool                   was_ready = s_ready(t)       ;
-			Config::Backend const& cfg       = config[+t]       ;
+			auto                 & be        = s_tab [+t] ; if (!be) { trace("not_implemented",t) ; continue ; }
+			bool                   was_ready = s_ready(t) ;
+			Config::Backend const& cfg       = config[+t] ;
 			if (!cfg.configured) {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend ",t ) ;
 				be->config_err = "not configured" ;                                                                                     // empty config_err means ready
@@ -825,13 +825,10 @@ namespace Backends {
 				}
 			}
 			::vmap_s<in_addr_t> addrs = ServerSockFd::s_addrs_self(ifce) ;
-			if (addrs.size()==1) {
-				be->addr = addrs[0].second ;
-			} else if (t==Tag::Local) {
-				be->addr = SockFd::LoopBackAddr ;                                                                                       // dont bother user for local backend
-			} else if (addrs.size()==0) {                                                                                               // START_OF_NO_COV condition is system dependent
-				throw "cannot determine address from interface "+cfg.ifce ;
-			} else {
+			if      (addrs.size()==1) be->addr = addrs[0].second ;
+			else if (t==Tag::Local  ) be->addr = 0               ;                                                                      // dont bother user for local backend
+			else if (addrs.size()==0) throw cat("cannot determine address from interface ",cfg.ifce) ;                                  // START_OF_NO_COV condition is system dependent
+			else {
 				::string msg   = "multiple possible interfaces : " ;
 				First    first ;
 				for( auto const& [ifce,addr] : addrs ) msg << first("",", ") << ifce <<'('<< ServerSockFd::s_addr_str(addr) <<')' ;
@@ -845,7 +842,6 @@ namespace Backends {
 				}
 				throw msg ;
 			}                                                                                                                           // END_OF_NO_COV
-			be->addr = addrs[0].second ;
 		}
 		trace(_s_job_exec) ;
 		_s_job_start_thread.wait_started() ;

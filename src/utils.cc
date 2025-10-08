@@ -44,7 +44,7 @@ int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
 	if      (+file      ) res = ::openat( at , file.c_str() , action.flags|O_CLOEXEC , action.mod ) ;
 	else if (at==Fd::Cwd) res = ::openat( at , "."          , action.flags|O_CLOEXEC , action.mod ) ;
 	else                  res =           at                                                        ;
-	if ( !err_ok && res<0 ) throw cat("cannot open (",::strerror(errno),") : ",file_msg(at,file)) ;
+	if ( !err_ok && res<0 ) throw cat("cannot open (",StrErr(),") : ",file_msg(at,file)) ;
 	//
 	if ( creat && +action.perm_ext ) {
 		static mode_t umask_ = get_umask() ;
@@ -53,7 +53,7 @@ int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
 			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; else break ;
 		DN}
 		//
-		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",::strerror(errno),") to extend permissions : ",file_msg(at,file)) ;
+		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file_msg(at,file)) ;
 		//
 		mode_t usr_mod = (st.st_mode>>6)&07 ;
 		mode_t new_mod = st.st_mode         ;
@@ -63,7 +63,7 @@ int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
 		DN}
 		if (new_mod!=st.st_mode)
 			if (::fchmod(res,new_mod)!=0)
-				throw cat("cannot chmod (",::strerror(errno),") to extend permissions : ",file_msg(at,file)) ;
+				throw cat("cannot chmod (",StrErr(),") to extend permissions : ",file_msg(at,file)) ;
 	}
 PermOk :
 	return res ;
@@ -451,3 +451,11 @@ bool              _crash_busy  = false ;
 //
 
 thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
+
+//
+// miscellaneous
+//
+
+::string& operator+=( ::string& os , StrErr const& se ) {
+	return os << ::string(se) ;
+}

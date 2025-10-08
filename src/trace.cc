@@ -72,8 +72,8 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		_s_cur_sz = 4096                                                                            ;
 		_s_fd     = { tmp_trace_file , {.flags=O_RDWR|O_TRUNC|O_CREAT,.mod=0666} , true/*no_std*/ } ;
 		//
-		if ( !_s_fd                                                        ) throw cat("cannot create temporary trace file ",tmp_trace_file," : ",::strerror(errno)) ;
-		if ( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )!=0 ) throw cat("cannot create trace file "          ,*g_trace_file ," : ",::strerror(errno)) ;
+		throw_unless( +_s_fd                                                        , "cannot create temporary trace file ",tmp_trace_file," : ",StrErr() ) ;
+		throw_unless( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )==0 , "cannot create trace file "          ,*g_trace_file ," : ",StrErr() ) ;
 		//
 		try                     { _s_fd.write(::string(_s_cur_sz,0/*ch*/)) ;                                            }
 		catch (::string const&) { throw cat("cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz) ; }

@@ -132,7 +132,6 @@ else :
 		,	'ids'
 		,	'required by' , 'dut'
 		,	'reason'      , 'job was never run'
-		,	'host'
 		,	'scheduling'
 		,	'autodep'
 		,	'end date'

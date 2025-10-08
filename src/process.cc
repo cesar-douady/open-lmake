@@ -209,14 +209,14 @@ void Child::spawn() {
 		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
 	} else {
 		// pre_exec may modify parent's memory
-		pid_t pid_ = pre_exec ? ::fork() : ::vfork() ;                        // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
-		if (pid_==0) _do_child_trampoline() ;                                 // in child
-		pid = pid_ ;                                                          // only parent can modify parent's memory
+		pid_t pid_ = pre_exec ? ::fork() : ::vfork() ;               // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
+		if (pid_==0) _do_child_trampoline() ;                        // in child
+		pid = pid_ ;                                                 // only parent can modify parent's memory
 	}
 	//
 	if (pid==-1) {
-		waited() ;                                                            // NO_COV defensive programming, ensure we can be destructed
-		throw cat("cannot spawn process ",cmd_line," : ",::strerror(errno)) ; // NO_COV .
+		waited() ;                                                   // NO_COV defensive programming, ensure we can be destructed
+		throw cat("cannot spawn process ",cmd_line," : ",StrErr()) ; // NO_COV .
 	}
 	//
 	if (stdin_fd ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }

@@ -75,7 +75,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 	}
 	if (g_writable) {
 		::string tmp = cat(ServerMrkr,'.',_g_mrkr.first,'.',_g_mrkr.second) ;
-		_g_server_fd = ServerSockFd(New,0/*backlog*/,false/*adr_reuse*/) ;
+		_g_server_fd = ServerSockFd( New , 0/*backlog*/ , false/*reuse_addr*/ ) ;
 		AcFd( tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(cat(
 			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
 		,	_g_mrkr.second                                       , '\n'
@@ -90,7 +90,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 				if ( ::inotify_add_watch( _g_watch_fd , ServerMrkr , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
 					_g_watch_fd.close() ;                                                                        // useless if we cannot watch
 		} else {
-			res = { ::strerror(errno) , Rc::System } ;
+			res = { StrErr() , Rc::System } ;
 		}
 		unlnk(tmp) ;
 	}

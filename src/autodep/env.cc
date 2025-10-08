@@ -141,6 +141,11 @@ Fd AutodepEnv::fast_report_fd() const {
 Fd AutodepEnv::slow_report_fd() const {
 	if (!has_server()) return {} ;
 	//
-	try                       { return ClientSockFd(service).detach() ;        } // connect to server
-	catch (::string const& e) { fail_prod("while trying to report deps :",e) ; } // NO_COV
+	try {
+		in_port_t p = ClientSockFd::s_port(service) ;
+		if(host()==fast_host) { ClientSockFd fd{in_addr_t(0)                 ,p} ; return fd.detach() ; } // if on fast_host, connect locally
+		else                  { ClientSockFd fd{ClientSockFd::s_host(service),p} ; return fd.detach() ; }
+	} catch (::string const& e) {                                                                         // START_OF_NO_COV
+		fail_prod("while trying to report deps :",e) ;
+	}                                                                                                     // END_OF_NO_COV
 }

@@ -158,7 +158,7 @@ namespace Disk {
 		Fd dir_fd { at , dir_s , {.flags=O_RDONLY|O_DIRECTORY} } ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
-		if (!dir_fp) throw cat("cannot list dir ",file_msg(at,dir_s)," : ",::strerror(errno)) ;
+		if (!dir_fp) throw cat("cannot list dir ",file_msg(at,dir_s)," : ",StrErr()) ;
 		//
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
@@ -189,7 +189,8 @@ namespace Disk {
 		if (!abs_ok                         ) SWEAR( !file || is_lcl(file) , file           ) ;   // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
 		if (errno==ENOENT                   ) return false/*done*/ ;
-		if ( !dir_ok || errno!=EISDIR       ) throw cat("cannot unlink file ",file," : ",::strerror(errno)) ;
+		//
+		if ( !dir_ok || errno!=EISDIR ) throw cat("cannot unlink file ",file_msg(at,file)," : ",StrErr() ) ;
 		//
 		unlnk_inside_s(at,with_slash(file),abs_ok,force) ;
 		//
@@ -249,7 +250,7 @@ namespace Disk {
 						case PermExt::Group : if (!(umask_&0770)) goto PermOk ; break ;
 					DN}
 					//
-					FileStat st ; if (::fstatat(at,d_s.c_str(),&st,0/*flags*/)!=0) throw cat("cannot stat (",::strerror(errno),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
+					FileStat st ; if ( ::fstatat(at,d_s.c_str(),&st,0/*flags*/)!=0 ) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
 					//
 					mode_t usr_mod = (st.st_mode>>6)&07 ;
 					mode_t new_mod = st.st_mode         ;
@@ -258,8 +259,7 @@ namespace Disk {
 						case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
 					DN}
 					if (new_mod!=st.st_mode)
-						if (::fchmodat(at,d_s.c_str(),new_mod,0/*flags*/)!=0)
-							throw cat("cannot chmod (",::strerror(errno),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
+						if ( ::fchmodat(at,d_s.c_str(),new_mod,0/*flags*/)!=0 ) throw cat("cannot chmod (",StrErr(),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
 				}
 			PermOk :
 				pos++ ;

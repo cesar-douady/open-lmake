@@ -16,6 +16,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* seems to block when an external source dir does not exist
 * server has been seen to crash with a job starting twice
 	- under investigation
 	- seems to be linked with job lost

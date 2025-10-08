@@ -56,17 +56,23 @@ private :
 
 struct SockFd : AcFd {
 	friend ::string& operator+=( ::string& , SockFd const& ) ;
-	static constexpr in_addr_t   LoopBackAddr   = 0x7f000001 ; // 127.0.0.1
-	static constexpr int         NConnectTrials = 3          ;
-	static constexpr Time::Delay AddrInUseTick  { 0.010 }    ;
+	static constexpr in_addr_t   LoopBackAddr      = 0x7f000001 ; // 127.0.0.1
+	static constexpr in_addr_t   LoopBackBroadcast = 0x7fffffff ; // must be avoided as it is illegal
+	static constexpr in_addr_t   LoopBackMask      = 0xff000000 ;
+	static constexpr Time::Delay AddrInUseTick     { 0.010 }    ;
+	static constexpr uint32_t    NAddrInUseTrials  = 1000       ;
+	static constexpr int         NConnectTrials    = 100        ;
 	// statics
-	static ::string            s_addr_str  (in_addr_t              ) ;
-	static ::string const&     s_host      (in_addr_t              ) ;
-	static ::string            s_host      (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
-	static in_port_t           s_port      (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
-	static ::pair_s<in_port_t> s_host_port (::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
-	static in_addr_t           s_addr      (::string const& server ) ;
-	static ::vmap_s<in_addr_t> s_addrs_self(::string const& ifce={}) ;
+	static bool                s_is_loopback    (in_addr_t       a      ) { return (a&LoopBackMask)==(LoopBackAddr&LoopBackMask)                         ; }
+	static in_addr_t           s_random_loopback(                       ) ;
+	static ::string            s_addr_str       (in_addr_t              ) ;
+	static in_addr_t           s_addr           (::string const& server ) ;
+	static ::vmap_s<in_addr_t> s_addrs_self     (::string const& ifce={}) ;
+	static ::string const&     s_host           (in_addr_t              ) ;
+	static ::string            s_host           (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
+	static in_port_t           s_port           (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
+	static ::pair_s<in_port_t> s_host_port      (::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
+	//
 	//
 	static ::string s_service( ::string const& host , in_port_t port ) { return cat(host,':',port)               ; }
 	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }
@@ -74,14 +80,16 @@ struct SockFd : AcFd {
 private :
 	static size_t _s_col(::string const& service) {
 		size_t col = service.rfind(':') ;
-		throw_unless(col!=Npos , "bad service : ",service ) ;
+		throw_unless( col!=Npos , "bad service : ",service ) ;
 		return col ;
 	}
 	// cxtors & casts
 public :
 	using AcFd::AcFd ;
-	SockFd( NewType , bool reuse_addr=true ) ;
+protected :
+	SockFd( NewType , bool reuse_addr , in_addr_t local_addr , bool for_server ) ;
 	// services
+public :
 	// if timeout is 0, it means infinity (no timeout)
 	void set_receive_timeout(Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
 	void set_send_timeout   (Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
@@ -92,21 +100,22 @@ public :
 	in_port_t port     () const ;
 	in_addr_t peer_addr() const ;
 protected :
-	void _set_reuse_addr() ;                                     // ... for options to take effect
+	void _set_reuse_addr() ;
 } ;
 
 struct SlaveSockFd : SockFd {
 	friend ::string& operator+=( ::string& , SlaveSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
+	SlaveSockFd( NewType , bool reuse_addr=true , in_addr_t local_addr=0 ) = delete ;
 } ;
 
 struct ServerSockFd : SockFd {
 	friend ::string& operator+=( ::string& , ServerSockFd const& ) ;
 	// cxtors & casts
 	using SockFd::SockFd ;
-	ServerSockFd( NewType ,               bool reuse_addr=true ) = delete ;
-	ServerSockFd( NewType , int backlog , bool reuse_addr=true ) ;
+	ServerSockFd( NewType ,               bool reuse_addr=true , in_addr_t local_addr=0 ) = delete ;
+	ServerSockFd( NewType , int backlog , bool reuse_addr=true , in_addr_t local_addr=0 ) ;
 	// services
 	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
 	::string service(              ) const { return s_service(     port()) ; }
@@ -118,8 +127,7 @@ struct ClientSockFd : SockFd {
 	// cxtors & casts
 	using SockFd::SockFd ;
 	ClientSockFd( in_addr_t              , in_port_t      , bool reuse_addr=true , Time::Delay timeout={} ) ;
-	ClientSockFd( ::string const& server , in_port_t port , bool reuse_addr=true , Time::Delay timeout={} ) : ClientSockFd{ s_addr(server)  , port            , reuse_addr , timeout } {}
-	ClientSockFd( ::string const& service                 , bool reuse_addr=true , Time::Delay timeout={} ) : ClientSockFd{ s_host(service) , s_port(service) , reuse_addr , timeout } {}
+	ClientSockFd( ::string const& server , in_port_t port , bool reuse_addr=true , Time::Delay timeout={} ) : ClientSockFd{ s_addr(server) , port , reuse_addr , timeout } {}
 } ;
 
 //
@@ -162,7 +170,7 @@ template<class F> struct _Pipe {
 	void open(                          ) { open(0/*flags*/,false/*no_std*/) ; }
 	void open( int flags , bool no_std_ ) {
 		int fds[2] ;
-		if (::pipe2(fds,flags)!=0) fail_prod( "cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",::strerror(errno) ) ;
+		if (::pipe2(fds,flags)!=0) fail_prod( "cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",StrErr() ) ;
 		read  = F(fds[0],no_std_) ;
 		write = F(fds[1],no_std_) ;
 	}
@@ -256,12 +264,12 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 	}
 	void add( bool write , Fd fd , E data={} , bool wait=true ) {
 		Event event { write , fd , data } ;
-		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) fail_prod("cannot add",fd,"to epoll",_fd,'(',::strerror(errno),')') ;
+		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) fail_prod("cannot add",fd,"to epoll",_fd,'(',StrErr(),')') ;
 		if (wait) _n_waits ++ ;
 		/**/      _n_events++ ;
 	}
-	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                          // wait must be coherent with corresponding add
-		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr/*event*/ )!=0) fail_prod("cannot del",fd,"from epoll",_fd,'(',::strerror(errno),')') ;
+	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                 // wait must be coherent with corresponding add
+		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr/*event*/ )!=0) fail_prod("cannot del",fd,"from epoll",_fd,'(',StrErr(),')') ;
 		if (wait) { SWEAR(_n_waits >0) ; _n_waits -- ; }
 		/**/        SWEAR(_n_events>0) ; _n_events-- ;
 	}

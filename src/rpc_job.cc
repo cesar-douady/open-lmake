@@ -754,13 +754,12 @@ namespace Caches {
 	return                os <<')'                                   ;
 }                                                                      // END_OF_NO_COV
 
-	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",::strerror(errno)) ; }
-	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",::strerror(errno)) ; }
+	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",StrErr()) ; }
+	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",StrErr()) ; }
 
 	static void _mount_bind( ::string const& dst , ::string const& src ) {                                // src and dst may be files or dirs
 		Trace trace("_mount_bind",dst,src) ;
-		if (::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0)
-			throw cat("cannot bind mount ",src," onto ",dst," : ",::strerror(errno)) ;                    // NO_COV defensive programming
+		throw_unless( ::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src," onto ",dst," : ",StrErr() ) ;
 	}
 
 void JobSpace::chk() const {
@@ -790,15 +789,15 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	/**/                                    data += ",lowerdir="+no_slash(srcs_s[1]) ;
 	for( size_t i : iota(2,srcs_s.size()) ) data += ':'         +no_slash(srcs_s[i]) ;
 	/**/                                    data += ",workdir=" +no_slash(work_s   ) ;
-	if (::mount( nullptr ,  dst_s.c_str() , "overlay" , 0 , data.c_str() )!=0) throw cat("cannot overlay mount ",dst_s," to ",data," : ",::strerror(errno)) ;
+	throw_unless( ::mount( nullptr ,  dst_s.c_str() , "overlay" , 0 , data.c_str() )==0 , "cannot overlay mount ",dst_s," to ",data," : ",StrErr()) ;
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
 	AcFd    fd  { file , false/*erro_ok*/ , {.flags=O_WRONLY|O_TRUNC} } ;
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() )  ;
-	if (cnt<0                  ) throw cat("cannot write atomically ",data.size()," bytes to ",file," : ",::strerror(errno)        ) ;
-	if (size_t(cnt)<data.size()) throw cat("cannot write atomically ",data.size()," bytes to ",file," : only ",cnt," bytes written") ;
+	throw_unless( cnt>=0                   , "cannot write atomically ",data.size()," bytes to ",file," : ",StrErr()                  ) ;
+	throw_unless( size_t(cnt)>=data.size() , "cannot write atomically ",data.size()," bytes to ",file," : only ",cnt," bytes written" ) ;
 }
 
 bool JobSpace::_is_lcl_tmp(::string const& f) const {
@@ -932,7 +931,7 @@ bool JobSpace::enter(
 	int uid = ::getuid() ;                                                            // must be done before unshare that invents a new user
 	int gid = ::getgid() ;                                                            // .
 	//
-	if (::unshare(CLONE_NEWUSER|CLONE_NEWNS)!=0) throw cat("cannot create namespace : ",::strerror(errno)) ;
+	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
 	//
 	size_t   uphill_lvl = 0 ;
 	::string highest_s  ;
