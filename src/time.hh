@@ -115,12 +115,12 @@ namespace Time {
 		constexpr ::strong_ordering operator<=>(Delay const& other) const { return _val<=>other._val  ; }
 		//
 		using Base::operator+ ;
-		constexpr Delay  operator- (           ) const {                     return Delay(New,-_val          ) ; }
-		constexpr Delay  operator+ (Delay other) const {                     return Delay(New,_val+other._val) ; }
-		constexpr Delay  operator- (Delay other) const {                     return Delay(New,_val-other._val) ; }
-		constexpr Delay& operator+=(Delay other)       { self = self+other ; return self                       ; }
-		constexpr Delay& operator-=(Delay other)       { self = self-other ; return self                       ; }
-		constexpr Date   operator+ (Date       ) const ;
+		constexpr Delay  operator- (         ) const {                 return Delay(New,-_val      )  ; }
+		constexpr Delay  operator+ (Delay   d) const {                 return Delay(New,_val+d._val)  ; }
+		constexpr Delay  operator- (Delay   d) const {                 return Delay(New,_val-d._val)  ; }
+		constexpr Delay& operator+=(Delay   d)       { self = self+d ; return self                    ; }
+		constexpr Delay& operator-=(Delay   d)       { self = self-d ; return self                    ; }
+		constexpr Date   operator+ (Date     ) const ;
 		//
 		template<class T> requires(::is_arithmetic_v<T>) constexpr Delay  operator* (T f) const ;
 		template<class T> requires(::is_signed_v    <T>) constexpr Delay  operator/ (T f) const ;
@@ -141,6 +141,7 @@ namespace Time {
 	constexpr Delay Delay::Lowest  { New , Min<Tick> } ;
 	constexpr Delay Delay::Highest { New , Max<Tick> } ;
 	constexpr Delay Delay::Forever { New , Max<Tick> } ;
+	template<class T> requires(::is_arithmetic_v<T>) constexpr Delay operator*( T f , Delay d ) { return d*f ; }
 
 	// short float representation of time (positive)
 	// when exp<=0, representation is linear after TicksPerSecond

@@ -12,7 +12,7 @@ if __name__!='__main__' :
 	from lmake.rules import Rule,PyRule
 
 	lmake.config.backends.local.cpu =  1000 # a unreasonable but stressing value
-	lmake.config.network_delay      =     3 # under heavy load, delays can grow up
+	lmake.config.network_delay      =    10 # under heavy load, delays can grow up
 	lmake.config.trace.n_jobs       = 10000 # ensure we keep all traces for analysis
 
 	if 'slurm' in lmake.backends :

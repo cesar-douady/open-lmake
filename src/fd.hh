@@ -56,14 +56,15 @@ private :
 
 struct SockFd : AcFd {
 	friend ::string& operator+=( ::string& , SockFd const& ) ;
-	static constexpr in_addr_t   LoopBackAddr      = 0x7f000001 ; // 127.0.0.1
-	static constexpr in_addr_t   LoopBackBroadcast = 0x7fffffff ; // must be avoided as it is illegal
-	static constexpr in_addr_t   LoopBackMask      = 0xff000000 ;
-	static constexpr Time::Delay AddrInUseTick     { 0.010 }    ;
-	static constexpr uint32_t    NAddrInUseTrials  = 1000       ;
-	static constexpr int         NConnectTrials    = 100        ;
+	static constexpr in_addr_t   LoopBackAddr      = 0x7f000001                 ; // 127.0.0.1
+	static constexpr in_addr_t   LoopBackMask      = 0xff000000                 ;
+	static constexpr in_addr_t   LoopBackBroadcast = LoopBackAddr|~LoopBackMask ; // must be avoided as it is illegal
+	static constexpr Time::Delay AddrInUseTick     {    0.010 }                 ;
+	static constexpr uint32_t    NAddrInUseTrials  = 1000                       ;
+	static constexpr uint32_t    NConnectTrials    =  100                       ;
+	static constexpr Time::Delay ConnectTimeout    { 1000     }                 ;
 	// statics
-	static bool                s_is_loopback    (in_addr_t       a      ) { return (a&LoopBackMask)==(LoopBackAddr&LoopBackMask)                         ; }
+	static bool                s_is_loopback    (in_addr_t       a      ) { return (a&LoopBackMask)==(LoopBackAddr&LoopBackMask)                                                            ; }
 	static in_addr_t           s_random_loopback(                       ) ;
 	static ::string            s_addr_str       (in_addr_t              ) ;
 	static in_addr_t           s_addr           (::string const& server ) ;
@@ -72,7 +73,6 @@ struct SockFd : AcFd {
 	static ::string            s_host           (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
 	static in_port_t           s_port           (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
 	static ::pair_s<in_port_t> s_host_port      (::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
-	//
 	//
 	static ::string s_service( ::string const& host , in_port_t port ) { return cat(host,':',port)               ; }
 	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }

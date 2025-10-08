@@ -43,8 +43,8 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	JobStartRpcReply res          ;
 	try {
 		ClientSockFd fd { SockFd::s_host(g_service_start) , SockFd::s_port(g_service_start) } ;
-		fd.set_timeout(Delay(100)) ;                                                                   // ensure we dont stay stuck in case server is in the coma : ...
-		throw_unless(+fd) ;                                                                            // ... 100s = 1000 simultaneous connections @ 10 jobs/s
+		fd.set_timeout(Delay(100)) ;                                                            // ensure we dont stay stuck in case server is in the coma : ...
+		throw_unless(+fd) ;                                                                     // ... 100s = 1000 simultaneous connections @ 10 jobs/s
 		found_server = true ;
 		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		/**/  OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
@@ -52,9 +52,9 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) {
 		trace("no_start_info",STR(found_server),e) ;
-		if      (found_server) exit(Rc::Fail                                                       ) ; // this is typically a ^C
-		else if (+e          ) exit(Rc::Fail,"cannot connect to server at ",g_service_start," : ",e) ; // this may be a server config problem, better to report if verbose
-		else                   exit(Rc::Fail,"cannot connect to server at ",g_service_start        ) ; // .
+		if      (found_server) exit(Rc::Fail                                               ) ;  // this is typically a ^C
+		else if (+e          ) exit(Rc::Fail,"while connecting to server : ",e             ) ;  // this may be a server config problem, better to report if verbose
+		else                   exit(Rc::Fail,"cannot connect to server at ",g_service_start) ;  // .
 	}
 	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;

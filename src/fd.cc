@@ -267,36 +267,38 @@ SlaveSockFd ServerSockFd::accept() {
 //
 
 ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr , Time::Delay timeout ) : SockFd{ New , reuse_addr , server?0:s_random_loopback() , false/*for_server*/ } {
-	if (!server) server = s_random_loopback() ;
+	bool has_timeout = +timeout ;
+	if (!server ) server  = s_random_loopback() ;
+	if (!timeout) timeout = ConnectTimeout      ;
 	//
-	SockAddr sa               { server , port } ;
-	Pdate    end              ;                   if (+timeout) end = Pdate(New) + timeout ;
-	int      i_reuse_addr = 1 ;
-	int      i_connect    = 1 ;
-	for( int i=1 ;; i++ ) {
-		if (+timeout) {
-			Delay::TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                           // ensure to is positive
+	SockAddr sa           { server , port }      ;
+	Pdate    end          = Pdate(New) + timeout ;
+	uint32_t i_reuse_addr = 1                    ;
+	uint32_t i_connect    = 1                    ;
+	for( uint32_t i=1 ;; i++ ) {
+		if (has_timeout) {
+			Delay::TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                              // ensure to is positive
 			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(to) ) ;
 		}
 		if ( ::connect( fd , &sa.as_sockaddr() , sizeof(sa) )==0 ) {
-			if (+timeout) ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &::ref(Delay::TimeVal(Delay())) , sizeof(Delay::TimeVal) ) ; // restore no timeout
+			if (has_timeout) ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &::ref(Delay::TimeVal(Delay())) , sizeof(Delay::TimeVal) ) ; // restore no timeout
 			break ;
 		}
 		switch (errno) {
 			case EADDRNOTAVAIL :
-				if (i_reuse_addr>=_ports().sz) throw cat("cannot connect to ",s_service(server,port)," after ",_ports().sz," trials : ",StrErr()) ;
+				if (i_reuse_addr>=NAddrInUseTrials) throw cat("cannot connect to ",s_service(server,port)," after ",NAddrInUseTrials," trials : ",StrErr()) ;
 				i_reuse_addr++ ;
-				AddrInUseTick.sleep_for() ;
+				AddrInUseTick.sleep_for() ;                                                                                             // this error is local, so wait a little bit before retry
 			break ;
 			case ECONNREFUSED :
-			case ECONNRESET   :                                                                                                      // although not documented, may happen when server is overloaded
-				if (i_connect>=NConnectTrials) throw cat("cannot connect to ",s_service(server,port)," after ",NConnectTrials  ," trials : ",StrErr()) ;
+			case ECONNRESET   :                                                                                                         // although not documented, may happen when server is overloaded
+				if (i_connect>=NConnectTrials) throw cat("cannot connect to ",s_service(server,port)," after ",NConnectTrials," trials : ",StrErr()) ;
 				i_connect++ ;
 			break ;
 			case EINTR :
 			break ;
-			case ETIMEDOUT :
-				if (Pdate(New)>end) throw cat("cannot connect to ",s_service(server,port)," after ",timeout.short_str()," : ",StrErr()) ;
+			case ETIMEDOUT :                                                                                                            // happens even if no timeout is specifie on socket
+				if ( Pdate now{New} ; now>end ) throw cat("cannot connect to ",s_service(server,port)," after ",(timeout+(now-end)).short_str()," : ",StrErr()) ;
 				break ;
 			default :
 				FAIL(self,server,port,timeout,reuse_addr,StrErr()) ;
