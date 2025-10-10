@@ -265,6 +265,7 @@ namespace Engine {
 	// - special rules (always first) are already processed
 	// - if a sure job is found, then all rule_tgts are consumed as there will be no further match
 	Buildable NodeData::_gather_prio_job_tgts( ::string&/*lazy*/ name_ , Req req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl ) {
+		Trace trace("_gather_prio_job_tgts",name_) ;
 		if (!rule_tgts()                ) return Buildable::No                                ;
 		if (lvl>=g_config->max_dep_depth) throw ::pair(Special::InfiniteDep,::vector<Node>()) ;        // too deep, must be an infinite dep path
 		//
@@ -308,7 +309,7 @@ namespace Engine {
 				}                                                                                      // ... and checking would require to generate names, which is too expensive
 				n_job_tgts++ ;                                                                         // simply extend official size as reservoir job is ok
 			} else {
-				if (!name_     )   name_ = name() ;                                                    // solve lazy
+				if (!name_     ) { name_ = name() ; trace("name",name_) ;           }                  // solve lazy
 				if (!name_chked) { SWEAR(is_lcl(name_),name_) ; name_chked = true ; }
 				//
 				Rule::RuleMatch rm = { rt , name_ , Maybe/*chk_psfx*/ } ;                              // no adequate job in reservoir, matching is unavoidable

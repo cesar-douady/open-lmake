@@ -1433,12 +1433,11 @@ namespace Engine {
 	}
 
 	Rule::RuleMatch::RuleMatch( Rule r , TargetPattern const& pattern , ::string const& name , Bool3 chk_psfx ) {
-		Trace trace("RuleMatch",r,name,chk_psfx) ;
-		/**/                                         if (!r) { trace("no_rule" ) ; return ; }
-		Re::Match m = pattern.match(name,chk_psfx) ; if (!m) { trace("no_match") ; return ; }
+		/**/                                         if (!r) { Trace("RuleMatch","no_rule"   ) ; return ; }
+		Re::Match m = pattern.match(name,chk_psfx) ; if (!m) { Trace("RuleMatch",r,"no_match") ; return ; }
 		rule = r ;
 		for( VarIdx s : iota(r->n_static_stems) ) stems.push_back( ::string(m.group( name , pattern.groups[s] )) ) ;
-		trace("stems",stems) ;
+		Trace("RuleMatch","stems",r,name,chk_psfx,stems) ;
 	}
 
 	::string& operator+=( ::string& os , Rule::RuleMatch const& m ) { // START_OF_NO_COV

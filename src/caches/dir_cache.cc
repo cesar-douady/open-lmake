@@ -576,7 +576,7 @@ namespace Caches {
 			trace("hit",match.key) ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
 			_dismiss( upload_key , old_sz , nfs_guard ) ;                                                                 // finally, we did not populate
-			throw_unless( AcFd(abs_jn_s+match.key+"/data").read()==job_data , "incoherent targets" ) ;                    // check coherence
+			throw_unless( AcFd(abs_jn_s+match.key+"/data").read()==job_data , "already cached with another content" ) ;   // check coherence
 		} else {
 			match.key = cat( "key-" , key_crc.hex() ) ; match.key += is_target(cat(abs_jn_s,match.key,"-first/lru")) ? "-last" : "-first" ;
 			//

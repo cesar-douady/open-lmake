@@ -937,8 +937,7 @@ namespace Engine {
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;
 							::map_ss required_rsrcs  ;
 							try {
-								Rule::RuleMatch match ;
-								required_rsrcs = mk_map(rule->submit_rsrcs_attrs.eval(job,match,&::ref(::vmap_s<DepDigest>())).rsrcs) ; // dont care about deps
+								required_rsrcs = mk_map( rule->submit_rsrcs_attrs.eval( job , ::ref(Rule::RuleMatch()) , &::ref(::vmap_s<DepDigest>()) ).rsrcs ) ; // dont care about deps
 							} catch(MsgStderr const&) {}
 							//
 							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , snake_str(RunStatus(job->run_status)) , Color::Err ) ;
@@ -1274,8 +1273,8 @@ namespace Engine {
 					if (!job) {
 						Node                      n       = target ; while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
 						::vmap_s<::pair_s<Color>> entries ;
-						if      (+n->asking) entries.push_back({ "required" , {Job(n->asking)->name(),{}} }) ;
-						else if (n!=target ) entries.push_back({ "required" , {    n         ->name(),{}} }) ;
+						if      (+n->asking) entries.push_back({ porcelaine?"required_by":"required by" , {Job(n->asking)->name(),{}} }) ;
+						else if (n!=target ) entries.push_back({ porcelaine?"required_by":"required by" , {    n         ->name(),{}} }) ;
 						if (target->is_src_anti()) {
 							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->date().sig ) c = Color::Warning ;
 							//

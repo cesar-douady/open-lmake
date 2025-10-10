@@ -190,8 +190,8 @@ namespace Engine {
 		ReqOptions options = {}            ;                                                                                                            // .
 	} ;
 
-	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive when optimizing
 	struct EngineClosureJobStart {
 		friend ::string& operator+=( ::string& , EngineClosureJobStart const& ) ;
 		bool                       report        = false ;
@@ -204,8 +204,8 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , EngineClosureJobReportStart const& ) ;
 	} ;
 
-	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive when optimizing
 	struct EngineClosureJobGiveUp {
 		friend ::string& operator+=( ::string& , EngineClosureJobGiveUp const& ) ;
 		Req  req    = {}    ;
@@ -213,8 +213,8 @@ namespace Engine {
 	} ;
 	#pragma GCC diagnostic pop
 
-	#pragma GCC diagnostic push                            // XXX/ : gcc-11 to 14 seem to hit a false positive when optimizing
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive when optimizing
 	struct EngineClosureJob
 	:	             ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ >
 	{	using Base = ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;

@@ -185,9 +185,9 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 //
 
 ::string& operator+=( ::string& os , JobReason const& jr ) { // START_OF_NO_COV
-	os << "JobReason(" << jr.tag ;
-	if (jr.tag>=JobReasonTag::HasNode) os << ',' << jr.node ;
-	return os << ')' ;
+	/**/                               os <<"JR("<< jr.tag ;
+	if (jr.tag>=JobReasonTag::HasNode) os <<','<< jr.node  ;
+	return                             os <<')'            ;
 }                                                            // END_OF_NO_COV
 
 void JobReason::chk() const {

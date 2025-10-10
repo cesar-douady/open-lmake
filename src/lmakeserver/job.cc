@@ -156,7 +156,7 @@ namespace Engine {
 	::string& operator+=( ::string& os , JobReqInfo const& ri ) { // START_OF_NO_COV
 		/**/                   os << "JRI(" << ri.req     ;
 		if ( ri.speculate!=No) os <<",S:" << ri.speculate ;
-		if ( ri.modified     ) os <<",modified"           ;
+		if ( ri.modified     ) os <<",mod"                ;
 		/**/                   os <<','   << ri.step()    ;
 		/**/                   os <<'@'   << ri.iter      ;
 		/**/                   os <<':'   << ri.state     ;
@@ -504,7 +504,6 @@ namespace Engine {
 		Rule                             rule          = jd.rule()                                                         ;
 		::vector<Req>                    running_reqs_ = jd.running_reqs(true/*with_zombies*/)                             ;
 		::string                         severe_msg    ;                                                                     // to be reported always
-		Rule::RuleMatch                  match         ;
 		::umap<Node,::pair<FileSig,Crc>> old_srcs      ; // remember old src infos before they are updated
 		//
 		Trace trace("end",self,digest) ;
@@ -1165,7 +1164,7 @@ namespace Engine {
 					DF}                                                                                            // NO_COV
 				}
 			Continue :
-				trace("dep",ri,dep,dep_goal,*cdri,STR(dnd.done(*cdri)),STR(dnd.ok()),dnd.crc,dep_err,STR(dep_modif),state.reason) ;
+				trace("dep",ri,dep,dep_goal,*cdri,dnd.done(*cdri)?"done":"!done",dnd.ok(),dnd.crc,dep_err,dep_modif?"mod":"!mod",state.reason) ;
 				//
 				if ( state.missing_dsk && !no_run_reason(state) ) {
 					SWEAR(!query) ;                                             // when query, we cannot miss dsk
