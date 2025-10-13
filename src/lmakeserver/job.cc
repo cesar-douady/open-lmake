@@ -219,8 +219,8 @@ namespace Engine {
 			trace("not_accepted") ;
 			::pair_s<RuleData::MatchEntry> const& k_me = rule->matches[msg.second] ;
 			MatchKind                             mk   = k_me.second.flags.kind()  ;
-			req->audit_job( Color::Warning , cat("bad_",mk) , rule , match.name() ) ;
-			req->audit_stderr( self , {.msg=cat(mk,' ',k_me.first," : ",msg.first)} ) ;
+			req->audit_job   ( Color::Warning , cat("bad_",mk) , rule , match.name() ) ;
+			req->audit_stderr( self , {.msg=cat(mk,' ',k_me.first," : ",msg.first)}  ) ;
 			return ;
 		}
 		//
@@ -231,7 +231,7 @@ namespace Engine {
 		} catch (MsgStderr const& msg_err) {
 			trace("no_dep_subst") ;
 			if (+req) {
-				req->audit_job( Color::Note , "deps_not_avail" , rule , match.name() ) ;
+				req->audit_job   ( Color::Note , "deps_not_avail" , rule , match.name()                                             ) ;
 				req->audit_stderr( self , {ensure_nl(rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg,msg_err.stderr} ) ;
 			}
 			return ;
@@ -254,14 +254,14 @@ namespace Engine {
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
 			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
 		}
-		if (+digest.first) {                                                     // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
-			req->audit_job( Color::Warning , "bad_dep" , rule , match.name() ) ;
-			req->audit_stderr( self , {.msg=digest.first} ) ;
+		if (+digest.first) {                                                        // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
+			req->audit_job   ( Color::Warning , "bad_dep" , rule , match.name() ) ;
+			req->audit_stderr( self , {.msg=digest.first}                       ) ;
 			return ;
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		//          args for store         args for JobData
-		self = Job( match.full_name(),Dflt , match,deps   ) ;                    // initially, static deps are deemed read, then actual accesses will be considered
+		self = Job( match.full_name(),Dflt , match,deps   ) ;                       // initially, static deps are deemed read, then actual accesses will be considered
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("found",self,self->deps) ;
 	}
@@ -775,8 +775,8 @@ namespace Engine {
 				const char* action = can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;
 				for( Req req : running_reqs_ ) {
-					req->audit_job( Color::Warning , cat("bad_cache_",action) , self , true/*at_end*/ ) ;
-					req->audit_stderr( self , {.msg=e} ) ;
+					req->audit_job   ( Color::Warning , cat("bad_cache_",action) , self , true/*at_end*/ ) ;
+					req->audit_stderr(                                             self , {.msg=e}       ) ;
 				}
 			}
 		}
@@ -831,11 +831,11 @@ namespace Engine {
 		DN}
 		if (!step) step = snake(jr) ;
 		Trace trace("audit_end",color,pfx,step,self,ri,STR(with_stats),STR(retry),STR(with_stderr),STR(done),STR(speculate),jr,STR(+msg_stderr.msg),STR(+msg_stderr.stderr)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job( color , pfx+step , self , true/*at_end*/ , exec_time ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		req->audit_job   ( color , pfx+step , self , true/*at_end*/ , exec_time                                              ) ;
+		req->audit_stderr(                    self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true  ;
-		req->audit_stderr( self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
 		//
 		if ( speculate && done ) jr = JR::Speculative ;
 		if ( with_stats        ) req->stats.add(jr,exec_time) ;
@@ -936,16 +936,16 @@ namespace Engine {
 		ToPop to_pop ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
-		Rule              r             = rule()                                              ;
-		bool              query         = make_action==MakeAction::Query                      ;
-		bool              at_end        = make_action==MakeAction::End                        ;
-		Req               req           = ri.req                                              ;
-		ReqOptions const& ro            = req->options                                        ;
-		Special           special       = r->special                                          ;
-		bool              dep_live_out  = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay       dep_pressure  = ri.pressure + c_exec_time()                         ;
-		bool              archive       = ro.flags[ReqFlag::Archive]                          ;
-		bool              report_as_end = false                                               ; // used in case of re-analysis
+		Rule              r            = rule()                                              ;
+		bool              query        = make_action==MakeAction::Query                      ;
+		bool              at_end       = make_action==MakeAction::End                        ;
+		Req               req          = ri.req                                              ;
+		ReqOptions const& ro           = req->options                                        ;
+		Special           special      = r->special                                          ;
+		bool              dep_live_out = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
+		CoarseDelay       dep_pressure = ri.pressure + c_exec_time()                         ;
+		bool              archive      = ro.flags[ReqFlag::Archive]                          ;
+		bool              report_loop  = false                                               ;
 		//
 	RestartFullAnalysis :
 		JobReason pre_reason    ;                                                               // reason to run job when deps are ready before deps analysis
@@ -1114,16 +1114,14 @@ namespace Engine {
 					state.reason        |= {JobReasonTag::DepOutOfDate,+dep} ;
 				} else {
 					bool dep_missing_dsk = !query && may_care && !dnd.done(*cdri,NodeGoal::Dsk) ;
-					state.missing_dsk |= dep_missing_dsk   ;                                                       // job needs this dep if it must run
+					state.missing_dsk |= dep_missing_dsk   ;                                                                              // job needs this dep if it must run
 					dep_modif          = !dep.up_to_date() ;
-					if ( dep_modif && status==Status::Ok ) {                                                       // no_trigger only applies to successful jobs
-						// if not full, a dep is only used to compute resources
-						// if asked by user, record to repeat in summary
-						if      (!dep.dflags[Dflag::Full])   dep_modif = false ;
-						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.push(dep) ; }
+					if ( dep_modif && status==Status::Ok ) {                                                                              // no_trigger only applies to successful jobs
+						if      (!dep.dflags[Dflag::Full])   dep_modif = false ;                                                          // if not full, a dep is only used to compute resources
+						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.push(dep) ; } // record to repeat in summary
 					}
-					if ( +state.stamped.err  ) goto Continue ;                                                     // we are already in error, no need to analyze errors any further
-					if ( !is_static && modif ) goto Continue ;                                                     // if not static, errors may be washed by previous modifs, dont record them
+					if ( +state.stamped.err  ) goto Continue ;                           // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ;                           // if not static, errors may be washed by previous modifs, dont record them
 					// analyze error
 					if (dep_modif) {
 						if ( dep.is_crc && dep.never_match() ) { state.reason |= {JobReasonTag::DepUnstable ,+dep} ; trace("unstable_modif",dep) ; }
@@ -1141,64 +1139,64 @@ namespace Engine {
 							state.reason |= {JobReasonTag::DepErr,+dep} ;
 							dep_err       = RunStatus::DepError         ;
 						break ;
-						case Maybe :                                                                               // dep is not buidlable, check if required
-							if (dnd.status()==NodeStatus::Transient) {                                             // dep uphill is a symlink, it will disappear at next run
+						case Maybe :                                                     // dep is not buidlable, check if required
+							if (dnd.status()==NodeStatus::Transient) {                   // dep uphill is a symlink, it will disappear at next run
 								trace("transient",dep) ;
 								state.reason |= {JobReasonTag::DepTransient,+dep} ;
 								break ;
 							}
 							if      (is_static) { trace("missing_static"  ,dep) ; state.reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; dep_err = RunStatus::MissingStatic ; break ; }
 							else if (required ) { trace("missing_required",dep) ; state.reason |= {JobReasonTag::DepMissingRequired,+dep} ; dep_err = RunStatus::DepError      ; break ; }
-							dep_missing_dsk |= !query && cdri->manual>=Manual::Changed ;                           // ensure dangling are correctly handled
+							dep_missing_dsk |= !query && cdri->manual>=Manual::Changed ; // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
-							if (dep_goal==NodeGoal::Dsk) {                                                         // if asking for disk, we must check disk integrity
+							if (dep_goal==NodeGoal::Dsk) {                               // if asking for disk, we must check disk integrity
 								switch(cdri->manual) {
 									case Manual::Empty   :
 									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepError ; trace("dangling",dep,cdri->manual) ; break ;
 									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                                 trace("unlnked" ,dep             ) ; break ;
 								DN}
-							} else if ( dep_modif && at_end && dep_missing_dsk ) {                                 // dep out of date but we do not wait for it being rebuilt
-								dep_goal = NodeGoal::Dsk ;                                                         // we must ensure disk integrity for detailed analysis
+							} else if ( dep_modif && at_end && dep_missing_dsk ) {       // dep out of date but we do not wait for it being rebuilt
+								dep_goal = NodeGoal::Dsk ;                               // we must ensure disk integrity for detailed analysis
 								trace("restart_dep",dep) ;
 								goto RestartDep/*BACKWARD*/ ;
 							}
 						break ;
-					DF}                                                                                            // NO_COV
+					DF}                                                                  // NO_COV
 				}
 			Continue :
-				trace("dep",ri,dep,dep_goal,*cdri,dnd.done(*cdri)?"done":"!done",dnd.ok(),dnd.crc,dep_err,dep_modif?"mod":"!mod",state.reason) ;
+				trace("dep",ri,dep,dep_goal,*cdri,dnd.done(*cdri)?"done":"!done",dnd.ok(),dnd.crc,dep_err,dep_modif?"mod":"!mod",state.reason,stamped_seen_critical?"stamped_critical":"") ;
 				//
 				if ( state.missing_dsk && !no_run_reason(state) ) {
-					SWEAR(!query) ;                                             // when query, we cannot miss dsk
+					SWEAR(!query) ;                                                      // when query, we cannot miss dsk
 					trace("restart_analysis") ;
-					SWEAR( !ri.reason , ri.reason ) ;                           // we should have asked for dep on disk if we had a reason to run
-					ri.reason = state.reason ;                                  // record that we must ask for dep on disk
+					SWEAR( !ri.reason , ri.reason ) ;                                    // we should have asked for dep on disk if we had a reason to run
+					ri.reason = state.reason ;                                           // record that we must ask for dep on disk
 					ri.reset(idx()) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
-				SWEAR(!( +dep_err && modif && !is_static )) ;                   // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
-				state.proto.err      = ::max( state.proto.err   , dep_err   ) ; // |= is forbidden for bit fields
-				state.proto.modif    =        state.proto.modif | dep_modif   ; // .
+				SWEAR(!( +dep_err && modif && !is_static )) ;                            // if earlier modifs have been seen, we do not want to record errors as they can be washed, unless static
+				state.proto.err      = ::max( state.proto.err   , dep_err   ) ;          // |= is forbidden for bit fields
+				state.proto.modif    =        state.proto.modif | dep_modif   ;          // .
 				proto_seen_critical |= is_critical && (+dep_err||dep_modif)   ;
 			}
 			if (ri.waiting()                             ) goto Wait ;
-			if (sure                                     ) mk_sure() ;          // improve sure (sure is pessimistic)
+			if (sure                                     ) mk_sure() ;                   // improve sure (sure is pessimistic)
 			if (+(run_status=ri.state.stamped.err)       ) goto Done ;
 			if (no_run_reason(ri.state)==NoRunReason::Dep) goto Done ;
 		}
 	Run :
 		switch (no_run_reason(ri.state)) {
-			case NoRunReason::RetryLoop      : trace("fail_loop"       ,ri) ; pre_reason = JobReasonTag::None                                                ; break ;
-			case NoRunReason::LostLoop       : trace("lost_loop"       ,ri) ; status     = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; break ;
-			case NoRunReason::SubmitLoopReq  : trace("submit_loop_req" ,ri) ; status     = Status::SubmitLoop                                                ; break ;
-			case NoRunReason::SubmitLoopRule : trace("submit_loop_rele",ri) ; status     = Status::SubmitLoop                                                ; break ;
+			case NoRunReason::RetryLoop      : trace("fail_loop"       ,ri) ; pre_reason = JobReasonTag::None                                                ;                      break ;
+			case NoRunReason::LostLoop       : trace("lost_loop"       ,ri) ; status     = status<Status::Early ? Status::EarlyLostErr : Status::LateLostErr ; report_loop = true ; break ;
+			case NoRunReason::SubmitLoopReq  : trace("submit_loop_req" ,ri) ; status     = Status::SubmitLoop                                                ; report_loop = true ; break ;
+			case NoRunReason::SubmitLoopRule : trace("submit_loop_rule",ri) ; status     = Status::SubmitLoop                                                ; report_loop = true ; break ;
 			default :
-				report_reason = ri.reason = reason(ri.state) ;                  // ensure we have a reason to report that we would have run if not queried
+				report_reason = ri.reason = reason(ri.state) ;                           // ensure we have a reason to report that we would have run if not queried
 				trace("run",ri,pre_reason,run_status) ;
 				if (query) goto Return ;
-				if (ri.state.missing_dsk) {                                     // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
-					SWEAR( !is_infinite(special) , special,idx() ) ;            // Infinite do not process their deps
+				if (ri.state.missing_dsk) {                                              // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
+					SWEAR( !is_infinite(special) , special,idx() ) ;                     // Infinite do not process their deps
 					ri.reset(idx()) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
@@ -1206,35 +1204,28 @@ namespace Engine {
 					//vvvvvvvvvvvvvvvvv
 					_submit_special(ri) ;
 					//^^^^^^^^^^^^^^^^^
-					goto Done ;                                                 // special never report new deps
+					goto Done ;                                                          // special never report new deps
 				} else {
 					JobReasonTag rt = ri.reason.tag ;
-					//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					bool maybe_new_deps = _submit_plain( ri , dep_pressure ) ;
-					//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					bool new_deps = _submit_plain( ri , dep_pressure ) ;
+					//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					inc_submits(rt) ;
-					if (ri.waiting()   ) goto Wait ;
-					if (!maybe_new_deps) goto Done ;                            // if no new deps, we cannot be waiting
+					if (ri.waiting()) goto Wait ;
+					if (!new_deps   ) goto Done ;                                        // if no new deps, we cannot be waiting
 				}
 				SWEAR(!ri.running()) ;
-				if ( !ri.done() && !req.zombie() ) {
-					trace("report_maybe_new_deps") ;
-					JobReason jr = reason(ri.state) ; //!        with_stats pfx
-					if (jr.tag>=JobReasonTag::Err) audit_end( ri , false  , "hit_" , MsgStderr{.msg=reason_str(jr)} ) ; // cache hit is the only reason for maybe_new_deps
-					else                           audit_end( ri , false  , "hit_"                                  ) ; // .
-				}
-				report_as_end = make_action!=MakeAction::End ;                                       // audit_end is normally called from end(), but if not called from it, we may have to report job
-				make_action   = MakeAction::End              ;                                       // restart analysis as if called by end() as in case of flash execution, submit has called end()
-				ri.inc_wait() ;                                                                      // .
-				asked_reason = {} ;                                                                  // .
-				ri.reason    = {} ;                                                                  // .
-				trace("restart_analysis",ri,STR(report_as_end)) ;
+				make_action = MakeAction::End ;                                          // restart analysis as if called by end() as in case of flash execution, submit has called end()
+				ri.inc_wait() ;                                                          // .
+				asked_reason = {} ;                                                      // .
+				ri.reason    = {} ;                                                      // .
+				trace("restart_analysis",ri) ;
 				goto RestartFullAnalysis/*BACKWARD*/ ;
 		}
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
 		ri.step(Step::Done,idx()) ;
-		ri.reason = {} ;                                                                             // no more reason to run as analysis showed it is ok now
+		ri.reason = {} ;                                                                 // no more reason to run as analysis showed it is ok now
 	Wakeup :
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
 			JobAudit const& ja = it->second ;
@@ -1254,7 +1245,7 @@ namespace Engine {
 				else                           audit_end( ri , true   , pfx , MsgStderr{.msg=ja.msg        } ) ;
 			}
 			req->missing_audits.erase(it) ;
-		} else if (report_as_end) {
+		} else if ( !at_end && report_loop ) {
 			audit_end( ri , false/*with_stats*/ ) ;
 		}
 		trace("wakeup",ri) ;
@@ -1393,7 +1384,7 @@ namespace Engine {
 		DF}                                                                                                    // NO_COV
 	}
 
-	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
+	bool/*new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
 		using Step = JobStep ;
 		Rule            r     = rule() ;
 		Req             req   = ri.req ;
@@ -1404,7 +1395,7 @@ namespace Engine {
 		SWEAR( !ri.running() , ri ) ;
 		for( Req rr : running_reqs() ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
-			ri.step(cri.step(),job) ;                                                     // Exec or Queued, same as other reqs
+			ri.step(cri.step(),job) ;                                                  // Exec or Queued, same as other reqs
 			ri.inc_wait() ;
 			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",job) ;
 			SubmitAttrs sa = {
@@ -1413,13 +1404,13 @@ namespace Engine {
 			,	.nice     = rr->nice
 			} ;
 			//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			ri.miss_live_out = Backend::s_add_pressure( backend , +job , +req , sa ) ;    // tell backend of new Req, even if job is started and pressure has become meaningless
+			ri.miss_live_out = Backend::s_add_pressure( backend , +job , +req , sa ) ; // tell backend of new Req, even if job is started and pressure has become meaningless
 			//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",rr,ri) ;
-			return false/*maybe_new_deps*/ ;
+			return false/*new_deps*/ ;
 		}
 		//
-		for( Node t : targets() ) t->set_buildable() ;                                    // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
+		for( Node t : targets() ) t->set_buildable() ;                                 // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
 		// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 		::vmap_s<DepDigest>  early_deps             ;
 		SubmitAncillaryAttrs submit_ancillary_attrs ;
@@ -1427,8 +1418,8 @@ namespace Engine {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( job , match , &early_deps ) ; // dont care about dependencies as these attributes have no impact on result
 		} catch (MsgStderr const& msg_err) {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.spec ;
-			req->audit_job(Color::Note,"no_dynamic",job) ;
-			req->audit_stderr( job , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
+			req->audit_job   ( Color::Note , "no_dynamic" , job                                                                                                         ) ;
+			req->audit_stderr(                              job , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 		}
 		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                   // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
 		CacheIdx cache_idx = 0 ;                                                                   // ... just record deps to trigger building on a best effort basis
@@ -1450,8 +1441,8 @@ namespace Engine {
 						if (!cache_match) FAIL("delayed cache not yet implemented") ;
 					} catch (::string const& e) {
 						trace("cache_match_throw",e) ;
-						req->audit_job( Color::Warning , "bad_cache_match" , job , true/*at_end*/ ) ;
-						req->audit_stderr( job , {.msg=e} ) ;
+						req->audit_job ( Color::Warning , "bad_cache_match" , job , true/*at_end*/ ) ;
+						req->audit_info( Color::Note , e , 1/*lvl*/                                ) ;
 					}
 					cache_hit_info = cache_match->hit_info ;
 					trace("hit",cache_hit_info) ;
@@ -1466,8 +1457,8 @@ namespace Engine {
 								::string dfa_msg = do_file_actions( ::ref(::vector_s()) , ::ref(false) , ::move(actions) , nfs_guard ) ;
 								//
 								if (+dfa_msg) {
-									req->audit_job ( Color::Note , "wash"  , job     ) ;
-									req->audit_info( Color::Note , dfa_msg       , 1 ) ;
+									req->audit_job ( Color::Note , "wash"  , job      ) ;
+									req->audit_info( Color::Note , dfa_msg , 1/*lvl*/ ) ;
 									trace("hit_msg",dfa_msg,ri) ;
 								}
 								//
@@ -1491,18 +1482,19 @@ namespace Engine {
 								else                                                                    goto BadCodec  ;
 							} catch (::string const&e) {                                                                        // if we cant download result, it is like a miss
 								trace("cache_hit_throw",e) ;
-								req->audit_job( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
-								req->audit_stderr( job , {.msg=e} ) ;
+								req->audit_job ( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
+								req->audit_info( Color::Note    , e , 1/*lvl*/                           ) ;
 							}
 						break ;
 						case CacheHitInfo::Match : {
 							status = Status::CacheMatch ;
 							if ( !Codec::can_mk_codec_entries( cache_match->missing_codec_map , +req ) ) goto BadCodec ;
+							req->audit_job( Color::Note , "hit_rerun" , job ) ;
 						ReportHit :
 							::vector<Dep> ds ; ds.reserve(cache_match->deps.size()) ; for( auto& [dn,dd] : cache_match->deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 							deps.assign(ds) ;
 							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
-							return true/*maybe_new_deps*/ ;                                                                     // ... so we have to ensure ri.iter is still a legal iterator
+							return true/*new_deps*/ ;                                                                           // ... so we have to ensure ri.iter is still a legal iterator
 						}
 						BadCodec :
 							cache_hit_info = CacheHitInfo::BadCodec ;
@@ -1519,11 +1511,11 @@ namespace Engine {
 		try {
 			submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( job , match , &early_deps ) ;
 		} catch (MsgStderr const& msg_err) {
-			req->audit_job   ( Color::Err  , "failed" , job                                                                             ) ;
-			req->audit_stderr( job , { ensure_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
+			req->audit_job   ( Color::Err , "failed" , job                                                                                                      ) ;
+			req->audit_stderr(                         job , { ensure_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 			run_status = RunStatus::Error ;
 			trace("no_rsrcs",ri) ;
-			return false/*maybe_new_deps*/ ;
+			return false/*new_deps*/ ;
 		}
 		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;               // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
@@ -1534,7 +1526,7 @@ namespace Engine {
 		}
 		if (ri.waiting()) {
 			trace("waiting_rsrcs") ;
-			return false/*maybe_new_deps*/ ;
+			return false/*new_deps*/ ;
 		}
 		//
 		ri.inc_wait() ;                                // set before calling submit call back as in case of flash execution, we must be clean
@@ -1561,13 +1553,13 @@ namespace Engine {
 			ri.dec_wait() ;                            // restore n_wait as we prepared to wait
 			ri.step(Step::None,job) ;
 			status  = Status::EarlyErr ;
-			req->audit_job ( Color::Err  , "failed" , job     ) ;
-			req->audit_info( Color::Note , e              , 1 ) ;
+			req->audit_job ( Color::Err  , "failed" , job ) ;
+			req->audit_info( Color::Note , e , 1/*lvl*/   ) ;
 			trace("submit_err",ri) ;
-			return false/*maybe_new_deps*/ ;
+			return false/*new_deps*/ ;
 		} ;
 		trace("submitted",ri) ;
-		return false/*maybe_new_deps*/ ;
+		return false/*new_deps*/ ;
 	}
 
 	void JobData::audit_end_special( Req req , SpecialStep step , Bool3 modified , Node node ) const {
@@ -1594,9 +1586,9 @@ namespace Engine {
 			else           step_str  = "frozen"  ;
 		}
 		if (+step_str) {
-			/**/                    req->audit_job (color      ,step_str,idx()     ) ;
-			if (+msg_stderr.msg   ) req->audit_info(Color::Note,msg_stderr.msg   ,1) ;
-			if (+msg_stderr.stderr) req->audit_info(Color::None,msg_stderr.stderr,1) ;
+			/**/                    req->audit_job ( color       , step_str , idx()             ) ;
+			if (+msg_stderr.msg   ) req->audit_info( Color::Note , msg_stderr.msg    , 1/*lvl*/ ) ;
+			if (+msg_stderr.stderr) req->audit_info( Color::None , msg_stderr.stderr , 1/*lvl*/ ) ;
 		}
 	}
 

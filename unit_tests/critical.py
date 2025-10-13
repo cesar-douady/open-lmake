@@ -18,6 +18,7 @@ if __name__!='__main__' :
 	,	'step.py'
 	,	'src1'
 	,	'src2'
+	,	'lst'
 	)
 
 	class Good(PyRule) :
@@ -37,12 +38,21 @@ if __name__!='__main__' :
 			if step==1 : lmake.depend('src1','bad0',*(f'bad{i}' for i in range(n_bads)))
 			else       : lmake.depend('src1'                                           )
 
+	class Critical2(PyRule) :
+		target = 'tgt2'
+		deps   = { 'LST' : ('lst','critical') }
+		def cmd() :
+			open(open(LST).read().strip())
+
 else :
+
+	import os
 
 	import ut
 
-	print('1',file=open('src1','w'))
-	print('2',file=open('src2','w'))
+	print('1'             ,file=open('src1','w'))
+	print('2'             ,file=open('src2','w'))
+	print(f'good{n_goods}',file=open('lst' ,'w'))
 
 	print('step=1',file=open('step.py','w'))
 	ut.lmake( 'tgt' , may_rerun=2 , was_dep_error=1 , done=n_goods , failed=n_bads , new=2 , rc=1 ) # must discover good_*, then bad_*
@@ -52,3 +62,8 @@ else :
 
 	print('step=2',file=open('step.py','w'))
 	ut.lmake( 'tgt' , steady=n_goods-1+1 , done=1 , rc=0 ) # modified critical good_0 implies that bad_* are not remade
+
+	ut.lmake( 'tgt2' , new=2 , may_rerun=1 , done=2 )
+	os.unlink(f'good{n_goods}')
+	print(f'good{n_goods+1}',file=open('lst' ,'w'))
+	ut.lmake( 'tgt2' , changed=1 , may_rerun=1 , done=1 , steady=1 )
