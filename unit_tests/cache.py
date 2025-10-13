@@ -102,8 +102,8 @@ else :
 
 		print('hello2'       ,file=open('hello'               ,'w'))
 		print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
-		ut.lmake( 'hello+auto1.hide.ok' , done=3 , hit_done=1 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when we depend on hello
-		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check everything is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
+		ut.lmake( 'hello+auto1.hide.ok' , done=3 , hit_rerun=1 , hit_done=1 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when we depend on hello
+		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
 
 		os.system(f'mkdir bck2{z_lvl} ; mv LMAKE CACHE *auto1* mkdir* bck2{z_lvl}')
 

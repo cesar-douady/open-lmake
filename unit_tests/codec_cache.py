@@ -47,12 +47,12 @@ else :
 
 	os.rename('LMAKE','LMAKE.bck1')
 
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , hit_done=2 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , hit_rerun=2 , hit_done=2 )
 
 	os.rename('LMAKE','LMAKE.bck2')
 	open('codec_file','w')
 
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , hit_done=2 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , hit_rerun=2 , hit_done=2 )
 
 	os.rename('LMAKE','LMAKE.bck3')
 	open('codec_file','w').write(

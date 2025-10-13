@@ -16,7 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* seems to block when an external source dir does not exist
 * server has been seen to crash with a job starting twice
 	- under investigation
 	- seems to be linked with job lost
@@ -196,6 +195,12 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* rework codec :
+	- provide physically LMAKE/lmake/codec content
+	- so that encode/decode is merely reading files therein when available
+	- maintain added codes in a separate file
+	- refresh real codec file at start and end of server execution
+	- simple and more perf than current implementation
 * manage to only check codec files that have been written to when refreshing codec files at end of Req
 * codec management in cache can be thoroughly optimized
 	- maintain codec_map in the deps file so as to be readily accessible when matching

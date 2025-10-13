@@ -83,7 +83,7 @@ else :
 
 	os.system('mv LMAKE LMAKE.1 ; mv mandelbrot mandelbrot.1')
 
-	ut.lmake( 'ok' , unlinked=1 , hit_done=2 , done=1 , new=1 ) # ok is unlinked
+	ut.lmake( 'ok' , unlinked=1 , hit_rerun=2 , hit_done=2 , done=1 , new=1 ) # ok is unlinked
 
 	os.system('find mandelbrot -type d -o -print | sort >after_cache')
 

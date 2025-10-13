@@ -288,20 +288,17 @@ ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr 
 			case EADDRNOTAVAIL :
 				if (i_reuse_addr>=NAddrInUseTrials) throw cat("cannot connect to ",s_service(server,port)," after ",NAddrInUseTrials," trials : ",StrErr()) ;
 				i_reuse_addr++ ;
-				AddrInUseTick.sleep_for() ;                                                                                             // this error is local, so wait a little bit before retry
+				AddrInUseTick.sleep_for() ; // this error is local, so wait a little bit before retry
 			break ;
-			case ECONNREFUSED :
-			case ECONNRESET   :                                                                                                         // although not documented, may happen when server is overloaded
-				if (i_connect>=NConnectTrials) throw cat("cannot connect to ",s_service(server,port)," after ",NConnectTrials," trials : ",StrErr()) ;
-				i_connect++ ;
+			case EAGAIN :
+			case EINTR  :
 			break ;
-			case EINTR :
-			break ;
-			case ETIMEDOUT :                                                                                                            // happens even if no timeout is specifie on socket
+			case ETIMEDOUT :                // happens even if no timeout is specifie on socket
 				if ( Pdate now{New} ; now>end ) throw cat("cannot connect to ",s_service(server,port)," after ",(timeout+(now-end)).short_str()," : ",StrErr()) ;
 				break ;
-			default :
-				FAIL(self,server,port,timeout,reuse_addr,StrErr()) ;
+			default :                       // although not documented, various errors may happen when server is overloaded
+				if (i_connect>=NConnectTrials) throw cat("cannot connect to ",s_service(server,port)," after ",NConnectTrials," trials : ",StrErr()) ;
+				i_connect++ ;
 		}
 	}
 }
