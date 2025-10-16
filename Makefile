@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 25.07
-TAG            := 27
+TAG            := 28
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -710,7 +710,7 @@ bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/lcheck_deps.o
 bin/% :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(LINK_LIB)
+	@$(LINK) $(LIB_STDCPP) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 # remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)

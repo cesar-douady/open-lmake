@@ -100,11 +100,18 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 
 ::string _os_compat(::string const& os_id) {
 	::string res = os_id ;
-	size_t   pos ;
-	if ( res.starts_with("centos-")                              ) res = "rhel"+res.substr(6/*centos*/    ) ; // centos and rhel are inter-operable
-	if ( res.starts_with("rocky-" )                              ) res = "rhel"+res.substr(5/*rocky*/     ) ; // rocky  and rhel are inter-operable
-	if ( res.starts_with("rhel-"  ) && (pos=res.find('.'))!=Npos ) res =        res.substr(0          ,pos) ; // ignore minor
-	return res  ;
+	switch (res[0]) {
+		case 'c' : if (res.starts_with("centos/"       )) res = "rhel"+res.substr(res.find('/')) ; break ; // centos       is inter-operable with rhel
+		case 'o' : if (res.starts_with("opensuse-leap/")) res = "suse"+res.substr(res.find('/')) ; break ; // openSUSE     is inter-operable with all SUSE
+		case 'r' : if (res.starts_with("rocky/"        )) res = "rhel"+res.substr(res.find('/')) ; break ; // rocky        is inter-operable with rhel
+		case 's' : if (res.starts_with("sled/"         )) res = "suse"+res.substr(res.find('/')) ;         // SUSE desktop is inter-operable with all SUSE
+		/**/       if (res.starts_with("sles/"         )) res = "suse"+res.substr(res.find('/')) ; break ; // SUSE server  is inter-operable with all SUSE
+	DN}
+	switch (res[0]) {
+		case 'r' : if (res.starts_with("rhel/")) res = res.substr(0,res.find('.')) ; break ;               // ignore minor
+		case 's' : if (res.starts_with("suse/")) res = res.substr(0,res.find('.')) ; break ;               // .
+	DN}
+	return res ;
 }
 static void _chk_os() {
 	static constexpr const char* ReleaseFile = "/etc/os-release" ;
