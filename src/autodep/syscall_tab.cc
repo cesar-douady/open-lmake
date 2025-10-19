@@ -204,7 +204,6 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void*& ctx , Rec
 				try {
 					_poke( pid , rlb->second , rlb->first.buf , res ) ;
 				} catch (::string const&) {
-					Fd::Stderr.write(cat("poke error when processing ",rlb->first.backdoor_descr,'\n')) ;
 					errno = EFAULT                 ;
 					res   = -+BackdoorErr::PokeErr ;                                           // distinguish between backdoor error and absence of support
 				}

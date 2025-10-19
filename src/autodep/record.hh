@@ -443,10 +443,9 @@ public :
 		// services
 		ssize_t operator() ( Record& , ssize_t len=0 ) ;
 		// data
-		char*    buf            = nullptr ;
-		size_t   sz             = 0       ;
-		::string backdoor_descr ;
-		bool     magic          = false   ; // if true <=> backdoor was used
+		char*  buf   = nullptr ;
+		size_t sz    = 0       ;
+		bool   magic = false   ; // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts

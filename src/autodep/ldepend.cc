@@ -35,14 +35,14 @@ enum class Flag : uint8_t {
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::Dir            , { .short_name='z' , .has_arg=true , .doc="dir in which to list deps"          } }
-	,	{ Flag::FollowSymlinks , { .short_name='L' ,                 .doc="Logical view, follow symolic links" } }
-	,	{ Flag::List           , { .short_name='l' ,                 .doc="list deps"                          } }
-	,	{ Flag::Read           , { .short_name='R' ,                 .doc="report a read"                      } }
-	,	{ Flag::Regexpr        , { .short_name='X' ,                 .doc="args are regexprs"                  } }
+		{ Flag::Dir            , { .short_name='z' , .has_arg=true , .doc="dir in which to list deps"             } }
+	,	{ Flag::FollowSymlinks , { .short_name='L' ,                 .doc="Logical view, follow symolic links"    } }
+	,	{ Flag::List           , { .short_name='l' ,                 .doc="list deps"                             } }
+	,	{ Flag::Read           , { .short_name='R' ,                 .doc="report a read"                         } }
+	,	{ Flag::Regexpr        , { .short_name='X' ,                 .doc="args are regexprs"                     } }
+	,	{ Flag::Direct         , { .short_name='d' ,                 .doc="suspend job until deps are up-to-date" } }
 	//
 	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
-	,	{ Flag::Direct        , { .short_name=ExtraDflagChars[+ExtraDflag::Direct     ].second , .doc="suspend job until deps are up-to-date"   } }
 	,	{ Flag::Essential     , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .doc="ask that deps be seen in graphical flow" } }
 	,	{ Flag::IgnoreError   , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .doc="ignore if deps are in error"             } }
 	,	{ Flag::Ignore        , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .doc="ignore deps"                             } }
@@ -71,7 +71,9 @@ int main( int argc , char* argv[]) {
 		if (!cmd_line.args) return 0 ;                                                                 // fast path : depends on nothing
 		for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 		//
-		AccessDigest ad { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
+		AccessDigest ad      { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
+		bool         verbose = cmd_line.flags[Flag::Verbose]                                          ;
+		bool         direct  = cmd_line.flags[Flag::Direct ]                                          ;
 		//
 		if (cmd_line.flags[Flag::Read         ]) ad.accesses            = ~Accesses()              ;
 		if (cmd_line.flags[Flag::Critical     ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
@@ -81,22 +83,14 @@ int main( int argc , char* argv[]) {
 		if (cmd_line.flags[Flag::NoRequired   ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
 		if (cmd_line.flags[Flag::ReaddirOk    ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
 		if (cmd_line.flags[Flag::NoExcludeStar]) ad.flags.extra_dflags &= ~ExtraDflag::NoStar      ;
-		if (cmd_line.flags[Flag::Verbose      ]) ad.flags.dflags       |=  Dflag     ::Verbose     ;
-		if (cmd_line.flags[Flag::Direct       ]) ad.flags.extra_dflags |=  ExtraDflag::Direct      ;
-		//
-		bool                                     verbose   = ad.flags.dflags      [Dflag     ::Verbose] ;
-		bool                                     direct    = ad.flags.extra_dflags[ExtraDflag::Direct ] ;
-		bool                                     sync      = verbose || direct                          ;
+		if (verbose                            ) ad.flags.dflags       |=  Dflag     ::Verbose     ;
 		::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] ) ; }
-		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                    }
+		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] , direct ) ; }
+		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                             }
 		//
-		if (!sync) return 0 ;
-		//
-		SWEAR(!( verbose && direct )) ;
 		if (direct) {
 			rc = dep_infos.second ? Rc::Ok : Rc::Fail ;
-		} else {
+		} else if (verbose) {
 			SWEAR( dep_infos.first.size()==cmd_line.args.size() , dep_infos.first.size() , cmd_line.args.size() ) ;
 			auto ok_str = [](Bool3 ok)->const char* {
 				switch (ok) {
@@ -117,7 +111,6 @@ int main( int argc , char* argv[]) {
 			}
 			if (cmd_line.flags[Flag::IgnoreError]) rc = Rc::Ok ;
 		}
-		//
 	}
 	if (+out) Fd::Stdout.write(out) ;
 	exit(rc) ;

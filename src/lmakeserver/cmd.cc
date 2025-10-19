@@ -92,13 +92,13 @@ namespace Engine {
 					dirs.try_emplace(with_slash(target),false/*keep*/) ;
 				} else {
 					::string const* key = nullptr ;
-					{	/**/                           if ((key=ignore(target))          ) goto Keep       ;
-						Node    n  { target }        ; if (!n                            ) goto Quarantine ;
-						/**/                           if (n->buildable==Buildable::Src  ) goto Keep       ;
-						/**/                           if (n->date().sig!=FileSig(target)) goto Quarantine ;
-						Job     j  = n->actual_job() ; if (!j                            ) goto Quarantine ;
-						RuleCrc rc = j->rule_crc     ; if (!rc                           ) goto Quarantine ;
-						/**/                           if (rc->state>RuleCrcState::CmdOk ) goto Unlnk      ;
+					{	/**/                         if ((key=ignore(target))         ) goto Keep       ;
+						Node    n  { target }      ; if (!n                           ) goto Quarantine ;
+						/**/                         if (n->buildable==Buildable::Src ) goto Keep       ;
+						/**/                         if (n->date.sig!=FileSig(target) ) goto Quarantine ;
+						Job     j  = n->actual_job ; if (!j                           ) goto Quarantine ;
+						RuleCrc rc = j->rule_crc   ; if (!rc                          ) goto Quarantine ;
+						/**/                         if (rc->state>RuleCrcState::CmdOk) goto Unlnk      ;
 					}
 				Keep :
 					if ( key && ro.flags[ReqFlag::Verbose] ) audit( fd , ro , Color::HiddenNote , cat("ignore ",*key," : ",mk_file(target)) ) ;
@@ -164,10 +164,10 @@ namespace Engine {
 			::vector<Node> nodes ;
 			//
 			auto handle_job = [&](Job j) {
-				/**/       if ( !j || j->rule().is_shared() ) throw "job not found " +mk_file(j->name()) ;
-				if (add) { if (  j.frozen  ()               ) throw "already frozen "+mk_file(j->name()) ; }
-				else     { if ( !j.frozen  ()               ) throw "not frozen "    +mk_file(j->name()) ; }
-				/**/       if (  j->running()               ) throw "job is running" +mk_file(j->name()) ;
+				/**/       if (!j.is_plain(true/*frozen_ok*/)) throw cat("job not found " ,mk_file(j->name())) ;
+				if (add) { if ( j.frozen  ()                 ) throw cat("already frozen ",mk_file(j->name())) ; }
+				else     { if (!j.frozen  ()                 ) throw cat("not frozen "    ,mk_file(j->name())) ; }
+				/**/       if ( j->running()                 ) throw cat("job is running" ,mk_file(j->name())) ;
 				//
 				w = ::max( w , j->rule()->name.size() ) ;
 				jobs.push_back(j) ;
@@ -185,8 +185,8 @@ namespace Engine {
 				bool force = ro.flags[ReqFlag::Force] ;
 				for( Node t : ecr.targets() ) {
 					t->set_buildable() ;
-					Job j = t->actual_job() ;
-					if      ( add && (!j||j->rule().is_shared())                        ) handle_node(t) ;
+					Job j = t->actual_job ;
+					if      ( add && !j.is_plain(true/*frozen_ok*/)                     ) handle_node(t) ;
 					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
@@ -250,7 +250,6 @@ namespace Engine {
 		if ( hide==Yes                                 ) return Color::HiddenNote                          ;
 		if ( n->ok()==No                               ) return Color::Err                                 ;
 		if ( n->crc==Crc::None                         ) return hide==No ? Color::None : Color::HiddenNote ;
-		if ( !n->is_plain()                            ) return {}                                         ;
 		n->set_buildable() ;                                                                                 // for has_file() and is_src_anti()
 		if (  n->has_file()==No                        ) return Color::Warning                             ;
 		if ( !n->is_src_anti() && !n->has_actual_job() ) return Color::Warning                             ;
@@ -411,8 +410,6 @@ namespace Engine {
 			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
 			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
 		}
-		for( Node t : job->targets() ) t->set_buildable() ;                    // necessary for pre_actions()
-		for( Node d : job->deps      ) d->set_buildable() ;                    // .
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
@@ -524,15 +521,9 @@ namespace Engine {
 	}
 
 	static Job _job_from_target( Fd fd , ReqOptions const& ro , Node target , DepDepth lvl=0 ) {
-		{	JobTgt aj = target->actual_job() ;
-			if (!aj                                 ) goto NoJob ;
-			if (!aj->rule().is_shared()             ) return aj  ;
-			if (target->status()>NodeStatus::Makable) goto NoJob ;
-			//
-			JobTgt cj = target->conform_job_tgt() ;
-			if (cj->rule().is_shared()              ) goto NoJob ;
-			/**/                                      return cj  ;
-		}
+		if ( JobTgt aj=target->actual_job       ; aj.is_plain()                        ) return aj  ;
+		if (                                      target->status()>NodeStatus::Makable ) goto NoJob ;
+		if( JobTgt cj=target->conform_job_tgt() ; cj.is_plain()                        ) return cj  ;
 	NoJob :
 		bool porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		target->set_buildable() ;
@@ -560,8 +551,8 @@ namespace Engine {
 			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
 			job = _job_from_target(fd,ro,targets[0]) ;
 		}
-		if (!job                                  ) throw "no job found"s                             ;
-		if ( Rule r=job->rule() ; r->is_special() ) throw cat("cannot debug ",r->user_name()," jobs") ;
+		if (!job                             ) throw "no job found"s                                       ;
+		if (!job->is_plain(true/*frozen_ok*/)) throw cat("cannot debug ",job->rule()->user_name()," jobs") ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start) {
@@ -588,7 +579,7 @@ namespace Engine {
 			gen_script << _mk_gen_script_line(job,ro,::move(job_info),dbg_dir_s,key)                                             ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n"                                      ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                                                       ;
-			AcFd(gen_script_file,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0777}).write(gen_script) ;
+			AcFd(gen_script_file,{O_WRONLY|O_TRUNC|O_CREAT,0777/*mod*/}).write(gen_script) ;
 		}                                                                                                                          // ensure gen_script is closed before launching it
 		{	SavPyLdLibraryPath spllp ;
 			Child              child ;
@@ -664,6 +655,7 @@ namespace Engine {
 		void show_node(Node node) {
 			if (!node_seen.insert(node).second) return ;
 			//
+			node->set_buildable() ;
 			if (!node->is_src_anti()) {
 				if (verbose) backlog.push_back(node) ;
 				lvl += verbose ;
@@ -757,7 +749,7 @@ namespace Engine {
 			case ReqKey::Stderr :
 			case ReqKey::Stdout :
 			case ReqKey::Trace  : {
-				if ( +rule && rule->is_special() ) {
+				if ( +rule && !rule->is_plain() ) {
 					switch (ro.key) {                // START_OF_NO_COV defensive programming : special jobs are not built and do not reach here
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
@@ -1259,6 +1251,7 @@ namespace Engine {
 					_show_job( fd , ro , job , target , lvl ) ;
 				break ;
 				case ReqKey::Info :
+					target->set_buildable() ;
 					if ( target->status()==NodeStatus::Plain && !porcelaine ) {
 						Job    cj             = target->conform_job_tgt()                                                                    ;
 						size_t w              = ::max<size_t>( target->conform_job_tgts() , [ ](Job j) { return j->rule()->name.size() ; } ) ;
@@ -1276,7 +1269,7 @@ namespace Engine {
 						if      (+n->asking) entries.push_back({ porcelaine?"required_by":"required by" , {Job(n->asking)->name(),{}} }) ;
 						else if (n!=target ) entries.push_back({ porcelaine?"required_by":"required by" , {    n         ->name(),{}} }) ;
 						if (target->is_src_anti()) {
-							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->date().sig ) c = Color::Warning ;
+							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->date.sig ) c = Color::Warning ;
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
 							if (verbose) entries.push_back({ "checksum" , {::string(target->crc)               ,c } }) ;
@@ -1306,15 +1299,15 @@ namespace Engine {
 					bool  seen_actual = false ;
 					First first       ;
 					if (porcelaine) audit( fd , ro , "{" , true/*as_is*/ , lvl ) ;
-					if ( target->is_plain() && +target->dir() ) {
+					if (+target->dir) {
 						if (porcelaine) {
-							if ( verbose || _node_color(target->dir())!=Color::HiddenNote ) { //!                              as_is
-								audit( fd , ro , "( '' , "+mk_py_str(target->name())+" , 'up_hill' ) : "                      , true , lvl+1 ) ;
-								audit( fd , ro , "( ( ( '----SF' , 'L-T' , '' , "+mk_py_str(target->dir()->name())+" ) ,) ,)" , true , lvl+1 ) ;
+							if ( verbose || _node_color(target->dir)!=Color::HiddenNote ) { //!                              as_is
+								audit( fd , ro , "( '' , "+mk_py_str(target->name())+" , 'up_hill' ) : "                    , true , lvl+1 ) ;
+								audit( fd , ro , "( ( ( '----SF' , 'L-T' , '' , "+mk_py_str(target->dir->name())+" ) ,) ,)" , true , lvl+1 ) ;
 								first() ;
 							}
 						} else {
-							_audit_node( fd , ro , verbose , Maybe/*hide*/ , "UP_HILL" , target->dir() , lvl ) ;
+							_audit_node( fd , ro , verbose , Maybe/*hide*/ , "UP_HILL" , target->dir , lvl ) ;
 						}
 					}
 					for( JobTgt jt : target->conform_job_tgts() ) {

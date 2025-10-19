@@ -58,7 +58,7 @@ namespace Engine::Makefiles {
 		Ddate    deps_date = file_date(deps_file) ; if (!deps_date) { trace("not_found") ; return action>=Action::Plural ? "they were never read" : "it was never read" ; }
 		::string reason    ;
 		//
-		::vector_s deps = AcFd(deps_file,true/*err_ok*/).read_lines() ;
+		::vector_s deps = AcFd(deps_file,true/*err_ok*/).read_lines(false/*partial_ok*/) ;
 		for( ::string const& line : deps ) {
 			SWEAR(+line) ;
 			::string d = line.substr(1) ;
@@ -93,7 +93,7 @@ namespace Engine::Makefiles {
 	static void _recall_env( ::umap_ss&/*out*/ user_env , Action action ) {
 		Trace trace("_recall_env",action) ;
 		//
-		::vector_s deps = AcFd(_deps_file(action),true/*err_ok*/).read_lines() ;
+		::vector_s deps = AcFd(_deps_file(action),true/*err_ok*/).read_lines(false/*partial_ok*/) ;
 		for( ::string const& line : deps ) {
 			SWEAR(+line) ;
 			/**/                            if (line[0]!='=') continue ; // not an env var definition
@@ -106,7 +106,7 @@ namespace Engine::Makefiles {
 	static void _chk_dangling( Action action , bool new_ , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_dangling",action) ;
 		//
-		::vector_s deps = AcFd(_deps_file(action,new_),true/*err_ok*/).read_lines() ;
+		::vector_s deps = AcFd(_deps_file(action,new_),true/*err_ok*/).read_lines(false/*partial_ok*/) ;
 		for( ::string const& line : deps ) {
 			if (line[0]!='+') continue ;                                                     // not an existing file
 			::string d = line.substr(1) ;
@@ -148,7 +148,7 @@ namespace Engine::Makefiles {
 			if (+val) deps_str <<'='<<key<<'='<<*val<<'\n' ;
 			else      deps_str <<'='<<key           <<'\n' ;
 		}
-		AcFd( new_deps_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(deps_str) ;
+		AcFd( new_deps_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(deps_str) ;
 		//
 		_chk_dangling( action , true/*new*/ , startup_dir_s ) ;
 	}
@@ -306,9 +306,9 @@ namespace Engine::Makefiles {
 			/**/                          _g_env["UID"            ] = to_string(getuid())           ;
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
 			/**/                          _g_env["PYTHONPATH"     ] = *g_lmake_root_s+"lib"         ;
-			//
-			if (!FileInfo(EnvironFile ).exists()) AcFd( EnvironFile  , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;                           // these are sources, they must exist
-			if (!FileInfo(ManifestFile).exists()) AcFd( ManifestFile , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;                           // .
+			//                                                                                   mod
+			if (!FileInfo(EnvironFile ).exists()) AcFd( EnvironFile  , {O_WRONLY|O_TRUNC|O_CREAT,0666} ) ;                                       // these are sources, they must exist
+			if (!FileInfo(ManifestFile).exists()) AcFd( ManifestFile , {O_WRONLY|O_TRUNC|O_CREAT,0666} ) ;                                       // .
 		}
 		//
 		bool/*done*/ config_digest = _refresh_config( /*out*/msg , /*out*/config , /*out*/py_info , /*out*/config_deps , user_env , startup_dir_s ) ;

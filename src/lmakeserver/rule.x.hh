@@ -3,14 +3,13 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// included in 5 passes
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
 #include "re.hh"
 
 #include "rpc_job.hh"
 
 #include "autodep/ld_server.hh"
-#include "autodep/record.hh"
 
 #include "store/prefix.hh"
 #include "store/struct.hh"
@@ -59,15 +58,17 @@ enum class Special : uint8_t {
 ,	Req                        // used for synthetized jobs representing a Req
 ,	InfiniteDep
 ,	InfinitePath
+,	Codec
 ,	Plain
 // ordered by decreasing matching priority within each prio
 ,	Anti
 ,	GenericSrc
 //
 // aliases
-,	NShared    = Plain         // <NShared means there is a single such rule
-,	HasJobs    = Plain         // <=HasJobs means jobs can refer to this rule
-,	HasTargets = InfiniteDep   // >=HasTarget means targets field exists
+,	NUniq      = Plain         // < NUniq      means there is a single such rule
+,	HasJobs    = Plain         // <=HasJobs    means jobs can refer to this rule
+,	HasMatches = Codec         // >=HasMatches means rules can get jobs by matching
+,	HasTargets = InfiniteDep   // >=HasTargets means targets field exists
 } ;
 inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
 
@@ -115,7 +116,9 @@ namespace Engine {
 		static constexpr char   StemMrkr =  0 ; // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
 		// statics
-		static bool/*keep*/ s_qualify_dep( ::string const& key , ::string const& dep ) ;
+		static bool/*keep*/    s_qualify_dep( ::string const& key , ::string const& dep                                                              ) ;
+		static ::string/*msg*/ s_reject_msg ( MatchKind mk , ::string const& file , bool has_pfx=false , bool has_sfx=false                          ) ;
+		static ::string        s_split_flags( ::string const& key , Py::Object const& py , uint8_t n_skip , MatchFlags&/*out*/ flags , bool dep_only ) ;
 		// static data
 		static Atomic<Pdate> s_last_dyn_date ;  // used to check dynamic attribute computation does not take too long
 		static Job           s_last_dyn_job  ;
@@ -186,7 +189,7 @@ namespace Engine {
 		// cxtors & casts
 		void init( Py::Dict const& , ::umap_s<CmdIdx> const& , RuleData const& ) ;
 		// accesses
-		void   mk_full_dyn() { dyn_deps = true ; }
+		void mk_full_dyn() { dyn_deps = true ; }
 		// data
 		// START_OF_VERSIONING
 		bool dyn_deps = false ;
@@ -481,7 +484,7 @@ namespace Engine {
 			// START_OF_VERSIONING
 			::string       pattern  = {} ;
 			MatchFlags     flags    = {} ;
-			::vector<bool> captures = {} ;                                                                                                      // indexed by stem, number of times stem is referenced
+			::vector<bool> captures = {} ;                                                                                                      // indexed by stem, true if stem is referenced
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
@@ -501,7 +504,7 @@ namespace Engine {
 	public :
 		::string pretty_str() const ;
 		// accesses
-		bool   is_special  (         ) const {                    return special!=Special::Plain         ; }
+		bool   is_plain    (         ) const {                    return special==Special::Plain         ; }
 		bool   user_defined(         ) const {                    return !allow_ext                      ; }                                    // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags ; }
 		//
@@ -562,12 +565,13 @@ namespace Engine {
 		bool                      is_python              = false ;
 		bool                      force                  = false ;
 		uint8_t                   n_losts                = 0     ;                 // max number of times a job can be lost
-		uint8_t                   n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
+		uint16_t                  n_runs                 = 0     ;                 // max number of times a job can be run                               , 0 = infinity
+		uint16_t                  n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
 		// derived data
 		::vector<uint32_t> stem_n_marks                           ;                // number of capturing groups within each stem
 		RuleCrc            crc                                    ;
 		VarIdx             n_static_stems                         = 0  ;
-		Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;
+		Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;           // range in matches for each kind of match
 		// stats
 		mutable Delay    cost_per_token = {} ;                                     // average cost per token
 		mutable Delay    exec_time      = {} ;                                     // average exec_time
@@ -659,15 +663,18 @@ namespace Engine {
 		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags  ; }
 		// services
 		bool sure() const {
-			Rule       r   = self->rule      ; if (!r) return false ;
-			MatchFlags mfs = matches().flags ;
-			return ( r->matches_iotas[false/*star*/][+MatchKind::Target].contains(tgt_idx) && !mfs.extra_tflags[ExtraTflag::Optional] ) || mfs.tflags[Tflag::Phony] ;
+			Rule r = self->rule ;
+			//                    star
+			if (!r                                                            ) return false                                               ;
+			if ( r->matches_iotas[false][+MatchKind::Target].contains(tgt_idx)) return !matches().flags.extra_tflags[ExtraTflag::Optional] ;
+			if ( r->matches_iotas[true ][+MatchKind::Target].contains(tgt_idx)) return  matches().flags.tflags      [Tflag     ::Phony   ] ;
+			/**/                                                                return false                                               ;
 		}
-		size_t hash() const {         // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
-			size_t res = 0x811c9dc5 ;
-			res = (res^+RuleCrc(self)) * 0x01000193 ;
-			res = (res^ tgt_idx      ) * 0x01000193 ;
-			return res ;
+		size_t hash() const {
+			Hash::Fnv fnv ;         // good enough
+			fnv += +RuleCrc(self) ;
+			fnv += tgt_idx        ;
+			return +fnv ;
 		}
 		// data
 		VarIdx tgt_idx = 0 ;
@@ -932,6 +939,7 @@ namespace Engine {
 			::serdes(s,is_python             ) ;
 			::serdes(s,force                 ) ;
 			::serdes(s,n_losts               ) ;
+			::serdes(s,n_runs                ) ;
 			::serdes(s,n_submits             ) ;
 			::serdes(s,cost_per_token        ) ;
 			::serdes(s,exec_time             ) ;

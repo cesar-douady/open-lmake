@@ -34,6 +34,8 @@
 #include "app.hh"
 #include "msg.hh"
 
+#include "rpc_job_exec.hh"
+
 #include "dir_cache.hh"
 
 using namespace Disk ;
@@ -378,29 +380,6 @@ namespace Caches {
 		return xxh.digest().hex() ;
 	}
 
-	static CodecMap _mk_missing_codec_map( ::string const& abs_jn_s , ::string const& key , ::vmap_s<DepDigest> const& deps , NfsGuard& nfs_guard ) {
-		CodecMap                                          res     ;
-		CodecMap                                 /*lazy*/ map     ;
-		::umap_s<::umap_s<::umap<Crc,::pair_ss>>>/*lazy*/ inv_map ;                                                   // inv_map[file][ctx][val_crc]={crc,val}
-		for( auto const& [dn,dd] : deps ) {
-			if (!dd.hot) continue ;                                                                                   // reuse the hot bit to mean missing codec entry
-			if (!res) {                                                                                               // solve lazy
-				map = IMsgBuf().receive<Cache::Hdr>(AcFd(nfs_guard.access(cat(abs_jn_s,key,'/',"data")))).codec_map ;
-				for( auto const& [file,hdr_entry_file] : map ) {
-					auto& inv_entry_file = inv_map[file] ;
-					for( auto const& [ctx,hdr_entry_ctx] : hdr_entry_file ) {
-						auto& inv_entry_ctx = inv_entry_file[ctx] ;
-						for( auto const& hdr_entry : hdr_entry_ctx )
-							inv_entry_ctx.try_emplace( Crc(New,hdr_entry.second) , hdr_entry ) ;
-					}
-				}
-			}
-			Codec::Split split { dn } ;
-			if (split.encode) res[split.file][split.ctx].insert     (              inv_map.at(split.file).at(split.ctx).at(split.val_crc) ) ;
-			else              res[split.file][split.ctx].try_emplace( split.code , map    .at(split.file).at(split.ctx).at(split.code   ) ) ;
-		}
-		return res ;
-	}
 	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
@@ -411,33 +390,33 @@ namespace Caches {
 		::vector_s/*lazy*/                      repos         ;
 		::string                                matching_key  ;
 		::optional<::vmap_s<DepDigest>>         matching_deps ;
-		::optional<::umap_s<DepDigest>>/*lazy*/ repo_dep_map  ;                     // map used when not in order
-		bool                                    truncated     = false ;             // if true <= matching_deps has been truncated because of multi-match
-		bool                                    found_rule    = false ;             // used only when miss
+		::optional<::umap_s<DepDigest>>/*lazy*/ repo_dep_map  ;                               // map used when not in order
+		bool                                    truncated     = false ;                       // if true <= matching_deps has been truncated because of multi-match
+		bool                                    found_rule    = false ;                       // used only when miss
 		::string                                hint_key      ;
 		//
-		for( ssize_t candidate=-1 ;; candidate++ ) {                                // candidate==-1 means try deps_hint
+		for( ssize_t candidate=-1 ;; candidate++ ) {                                          // candidate==-1 means try deps_hint
 			::string key ;
 			switch (candidate) {
 				case -1 :
-					key = read_lnk( dfd , "deps_hint-"+_mk_crc(repo_deps) ) ;       // may point to the right entry (hint only as link is not updated when entry is modified)
+					key = read_lnk( dfd , "deps_hint-"+_mk_crc(repo_deps) ) ;                 // may point to the right entry (hint only as link is not updated when entry is modified)
 					if (!key) continue ;
-					SWEAR( key.starts_with("key-") && key.find('/')==Npos , key ) ; // fast check
+					SWEAR( key.starts_with("key-") && key.find('/')==Npos , key ) ;           // fast check
 					hint_key = key ;
 				break ;
 				case 0 :
-					repos = lst_dir_s(dfd) ;                                        // solve lazy
+					repos = lst_dir_s(dfd) ;                                                  // solve lazy
 				[[fallthrough]] ;
 				default :
-					if (candidate>=ssize_t(repos.size())) goto Epilog ;             // seen all candidates
+					if (candidate>=ssize_t(repos.size())) goto Epilog ;                       // seen all candidates
 					key = ::move(repos[candidate]) ;
-					if (!key.starts_with("key-")) continue ;                        // not an entry
-					if (key==hint_key           ) continue ;                        // already processed
+					if (!key.starts_with("key-")) continue ;                                  // not an entry
+					if (key==hint_key           ) continue ;                                  // already processed
 			}
-			bool                in_order   = true                 ;                 // first try in order match, then revert to name based match
-			size_t              idx        = 0                    ;                 // index in repo_deps used when in order, maintain count when not in order
+			bool                in_order   = true                 ;                           // first try in order match, then revert to name based match
+			size_t              idx        = 0                    ;                           // index in repo_deps used when in order, maintain count when not in order
 			bool                hit        = true                 ;
-			size_t              dvg        = 0                    ;                 // first index in cache_deps not found in repo_deps/repo_dep_map
+			size_t              dvg        = 0                    ;                           // first index in cache_deps not found in repo_deps/repo_dep_map
 			::string            deps_file  = abs_jn_s+key+"/deps" ;
 			AcFd                fd         ;                        try { fd = AcFd(nfs_guard.access(deps_file)) ; } catch (::string const& e) { trace("no_deps" ,deps_file,e) ; continue ; }
 			::vmap_s<DepDigest> cache_deps ;                        try { deserialize(fd.read(),cache_deps) ;      } catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ; }
@@ -445,7 +424,6 @@ namespace Caches {
 			found_rule = true ;
 			//
 			for( auto& [dn,dd] : cache_deps ) {
-				SWEAR( !dd.hot , dn,dd )  ;                                         // reuse the hot bit to mean missing codec, ensure it is available
 				DepDigest const* repo_dd  ;
 				if (in_order) {
 					if ( idx<repo_deps.size() && dn==repo_deps[idx].first ) {
@@ -453,26 +431,21 @@ namespace Caches {
 						goto FoundDep ;
 					}
 					in_order = false ;
-					if (!repo_dep_map) repo_dep_map.emplace(mk_umap(repo_deps)) ;   // solve lazy
+					if (!repo_dep_map) repo_dep_map.emplace(mk_umap(repo_deps)) ;             // solve lazy
 				}
 				if ( auto it = repo_dep_map->find(dn) ; it!=repo_dep_map->end() ) {
 					repo_dd = &it->second ;
 					goto FoundDep ;
 				}
-				if (Codec::is_codec(dn)) dd.hot = true  ;                           // still a hit if missing codec entry can be found or created, reuse hot bit to mean missing codec dep
-				else                     hit    = false ;                           // this entry is not found, no more a hit, but search must continue
+				hit = false ;                                                                 // this entry is not found, no more a hit, but search must continue
 				continue ;
 			FoundDep :
 				if (!dd.crc().match(repo_dd->crc(),dd.accesses)) goto Miss ;
 				//
-				/**/     idx++ ;                                                    // count entries even when not in order for early break
+				/**/     idx++ ;                                                              // count entries even when not in order for early break
 				if (hit) dvg++ ;
 			}
-			if (hit) {
-				CodecMap missing_codec_map = _mk_missing_codec_map( abs_jn_s , key , cache_deps, nfs_guard ) ;                                        // use cache_deps before move
-				for( auto& [_,dd] : cache_deps ) dd.hot = false ;                                                                                     // cleanup
-				return { .hit_info=CacheHitInfo::Hit , .key=::move(key) , .deps=::move(cache_deps) , .missing_codec_map=::move(missing_codec_map) } ;
-			}
+			if (hit) return { .hit_info=CacheHitInfo::Hit , .key=::move(key) , .deps=::move(cache_deps) } ;
 			//
 			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {                                  // stop recording deps at the first unmatched critical dep
 				if (!cache_deps[i].second.dflags[Dflag::Critical]) continue ;
@@ -498,22 +471,12 @@ namespace Caches {
 		}
 	Epilog :
 		if (+matching_deps) {
-			bool has_new_deps =                                                               // avoid loop by guaranteeing new deps when we return hit=Maybe
-				!truncated                                                                    // if not truncated, new deps are guaranteed, no need to search
-			||	!repo_dep_map                                                                 // if not repo_dep_map, repo_deps has been exhausted for all matching entries
-			||	::any_of(
-					*matching_deps
-				,	[&](auto const& n_dd) { return !repo_dep_map->contains(n_dd.first) ; }
-				)
+			bool has_new_deps =                                                                                     // avoid loop by guaranteeing new deps when we return hit=Maybe
+				!truncated                                                                                          // if not truncated, new deps are guaranteed, no need to search
+			||	!repo_dep_map                                                                                       // if not repo_dep_map, repo_deps has been exhausted for all matching entries
+			||	::any_of( *matching_deps , [&](auto const& n_dd) { return !repo_dep_map->contains(n_dd.first) ; } )
 			;
-			if (has_new_deps) {
-				CodecMap missing_codec_map = _mk_missing_codec_map( abs_jn_s , matching_key , /*inout*/*matching_deps , nfs_guard ) ; // use *matching_deps before move
-				::erase_if(                                                                                                           // if no hope for hit, dont depend on unknown codec entries
-					*matching_deps
-				,	[](auto const& dn_dd) { return dn_dd.second.hot ; }
-				) ;
-				return { .hit_info=CacheHitInfo::Match , .deps{::move(*matching_deps)} , .missing_codec_map=::move(missing_codec_map) } ;
-			}
+			if (has_new_deps) return { .hit_info=CacheHitInfo::Match , .deps{::move(*matching_deps)} } ;
 			trace("no_new_deps") ;
 		} else {
 			trace("miss") ;

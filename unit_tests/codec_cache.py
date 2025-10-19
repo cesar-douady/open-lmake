@@ -39,25 +39,37 @@ else :
 	print('1M',file=open('CACHE/LMAKE/size','w'))
 
 	open('codec_file','w').write(
-		' code2 ctx val2\n'       # lines are out of order to generate refresh line
-	+	' code1 ctx val1\n'
+		'\tcode2\tctx\tval2\n'    # lines are out of order to generate refresh line
+	+	'\tcode1\tctx\tval1\n'
 	)
 
 	ut.lmake( 'dut11' , 'dut22' , reformat=1 , new=1 , done=2 )
 
 	os.rename('LMAKE','LMAKE.bck1')
 
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , hit_rerun=2 , hit_done=2 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , hit_done=2 )
 
 	os.rename('LMAKE','LMAKE.bck2')
 	open('codec_file','w')
-
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , hit_rerun=2 , hit_done=2 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , failed=2 , update=1 , rc=1 )
 
 	os.rename('LMAKE','LMAKE.bck3')
 	open('codec_file','w').write(
-		' code1 ctx val2\n'
-	+	'\n'                                                                          # force refresh line
+		'\tcode1\tctx\tval1\n'
+	+	'\n'                                                                                                                # force refresh
 	)
-	ut.lmake( 'dut11' , 'dut22' , reformat=2 , unlinked=2 , new=1 , failed=2 , rc=1 ) # check we do not use old codec entries from cache
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , reformat=1 , hit_done=1 , failed=1 , update=1 , rc=1 ) # check we do not use old codec entries from cache
+
+	os.rename('LMAKE','LMAKE.bck4')
+	open('codec_file','w').write(
+		'\tcode1\tctx\tval2\n'
+	)
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , failed=2 , update=1 , rc=1 )
+
+	os.rename('LMAKE','LMAKE.bck5')
+	open('codec_file','w').write(
+		'\tcode1\tctx\tval1\n'
+	+	'\tcode2\tctx\tval2\n'
+	)
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , hit_done=2 )
 

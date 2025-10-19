@@ -71,12 +71,14 @@ static ::vector_s _get_files(Tuple const& py_args) {
 static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                                                                   ;
 	bool         regexpr   = false                                                                  ;
+	bool         direct    = false                                                                  ;
 	AccessDigest ad        { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
 		bool     val = +py_val                     ;
 		switch (key[0]) {
+			case 'd' : if (key=="direct"         ) {          direct      =  val         ; continue ; } break ;
 			case 'f' : if (key=="follow_symlinks") {          no_follow   = !val         ; continue ; } break ;
 			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  ~Accesses() ; continue ; }
 			/**/       if (key=="regexpr"        ) {          regexpr     =  val         ; continue ; } break ;
@@ -86,14 +88,13 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 		throw "unexpected keyword arg "+key ;
 	}
 	//
-	::vector_s files   = _get_files(py_args)                        ;
-	bool       verbose = ad.flags.dflags      [Dflag     ::Verbose] ;
-	bool       direct  = ad.flags.extra_dflags[ExtraDflag::Direct ] ;
-	bool       sync    = verbose || direct                          ;
+	::vector_s files   = _get_files(py_args)             ;
+	bool       verbose = ad.flags.dflags[Dflag::Verbose] ;
+	bool       sync    = verbose || direct               ;
 	//
 	::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( ::copy(files) , ad , no_follow , regexpr ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                      }
+	try                       { dep_infos = JobSupport::depend( ::copy(files) , ad , no_follow , regexpr , direct ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                               }
 	//
 	if (!sync) return &None ;
 	//
@@ -275,13 +276,8 @@ template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const&
 		ft     = *py_val.str() ;
 	}
 	throw_unless( +ft , "missing arg ",Ft ) ;
-	if (IsFile) {
-		return ::string(Crc(*ft)) ;
-	} else {
-		Xxh h ;
-		if (+*ft) h += *ft ;
-		return h.digest().hex() ;
-	}
+	if (IsFile) return ::string(Crc(*ft)) ;
+	else        return Crc(New,*ft).hex() ;
 }
 
 static Ptr<Bool> get_autodep( Tuple const& py_args , Dict const& py_kwds ) {
@@ -377,17 +373,9 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 			if (!cwd_s_) cwd_s_ = cwd_s() ;
 			dir_s = mk_glb_s(dir_s,cwd_s_) ;
 		}
-		::string   base  = dir_s+tail ;
-		::vector_s files ;
-		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs ) {             // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
-			::string file   = base + sfx              ;
-			bool     exists = FileInfo(file).exists() ;
-			if (is_lcl) files.push_back(::move(file)) ;
-			if (exists) return ;                                          // found module, dont explore path any further
-		}
-		static constexpr AccessDigest AccessDigestDfltDyn { .accesses=~Accesses() , .flags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflagsDfltDyn} } ;
-		try                       { JobSupport::depend( ::move(files) , AccessDigestDfltDyn , false/*no_follow*/ ) ; }
-		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                          }
+		::string base = dir_s+tail ;
+		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs )               // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
+			if (+AcFd(base+sfx,true/*err_ok*/)) return ;                  // found module, dont explore path any further
 	}
 }
 

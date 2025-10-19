@@ -373,12 +373,12 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 	if (!( at==Backdoor::MagicFd && ::strncmp(file,Backdoor::MagicPfx,Backdoor::MagicPfxLen)==0 )) return len ;
 	//
 	::string                        cmd      = file+Backdoor::MagicPfxLen         ;
-	size_t                          slash    = cmd.find('/')                      ;
+	size_t                          slash    = cmd.find('/')                      ; SWEAR(slash!=Npos) ;
 	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
 	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
 	if ((magic=it!=func_tab.end())) {
-		if (!buf) buf = new char[sz] ;                                               // if no buf, we are in ptrace mode and we allocate it when necessary, it will be deleted by caller
-		tie(backdoor_descr,len) = it->second( r , cmd.substr(slash+1) , buf , sz ) ;
+		if (!buf) buf = new char[sz] ;                           // if no buf, we are in ptrace mode and we allocate it when necessary, it will be deleted by caller
+		len = it->second( r , cmd.substr(slash+1) , buf , sz ) ;
 	}
 	SWEAR( len<=ssize_t(sz) , len,sz ) ;
 	return len ;

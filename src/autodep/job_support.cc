@@ -23,9 +23,8 @@ namespace JobSupport {
 		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
 	}
 
-	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr ) {
-		bool verbose    = ad.flags.dflags      [Dflag     ::Verbose]   ;
-		bool direct     = ad.flags.extra_dflags[ExtraDflag::Direct ]   ;
+	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr , bool direct ) {
+		bool verbose    = ad.flags.dflags      [Dflag     ::Verbose  ] ;
 		bool readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
 		throw_if( regexpr + verbose + direct > 1 , "regexpr, verbose and direct are mutually exclusive" ) ;
 		if (regexpr) {
@@ -69,19 +68,13 @@ namespace JobSupport {
 		return Backdoor::call<Backdoor::ListRootS>({.dir=::move(dir)}) ;
 	}
 
-	template<bool Encode> static ::string _codec( ::string&& file , ::string&& ctx , ::string&& code_val , uint8_t min_len=0 ) {
-		if (Encode) {
-			throw_unless(min_len>=1             , "min_len (",min_len,") must be at least 1"                                  ) ;
-			throw_unless(min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
-		} else {
-			SWEAR( !min_len , min_len ) ;                                                                                         // no min_len when decoding
-		}
-		::optional_s res = Backdoor::call<Backdoor::Codec<Encode>>({ .file=::move(file) , .ctx=::move(ctx) , .code_val=::move(code_val) , .min_len=min_len }) ;
-		throw_unless( +res , "cannot ",Encode?"encode":"decode") ;
-		return ::move(*res) ;
+	::string decode( ::string&& file , ::string&& ctx , ::string&& code ) {
+		return Backdoor::call<Backdoor::Decode>({ .file=::move(file) , .ctx=::move(ctx) , .code=::move(code) }) ;
 	}
-
-	::string decode( ::string&& file , ::string&& ctx , ::string&& code                   ) { return _codec<false>(::move(file),::move(ctx),::move(code)        ) ; }
-	::string encode( ::string&& file , ::string&& ctx , ::string&& val  , uint8_t min_len ) { return _codec<true >(::move(file),::move(ctx),::move(val ),min_len) ; }
+	::string encode( ::string&& file , ::string&& ctx , ::string&& val  , uint8_t min_len ) {
+		throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                                  ) ;
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ;     // codes are output in hex, 4 bits/digit
+		return Backdoor::call<Backdoor::Encode>({ .file=::move(file) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len }) ;
+	}
 
 }

@@ -50,6 +50,7 @@ namespace Engine {
 		Trace trace("Rmake",self,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
 			if (ecr.options.flags[ReqFlag::RetryOnError]) data.n_retries    = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::RetryOnError]                 ) ;
+			if (ecr.options.flags[ReqFlag::MaxRuns     ]) data.n_runs       = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::MaxRuns     ]                 ) ;
 			if (ecr.options.flags[ReqFlag::MaxSubmits  ]) data.n_submits    = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::MaxSubmits  ]                 ) ;
 			if (ecr.options.flags[ReqFlag::Nice        ]) data.nice         = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::Nice        ]                 ) ;
 			if (ecr.options.flags[ReqFlag::CacheMethod ]) data.cache_method = mk_enum<CacheMethod>(ecr.options.flag_args[+ReqFlag::CacheMethod ]                 ) ;
@@ -158,7 +159,7 @@ namespace Engine {
 			NodeStatus dns = d->status() ;
 			::string   dr  ;
 			if ( dns!=NodeStatus::Unknown && dns>=NodeStatus::Uphill ) {
-				d  = d->dir()   ;
+				d  = d->dir     ;
 				dr = "<uphill>" ;
 				goto Next ;                                                     // there is no rule for uphill
 			}
@@ -236,8 +237,8 @@ namespace Engine {
 					err = "not built" ;                                                              // if no better explanation found
 			break ;
 			case NodeStatus::None :
-				if      (dep->manual()>=Manual::Changed) err = "dangling" ;
-				else if (dep.dflags[Dflag::Required]   ) err = "missing"  ;
+				if      (dep->manual(dep->name())>=Manual::Changed) err = "dangling" ;
+				else if (dep.dflags[Dflag::Required]              ) err = "missing"  ;
 			break ;
 		DF}                                                                                          // NO_COV
 		if (err) return self->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
@@ -261,7 +262,7 @@ namespace Engine {
 				self->audit_info( Color::Note , msg_stderr.msg    , lvl+1 ) ;
 				self->audit_info( Color::None , msg_stderr.stderr , lvl+1 ) ;
 				seen_stderr = true ;
-			} else if (!job->is_special()) {
+			} else if (job.is_plain()) {
 				JobEndRpcReq jerr = job.job_info(JobInfoKind::End).end ;
 				if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
 				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl ) ;
@@ -279,7 +280,14 @@ namespace Engine {
 		bool              job_err = job->status!=Status::Ok ;
 		Trace trace("chk_end",self,cri,job,job->status) ;
 		//
-		Codec::Closure::s_refresh( +self , true/*force*/ ) ;                // force means ignore sample date at start of req
+		// refresh codec files
+		for( ::string const& f : self->refresh_codecs ) {
+			trace("refresh_codecs",self->refresh_codecs) ;
+			Job job { Rule(Special::Codec) , cat(Codec::Pfx,f) } ;
+			if (!job) continue ;                                            // ignore errors as there is nothing much we can do
+			job->refresh_codec(self) ;
+		}
+		self->refresh_codecs = {} ;
 		//
 		self->audit_stats  (       ) ;
 		self->audit_summary(job_err) ;
@@ -410,13 +418,13 @@ namespace Engine {
 					}
 				}
 			}
-			log_fd = Fd( log_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;
+			log_fd = Fd( log_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;
 			try         { lnk(Last,lcl_log_file) ;                                             }
 			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
 			start_ddate = file_date(log_file) ;                                                  // use log_file as a date marker
 		} else {
 			trace("no_log") ;
-			AcFd( Last , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;                         // use Last as a marker, just to gather its date
+			AcFd( Last , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;                              // use Last as a marker, just to gather its date
 			start_ddate = file_date(Last) ;
 			unlnk(Last) ;
 		}
@@ -456,6 +464,7 @@ namespace Engine {
 			static ::string plain_ok_msg  = "was already up to date" ;
 			static ::string plain_err_msg = "was already in error"   ;
 			size_t w = 0 ;
+			for( Node n : up_to_dates ) n->set_buildable() ;
 			for( Node n : up_to_dates )
 				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg     :anti_msg     ).size()) ;
 				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No         ?plain_ok_msg:plain_err_msg).size()) ;
@@ -567,7 +576,7 @@ namespace Engine {
 		}
 		//
 		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transient ) {
-			Node dir ; for( dir=node->dir() ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transient) ; dir=dir->dir() ) ;
+			Node dir ; for( dir=node->dir ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transient) ; dir=dir->dir ) ;
 			swear_prod(+dir                              ,"dir is buildable for",name,"but cannot find buildable dir"                  ) ;
 			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for",name,"but cannot find buildable dir until",dir->name()) ;
 			/**/                                audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;

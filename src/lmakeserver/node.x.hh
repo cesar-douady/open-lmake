@@ -3,48 +3,49 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
-
-#include "codec.hh"
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
 #ifdef STRUCT_DECL
 
 // START_OF_VERSIONING
 enum class Buildable : uint8_t {
 	Anti                         //                                   match independent, include uphill dirs of Src/SrcDir listed in manifest
-,	SrcDir                       //                                   match independent SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
-,	SubSrc                       //                                   match independent sub-file of a Src listed in manifest
-,	PathTooLong                  //                                   match dependent (as limit may change with config)
+,	SrcDir                       //                                   match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
+,	SubSrc                       //                                   match independent, sub-file of a Src listed in manifest
+,	PathTooLong                  //                                   match dependent  , (as limit may change with config)
 ,	DynAnti                      //                                   match dependent
 ,	No                           // <=No means node is not buildable
 ,	Maybe                        //                                   buildability is data dependent (maybe converted to Yes by further analysis)
 ,	SubSrcDir                    //                                   sub-file of a SrcDir
 ,	Unknown
 ,	Yes                          // >=Yes means node is buildable
+,	Codec                        //                                   match independent, file is a encode or decode marker (LMAKE/lmake/codec/file/ctx/*(.decode|.encode)
 ,	DynSrc                       //                                   match dependent
 ,	Src                          //                                   file listed in manifest, match independent
-,	Decode                       //                                   file name representing a code->val association
-,	Encode                       //                                   file name representing a val->code association
 ,	Loop                         //                                   node is being analyzed, deemed buildable so as to block further analysis
 } ;
 // END_OF_VERSIONING
-static constexpr ::amap<Buildable,::pair<Bool3/*has_file*/,bool/*src_anti*/>,N<Buildable>> BuildableAttrs {{
-	//                         has_file src_anti
-	{ Buildable::Anti        , { No    , true  } }
-,	{ Buildable::SrcDir      , { No    , true  } }
-,	{ Buildable::SubSrc      , { No    , true  } }
-,	{ Buildable::PathTooLong , { No    , true  } }
-,	{ Buildable::DynAnti     , { No    , true  } }
-,	{ Buildable::No          , { No    , false } }
-,	{ Buildable::Maybe       , { Maybe , false } }
-,	{ Buildable::SubSrcDir   , { Maybe , true  } }
-,	{ Buildable::Unknown     , { Maybe , false } }
-,	{ Buildable::Yes         , { Maybe , false } }
-,	{ Buildable::DynSrc      , { Maybe , true  } }
-,	{ Buildable::Src         , { Yes   , true  } }
-,	{ Buildable::Decode      , { No    , false } }
-,	{ Buildable::Encode      , { No    , false } }
-,	{ Buildable::Loop        , { No    , false } }
+struct BuildableAttrsEntry {
+	Bool3 has_file ;
+	bool  is_src_anti ;
+	Bool3 has_job  ;             // if Maybe, there is a rule but no job
+} ;
+static constexpr ::amap<Buildable,BuildableAttrsEntry,N<Buildable>> BuildableAttrs {{
+	//                         has_file is_src_anti has_job
+	{ Buildable::Anti        , { No    , true      , No    } }
+,	{ Buildable::SrcDir      , { No    , true      , No    } }
+,	{ Buildable::SubSrc      , { No    , true      , No    } }
+,	{ Buildable::PathTooLong , { No    , true      , No    } }
+,	{ Buildable::DynAnti     , { No    , true      , Maybe } }
+,	{ Buildable::No          , { No    , false     , No    } }
+,	{ Buildable::Maybe       , { Maybe , false     , Yes   } }
+,	{ Buildable::SubSrcDir   , { Maybe , true      , No    } }
+,	{ Buildable::Unknown     , { Maybe , false     , No    } }
+,	{ Buildable::Yes         , { Maybe , false     , Yes   } }
+,	{ Buildable::Codec       , { Maybe , false     , Yes   } }
+,	{ Buildable::DynSrc      , { Maybe , true      , Maybe } }
+,	{ Buildable::Src         , { Yes   , true      , No    } }
+,	{ Buildable::Loop        , { No    , false     , No    } }
 }} ;
 static_assert(chk_enum_tab(BuildableAttrs)) ;
 
@@ -194,9 +195,11 @@ namespace Engine {
 		::string crc_str     () const ;
 		// services
 		bool up_to_date () const ;
-		void acquire_crc() ;
+		void acquire_crc()       ;
+		//
+		void full_refresh( bool report_no_file , ::vector<Req> const& reqs={} ) const ; // reqs are for reporting only
 	} ;
-	static_assert(sizeof(Dep)==16) ; // ensure size is a power of 2 for improved cache perf
+	static_assert(sizeof(Dep)==16) ;                                                    // ensure size is a power of 2 for improved cache perf
 
 	union GenericDep {
 		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
@@ -362,51 +365,24 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                                                  // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                              // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                                                // if necessary, we must take care of the union
-		NodeData( NodeName n             ) : NodeDataBase{n} {                }
-		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir() = dir_ ; }
+		NodeData() = delete ;                                                                                                            // if necessary, we must take care of the union
+		NodeData( NodeName n             ) : NodeDataBase{n} {              }
+		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir = dir_ ; }
 		~NodeData() {
-			job_tgts().pop() ;
+			job_tgts.pop() ;
 		}
 		// accesses
 		Node idx () const { return Node::s_idx(self) ; }
 		//
-		bool is_decode() const { return buildable==Buildable::Decode ; }
-		bool is_encode() const { return buildable==Buildable::Encode ; }
-		bool is_plain () const { return !is_decode() && !is_encode() ; }
-		//
-		Node             & dir               ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
-		Node        const& dir               () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .dir                                      ; }
-		JobTgts          & job_tgts          ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
-		JobTgts     const& job_tgts          () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .job_tgts                                 ; }
-		RuleTgts         & rule_tgts         ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
-		RuleTgts    const& rejected_rule_tgts() const { SWEAR(  is_plain () , buildable ) ; return _if_plain .rejected_rule_tgts                       ; }
-		RuleTgts         & rejected_rule_tgts()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .rejected_rule_tgts                       ; }
-		RuleTgts    const& rule_tgts         () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .rule_tgts                                ; }
-		Job              & actual_job        ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
-		Job         const& actual_job        () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .actual_job                               ; }
-		Job              & polluting_job     ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .polluting_job                            ; }
-		Job         const& polluting_job     () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .polluting_job                            ; }
-		Tflags           & actual_tflags     ()       { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
-		Tflags      const& actual_tflags     () const { SWEAR(  is_plain () , buildable ) ; return _actual_tflags                                      ; }
-		SigDate          & date              ()       { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
-		SigDate     const& date              () const { SWEAR(  is_plain () , buildable ) ; return _if_plain .date                                     ; }
-		Codec::Val       & codec_val         ()       { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
-		Codec::Val  const& codec_val         () const { SWEAR(  is_decode() , buildable ) ; return _if_decode.val                                      ; }
-		Codec::Code      & codec_code        ()       { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
-		Codec::Code const& codec_code        () const { SWEAR(  is_encode() , buildable ) ; return _if_encode.code                                     ; }
-		Ddate            & log_date          ()       { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
-		Ddate       const& log_date          () const { SWEAR( !is_plain () , buildable ) ; return is_decode()?_if_decode.log_date:_if_encode.log_date ; }
-		//
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                       // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -414,24 +390,13 @@ namespace Engine {
 		bool           done      ( Req            , NodeGoal ) const ;
 		bool           done      ( Req                       ) const ;
 		//
-		bool match_ok      (     ) const {                     return !is_plain() || match_gen>=Rule::s_match_gen           ; }
-		bool has_actual_job(     ) const {                     return  is_plain() && +actual_job() && +actual_job()->rule() ; }
-		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return  is_plain() && actual_job()==j                        ; }
+		bool match_ok      (     ) const {                     return match_gen>=Rule::s_match_gen       ; }
+		bool has_actual_job(     ) const {                     return +actual_job && +actual_job->rule() ; }
+		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return actual_job==j                      ; }
 		//
-		Manual manual        ( Accesses               ,            FileSig const& ) const ;
-		Manual manual_refresh( Accesses               , Req      , FileSig const& ) ;                                                        // refresh date if file was updated but steady
-		void   refresh       ( Accesses               ,            FileSig const& ) ;
-		Manual manual        ( Accesses a=~Accesses()                             ) const { if (!is_plain()) return Manual::Ok ; return manual        (a,  {name()}) ; }
-		Manual manual_refresh( Accesses a=~Accesses() , Req r={}                  )       { if (!is_plain()) return Manual::Ok ; return manual_refresh(a,r,{name()}) ; }
-		void   refresh       ( Accesses a=~Accesses()                             )       { if (!is_plain()) return            ;        refresh       (a,  {name()}) ; }
-		//
-		bool/*modified*/ refresh_src_anti( bool report_no_file , Accesses               , ::vector<Req> const&         , ::string const& ) ; // Req's are for reporting only
-		void             full_refresh    ( bool report_no_file , Accesses a=~Accesses() , ::vector<Req> const& reqs={}                   ) { // .
-			if      (+reqs        ) set_buildable(reqs[0])                         ;
-			else                    set_buildable(       )                         ;
-			if      (is_src_anti()) refresh_src_anti(report_no_file,a,reqs,name()) ;
-			else if (is_plain   ()) manual_refresh  (               a            ) ;                    // no manual_steady diagnostic as this may be because of another job
-		}
+		Manual           manual          ( FileSig         , Accesses=~Accesses()                                              ) const ;
+		Manual           manual_refresh  (                   Accesses             , Req                                        )       ; // refresh date if file was updated but steady
+		bool/*modified*/ refresh_src_anti( ::string const& , Accesses             , ::vector<Req> const& , bool report_no_file )       ; // Req's are for reporting only
 		//
 		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       set_conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -439,12 +404,12 @@ namespace Engine {
 		void       set_status     (NodeStatus s  )       { SWEAR(+s                      ) ; _conform_idx = -+s               ;                                 }
 		//
 		JobTgt conform_job_tgt() const {
-			if (status()==NodeStatus::Plain) { SWEAR( conform_idx()<n_job_tgts , status(),conform_idx(),n_job_tgts ) ; return job_tgts()[conform_idx()] ; }
-			else                                                                                                       return {}                        ;
+			if (status()==NodeStatus::Plain) { SWEAR( conform_idx()<n_job_tgts , status(),conform_idx(),n_job_tgts ) ; return job_tgts[conform_idx()] ; }
+			else                                                                                                       return {}                      ;
 		}
 		bool conform() const {
 			Job cj = conform_job_tgt() ;
-			return +cj && ( cj->is_special() || has_actual_job(cj) ) ;
+			return +cj && ( !cj->is_plain(true/*frozen_ok*/) || has_actual_job(cj) ) ;
 		}
 		Bool3 ok(bool force_err=false) const {                                                          // if Maybe <=> not built
 			switch (status()) {
@@ -464,8 +429,9 @@ namespace Engine {
 					if (j->c_req_info(r).step()==JobStep::Exec) return true ;
 			return false ;
 		}
-		Bool3 has_file   () const { SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.first  ; }
-		bool  is_src_anti() const { SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.second ; }
+		Bool3 has_file   (bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.has_file    ; }
+		bool  is_src_anti(bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.is_src_anti ; }
+		Bool3 has_job    (bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.has_job     ; }
 		//
 		// services
 		bool read(Accesses a) const {                                                                   // return true <= file was perceived different from non-existent, assuming access provided in a
@@ -528,41 +494,24 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING
 	public :
-		struct IfPlain {
-			SigDate  date               ;                           // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
-			Node     dir                ;                           //  31   < 32 bits, shared
-			JobTgts  job_tgts           ;                           //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
-			RuleTgts rule_tgts          ;                           // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
-			RuleTgts rejected_rule_tgts ;                           // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
-			Job      actual_job         ;                           //  31   < 32 bits, shared,   job that generated node
-			Job      polluting_job      ;                           //         32 bits,           polluting job when polluted was last set to Polluted::Job
-		} ;
-		struct IfDecode {
-			Ddate      log_date ;                                   // ~40   < 64 bits,           logical date to detect overwritten
-			Codec::Val val      ;                                   //         32 bits,           offset in association file where the association line can be found
-		} ;
-		struct IfEncode {
-			Ddate       log_date ;                                  // ~40   < 64 bits,           logical date to detect overwritten
-			Codec::Code code     ;                                  //         32 bits,           offset in association file where the association line can be found
-		} ;
 		//NodeName name   ;                                         //         32 bits, inherited
-		Watcher    asking ;                                         //         32 bits,           last watcher needing this node
-		Crc        crc    = Crc::None ;                             // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
-	private :
-		union {
-			IfPlain  _if_plain  = {} ;                              //        320 bits
-			IfDecode _if_decode ;                                   //         96 bits
-			IfEncode _if_encode ;                                   //         96 bits
-		} ;
-	public :
+		Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
+		Crc       crc                        = Crc::None          ; // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
+		SigDate   date                       ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
+		Node      dir                        ;                      //  31   < 32 bits, shared
+		JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
+		RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
+		RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
+		Job       actual_job                 ;                      //  31   < 32 bits, shared,   job that generated node
+		Job       polluting_job              ;                      //         32 bits,           polluting job when polluted was last set to Polluted::Job
 		RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
 		MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
 		Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
 		Polluted  polluted :NBits<Polluted > = Polluted::Clean    ; //          2 bits,           reason for pollution
 		bool      busy     :1                = false              ; //          1 bit ,           a job is running with this node as target
+		Tflags    actual_tflags ;                                   //   6   <  8 bits,           tflags associated with actual_job
 	private :
-		Tflags  _actual_tflags ;                                    //   6   <  8 bits,           tflags associated with actual_job
-		RuleIdx _conform_idx   = -+NodeStatus::Unknown ;            //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		// END_OF_VERSIONING
 	} ;
 	static_assert(sizeof(NodeData)==64) ;                           // ensure size is a power of 2 to maximize cache perf
@@ -608,12 +557,13 @@ namespace Engine {
 	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
-	inline Manual NodeData::manual( Accesses a , FileSig const& sig ) const {
-		if (    sig       ==         date().sig          )                                                    return Manual::Ok      ;   // None and Dir are deemed identical
-		if (Crc(sig.tag()).match(Crc(date().sig.tag()),a))                                                    return Manual::Ok      ;   // if tags are enough, do as if no modif
-		if (!sig                                         ) { Trace("manual","unlnked",idx(),sig,crc,date()) ; return Manual::Unlnked ; }
-		if (sig.tag()==FileTag::Empty                    ) { Trace("manual","empty"  ,idx(),sig,crc,date()) ; return Manual::Empty   ; }
-		/**/                                               { Trace("manual","modif"  ,idx(),sig,crc,date()) ; return Manual::Modif   ; }
+	inline Manual NodeData::manual( FileSig sig , Accesses a ) const {
+		SWEAR( buildable!=Buildable::Codec , idx() ) ;                                                                               // handled by caller to avoid computing sig in most cases
+		if (    sig       ==         date.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
+		if (Crc(sig.tag()).match(Crc(date.sig.tag()),a))                                                  return Manual::Ok      ;   // if tags are enough, do as if no modif
+		if (!sig                                       ) { Trace("manual","unlnked",idx(),sig,crc,date) ; return Manual::Unlnked ; }
+		if (sig.tag()==FileTag::Empty                  ) { Trace("manual","empty"  ,idx(),sig,crc,date) ; return Manual::Empty   ; }
+		/**/                                             { Trace("manual","modif"  ,idx(),sig,crc,date) ; return Manual::Modif   ; }
 	}
 
 	inline ::span<JobTgt const> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
@@ -621,8 +571,8 @@ namespace Engine {
 		// conform_idx is (one of) the producing job, not necessarily the first of the job_tgt's at same prio level
 		if (status()!=NodeStatus::Plain) return {} ;
 		RuleIdx prio_idx = conform_idx()                      ; SWEAR(prio_idx<n_job_tgts) ;
-		RuleIdx prio     = job_tgts()[prio_idx]->rule()->prio ;
-		while ( prio_idx && job_tgts()[prio_idx-1]->rule()->prio==prio ) prio_idx-- ; // rewind to first job within prio level
+		RuleIdx prio     = job_tgts[prio_idx]->rule()->prio ;
+		while ( prio_idx && job_tgts[prio_idx-1]->rule()->prio==prio ) prio_idx-- ; // rewind to first job within prio level
 		return prio_job_tgts(prio_idx) ;
 	}
 
@@ -661,15 +611,6 @@ namespace Engine {
 		_do_make(ri,ma,s) ;
 	}
 
-	inline void NodeData::refresh( Accesses a , FileSig const& sig ) {
-		switch (manual(a,sig)) {
-			case Manual::Ok      :                                           break ;
-			case Manual::Unlnked : set_crc_date( Crc::None  , Pdate(New) ) ; break ;
-			case Manual::Empty   : set_crc_date( Crc::Empty , sig        ) ; break ;
-			case Manual::Modif   : set_crc_date( {}         , sig        ) ; break ;
-		DF}                                                                          // NO_COV
-	}
-
 	//
 	// Dep
 	//
@@ -683,7 +624,7 @@ namespace Engine {
 		if (is_crc              ) return ;                                                                 // already a crc ==> nothing to do
 		if (!self->crc.valid()  ) return ;                                                                 // nothing to acquire
 		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) set_crc(self->crc,self->ok()==No) ; } // no file (cannot test sig as it contains date at which file was known non-existent)
-		else                      { if (sig()==self->date().sig    ) set_crc(self->crc,self->ok()==No) ; } // existing file
+		else                      { if (sig()==self->date.sig      ) set_crc(self->crc,self->ok()==No) ; } // existing file
 	}
 
 	//
@@ -702,14 +643,14 @@ namespace Engine {
 
 	inline void RejectSet::_save() {
 		if (_dirty!=Yes) return ;
-		_node_data.rejected_rule_tgts() = ::vector<RuleTgt>(_rule_tgts) ; // sorted when converted to ::vector<RuleTgt>
-		_dirty                          = No                            ;
+		_node_data.rejected_rule_tgts = ::vector<RuleTgt>(_rule_tgts) ; // sorted when converted to ::vector<RuleTgt>
+		_dirty                        = No                            ;
 	}
 
 	inline void RejectSet::_load() {
 		if (_dirty!=Maybe) return ;
 		_dirty = No ;
-		for( RuleTgt rt : _node_data.rejected_rule_tgts().view() ) {
+		for( RuleTgt rt : _node_data.rejected_rule_tgts.view() ) {
 			Rule r = rt->rule ;
 			if      (!r        )   _dirty = Yes ;                                                 // if a rule is obsolete, forget it and remind to save cleaned up vector
 			else if (rt!=r->crc) { _dirty = Yes ; _rule_tgts.push(RuleTgt(r->crc,rt.tgt_idx)) ; } // take last version of rule and retain insertion order

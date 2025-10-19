@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
+
 #ifdef STRUCT_DECL
 
 #include "rpc_job.hh"
@@ -66,8 +68,8 @@ namespace Backends {
 			Val  start ( ::vector<ReqIdx> const& , Job ) ;                     // start an anticipated job
 			Val  end   ( ::vector<ReqIdx> const& , Job ) ;                     // end a started job
 			//
-			void  open_req     ( Req r                                       )       { _queued_cost[+r] = 0 ; }
-			void  close_req    ( Req                                         )       {                        }
+			void  open_req     ( Req r                                       )       { Trace trace("Workload::open_req" ,self,r) ; _queued_cost[+r] = 0 ; }
+			void  close_req    ( Req r                                       )       { Trace trace("Workload::close_req",self,r) ;                        }
 			Delay cost         ( Job , Val start_workload , Pdate start_date ) const ;
 			Pdate submitted_eta( Req                                         ) const ;
 		private :
@@ -237,9 +239,10 @@ namespace Backends {
 
 namespace Backends {
 
-	inline void  Backend::Workload::submit( Req r , Job j ) { Lock lock{_mutex} ;                            _queued_cost[+r] += Delay(j->cost()).val() ; }
-	inline void  Backend::Workload::add   ( Req r , Job j ) { Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost()).val() ; }
+	inline void  Backend::Workload::submit( Req r , Job j ) { Trace trace("Workload::submit",self,r,j) ; Lock lock{_mutex} ;                            _queued_cost[+r] += Delay(j->cost()).val() ; }
+	inline void  Backend::Workload::add   ( Req r , Job j ) { Trace trace("Workload::add"   ,self,r,j) ; Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost()).val() ; }
 	inline void  Backend::Workload::kill( Req r , Job j ) {
+		Trace trace("Workload::kill",self,r,j) ;
 		Delay::Tick dly = Delay(j->cost()).val() ;
 		SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , dly ) ;
 		_queued_cost[+r] -= dly ;

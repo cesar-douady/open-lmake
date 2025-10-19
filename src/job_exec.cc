@@ -250,7 +250,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
 	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ; // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
-		AcFd( dir_guard(cmd_file) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_start_info.cmd) ;
+		AcFd( dir_guard(cmd_file) , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(g_start_info.cmd) ;
 		res.reserve(res.size()+1) ;
 		res.push_back(mk_glb(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
@@ -343,7 +343,7 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
 	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                              // START_OF_NO_COV defensive programming
-		get_start_info(server_fd) ;                                                           // getting start_info is useless, but necessary to be allowed to report end
+		g_start_info = get_start_info(server_fd) ; if (!g_start_info) return 0 ;              // if !g_start_info, server ask us to give up
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(g_phy_repo_root_s) ;
 		goto End ;
 	}                                                                                         // END_OF_NO_COV
@@ -529,7 +529,7 @@ int main( int argc , char* argv[] ) {
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ) ;
+			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;
 			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;      // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
@@ -555,7 +555,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			try {
-				upload_key = g_start_info.cache->upload( digest.targets , target_fis , ::move(g_gather.codec_map) , g_start_info.zlvl ) ;
+				upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.zlvl ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
@@ -581,12 +581,13 @@ int main( int argc , char* argv[] ) {
 		,	.job = g_gather.end_date-g_gather.start_date
 		} ;
 		end_report.digest = {
-			.upload_key  = upload_key
-		,	.targets     = ::move(digest.targets)
-		,	.deps        = ::move(digest.deps   )
-		,	.cache_idx   = g_start_info.cache_idx
-		,	.status      = status
-		,	.incremental = incremental
+			.upload_key     = upload_key
+		,	.targets        = ::move     (digest.targets       )
+		,	.deps           = ::move     (digest.deps          )
+		,	.refresh_codecs = ::mk_vector(digest.refresh_codecs)
+		,	.cache_idx      = g_start_info.cache_idx
+		,	.status         = status
+		,	.incremental    = incremental
 		} ;
 		end_report.end_date          =        g_gather.end_date  ;
 		end_report.stats             = ::move(stats            ) ;

@@ -107,19 +107,17 @@ struct Gather {                                                       // NOLINT(
 		bool _washed          = false                                  ;
 	} ;
 	struct Digest {
-		::vmap_s<TargetDigest> targets ;
-		::vmap_s<DepDigest   > deps    ;
-		::vector<NodeIdx     > crcs    ;                                                                 // index in targets of entry for which we need to compute a crc
-		::string               msg     ;
+		::vmap_s<TargetDigest> targets        ;
+		::vmap_s<DepDigest   > deps           ;
+		::vector<NodeIdx     > crcs           ;                                                          // index in targets of entry for which we need to compute a crc
+		::set_s                refresh_codecs ;
+		::string               msg            ;
 	} ;
 	struct JobSlaveEntry {
 		friend ::string& operator+=( ::string& , JobSlaveEntry const& ) ;
 		// data
 		Jerr                            jerr       ;                                                     // used for DepDirect/DepVerbose until server reply
 		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                                     // jerrs waiting for confirmation
-		::string                        file       ;                                                     // for Decode and Encode
-		::string                        ctx        ;                                                     // .
-		::string                        code_val   ;                                                     // .
 		::string                        buf        ;
 	} ;
 	// statics
@@ -127,7 +125,7 @@ private :
 	static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
 	// services
 	void _send_to_server( JobMngtRpcReq const&                  ) ;
-	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;            // files are required for DepVerbose and forbidden for other
+	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                    // files are required for DepVerbose and forbidden for other
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		for( auto& [f,fi] : jerr.files ) new_access( fd , jerr.date , ::move(f) , jerr.digest , fi , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
@@ -164,6 +162,8 @@ private :
 	//
 	void _exec_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ; }
 	void _exec_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _exec_trace( New , c , ces , file ) ;                     }
+	void _exec_trace( PD pd , Comment c ,                      ::string const& file    ) const { _exec_trace( pd  , c , {}  , file ) ;                     }
+	void _exec_trace(         Comment c ,                      ::string const& file    ) const { _exec_trace( New , c , {}  , file ) ;                     }
 	// data
 public :
 	::umap_s<NodeIdx   >                      access_map       ;
@@ -174,7 +174,6 @@ public :
 	Fd                                        child_stdin      = Fd::Stdin           ;
 	Fd                                        child_stderr     = Fd::Stderr          ;
 	Fd                                        child_stdout     = Fd::Stdout          ;
-	CodecMap                                  codec_map        ;                       // codec_map[file][ctx][code]=val, ordered to make it serializable
 	Time::Delay                               ddate_prec       ;
 	uint8_t                                   nice             = 0                   ;
 	AutodepEnv                                autodep_env      ;

@@ -8,23 +8,24 @@
 #include "backdoor.hh"
 
 using namespace Re   ;
+using namespace Hash ;
 using namespace Time ;
 
 namespace Backdoor {
 
 	::umap_s<Func> const& get_func_tab() {
 		static ::umap_s<Func> s_tab = {
-			{ Enable                ::Cmd , func<Enable                > }
-		,	{ Regexpr               ::Cmd , func<Regexpr               > }
-		,	{ Depend                ::Cmd , func<Depend                > }
-		,	{ DependVerbose         ::Cmd , func<DependVerbose         > }
-		,	{ DependDirect          ::Cmd , func<DependDirect          > }
-		,	{ Target                ::Cmd , func<Target                > }
-		,	{ ChkDeps               ::Cmd , func<ChkDeps               > }
-		,	{ List                  ::Cmd , func<List                  > }
-		,	{ ListRootS             ::Cmd , func<ListRootS             > }
-		,	{ Codec<false/*Encode*/>::Cmd , func<Codec<false/*Encode*/>> }
-		,	{ Codec<true /*Encode*/>::Cmd , func<Codec<true /*Encode*/>> }
+			{ Enable       ::Cmd , func<Enable       > }
+		,	{ Regexpr      ::Cmd , func<Regexpr      > }
+		,	{ Depend       ::Cmd , func<Depend       > }
+		,	{ DependVerbose::Cmd , func<DependVerbose> }
+		,	{ DependDirect ::Cmd , func<DependDirect > }
+		,	{ Target       ::Cmd , func<Target       > }
+		,	{ ChkDeps      ::Cmd , func<ChkDeps      > }
+		,	{ List         ::Cmd , func<List         > }
+		,	{ ListRootS    ::Cmd , func<ListRootS    > }
+		,	{ Decode       ::Cmd , func<Decode       > }
+		,	{ Encode       ::Cmd , func<Encode       > }
 		} ;
 		return s_tab ;
 	}
@@ -78,12 +79,12 @@ namespace Backdoor {
 	// AccessBase
 	//
 
-	::vmap_s<FileInfo> AccessBase::_mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1 , CommentExts ces ) {
-		::vmap_s<FileInfo> res ; res.reserve(files.size()) ;                                                                    // typically all files are pertinent
+	::vmap_s<FileInfo> AccessBase::_mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1 ) {
+		::vmap_s<FileInfo> res ; res.reserve(files.size()) ;                                                   // typically all files are pertinent
 		Accesses           as  ;
 		if (dep_idxs1) dep_idxs1->reserve(files.size()) ;
 		for( ::string& f : files ) {
-			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , false/*create*/ , Comment::Depend , ces } ;
+			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , false/*create*/ , Comment::Depend } ;
 			if ( access_digest.flags.extra_dflags[ExtraDflag::ReaddirOk] && sr.file_loc==FileLoc::RepoRoot ) { // when passing flag readdir_ok, we may want to report top-level dir
 				sr.file_loc = FileLoc::Repo ;
 				sr.real     = "."s          ;                                                                  // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
@@ -148,7 +149,7 @@ namespace Backdoor {
 		,	.comment_exts = CommentExt::Verbose
 		,	.digest       = access_digest
 		,	.date         = New
-		,	.files        = _mk_deps( r , true/*sync*/ , &dep_idxs1 , CommentExt::Verbose )
+		,	.files        = _mk_deps( r , true/*sync*/ , &dep_idxs1 )
 		} ;
 		JobExecRpcReply reply ; if (+jerr.files) reply = r.report_sync(::move(jerr)) ;
 		for( size_t i : iota(files.size()) )
@@ -175,7 +176,7 @@ namespace Backdoor {
 		,	.comment_exts = CommentExt::Direct
 		,	.digest       = access_digest
 		,	.date         = New
-		,	.files        = _mk_deps( r , true/*sync*/ , nullptr , CommentExt::Direct )
+		,	.files        = _mk_deps( r , true/*sync*/ )
 		} ;
 		if (+jerr.files) return r.report_sync(::move(jerr)).ok==Yes ;
 		else             return true/*ok*/                          ;
@@ -197,19 +198,19 @@ namespace Backdoor {
 		bool                                   has_overlay = false ;
 		for( ::string& f : files ) {
 			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , true/*create*/ , Comment::Target } ;
-			as          |= sr.accesses ; // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
+			as          |= sr.accesses ;                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 			has_overlay |= +sr.real0   ;
 			srs.push_back(::move(sr)) ;
 		}
 		access_digest.accesses |= as ;
-		if (!has_overlay) {              // fast path : only a single call to report_access (most common case)
+		if (!has_overlay) {                               // fast path : only a single call to report_access (most common case)
 			::vmap_s<FileInfo> targets ;
 			for( Record::Solve<false/*Send*/>& sr : srs )
 				if (sr.file_loc<=FileLoc::Repo)
 					targets.emplace_back( ::move(sr.real) , FileInfo(sr.real) ) ;
 			r.report_access( { .proc=JobExecProc::Access , .comment=Comment::Target , .digest=access_digest , .date=New , .files=::move(targets) } , true/*force*/ ) ;
 		} else {
-			Pdate now { New } ;          // for perf and in trace, we will see all targets with same date, but after potential link accesses while solving
+			Pdate now { New } ;                           // for perf and in trace, we will see all targets with same date, but after potential link accesses while solving
 			for( Record::Solve<false/*Send*/>& sr : srs )
 				r.report_access(
 					sr.file_loc
@@ -311,6 +312,121 @@ namespace Backdoor {
 		r.send_report() ;
 		if ( abs_cwd_s.starts_with(repo_root_s) && !is_abs_s(dir_s) ) return mk_rel_s( dir_s , mk_lcl_s(abs_cwd_s,repo_root_s) ) ;
 		else                                                          return abs_dir_s                                           ;
+	}
+
+	//
+	// Decode
+	//
+
+	::string& operator+=( ::string& os , Decode const& d ) {                  // START_OF_NO_COV
+		return os << "Decode(" << d.file <<','<< d.ctx <<','<< d.code <<')' ;
+	}                                                                         // END_OF_NO_COV
+
+	::string Decode::process(Record& r) {
+		NfsGuard                     nfs_guard { Record::s_autodep_env().file_sync                                                        } ;
+		Record::Solve<false/*Send*/> sr        { r , ::move(file) , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Decode } ;
+		::string                     node      = Codec::CodecFile( false/*Encode*/ , sr.real , ctx , code ).name()                          ;
+		Fd                           rfd       = Record::s_repo_root_fd()                                                                   ;
+		::string                     res       ;
+		//
+		if (+sr.accesses) r.report_access( sr.file_loc , { .comment=Comment::Decode , .digest={.accesses=sr.accesses} , .files={{::move(sr.real),{}}} } , true/*force*/ ) ;
+		//
+		bool locked = false ;
+	Retry :
+		try {
+			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , nfs_guard } ;
+			locked = true ;
+			res = AcFd(rfd,nfs_guard.access(rfd,node)).read() ; // if node exists, it contains the reply
+		} catch (::string const&) {                             // if node does not exist, create a code
+			if (locked) throw "cannot decode"s ;                // if we could lock, it means codec db was initialized and code does not exist
+			JobExecRpcReq jerr {
+				.proc         = JobExecProc::DepDirect
+			,	.sync         = Yes
+			,	.comment      = Comment::Decode
+			,	.comment_exts = CommentExt::Direct
+			,	.digest       {}                                // access to node is reported separately
+			,	.date         = New
+			,	.files        { {node,{}} }
+			} ;
+			r.report_sync(::move(jerr)) ;                       // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+			locked = true ;                                     // dont loop
+			goto Retry/*BACKWARD*/ ;
+		}
+		r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{::move(node),{}}} } , true/*force*/ ) ;
+		r.send_report() ;
+		return res ;
+	}
+
+	::string Decode::descr() const {
+		return cat("decode in file ",file," with context ",ctx," code ",code) ;
+	}
+
+	//
+	// Encode
+	//
+
+	::string& operator+=( ::string& os , Encode const& e ) {                                          // START_OF_NO_COV
+		return os << "Encode(" << e.file <<','<< e.ctx <<','<< e.val.size() <<','<< e.min_len <<')' ;
+	}                                                                                                 // END_OF_NO_COV
+
+	::string Encode::process(Record& r) {
+		NfsGuard                     nfs_guard { Record::s_autodep_env().file_sync                                                        } ;
+		Record::Solve<false/*Send*/> sr        { r , ::move(file) , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
+		Crc                          crc       { New , val }                                                                                ;
+		::string                     node      = Codec::CodecFile( sr.real , ctx , crc ).name()                                             ;
+		Fd                           rfd       = Record::s_repo_root_fd()                                                                   ;
+		//
+		if (+sr.accesses) r.report_access( sr.file_loc , { .comment=Comment::Encode , .digest={.accesses=sr.accesses} , .files={{::move(sr.real),{}}} } , true/*force*/ ) ;
+		//
+		::string new_codes_file = Codec::CodecFile::s_new_codes_file(file) ;
+		::string res            ;
+		bool     created        = false                                    ;
+		bool     locked         = false                                    ;
+		try {                                                                           // first try with share lock (light weight in case no update is necessary)
+			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , nfs_guard } ;
+			locked = true                                        ;
+			res    = AcFd(rfd,nfs_guard.access(rfd,node)).read() ;                      // if node exists, it contains the reply
+		} catch (::string const&) {                                                     // if node does not exist, create a code
+			if (!locked) {                                                              // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+				JobExecRpcReq jerr {
+					.proc         = JobExecProc::DepDirect
+				,	.sync         = Yes
+				,	.comment      = Comment::Encode
+				,	.comment_exts = CommentExt::Direct
+				,	.digest       {}                                                    // node access is reported separately
+				,	.date         = New
+				,	.files        { {node,{}} }
+				} ;
+				r.report_sync(::move(jerr)) ;
+			}
+			::string             crc_str = crc.hex()                ;
+			Codec::CodecLockedFd lock    { rfd , file , nfs_guard } ;                   // must hold an exclusive lock as we probably need to create a code
+			try {
+				res = AcFd(rfd,nfs_guard.access(rfd,node)).read() ;                     // repeat test with exclusive lock as shared lock has been released before exclusive lock acquisition
+			} catch (::string const&) {
+				for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
+					::string decode_node = Codec::CodecFile( false/*encode*/ , file , ctx , code ).name() ;
+					if (FileInfo(rfd,nfs_guard.access(rfd,decode_node)).exists()) continue ;
+					// must write to new_codes_file first to allow replay in case of creash                      mod
+					AcFd( rfd , nfs_guard.update(rfd,dir_guard(rfd,new_codes_file)) , {O_WRONLY|O_CREAT|O_APPEND,0666} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
+					AcFd( rfd , nfs_guard.change(rfd,dir_guard(rfd,node          )) , {O_WRONLY|O_CREAT|O_TRUNC ,0666} ).write( code                                             ) ;
+					AcFd( rfd , nfs_guard.change(rfd,dir_guard(rfd,decode_node   )) , {O_WRONLY|O_CREAT|O_TRUNC ,0666} ).write( val                                              ) ;
+					nfs_guard.flush() ;                                                                                                 // flush before lock is released
+					res     = code ;
+					created = true ;
+					break ;
+				}
+				throw_unless( created , "no prefix available in file ",file," with context ",ctx," of length at least ",min_len," with checksum ",crc_str," for value ",val ) ;
+			}
+		}
+		ExtraDflags edf ; if (created) edf |= ExtraDflag::CreateEncode ;
+		r.report_access( { .comment=Comment::Encode , .digest={.accesses=Access::Reg,.flags{.extra_dflags=edf}} , .files={{::move(node),{}}} } , true/*force*/ ) ;
+		r.send_report() ;
+		return res ;
+	}
+
+	::string Encode::descr() const {
+		return cat("encode in file ",file," with context ",ctx," value of size ",val.size()) ;
 	}
 
 }

@@ -49,17 +49,17 @@ enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book
 ,	Ignore
 ,	ReaddirOk
 ,	NoStar                        // exclude flags from star patterns (common info for dep and target)
-,	Direct
+,	CreateEncode                  // used when creating a codec entry while encoding
 // aliases
-,	NRule = Direct                // number of Dflag's allowed in rule definition
+,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
-	{ ExtraDflag::Top       , 0   }
-,	{ ExtraDflag::Ignore    , 'I' }
-,	{ ExtraDflag::ReaddirOk , 'D' }
-,	{ ExtraDflag::NoStar    , 'x' }
-,	{ ExtraDflag::Direct    , 'd' }
+	{ ExtraDflag::Top          , 0   }
+,	{ ExtraDflag::Ignore       , 'I' }
+,	{ ExtraDflag::ReaddirOk    , 'D' }
+,	{ ExtraDflag::NoStar       , 'x' }
+,	{ ExtraDflag::CreateEncode , 0   }
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 static_assert(chk_enum_tab(ExtraDflagChars)) ;
@@ -243,6 +243,7 @@ enum class Comment : uint8_t {
 ,	Analyzed
 ,	ChkDeps            , ChkTargets
 ,	ComputedCrcs
+,	CreateCodec
 ,	Decode
 ,	DepAndTarget
 ,	Depend

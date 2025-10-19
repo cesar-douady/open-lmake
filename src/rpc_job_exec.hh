@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "hash.hh"
 #include "serialize.hh"
 #include "time.hh"
 
@@ -14,23 +15,21 @@ enum class JobExecProc : uint8_t {
 	None
 ,	ChkDeps
 ,	Confirm
-,	List                 // list deps/targets
-,	Tmp                  // write activity in tmp has been detected (hence clean up is required)
+,	List                    // list deps/targets
+,	Tmp                     // write activity in tmp has been detected (hence clean up is required)
 // with file
-,	Decode
 ,	DepDirect
 ,	DepVerbose
-,	Encode
 ,	Guard
-,	Panic                // ensure job is in error
-,	Trace                // no algorithmic info, just for tracing purpose
+,	Panic                   // ensure job is in error
+,	Trace                   // no algorithmic info, just for tracing purpose
 // with file info
 ,	Access
-,	AccessPattern        // pass flags on a regexpr basis
+,	AccessPattern           // pass flags on a regexpr basis
 //
 // aliases
-,	HasFile     = Decode // >=HasFile     means files[*].first  fields are significative
-,	HasFileInfo = Access // >=HasFileInfo means files[*].second fields are significative
+,	HasFile     = DepDirect // >=HasFile     means files[*].first  fields are significative
+,	HasFileInfo = Access    // >=HasFileInfo means files[*].second fields are significative
 } ;
 
 struct JobExecRpcReq   ;
@@ -60,37 +59,25 @@ struct JobExecRpcReq {
 	using Proc = JobExecProc ;
 	using Id   = uint64_t    ;
 	// accesses
-	::string const& file    () const { SWEAR( proc==Proc::Decode || proc==Proc::Encode , proc ) ; return files[0].first ; } // reuse files to pass specific info
-	::string      & file    ()       { SWEAR( proc==Proc::Decode || proc==Proc::Encode , proc ) ; return files[0].first ; } // .
-	::string const& ctx     () const { SWEAR( proc==Proc::Decode || proc==Proc::Encode , proc ) ; return files[1].first ; } // .
-	::string      & ctx     ()       { SWEAR( proc==Proc::Decode || proc==Proc::Encode , proc ) ; return files[1].first ; } // .
-	::string const& code_val() const { SWEAR( proc==Proc::Decode || proc==Proc::Encode , proc ) ; return files[2].first ; } // .
-	::string      & code_val()       { SWEAR( proc==Proc::Decode || proc==Proc::Encode , proc ) ; return files[2].first ; } // .
-	::string const& code    () const { SWEAR( proc==Proc::Decode                       , proc ) ; return files[2].first ; } // .
-	::string      & code    ()       { SWEAR( proc==Proc::Decode                       , proc ) ; return files[2].first ; } // .
-	::string const& val     () const { SWEAR(                       proc==Proc::Encode , proc ) ; return files[2].first ; } // .
-	::string      & val     ()       { SWEAR(                       proc==Proc::Encode , proc ) ; return files[2].first ; } // .
-	::string const& txt     () const { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // .
-	::string      & txt     ()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // .
+	::string const& txt() const { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // reuse files to pass specific info
+	::string      & txt()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // .
 	// services
 	void chk() const {
 		/**/                                                 SWEAR( (+files)==(proc>=Proc::HasFile)                                                , proc,files ) ;
 		if ( proc>=Proc::HasFile && proc<Proc::HasFileInfo ) SWEAR( ::none_of(files,[](::pair_s<Disk::FileInfo> const& e) { return +e.second ; } ) , proc,files ) ;
 		switch (proc) {
-			case Proc::None          : SWEAR(              !min_len && !digest            &&  !id                       && !date                    , self ) ; break ;
+			case Proc::None          : SWEAR(              !digest            &&  !id                       && !date                    , self ) ; break ;
 			case Proc::ChkDeps       :
-			case Proc::Tmp           : SWEAR(              !min_len && !digest            &&  !id                       && +date                    , self ) ; break ;
-			case Proc::Confirm       : SWEAR(              !min_len && !digest.has_read() && ( id&&digest.write!=Maybe) && !date                    , self ) ; break ;
-			case Proc::List          : SWEAR( sync==Yes && !min_len && !digest.has_read() &&  !id                       && +date                    , self ) ; break ;
-			case Proc::Decode        : SWEAR( sync==Yes && !min_len && !digest            &&  !id                       && +date && files.size()==3 , self ) ; break ; // files = {file,ctx,code}
+			case Proc::Tmp           : SWEAR(              !digest            &&  !id                       && +date                    , self ) ; break ;
+			case Proc::Confirm       : SWEAR(              !digest.has_read() && ( id&&digest.write!=Maybe) && !date                    , self ) ; break ;
+			case Proc::List          : SWEAR( sync==Yes && !digest.has_read() &&  !id                       && +date                    , self ) ; break ;
 			case Proc::DepDirect     :
-			case Proc::DepVerbose    : SWEAR( sync==Yes && !min_len &&                        !id                       && +date                    , self ) ; break ;
-			case Proc::Encode        : SWEAR( sync==Yes &&             !digest            &&  !id                       && +date && files.size()==3 , self ) ; break ; // files = {file,ctx,val }
-			case Proc::Guard         : SWEAR(              !min_len && !digest            &&  !id                       && +date                    , self ) ; break ;
+			case Proc::DepVerbose    : SWEAR( sync==Yes &&                        !id                       && +date                    , self ) ; break ;
+			case Proc::Guard         : SWEAR(              !digest            &&  !id                       && +date                    , self ) ; break ;
 			case Proc::Panic         :
-			case Proc::Trace         : SWEAR(              !min_len && !digest            &&  !id                       && +date && files.size()==1 , self ) ; break ; // files = {txt          }
-			case Proc::Access        : SWEAR(              !min_len &&                       ( id||digest.write!=Maybe) && +date                    , self ) ; break ;
-			case Proc::AccessPattern : SWEAR(              !min_len && !digest.has_read() && (!id&&digest.write!=Maybe) && +date                    , self ) ; break ;
+			case Proc::Trace         : SWEAR(              !digest            &&  !id                       && +date && files.size()==1 , self ) ; break ; // files = {txt}
+			case Proc::Access        : SWEAR(                                    ( id||digest.write!=Maybe) && +date                    , self ) ; break ;
+			case Proc::AccessPattern : SWEAR(              !digest.has_read() && (!id&&digest.write!=Maybe) && +date                    , self ) ; break ;
 		DF}                                                                                                                                                            // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
@@ -101,18 +88,16 @@ struct JobExecRpcReq {
 		if (proc>=Proc::HasFile) ::serdes(s,files       ) ;
 		switch (proc) {
 			case Proc::ChkDeps       :
-			case Proc::Tmp           : ::serdes( s ,                               date ) ; break ;
-			case Proc::Confirm       : ::serdes( s ,           digest.write , id        ) ; break ;
-			case Proc::List          : ::serdes( s ,           digest.write ,      date ) ; break ;
-			case Proc::Decode        : ::serdes( s ,                               date ) ; break ;
+			case Proc::Tmp           : ::serdes( s ,                     date ) ; break ;
+			case Proc::Confirm       : ::serdes( s , digest.write , id        ) ; break ;
+			case Proc::List          : ::serdes( s , digest.write ,      date ) ; break ;
 			case Proc::DepDirect     :
-			case Proc::DepVerbose    : ::serdes( s ,           digest       ,      date ) ; break ;
-			case Proc::Encode        : ::serdes( s , min_len ,                     date ) ; break ;
-			case Proc::Guard         : ::serdes( s ,                               date ) ; break ;
+			case Proc::DepVerbose    : ::serdes( s , digest       ,      date ) ; break ;
+			case Proc::Guard         : ::serdes( s ,                     date ) ; break ;
 			case Proc::Panic         :
-			case Proc::Trace         : ::serdes( s ,                               date ) ; break ;
-			case Proc::Access        : ::serdes( s ,           digest       , id , date ) ; break ;
-			case Proc::AccessPattern : ::serdes( s ,           digest       ,      date ) ; break ;
+			case Proc::Trace         : ::serdes( s ,                     date ) ; break ;
+			case Proc::Access        : ::serdes( s , digest       , id , date ) ; break ;
+			case Proc::AccessPattern : ::serdes( s , digest       ,      date ) ; break ;
 		DF}
 	}
 	JobExecRpcReply mimic_server() && ;
@@ -121,7 +106,6 @@ struct JobExecRpcReq {
 	Bool3                    sync         = No            ; // Maybe means transport as sync (not using fast_report), but not actually sync
 	Comment                  comment      = Comment::None ;
 	CommentExts              comment_exts = {}            ;
-	uint8_t                  min_len      = 0             ;
 	AccessDigest             digest       = {}            ;
 	Id                       id           = 0             ; // used to distinguish flows from different processes when muxed on fast report fd
 	Time::Pdate              date         = {}            ; // access date to reorder accesses during analysis
@@ -137,14 +121,12 @@ struct JobExecRpcReply {
 	// services
 	void chk() const {
 		switch (proc) {
-			case Proc::None       : SWEAR( ok==Maybe && !verbose_infos && !files && !txt ) ; break ;
-			case Proc::ChkDeps    : SWEAR(              !verbose_infos && !files && !txt ) ; break ;
-			case Proc::DepDirect  : SWEAR(              !verbose_infos && !files && !txt ) ; break ;
-			case Proc::DepVerbose : SWEAR( ok==Maybe                   && !files && !txt ) ; break ;
-			case Proc::List       : SWEAR( ok==Maybe && !verbose_infos &&           !txt ) ; break ;
-			case Proc::Decode     :
-			case Proc::Encode     : SWEAR(              !verbose_infos && !files         ) ; break ;
-		DF}                                                                                          // NO_COV
+			case Proc::None       : SWEAR( ok==Maybe && !verbose_infos && !files ) ; break ;
+			case Proc::ChkDeps    : SWEAR(              !verbose_infos && !files ) ; break ;
+			case Proc::DepDirect  : SWEAR(              !verbose_infos && !files ) ; break ;
+			case Proc::DepVerbose : SWEAR( ok==Maybe &&                   !files ) ; break ;
+			case Proc::List       : SWEAR( ok==Maybe && !verbose_infos           ) ; break ;
+		DF}                                                                                  // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;
@@ -153,14 +135,96 @@ struct JobExecRpcReply {
 			case Proc::DepDirect  : ::serdes(s , ok            ) ; break ;
 			case Proc::DepVerbose : ::serdes(s , verbose_infos ) ; break ;
 			case Proc::List       : ::serdes(s , files         ) ; break ;
-			case Proc::Decode     :
-			case Proc::Encode     : ::serdes(s , ok , txt      ) ; break ;
 		DN}
 	}
 	// data
 	Proc                  proc          = Proc::None ;
-	Bool3                 ok            = Maybe      ;                                               // if proc==Decode|Encode|ChkDeps|DepDirect
-	::vector<VerboseInfo> verbose_infos = {}         ;                                               // if proc==DepVerbose                      , same order as deps
-	::vector_s            files         = {}         ;                                               // if proc==List
-	::string              txt           = {}         ;                                               // if proc==Decode|Encode                   , value for Decode, code for Encode
+	Bool3                 ok            = Maybe      ;                                       // if proc==ChkDeps|DepDirect
+	::vector<VerboseInfo> verbose_infos = {}         ;                                       // if proc==DepVerbose                      , same order as deps
+	::vector_s            files         = {}         ;                                       // if proc==List
 } ;
+
+namespace Codec {
+
+	// START_OF_VERSIONING
+	static constexpr char Pfx        [] = PRIVATE_ADMIN_DIR_S "codec/" ; static constexpr size_t PfxSz  = sizeof(Pfx )-1 ; // account for terminating null
+	static constexpr char Infx       [] = "/\t"                        ; static constexpr size_t InfxSz = sizeof(Infx)-1 ; // .
+	static constexpr char LockSfx    [] = "/lock"                      ;
+	static constexpr char ManifestSfx[] = "/manifest"                  ;
+	static constexpr char NewCodesSfx[] = "/new_codes"                 ;
+	static constexpr char DecodeSfx  [] = ".decode"                    ;
+	static constexpr char EncodeSfx  [] = ".encode"                    ;
+	// END_OF_VERSIONING
+
+	struct CodecFile {
+		friend ::string& operator+=( ::string& , CodecFile const& ) ;
+		// statics
+		static bool     s_is_codec      (::string const& node) { return node.starts_with(Pfx)     ; }
+		static ::string s_lock_file     (::string const& file) { return cat(Pfx,file,LockSfx    ) ; }
+		static ::string s_manifest_file (::string const& file) { return cat(Pfx,file,ManifestSfx) ; }
+		static ::string s_new_codes_file(::string const& file) { return cat(Pfx,file,NewCodesSfx) ; }
+		// cxtors & casts
+		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
+		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
+		CodecFile( bool encode , ::string const& f , ::string const& x , ::string const& code_val ) : file{       f } , ctx{       x } {
+			if (encode) _code_val_crc = Hash::Crc(New,code_val) ;
+			else        _code_val_crc =               code_val  ;
+		}
+		CodecFile( bool encode , ::string&& f , ::string&& x , ::string&& code_val ) : file{::move(f)} , ctx{::move(x)} {
+			if (encode) _code_val_crc = Hash::Crc(New,code_val) ;
+			else        _code_val_crc = ::move   (    code_val) ;
+		}
+		CodecFile(::string const& node) ;
+		// accesses
+		bool             is_encode() const { return        _code_val_crc.index()==1 ; }
+		::string  const& code     () const { return get<0>(_code_val_crc)           ; }
+		Hash::Crc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
+		// services
+		::string name() const ;
+		// data
+		::string file ;
+		::string ctx  ;
+	private :
+		::variant<::string/*decode*/,Hash::Crc/*encode*/> _code_val_crc ;
+	} ;
+
+	// this lock ensures correct operation even in case of crash
+	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
+	struct CodecLockedFd : LockedFd {
+		// ctxors & casts
+		CodecLockedFd () = default ;
+		CodecLockedFd ( Fd at , ::string const& file , bool exclusive , Disk::NfsGuard&    ) ;
+		CodecLockedFd (         ::string const& file , bool exclusive , Disk::NfsGuard& ng ) : CodecLockedFd{Fd::Cwd,file,exclusive,ng} {}
+		CodecLockedFd ( Fd at , ::string const& file ,                  Disk::NfsGuard& ng ) : CodecLockedFd{at     ,file,true     ,ng} {}
+		CodecLockedFd (         ::string const& file ,                  Disk::NfsGuard& ng ) : CodecLockedFd{Fd::Cwd,file,true     ,ng} {}
+		~CodecLockedFd() { _close() ; }
+		//
+		CodecLockedFd& operator=(CodecLockedFd&& clfd) {
+			_close() ;
+			static_cast<LockedFd&>(self) = ::move(static_cast<LockedFd&>(clfd     )) ;
+			at                           =                               clfd.at     ;
+			file                         = ::move(                       clfd.file ) ;
+			return self ;
+		}
+		// sevices
+		void _close() ;
+		// data
+		Fd       at   ;
+		::string file ;
+	} ;
+
+	struct Entry {                    // format : "\t<ctx>\t<code>\t<val>" exactly
+		friend ::string& operator+=( ::string& , Entry const& ) ;
+		// cxtors & casts
+		Entry() = default ;
+		Entry( ::string const& x , ::string const& c , ::string const& v ) : ctx{x} , code{c} , val{v} {}
+		Entry( ::string const& line                                      ) ;
+		// services
+		::string line(bool with_nl=false) const ;
+		// data
+		::string ctx  ;
+		::string code ;
+		::string val  ;
+	} ;
+
+}

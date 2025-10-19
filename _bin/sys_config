@@ -187,9 +187,12 @@ fi
 # LD_AUDIT (HAS_LD_AUDIT)
 #
 case $ID/$VERSION_ID in
-	ubuntu/20.04) HAS_LD_AUDIT=0 ;;                      # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
-	centos/7    ) HAS_LD_AUDIT=0 ;;                      # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
-	*           )
+	ubuntu/20.04      ) HAS_LD_AUDIT=0 ;;                   # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
+	centos/7          ) HAS_LD_AUDIT=0 ;;                   # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
+	opensuse-leap/15.5) HAS_LD_AUDIT=0 ;;                   # Suse    fix : version 15.5 "almost" supports LD_AUDIT, but it is missing calls to a few libc entries such as fstatat
+	sled/15.5         ) HAS_LD_AUDIT=0 ;;                   # may experience the same problem as with opensuse
+	sles/15.5         ) HAS_LD_AUDIT=0 ;;                   # .
+	*                 )
 		cat <<-"EOF" >audited.c
 			#include <stdio.h>
 			int main() { printf("0") ; }
@@ -293,7 +296,7 @@ esac
 #
 # OS (OS_ID)
 #
-OS_ID="$ID-$VERSION_ID"
+OS_ID="$ID/$VERSION_ID"
 
 #
 # PATH (STD_PATH)
@@ -310,7 +313,7 @@ cat <<"EOF" >pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL,nullptr,nullptr,nullptr) ;
 	}
 EOF
-HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2_compile is available in lib
+HAS_PCRE=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 )             # check if pcre2_compile is available in lib
 cat <<"EOF" >pcre.cc
 	#define PCRE2_CODE_UNIT_WIDTH 8
 	#include <pcre2.h>

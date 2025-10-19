@@ -137,7 +137,7 @@ namespace Hash {
 	}
 
 	Crc Xxh::digest() const {
-		if ( is_lnk==Maybe && !seen_data ) return Crc(0)                                   ; // reserve 0 as unknown
+		if ( is_lnk==Maybe && !seen_data ) return {}                                       ;
 		else                               return { XXH3_64bits_digest(&_state) , is_lnk } ;
 	}
 	Xxh& Xxh::operator+=(::string_view sv) {

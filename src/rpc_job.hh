@@ -49,11 +49,11 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 enum class CacheHitInfo : uint8_t {
 	Hit                             // cache hit
 ,	Match                           // cache match, but not hit (some deps are missing, hence dont know if hit or miss)
-,	NoRule
 ,	BadDeps
-,	BadCodec
+,	NoRule
+,	NoCache
 // aliases
-,	Miss = NoRule                   // >=Miss means cache miss
+,	Miss = BadDeps                  // >=Miss means cache miss
 } ;
 // END_OF_VERSIONING
 
@@ -92,8 +92,6 @@ enum class JobMngtProc : uint8_t {
 ,	DepVerbose
 ,	LiveOut
 ,	AddLiveOut // report missing live_out info (Req) or tell job_exec to send missing live_out info (Reply)
-,	Decode
-,	Encode
 ,	Heartbeat
 ,	Kill
 } ;
@@ -256,6 +254,7 @@ enum class Status : uint8_t { // result of job execution
 ,	CacheMatch                // cache just reported deps, not result
 ,	BadTarget                 // target was not correctly initialized or simultaneously written by another job
 ,	Ok                        // job execution ended successfully
+,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 ,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
 ,	Err                       // job execution ended in error
 //
@@ -279,6 +278,7 @@ static constexpr ::amap<Status,::pair<Bool3/*ok*/,bool/*lost*/>,N<Status>> Statu
 ,	{ Status::CacheMatch   , {Maybe,false} }
 ,	{ Status::BadTarget    , {Maybe,false} }
 ,	{ Status::Ok           , {Yes  ,false} }
+,	{ Status::RunLoop      , {No   ,false} }
 ,	{ Status::SubmitLoop   , {No   ,false} }
 ,	{ Status::Err          , {No   ,false} }
 }} ;
@@ -588,11 +588,12 @@ struct TargetDigest {
 	// END_OF_VERSIONING
 } ;
 
-template<class Key=::string> struct JobDigest {                                                                          // Key may be ::string or Node
+template<class Key=::string> struct JobDigest {                                            // Key may be ::string or Node
 	// cxtors & casts
 	template<class KeyTo> operator JobDigest<KeyTo>() const {
 		JobDigest<KeyTo> res {
 			.upload_key     = upload_key
+		,	.refresh_codecs = refresh_codecs
 		,	.exec_time      = exec_time
 		,	.max_stderr_len = max_stderr_len
 		,	.cache_idx      = cache_idx
@@ -611,25 +612,30 @@ template<class Key=::string> struct JobDigest {                                 
 		return res ;
 	}
 	void chk(bool for_cache=false) const ;
+	// services
+	void cache_cleanup() ;
 	// data
 	// START_OF_VERSIONING
 	uint64_t                 upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
-	::vmap<Key,DepDigest   > deps           = {}          ;                                                              // INVARIANT : sorted in first access order
+	::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
+	::vector_s               refresh_codecs = {}          ;
 	Time::CoarseDelay        exec_time      = {}          ;
 	uint16_t                 max_stderr_len = {}          ;
 	CacheIdx                 cache_idx      = {}          ;
 	Status                   status         = Status::New ;
-	bool                     has_msg_stderr = false       ;                                                              // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-	bool                     incremental    = false       ;                                                              // if true <= job was run with existing incremental targets
+	bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     incremental    = false       ;                                // if true <= job was run with existing incremental targets
 	// END_OF_VERSIONING
 } ;
-template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {                                    // START_OF_NO_COV
-	/**/               os << "JobDigest("                                                                              ;
-	if (jd.upload_key) os << to_hex(jd.upload_key) <<','                                                               ;
-	/**/               os << jd.status << (jd.has_msg_stderr?",E":"") <<','<< jd.targets.size() <<','<< jd.deps.size() ;
-	return             os << ')'                                                                                       ;
-}                                                                                                                        // END_OF_NO_COV
+template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {      // START_OF_NO_COV
+	/**/                    os <<"JobDigest("<< jd.status                                ;
+	if ( jd.upload_key    ) os <<','<<          to_hex(jd.upload_key)                    ;
+	if ( jd.has_msg_stderr) os <<','<<          'E'                                      ;
+	/**/                    os <<','<<          jd.targets.size() <<','<< jd.deps.size() ;
+	if (+jd.refresh_codecs) os <<','<<          jd.refresh_codecs                        ;
+	return                  os << ')'                                                    ;
+}                                                                                          // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 	if constexpr (::is_same_v<Key,::string>) { //!                       ext_ok
 		for( auto const& [t,_] : targets ) throw_unless( Disk::is_canon(t,false) , "bad target" ) ;
@@ -644,11 +650,6 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 
 struct JobInfo ;
 
-//                file     ctx      code->val
-using CodecMap  = ::map_s <::map_s <::map_ss >> ; // these are compatible when serializing
-using CodecUmap = ::umap_s<::umap_s<::umap_ss>> ; // .
-using CodecVmap = ::vmap_s<::vmap_s<::vmap_ss>> ; // .
-
 struct Zlvl {
 	friend ::string& operator+=( ::string& , Zlvl ) ;
 	bool operator+() const { return +tag && lvl ; }
@@ -662,15 +663,13 @@ namespace Caches {
 		using Sz  = Disk::DiskSz ;
 		using Tag = CacheTag     ;
 		struct Match {
-			CacheHitInfo        hit_info          = CacheHitInfo::NoRule ;
-			::string            key               = {}                   ;                            // if hit_info==Hit   : an id to easily retrieve matched results when calling download
-			::vmap_s<DepDigest> deps              = {}                   ;                            // if hit_info==Match : deps that need to be done before answering hit/miss
-			CodecMap            missing_codec_map = {}                   ;                            // if hit_info==Hit, codec entries to set (Hit)
+			CacheHitInfo        hit_info = CacheHitInfo::NoRule ;
+			::string            key      = {}                   ;                                     // if hit_info==Hit   : an id to easily retrieve matched results when calling download
+			::vmap_s<DepDigest> deps     = {}                   ;                                     // if hit_info==Match : deps that need to be done before answering hit/miss
 		} ;
 		struct Hdr {
 			// START_OF_VERSIONING
 			::vector<Sz> target_szs ;
-			CodecMap     codec_map  ;
 			// END_OF_VERSIONING
 		} ;
 		// statics
@@ -680,12 +679,12 @@ namespace Caches {
 		static ::vector<Cache*> s_tab ;
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
-		::optional<Match>        match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
-		::pair<JobInfo,CodecMap> download( ::string const& job , ::string const& key , bool no_incremental , Disk::NfsGuard& ) ;
-		void                     commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
-		void                     dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
+		::optional<Match> match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
+		JobInfo           download( ::string const& job , ::string const& key , bool no_incremental , Disk::NfsGuard& ) ;
+		void              commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
+		void              dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		//
-		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , CodecMap&& codec_map , Zlvl zlvl={} ) ;
+		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl={} ) ;
 		// default implementation : no caching, but enforce protocol
 		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false ) {}
 		virtual ::vmap_ss descr (                                            ) { return {}        ; }
@@ -975,8 +974,6 @@ struct JobMngtRpcReq : JobRpcReq {
 			case Proc::ChkDeps    : ::serdes( s , fd , targets , deps                              ) ; break ;
 			case Proc::DepDirect  :
 			case Proc::DepVerbose : ::serdes( s , fd ,           deps                              ) ; break ;
-			case Proc::Decode     : ::serdes( s , fd ,                  ctx , file , txt           ) ; break ;
-			case Proc::Encode     : ::serdes( s , fd ,                  ctx , file , txt , min_len ) ; break ;
 		DF}                                                                                                    // NO_COV
 	}
 	// data
@@ -984,10 +981,7 @@ struct JobMngtRpcReq : JobRpcReq {
 	Fd                     fd      = {}         ;                                                              // fd to which reply must be forwarded
 	::vmap_s<TargetDigest> targets = {}         ;                                                              // proc==ChkDeps
 	::vmap_s<DepDigest   > deps    = {}         ;                                                              // proc==ChkDeps|DepDirect|DepVerbose
-	::string               ctx     = {}         ;                                                              // proc==        Decode|Encode
-	::string               file    = {}         ;                                                              // proc==        Decode|Encode
-	::string               txt     = {}         ;                                                              // proc==LiveOut|Decode|Encode
-	uint8_t                min_len = 0          ;                                                              // proc==               Encode
+	::string               txt     = {}         ;                                                              // proc==LiveOut
 } ;
 
 struct JobMngtRpcReply {
@@ -1002,23 +996,20 @@ struct JobMngtRpcReply {
 			case Proc::None       :
 			case Proc::Kill       :
 			case Proc::Heartbeat  :
-			case Proc::AddLiveOut :                                                       break ;
-			case Proc::DepDirect  : ::serdes( s , fd , ok                             ) ; break ;
-			case Proc::DepVerbose : ::serdes( s , fd ,                  verbose_infos ) ; break ;
+			case Proc::AddLiveOut :                                      break ;
+			case Proc::DepDirect  : ::serdes( s , fd , ok            ) ; break ;
+			case Proc::DepVerbose : ::serdes( s , fd , verbose_infos ) ; break ;
 			case Proc::ChkDeps    :
-			case Proc::ChkTargets : ::serdes( s , fd , ok , txt                       ) ; break ;
-			case Proc::Decode     :
-			case Proc::Encode     : ::serdes( s , fd , ok , txt , crc                 ) ; break ;
-		DF}                                                                                       // NO_COV
+			case Proc::ChkTargets : ::serdes( s , fd , ok , txt      ) ; break ;
+		DF}                                                                      // NO_COV
 	}
 	// data
 	Proc                  proc          = {}    ;
 	SeqId                 seq_id        = 0     ;
-	Fd                    fd            = {}    ; // proc == ChkDeps|DepDirect|DepVerbose|Decode|Encode , fd to which reply must be forwarded
-	::vector<VerboseInfo> verbose_infos = {}    ; // proc ==                   DepVerbose
-	::string              txt           = {}    ; // proc == ChkDeps|                     Decode|Encode , reason for ChkDeps, value for Decode, code for Encode
-	Crc                   crc           = {}    ; // proc ==                              Decode|Encode , crc of txt
-	Bool3                 ok            = Maybe ; // proc == ChkDeps|DepDirect|           Decode|Encode , if No <=> deps in error, if Maybe <=> deps not ready
+	Fd                    fd            = {}    ;                                // proc == ChkDeps|DepDirect|DepVerbose , fd to which reply must be forwarded
+	::vector<VerboseInfo> verbose_infos = {}    ;                                // proc ==                   DepVerbose
+	::string              txt           = {}    ;                                // proc == ChkDeps|                     , reason for ChkDeps
+	Bool3                 ok            = Maybe ;                                // proc == ChkDeps|DepDirect            , if No <=> deps in error, if Maybe <=> deps not ready
 } ;
 
 struct SubmitAttrs {
@@ -1094,35 +1085,6 @@ struct JobInfo {
 	::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps
 	// END_OF_VERSIONING
 } ;
-
-//
-// codec
-//
-
-namespace Codec {
-
-	struct Split {
-		// cxtors & casts
-		Split(::string const& node) ;
-		// data
-		::string  file    ;
-		::string  ctx     ;
-		bool      encode  = false/*garbage*/ ;
-		::string  code    ;                    // if !encode
-		Hash::Crc val_crc ;                    // if  encode
-	} ;
-
-	// START_OF_VERSIONING
-	static constexpr char CodecPfxS[] = PRIVATE_ADMIN_DIR_S "codec/" ;
-	// END_OF_VERSIONING
-
-	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) ;
-	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val  ) ;
-
-	bool     is_codec(::string const& node) ;
-	::string get_file(::string const& node) ; // node has been obtained from mk_decode_node or mk_encode_node
-
-}
 
 //
 // implementation

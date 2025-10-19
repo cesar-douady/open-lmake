@@ -69,8 +69,8 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		::string tmp_trace_file = cat(trace_dir_s,::to_string(Pdate(New).nsec_in_s()),'-',getpid()) ;
 		mk_dir_s(trace_dir_s) ;
 		//
-		_s_cur_sz = 4096                                                                            ;
-		_s_fd     = { tmp_trace_file , {.flags=O_RDWR|O_TRUNC|O_CREAT,.mod=0666} , true/*no_std*/ } ;
+		_s_cur_sz = 4096                                                                       ;
+		_s_fd     = { tmp_trace_file , {O_RDWR|O_TRUNC|O_CREAT,0666/*mod*/} , true/*no_std*/ } ;
 		//
 		throw_unless( +_s_fd                                                        , "cannot create temporary trace file ",tmp_trace_file," : ",StrErr() ) ;
 		throw_unless( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )==0 , "cannot create trace file "          ,*g_trace_file ," : ",StrErr() ) ;

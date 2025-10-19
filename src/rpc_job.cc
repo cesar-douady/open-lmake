@@ -104,7 +104,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 				}
 				if (quarantine) {
 					::string qf = QuarantineDirS+f ;
-					if (::rename( nfs_guard.rename(f).c_str() , dir_guard(qf).c_str() )!=0) {
+					if (::rename( nfs_guard.update(f).c_str() , dir_guard(qf).c_str() )!=0) {
 						unlnk( qf , true/*dir_ok*/ ) ;                                                                         // try to unlink, in case it is a dir
 						if (::rename( f.c_str() , qf.c_str() )!=0) throw "cannot quarantine "+f ;                              // and retry
 					}
@@ -601,7 +601,7 @@ namespace Caches {
 		}
 	}
 
-	::pair<JobInfo,CodecMap> Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard& repo_nfs_guard ) {
+	JobInfo Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard& repo_nfs_guard ) {
 		Trace trace("Cache::download",key) ;
 		//
 		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key ) ;
@@ -633,12 +633,12 @@ namespace Caches {
 				if (tag==FileTag::None) try { unlnk(           tn  , false ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
 				else                          unlnk( dir_guard(tn) , true  ) ;
 				switch (tag) {
-					case FileTag::None  :                                                                                                 break ;
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(hdr.target_szs[ti]) )                        ; break ;
-					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666} ) ; break ;
+					case FileTag::None  :                                                                                            break ;
+					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(hdr.target_szs[ti]) )                   ; break ;
+					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,0666/*mod*/} ) ; break ;
 					case FileTag::Exe   :
 					case FileTag::Reg   : {
-						AcFd fd { tn , { .flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , .mod=mode_t(tag==FileTag::Exe?0777:0666) } } ;
+						AcFd fd { tn , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;
 						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
 						else      trace("no_data_to",tn   ) ;                                               // empty exe are Exe, not Empty
 					} break ;
@@ -648,7 +648,7 @@ namespace Caches {
 			end.end_date = New ;                                                                            // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
-			return { ::move(job_info) , ::move(hdr.codec_map) } ;
+			return job_info ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
 			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                   // clean up partial job
@@ -656,7 +656,7 @@ namespace Caches {
 		}
 	}
 
-	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , CodecMap&& codec_map , Zlvl zlvl ) {
+	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) {
 		Trace trace("DirCache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
@@ -666,7 +666,6 @@ namespace Caches {
 			tgts_sz += fi.sz ;
 			hdr.target_szs.push_back(fi.sz) ;
 		}
-		hdr.codec_map = ::move(codec_map) ;
 		//
 		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
 		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)              ;
@@ -757,7 +756,7 @@ namespace Caches {
 	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",StrErr()) ; }
 	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",StrErr()) ; }
 
-	static void _mount_bind( ::string const& dst , ::string const& src ) {                                // src and dst may be files or dirs
+	static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
 		Trace trace("_mount_bind",dst,src) ;
 		throw_unless( ::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src," onto ",dst," : ",StrErr() ) ;
 	}
@@ -819,7 +818,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 		if ((dst_ok=+cpy(dst,src))) deps.emplace_back(dst,MountAction::Write) ;
 		else                        dst_ok = false ;
 	} else {
-		AcFd fd { dir_guard(dst) , true/*err_ok*/ , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} } ;
+		AcFd fd { dir_guard(dst) , true/*err_ok*/ , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
 		if ((dst_ok=+fd)) deps.emplace_back(dst,MountAction::Write) ;
 	}
 	return dst_ok ;
@@ -1000,12 +999,12 @@ bool JobSpace::enter(
 		for( ::string const& f : top_lvls ) {
 			::string src_f     = (chroot_dir_s|"/"s) + f ;
 			::string private_f = work_root_s         + f ;
-			switch (FileInfo(src_f).tag()) {                                                                                                                              // exclude weird files
+			switch (FileInfo(src_f).tag()) {                                                                                                                         // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : AcFd    (           private_f ,true/*err_ok*/,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}) ; _mount_bind(private_f,src_f) ; break ; // create file
-				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                                           ) ; _mount_bind(private_f,src_f) ; break ; // create dir
-				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)                                           ) ;                                break ; // copy symlink
+				case FileTag::Exe   : AcFd    (           private_f ,true/*err_ok*/,{O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/}) ; _mount_bind(private_f,src_f) ; break ; // create file
+				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                                      ) ; _mount_bind(private_f,src_f) ; break ; // create dir
+				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)                                      ) ;                                break ; // copy symlink
 			DN}
 		}
 		if (must_create_lmake) mk_dir_s(work_root+lmake_view_s     ) ;
@@ -1157,6 +1156,22 @@ void JobStartRpcReq::chk(bool for_cache) const {
 }
 
 //
+// JobDigest
+//
+
+template<> void JobDigest<>::cache_cleanup() {
+	upload_key     = {} ;                      // no recursive info
+	cache_idx      = 0  ;                      // .
+	refresh_codecs = {} ;                      // execution dependent
+	for( auto& [_,td] : targets ) {
+		SWEAR(!td.pre_exist) ;                 // else cannot be a candidate for upload
+		td.sig = td.sig.tag() ;                // forget date, just keep tag
+	}
+	for( auto& [_,dd] : deps )
+		dd.hot = false ;                       // execution dependent
+}
+
+//
 // JobEndRpcReq
 //
 
@@ -1182,15 +1197,8 @@ void JobStartRpcReq::chk(bool for_cache) const {
 
 void JobEndRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
-	digest.cache_idx  = 0  ;               // no recursive info
-	digest.upload_key = {} ;               // .
-	phy_tmp_dir_s     = {} ;               // execution dependent
-	for( auto& [_,td] : digest.targets ) {
-		SWEAR(!td.pre_exist) ;             // else cannot be a candidate for upload
-		td.sig = td.sig.tag() ;            // forget date, just keep tag
-	}
-	for( auto& [_,dd] : digest.deps )
-		dd.hot = false ;                   // execution dependent
+	digest.cache_cleanup() ;
+	phy_tmp_dir_s = {} ;     // execution dependent
 }
 
 void JobEndRpcReq::chk(bool for_cache) const {
@@ -1328,32 +1336,27 @@ void JobStartRpcReply::chk(bool for_cache) const {
 // JobMngtRpcReq
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {                                                                // START_OF_NO_COV
-	/**/                               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
-	switch (jmrr.proc) {
-		case JobMngtProc::LiveOut    : os <<','<< jmrr.txt.size() ;                             break ;
-		case JobMngtProc::ChkDeps    : os <<','<< jmrr.targets <<','<<jmrr.deps ;               break ;
-		case JobMngtProc::DepVerbose : os <<','<< jmrr.deps ;                                   break ;
-		case JobMngtProc::Encode     : os <<','<< jmrr.min_len ;                                [[fallthrough]] ;
-		case JobMngtProc::Decode     : os <<','<< jmrr.file <<','<< jmrr.ctx <<','<< jmrr.txt ; break ;
-	DN}
-	return                             os <<')' ;
-}                                                                                                                                 // END_OF_NO_COV
+::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {                                                // START_OF_NO_COV
+	/**/               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
+	if (+jmrr.fd     ) os <<','<< jmrr.fd                                                                       ;
+	if (+jmrr.targets) os <<','<< jmrr.targets                                                                  ;
+	if (+jmrr.deps   ) os <<','<< jmrr.deps                                                                     ;
+	if (+jmrr.txt    ) os <<','<< jmrr.txt                                                                      ;
+	return             os <<')'                                                                                 ;
+}                                                                                                                 // END_OF_NO_COV
 
 //
 // JobMngtRpcReply
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {           // START_OF_NO_COV
-	/**/                               os << "JobMngtRpcReply(" << jmrr.proc ;
-	switch (jmrr.proc) {
-		case JobMngtProc::ChkDeps    : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<<                  jmrr.ok ; break ;
-		case JobMngtProc::DepVerbose : os <<','<< jmrr.fd <<','<< jmrr.verbose_infos                        ; break ;
-		case JobMngtProc::Decode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
-		case JobMngtProc::Encode     : os <<','<< jmrr.fd <<','<< jmrr.txt <<','<< jmrr.crc <<','<< jmrr.ok ; break ;
-	DN}
-	return                             os << ')' ;
-}                                                                              // END_OF_NO_COV
+::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {                     // START_OF_NO_COV
+	/**/                     os << "JobMngtRpcReply(" << jmrr.proc <<','<< jmrr.seq_id ;
+	if (+jmrr.fd           ) os <<','<< jmrr.fd                                        ;
+	if (+jmrr.verbose_infos) os <<','<< jmrr.verbose_infos                             ;
+	if (+jmrr.txt          ) os <<','<< jmrr.txt                                       ;
+	/**/                     os <<','<< jmrr.ok                                        ;
+	return                   os <<')'                                                  ;
+}                                                                                        // END_OF_NO_COV
 
 //
 // SubmitAttrs
@@ -1455,40 +1458,4 @@ void JobInfo::chk(bool for_cache) const {
 	} else {
 		throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size() , "incoherent deps" ) ;
 	}
-}
-
-//
-// codec
-//
-
-namespace Codec {
-
-	// START_OF_VERSIONING
-	::string mk_decode_node( ::string const& file , ::string const& ctx , ::string const& code ) {
-		return cat(CodecPfxS,"f-",mk_printable<'/'>(file),"/x-",mk_printable<'/'>(ctx),"/d-",mk_printable(code)) ;
-	}
-	::string mk_encode_node( ::string const& file , ::string const& ctx , ::string const& val ) {
-		return cat(CodecPfxS,"f-",mk_printable<'/'>(file),"/x-",mk_printable<'/'>(ctx),"/c-",Crc(New,val).hex()) ;
-	}
-	// END_OF_VERSIONING
-
-	::string get_file(::string const& node) {
-		return parse_printable<'/'>(node,::ref(sizeof(CodecPfxS)-1+2)) ; // account for terminating null in CodecPfx and "f-" prefix
-	}
-
-	bool is_codec(::string const& node) {
-		return node.starts_with(CodecPfxS) ;
-	}
-
-	Split::Split(::string const& node) {
-		size_t pos = sizeof(CodecPfxS)-1 ; // account for terminating null in CodecPfx
-		//
-		SWEAR( node[pos]=='f'&&node[pos+1]=='-' , node ) ; pos += 2 ; file = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
-		SWEAR( node[pos]=='x'&&node[pos+1]=='-' , node ) ; pos += 2 ; ctx  = parse_printable<'/'>(node,pos) ; SWEAR( node[pos]=='/' , node ) ; pos++ ;
-		switch (node[pos]) {
-			case 'c' : SWEAR( node[pos]=='c'&&node[pos+1]=='-' , node ) ; pos += 2 ; encode = true  ; val_crc = Crc::s_from_hex(substr_view(node,pos)) ; break ;
-			case 'd' : SWEAR( node[pos]=='d'&&node[pos+1]=='-' , node ) ; pos += 2 ; encode = false ; code    = parse_printable(            node,pos ) ; break ;
-		DF}
-	}
-
 }

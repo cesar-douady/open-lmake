@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Oct  2 20:11:13 2025 -->
+<!-- CreationDate: Wed Oct 15 21:22:10 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -632,7 +632,19 @@ avoiding the intermixing problem.</p>
 to all jobs.</p>
 
 <p style="margin-left:9%;"><b>-m</b> <i>count</i>,
-<b>--max-submits</b>=<i>count</i></p>
+<b>--max-runs</b>=<i>count</i></p>
+
+<p style="margin-left:18%;">Ask <b>lmake</b> to limit
+number of runs for any job to this number. This constraint
+must be enforced together with the <b>max_runs</b> rule
+attribute, i.e. the min of these 2 constraints is used. This
+is useful to observe a job while it is supposed to
+rerun.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Contrarily to
+the <b>--max-submits</b> options, caches accesses are not
+counted when counting runs. <b><br>
+-M</b> <i>count</i>, <b>--max-submits</b>=<i>count</i></p>
 
 <p style="margin-left:18%;">Ask <b>lmake</b> to limit
 number of submits for any job to this number. This
@@ -641,7 +653,10 @@ constraint must be enforced together with the
 constraints is used. This is useful to observe a job while
 it is supposed to rerun.</p>
 
-<p style="margin-left:9%;"><b>-r</b> <i>count</i>,
+<p style="margin-left:9%; margin-top: 1em">Contrarily to
+the <b>--max-runs</b> options, caches accesses are counted
+when counting submits. <b><br>
+-r</b> <i>count</i>,
 <b>--retry-on-error</b>=<i>count</i></p>
 
 <p style="margin-left:18%;">Ask <b>lmake</b> to retry jobs

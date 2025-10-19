@@ -97,20 +97,20 @@ void Fd::write(::string_view data) const {
 }
 
 size_t Fd::read_to(::span<char> dst) const {
-	for( size_t cnt=0 ; cnt<dst.size() ;) {
-		ssize_t c = ::read( fd , &dst[cnt] , dst.size()-cnt ) ; throw_unless( c>=0 , "cannot read ",dst.size()," bytes from fd ",fd ) ;
-		if (c==0) return cnt ;
-		cnt += c ;
+	for( size_t pos=0 ; pos<dst.size() ;) {
+		ssize_t cnt = ::read( fd , &dst[pos] , dst.size()-pos ) ; throw_unless( cnt>=0 , "cannot read ",dst.size()," bytes from fd ",fd ) ;
+		if (cnt==0) return pos ;
+		pos += cnt ;
 	}
 	return dst.size() ;
 }
 
-::vector_s Fd::read_lines() const {
-	if (!self) return {} ;
-	::string content = read( Npos/*sz*/ ) ;
-	if (!content            ) return {} ;
-	if (content.back()=='\n') content.pop_back() ;
-	return split(content,'\n') ;
+::vector_s Fd::read_lines(bool partial_ok) const {
+	/**/                        if (!self               ) return {} ;
+	::string content = read() ; if (!content            ) return {} ;
+	                            if (content.back()=='\n') content.pop_back() ;
+	                            else                      throw_if( !partial_ok , "partial last line" ) ;
+	/**/                                                  return split(content,'\n') ;
 }
 
 //

@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
 #include "idxed.hh"
 
@@ -13,6 +13,7 @@ enum class JobReport : uint8_t {
 	Speculative
 ,	Steady
 ,	Failed
+,	RunLoop
 ,	SubmitLoop
 ,	Done       // <=Done means job was run and reported a status
 ,	Completed
@@ -357,8 +358,10 @@ namespace Engine {
 		Pdate                eta            ;                     // Estimated Time of Arrival
 		Delay                ete            ;                     // Estimated Time Enroute
 		::umap<Rule,JobIdx>  ete_n_rules    ;                     // number of jobs participating to stats.ete with exec_time from rule
+		::set_s              refresh_codecs ;                     // codec files that must be refreshed at end of execution
+		uint16_t             n_runs         = 0                 ;
+		uint16_t             n_submits      = 0                 ;
 		uint8_t              n_retries      = 0                 ;
-		uint8_t              n_submits      = 0                 ;
 		uint8_t              nice           = -1                ; // -1 means not specified (legal values are between 0 and 20)
 		CacheMethod          cache_method   = CacheMethod::Dflt ;
 		bool                 has_backend    = false             ;

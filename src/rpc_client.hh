@@ -92,6 +92,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	Key                        // if proc==Debug   , key used to look up into config.debug to find helper module used to debug
 ,	LiveOut                    // if proc==Make    , generate live output for last job
 ,	Local                      // if proc==Make    , lauch all jobs locally
+,	MaxRuns                    // if proc==Make    , max run    count, on top of rule prescription
 ,	MaxSubmits                 // if proc==Make    , max submit count, on top of rule prescription
 ,	Nice                       // if proc==Make    , dont execute, just generate files
 ,	NoExec                     // if proc==Debug   , dont execute, just generate files

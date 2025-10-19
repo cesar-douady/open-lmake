@@ -449,14 +449,15 @@ class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
 	#,	'BE_SLURM'   : 'src/lmakeserver/backends/slurm.o' # XXX : add slurm compilation
 	#,	'BE_SGE'     : 'src/lmakeserver/backends/sge.o'   # XXX : add sge compilation
 	,	'CMD'        : 'src/lmakeserver/cmd.o'
-	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
 	,	'CONFIG'     : 'src/lmakeserver/config.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
+	,	'JOB_DATA'   : 'src/lmakeserver/job_data.o'
 	,	'MAKEFILES'  : 'src/lmakeserver/makefiles.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'
 	,	'REQ'        : 'src/lmakeserver/req.o'
 	,	'RULE'       : 'src/lmakeserver/rule.o'
+	,	'RULE_DATA'  : 'src/lmakeserver/rule_data.o'
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/lmakeserver/main.o'
 	}
@@ -476,13 +477,14 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	,	'DIR_CACHE'  : 'src/caches/dir_cache.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'
-	,	'CODEC'      : 'src/lmakeserver/codec.o'
 	,	'GLOBAL'     : 'src/lmakeserver/global.o'
 	,	'CONFIG'     : 'src/lmakeserver/config.o'
 	,	'JOB'        : 'src/lmakeserver/job.o'
+	,	'JOB_DATA'   : 'src/lmakeserver/job_data.o'
 	,	'NODE'       : 'src/lmakeserver/node.o'
 	,	'REQ'        : 'src/lmakeserver/req.o'
 	,	'RULE'       : 'src/lmakeserver/rule.o'
+	,	'RULE_DATA'  : 'src/lmakeserver/rule_data.o'
 	,	'STORE'      : 'src/lmakeserver/store.o'
 	,	'MAIN'       : 'src/ldump.o'
 	}
@@ -491,9 +493,10 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
 	deps = {
-		'RPC_JOB'   : 'src/rpc_job.o'
-	,	'DIR_CACHE' : 'src/caches/dir_cache.o'
-	,	'MAIN'      : 'src/ldump_job.o'
+		'RPC_JOB'      : 'src/rpc_job.o'
+	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
+	,	'DIR_CACHE'    : 'src/caches/dir_cache.o'
+	,	'MAIN'         : 'src/ldump_job.o'
 	}
 	need_compress = True
 

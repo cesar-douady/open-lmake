@@ -20,35 +20,37 @@ template<class I,uint8_t NGuardBits_=0> struct Idxed {
 	static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 	// statics
 private :
-	static constexpr void _s_chk(Idx idx) { swear_prod( !(idx&~lsb_msk(NValBits)) , "index overflow" ) ; }
+	static constexpr void _s_chk(Idx idx) { swear_prod( !(idx&~lsb_msk(NValBits)) , "index overflow : ",idx ) ; }
 	// cxtors & casts
 public :
 	constexpr Idxed() = default ;
-	constexpr Idxed(Idx i) : _idx{i} { _s_chk(i) ; }                                     // ensure no index overflow
+	constexpr Idxed(Idx i) : val{i} { _s_chk(i) ; }                                      // ensure no index overflow
 	// accesses
-	constexpr Idx operator+() const { return _idx&lsb_msk(NValBits) ; }
+	constexpr bool              operator== (Idxed other) const { return +self== +other        ; }
+	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other        ; }
+	constexpr Idx               operator+  (           ) const { return val&lsb_msk(NValBits) ; }
 	//
 	void clear() { self = Idxed{} ; }
 	//
-	constexpr bool              operator== (Idxed other) const { return +self== +other ; }
-	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other ; }
-	//
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return Idx(_idx>>(LSB+NValBits))&lsb_msk<Idx>(W) ; }
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       {
-		_idx =
-			Idx( _idx & ~(     lsb_msk<Idx>(W) <<(LSB+NValBits)) )
-		|	Idx(          (val&lsb_msk<Idx>(W))<<(LSB+NValBits)  )
+	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx>-(NGuardBits>0) ) Idx  side    (     ) const { return Idx(val>>(LSB+NValBits))&lsb_msk<Idx>(W) ; }
+	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx>-(NGuardBits>0) ) void set_side(Idx v)       {
+		val =
+			Idx( val & ~(   lsb_msk<Idx>(W) <<(LSB+NValBits)) )
+		|	Idx(         (v&lsb_msk<Idx>(W))<<(LSB+NValBits)  )
 		;
 	}
 	//services
 	size_t hash() const { return +self ; }
 	// data
-private :
-	Idx _idx = 0 ;
+	Idx val = 0 ;
 } ;
 template<class T> concept IsIdxed = T::IsIdxed && sizeof(T)==sizeof(typename T::Idx) ;
 //
-template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) { return os<<+i ; } // NO_COV
+template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) {
+	/**/                                          os <<     +i                                  ;
+	if constexpr (I::NGuardBits>1) if (i.val!=+i) os <<'+'<< i.template side<I::NGuardBits-1>() ;
+	return                                        os ;
+} // NO_COV
 
 //
 // Idxed2
@@ -67,39 +69,30 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	//
 	template<class T> static constexpr bool IsA    = ::is_base_of_v<A,T> && ( ::is_base_of_v<B,A> || !::is_base_of_v<B,T> ) ; // ensure T does not derive independently from both A & B
 	template<class T> static constexpr bool IsB    = ::is_base_of_v<B,T> && ( ::is_base_of_v<A,B> || !::is_base_of_v<A,T> ) ; // .
-	template<class T> static constexpr bool IsAOrB = IsA<T> || IsB<T> ;
+	template<class T> static constexpr bool IsAOrB = IsA<T> || IsB<T>                                                       ;
 	//
 	// cxtors & casts
 	constexpr Idxed2() = default ;
-	constexpr Idxed2(A a) : _val{SIdx( +a)} {}
-	constexpr Idxed2(B b) : _val{SIdx(-+b)} {}
+	constexpr Idxed2(A a) : _val{SIdx( a.val)} {}
+	constexpr Idxed2(B b) : _val{SIdx(-b.val)} {}
 	//
 	template<class T> requires(IsAOrB<T>) operator T() const {
 		SWEAR(is_a<T>()) ;
-		if (IsA<T>) return T(  _val  & lsb_msk(NValBits)) ;
-		else        return T((-_val) & lsb_msk(NValBits)) ;
+		if (IsA<T>) return T( _val) ;
+		else        return T(-_val) ;
 	}
 	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T const&() const { SWEAR(is_a<T>()) ; return *::launder(reinterpret_cast<T const*>(this)) ; }
 	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return *::launder(reinterpret_cast<T      *>(this)) ; }
 	//
 	void clear() { self = Idxed2() ; }
 	// accesses
+	constexpr bool              operator== (Idxed2 other) const { return +self== +other               ; }
+	constexpr ::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other               ; }
+	constexpr SIdx              operator+  (            ) const { return _val<<NGuardBits>>NGuardBits ; }
+	//
 	template<class T> requires(IsAOrB<T>) bool is_a() const {
-		if (IsA<T>) return !(  _val & (SIdx(1)<<SIdx(NValBits-1)) ) ;
-		else        return !( -_val & (SIdx(1)<<SIdx(NValBits-1)) ) ;
-	}
-	//
-	SIdx operator+() const { return _val<<NGuardBits>>NGuardBits ; }
-	//
-	bool              operator== (Idxed2 other) const { return +self== +other ; }
-	::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other ; }
-	//
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) Idx  side(       ) const { return (_val>>(LSB+NValBits))&lsb_msk<SIdx>(W) ; }
-	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx> ) void side(Idx val)       {
-		_val =
-			( _val & ~SIdx(     lsb_msk<Idx>(W) <<(LSB+NValBits)) )
-		|	          SIdx((val&lsb_msk<Idx>(W))<<(LSB+NValBits))
-		;
+		if (IsA<T>) return _val>=0 ;
+		else        return _val<=0 ;
 	}
 	//services
 	size_t hash() const { return +self ; }

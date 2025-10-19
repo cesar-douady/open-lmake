@@ -34,7 +34,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd( _g_rules_file_name , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(serialize(*Rule::s_rules)) ;
+		AcFd( _g_rules_file_name , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(serialize(*Rule::s_rules)) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -54,7 +54,7 @@ namespace Engine::Persistent {
 				else if (rcd.cmd  !=rd.crc->cmd                 ) rcd.state = RuleCrcState::CmdOld   ;
 				else if (rcd.state!=RuleCrcState::RsrcsForgotten) rcd.state = RuleCrcState::RsrcsOld ;
 				//
-				if (+r<+Special::NShared) SWEAR( rcd.state==RuleCrcState::Ok , r,rcd.state ) ;
+				if (+r<+Special::NUniq) SWEAR( rcd.state==RuleCrcState::Ok , r,rcd.state ) ;
 			}
 			trace(rc,rcd) ;
 		}
@@ -273,9 +273,9 @@ namespace Engine::Persistent {
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
 	}
 
-	static void _save_config() {
-		AcFd( cat(PrivateAdminDirS,"config_store") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(serialize(*g_config)  ) ;
-		AcFd( cat(AdminDirS,"config"             ) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_config->pretty_str()) ;
+	static void _save_config() { //!                                           mod
+		AcFd( cat(PrivateAdminDirS,"config_store") , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write(serialize(*g_config)  ) ;
+		AcFd( cat(AdminDirS,"config"             ) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write(g_config->pretty_str()) ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dyn ) {
@@ -371,17 +371,17 @@ namespace Engine::Persistent {
 		//
 		// first compute a suffix map
 		::map_s<::uset<Rt>> sfx_map ;
-		for( Rule r : rule_lst() )
-			for( VarIdx ti : iota<VarIdx>(r->matches.size()) ) {
-				if (!r->matches[ti].second.flags.tflags[Tflag::Target]) continue ;
-				Rt rt { r->crc , ti } ;
-				sfx_map[rt.sfx].insert(rt) ;
-			}
+		for( Rule r : rule_lst(true/*with_shared*/) )                                        // Codec is shared and matches, hence we must list shared rules here
+			for ( bool star : {false,true} )
+				for( VarIdx ti : r->matches_iotas[star][+MatchKind::Target] ) {
+					Rt rt { r->crc , ti } ;
+					sfx_map[rt.sfx].insert(rt) ;
+				}
 		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;                                          // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
-		// create empty entries for all sub-repos so as markers to ensure prefixes are not propagated through sub-repo boundaries
-		::map_s<::uset<Rt>> empty_pfx_map ;                                  for( ::string const& sr_s : g_config->sub_repos_s ) empty_pfx_map.try_emplace(sr_s) ;
+		// create empty entries for private admin dir and all sub-repos as markers to ensure prefixes are not propagated through sub-repo boundaries
+		::map_s<::uset<Rt>> empty_pfx_map { {PrivateAdminDirS,{}} }        ; for( ::string const& sr_s : g_config->sub_repos_s ) empty_pfx_map.try_emplace(sr_s) ;
 		::uset_s            sub_repos_s   = mk_uset(g_config->sub_repos_s) ;
 		for( auto const& [sfx,sfx_rule_tgts] : sfx_map ) {
 			::map_s<::uset<Rt>> pfx_map = empty_pfx_map ;
@@ -420,9 +420,9 @@ namespace Engine::Persistent {
 						Rule            br  = b->rule ;
 						RuleData const& ard = *ar     ;
 						RuleData const& brd = *br     ;
-						return //!   <-------------semantic_sort------------->   optim_sort    stable_sort within_rule
-							::tuple( ard.is_special() , ard.prio , ard.special , psfx_szs[ar] , +a->match , a.tgt_idx )
-						>	::tuple( brd.is_special() , brd.prio , brd.special , psfx_szs[br] , +b->match , b.tgt_idx )
+						return //!   <------------semantic_sort------------->   optim_sort    stable_sort within_rule
+							::tuple( !ard.is_plain() , ard.prio , ard.special , psfx_szs[ar] , +a->match , a.tgt_idx )
+						>	::tuple( !brd.is_plain() , brd.prio , brd.special , psfx_szs[br] , +b->match , b.tgt_idx )
 						;
 					}
 				) ;
@@ -431,8 +431,8 @@ namespace Engine::Persistent {
 		}
 	}
 
-	//                                      <--must_fit_in_rule_file-->   <--------idx_must_fit_within_type-------->
-	static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NShared ) ; // reserv 0 and full 1 to manage prio
+	//                                      <--must_fit_in_rule_file-->   <--------idx_must_fit_within_type------>
+	static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NUniq ) ; // reserv 0 and full 1 to manage prio
 
 	static void _compute_prios(Rules& rules) {
 		::map<RuleData::Prio,RuleIdx> prio_map ; for( RuleData const& rd : rules ) prio_map[rd.user_prio] ; // mapping from user_prio (double) to prio (RuleIdx) in same order
@@ -456,7 +456,7 @@ namespace Engine::Persistent {
 		::uset_s                    new_names ;
 		for( Rule r : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
 		for( RuleData& rd : new_rules_ ) {
-			if (rd.special<Special::NShared) continue ;
+			if (rd.special<Special::NUniq) continue ;
 			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)  ;
 			bool     new_name  = new_names.insert(rd.user_name()).second ;
 			if ( !new_crc && !new_name ) throw cat("rule ",rd.user_name()," appears twice"                                                       ) ;
@@ -527,7 +527,7 @@ namespace Engine::Persistent {
 				match_report_str << key <<" :\n" ;
 				for( RuleTgt rt : rts ) match_report_str <<'\t'<< widen(cat(rt->rule->user_prio),w_prio) <<' '<< widen(rt->rule->user_name(),w_name) <<' '<< rt.key() <<'\n' ;
 			}
-			AcFd( ADMIN_DIR_S "matching" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(match_report_str) ;
+			AcFd( ADMIN_DIR_S "matching" , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(match_report_str) ;
 		}
 		// rule report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
@@ -541,7 +541,7 @@ namespace Engine::Persistent {
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
-			AcFd( ADMIN_DIR_S "rules" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(content) ;
+			AcFd( ADMIN_DIR_S "rules" , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(content) ;
 		}
 		trace("done") ;
 		return invalidate ;
@@ -590,8 +590,8 @@ namespace Engine::Persistent {
 		// format old srcs
 		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                 // dont care whether we delete a regular file or a link
 		//
-		for( auto [n,_] : srcs     ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!src_dirs    .insert(d).second) break ;                      // non-local nodes have no dir
-		for( auto [n,_] : old_srcs ) for( Node d=n->dir() ; +d ; d = d->dir() ) if (!old_src_dirs.insert(d).second) break ;                      // .
+		for( auto [n,_] : srcs     ) for( Node d=n->dir ; +d ; d = d->dir ) if (!src_dirs    .insert(d).second) break ;                          // non-local nodes have no dir
+		for( auto [n,_] : old_srcs ) for( Node d=n->dir ; +d ; d = d->dir ) if (!old_src_dirs.insert(d).second) break ;                          // .
 		// further checks
 		for( auto [n,t] : srcs ) {
 			if (!src_dirs.contains(n)) continue ;
@@ -618,15 +618,15 @@ namespace Engine::Persistent {
 		if (dyn) {
 			if (+new_srcs) throw "new source "    +new_srcs.begin()->first->name() ;
 			if (+old_srcs) throw "removed source "+old_srcs.begin()->first->name() ;
-			FAIL() ;                                                                                                       // NO_COV
+			FAIL() ;                                                                                           // NO_COV
 		}
 		//
 		trace("srcs",'-',old_srcs.size(),'+',new_srcs.size()) ;
 		// commit
 		for( bool add : {false,true} ) {
 			::umap<Node,FileTag> const& srcs = add ? new_srcs : old_srcs ;
-			::vector<Node>              ss   ;                             ss.reserve(srcs.size()) ;                       // typically, there are very few src dirs
-			::vector<Node>              sds  ;                                                                             // .
+			::vector<Node>              ss   ;                             ss.reserve(srcs.size()) ;           // typically, there are very few src dirs
+			::vector<Node>              sds  ;                                                                 // .
 			for( auto [n,t] : srcs ) if (t==FileTag::Dir) sds.push_back(n) ; else ss.push_back(n) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Node::s_srcs(false/*dirs*/,add,ss ) ;
@@ -641,11 +641,7 @@ namespace Engine::Persistent {
 			}
 			for( Node d : old_src_dirs ) d->mk_no_src() ;
 			for( auto [n,t] : new_srcs ) {
-				switch (n->buildable) {
-					case Buildable::Unknown :                                                                              // if node was not observed   , making it a source cannot change matching
-					case Buildable::Yes     : break ;                                                                      // if node was known buildable, matching does not change
-					default                 : invalidate = true ;
-				}
+				if (!( n->buildable==Buildable::Unknown || n->buildable>=Buildable::Yes )) invalidate = true ; // if node was unknown or known buildable, making it a source cannot change matching
 				Node(n)->mk_src(t) ;
 				trace2('+',t==FileTag::Dir?"dir":"",n) ;
 			}
@@ -655,7 +651,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::string content ;
 			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( manifest , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(content) ;
+			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(content) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return invalidate ;

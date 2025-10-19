@@ -46,6 +46,7 @@ StdAttrs = { #!               type   dynamic
 ,	'kill_sigs'           : ( tuple , True  )
 ,	'lmake_view'          : ( str   , True  )
 ,	'max_retries_on_lost' : ( int   , False )
+,	'max_runs'            : ( int   , False )
 ,	'max_stderr_len'      : ( int   , True  )
 ,	'max_submits'         : ( int   , False )
 ,	'name'                : ( str   , False )
@@ -467,7 +468,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('ete','force','max_submits','max_retries_on_lost') :
+		for attr in ('ete','force','max_runs','max_submits','max_retries_on_lost') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 		seen_keys = set()
 		for e in ('environ','environ_resources','environ_ancillary') :

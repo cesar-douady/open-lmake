@@ -16,8 +16,9 @@ using namespace Disk ;
 enum class BackdoorErr : uint8_t {
 	Ok
 ,	OfficialReadlinkErr // value -1 is the normal readlink error and we need to distinguish backdoor errors
-,	ParseErr
+,	Fail
 ,	PokeErr
+,	InternalErr
 } ;
 
 namespace Backdoor {
@@ -31,15 +32,15 @@ namespace Backdoor {
 		}
 		// data
 		bool   ok   = false ;
-		size_t sz   = 0     ; // required size to serialize
-		T      data = {}    ; // the data if the buffer size was ok to deserialize
+		size_t sz   = 0     ;                                                       // required size to serialize
+		T      data = {}    ;                                                       // the data if the buffer size was ok to deserialize
 	} ;
 
-	static constexpr Fd     MagicFd     { +Fd::Cwd - 100 }                ; // any improbable negative value (to avoid conflict with real fd) will do
+	static constexpr Fd     MagicFd     { Fd::Cwd.fd - 100 }              ; // any improbable negative value (to avoid conflict with real fd) will do
 	static constexpr char   MagicPfx[]  = PRIVATE_ADMIN_DIR_S "backdoor/" ; // any improbable prefix will do
 	static constexpr size_t MagicPfxLen = sizeof(MagicPfx)-1              ; // -1 to account for terminating null
 
-	using Func = ::function<::pair_s<ssize_t/*len*/>(Record&,::string const& args,char* buf,size_t sz)> ;
+	using Func = ::function<ssize_t/*len*/(Record&,::string const& args,char* buf,size_t sz)> ;
 
 	::umap_s<Func> const& get_func_tab() ;
 
@@ -52,9 +53,15 @@ namespace Backdoor {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
 			if (cnt<0) {
-				throw_if( cnt<-1 , "backdoor error ",BackdoorErr(-cnt) ) ;
-				Lock lock { Record::s_mutex } ;
-				return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                                       // no autodep available, directly process args
+				if (cnt==-1) {
+					Lock lock { Record::s_mutex } ;
+					return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                                   // no autodep available, directly process args
+				}
+				switch (BackdoorErr(-cnt)) {
+					case BackdoorErr::Fail        : throw cat("cannot "                 ,args.descr()) ;
+					case BackdoorErr::PokeErr     : throw cat("cannot poke reply while ",args.descr()) ;
+					case BackdoorErr::InternalErr : throw cat("internal error while "   ,args.descr()) ;
+				DF}
 			}
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
@@ -65,23 +72,18 @@ namespace Backdoor {
 		}
 	}
 
-	template<class T> ::pair_s<ssize_t/*len*/> func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
+	template<class T> ssize_t/*len*/ func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
 		::string            parsed    ;
 		T                   cmd       ;
-		::string            descr     = "backdoor" ;
 		Expected<_Reply<T>> reply     { .ok=true } ;
 		::string            reply_str ;
-		try {
-			try { size_t pos = 0 ; parsed     = parse_printable(args_str,pos) ; throw_unless(pos==args_str.size()) ; } catch (::string const&) { throw "parse error"s           ; }
-			try {                  cmd        = deserialize<T> (parsed      ) ;                                      } catch (::string const&) { throw "deserialization error"s ; }
-			/**/                   descr      = cmd.descr      (            ) ;
-			/**/                   reply.data = cmd.process    (r           ) ;
-			try {                  reply_str  = serialize      (reply       ) ;                                      } catch (::string const&) { throw "serialization error"s   ; }
-		} catch (::string const& e) {
-			Fd::Stderr.write(cat(e," while procesing ",descr,'\n')) ;
-			errno = EINVAL ;
-			return { descr , -+BackdoorErr::ParseErr } ;
-		}
+		size_t              pos       = 0          ;
+		//
+		try { parsed     = parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"") ; } catch (::string const&) { return -+BackdoorErr::InternalErr ; }
+		try { cmd        = deserialize<T>(parsed)        ;                                         } catch (::string const&) { return -+BackdoorErr::InternalErr ; }
+		try { reply.data = cmd.process   (r     )        ;                                         } catch (::string const&) { return -+BackdoorErr::Fail        ; }
+		try { reply_str  = serialize     (reply )        ;                                         } catch (::string const&) { return -+BackdoorErr::InternalErr ; }
+		//
 		if (reply_str.size()>=sz) {
 			reply.ok  = false            ;
 			reply.sz  = reply_str.size() ;
@@ -89,7 +91,7 @@ namespace Backdoor {
 		}
 		SWEAR( reply_str.size()<sz , reply_str.size(),sz ) ;
 		::memcpy( buf , reply_str.data() , reply_str.size() ) ;
-		return { descr , reply_str.size() } ;
+		return reply_str.size() ;
 	}
 
 	struct Enable {
@@ -123,7 +125,7 @@ namespace Backdoor {
 			::serdes( s , files,access_digest,no_follow ) ;
 		}
 	protected :
-		::vmap_s<FileInfo> _mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1=nullptr , CommentExts ces={} ) ;
+		::vmap_s<FileInfo> _mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1=nullptr ) ;
 		// data
 	public :
 		::vector_s   files         = {}    ;
@@ -210,52 +212,33 @@ namespace Backdoor {
 		::string dir = {} ;
 	} ;
 
-	template<bool Encode> struct Codec ;
-	template<bool Encode> ::string& operator+=( ::string& os , Codec<Encode> const& cd ) ;                       // START_OF_NO_COV
-	template<bool Encode> struct Codec {
-		friend ::string& operator+=<Encode>( ::string& , Codec const& D) ;
-		static const     char   Cmd[7]             ;
-		static constexpr bool   ReliableMaxReplySz = Encode ? true                                     : false ; // when replying a code, the size is guaranteed short
-		static constexpr size_t MaxReplySz         = Encode ? sizeof(::optional_s)+sizeof(Hash::Crc)*2 : 1<<16 ; // 2 digit per Crc byte, 64k is already a pretty comfortable size for values
+	struct Decode {
+		friend ::string& operator+=( ::string& , Decode const& ) ;
+		static constexpr char   Cmd[]              = "decode" ;
+		static constexpr bool   ReliableMaxReplySz = false    ;
+		static constexpr size_t MaxReplySz         = 1<<16    ; // 64k is already a pretty comfortable size for values
 		// services
-		::optional_s process(Record& r)       ;
-		::string     descr  (         ) const ;
+		::string process(Record& r)       ;
+		::string descr  (         ) const ;
 		// data
-		::string file     = {}               ;
-		::string ctx      = {}               ;
-		::string code_val = {}               ;
-		uint8_t  min_len  = 0                ;
+		::string file = {} ;
+		::string ctx  = {} ;
+		::string code = {} ;
 	} ;
-	template<> constexpr char Codec<false/*Encode*/>::Cmd[] = "decode" ;
-	template<> constexpr char Codec<true /*Encode*/>::Cmd[] = "encode" ;
-	template<bool Encode> ::string& operator+=( ::string& os , Codec<Encode> const& cd ) {                       // START_OF_NO_COV
-		/**/        os << (Encode?"Encode":"Decode") <<'(' ;
-		if (Encode) os <<      "encode"                    ;
-		else        os <<      "decode"                    ;
-		/**/        os <<','<< cd.file                     ;
-		/**/        os <<','<< cd.ctx                      ;
-		if (Encode) os <<','<< cd.code_val.size()          ;
-		else        os <<','<< cd.code_val                 ;
-		if (Encode) os <<','<< cd.min_len                  ;
-		return      os <<')'                               ;
-	}                                                                                                            // END_OF_NO_COV
-	template<bool Encode> ::optional_s Codec<Encode>::process(Record& r) {
-		Comment                      comment = Encode ? Comment::Encode : Comment::Decode                                         ;
-		Record::Solve<false/*Send*/> sr      { r , ::move(file) , false/*no_follow*/ , true/*read*/ , false/*create*/ , comment } ;
-		//
-		if (+sr.accesses) r.report_access( sr.file_loc , { .comment=comment , .digest={.accesses=sr.accesses} , .files={{::copy(sr.real),FileInfo(sr.real)}} } , true/*force*/ ) ;
-		// transport as sync to use the same fd as Encode/Decode
-		JobExecRpcReq jerr { .sync=Yes   , .comment=comment , .date=New , .files={{::move(sr.real),{}},{::move(ctx),{}},{::move(code_val),{}}} } ;
-		if (Encode) { jerr.proc = JobExecProc::Encode ; jerr.min_len = min_len ; }
-		else          jerr.proc = JobExecProc::Decode ;
-		//
-		JobExecRpcReply reply = r.report_sync(::move(jerr)) ;
-		if (reply.ok==Yes) return ::move(reply.txt) ;
-		else               return {}                ;
-	}
-	template<bool Encode> ::string Codec<Encode>::descr() const {
-		if (Encode) return cat("encode in file ",file," with context ",ctx," value of size ",code_val.size()) ;
-		else        return cat("decode in file ",file," with context ",ctx," code "         ,code_val       ) ;
-	}
+
+	struct Encode {
+		friend ::string& operator+=( ::string& , Encode const& ) ;
+		static constexpr char   Cmd[]              = "encode" ;
+		static constexpr bool   ReliableMaxReplySz = true ;
+		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+sizeof(Hash::Crc)*2 ; // 2 digit per Crc byte
+		// services
+		::string process(Record& r)       ;
+		::string descr  (         ) const ;
+		// data
+		::string file    = {} ;
+		::string ctx     = {} ;
+		::string val     = {} ;
+		uint8_t  min_len = 0  ;
+	} ;
 
 }

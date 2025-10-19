@@ -48,20 +48,18 @@ else :
 
 	print('',file=open('codec_file','w'))
 
-	ut.lmake      ( 'codec_sh.ok' , 'codec_py.ok' , reformat=2 , new=1 , done=4 )
-	cnt = ut.lmake( 'codec_sh'    , 'codec_py.ok' , reformat=0 , changed=...    )
-	assert (0,1) and cnt.changed in (0,1)                                         # depend on job order and crc details
+	ut.lmake( 'codec_sh.ok' , 'codec_py.ok' , new=1 , reformat=1 , done=4 , update=1 ) # suppress empty line in codec_file
+	ut.lmake( 'codec_sh.ok' , 'codec_py.ok'                                          )
 
 	os.unlink('codec_sh')
 	os.unlink('codec_py')
 
-	cnt = ut.lmake( 'codec_sh' , 'codec_py' , changed=... , steady=2 )
-	assert cnt.changed in (0,1)                                        # depend on previous job order and crc details
+	cnt = ut.lmake( 'codec_sh' , 'codec_py' , steady=2 )
 
 	print(file=open('codec_file','a'))
-	ut.lmake( 'codec_sh' , 'codec_py' , reformat=1 , changed=1 )
+	ut.lmake( 'codec_sh' , 'codec_py' , changed=1 , reformat=1 )
 
-	print(r' py ctx codec_py\n',file=open('codec_file','a'))
-	ut.lmake( 'codec_sh' , 'codec_py' , reformat=1 , changed=... , done=1 ) # changed may be 1 or 2, its ok
+	print('\tpy\tctx\tcodec_py\\n',file=open('codec_file','a'))
+	ut.lmake( 'codec_sh' , 'codec_py' , changed=1 , reformat=1 , done=1 )
 
 	assert os.system("ldebug codec_sh")==0 # ensure lencode/ldecode is compatible with ldebug

@@ -25,13 +25,10 @@ int main( int argc , char* /*argv*/[] ) {
 	for( const Job  j : Persistent::job_lst (                   ) ) { j.chk() ; _out( cat(j)                , cat(j->rule()) , j->name()      ) ; }
 	for( const Node n : Persistent::node_lst(                   ) ) {
 		n.chk() ;
-		switch (n->buildable) {
-			case Buildable::Maybe   :
-			case Buildable::Yes     :
-			case Buildable::DynSrc  :
-			case Buildable::Unknown : _out( cat(n) , cat(n->actual_job())    , n->name() ) ; break ;
-			default                 : _out( cat(n) , snake_str(n->buildable) , n->name() ) ; break ;
-		}
+		if      ( n->buildable==Buildable::Unknown                                      ) _out( cat(n) , cat(n->actual_job,'?'           ) , n->name() ) ;
+		else if ( n->has_job(false/*reliable*/)==Yes                                    ) _out( cat(n) , cat(n->actual_job               ) , n->name() ) ; // just dump existing info
+		else if ( n->has_job(false/*reliable*/)==Maybe && n->rule_tgts.view().size()==1 ) _out( cat(n) , cat(n->rule_tgts.view()[0]->rule) , n->name() ) ; // .
+		else                                                             _out( cat(n) , cat(n->buildable                ) , n->name() ) ;
 	}
 	//
 	try                       { Persistent::chk() ; }

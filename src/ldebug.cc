@@ -32,13 +32,13 @@ int main( int argc , char* argv[] ) {
 	Py::init(*g_lmake_root_s      ) ;
 	Trace trace("main") ;
 	//
-	ReqSyntax syntax {{},{
+	ReqSyntax syntax {{
 		{ ReqFlag::Key    , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method\n"                 } }
 	,	{ ReqFlag::NoExec , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"                                 } }
 	,	{ ReqFlag::StdTmp , { .short_name='t' , .has_arg=false , .doc="use standard tmp dir (LMAKE/debug/<job_id>/tmp) for job execution" } }
 	,	{ ReqFlag::TmpDir , { .short_name='T' , .has_arg=true  , .doc="tmp provided dir for job execution"                                } }
 	}} ;
-	syntax.flags[+ReqFlag::Key].doc <<' '<< keys() ; // add available keys to usage
+	syntax.flags[+ReqFlag::Key]->doc <<' '<< keys() ; // add available keys to usage
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	if ( cmd_line.args.size()<1 ) syntax.usage(    "need a target to debug"                                ) ;

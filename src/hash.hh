@@ -53,13 +53,10 @@ namespace Hash {
 			return !crc.match(crc,a) ;
 		}
 		// cxtors & casts
-		constexpr Crc(                            ) = default ;
+		constexpr Crc() = default ;
+		//
 		constexpr Crc( Val v , Bool3 is_lnk=Maybe ) : _val{v} {
-			switch (is_lnk) {
-				case No    : _val &= ~Val(1) ; break ;
-				case Maybe :                 ; break ;
-				case Yes   : _val |=  Val(1) ; break ;
-			}
+			_set_is_lnk(is_lnk) ;
 		}
 		constexpr Crc(FileTag tag) {
 			switch (tag) {
@@ -84,7 +81,7 @@ namespace Hash {
 			self = Crc(file_name,/*out*/fi) ;
 			sig  = fi.sig()                 ;
 		}
-		template<class T> Crc( NewType , T const& x ) ;
+		template<class T> Crc( NewType , T const& x , Bool3 is_lnk=Maybe ) ;
 	private :
 		constexpr Crc(CrcSpecial special) : _val{+special} {}
 		//
@@ -104,6 +101,14 @@ namespace Hash {
 		constexpr bool              is_reg     (          ) const { return _plain() ? !(_val&0x1) : self==Reg||self==Empty ; }
 	private :
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
+		//
+		constexpr void _set_is_lnk(Bool3 is_lnk) {
+			switch (is_lnk) {
+				case No    : _val &= ~Val(1) ; break ;
+				case Maybe :                   break ;
+				case Yes   : _val |=  Val(1) ; break ;
+			}
+		}
 		// services
 	public :
 		bool     match        ( Crc other , Accesses a=~Accesses() ) const { return !( diff_accesses(other) & a ) ; }
@@ -164,6 +169,16 @@ namespace Hash {
 
 	template<class T> concept IsHash = ::is_base_of_v<Xxh,T> ;
 
+	// easy, fast and good enough in some situations
+	// cf https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+	struct Fnv {
+		static constexpr size_t Offset = sizeof(size_t)==8 ? 0xcbf29ce484222325 : 0x811c9dc5 ;
+		static constexpr size_t Prime  = sizeof(size_t)==8 ? 0x00000100000001b3 : 0x01000193 ;
+		size_t operator+ (        ) const {                         return val  ; }
+		Fnv&   operator+=(size_t x)       { val = (val^x) * Prime ; return self ; }
+		size_t val = Offset ;
+	} ;
+
 	//
 	// implementation
 	//
@@ -174,7 +189,9 @@ namespace Hash {
 	constexpr Crc Crc::None   {CrcSpecial::None   } ;
 	constexpr Crc Crc::Empty  {CrcSpecial::Empty  } ;
 
-	template<class T> Crc::Crc( NewType , T const& x ) { self = Xxh(New,x).digest() ; }
+	template<class T> Crc::Crc( NewType , T const& x , Bool3 is_lnk ) : Crc{Xxh(New,x).digest()} {
+		_set_is_lnk(is_lnk) ;
+	}
 
 	inline bool Crc::never_match(Accesses a) const {
 		switch (self) {

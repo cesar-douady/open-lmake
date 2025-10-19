@@ -685,6 +685,16 @@ In that case, the job is retried, but a maximum number of retry attemps are allo
 This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
 The whole content of stderr stays accessible with the `lshow -e` command.
 
+### `max_runs`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `0`     | No      |         |
+
+The goal is to protect against potential loss of performances if reruns are too frequent.
+Unlimited if `0`.
+Contrarily to the `max_submits` attribute, cache accesses are not counted when counting runs.
+
 ### `max_submits`
 
 | Inheritance | Type  | Default | Dynamic | Example |
@@ -693,6 +703,8 @@ The whole content of stderr stays accessible with the `lshow -e` command.
 
 The goal is to protect agains potential infinite loop cases.
 The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
+Unlimited if `0`.
+Contrarily to the `max_runs` attribute, cache accesses are counted when counting submits.
 
 ### `readdir_ok`
 

@@ -105,10 +105,19 @@ Because most of the time there is a single target, this ensures that there is a 
 Item(B(-N) I(nice_val),B(--nice)=I(nice_val))
 Apply the specified nice value to all jobs.
 
-Item(B(-m) I(count),B(--max-submits)=I(count))
+Item(B(-m) I(count),B(--max-runs)=I(count))
+Ask B(lmake) to limit number of runs for any job to this number.
+This constraint must be enforced together with the B(max_runs) rule attribute, i.e. the min of these 2 constraints is used.
+This is useful to observe a job while it is supposed to rerun.
+.LP
+Contrarily to the B(--max-submits) options, caches accesses are not counted when counting runs.
+
+Item(B(-M) I(count),B(--max-submits)=I(count))
 Ask B(lmake) to limit number of submits for any job to this number.
 This constraint must be enforced together with the B(max_submits) rule attribute, i.e. the min of these 2 constraints is used.
 This is useful to observe a job while it is supposed to rerun.
+.LP
+Contrarily to the B(--max-runs) options, caches accesses are counted when counting submits.
 
 Item(B(-r) I(count),B(--retry-on-error)=I(count))
 Ask B(lmake) to retry jobs in case of error.

@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
+
 #include "store/store_utils.hh"
 #include "store/struct.hh"
 #include "store/alloc.hh"
@@ -181,7 +183,7 @@ namespace Engine::Persistent {
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// cxtors & casts
 		using Base::Base ;
-		NodeBase(           ::string const& name                     ) ; // dont create node if does not already exist
+		NodeBase(           ::string const& name                     ) ;                // dont create node if does not already exist
 		NodeBase( NewType , ::string const& name , bool no_dir=false ) ;
 		// accesses
 		NodeData const& operator* () const ;
@@ -216,10 +218,9 @@ namespace Engine::Persistent {
 		using Base::Base ;
 		constexpr RuleBase(Special s) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not special
 		// accesses
-		/**/      RuleData      & data      ()       ;
-		/**/      RuleData const& operator* () const ;
-		/**/      RuleData const* operator->() const { return &*self                  ; }
-		constexpr bool            is_shared () const { return +self<+Special::NShared ; }
+		RuleData      & data      ()       ;
+		RuleData const& operator* () const ;
+		RuleData const* operator->() const { return &*self ; }
 	} ;
 
 	struct RuleCrcBase
@@ -489,12 +490,12 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 	inline Iota2<Rule> rule_lst(bool with_shared=false) {
-		if (+Rule::s_rules) return { with_shared?1:+Special::NShared , Rule(Rule::s_rules->size()+1) } ; // rules are numbered from 1 to _s_n_rules
-		else                return { 0                               , 0                             } ;
+		if (+Rule::s_rules) return { with_shared?1:+Special::NUniq , Rule(Rule::s_rules->size()+1) } ; // rules are numbered from 1 to _s_n_rules
+		else                return { 0                             , 0                             } ;
 	}
 	// accesses
-	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return (*s_rules)[+self-1] ; }   // 0 is reserved to mean no rule
-	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return (*s_rules)[+self-1] ; }   // .
+	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return (*s_rules)[+self-1] ; } // 0 is reserved to mean no rule
+	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return (*s_rules)[+self-1] ; } // .
 
 	//
 	// RuleCrcBase

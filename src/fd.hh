@@ -23,34 +23,31 @@ struct LockedFd : AcFd {
 	// cxtors & casts
 	LockedFd() = default ;
 	//
-	LockedFd ( ::string const& file , bool exclusive=true ) : AcFd{file,{.flags=exclusive?O_RDWR:O_RDONLY}} { _lock  (exclusive) ; }
-	~LockedFd(                                            )                                                 { _unlock(         ) ; }
+	LockedFd (         ::string const& file , bool exclusive=true ) : AcFd{   file,{.flags=O_RDWR}} { lock  (exclusive) ; } // always open read/write so lock can be changed with lock()
+	LockedFd ( Fd at , ::string const& file , bool exclusive=true ) : AcFd{at,file,{.flags=O_RDWR}} { lock  (exclusive) ; } // .
+	~LockedFd(                                                    )                                 { unlock(         ) ; }
 	//
-	LockedFd           (LockedFd&&) = default ;
-	LockedFd& operator=(LockedFd&&) = default ;
+	LockedFd(LockedFd&&) = default ;
+	//
+	LockedFd& operator=(LockedFd&& lfd) {
+		unlock() ;
+		AcFd::operator=(::move(lfd)) ;
+		return self ;
+	}
 	// services
+	void lock  (bool exclusive=true) { _lock(Maybe|exclusive) ; } // warning : if modifying a lock, current lock is released and new lock is acquired
+	void unlock(                   ) { _lock(No             ) ; }
 private :
-	void _lock(bool exclusive) {
+	void _lock(Bool3 take) {
 		if (!self) return ;
 		struct flock lock {
-			.l_type   = short( exclusive ? F_WRLCK : F_RDLCK )
+			.l_type   = short( take==Yes ? F_WRLCK : take==Maybe ? F_RDLCK : F_UNLCK )
 		,	.l_whence = SEEK_SET
 		,	.l_start  = 0
-		,	.l_len    = 1 // ensure a lock exists even if file is empty
+		,	.l_len    = 1                                         // ensure a lock exists even if file is empty
 		,	.l_pid    = 0
 		} ;
 		while (::fcntl(fd,F_SETLKW,&lock)!=0) swear_prod( errno==EINTR , +self ) ;
-	}
-	void _unlock() {
-		if (!self) return ;
-		struct flock lock {
-			.l_type   = F_UNLCK
-		,	.l_whence = SEEK_SET
-		,	.l_start  = 0
-		,	.l_len    = 1 // ensure a lock exists even if file is empty
-		,	.l_pid    = 0
-		} ;
-		swear_prod( ::fcntl(fd,F_SETLK,&lock)==0 , +self ) ;
 	}
 } ;
 

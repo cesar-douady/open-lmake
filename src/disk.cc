@@ -8,6 +8,7 @@
 #include "process.hh"
 
 namespace Disk {
+	using namespace Hash ;
 
 	//
 	// path name library
@@ -241,8 +242,8 @@ namespace Disk {
 		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                                                    // return the pos of the / between existing and new components
 		while (+to_mk_s) {
 			::string const& d_s = to_mk_s.back() ;                                                                      // parents are after children in to_mk
-			if (nfs_guard) { SWEAR(at==Fd::Cwd) ; nfs_guard->change(d_s) ; }
-			if (::mkdirat(at,d_s.c_str(),0777)==0) {
+			if (nfs_guard) nfs_guard->change(at,d_s) ;
+			if (::mkdirat(at,d_s.c_str(),0777/*mod*/)==0) {
 				if (+perm_ext) {
 					static mode_t umask_ = get_umask() ;
 					switch (perm_ext) {
@@ -301,14 +302,15 @@ namespace Disk {
 			case FileTag::Dir   : break ;    // dirs are like no file
 			case FileTag::Empty :            // fast path : no need to access empty src
 				dir_guard(dst_at,dst_file) ;
-				AcFd( dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666} ) ;
+				AcFd( dst_at , dst_file , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,0666/*mod*/} ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
 				dir_guard(dst_at,dst_file) ;
-				AcFd rfd { src_at , src_file                                                                                             } ;
-				AcFd wfd { dst_at , dst_file , { .flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , .mod=mode_t(tag==FileTag::Exe?0777:0666) } } ;
-				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz ) ; if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
+				AcFd rfd { src_at , src_file                                                                                 } ;
+				AcFd wfd { dst_at , dst_file , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;
+				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                 ;
+				if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
 			} break ;
 			case FileTag::Lnk :
 				dir_guard(dst_at,dst_file) ;
@@ -316,6 +318,17 @@ namespace Disk {
 			break ;
 		DF}                                  // NO_COV
 		return tag ;
+	}
+
+	//
+	// FileSpec
+	//
+
+	size_t FileSpec::hash() const {
+		Fnv fnv ;                         // good enough
+		fnv += fd.hash()                ;
+		fnv += ::hash<::string>()(file) ;
+		return +fnv ;
 	}
 
 	//
@@ -373,7 +386,7 @@ namespace Disk {
 			case FileTag::Lnk     :
 			case FileTag::Reg     :
 			case FileTag::Exe     : {
-				Hash::Xxh h ;
+				Xxh h ;
 				h    += fi.date                       ;
 				h    += fi.sz                         ;
 				_val |= +h.digest() << NBits<FileTag> ;

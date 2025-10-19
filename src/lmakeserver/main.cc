@@ -76,7 +76,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 	if (g_writable) {
 		::string tmp = cat(ServerMrkr,'.',_g_mrkr.first,'.',_g_mrkr.second) ;
 		_g_server_fd = ServerSockFd( New , 0/*backlog*/ , false/*reuse_addr*/ ) ;
-		AcFd( tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(cat(
+		AcFd( tmp , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(cat(
 			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
 		,	_g_mrkr.second                                       , '\n'
 		)) ;
@@ -100,11 +100,18 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 
 ::string _os_compat(::string const& os_id) {
 	::string res = os_id ;
-	size_t   pos ;
-	if ( res.starts_with("centos-")                              ) res = "rhel"+res.substr(6/*centos*/    ) ; // centos and rhel are inter-operable
-	if ( res.starts_with("rocky-" )                              ) res = "rhel"+res.substr(5/*rocky*/     ) ; // rocky  and rhel are inter-operable
-	if ( res.starts_with("rhel-"  ) && (pos=res.find('.'))!=Npos ) res =        res.substr(0          ,pos) ; // ignore minor
-	return res  ;
+	switch (res[0]) {
+		case 'c' : if (res.starts_with("centos/"       )) res = "rhel"+res.substr(res.find('/')) ; break ; // centos       is inter-operable with rhel
+		case 'o' : if (res.starts_with("opensuse-leap/")) res = "suse"+res.substr(res.find('/')) ; break ; // openSUSE     is inter-operable with all SUSE
+		case 'r' : if (res.starts_with("rocky/"        )) res = "rhel"+res.substr(res.find('/')) ; break ; // rocky        is inter-operable with rhel
+		case 's' : if (res.starts_with("sled/"         )) res = "suse"+res.substr(res.find('/')) ;         // SUSE desktop is inter-operable with all SUSE
+		/**/       if (res.starts_with("sles/"         )) res = "suse"+res.substr(res.find('/')) ; break ; // SUSE server  is inter-operable with all SUSE
+	DN}
+	switch (res[0]) {
+		case 'r' : if (res.starts_with("rhel/")) res = res.substr(0,res.find('.')) ; break ;               // ignore minor
+		case 's' :                                                                   break ;               // XXX/ : suse 15.5 does not support LD_AUDIT while 15.6 does, so minor cannot be ignored
+	DN}
+	return res ;
 }
 static void _chk_os() {
 	static constexpr const char* ReleaseFile = "/etc/os-release" ;
@@ -121,7 +128,7 @@ static void _chk_os() {
 	if ( !id                                                      ) exit(Rc::System,"cannot find ID in"        ,ReleaseFile) ;
 	if ( !version_id                                              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
 	//
-	id << '-'<<version_id ;
+	id << '/' << version_id ;
 	if (_os_compat(id)!=_os_compat(OS_ID)) exit(Rc::System,"bad OS in ",ReleaseFile," : ",id,"!=",OS_ID) ;
 }
 
@@ -134,7 +141,7 @@ static void _record_targets(Job job) {
 		known_targets.push_back(tn) ;
 	}
 	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
-	AcFd( targets_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(content) ;
+	AcFd( targets_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(content) ;
 }
 
 static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
@@ -423,7 +430,7 @@ static bool/*interrupted*/ _engine_loop() {
 					case JobMngtProc::ChkDeps    :
 					case JobMngtProc::DepDirect  :
 					case JobMngtProc::DepVerbose : {
-						JobMngtRpcReply jmrr = je.job_analysis(ecjm) ;
+						JobMngtRpcReply jmrr = je.manage(ecjm) ;
 						jmrr.fd     = ecjm.fd     ;
 						jmrr.seq_id = ecjm.seq_id ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -508,8 +515,7 @@ int main( int argc , char** argv ) {
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
 	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
-	Codec::Closure::s_init() ;
-	Job           ::s_init() ;
+	Job::s_init() ;
 	//
 	static ::jthread reqs_thread { _reqs_thread_func , in_fd , out_fd } ;
 	//
@@ -517,8 +523,8 @@ int main( int argc , char** argv ) {
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
-		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {}                   // cleanup
-		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666} ).write(g_kpi.pretty_str()) ;
+		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {}              // cleanup
+		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(g_kpi.pretty_str()) ;
 	}
 	//
 	Backend::s_finalize() ;

@@ -1,0 +1,43 @@
+# This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
+# Copyright (c) 2023-2025 Doliam
+# This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
+# This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+# build command from top level : sudo docker build -f docker/suse155.docker -t suse155 docker
+
+FROM opensuse/leap:15.5
+
+RUN zypper refresh # refresh repositories
+RUN zypper update -y # update package list
+
+RUN zypper install -y gcc-c++ make
+
+# compulsory
+RUN zypper install -y gcc13-c++
+RUN zypper install -y git
+RUN zypper install -y python3-devel
+RUN zypper install -y wget
+RUN zypper install -y m4 groff
+
+# necesary for unit tests
+RUN zypper install -y hostname
+RUN zypper install -y tar
+RUN zypper install -y gzip
+
+# optional
+RUN zypper install -y gdb
+RUN zypper install -y clang
+RUN zypper install -y pcre2-devel
+RUN zypper install -y libseccomp-devel
+RUN zypper install -y slurm-devel
+RUN zypper install -y strace
+RUN zypper install -y sudo
+RUN zypper install -y vi
+
+RUN useradd --uid 1001 --home-dir /home/cdy cdy
+RUN echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers
+USER 1001:1001
+WORKDIR /home/cdy
+ENV USER=cdy
+ENV HOME=/home/cdy
+CMD bash

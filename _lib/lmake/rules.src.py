@@ -90,9 +90,9 @@ class Rule(_RuleBase) :
 	#                                                  # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib
 	#                                                  # - if a tuple : (method,level), as described above
 #	cwd                 = ''                           # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
-	#                                                  # defaults to the nearest root dir of the module in which the rule is defined
+	#                                                  #   defaults to the nearest root dir of the module in which the rule is defined
 	deps                = {}                           # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
-	#                                                  # deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
+	#                                                  #   deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
 	#                                                  #   flag        | default | description
 	#                                                  #   ------------+---------+--------------------------------------------------------------------------------------------
 	#                                                  #   Essential   | x       | show in graphic flow
@@ -102,30 +102,31 @@ class Rule(_RuleBase) :
 #	ete                 = 0                            # Estimated Time Enroute, initial guess for job exec time (in s)
 #	force               = False                        # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 #	keep_tmp            = False                        # keep tmp dir after job execution
-	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn, 1s apart, until job dies, 0's may be used to set a larger delay between 2 trials)
+	kill_sigs           = (_signal.SIGKILL,)           # signals to use to kill jobs (send them in turn followed by SIGKILL), 1s apart, until job dies
+	#                                                  #   0's may be used to set a larger delay between 2 trials)
 #	lmake_view          = '/lmake'                     # absolute path under which the open-lmake installation directory is seen (if None, empty, or absent, no bind mount is done)
-	max_retries_on_lost = 1                            # max number of retries in case of job lost. 1 is a reasonable value
+	max_retries_on_lost =   1                          # max number of retries in case of job lost. 1 is a reasonable value
+#	max_runs            =   0                          # maximum number a job can be run in a single lmake command, unlimited if None or 0
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
-	max_submits         = 10                           # maximum number a job can be submitted in a single lmake command, unlimited if None
+	max_submits         =  10                          # maximum number a job can be submitted in a single lmake command, unlimited if None or 0
 	os_info             = _re.escape(_get_os_info())   # regexpr matching acceptable os_info from job execution environment
 #	os_info_file        = '/os_info'                   # custom system file to distinguish OS'es from one anothe to ensure job is executed under proper system
-	#                                                  # defaults to : <id>/<version_id>/<machine> where <id> and <version_id> are taken from /etc/os-release and <machine> from os.uname().machine
+	#                                                  #   defaults to : <id>/<version_id>/<machine> where <id> and <version_id> are taken from /etc/os-release and <machine> from os.uname().machine
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
 #	readdir_ok          = False                        # if set, listing a local non-ignored dir is not an error
 #	repo_view           = '/repo'                      # absolute path under which the root directory of the repo is seen (if None, empty, or absent, no bind mount is done)
-	shell               = (shell ,)                    # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
+	shell               = (shell,)                     # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
 	start_delay         = 3                            # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
 #	stderr_ok           = False                        # if set, writing to stderr is not an error but a warning
 #	timeout             = None                         # timeout allocated to job execution (in s), must be None or an int
-#	tmp_view            = '/tmp'                       # may be :
-	#                                                  # - not specified, '' or None : do not mount tmp dir
-	#                                                  # - str                       : must be an absolute path which tmp dir is mounted on.
-	#                                                  # physical tmp dir is :
-	#                                                  # - $TMPDIR if provided in the environment
-	#                                                  # - else a tmpfs sized after the 'tmp' resource if specified (no tmpfs is created if value is 0)
-	#                                                  # - else a private sub-directory in the LMAKE directory
-#	use_script          = False                        # use a script to run job rather than calling interpreter with -c
+#	tmp_view            = '/tmp'                       # view under which tmp dir is seen, may be :
+	#                                                  #   - not specified, '' or None : do not mount tmp dir
+	#                                                  #   - str                       : must be an absolute path which tmp dir is mounted on.
+	#                                                  #   physical tmp dir is :
+	#                                                  #   -      a private sub-dir in $TMPDIR if provided in the environment
+	#                                                  #   - else a private sub-dir in the LMAKE directory
+#	use_script          = False                        #   use a script to run job rather than calling interpreter with -c
 #	autodep             = 'ld_audit'                   # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
 	resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
 		'cpu' : 1                                      # number of cpu's to allocate to job

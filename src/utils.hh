@@ -522,7 +522,7 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                               // the highest standard fd
+	static const Fd Std    ;                                                                                                                         // the highest standard fd
 	//
 	using Action = _FdAction ;
 	// cxtors & casts
@@ -548,20 +548,20 @@ public :
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
-	constexpr bool              operator== (Fd const&              ) const = default ;
-	constexpr ::strong_ordering operator<=>(Fd const&              ) const = default ;
-	/**/      void              write      (::string_view data     ) const ;               // writing does not modify the Fd object
-	/**/      ::string          read       (size_t        sz  =Npos) const ;               // read sz bytes or to eof
-	/**/      ::vector_s        read_lines (                       ) const ;
-	/**/      size_t            read_to    (::span<char>  dst      ) const ;
-	/**/      Fd                dup        (                       ) const { return ::dup(fd) ;                     }
-	constexpr Fd                detach     (                       )       { Fd res = self ; fd = -1 ; return res ; }
-	constexpr void              close      (                       ) ;
-	/**/      void              no_std     (                       ) ;
-	/**/      void              cloexec    (bool          set =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
-	constexpr size_t            hash       (                       ) const { return fd ;                            }
+	constexpr bool              operator== (Fd const&                     ) const = default ;
+	constexpr ::strong_ordering operator<=>(Fd const&                     ) const = default ;
+	/**/      void              write      (::string_view data            ) const ;           // writing does not modify the Fd object
+	/**/      ::string          read       (size_t        sz        =Npos ) const ;           // read sz bytes or to eof
+	/**/      ::vector_s        read_lines (bool          partial_ok=true ) const ;           // if partial_ok => ok if last line does not end with \n
+	/**/      size_t            read_to    (::span<char>  dst             ) const ;
+	/**/      Fd                dup        (                              ) const { return ::dup(fd) ;                     }
+	constexpr Fd                detach     (                              )       { Fd res = self ; fd = -1 ; return res ; }
+	constexpr void              close      (                              ) ;
+	/**/      void              no_std     (                              ) ;
+	/**/      void              cloexec    (bool          set       =true ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
+	constexpr size_t            hash       (                              ) const { return fd ;                            }
 protected :
-	::string& append_to_str( ::string& os , const char* class_name ) const {
+	::string& append_to_str( ::string& os , const char* class_name        ) const {
 		os <<class_name<<"(" ;
 		if (self==Cwd) os << "Cwd" ;
 		else           os << fd    ;

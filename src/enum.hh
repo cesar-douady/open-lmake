@@ -123,7 +123,7 @@ namespace EnumHelper {
 using EnumHelper::N   ;
 using EnumHelper::All ;
 
-//                                                                                             Snake
+//                                                                                      Snake
 template<Enum E> ::string_view camel    (E e) { return          EnumHelper::EnumNames<E,false>[+e]  ; }
 template<Enum E> ::string_view snake    (E e) { return          EnumHelper::EnumNames<E,true >[+e]  ; }
 template<Enum E> ::string      camel_str(E e) { return ::string(EnumHelper::EnumNames<E,false>[+e]) ; }

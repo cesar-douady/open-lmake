@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
+
 #ifdef STRUCT_DECL
 
 #include "disk.hh"
@@ -191,7 +193,7 @@ namespace Engine {
 	} ;
 
 	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive when optimizing
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive
 	struct EngineClosureJobStart {
 		friend ::string& operator+=( ::string& , EngineClosureJobStart const& ) ;
 		bool                       report        = false ;
@@ -205,7 +207,7 @@ namespace Engine {
 	} ;
 
 	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive when optimizing
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive
 	struct EngineClosureJobGiveUp {
 		friend ::string& operator+=( ::string& , EngineClosureJobGiveUp const& ) ;
 		Req  req    = {}    ;
@@ -214,7 +216,7 @@ namespace Engine {
 	#pragma GCC diagnostic pop
 
 	#pragma GCC diagnostic push
-	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive when optimizing
+	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive
 	struct EngineClosureJob
 	:	             ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ >
 	{	using Base = ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;
@@ -385,8 +387,8 @@ namespace Engine {
 	inline ::string reason_str(JobReason const& reason) {
 		::string res = reason.msg() ;
 		if ( Node n{reason.node} ; +n ) {
-			/**/                                                                   res <<" : "               << Disk::mk_file(n->name()                 )        ;
-			if ( reason.tag==JobReasonTag::PollutedTarget && +n->polluting_job() ) res <<" (polluting job : "<< Disk::mk_file(n->polluting_job()->name()) <<" )" ;
+			/**/                                                                 res <<" : "               << Disk::mk_file(n->name()               )        ;
+			if ( reason.tag==JobReasonTag::PollutedTarget && +n->polluting_job ) res <<" (polluting job : "<< Disk::mk_file(n->polluting_job->name()) <<" )" ;
 		}
 		return res ;
 	}
@@ -407,7 +409,7 @@ namespace Engine {
 		return "\x1b[0m" ;
 	}
 
-	inline RulesBase::RulesBase(NewType) { for( Special s : iota(1,Special::NShared) ) emplace_back(s) ; } ; // rule 0 is not stored
+	inline RulesBase::RulesBase(NewType) { for( Special s : iota(1,Special::NUniq) ) emplace_back(s) ; } ; // rule 0 is not stored
 
 }
 

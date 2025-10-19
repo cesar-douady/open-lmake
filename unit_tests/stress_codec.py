@@ -55,5 +55,4 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	cnt = ut.lmake( 'dut' , new=1+n_files , done=n_dones , may_rerun=... , rerun=... , reformat=n_files )
-	assert cnt.may_rerun+cnt.rerun==1+n_targets # a rerun may appear instead of a may_rerun if some deps are being built while encode_<xx> is running
+	ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , may_rerun=1+n_targets , update=n_files )

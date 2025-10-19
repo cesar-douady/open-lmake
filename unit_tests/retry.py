@@ -48,5 +48,5 @@ else :
 
 	os.unlink('dep')
 	print('step=3',file=open('step.py','w'))
-	ut.lmake( '-m1' , 'rerun' , may_rerun=1 , steady=1 , submit_loop=1 , rc=1 ) # observe job in the middle of rerun loop
-	ut.lmake(         'rerun' ,               steady=1                        ) # observe job at end
+	ut.lmake( '-m1' , 'rerun' , may_rerun=1 , steady=1 , run_loop=1 , rc=1 ) # observe job in the middle of rerun loop
+	ut.lmake(         'rerun' ,               steady=1                     ) # observe job at end

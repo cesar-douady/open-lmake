@@ -43,8 +43,10 @@ template<class T,class T0,class... Ts> struct IsOneOfHelper<T,T0,Ts...> { static
 template<class T> concept IsChar = ::is_trivial_v<T> && ::is_standard_layout_v<T> ; // necessary property to make a ::basic_string
 template<class T> using AsChar = ::conditional_t<IsChar<T>,T,char> ;                // provide default value if not a Char so as to make ::basic_string before knowing if it is possible
 
-template<class D,class B> concept IsA       = ::is_same_v<remove_const_t<B>,remove_const_t<D>> || ::is_base_of_v<remove_const_t<B>,remove_const_t<D>> ;
-template<class T        > concept IsNotVoid = !::is_void_v<T>                                                                                         ;
+template<class D,class B> concept IsA =                     // for use in template : template<IsA<B> T> ... applies template for all T deriving from B
+	::is_same_v<::remove_const_t<B>,::remove_const_t<D>>    // case where B is not a class
+||	::is_base_of_v<::remove_const_t<B>,::remove_const_t<D>> // case where B is a class
+;
 
 template<class T> static constexpr size_t NBits = sizeof(T)*8 ;
 
@@ -52,7 +54,7 @@ template<class T> static constexpr T Max = ::numeric_limits<T>::max() ;
 template<class T> static constexpr T Min = ::numeric_limits<T>::min() ;
 
 #define VT(T) typename T::value_type
-#define RC(T) remove_const_t<T>
+#define RC(T) ::remove_const_t<T>
 
 // easy transformation of a container into another
 template<class K,        class V> ::set   <K                                       > mk_set   (V const& v) { return { v.begin() , v.end() } ; }
@@ -91,7 +93,7 @@ template<class M> ::vector<   VT(M)::second_type >       mk_val_vector(M const& 
 #undef RC
 #undef VT
 
-namespace std {                                                             // cannot specialize std::hash from global namespace with gcc-11
+namespace std {
 	template<class T> requires( requires(T t){t.hash();} ) struct hash<T> {
 		size_t operator()(T const& x) const {
 			return x.hash() ;

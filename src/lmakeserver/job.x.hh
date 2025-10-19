@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-// included 3 times : with DEF_STRUCT defined, then with DATA_DEF defined, then with IMPL defined
+// included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
 #ifdef STRUCT_DECL
 
@@ -122,6 +122,8 @@ namespace Engine {
 		//
 		explicit operator ::string() const ;
 		// accesses
+		bool is_plain(bool frozen_ok=false) const ;
+		//
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
 		// services
 		JobInfo job_info( BitMap<JobInfoKind> need=~BitMap<JobInfoKind>()) const ;           // read job info from ancillary file, taking care of queued events
@@ -134,23 +136,25 @@ namespace Engine {
 	} ;
 
 	struct JobTgt : Job {
-		static_assert(Job::NGuardBits>=1) ;                                                                                                               // need 1 bit to store is_static_phony bit
+		static_assert(Job::NGuardBits>=1) ;                                                                                                          // need 1 bit to store is_static_phony bit
 		static constexpr uint8_t NGuardBits = Job::NGuardBits-1       ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::string& operator+=( ::string& , JobTgt ) ;
 		// cxtors & casts
 		JobTgt(                                                                                   ) = default ;
-		JobTgt( Job j , bool isp=false                                                            ) : Job(j ) { if (+j) is_static_phony(isp)          ; } // if no job, ensure JobTgt appears as false
-		JobTgt( RuleTgt rt , ::string const& t , Bool3 chk_psfx=Yes , Req req={} , DepDepth lvl=0 ) ;                                                     // chk_psfx=Maybe means check size only
+		JobTgt( Job j , bool isp=false                                                            ) : Job{j} { if (+j) _set_is_static_phony(isp) ; } // if no job, ensure !sure()
+		JobTgt( RuleTgt rt , ::string const& t , Bool3 chk_psfx=Yes , Req req={} , DepDepth lvl=0 ) ;                                                // chk_psfx=Maybe means check size only
 		JobTgt( Rule::RuleMatch&& m , bool sure                     , Req req={} , DepDepth lvl=0 ) ;
-		JobTgt( JobTgt const& jt                                                                  ) : Job(jt) { is_static_phony(jt.is_static_phony()) ; }
+		JobTgt( JobTgt const& jt                                                                  ) : JobTgt{jt,jt._is_static_phony()} {}
 		//
-		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; is_static_phony(jt.is_static_phony()) ; return self ; }
+		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; _set_is_static_phony(jt._is_static_phony()) ; return self ; }
 		//
-		bool is_static_phony(        ) const { return Job::side<1>() ;                         }
-		void is_static_phony(bool isp)       { { if (isp) SWEAR(+self) ; } Job::side<1>(isp) ; }
-		bool sure           (        ) const ;
+		bool sure() const ;
+	private :
+		bool _is_static_phony    (        ) const { return Job::side<1>() ;                             }
+		void _set_is_static_phony(bool isp)       { { if (isp) SWEAR(+self) ; } Job::set_side<1>(isp) ; }
 		// services
+	public :
 		bool produces( Node , bool actual=false ) const ; // if actual, return if node was actually produced, in addition to being officially produced
 	} ;
 
@@ -162,6 +166,15 @@ namespace Engine {
 
 	struct JobExec : Job {
 		friend ::string& operator+=( ::string& , JobExec const& ) ;
+		struct EndDigest {
+			bool          can_upload        = true               ;
+			bool          has_new_deps      = false              ;
+			bool          has_unstable_deps = false              ;
+			JobReason     target_reason     = JobReasonTag::None ;
+			MsgStderr     msg_stderr        ;
+			::string      severe_msg        ;
+			::vector<Req> running_reqs      ;
+		} ;
 		// cxtors & casts
 	public :
 		JobExec(                                         ) = default ;
@@ -175,36 +188,37 @@ namespace Engine {
 		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) const ; // txts is {backend_msg,stderr}
 		bool/*reported*/ report_start( ReqInfo& ri                                                                          ) const ;
 		void             report_start(                                                                                      ) const ;
-		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) ;       // txts is {backend_msg,stderr}
+		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} )       ; // txts is {backend_msg,stderr}
 		//
 		void live_out    ( ReqInfo& , ::string const& ) const ;
 		void live_out    (            ::string const& ) const ;
 		void add_live_out(            ::string const& ) const ;
 		//
-		JobMngtRpcReply  job_analysis( EngineClosureJobMngt const& ) const ; // answer to requests from job execution
-		void             end         ( JobDigest<Node>&&           ) ;
-		void             give_up     ( Req={} , bool report=true   ) ;       // Req (all if 0) was killed and job was not killed (not started or continue)
+		JobMngtRpcReply manage     ( EngineClosureJobMngt const& ) const ; // answer to requests from job execution
+		EndDigest       end_analyze( JobDigest<Node> &/*inout*/  )       ;
+		void            end        ( JobDigest<Node>&&           )       ;
+		void            give_up    ( Req={} , bool report=true   )       ; // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
 		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx    , MsgStderr const&           , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const ;
 		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx={} , ::string const& stderr={}  , uint16_t max_stderr_len=0 , Delay exec_time={} , bool retry=false ) const {
 			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , max_stderr_len , exec_time , retry ) ;
 		}
-		size_t hash() const {                                                // use FNV-32, easy, fast and good enough, use 32 bits as we are mostly interested by lsb's
-			size_t res = 0x811c9dc5 ;
-			res = (res^+Job(self)       ) * 0x01000193 ;
-			res = (res^ host            ) * 0x01000193 ;
-			res = (res^ cost.hash()     ) * 0x01000193 ;
-			res = (res^ start_date.val()) * 0x01000193 ;
-			res = (res^ end_date  .val()) * 0x01000193 ;
-			return res ;
+		size_t hash() const {
+			Hash::Fnv fnv ;                                                // good enough
+			fnv += +Job(self)        ;
+			fnv +=  host             ;
+			fnv +=  cost.hash()      ;
+			fnv +=  start_date.val() ;
+			fnv +=  end_date  .val() ;
+			return +fnv ;
 		}
 		// data
 		in_addr_t   host       = 0 ;
-		CoarseDelay cost       ;                                             // exec time / average number of running job during execution
+		CoarseDelay cost       ;                                           // exec time / average number of running job during execution
 		Tokens1     tokens1    = 0 ;
 		Pdate       start_date ;
-		Pdate       end_date   ;                                             // if no end_date, job is stil on going
+		Pdate       end_date   ;                                           // if no end_date, job is stil on going
 	} ;
 
 }
@@ -275,6 +289,7 @@ namespace Engine {
 		State            state                ;                        //  43  <= 96 bits, dep analysis state
 		DepsIter::Digest iter                 ;                        // ~20+6<= 64 bits, deps up to this one statisfy required action
 		JobReason        reason               ;                        //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
+		uint16_t         n_runs               = 0     ;                //         16 bits, number of times job has been rerun
 		uint16_t         n_submits            = 0     ;                //         16 bits, number of times job has been rerun
 		uint8_t          n_losts              = 0     ;                //          8 bits, number of times job has been lost
 		uint8_t          n_retries            = 0     ;                //          8 bits, number of times job has been seen in error
@@ -313,7 +328,7 @@ namespace Engine {
 		JobData( JobName n , Special sp , Deps ds={} ) : JobDataBase{n} , deps{ds} , rule_crc{Rule(sp)->crc} {}                   // special Job, all deps
 		//
 		JobData( JobName n , Rule::RuleMatch const& m , Deps sds ) : JobDataBase{n} , deps{sds} , rule_crc{m.rule->crc} {         // plain Job, static targets and deps
-			SWEAR(!m.rule.is_shared()) ;
+			SWEAR( m.rule->special>=Special::HasMatches , idx(),m,m.rule,m.rule->special ) ;
 			_reset_targets(m) ;
 		}
 		//
@@ -349,7 +364,7 @@ namespace Engine {
 		Job         const& asking_job () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job                ; }
 		//
 		Job      idx () const { return Job::s_idx(self) ; }
-		Rule     rule() const { return rule_crc->rule   ; }
+		Rule     rule() const { return rule_crc->rule   ; }                                                                       // thread-safe
 		::string name() const {
 			::string res ;
 			if ( Rule r=rule() ; +r )   res = full_name(r->job_sfx_len()) ;
@@ -365,12 +380,15 @@ namespace Engine {
 		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
 		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                         // fast implementation of +running_reqs(...)
 		//
-		bool cmd_ok    (   ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
-		bool rsrcs_ok  (   ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }                         // dont care about rsrcs if job went ok
-		bool is_special(   ) const { return rule()->is_special() || idx().frozen()                    ; }
-		bool has_req   (Req) const ;
+		bool cmd_ok    (                    ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
+		bool rsrcs_ok  (                    ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }        // dont care about rsrcs if job went ok
+		bool is_plain  (bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen())        ; }
+		bool has_req   (Req                 ) const ;
 		//
-		void set_exec_ok() { Rule r = rule() ; SWEAR(!r->is_special(),r->special) ; rule_crc = r->crc ; }                         // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
+		void set_exec_ok() {                                                                                                      // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
+			Rule r = rule() ; SWEAR(r->is_plain(),r->special) ;
+			rule_crc = r->crc ;
+		}
 		//
 		bool sure   () const ;
 		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
@@ -394,9 +412,9 @@ namespace Engine {
 		MsgStderr special_msg_stderr(        bool short_msg=false         ) const ;                                               // cannot declare a default value for incomplete type Node
 		//
 		Rule::RuleMatch rule_match    (                                              ) const ;                                    // thread-safe
-		void            estimate_stats(                                              ) ;                                          // may be called any time
-		void            estimate_stats(                                      Tokens1 ) ;                                          // must not be called during job execution as cost must stay stable
-		void            record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 ) ;                                          // .
+		void            estimate_stats(                                              )       ;                                    // may be called any time
+		void            estimate_stats(                                      Tokens1 )       ;                                    // must not be called during job execution as cost must stay stable
+		void            record_stats  ( Delay exec_time , CoarseDelay cost , Tokens1 )       ;                                    // .
 		//
 		void set_pressure( ReqInfo& , CoarseDelay ) const ;
 		//
@@ -416,6 +434,8 @@ namespace Engine {
 		//
 		void wakeup(ReqInfo& ri) { make(ri,MakeAction::Wakeup) ; }
 		//
+		void refresh_codec(Req) ;
+		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
 		void add_watcher( ReqInfo& ri , Node watcher , NodeReqInfo& wri , CoarseDelay pressure ) ;
@@ -427,9 +447,10 @@ namespace Engine {
 	private :
 		void _propag_speculate(ReqInfo const&) const ;
 		//
-		void                   _submit_special ( ReqInfo&                        )       ;                                                        // special never report new deps
-		bool/*maybe_new_deps*/ _submit_plain   ( ReqInfo& , CoarseDelay pressure )       ;
-		void                   _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
+		void _submit_codec   ( Req                             )       ;
+		void _submit_special ( ReqInfo&                        )       ;
+		void _submit_plain   ( ReqInfo& , CoarseDelay pressure )       ;
+		void _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
 		// data
 		// START_OF_VERSIONING
 		struct IfPlain {
@@ -485,6 +506,10 @@ namespace Engine {
 	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR( sp==Special::Req || sp==Special::Dep , sp ) ; }
 	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR( sp!=Special::Plain                        ) ; }
 
+	inline bool Job::is_plain(bool frozen_ok) const {
+		return +self && self->is_plain(frozen_ok) ;
+	}
+
 	//
 	// JobTgt
 	//
@@ -493,15 +518,15 @@ namespace Engine {
 	inline JobTgt::JobTgt( Rule::RuleMatch&& m , bool sure                 , Req r , DepDepth lvl ) : JobTgt{ Job(::move(m)    ,r,lvl) , sure      } {}
 
 	inline bool JobTgt::sure() const {
-		return is_static_phony() && self->sure() ;
+		return _is_static_phony() && self->sure() ;
 	}
 
 	inline bool JobTgt::produces(Node t,bool actual) const {
-		if ( self->missing()                            ) return false                             ; // missing jobs produce nothing
-		if (  actual && self->run_status!=RunStatus::Ok ) return false                             ; // jobs has not run, it has actually produced nothing
-		if ( !actual && self->err()                     ) return true                              ; // jobs in error are deemed to produce all their potential targets
-		if ( !actual && sure()                          ) return true                              ;
-		if ( t->has_actual_job(self)                    ) return t->actual_tflags()[Tflag::Target] ; // .
+		if ( self->missing()                            ) return false                           ; // missing jobs produce nothing
+		if (  actual && self->run_status!=RunStatus::Ok ) return false                           ; // jobs has not run, it has actually produced nothing
+		if ( !actual && self->err()                     ) return true                            ; // jobs in error are deemed to produce all their potential targets
+		if ( !actual && sure()                          ) return true                            ;
+		if ( t->has_actual_job(self)                    ) return t->actual_tflags[Tflag::Target] ; // .
 		//
 		auto it = ::lower_bound( self->targets() , {t,{}} ) ;
 		return it!=self->targets().end() && *it==t && it->tflags[Tflag::Target] ;
@@ -534,7 +559,7 @@ namespace Engine {
 		return t.tflags ;
 	}
 
-	inline Rule::RuleMatch JobData::rule_match() const {
+	inline Rule::RuleMatch JobData::rule_match() const { // thread-safe
 		return Rule::RuleMatch(idx()) ;
 	}
 

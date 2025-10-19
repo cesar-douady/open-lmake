@@ -503,27 +503,28 @@ CLIENT_SAN_OBJS := \
 	src/trace$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)         \
-	$(RPC_JOB_SAN_OBJS)             \
-	src/app$(SAN).o                 \
-	src/py$(SAN).o                  \
-	src/re$(SAN).o                  \
-	src/rpc_client$(SAN).o          \
-	src/rpc_job_exec$(SAN).o        \
-	src/trace$(SAN).o               \
-	src/autodep/backdoor$(SAN).o    \
-	src/autodep/env$(SAN).o         \
-	src/autodep/ld_server$(SAN).o   \
-	src/autodep/record$(SAN).o      \
-	src/autodep/syscall_tab$(SAN).o \
-	src/lmakeserver/backend$(SAN).o \
-	src/lmakeserver/codec$(SAN).o   \
-	src/lmakeserver/global$(SAN).o  \
-	src/lmakeserver/config$(SAN).o  \
-	src/lmakeserver/job$(SAN).o     \
-	src/lmakeserver/node$(SAN).o    \
-	src/lmakeserver/req$(SAN).o     \
-	src/lmakeserver/rule$(SAN).o    \
+	$(LMAKE_BASIC_SAN_OBJS)           \
+	$(RPC_JOB_SAN_OBJS)               \
+	src/app$(SAN).o                   \
+	src/py$(SAN).o                    \
+	src/re$(SAN).o                    \
+	src/rpc_client$(SAN).o            \
+	src/rpc_job_exec$(SAN).o          \
+	src/trace$(SAN).o                 \
+	src/autodep/backdoor$(SAN).o      \
+	src/autodep/env$(SAN).o           \
+	src/autodep/ld_server$(SAN).o     \
+	src/autodep/record$(SAN).o        \
+	src/autodep/syscall_tab$(SAN).o   \
+	src/lmakeserver/backend$(SAN).o   \
+	src/lmakeserver/global$(SAN).o    \
+	src/lmakeserver/config$(SAN).o    \
+	src/lmakeserver/job$(SAN).o       \
+	src/lmakeserver/job_data$(SAN).o  \
+	src/lmakeserver/node$(SAN).o      \
+	src/lmakeserver/req$(SAN).o       \
+	src/lmakeserver/rule$(SAN).o      \
+	src/lmakeserver/rule_data$(SAN).o \
 	src/lmakeserver/store$(SAN).o
 
 _bin/lmakeserver : \
@@ -566,12 +567,13 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@$(SPLIT_DBG_CMD)
 
 bin/ldircache_repair : \
-	$(LMAKE_BASIC_SAN_OBJS) \
-	$(RPC_JOB_SAN_OBJS)     \
-	src/app$(SAN).o         \
-	src/autodep/env$(SAN).o \
-	src/re$(SAN).o          \
-	src/trace$(SAN).o       \
+	$(LMAKE_BASIC_SAN_OBJS)  \
+	$(RPC_JOB_SAN_OBJS)      \
+	src/app$(SAN).o          \
+	src/re$(SAN).o           \
+	src/rpc_job_exec$(SAN).o \
+	src/trace$(SAN).o        \
+	src/autodep/env$(SAN).o  \
 	src/ldircache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -601,12 +603,13 @@ bin/ldebug :
 
 LMAKE_DBG_FILES += _bin/ldump_job
 _bin/ldump_job : \
-	$(LMAKE_BASIC_SAN_OBJS) \
-	$(RPC_JOB_SAN_OBJS)     \
-	src/app$(SAN).o         \
-	src/re$(SAN).o          \
-	src/trace$(SAN).o       \
-	src/autodep/env$(SAN).o \
+	$(LMAKE_BASIC_SAN_OBJS)  \
+	$(RPC_JOB_SAN_OBJS)      \
+	src/app$(SAN).o          \
+	src/re$(SAN).o           \
+	src/rpc_job_exec$(SAN).o \
+	src/trace$(SAN).o        \
+	src/autodep/env$(SAN).o  \
 	src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -712,7 +715,7 @@ bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/lcheck_deps.o
 bin/% :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PCRE_LIB) $(LINK_LIB)
+	@$(LINK) $(LIB_STDCPP) -o $@ $^ $(PCRE_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 # remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)
@@ -759,7 +762,7 @@ TEST_ENV = \
 	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
 	export PYTHONPATH=$(REPO_ROOT)/lib:$(REPO_ROOT)/_lib:$(REPO_ROOT)/unit_tests/base:$$PYTHONPATH ; \
 	export CXX=$(CXX)                                                                              ; \
-	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                           ; \
+	export LD_LIBRARY_PATH=$(PY3_LIB_DIR)                                                          ; \
 	export HAS_32=$(HAS_32)                                                                        ; \
 	export PYTHON2=$(PYTHON2)                                                                      ; \
 	exec </dev/null >$@.out 2>$@.err

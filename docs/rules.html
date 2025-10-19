@@ -707,13 +707,23 @@ For example, a job may be lost because of a remote host being misconfigured, or 
 </div>
 <p>This attribute defines the maximum number of lines of stderr that will be displayed in the output of <code>lmake</code>.
 The whole content of stderr stays accessible with the <code>lshow -e</code> command.</p>
+<h3 id="max_runs"><a class="header" href="#max_runs"><code>max_runs</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>int</code></td><td><code>0</code></td><td>No</td><td></td></tr>
+</tbody></table>
+</div>
+<p>The goal is to protect against potential loss of performances if reruns are too frequent.
+Unlimited if <code>0</code>.
+Contrarily to the <code>max_submits</code> attribute, cache accesses are not counted when counting runs.</p>
 <h3 id="max_submits"><a class="header" href="#max_submits"><code>max_submits</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>int</code></td><td><code>10</code></td><td>No</td><td></td></tr>
 </tbody></table>
 </div>
 <p>The goal is to protect agains potential infinite loop cases.
-The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).</p>
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
+Unlimited if <code>0</code>.
+Contrarily to the <code>max_runs</code> attribute, cache accesses are counted when counting submits.</p>
 <h3 id="readdir_ok"><a class="header" href="#readdir_ok"><code>readdir_ok</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
