@@ -56,8 +56,9 @@ public :
 		//
 		SWEAR(!( has_dflt_key &&  ks.contains(Key::None) && ks.at(Key::None).short_name )) ;
 		//
-		for( auto const& [k,s] : ks ) { SWEAR(!keys [+k].short_name) ; keys [+k] = s ; } // ensure no short name conflicts
-		for( auto const& [f,s] : fs ) { SWEAR(!flags[+f].short_name) ; flags[+f] = s ; } // .
+		::uset<char> short_names ;
+		for( auto const& [k,s] : ks ) { keys [+k] = s ; if (+s.short_name>1) SWEAR( short_names.insert(s.short_name).second , s.short_name ) ; } // ensure no short name conflicts
+		for( auto const& [f,s] : fs ) { flags[+f] = s ; if (+s.short_name>1) SWEAR( short_names.insert(s.short_name).second , s.short_name ) ; } // .
 	}
 	//
 	void usage(::string const& msg={}) const ;
@@ -115,10 +116,11 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 		size_t wk = 0 ; for( Key  k : iota(All<Key>) ) if (k!=Key::None) wk = ::max( wk , snake(k).size() ) ;
 		if (has_dflt_key) { err_msg << "keys (at most 1) :\n"                                  ; wk = ::max(wk,NoKeySz) ; }
 		else                err_msg << "keys (exactly 1) :\n"                                  ;
-		if (has_dflt_key)   err_msg << "<no key>" << widen("",wk) <<" : "<< keys[0].doc <<'\n' ;
+		if (has_dflt_key)   err_msg << widen(NoKey,8+wk)<<" : "<<keys[0].doc<<set_nl ;
 		for( Key k : iota(All<Key>) ) if (keys[+k].short_name) {
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
-			err_msg << '-' << keys[+k].short_name << " or --" << widen(option,wk) <<" : "<< keys[+k].doc <<'\n' ;
+			if (keys[+k].short_name>1) err_msg << '-'<<keys[+k].short_name<<" or --"<<widen(option,wk)<<" : "<<keys[+k].doc<<set_nl ;
+			else                       err_msg << ' '<<' '                <<"    --"<<widen(option,wk)<<" : "<<keys[+k].doc<<set_nl ;
 		}
 	}
 	//
@@ -128,7 +130,8 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 		for( Flag f : iota(All<Flag>) ) {
 			if (!flags[+f].short_name) continue ;
 			::string flag { snake(f) } ; for( char& c : flag ) if (c=='_') c = '-' ;
-			/**/                                err_msg << '-'<<flags[+f].short_name<<" or --"<<widen(flag,wf) ;
+			if (flags[+f].short_name>1        ) err_msg << '-'<<flags[+f].short_name<<" or --"<<widen(flag,wf) ;
+			else                                err_msg << ' '<<' '                 <<"    --"<<widen(flag,wf) ;
 			if      (flags[+f].has_arg        ) err_msg << " <arg>"                                            ;
 			else if (has_arg                  ) err_msg << "      "                                            ;
 			/**/                                err_msg << " : "<<flags[+f].doc<<set_nl                        ;
@@ -146,8 +149,8 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 	SWEAR(argc>0) ;
 	//
 	int               a        = 0 ;
-	::umap<char,Key > key_map  ;     for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name) key_map [syntax.keys [+k].short_name] = k ;
-	::umap<char,Flag> flag_map ;     for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name) flag_map[syntax.flags[+f].short_name] = f ;
+	::umap<char,Key > key_map  ;     for( Key  k : iota(All<Key >) ) if (syntax.keys [+k].short_name>1) key_map [syntax.keys [+k].short_name] = k ;
+	::umap<char,Flag> flag_map ;     for( Flag f : iota(All<Flag>) ) if (syntax.flags[+f].short_name>1) flag_map[syntax.flags[+f].short_name] = f ;
 	try {
 		bool has_key       = false ;
 		bool force_args    = false ;

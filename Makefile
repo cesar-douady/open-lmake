@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 25.07
-TAG            := 28
+TAG            := 29
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -751,7 +751,7 @@ TEST_ENV = \
 	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
 	export PYTHONPATH=$(REPO_ROOT)/lib:$(REPO_ROOT)/_lib:$(REPO_ROOT)/unit_tests/base:$$PYTHONPATH ; \
 	export CXX=$(CXX)                                                                              ; \
-	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                           ; \
+	export LD_LIBRARY_PATH=$(PY3_LIB_DIR)                                                          ; \
 	export HAS_32=$(HAS_32)                                                                        ; \
 	export PYTHON2=$(PYTHON2)                                                                      ; \
 	exec </dev/null >$@.out 2>$@.err

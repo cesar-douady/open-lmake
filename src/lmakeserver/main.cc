@@ -98,7 +98,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 	return res ;
 }
 
-::string _os_compat(::string const& os_id) {
+static ::string _os_compat(::string const& os_id) {
 	::string res = os_id ;
 	switch (res[0]) {
 		case 'c' : if (res.starts_with("centos/"       )) res = "rhel"+res.substr(res.find('/')) ; break ; // centos       is inter-operable with rhel
@@ -109,7 +109,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 	DN}
 	switch (res[0]) {
 		case 'r' : if (res.starts_with("rhel/")) res = res.substr(0,res.find('.')) ; break ;               // ignore minor
-		case 's' : if (res.starts_with("suse/")) res = res.substr(0,res.find('.')) ; break ;               // .
+		case 's' :                                                                   break ;               // XXX/ : suse 15.5 does not support LD_AUDIT while 15.6 does, so minor cannot be ignored
 	DN}
 	return res ;
 }

@@ -474,16 +474,16 @@ namespace Backends::Slurm {
 	RsrcsData parse_args(::string const& args) {
 		Syntax<SlurmKey,SlurmFlag> syntax {{
 			{ SlurmFlag::CpusPerTask    , { .short_name='c' , .has_arg=true , .doc="cpus per task" } }
-		,	{ SlurmFlag::Mem            , {                   .has_arg=true , .doc="mem"           } }
-		,	{ SlurmFlag::Tmp            , {                   .has_arg=true , .doc="tmp disk space"} }
+		,	{ SlurmFlag::Mem            , { .short_name=1   , .has_arg=true , .doc="mem"           } }
+		,	{ SlurmFlag::Tmp            , { .short_name=1   , .has_arg=true , .doc="tmp disk space"} }
 		,	{ SlurmFlag::Constraint     , { .short_name='C' , .has_arg=true , .doc="constraint"    } }
 		,	{ SlurmFlag::Exclude        , { .short_name='x' , .has_arg=true , .doc="exclude nodes" } }
-		,	{ SlurmFlag::Gres           , {                   .has_arg=true , .doc="gres"          } }
+		,	{ SlurmFlag::Gres           , { .short_name=1   , .has_arg=true , .doc="gres"          } }
 		,	{ SlurmFlag::Licenses       , { .short_name='L' , .has_arg=true , .doc="licenses"      } }
 		,	{ SlurmFlag::Nodelist       , { .short_name='w' , .has_arg=true , .doc="nodes"         } }
 		,	{ SlurmFlag::Partition      , { .short_name='p' , .has_arg=true , .doc="partition"     } }
 		,	{ SlurmFlag::Qos            , { .short_name='q' , .has_arg=true , .doc="qos"           } }
-		,	{ SlurmFlag::Reservation    , {                   .has_arg=true , .doc="reservation"   } }
+		,	{ SlurmFlag::Reservation    , { .short_name=1   , .has_arg=true , .doc="reservation"   } }
 		}} ;
 		syntax.args_ok    = false       ;
 		syntax.sub_option = "--backend" ;
