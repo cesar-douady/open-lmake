@@ -18,10 +18,12 @@
 
 #include "disk.hh"
 #include "fd.hh"
+#include "hash.hh"
 #include "process.hh"
 #include "time.hh"
 
 using namespace Disk ;
+using namespace Hash ;
 using namespace Time ;
 
 //
@@ -31,20 +33,38 @@ using namespace Time ;
 ::string& operator+=( ::string& os , Fd   const& fd ) { return fd.append_to_str( os , "Fd"   ) ; }
 ::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
 
-int Fd::_s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) {
+int Fd::_s_mk_fd( Fd at , ::string const& file , Action action ) {
 	bool creat = action.flags&O_CREAT ;
 	if (creat) {
-		SWEAR(   action.mod                           , file,action.flags ) ; // mod must be specified if creating
-		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ; // mod must only specify perm
-		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ; // mod must be independent of usr/grp/oth (this is umask job)
-		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ; // .
+		SWEAR(   action.mod                           , file,action.flags ) ;                              // mod must be specified if creating
+		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ;                              // mod must only specify perm
+		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ;                              // mod must be independent of usr/grp/oth (this is umask job)
+		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ;                              // .
 	}
-	//
-	int res ;
+	if (action.nfs_guard) {
+		if (action.flags&O_DIRECTORY) {
+			/**/                                                                 action.nfs_guard->access_dir_s( at , with_slash(file) ) ;
+		} else {
+			if ( (action.flags&O_ACCMODE)!=O_WRONLY || !(action.flags&O_TRUNC) ) action.nfs_guard->access      ( at ,            file  ) ;
+			if ( (action.flags&O_ACCMODE)!=O_RDONLY                            ) action.nfs_guard->change      ( at ,            file  ) ;
+		}
+	}
+	int  res   ;
+	bool first = true ;
+Retry :
 	if      (+file      ) res = ::openat( at , file.c_str() , action.flags|O_CLOEXEC , action.mod ) ;
 	else if (at==Fd::Cwd) res = ::openat( at , "."          , action.flags|O_CLOEXEC , action.mod ) ;
 	else                  res =           at                                                        ;
-	if ( !err_ok && res<0 ) throw cat("cannot open (",StrErr(),") : ",file_msg(at,file)) ;
+	if (res<0) {
+		if ( errno==ENOENT && creat && first ) {
+			if (action.flags&O_TMPFILE) mk_dir_s ( at , with_slash(file) , {.perm_ext=action.perm_ext} ) ;
+			else                        dir_guard( at ,            file  , {.perm_ext=action.perm_ext} ) ;
+			first = false ;                                                                                // ensure we retry at most once
+			goto Retry ;
+		}
+		if (!action.err_ok) throw cat("cannot open (",StrErr(),") : ",file_msg(at,file)) ;
+		else                return res                                                   ;
+	}
 	//
 	if ( creat && +action.perm_ext ) {
 		static mode_t umask_ = get_umask() ;
@@ -111,6 +131,49 @@ size_t Fd::read_to(::span<char> dst) const {
 	                            if (content.back()=='\n') content.pop_back() ;
 	                            else                      throw_if( !partial_ok , "partial last line" ) ;
 	/**/                                                  return split(content,'\n') ;
+}
+
+//
+// FileSpec
+//
+
+size_t FileSpec::hash() const {
+	Fnv fnv ;                         // good enough
+	fnv += at                       ;
+	fnv += ::hash<::string>()(file) ;
+	return +fnv ;
+}
+
+//
+// NfsGuard
+//
+
+static void _nfs_guard_protect( Fd at , ::string const& dir_s ) {
+	::close( ::openat( at , dir_s.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
+}
+
+void NfsGuardDir::access( Fd at , ::string const& path ) {
+	if ( is_dir_name(path) ? path.ends_with("../") : path.ends_with("..") ) return ; // cannot go uphill
+	if ( !has_dir(path)                                                   ) return ;
+	access_dir_s( at , dir_name_s(path) ) ;
+}
+
+void NfsGuardDir::access_dir_s( Fd at , ::string const& dir_s ) {
+	access(at,dir_s) ;                                                          // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+	if (fetched_dirs_s.emplace(at,dir_s).second) _nfs_guard_protect(at,dir_s) ; // open to force NFS close to open coherence, close is useless
+}
+
+void NfsGuardDir::change( Fd at , ::string const& path ) {
+	if ( is_dir_name(path) ? path.ends_with("../") : path.ends_with("..") ) return ; // cannot go uphill
+	if ( !has_dir(path)                                                   ) return ;
+	::string dir_s = dir_name_s(path) ;
+	access_dir_s(at,dir_s) ;
+	to_stamp_dirs_s.emplace(at,::move(dir_s)) ;
+}
+
+void NfsGuardDir::flush() {
+	for( auto const& [at,d_s] : to_stamp_dirs_s ) _nfs_guard_protect(at,d_s) ;
+	to_stamp_dirs_s.clear() ;
 }
 
 //

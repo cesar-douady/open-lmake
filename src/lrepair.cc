@@ -129,13 +129,14 @@ int main( int argc , char* /*argv*/[] ) {
 	if (+startup_s           )                                                exit(Rc::Usage   ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
 	if (is_target(ServerMrkr))                                                exit(Rc::BadState,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
-	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,true/*dir_ok*/) ; // if last lrepair was interrupted, admin_dir contains no useful information
+	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,{.dir_ok=true}) ; // if last lrepair was interrupted, admin_dir contains no useful information
 	if (is_dir_s(bck_admin_dir_s)) {
 		if (is_dir_s(admin_dir_s)) {
 			mk_lad() ;
 			exit(Rc::BadState,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
 		}
-		if (::rename(bck_admin_dir.c_str(),admin_dir.c_str())!=0) FAIL("cannot rename",bck_admin_dir,"to",admin_dir) ;
+		try                       { rename( admin_dir/*dst*/ , bck_admin_dir/*src*/ ) ; }
+		catch (::string const& e) { fail_prod(e) ;                                      }
 	}
 	if (!is_dir_s(cat(PrivateAdminDirS,"local_admin/job_data/"))) exit(Rc::Fail,"nothing to repair") ;
 	//
@@ -147,12 +148,12 @@ int main( int argc , char* /*argv*/[] ) {
 	Record::s_static_report = true           ;
 	Record::s_autodep_env(ade) ;
 	//
-	if (::rename(admin_dir.c_str(),bck_admin_dir.c_str())!=0) FAIL("cannot rename",admin_dir,"to",bck_admin_dir) ;
+	try                       { rename( bck_admin_dir/*dst*/ , admin_dir/*src*/ ) ; }
+	catch (::string const& e) { fail_prod(e) ;                                      }
 	//
-	if ( AcFd fd { dir_guard(repair_mrkr) , true/*err_ok*/ , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ; !fd ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
 	//
-	mk_dir_s(PrivateAdminDirS) ;
 	g_trace_file = new ::string{cat(PrivateAdminDirS,"trace/",*g_exe_name)} ;
 	Trace::s_start() ;
 	//
@@ -162,7 +163,6 @@ int main( int argc , char* /*argv*/[] ) {
 		catch (::string const& e) {                                                                         if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::BadState,e) ; }
 	}
 	//
-	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
 	mk_lad() ;
 	//
 	{	::string msg ;
@@ -176,7 +176,7 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_version(true/*may_init*/) ;                                                                                                                           // mark repo as initialized
+	chk_version(true/*may_init*/) ;                                                                                                        // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

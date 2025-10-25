@@ -115,7 +115,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 }
 static void _chk_os() {
 	static constexpr const char* ReleaseFile = "/etc/os-release" ;
-	::vector_s lines      = AcFd(ReleaseFile,true/*err_ok*/).read_lines() ;
+	::vector_s lines      = AcFd(ReleaseFile,{.err_ok=true}).read_lines() ;
 	::string   id         ;
 	::string   version_id ;
 	if (!lines) exit(Rc::System,"cannot find",ReleaseFile) ;
@@ -134,14 +134,14 @@ static void _chk_os() {
 
 static void _record_targets(Job job) {
 	::string   targets_file  = cat(AdminDirS,"targets")                       ;
-	::vector_s known_targets = AcFd(targets_file,true/*err_ok*/).read_lines() ;
+	::vector_s known_targets = AcFd(targets_file,{.err_ok=true}).read_lines() ;
 	for( Node t : job->deps ) {
 		::string tn = t->name() ;
 		for( ::string& ktn : known_targets ) if (ktn==tn) ktn.clear() ;
 		known_targets.push_back(tn) ;
 	}
 	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
-	AcFd( targets_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(content) ;
+	AcFd( targets_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
 }
 
 static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
@@ -458,7 +458,7 @@ int main( int argc , char** argv ) {
 	Record::s_autodep_env(ade) ;
 	if (+*g_startup_dir_s) {
 		g_startup_dir_s->pop_back() ;
-		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;     // NO_COV
+		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ; // NO_COV
 	}
 	//
 	bool refresh_ = true       ;
@@ -483,15 +483,14 @@ int main( int argc , char** argv ) {
 	if (+g_startup_dir_s) SWEAR( is_dir_name(*g_startup_dir_s) , *g_startup_dir_s ) ;
 	else                  g_startup_dir_s = new ::string ;
 	//
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                                            //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
-	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                            // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
-	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                       // ... must be done before any thread is launched so that all threads block the signal
-	mk_dir_s(PrivateAdminDirS) ;
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                                        //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
+	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;                        // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
+	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                                   // ... must be done before any thread is launched so that all threads block the signal
 	bool rescue = false ;
 	//                          vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	::pair_s<Rc> start_digest = _start_server(/*out*/rescue) ;
 	//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (!_g_is_daemon       ) _report_server( out_fd , start_digest.second==Rc::Ok ) ;       // inform lmake we did not start
+	if (!_g_is_daemon       ) _report_server( out_fd , start_digest.second==Rc::Ok ) ;   // inform lmake we did not start
 	if (+start_digest.second) {
 		if (+start_digest.first) exit( start_digest.second , "cannot start server : ",start_digest.first ) ;
 		else                     exit( Rc::Ok                                                            ) ;
@@ -506,11 +505,7 @@ int main( int argc , char** argv ) {
 	//
 	if (+msg         ) Fd::Stderr.write(ensure_nl(msg)) ;
 	if (+rc.second   ) exit( rc.second , rc.first )     ;
-	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)    ;                                    // once we have reported we have started, lmake will send us a message to kill us
-	//
-	for( AncillaryTag tag : iota(All<AncillaryTag>) ) dir_guard(Job().ancillary_file(tag)) ;
-	mk_dir_s(cat(AdminDirS       ,"auto_tmp/"    ),true/*unlnk_ok*/) ;                       // prepare job execution so no dir_guard is necessary for each job
-	mk_dir_s(cat(PrivateAdminDirS,"fast_reports/"),true/*unlnk_ok*/) ;                       // .
+	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)    ;                                // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
@@ -523,8 +518,8 @@ int main( int argc , char** argv ) {
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
 	if (g_writable) {
-		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),false/*abs_ok*/,true/*force*/) ; } catch (::string const&) {}              // cleanup
-		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(g_kpi.pretty_str()) ;
+		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),{.force=true}) ; } catch (::string const&) {}                                // cleanup
+		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_kpi.pretty_str() ) ;
 	}
 	//
 	Backend::s_finalize() ;

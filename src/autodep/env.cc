@@ -124,18 +124,18 @@ void AutodepEnv::chk(bool for_cache) const {
 }
 
 Fd AutodepEnv::repo_root_fd() const {
-	try                       { return { repo_root_s , {.flags=O_RDONLY|O_DIRECTORY} , true/*no_std*/ } ; } // avoid poluting standard descriptors
-	catch (::string const& e) { fail_prod("cannot open repo root dir",repo_root_s) ;                      }
+	try                       { return { repo_root_s , {.flags=O_RDONLY|O_DIRECTORY,.no_std=true} } ; } // avoid poluting standard descriptors
+	catch (::string const& e) { fail_prod("cannot open repo root dir",repo_root_s) ;                  }
 }
 
 Fd AutodepEnv::fast_report_fd() const {
 	if (!has_server()) return {} ;
 	//
-	throw_unless( +fast_report_pipe , "no fast channel"  ) ;                                                  // use slow report in that case
-	throw_unless( host()==fast_host , "from host",host() ) ;                                                  // .
+	throw_unless( +fast_report_pipe , "no fast channel"  ) ;                                              // use slow report in that case
+	throw_unless( host()==fast_host , "from host",host() ) ;                                              // .
 	//
-	try                       { return { fast_report_pipe , {.flags=O_WRONLY|O_APPEND} , true/*no_std*/ } ; } // append if writing to a file
-	catch (::string const& e) { fail_prod("while trying to report deps :",e) ;                              } // NO_COV
+	try                       { return { fast_report_pipe , {.flags=O_WRONLY|O_APPEND,.no_std=true} } ; } // append if writing to a file
+	catch (::string const& e) { fail_prod("while trying to report deps :",e) ;                          } // NO_COV
 }
 
 Fd AutodepEnv::slow_report_fd() const {

@@ -462,14 +462,13 @@ Status Gather::_exec_child() {
 		trace("kill_done",end_kill) ;
 	} ;
 	auto open_fast_report_fd = [&]() {
-		SWEAR(+autodep_env.fast_report_pipe) ;
-		fast_report_fd = AcFd( autodep_env.fast_report_pipe , true/*err_ok*/ , {.flags=O_RDONLY|O_NONBLOCK} ) ; // avoid blocking waiting for child, no impact on epoll-controled ops
-		//
-		if (+fast_report_fd) {                                                         // work w/o fast report if it does not work (seen on some instances of Centos7)
+		if (!autodep_env.fast_report_pipe) return ;
+		fast_report_fd = AcFd( autodep_env.fast_report_pipe , {.flags=O_RDONLY|O_NONBLOCK,.err_ok=true} ) ; // avoid blocking waiting for child, no impact on epoll-controled ops
+		if (+fast_report_fd) {                                                                              // work w/o fast report if it does not work (seen on some instances of Centos7)
 			trace("open_fast_report_fd",autodep_env.fast_report_pipe,fast_report_fd) ;
 			epoll.add_read( fast_report_fd , Kind::JobSlave ) ;
-			epoll.dec() ;                                                              // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
-			job_slaves[fast_report_fd] ;                                               // allocate entry
+			epoll.dec() ;                                       // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
+			job_slaves[fast_report_fd] ;                        // allocate entry
 		} else {
 			trace("open_fast_report_fd",autodep_env.fast_report_pipe,StrErr()) ;
 			autodep_env.fast_report_pipe.clear() ;
@@ -480,7 +479,17 @@ Status Gather::_exec_child() {
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	if (+autodep_env.fast_report_pipe) {
-		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666/*mode*/ )!=0 ) SWEAR(errno=EEXIST,errno) ; // if it already exists, assume it is already a fifo
+		bool first = true ;
+	Retry :
+		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666/*mode*/ )!=0 ) {
+			if ( errno==ENOENT && first ) {
+				dir_guard(autodep_env.fast_report_pipe) ;
+				first = false ;                                 // ensure at most one retry
+				goto Retry ;
+			} else if (errno!=EEXIST) {                         // if it already exists, assume it is already a fifo
+				autodep_env.fast_report_pipe.clear() ;          // we'll live with no fast report
+			}
+		}
 		open_fast_report_fd() ;
 	}
 	if (+server_master_fd) {
@@ -494,7 +503,7 @@ Status Gather::_exec_child() {
 		if (now>=end_child) {
 			_exec_trace( now , Comment::StillAlive ) ;
 			if (!_wait[Kind::ChildEnd]) {
-				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;               // else we should already have exited
+				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ; // else we should already have exited
 				::string msg_ ;
 				if ( _wait[Kind::Stdout]                        ) msg_ += "stdout " ;
 				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg_ += "and "    ;
@@ -671,7 +680,7 @@ Status Gather::_exec_child() {
 					}
 					JobMngtRpcReply& jmrr = *received ;
 					trace(kind,fd,jmrr) ;
-					Fd rfd = jmrr.fd ;                                               // capture before move
+					Fd rfd = jmrr.fd ;                                                                                         // capture before move
 					if (jmrr.seq_id==seq_id) {
 						switch (jmrr.proc) {
 							case JobMngtProc::DepDirect  :
@@ -690,10 +699,8 @@ Status Gather::_exec_child() {
 										}
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
-									for( auto const& [f,_] : jse.jerr.files ) {
-										nfs_guard.access(f) ;
-										_access_info(::copy(f)).second.no_hot(now) ; // dep has been built and we are guarded : it cannot be hot from now on
-									}
+									for( auto const& [f,_] : jse.jerr.files )
+										_access_info(::copy(nfs_guard.access(f))).second.no_hot(now) ;                         // dep has been built and we are guarded : it cannot be hot from now on
 									_exec_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
 								}
 								for( auto& [f,_] : jse.jerr.files ) {
@@ -715,7 +722,7 @@ Status Gather::_exec_child() {
 										ces |= CommentExt::Killed ;
 										set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
 										kill() ;
-										rfd = {} ;                                   // dont reply to ensure job waits if sync
+										rfd = {} ;                                                                             // dont reply to ensure job waits if sync
 									break ;
 									case No :
 										ces |= CommentExt::Err ;
@@ -740,7 +747,7 @@ Status Gather::_exec_child() {
 									//^^^^^^^^^^^^^^^^^^^
 								}
 							} break ;
-						DF}                                                          // NO_COV
+						DF}                                                                                                    // NO_COV
 						if (+rfd) {
 							JobExecRpcReply jerr ;
 							switch (jmrr.proc) {

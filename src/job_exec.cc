@@ -250,7 +250,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
 	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ; // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
-		AcFd( dir_guard(cmd_file) , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(g_start_info.cmd) ;
+		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_start_info.cmd ) ;
 		res.reserve(res.size()+1) ;
 		res.push_back(mk_glb(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
@@ -365,13 +365,13 @@ int main( int argc , char* argv[] ) {
 		bool     incremental = false/*garbage*/                     ;
 		//
 		try {
-			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , /*out*/incremental , ::move(g_start_info.pre_actions) , nfs_guard )) ;
-		} catch (::string const& e) {                                                                                                                        // START_OF_NO_COV defensive programming
+			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/g_washed , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
+		} catch (::string const& e) {                                                                                                                         // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
-		}                                                                                                                                                    // END_OF_NO_COV
+		}                                                                                                                                                     // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
 		//
@@ -521,16 +521,16 @@ int main( int argc , char* argv[] ) {
 		}
 		for( ::string& t : g_washed )
 			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , No/*late*/ , Comment::Wash ) ;
-		//                                                                      err_ok
-		if (+g_start_info.stdin) g_gather.child_stdin = Fd( g_start_info.stdin , true  ) ;
-		else                     g_gather.child_stdin = Fd( "/dev/null"        , false ) ;
+		//
+		if (+g_start_info.stdin) g_gather.child_stdin = Fd( g_start_info.stdin , {.err_ok=true} ) ;
+		else                     g_gather.child_stdin = Fd( "/dev/null"                         ) ;
 		g_gather.child_stdin.no_std() ;
 		g_gather.child_stderr = Child::PipeFd ;
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = Fd( dir_guard(g_start_info.stdout) , true/*err_ok*/ , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;
-			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;      // writing to stdout last for the whole job
+			g_gather.child_stdout = Fd( g_start_info.stdout , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ;
+			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;  // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line(cmd_env) ;
@@ -538,14 +538,14 @@ int main( int argc , char* argv[] ) {
 		try { //!    vvvvvvvvvvvvvvvvvvvvv
 			status = g_gather.exec_child() ;
 			//       ^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {                                                                                                     // START_OF_NO_COV defensive programming
-			if (g_gather.started) end_report.digest.status = Status::Err ;                                                                // not early as soon as job is started
+		} catch (::string const& e) {                                                                                                 // START_OF_NO_COV defensive programming
+			if (g_gather.started) end_report.digest.status = Status::Err ;                                                            // not early as soon as job is started
 			end_report.msg_stderr.msg << "open-lmake error : " << e ;
 			goto End ;
-		}                                                                                                                                 // END_OF_NO_COV
+		}                                                                                                                             // END_OF_NO_COV
 		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                              // XXX/ : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                          // XXX/ : suppress when CentOS7 bug is fixed
 		//
 		Gather::Digest digest = g_gather.analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -565,7 +565,7 @@ int main( int argc , char* argv[] ) {
 			g_exec_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.zlvl) ) ;
 		}
 		//
-		if (+g_start_info.autodep_env.file_sync) {                                                                                        // fast path : avoid listing targets & guards if !file_sync
+		if (+g_start_info.autodep_env.file_sync) {                                                                                    // fast path : avoid listing targets & guards if !file_sync
 			for( auto const& [t,_] : digest.targets  ) nfs_guard.change(t) ;
 			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
 		}
@@ -602,18 +602,18 @@ End :
 			ClientSockFd fd           { SockFd::s_host(g_service_end) , SockFd::s_port(g_service_end) } ;
 			Pdate        end_overhead = New                                                             ;
 			g_exec_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
-			end_report.digest.exec_time = end_overhead - start_overhead ;                                                                 // measure overhead as late as possible
+			end_report.digest.exec_time = end_overhead - start_overhead ;                                                             // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf().send( fd , end_report ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                                    // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                                // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}
 	try                       { g_start_info.exit() ;                             }
-	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                       // NO_COV defensive programming
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                   // NO_COV defensive programming
 	//
 	return 0 ;
 }

@@ -193,10 +193,10 @@ namespace Codec {
 	struct CodecLockedFd : LockedFd {
 		// ctxors & casts
 		CodecLockedFd () = default ;
-		CodecLockedFd ( Fd at , ::string const& file , bool exclusive , Disk::NfsGuard&    ) ;
-		CodecLockedFd (         ::string const& file , bool exclusive , Disk::NfsGuard& ng ) : CodecLockedFd{Fd::Cwd,file,exclusive,ng} {}
-		CodecLockedFd ( Fd at , ::string const& file ,                  Disk::NfsGuard& ng ) : CodecLockedFd{at     ,file,true     ,ng} {}
-		CodecLockedFd (         ::string const& file ,                  Disk::NfsGuard& ng ) : CodecLockedFd{Fd::Cwd,file,true     ,ng} {}
+		CodecLockedFd ( Fd at , ::string const& file , bool exclusive , NfsGuard*    ) ;
+		CodecLockedFd (         ::string const& file , bool exclusive , NfsGuard* ng ) : CodecLockedFd{Fd::Cwd,file,exclusive,ng} {}
+		CodecLockedFd ( Fd at , ::string const& file ,                  NfsGuard* ng ) : CodecLockedFd{at     ,file,true     ,ng} {}
+		CodecLockedFd (         ::string const& file ,                  NfsGuard* ng ) : CodecLockedFd{Fd::Cwd,file,true     ,ng} {}
 		~CodecLockedFd() { _close() ; }
 		//
 		CodecLockedFd& operator=(CodecLockedFd&& clfd) {

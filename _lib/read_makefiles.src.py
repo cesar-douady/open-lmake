@@ -206,6 +206,7 @@ def sep(l) :
 def tuple_end(l) : return '\t'*(l+1) + ('',',')[ len(lvl_stack)>l+1 and lvl_stack[l+1]==1 ] # /!\ must add a comma at end of singletons
 def dict_end (l) : return '\t'*(l+1)
 
+if '/' in out_file : os.makedirs(osp.dirname(out_file),exist_ok=True)
 with open(out_file,'w') as out :
 	print('{',file=out)
 	#

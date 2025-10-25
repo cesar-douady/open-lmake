@@ -45,7 +45,7 @@ namespace Codec {
 
 	static void _read_manifest( ::string const& file_name , ::umap_s/*ctx*/<::umap_s/*code*/<Crc>>&/*out*/ old_decode_tab ) {
 		::string ctx ;
-		for( ::string const& line : AcFd(CodecFile::s_manifest_file(file_name),true/*err_ok*/).read_lines(false/*partial_ok*/) ) {
+		for( ::string const& line : AcFd(CodecFile::s_manifest_file(file_name),{.err_ok=true}).read_lines(false/*partial_ok*/) ) {
 			if (!line) continue ;
 			if (line[0]!='\t') {
 				ctx = parse_printable(line) ;
@@ -56,7 +56,7 @@ namespace Codec {
 				old_decode_tab[ctx].try_emplace( ::move(code) , crc ) ;
 			}
 		}
-		for( ::string const& line : AcFd(CodecFile::s_new_codes_file(file_name),true/*err_ok*/).read_lines(false/*partial_ok*/) ) {
+		for( ::string const& line : AcFd(CodecFile::s_new_codes_file(file_name),{.err_ok=true}).read_lines(false/*partial_ok*/) ) {
 			Codec::Entry entry ;
 			try                     { entry = {line} ; }
 			catch (::string const&) { continue ;       }
@@ -71,7 +71,7 @@ namespace Codec {
 		//
 		Codec::Entry prev_entry ;
 		auto process_file = [&]( ::string const& f , bool do_new_codes ) {
-			::vector_s lines = AcFd(f,do_new_codes/*err_ok*/).read_lines(false/*partial_ok*/) ;                                                                         // new codes may not exist
+			::vector_s lines = AcFd(f,{.err_ok=do_new_codes}).read_lines(false/*partial_ok*/) ;                                                                         // new codes may not exist
 			trace("process",f,lines.size()) ;
 			for( ::string const& line : lines ) {
 				Codec::Entry entry ;
@@ -766,14 +766,14 @@ namespace Engine {
 	void JobData::_submit_codec(Req req) {
 		using namespace Codec ;
 		// there must be a single dep which is the codec file
-		Job                                  j              = idx()                         ;
-		Node                                 file           ;                                 for( Dep const& dep : deps ) { SWEAR( !file , j ) ; file = dep ; } SWEAR(+file,idx()) ;
+		Job                                  job            = idx()                         ;
+		Node                                 file           ;                                 for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,idx()) ;
 		::string                             file_name      = file->name()                  ;
 		::umap_s/*ctx*/<umap_s/*code*/<Crc>> old_decode_tab ;
 		::map_s /*ctx*/<map_ss/*code->val*/> decode_tab     ;
 		Bool3                                has_new_codes  ;
 		NfsGuard                             nfs_guard      { Engine::g_config->file_sync } ;
-		Trace trace("_submit_codec",j,req) ;
+		Trace trace("_submit_codec",job,req) ;
 		//
 		file->set_buildable() ;
 		throw_unless( file->is_src_anti() && file->crc.is_reg() , "codec file must be a regular source" ) ;
@@ -792,23 +792,24 @@ namespace Engine {
 			case Maybe : req->audit_job( Color::Note , New , "reformat" , rule() , file_name ) ; break ;
 			case Yes   : req->audit_job( Color::Note , New , "update"   , rule() , file_name ) ; break ;
 		}
-		auto create = [&]( CodecFile const& codec_file , ::string const& val ) {
+		auto create = [&]( CodecFile const& codec_file , ::string const& val , bool clean ) {
 			::string node_name = codec_file.name()    ;
 			NodeData& nd       = *Node(New,node_name) ;
 			//
-			AcFd( nfs_guard.change(dir_guard(node_name)) , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( val ) ;
-			nd.set_buildable()                                                                                   ;
-			nd.set_crc_date( Crc(node_name) , FileSig(node_name) )                                               ;
+			if (!clean) unlnk(node_name) ;
+			AcFd( node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard} ).write( val ) ;
+			nd.set_buildable()                                                                                 ;
+			nd.set_crc_date( Crc(node_name) , FileSig(node_name) )                                             ;
 			//
 			nd.polluted      = {}                                                    ;
-			nd.actual_job    = j                                                     ;
+			nd.actual_job    = job                                                   ;
 			nd.actual_tflags = { Tflag::Incremental , Tflag::Phony , Tflag::Target } ;
 		} ;
 		auto erase = [&](CodecFile const& codec_file) {
 			::string  node_name = codec_file.name() ;
 			NodeData& nd        = *Node(node_name)  ;
 			//
-			unlnk(nfs_guard.change(node_name))             ;
+			unlnk(node_name,{.nfs_guard=&nfs_guard})       ;
 			nd.set_buildable()                             ;
 			nd.set_crc_date( Crc::None , {FileTag::None} ) ;
 			//
@@ -818,29 +819,29 @@ namespace Engine {
 		} ;
 		::string      lock_file = CodecFile::s_lock_file(file_name) ;
 		::string      manifest  ;
-		CodecLockedFd lock      ;
-		try                     { lock = CodecLockedFd(lock_file,nfs_guard) ; }
-		catch (::string const&) { dir_guard(lock_file) ;                      }             // if lock_file does not exist, jobs do not access db, so no need to lock
-		for( auto const& [ctx,d_entry] : decode_tab ) {
+		CodecLockedFd lock      ;                                     try { lock = CodecLockedFd(lock_file,&nfs_guard) ; } catch (::string const&) {} // if lock_file does not exist, jobs do ...
+		for( auto const& [ctx,d_entry] : decode_tab ) {                                                                                               // ... not access db, so no need to lock
 			::umap_s<Crc>&       old_d_entry = old_decode_tab[ctx] ;
 			::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
 			manifest << mk_printable(ctx) <<'\n' ;
 			for( auto const& [code,val] : d_entry ) {
 				Crc  crc { New , val }            ;
-				auto dit=old_d_entry.find(code) ;
-				auto eit=old_e_entry.find(crc ) ;
-				if ( dit==old_d_entry.end() || dit->second!=crc  ) create( {false/*encode*/,file_name,ctx,code} , val  ) ;
-				if ( eit==old_e_entry.end() || eit->second!=code ) create( {                file_name,ctx,crc } , code ) ;
-				if ( dit!=old_d_entry.end()                      ) old_d_entry.erase(dit) ;
-				if ( eit!=old_e_entry.end()                      ) old_e_entry.erase(eit) ;
+				auto dit     = old_d_entry.find(code) ;
+				auto eit     = old_e_entry.find(crc ) ;
+				bool d_clean = dit==old_d_entry.end() ;
+				bool e_clean = eit==old_e_entry.end() ;
+				if (  d_clean || dit->second!=crc  ) create( {false/*encode*/,file_name,ctx,code} , val  , d_clean ) ;
+				if (  e_clean || eit->second!=code ) create( {                file_name,ctx,crc } , code , e_clean ) ;
+				if ( !d_clean                      ) old_d_entry.erase(dit)                                          ;
+				if ( !e_clean                      ) old_e_entry.erase(eit)                                          ;
 				manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 			}
 			for( auto const& [code,_] : old_d_entry ) erase({false/*encode*/,file_name,ctx,code}) ;
 			for( auto const& [crc ,_] : old_e_entry ) erase({                file_name,ctx,crc }) ;
-		}
-		/**/       AcFd ( CodecFile::s_manifest_file (file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( manifest ) ;
-		/**/       unlnk( CodecFile::s_new_codes_file(file_name)                                          )                   ;
-		if (!lock) AcFd ( lock_file                              , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} )                   ;
+		} //!                                                                                mod
+		/**/       AcFd ( CodecFile::s_manifest_file (file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666} ).write( manifest ) ;
+		if (!lock) AcFd ( lock_file                              , {O_WRONLY|O_CREAT|O_TRUNC,0666} )                   ;
+		/**/       unlnk( CodecFile::s_new_codes_file(file_name) , {.nfs_guard=&nfs_guard} ) ;
 		status = Status::Ok ;
 	}
 
@@ -867,7 +868,7 @@ namespace Engine {
 				for( Target t : targets() ) {
 					::string    tn = t->name()         ;
 					SpecialStep ss = SpecialStep::Idle ;
-					if (!( t->crc.valid() && FileSig(nfs_guard.access(tn))==t->date.sig )) {
+					if (!( t->crc.valid() && FileSig(tn,{.nfs_guard=&nfs_guard})==t->date.sig )) {
 						FileSig sig  ;
 						Crc   crc { tn , /*out*/sig } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
@@ -959,7 +960,7 @@ namespace Engine {
 								::vmap<Node,FileAction> fas     = pre_actions( match , true/*no_incremental*/ ) ;
 								::vmap_s<FileAction>    actions ;                                                 for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
 								//
-								::string dfa_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , nfs_guard ) ;
+								::string dfa_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &nfs_guard ) ;
 								//
 								if (+dfa_msg) {
 									req->audit_job ( Color::Note , "wash"  , job      ) ;
@@ -967,11 +968,11 @@ namespace Engine {
 									trace("hit_msg",dfa_msg,ri) ;
 								}
 								//
-								JobExec je       { job , New }                                                                                             ; // job starts and ends, no host
-								JobInfo job_info = cache->download( job_name , cache_match->key , req->options.flags[ReqFlag::NoIncremental] , nfs_guard ) ;
-								job_info.start.pre_start.job       = +job      ;                                                                             // repo dependent
-								job_info.start.submit_attrs.reason = ri.reason ;                                                                             // context dependent
-								job_info.end  .end_date            = New       ;                                                                             // execution dependnt
+								JobExec je       { job , New }                                                                                              ; // job starts and ends, no host
+								JobInfo job_info = cache->download( job_name , cache_match->key , req->options.flags[ReqFlag::NoIncremental] , &nfs_guard ) ;
+								job_info.start.pre_start.job       = +job      ;                                                                              // repo dependent
+								job_info.start.submit_attrs.reason = ri.reason ;                                                                              // context dependent
+								job_info.end  .end_date            = New       ;                                                                              // execution dependnt
 								//
 								JobDigest<Node> digest = job_info.end.digest ;                                                  // gather info before being moved
 								Job::s_record_thread.emplace(job,::move(job_info.start)) ;

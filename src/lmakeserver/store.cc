@@ -34,7 +34,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd( _g_rules_file_name , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(serialize(*Rule::s_rules)) ;
+		AcFd( _g_rules_file_name , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(*Rule::s_rules) ) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -212,8 +212,6 @@ namespace Engine::Persistent {
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
 		_g_rules_file_name = dir_s+"rule" ;
-		//
-		mk_dir_s(dir_s) ;
 		// jobs
 		_g_job_file      .init( dir_s+"job"       , g_writable ) ;
 		_g_job_name_file .init( dir_s+"job_name"  , g_writable ) ;
@@ -274,8 +272,8 @@ namespace Engine::Persistent {
 	}
 
 	static void _save_config() { //!                                           mod
-		AcFd( cat(PrivateAdminDirS,"config_store") , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write(serialize(*g_config)  ) ;
-		AcFd( cat(AdminDirS,"config"             ) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write(g_config->pretty_str()) ;
+		AcFd( cat(PrivateAdminDirS,"config_store") , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( serialize(*g_config)   ) ;
+		AcFd( cat(AdminDirS       ,"config"      ) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( g_config->pretty_str() ) ;
 	}
 
 	static void _diff_config( Config const& old_config , bool dyn ) {
@@ -294,9 +292,8 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
-		if ( !dyn                                         ) mk_dir_s( cat(AdminDirS,"outputs/") , true/*unlnk_ok*/ ) ;
-		if ( !dyn                                         ) _init_config()                                           ;
-		else                                                SWEAR( +*g_config , *g_config )                          ; // we must update something
+		if ( !dyn                                         ) _init_config()                  ;
+		else                                                SWEAR( +*g_config , *g_config ) ; // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                diff(*g_config,config) ;
@@ -305,7 +302,7 @@ namespace Engine::Persistent {
 		if (          d>ConfigDiff::Static  && +*g_config ) throw ::pair( "repo must be clean"s  , Rc::CleanRepo  ) ;
 		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw ::pair( "repo must be steady"s , Rc::SteadyRepo ) ;
 		//
-		if (  dyn && !d                                   ) return ;                                                   // fast path, nothing to update
+		if (  dyn && !d                                   ) return ;                          // fast path, nothing to update
 		//
 		/**/                                                Config old_config = *g_config ;
 		if (         +d                                   ) *g_config = ::move(config) ;
@@ -527,7 +524,7 @@ namespace Engine::Persistent {
 				match_report_str << key <<" :\n" ;
 				for( RuleTgt rt : rts ) match_report_str <<'\t'<< widen(cat(rt->rule->user_prio),w_prio) <<' '<< widen(rt->rule->user_name(),w_name) <<' '<< rt.key() <<'\n' ;
 			}
-			AcFd( ADMIN_DIR_S "matching" , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(match_report_str) ;
+			AcFd( cat(AdminDirS,"matching") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( match_report_str ) ;
 		}
 		// rule report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
@@ -541,14 +538,14 @@ namespace Engine::Persistent {
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
-			AcFd( ADMIN_DIR_S "rules" , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(content) ;
+			AcFd( cat(AdminDirS,"rules") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
 		}
 		trace("done") ;
 		return invalidate ;
 	}
 
 	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn , ::string const& manifest ) {
-		NfsGuard             nfs_guard    { g_config->file_sync } ;
+		NfsGuard             nfs_guard    { dyn ? g_config->file_sync : FileSync::None } ;                              // when dynamic, sources may be modified from jobs
 		::vmap<Node,FileTag> srcs         ; srcs    .reserve(src_names                  .size()) ;
 		::umap<Node,FileTag> old_srcs     ; old_srcs.reserve(Node::s_srcs(false/*dirs*/).size()) ;                      // typically there are no source dirs
 		::umap<Node,FileTag> new_srcs     ; new_srcs.reserve(src_names                  .size()) ;
@@ -573,9 +570,8 @@ namespace Engine::Persistent {
 				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw cat("cannot access relative source dir ",no_slash(src)," from repository ",no_slash(*g_repo_root_s)) ;
 				src.pop_back() ;
 			}
-			if (dyn) nfs_guard.access(src) ;
+			FileInfo              fi { src , {.nfs_guard=&nfs_guard} }        ;
 			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
-			FileInfo              fi { src }                                  ;
 			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ; // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (is_dir_) {
 				throw_unless( fi.tag()==FileTag::Dir                                            , "source dir ",src,"/ is not a directory"                       ) ;
@@ -651,7 +647,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::string content ;
 			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(content) ;
+			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return invalidate ;

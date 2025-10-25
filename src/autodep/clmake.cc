@@ -375,7 +375,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 		}
 		::string base = dir_s+tail ;
 		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs )               // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
-			if (+AcFd(base+sfx,true/*err_ok*/)) return ;                  // found module, dont explore path any further
+			if (+AcFd(base+sfx,{.err_ok=true})) return ;                  // found module, dont explore path any further
 	}
 }
 

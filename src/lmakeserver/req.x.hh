@@ -339,7 +339,7 @@ namespace Engine {
 		void _open_log() ;
 		//
 		bool/*overflow*/ _send_err      ( bool intermediate , ::string const& pfx , ::string const& name , size_t& n_err , DepDepth lvl=0 ) ;
-		void             _report_no_rule( Node , Disk::NfsGuard&                                                         , DepDepth lvl=0 ) ;
+		void             _report_no_rule( Node , NfsGuard*                                                               , DepDepth lvl=0 ) ;
 		// data
 	public :
 		InfoMap<Job >        jobs           ;

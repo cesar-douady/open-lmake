@@ -215,7 +215,7 @@ inline Record::Read<true/*Send*/> Elf::search_elf( ::string const& file , ::stri
 			/**/            full_file += file                     ;
 			Record::Read<true/*Send*/> rr            { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , c } ;
 			auto                       [it,inserted] = seen.try_emplace(rr.real,Maybe)                               ;
-			if ( it->second==Maybe           )   it->second = No | is_target(Record::s_repo_root_fd(),rr.real,false/*no_follow*/) ;   // real may be a sym link in the system directories
+			if ( it->second==Maybe           )   it->second = No | is_target(Record::s_repo_root_fd(),rr.real,{.no_follow=false}) ;   // real may be a sym link in the system directories
 			if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , c ) ; return rr ;                                    }
 			if ( it->second==Yes             )                                       return {} ;
 			if (end==Npos) break ;

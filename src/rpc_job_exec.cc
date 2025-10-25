@@ -109,14 +109,14 @@ namespace Codec {
 
 	// while lock is held, lock_file contains the size of new_codes_file at the time of the lock
 	// in case of interruption, this info is used to determine last action to be replayed
-	CodecLockedFd::CodecLockedFd( Fd at_ , ::string const& file_ , bool exclusive , NfsGuard& nfs_guard ) : LockedFd{at_,CodecFile::s_lock_file(file_),exclusive} , at{at_} , file{file_} {
+	CodecLockedFd::CodecLockedFd( Fd at_ , ::string const& file_ , bool exclusive , NfsGuard* nfs_guard ) : LockedFd{at_,CodecFile::s_lock_file(file_),exclusive} , at{at_} , file{file_} {
 		bool     restore_shared = false                             ;
 		::string new_codes_file = CodecFile::s_new_codes_file(file) ;
 		::string lock_file      = CodecFile::s_lock_file     (file) ;
 	Retry :
-		nfs_guard.access( at , lock_file ) ;
-		::string known_sz_str = read(sizeof(DiskSz))                                ;
-		DiskSz   actual_sz    = FileInfo(at,nfs_guard.access(at,new_codes_file)).sz ;
+		if (nfs_guard) nfs_guard->access( at , lock_file ) ;
+		::string known_sz_str = read(sizeof(DiskSz))                                  ;
+		DiskSz   actual_sz    = FileInfo(at,new_codes_file,{.nfs_guard=nfs_guard}).sz ;
 		if (+known_sz_str) {                                                                                                                      // empty means nothing to replay
 			/**/                                                        SWEAR( known_sz_str.size()==sizeof(DiskSz) , file,known_sz_str.size() ) ;
 			DiskSz known_sz = decode_int<DiskSz>(known_sz_str.data()) ; SWEAR( known_sz           <=actual_sz      , file,known_sz,actual_sz  ) ;
@@ -129,16 +129,20 @@ namespace Codec {
 				}
 				//
 				AcFd     new_codes_fd { at , new_codes_file } ; ::lseek( new_codes_fd , known_sz , SEEK_SET ) ;
-				::string line         = new_codes_fd.read()   ;                                                 // no more than a single action can be on going
-				if (line.back()=='\n') {                                                                        // action is valid, replay it
-					line.pop_back() ;
-					Entry e { line } ; //!                               encode                                                         mod
-					AcFd( at , nfs_guard.change(at,dir_guard(at,CodecFile(false,file,e.ctx,e.code).name())) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( e.val  ) ;
-					AcFd( at , nfs_guard.change(at,             CodecFile(true ,file,e.ctx,e.val ).name() ) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( e.code ) ; // same dir as above
+				::string line         = new_codes_fd.read()   ;                                                          // no more than a single action can be on going
+				if (line.back()=='\n') {                                                                                 // action is valid, replay it
+					line.pop_back() ; //!  encode
+					Entry    e  { line }                                    ;
+					::string dn = CodecFile(false,file,e.ctx,e.code).name() ;
+					::string en = CodecFile(true ,file,e.ctx,e.val ).name() ;
+					unlnk(at,dn) ;
+					unlnk(at,en) ; //!                                    mod
+					AcFd( at , dn , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=nfs_guard} ).write( e.code ) ;
+					AcFd( at , en , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=nfs_guard} ).write( e.val  ) ; // same dir as above
 				} else {                                                                         // action is invalid, forget it as no file has been created and info is incomplete
 					int rc = ::ftruncate( new_codes_fd , known_sz ) ; SWEAR( rc==0 , file,rc ) ;
 					actual_sz = known_sz ;
-					nfs_guard.change(at,new_codes_file) ;
+					if (nfs_guard) nfs_guard->change(at,new_codes_file) ;
 				}
 			}
 			if (restore_shared) lock(false/*exclusive*/) ;                                       // restore shared lock
@@ -148,7 +152,7 @@ namespace Codec {
 		encode_int<DiskSz>( known_sz_str.data() , actual_sz ) ;                                  // record new_codes_file size for next locker to replay in case of crash before closing cleanly
 		::lseek( self , 0 , SEEK_SET )                        ;
 		write(known_sz_str)                                   ;
-		nfs_guard.change(lock_file) ;
+		if (nfs_guard) nfs_guard->change(lock_file) ;
 	}
 
 	void CodecLockedFd::_close() {

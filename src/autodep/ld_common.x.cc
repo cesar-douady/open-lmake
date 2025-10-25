@@ -120,11 +120,11 @@ static thread_local bool _t_loop = false ; // prevent recursion within a thread
 // To face this order problem, we declare our Audit as a static within a function which will be constructed upon first call.
 // As all statics with cxtor/dxtor, we define it through new so as to avoid destruction during finalization.
 #if !IN_SERVER
-	static                                // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
+	static                                     // in server, we want to have direct access to recorder (no risk of name pollution as we masterize the code)
 #endif
 Record& auditor() {
-	static StaticUniqPtr<Record> s_res ;
-	if (!s_res) s_res = new Record{New} ; // dont initialize directly as C++ guard for static variables may do some syscalls
+	static ::atomic<Record*> s_res = nullptr ; // dont initialize directly as C++ guard for static variables may do some syscalls
+	if (!s_res) s_res = new Record{New} ;      // .
 	return *s_res ;
 }
 
@@ -227,7 +227,7 @@ struct _Execp : _Exec<false/*Send*/> {
 					size_t   len       = (end==Npos?p.size():end)-pos            ;
 					::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
 					Record::Read<false/*Send*/>(r,full_file,false/*no_follow*/,true/*keep_real*/,c) ;
-					if (is_exe(full_file,false/*no_follow*/)) { static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,c) ; break ; }
+					if (is_exe(full_file,{.no_follow=false})) { static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,c) ; break ; }
 					if (end==Npos                           )                                                                            break ;
 					pos = end+1 ;
 				}

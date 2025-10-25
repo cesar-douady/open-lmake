@@ -90,32 +90,35 @@ namespace Engine {
 				//
 				if (tag==FileTag::Dir) {
 					dirs.try_emplace(with_slash(target),false/*keep*/) ;
-				} else {
-					::string const* key = nullptr ;
-					{	/**/                         if ((key=ignore(target))         ) goto Keep       ;
-						Node    n  { target }      ; if (!n                           ) goto Quarantine ;
-						/**/                         if (n->buildable==Buildable::Src ) goto Keep       ;
-						/**/                         if (n->date.sig!=FileSig(target) ) goto Quarantine ;
-						Job     j  = n->actual_job ; if (!j                           ) goto Quarantine ;
-						RuleCrc rc = j->rule_crc   ; if (!rc                          ) goto Quarantine ;
-						/**/                         if (rc->state>RuleCrcState::CmdOk) goto Unlnk      ;
-					}
-				Keep :
-					if ( key && ro.flags[ReqFlag::Verbose] ) audit( fd , ro , Color::HiddenNote , cat("ignore ",*key," : ",mk_file(target)) ) ;
-					keep(dir_name_s(target)) ;
 					continue ;
-				Quarantine :
-					{	int rc = dry_run ? 0 : ::rename( target.c_str() , dir_guard(QuarantineDirS+target).c_str() ) ;
-						if (rc==0) audit( fd , ro ,              cat("quarantine "       ,mk_file(target)) ) ;
-						else       audit( fd , ro , Color::Err , cat("cannot quarantine ",mk_file(target)) ) ;
-						continue ;
-					}
-				Unlnk :
-					{	int rc = dry_run ? 0 : ::unlink(target.c_str()) ;
-						if (rc==0) audit( fd , ro ,              cat("rm "       ,mk_file(target)) ) ;
-						else       audit( fd , ro , Color::Err , cat("cannot rm ",mk_file(target)) ) ;
-						continue ;
-					}
+				}
+				::string const* key = nullptr ;
+				{	/**/                         if ((key=ignore(target))         ) goto Keep       ;
+					Node    n  { target }      ; if (!n                           ) goto Quarantine ;
+					/**/                         if (n->buildable==Buildable::Src ) goto Keep       ;
+					/**/                         if (n->date.sig!=FileSig(target) ) goto Quarantine ;
+					Job     j  = n->actual_job ; if (!j                           ) goto Quarantine ;
+					RuleCrc rc = j->rule_crc   ; if (!rc                          ) goto Quarantine ;
+					/**/                         if (rc->state>RuleCrcState::CmdOk) goto Unlnk      ;
+				}
+			Keep :
+				if ( key && ro.flags[ReqFlag::Verbose] ) audit( fd , ro , Color::HiddenNote , cat("ignore ",*key," : ",mk_file(target)) ) ;
+				keep(dir_name_s(target)) ;
+				continue ;
+			Quarantine :
+				try {
+					if (!dry_run) rename( QuarantineDirS+target/*dst*/ , target/*src*/ ) ;
+					audit( fd , ro ,              cat("quarantine "                      ,mk_file(target)) ) ;
+				} catch (::string const& e) {
+					audit( fd , ro , Color::Err , cat("cannot quarantine (",e,") ",mk_file(target)) ) ;
+				}
+				continue ;
+			Unlnk :
+				try {
+					if (!dry_run) unlnk(target) ;
+					audit( fd , ro ,              cat("rm "               ,mk_file(target)) ) ;
+				} catch (::string const& e) {
+					audit( fd , ro , Color::Err , cat("cannot rm (",e,") ",mk_file(target)) ) ;
 				}
 			}
 		}
@@ -566,7 +569,6 @@ namespace Engine {
 		throw_unless( +it->second                 , "empty debug method "  ,key ) ;
 		::string runner    = split(it->second)[0]                       ;                                                          // allow doc after first word
 		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
-		mk_dir_s(dbg_dir_s) ;
 		//
 		::string script_file     = dbg_dir_s+"script"     ;
 		::string gen_script_file = dbg_dir_s+"gen_script" ;
@@ -579,7 +581,7 @@ namespace Engine {
 			gen_script << _mk_gen_script_line(job,ro,::move(job_info),dbg_dir_s,key)                                             ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n"                                      ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                                                       ;
-			AcFd(gen_script_file,{O_WRONLY|O_TRUNC|O_CREAT,0777/*mod*/}).write(gen_script) ;
+			AcFd( gen_script_file , {O_WRONLY|O_TRUNC|O_CREAT,0777/*mod*/} ).write( gen_script ) ;
 		}                                                                                                                          // ensure gen_script is closed before launching it
 		{	SavPyLdLibraryPath spllp ;
 			Child              child ;

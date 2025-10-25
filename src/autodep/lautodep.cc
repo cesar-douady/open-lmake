@@ -200,7 +200,7 @@ int main( int argc , char* argv[] ) {
 	for( auto const& [dep,ai] : gather.accesses ) if (ai.first_write()==Pdate::Future) send(dep,ai.first_read()) ;
 	/**/                                                                               send(                   ) ; // send last
 	//
-	if (cmd_line.flags[CmdFlag::Out]) AcFd(cmd_line.flag_args[+CmdFlag::Out],{O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/}).write(files) ;
-	else                              Fd::Stdout                                                                    .write(files) ;
+	if (cmd_line.flags[CmdFlag::Out]) AcFd( cmd_line.flag_args[+CmdFlag::Out] , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( files ) ;
+	else                              Fd::Stdout                                                                        .write( files ) ;
 	exit( status==Status::Ok ? Rc::Ok : Rc::Fail ) ;
 }

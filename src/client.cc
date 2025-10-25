@@ -40,7 +40,7 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
 			// try to connect to an existing server
-			AcFd       server_mrkr_fd { ServerMrkr , true/*err_ok*/ } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
+			AcFd       server_mrkr_fd { ServerMrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
 			::vector_s lines          = server_mrkr_fd.read_lines()   ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			//
 			server_service = ::move            (lines[0]) ;

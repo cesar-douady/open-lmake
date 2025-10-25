@@ -63,7 +63,7 @@ namespace Engine {
 		} ) ;
 	}
 
-	static ::string _stem_mrkr(VarIdx stem_idx) { // for targets
+	static ::string _stem_mrkr(VarIdx stem_idx) {     // for targets
 		::string res ; res.resize(1+sizeof(VarIdx)) ;
 		res[0] = Rule::StemMrkr ;
 		encode_int( &res[1] , stem_idx ) ;
@@ -356,7 +356,7 @@ namespace Engine {
 			job_name = ::move(new_job_name) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvv
-			if (!is_plain()) return ;                                                                           // if special, we have no dep, no execution, we only need essential info
+			if (!is_plain()) return ;                                                                            // if special, we have no dep, no execution, we only need essential info
 			//^^^^^^^^^^^^^^^^^^^^^
 			//
 			// acquire fields linked to job execution
@@ -823,6 +823,7 @@ namespace Engine {
 		if (!is_plain()) {
 			crc = {match_crc} ;
 		} else {
+			h += g_config->lnk_support  ;                  // this has an influence on generated deps, hence is part of cmd def
 			h += sub_repo_s             ;
 			h += Node::s_src_dirs_crc() ;                  // src_dirs influences deps recording
 			h += matches                ;                  // these define names and influence cmd execution, all is not necessary but simpler to code

@@ -34,7 +34,6 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	void Trace::s_start() {
 		if ( !g_trace_file || !*g_trace_file ) return ;
 		Lock lock{_s_mutex} ;
-		dir_guard(*g_trace_file) ;
 		_s_open() ;
 	}
 
@@ -59,24 +58,22 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		if (s_sz<4096     ) return ; // not enough room to trace
 		if (!s_channels   ) return ; // nothing to trace
 		if (!*g_trace_file) return ; // nowhere to trace to
-		dir_guard(*g_trace_file) ;
 		if (s_backup_trace) {
 			::string prev_old ;
-			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) ::rename( old         . c_str() , prev_old.c_str() ) ; prev_old = ::move(old) ; }
-			/**/                                                            if (+prev_old) ::rename( g_trace_file->c_str() , prev_old.c_str() ) ;
+			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) try { rename( prev_old , old           ) ; } catch (::string const&) {} prev_old = ::move(old) ; }
+			/**/                                                            if (+prev_old) try { rename( prev_old , *g_trace_file ) ; } catch (::string const&) {}
 		}
 		::string trace_dir_s    = dir_name_s(*g_trace_file)                                         ;
 		::string tmp_trace_file = cat(trace_dir_s,::to_string(Pdate(New).nsec_in_s()),'-',getpid()) ;
-		mk_dir_s(trace_dir_s) ;
 		//
-		_s_cur_sz = 4096                                                                       ;
-		_s_fd     = { tmp_trace_file , {O_RDWR|O_TRUNC|O_CREAT,0666/*mod*/} , true/*no_std*/ } ;
+		_s_cur_sz = 4096 ;
 		//
-		throw_unless( +_s_fd                                                        , "cannot create temporary trace file ",tmp_trace_file," : ",StrErr() ) ;
-		throw_unless( ::rename( tmp_trace_file.c_str() , g_trace_file->c_str() )==0 , "cannot create trace file "          ,*g_trace_file ," : ",StrErr() ) ;
-		//
-		try                     { _s_fd.write(::string(_s_cur_sz,0/*ch*/)) ;                                            }
-		catch (::string const&) { throw cat("cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz) ; }
+		try                       { _s_fd = { tmp_trace_file , {.flags=O_RDWR|O_TRUNC|O_CREAT,.mod=0666,.no_std=true} } ;         }
+		catch (::string const& e) { throw cat("cannot create temporary trace file : ",e) ;                                        }
+		try                       { rename( *g_trace_file , tmp_trace_file ) ;                                                    }
+		catch (::string const& e) { throw cat("cannot create trace file : ",e) ;                                                  }
+		try                       { _s_fd.write(::string(_s_cur_sz,0/*ch*/)) ;                                                    }
+		catch (::string const& e) { throw cat("cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz," : ",e) ; }
 		//
 		_s_pos  = 0                                                                                                                      ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0/*offset*/ )) ;

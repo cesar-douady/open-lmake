@@ -8,6 +8,95 @@
 #include "basic_utils.hh"
 #include "enum.hh"
 
+// used to disambiguate some calls
+enum class NewType  : uint8_t { New  } ; static constexpr NewType  New  = NewType ::New  ;
+enum class DfltType : uint8_t { Dflt } ; static constexpr DfltType Dflt = DfltType::Dflt ;
+
+// Bool3 is both generally useful and provides an example of use the previous helpers
+enum class Bool3 : uint8_t {
+	No
+,	Maybe
+,	Yes
+} ;
+static constexpr Bool3 No    = Bool3::No    ;
+static constexpr Bool3 Maybe = Bool3::Maybe ;
+static constexpr Bool3 Yes   = Bool3::Yes   ;
+inline constexpr Bool3  operator~ ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
+inline constexpr Bool3  operator| ( Bool3  b1 , Bool3 b2 ) {                return ::max(b1,b2)                                                        ; }
+inline constexpr Bool3  operator| ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
+inline constexpr Bool3  operator| ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
+inline constexpr Bool3  operator& ( Bool3  b1 , Bool3 b2 ) {                return ::min(b1,b2)                                                        ; }
+inline constexpr Bool3  operator& ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
+inline constexpr Bool3  operator& ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
+inline constexpr Bool3& operator|=( Bool3& b1 , Bool3 b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
+inline constexpr Bool3& operator|=( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
+inline constexpr Bool3& operator&=( Bool3& b1 , Bool3 b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
+inline constexpr Bool3& operator&=( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
+inline constexpr Bool3  common    ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
+inline constexpr Bool3  common    ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
+inline constexpr Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
+inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
+
+// START_OF_VERSIONING
+// PER_FILE_SYNC : add entry here
+enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
+	None
+,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
+,	Sync                        // sync file after write
+// aliases
+,	Dflt = Dir
+} ;
+// END_OF_VERSIONING
+
+// prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
+// use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
+enum class MutexLvl : uint8_t { // identify who is owning the current level to ease debugging
+	Unlocked                    // used in Lock to identify when not locked
+,	None
+// level 1
+,	JobExec
+,	Rule
+,	StartJob
+// level 2
+,	Backend                     // must follow StartJob
+// level 3
+,	BackendId                   // must follow Backend
+,	Gil                         // must follow Backend
+,	NodeCrcDate                 // must follow Backend
+,	Req                         // must follow Backend
+,	TargetDir                   // must follow Backend
+,	Workload                    // must follow Backend
+// level 4
+,	Autodep                     // must follow Gil
+,	Gather                      // must follow Gil
+,	Job                         // must follow Backend, by symetry with Node
+,	Node                        // must follow NodeCrcDate
+,	ReqInfo                     // must follow Req
+,	Time                        // must follow BackendId
+// level 5
+,	Record                      // must follow Autodep
+// inner (locks that take no other locks)
+,	Audit
+,	Codec
+,	File
+,	Hash
+,	ReqIdx
+,	Sge
+,	Slurm
+,	SmallId
+,	Thread
+// very inner
+,	Trace                       // allow tracing anywhere (but tracing may call some syscall)
+,	SyscallTab                  // any syscall may need this mutex, which may occur during tracing
+,	PdateNew                    // may need time anywhere, even during syscall processing
+} ;
+
+enum class PermExt : uint8_t {
+	None
+,	Group
+,	Other
+} ;
+
 enum class Rc : uint8_t {
 	Ok
 ,	Fail
@@ -164,81 +253,9 @@ template<::unsigned_integral I> constexpr I div_up    ( I n , I d ) { return n ?
 static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 
-// used to disambiguate some calls
-enum class NewType  : uint8_t { New  } ; static constexpr NewType  New  = NewType ::New  ;
-enum class DfltType : uint8_t { Dflt } ; static constexpr DfltType Dflt = DfltType::Dflt ;
-
-// Bool3 is both generally useful and provides an example of use the previous helpers
-enum class Bool3 : uint8_t {
-	No
-,	Maybe
-,	Yes
-} ;
-static constexpr Bool3 No    = Bool3::No    ;
-static constexpr Bool3 Maybe = Bool3::Maybe ;
-static constexpr Bool3 Yes   = Bool3::Yes   ;
-inline constexpr Bool3  operator~ ( Bool3  b             ) {                return Bool3(+Yes-+b)                                                      ; }
-inline constexpr Bool3  operator| ( Bool3  b1 , Bool3 b2 ) {                return ::max(b1,b2)                                                        ; }
-inline constexpr Bool3  operator| ( Bool3  b1 , bool  b2 ) {                return  b2 ? Yes : b1                                                      ; }
-inline constexpr Bool3  operator| ( bool   b1 , Bool3 b2 ) {                return  b1 ? Yes : b2                                                      ; }
-inline constexpr Bool3  operator& ( Bool3  b1 , Bool3 b2 ) {                return ::min(b1,b2)                                                        ; }
-inline constexpr Bool3  operator& ( Bool3  b1 , bool  b2 ) {                return !b2 ? No  : b1                                                      ; }
-inline constexpr Bool3  operator& ( bool   b1 , Bool3 b2 ) {                return !b1 ? No  : b2                                                      ; }
-inline constexpr Bool3& operator|=( Bool3& b1 , Bool3 b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
-inline constexpr Bool3& operator|=( Bool3& b1 , bool  b2 ) { b1 = b1 | b2 ; return b1                                                                  ; }
-inline constexpr Bool3& operator&=( Bool3& b1 , Bool3 b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
-inline constexpr Bool3& operator&=( Bool3& b1 , bool  b2 ) { b1 = b1 & b2 ; return b1                                                                  ; }
-inline constexpr Bool3  common    ( Bool3  b1 , Bool3 b2 ) {                return b1==Yes ? (b2==Yes?Yes:Maybe) : b1==No ? ( b2==No?No:Maybe) : Maybe ; }
-inline constexpr Bool3  common    ( Bool3  b1 , bool  b2 ) {                return b2      ? (b1==Yes?Yes:Maybe) :          ( b1==No?No:Maybe)         ; }
-inline constexpr Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
-inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
-
 //
 // mutexes
 //
-
-// prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
-// use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
-enum class MutexLvl : uint8_t { // identify who is owning the current level to ease debugging
-	Unlocked                    // used in Lock to identify when not locked
-,	None
-// level 1
-,	JobExec
-,	Rule
-,	StartJob
-// level 2
-,	Backend                     // must follow StartJob
-// level 3
-,	BackendId                   // must follow Backend
-,	Gil                         // must follow Backend
-,	NodeCrcDate                 // must follow Backend
-,	Req                         // must follow Backend
-,	TargetDir                   // must follow Backend
-,	Workload                    // must follow Backend
-// level 4
-,	Autodep                     // must follow Gil
-,	Gather                      // must follow Gil
-,	Job                         // must follow Backend, by symetry with Node
-,	Node                        // must follow NodeCrcDate
-,	ReqInfo                     // must follow Req
-,	Time                        // must follow BackendId
-// level 5
-,	Record                      // must follow Autodep
-// inner (locks that take no other locks)
-,	Audit
-,	Codec
-,	File
-,	Hash
-,	ReqIdx
-,	Sge
-,	Slurm
-,	SmallId
-,	Thread
-// very inner
-,	Trace                       // allow tracing anywhere (but tracing may call some syscall)
-,	SyscallTab                  // any syscall may need this mutex, which may occur during tracing
-,	PdateNew                    // may need time anywhere, even during syscall processing
-} ;
 
 extern thread_local MutexLvl t_mutex_lvl ;
 template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_mutex,::mutex> {
@@ -504,16 +521,15 @@ inline ::string const& no_empty_s(::string const& dir_s) {
 	else        { static ::string dot_s = "./" ; return dot_s ; }
 }
 
-enum class PermExt : uint8_t {
-	None
-,	Group
-,	Other
-} ;
+struct NfsGuard ;
 
 struct _FdAction {
-	int     flags    = O_RDONLY ;
-	mode_t  mod      = 0        ;
-	PermExt perm_ext = {}       ;
+	int       flags     = O_RDONLY ;
+	mode_t    mod       = 0        ;
+	bool      err_ok    = false    ;
+	PermExt   perm_ext  = {}       ;
+	bool      no_std    = false    ;
+	NfsGuard* nfs_guard = nullptr  ;
 } ;
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;
@@ -522,46 +538,41 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                                                                                         // the highest standard fd
+	static const Fd Std    ;                                                                                  // the highest standard fd
 	//
 	using Action = _FdAction ;
 	// cxtors & casts
 private :
-	static int _s_mk_fd( Fd at , ::string const& file , bool err_ok , Action action ) ;
+	static int _s_mk_fd( Fd at , ::string const& file , Action action ) ;
 public :
 	constexpr Fd(                        ) = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd( Fd at , ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ _s_mk_fd(at,file,err_ok,action) , no_std_ } {}
-	Fd(         ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ Cwd , file , err_ok , action , no_std_    } {}
-	Fd( Fd at , ::string const& file ,               Action action={} , bool no_std_=false ) : Fd{ at  , file , false  , action , no_std_    } {}
-	Fd(         ::string const& file ,               Action action={} , bool no_std_=false ) : Fd{ Cwd , file , false  , action , no_std_    } {}
-	//
-	Fd( Fd at , const char* file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ at  , ::string(file) , err_ok , action , no_std_ } {} // ensure no confusion
-	Fd(         const char* file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{       ::string(file) , err_ok , action , no_std_ } {} // .
-	Fd( Fd at , const char* file ,               Action action={} , bool no_std_=false ) : Fd{ at  , ::string(file) ,          action , no_std_ } {} // .
-	Fd(         const char* file ,               Action action={} , bool no_std_=false ) : Fd{       ::string(file) ,          action , no_std_ } {} // .
+	Fd( Fd at , ::string const& file , Action action={} ) : Fd{ _s_mk_fd(at,file,action) , action.no_std } {}
+	Fd(         ::string const& file , Action action={} ) : Fd{ Cwd ,          file  , action            } {}
+	Fd( Fd at , const char*     file , Action action={} ) : Fd{ at  , ::string(file) , action            } {} // ensure no confusion
+	Fd(         const char*     file , Action action={} ) : Fd{       ::string(file) , action            } {} // .
 	//
 	constexpr operator int  () const { return fd    ; }
 	constexpr bool operator+() const { return fd>=0 ; }
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
-	constexpr bool              operator== (Fd const&                     ) const = default ;
-	constexpr ::strong_ordering operator<=>(Fd const&                     ) const = default ;
-	/**/      void              write      (::string_view data            ) const ;           // writing does not modify the Fd object
-	/**/      ::string          read       (size_t        sz        =Npos ) const ;           // read sz bytes or to eof
-	/**/      ::vector_s        read_lines (bool          partial_ok=true ) const ;           // if partial_ok => ok if last line does not end with \n
-	/**/      size_t            read_to    (::span<char>  dst             ) const ;
-	/**/      Fd                dup        (                              ) const { return ::dup(fd) ;                     }
-	constexpr Fd                detach     (                              )       { Fd res = self ; fd = -1 ; return res ; }
-	constexpr void              close      (                              ) ;
-	/**/      void              no_std     (                              ) ;
-	/**/      void              cloexec    (bool          set       =true ) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
-	constexpr size_t            hash       (                              ) const { return fd ;                            }
+	constexpr bool              operator== (Fd const&                    ) const = default ;
+	constexpr ::strong_ordering operator<=>(Fd const&                    ) const = default ;
+	/**/      void              write      (::string_view data           ) const ;                            // writing does not modify the Fd object
+	/**/      ::string          read       (size_t        sz        =Npos) const ;                            // read sz bytes or to eof
+	/**/      ::vector_s        read_lines (bool          partial_ok=true) const ;                            // if partial_ok => ok if last line does not end with \n
+	/**/      size_t            read_to    (::span<char>  dst            ) const ;
+	/**/      Fd                dup        (                             ) const { return ::dup(fd) ;                     }
+	constexpr Fd                detach     (                             )       { Fd res = self ; fd = -1 ; return res ; }
+	constexpr void              close      (                             )       ;
+	/**/      void              no_std     (                             )       ;
+	/**/      void              cloexec    (bool          set       =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
+	constexpr size_t            hash       (                             ) const { return fd ;                            }
 protected :
-	::string& append_to_str( ::string& os , const char* class_name        ) const {
+	::string& append_to_str( ::string& os , const char* class_name ) const {
 		os <<class_name<<"(" ;
 		if (self==Cwd) os << "Cwd" ;
 		else           os << fd    ;
@@ -585,15 +596,10 @@ struct AcFd : Fd {
 	AcFd( AcFd&& acfd                  )                   { swap(acfd) ; }
 	AcFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }
 	//
-	AcFd( Fd at , ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : Fd{ at  , file , err_ok , action , no_std_   } {}
-	AcFd(         ::string const& file , bool err_ok , Action action={} , bool no_std_=false ) : AcFd{ Cwd , file , err_ok , action , no_std_ } {}
-	AcFd( Fd at , ::string const& file ,               Action action={} , bool no_std_=false ) : AcFd{ at  , file , false  , action , no_std_ } {}
-	AcFd(         ::string const& file ,               Action action={} , bool no_std_=false ) : AcFd{ Cwd , file , false  , action , no_std_ } {}
-	//
-	AcFd( Fd at , const char* file , bool err_ok , Action action={} , bool no_std_=false ) : AcFd{ at  , ::string(file) , err_ok , action , no_std_ } {} // ensure no confusion
-	AcFd(         const char* file , bool err_ok , Action action={} , bool no_std_=false ) : AcFd{       ::string(file) , err_ok , action , no_std_ } {} // .
-	AcFd( Fd at , const char* file ,               Action action={} , bool no_std_=false ) : AcFd{ at  , ::string(file) ,          action , no_std_ } {} // .
-	AcFd(         const char* file ,               Action action={} , bool no_std_=false ) : AcFd{       ::string(file) ,          action , no_std_ } {} // .
+	AcFd( Fd at , ::string const& file , Action action={} ) : Fd  { at  ,          file  , action } {}
+	AcFd(         ::string const& file , Action action={} ) : AcFd{ Cwd ,          file  , action } {}
+	AcFd( Fd at , const char*     file , Action action={} ) : AcFd{ at  , ::string(file) , action } {} // ensure no confusion
+	AcFd(         const char*     file , Action action={} ) : AcFd{       ::string(file) , action } {} // .
 	//
 	~AcFd() { close() ; }
 	//
@@ -602,15 +608,103 @@ struct AcFd : Fd {
 	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
 } ;
 
+struct FileSpec {
+	FileSpec( Fd at_ , ::string const& file_ ) : at{at_},file{       file_ } {} // XXX/ : necessary for clang
+	FileSpec( Fd at_ , ::string     && file_ ) : at{at_},file{::move(file_)} {} // .
+	bool operator==(FileSpec const&) const = default ;
+	size_t hash() const ;
+	// data
+	Fd       at   = Fd::Cwd ;
+	::string file ;
+} ;
+
+struct NfsGuardDir {                                                                         // open/close uphill dirs before read accesses and after write accesses
+	// cxtors & casts
+	~NfsGuardDir() { flush() ; }
+	//services
+	void access      ( Fd at , ::string const& path  ) ;
+	void access_dir_s( Fd at , ::string const& dir_s ) ;
+	void change      ( Fd at , ::string const& path  ) ;
+	void flush       (                               ) ;
+	// data
+	::uset<FileSpec> fetched_dirs_s  ;
+	::uset<FileSpec> to_stamp_dirs_s ;
+} ;
+struct NfsGuardSync {                                                                        // fsync file after they are written
+	// cxtors & casts
+	~NfsGuardSync() { flush() ; }
+	//services
+	void access      ( Fd /*at*/ , ::string const& /*path*/  ) {                             }
+	void access_dir_s( Fd /*at*/ , ::string const& /*dir_s*/ ) {                             }
+	void change      ( Fd   at   , ::string const&   path    ) { to_stamp.emplace(at,path) ; }
+	void flush() {
+		for( auto const& [at,f] : to_stamp ) if ( AcFd fd{at,f,{.err_ok=true}} ; +fd ) ::fsync(fd) ;
+		to_stamp.clear() ;
+	}
+	// data
+	::uset<FileSpec> to_stamp ;
+} ;
+struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
+	// cxtors & casts
+	constexpr NfsGuard(FileSync fs=FileSync::None) {
+		switch (fs) {                                                                        // PER_FILE_SYNC : add entry here
+			case FileSync::None :                break ;
+			case FileSync::Dir  : emplace<1>() ; break ;
+			case FileSync::Sync : emplace<2>() ; break ;
+		DF}
+	}
+	// services
+	::string const& access(         ::string const& file ) { return access(Fd::Cwd,file) ; }
+	::string const& access( Fd at , ::string const& path ) {                                 // return file, must be called before any access to file or its inode if not sure it was produced locally
+		switch (index()) {                                                                   // PER_FILE_SYNC : add entry here
+			case 0 :                                  break ;
+			case 1 : ::get<1>(self).access(at,path) ; break ;
+			case 2 : ::get<2>(self).access(at,path) ; break ;
+		DF}
+		return path ;
+	}
+	::string const& access_dir_s(         ::string const& dir_s ) { return access_dir_s(Fd::Cwd,dir_s) ; }
+	::string const& access_dir_s( Fd at , ::string const& dir_s ) {  // return file, must be called before any access to file or its inode if not sure it was produced locally
+		switch (index()) {                                           // PER_FILE_SYNC : add entry here
+			case 0 :                                         break ;
+			case 1 : ::get<1>(self).access_dir_s(at,dir_s) ; break ;
+			case 2 : ::get<2>(self).access_dir_s(at,dir_s) ; break ;
+		DF}
+		return dir_s ;
+	}
+	::string const& change(         ::string const& path ) { return change(Fd::Cwd,path) ; }
+	::string const& change( Fd at , ::string const& path ) {         // return file, must be called before any write access to file or its inode if not sure it is going to be read only locally
+		switch (index()) {                                           // PER_FILE_SYNC : add entry here
+			case 0 :                                  break ;
+			case 1 : ::get<1>(self).change(at,path) ; break ;
+			case 2 : ::get<2>(self).change(at,path) ; break ;
+		DF}
+		return path ;
+	}
+	::string const& update(         ::string const& path ) { return update(Fd::Cwd,path) ; }
+	::string const& update( Fd at , ::string const& path ) {
+		access(at,path) ;
+		change(at,path) ;
+		return path ;
+	}
+	void flush() {
+		switch (index()) {                                           // PER_FILE_SYNC : add entry here
+			case 0 :                          break ;
+			case 1 : ::get<1>(self).flush() ; break ;
+			case 2 : ::get<2>(self).flush() ; break ;
+		DF}
+	}
+} ;
+
+//
+// miscellaneous
+//
+
 inline ::string file_msg( Fd at , ::string file ) {
 	if      (at==Fd::Cwd) return                   file  ;
 	else if (+at        ) return cat('@',at.fd,':',file) ;
 	else                  return cat("@<nowhere>:",file) ;
 }
-
-//
-// miscellaneous
-//
 
 inline bool has_env(::string const& name) {
 	return ::getenv(name.c_str()) ;

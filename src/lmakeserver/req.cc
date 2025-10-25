@@ -284,7 +284,7 @@ namespace Engine {
 		for( ::string const& f : self->refresh_codecs ) {
 			trace("refresh_codecs",self->refresh_codecs) ;
 			Job job { Rule(Special::Codec) , cat(Codec::Pfx,f) } ;
-			if (!job) continue ;                                            // ignore errors as there is nothing much we can do
+			if (!job) continue ;                                                        // ignore errors as there is nothing much we can do
 			job->refresh_codec(self) ;
 		}
 		self->refresh_codecs = {} ;
@@ -308,7 +308,7 @@ namespace Engine {
 			NfsGuard     nfs_guard   { g_config->file_sync }                                          ;
 			if (job->rule()->special==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable)       _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
-				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,nfs_guard                                  ) ;
+				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,&nfs_guard                                 ) ;
 			} else {
 				/**/                                                                        _report_err    (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
@@ -414,12 +414,12 @@ namespace Engine {
 						SWEAR( e!=day , e,day ) ;                                                // day is supposed to be the most recent and we keep at least 1 entry
 						::string f = outputs_dir_s+e ;
 						trace("unlnk",f) ;
-						unlnk( f , true/*dir_ok*/ ) ;
+						unlnk( f , {.dir_ok=true} ) ;
 					}
 				}
 			}
 			log_fd = Fd( log_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;
-			try         { lnk(Last,lcl_log_file) ;                                             }
+			try         { sym_lnk(Last,lcl_log_file) ;                                         }
 			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
 			start_ddate = file_date(log_file) ;                                                  // use log_file as a date marker
 		} else {
@@ -563,7 +563,7 @@ namespace Engine {
 		return !n_err/*overflow*/ ;
 	}
 
-	void ReqData::_report_no_rule( Node node , NfsGuard& nfs_guard , DepDepth lvl ) {
+	void ReqData::_report_no_rule( Node node , NfsGuard* nfs_guard , DepDepth lvl ) {
 		::string                        name      = node->name() ;
 		::vmap<RuleTgt,Rule::RuleMatch> mrts      ;                        // matching rules
 		RuleTgt                         art       ;                        // set if an anti-rule matches
@@ -601,13 +601,13 @@ namespace Engine {
 			mrts.emplace_back(rt,::move(m)) ;
 		}
 		//
-		if ( !art && !mrts                             ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
-		else                                             audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
-		if ( !art && is_target(nfs_guard.access(name)) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
+		if ( !art && !mrts                                  ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
+		else                                                  audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
+		if ( !art && is_target(name,{.nfs_guard=nfs_guard}) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                                // second pass to do report
+		for( auto const& [rt,m] : mrts ) {                                                     // second pass to do report
 			Rule              r           = rt->rule                ;
-			JobTgt            jt          { ::copy(m) , rt.sure() } ;                     // do not pass self as req to avoid generating error message at cxtor time
+			JobTgt            jt          { ::copy(m) , rt.sure() } ;                          // do not pass self as req to avoid generating error message at cxtor time
 			::string          reason      ;
 			Node              missing_dep ;
 			::vmap_s<DepSpec> static_deps ;
@@ -626,10 +626,10 @@ namespace Engine {
 			catch (::string  const& msg    ) { reason << "cannot compute its deps :\n"<<indent<' ',2>(msg                       ) ; goto Report ; }
 			catch (MsgStderr const& msg_err) { reason << "cannot compute its deps :\n"<<indent<' ',2>(msg_err.msg+msg_err.stderr) ; goto Report ; }
 			//
-			for( bool search_non_buildable : {true,false} )                               // first search a non-buildable, if not found, search for non makable as deps have been made
+			for( bool search_non_buildable : {true,false} )                                    // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
 					if (!is_canon(ds.txt,true/*ext_ok*/)) {
-						if (search_non_buildable) continue ;                              // non-canonic deps are detected after non-buidlable ones
+						if (search_non_buildable) continue ;                                   // non-canonic deps are detected after non-buidlable ones
 						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
 						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;
 						else         reason = "empty static dep "      +k                 ;
@@ -638,8 +638,8 @@ namespace Engine {
 					Node d { ds.txt } ; SWEAR( +d , ds.txt ) ;
 					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 					missing_dep = d ;
-					SWEAR(+missing_dep) ;                                                 // else why wouldn't it apply ?!?
-					FileTag tag = FileInfo(nfs_guard.access(missing_dep->name())).tag() ;
+					SWEAR(+missing_dep) ;                                                      // else why wouldn't it apply ?!?
+					FileTag tag = FileInfo(missing_dep->name(),{.nfs_guard=nfs_guard}).tag() ;
 					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 					goto Report ;
 				}

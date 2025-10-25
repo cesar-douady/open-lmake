@@ -13,66 +13,75 @@ import time
 
 from lmake import pdict
 
-def lmake(*args,rc=0,summary=None,no_ldump=False,**kwds) :
-	if not summary : summary = {}
-	else           : summary = dict(summary)
-
-	kwds.setdefault('start',...)
-
-	try :
-
+class Ut :
+	idx = 0
+	def __init__( self , *args , rc=0 , no_ldump=False , **kwds ) :
+		self.__class__.idx += 1
+		self.stdout = f'tok.{self.idx}'
+		kwds.setdefault('start',...)
+		#
+		self.rc       = rc
+		self.no_ldump = no_ldump
+		self.kwds     = kwds
+		#
 		cmd = ('lmake',*args)
-		print()
-		print(time.ctime())
+		print(                      )
+		print( time.ctime()         )
 		print( '+ ' + ' '.join(cmd) )
-		proc = sp.run( cmd , universal_newlines=True , stdin=None , stdout=sp.PIPE )
-		print(proc.stdout,end='',flush=True)
-		if proc.returncode!=rc : raise RuntimeError(f'bad return code {proc.returncode} != {rc}')
-		if not no_ldump        : sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
-
+		self.proc = sp.Popen( cmd , universal_newlines=True , stdin=None , stdout=open(self.stdout,'w') )
+		sys.stdout.flush()
+	def __call__( self , rc=0 , no_ldump=False , **kwds ) :
+		if rc       : self.rc       = rc
+		if no_ldump : self.no_ldump = no_ldump
+		if kwds     : self.kwds.update(kwds)
+		self.proc.wait()
+		stdout       = open(self.stdout).read()
+		sys.stdout.write(stdout)
+		sys.stdout.flush()
+		#
+		if self.proc.returncode!=self.rc : raise RuntimeError(f'bad return code {self.proc.returncode} != {self.rc}')
+		if not self.no_ldump             : sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
+		#
 		if osp.exists('LMAKE/server') :
-			time.sleep(1)
-			if osp.exists('LMAKE/server') : raise RuntimeError('server is still alive')
-
+			time_out = 10
+			for i in range(int(10*time_out)) :
+				time.sleep(0.1)
+				if not osp.exists('LMAKE/server') : break
+			else :
+				raise RuntimeError(f'server is still alive after {time_out}s')
+		#
 		# analysis
-		cnt          = { k:0 for k in kwds    }
-		sum_cnt      = { k:0 for k in summary }
+		cnt          = { k:0 for k in self.kwds }
 		seen_summary = False
-		for l in proc.stdout.splitlines() :
+		self.summary = ''
+		for l in stdout.splitlines() :
 			if l=='| SUMMARY |' : seen_summary = True
 			if seen_summary :
-				for k in summary :
-					if not re.fullmatch(k,l) : continue
-					sum_cnt[k] += 1
-					break
-			else :
-				m = re.fullmatch(r'(\d\d:\d\d:\d\d(\.\d+)? )?(?P<key>\w+) .*',l)
-				if not m : continue
-				k = m.group('key')
-				if k not in cnt : raise RuntimeError(f'unexpected key {k}')
-				cnt[k] += 1
-
+				self.summary += l+'\n'
+				continue
+			m = re.fullmatch(r'(\d\d:\d\d:\d\d(\.\d+)? )?(?P<key>\w+) .*',l)
+			if not m : continue
+			k = m.group('key')
+			if k in cnt : cnt[k] += 1
+			else        : cnt[k]  = 1
+		#
 		# wrap up
 		res = pdict()
-		for k,v in list(kwds.items()) :
+		for k,v in list(self.kwds.items()) :
 			if v==... :
 				res[k] = cnt[k]
 				del cnt [k]
-				del kwds[k]
-		if cnt!=kwds :
+				del self.kwds[k]
+		if cnt!=self.kwds :
 			for k in cnt :
-				if cnt[k]!=kwds[k] : raise RuntimeError(f'bad count for {k} : {cnt[k]} != {kwds[k]}')
-		if sum_cnt!=summary :
-			for k in sum_cnt :
-				if sum_cnt[k]!=summary[k] : raise RuntimeError(f'bad count for summary {k} : {sum_cnt[k]} != {summary[k]}')
-
+				if cnt[k]!=self.kwds[k] : raise RuntimeError(f'bad count for {k} : {cnt[k]} != {self.kwds[k]}')
+		#
 		return res
 
-	except RuntimeError as e :
-		print('*** '+e.args[0])
-		raise
-	finally :
-		sys.stdout.flush()
+def lmake( *args , rc=0 , no_ldump=False , wait=True , **kwds ) :
+	proc = Ut( *args , rc=rc , no_ldump=no_ldump , **kwds )
+	if wait : return proc()
+	else    : return proc
 
 def mk_gxx_module(module) :
 	with open(f'{module}.py','w') as fp :

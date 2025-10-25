@@ -61,11 +61,11 @@ namespace Caches {
 		void            _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s    ) const ;
 		::string        _lru_file     (                         ::string const& entry_s    ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
 		::string        _reserved_file( uint64_t upload_key          , ::string const& sfx ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
-		Sz              _reserved_sz  ( uint64_t upload_key          , Disk::NfsGuard&     ) const ;
-		Sz              _lru_remove   ( ::string const& entry_s      , Disk::NfsGuard&     ) ;
-		void            _lru_mk_newest( ::string const& entry_s , Sz , Disk::NfsGuard&     ) ;
-		void            _mk_room      ( Sz old_sz , Sz new_sz        , Disk::NfsGuard&     ) ;
-		void            _dismiss      ( uint64_t upload_key     , Sz , Disk::NfsGuard&     ) ;
+		Sz              _reserved_sz  ( uint64_t upload_key          , NfsGuard*           ) const ;
+		Sz              _lru_remove   ( ::string const& entry_s      , NfsGuard*           )       ;
+		void            _lru_mk_newest( ::string const& entry_s , Sz , NfsGuard*           )       ;
+		void            _mk_room      ( Sz old_sz , Sz new_sz        , NfsGuard*           )       ;
+		void            _dismiss      ( uint64_t upload_key     , Sz , NfsGuard*           )       ;
 		Match           _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const&   ) const ;
 		//
 		template<IsStream S> void _serdes(S& s) {
@@ -76,9 +76,9 @@ namespace Caches {
 			if (IsIStream<S>) _compile() ;
 		}
 		void _compile() {
-			admin_dir_s    = dir_s       + AdminDirS  ;
-			reserved_dir_s = admin_dir_s + "reserved" ;
-			lock_file      = admin_dir_s + "lock"     ;
+			admin_dir_s    = dir_s       + AdminDirS   ;
+			reserved_dir_s = admin_dir_s + "reserved/" ;
+			lock_file      = admin_dir_s + "lock"      ;
 		}
 		// data
 	public :

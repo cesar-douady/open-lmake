@@ -48,38 +48,12 @@ enum class FileLoc : uint8_t {
 ,	Dep = SrcDir // <=Dep means that file must be reported as a dep
 } ;
 
-// START_OF_VERSIONING
-// PER_FILE_SYNC : add entry here
-enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
-	None
-,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
-,	Sync                        // sync file after write
-// aliases
-,	Dflt = Dir
-} ;
-// END_OF_VERSIONING
-
 namespace Disk {
 	using Ddate       = Time::Ddate              ;
 	using DiskSz      = uint64_t                 ;
 	using FileNameIdx = Uint<n_bits(PATH_MAX+1)> ; // file names are limited to PATH_MAX
 
 	static constexpr DiskSz DiskBufSz = 1<<16 ; // buffer size to use when reading or writing disk
-
-	struct FileSpec {
-		// cxtors & casts
-		FileSpec() = default ;                                                   // XXX/ : necessary for clang to accept emplace such as xxx.emplace(at,file)
-		FileSpec(         ::string const& f ) : fd{Fd::Cwd} , file{       f } {} // .
-		FileSpec(         ::string     && f ) : fd{Fd::Cwd} , file{::move(f)} {} // .
-		FileSpec( Fd at , ::string const& f ) : fd{at     } , file{       f } {} // .
-		FileSpec( Fd at , ::string     && f ) : fd{at     } , file{::move(f)} {} // .
-		// accesses
-		bool operator==(FileSpec const&) const = default ;
-		size_t hash() const ;
-		// data
-		Fd       fd   ;
-		::string file ;
-	} ;
 
 	//
 	// path name library
@@ -160,18 +134,19 @@ namespace Disk {
 
 	struct FileSig ;
 
+	struct _FileInfoAction {
+		bool      no_follow = true    ;
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
 	struct FileInfo {
 		friend ::string& operator+=( ::string& , FileInfo const& ) ;
-	private :
-		// statics
-		static FileTag _s_tag(FileStat const& st) ;
+		using Action = _FileInfoAction ;
 		// cxtors & casts
-	public :
-		FileInfo( FileTag tag=FileTag::Unknown                       ) : date{tag}                        {}
-		FileInfo( Fd at                                              ) : FileInfo{at     ,{}            } {}
-		FileInfo(         ::string const& name , bool no_follow=true ) : FileInfo{Fd::Cwd,name,no_follow} {}
-		FileInfo( Fd at , ::string const& name , bool no_follow=true ) ;
-		FileInfo( FileStat const&                                    ) ;
+		FileInfo( FileTag tag=FileTag::Unknown                    ) : date{tag}                     {}
+		FileInfo( Fd at                                           ) : FileInfo{at     ,{}         } {}
+		FileInfo(         ::string const& name , Action action={} ) : FileInfo{Fd::Cwd,name,action} {}
+		FileInfo( Fd at , ::string const& name , Action action={} ) ;
+		FileInfo( FileStat const&                                 ) ;
 		//
 		FileInfo(const char* name) : FileInfo{::string(name)} {} // ensure no confusion
 		// accesses
@@ -191,15 +166,16 @@ namespace Disk {
 
 	struct FileSig {
 		friend ::string& operator+=( ::string& , FileSig const& ) ;
+		using Action = _FileInfoAction ;
 		// cxtors & casts
 	public :
-		FileSig(                                                    ) = default ;
-		FileSig( Fd at                                              ) : FileSig{at     ,{}                 } {}
-		FileSig(         ::string const& name , bool no_follow=true ) : FileSig{Fd::Cwd,name,no_follow     } {}
-		FileSig( Fd at , ::string const& name , bool no_follow=true ) : FileSig{FileInfo(at,name,no_follow)} {}
-		FileSig( FileStat const& fs                                 ) : FileSig{FileInfo(fs               )} {}
-		FileSig( FileInfo const&                                    ) ;
-		FileSig( FileTag tag                                        ) : _val{+tag}                           {}
+		FileSig(                                                 ) = default ;
+		FileSig( Fd at                                           ) : FileSig{at     ,{}              } {}
+		FileSig(         ::string const& name , Action action={} ) : FileSig{Fd::Cwd,name,action     } {}
+		FileSig( Fd at , ::string const& name , Action action={} ) : FileSig{FileInfo(at,name,action)} {}
+		FileSig( FileStat const& fs                              ) : FileSig{FileInfo(fs            )} {}
+		FileSig( FileInfo const&                                 ) ;
+		FileSig( FileTag tag                                     ) : _val{+tag}                        {}
 		//
 		FileSig(const char* name) : FileSig{::string(name)} {} // ensure no confusion
 		// accesses
@@ -236,171 +212,52 @@ namespace Disk {
 		Pdate   date ;
 	} ;
 
-	struct NfsGuardNone {
-		void access      ( Fd /*at*/ , ::string const& /*path */ ) {}
-		void access_dir_s( Fd /*at*/ , ::string const& /*dir_s*/ ) {}
-		void change      ( Fd /*at*/ , ::string const& /*path */ ) {}
-		void flush       (                                       ) {}
-	} ;
-	struct NfsGuardDir {                                                                     // open/close uphill dirs before read accesses and after write accesses
-		// statics
-	private :
-		void _s_protect( Fd at , ::string const& dir_s ) {
-			AcFd( at , dir_s , true/*err_ok*/ , {.flags=O_RDONLY|O_DIRECTORY} ) ;
-		}
-		// cxtors & casts
-	public :
-		~NfsGuardDir() { flush() ; }
-		//services
-		void access( Fd at , ::string const& path ) {
-			if ( is_dir_name(path) ? path.ends_with("../") : path.ends_with("..") ) return ; // cannot go uphill
-			if ( !has_dir(path)                                                   ) return ;
-			access_dir_s( at , dir_name_s(path) ) ;
-		}
-		void access_dir_s( Fd at , ::string const& dir_s ) {
-			access(at,dir_s) ;                                                               // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-			if (fetched_dirs_s.emplace(at,dir_s).second) _s_protect(at,dir_s) ;              // open to force NFS close to open coherence, close is useless
-		}
-		void change( Fd at , ::string const& path ) {
-			if ( is_dir_name(path) ? path.ends_with("../") : path.ends_with("..") ) return ; // cannot go uphill
-			if ( !has_dir(path)                                                   ) return ;
-			::string dir_s = dir_name_s(path) ;
-			access_dir_s(at,dir_s) ;
-			to_stamp_dirs_s.emplace(at,::move(dir_s)) ;
-		}
-		void flush() {
-			for( auto const& [at,d_s] : to_stamp_dirs_s ) _s_protect(at,d_s) ;
-			to_stamp_dirs_s.clear() ;
-		}
-		// data
-		::uset<FileSpec> fetched_dirs_s  ;
-		::uset<FileSpec> to_stamp_dirs_s ;
-	} ;
-	struct NfsGuardSync {                                                // fsync file after they are written
-		// cxtors & casts
-		~NfsGuardSync() { flush() ; }
-		//services
-		void access      ( Fd /*at*/ , ::string const& /*path*/  ) {                             }
-		void access_dir_s( Fd /*at*/ , ::string const& /*dir_s*/ ) {                             }
-		void change      ( Fd   at   , ::string const&   path    ) { to_stamp.emplace(at,path) ; }
-		void flush() {
-			for( auto const& [at,f] : to_stamp ) if ( AcFd fd{at,f,true/*err_ok*/} ; +fd ) ::fsync(fd) ;
-			to_stamp.clear() ;
-		}
-		// data
-		::uset<FileSpec> to_stamp ;
-	} ;
-	struct NfsGuard : ::variant< NfsGuardNone , NfsGuardDir , NfsGuardSync > {
-		// cxtors & casts
-		NfsGuard(FileSync fs) {
-			switch (fs) {                                                // PER_FILE_SYNC : add entry here
-				case FileSync::None : emplace<0>() ; break ;
-				case FileSync::Dir  : emplace<1>() ; break ;
-				case FileSync::Sync : emplace<2>() ; break ;
-			DF}
-		}
-		// services
-		::string const& access(         ::string const& file ) { return access(Fd::Cwd,file) ; }
-		::string const& access( Fd at , ::string const& path ) {         // return file, must be called before any access to file or its inode if not sure it was produced locally
-			switch (index()) {                                           // PER_FILE_SYNC : add entry here
-				case 0 : ::get<0>(self).access(at,path) ; break ;
-				case 1 : ::get<1>(self).access(at,path) ; break ;
-				case 2 : ::get<2>(self).access(at,path) ; break ;
-			DF}
-			return path ;
-		}
-		::string const& access_dir_s(         ::string const& dir_s ) { return access_dir_s(Fd::Cwd,dir_s) ; }
-		::string const& access_dir_s( Fd at , ::string const& dir_s ) {  // return file, must be called before any access to file or its inode if not sure it was produced locally
-			switch (index()) {                                           // PER_FILE_SYNC : add entry here
-				case 0 : ::get<0>(self).access_dir_s(at,dir_s) ; break ;
-				case 1 : ::get<1>(self).access_dir_s(at,dir_s) ; break ;
-				case 2 : ::get<2>(self).access_dir_s(at,dir_s) ; break ;
-			DF}
-			return dir_s ;
-		}
-		::string const& change(         ::string const& path ) { return change(Fd::Cwd,path) ; }
-		::string const& change( Fd at , ::string const& path ) {         // return file, must be called before any write access to file or its inode if not sure it is going to be read only locally
-			switch (index()) {                                           // PER_FILE_SYNC : add entry here
-				case 0 : ::get<0>(self).change(at,path) ; break ;
-				case 1 : ::get<1>(self).change(at,path) ; break ;
-				case 2 : ::get<2>(self).change(at,path) ; break ;
-			DF}
-			return path ;
-		}
-		::string const& update(         ::string const& path ) { return update(Fd::Cwd,path) ; }
-		::string const& update( Fd at , ::string const& path ) {
-			access(at,path) ;
-			change(at,path) ;
-			return path ;
-		}
-		void flush() {
-			switch (index()) {                                           // PER_FILE_SYNC : add entry here
-				case 0 : ::get<0>(self).flush() ; break ;
-				case 1 : ::get<1>(self).flush() ; break ;
-				case 2 : ::get<2>(self).flush() ; break ;
-			DF}
-		}
-	} ;
-
 	// list files within dir with prefix in front of each entry
-	::vector_s lst_dir_s( Fd at , ::string const& dir_s={} , ::string const& prefix={} ) ;
+	/**/   ::vector_s lst_dir_s( Fd at , ::string const& dir_s={} , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ;
+	inline ::vector_s lst_dir_s(         ::string const& dir_s    , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) { return lst_dir_s(Fd::Cwd,dir_s,pfx,nfs_guard) ; }
 	//
-	size_t/*pos*/ _mk_dir_s( Fd at , ::string const& dir_s , NfsGuard* , PermExt , bool unlnk_ok ) ;                           // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-	//
-	inline size_t/*pos*/ mk_dir_s(         ::string const& dir_s ,                             bool unlnk_ok=false ) { return _mk_dir_s(Fd::Cwd,dir_s,nullptr,{},unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s(         ::string const& dir_s ,                PermExt pe , bool unlnk_ok=false ) { return _mk_dir_s(Fd::Cwd,dir_s,nullptr,pe,unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s(         ::string const& dir_s , NfsGuard& ng ,              bool unlnk_ok=false ) { return _mk_dir_s(Fd::Cwd,dir_s,&ng    ,{},unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s(         ::string const& dir_s , NfsGuard& ng , PermExt pe , bool unlnk_ok=false ) { return _mk_dir_s(Fd::Cwd,dir_s,&ng    ,pe,unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s ,                             bool unlnk_ok=false ) { return _mk_dir_s(at     ,dir_s,nullptr,{},unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s ,                PermExt pe , bool unlnk_ok=false ) { return _mk_dir_s(at     ,dir_s,nullptr,pe,unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , NfsGuard& ng ,              bool unlnk_ok=false ) { return _mk_dir_s(at     ,dir_s,&ng    ,{},unlnk_ok) ; }
-	inline size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , NfsGuard& ng , PermExt pe , bool unlnk_ok=false ) { return _mk_dir_s(at     ,dir_s,&ng    ,pe,unlnk_ok) ; }
-	//
-	inline void _dir_guard( Fd at , ::string const& file , NfsGuard* nfs_guard , PermExt perm_ext , bool unlnk_ok ) {          // if unlnk_ok <=> unlink any file on the path if necessary to make dir
-		if (has_dir(file)) _mk_dir_s( at , dir_name_s(file) , nfs_guard , perm_ext , unlnk_ok ) ;
-	}
-	//
-	inline ::string const& dir_guard(         ::string const& path ,                             bool unlnk_ok=false ) { _dir_guard(Fd::Cwd,path,nullptr,{},unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard(         ::string const& path ,                PermExt pe , bool unlnk_ok=false ) { _dir_guard(Fd::Cwd,path,nullptr,pe,unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard(         ::string const& path , NfsGuard& ng ,              bool unlnk_ok=false ) { _dir_guard(Fd::Cwd,path,&ng    ,{},unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard(         ::string const& path , NfsGuard& ng , PermExt pe , bool unlnk_ok=false ) { _dir_guard(Fd::Cwd,path,&ng    ,pe,unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard( Fd at , ::string const& path ,                             bool unlnk_ok=false ) { _dir_guard(at     ,path,nullptr,{},unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard( Fd at , ::string const& path ,                PermExt pe , bool unlnk_ok=false ) { _dir_guard(at     ,path,nullptr,pe,unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard( Fd at , ::string const& path , NfsGuard& ng ,              bool unlnk_ok=false ) { _dir_guard(at     ,path,&ng    ,{},unlnk_ok) ; return path ; }
-	inline ::string const& dir_guard( Fd at , ::string const& path , NfsGuard& ng , PermExt pe , bool unlnk_ok=false ) { _dir_guard(at     ,path,&ng    ,pe,unlnk_ok) ; return path ; }
-	//
-	void          unlnk_inside_s( Fd at , ::string const& dir_s                     , bool abs_ok=false , bool force=false ) ;
-	bool/*done*/  unlnk         ( Fd at , ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false ) ; // if dir_ok <=> unlink whole dir if it is one
-	void          rmdir_s       ( Fd at , ::string const& dir_s                                                            ) ;
-	void          mk_dir_empty_s( Fd at , ::string const& dir_s                     , bool abs_ok=false                    ) ;
-	//
-	inline void lnk( Fd at , ::string const& file , ::string const& target ) {
-		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
-			::string at_str = at==Fd::Cwd ? ""s : cat('<',at.fd,">/") ;
-			throw cat("cannot create symlink from ",at_str,file," to ",target) ;
-		}
-	}
+	struct _MkDirAction {
+		bool      unlnk_ok  = false   ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+		PermExt   perm_ext  = {}      ;
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
+	/**/   size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , _MkDirAction action={} ) ;
+	inline size_t/*pos*/ mk_dir_s(         ::string const& dir_s , _MkDirAction action={} ) { return mk_dir_s(Fd::Cwd,dir_s,action) ; }
 
-	inline ::string read_lnk( Fd at , ::string const& file ) {
-		char    buf[PATH_MAX] ;
-		ssize_t cnt           = ::readlinkat(at,file.c_str(),buf,PATH_MAX) ;
-		if ( cnt<0 || cnt>=PATH_MAX ) return {} ;
-		return {buf,size_t(cnt)} ;
-	}
+	inline ::string const& dir_guard( Fd at , ::string const& file , _MkDirAction action={} ) { if (has_dir(file)) mk_dir_s ( at      , dir_name_s(file) , action ) ; return file ; }
+	inline ::string const& dir_guard(         ::string const& file , _MkDirAction action={} ) {                    dir_guard( Fd::Cwd ,            file  , action ) ; return file ; }
+	//
+	struct _UnlnkAction {
+		bool      dir_ok    = false   ; // if dir_ok <=> unlink whole dir if it is one
+		bool      abs_ok    = false   ;
+		bool      force     = false   ;
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
+	void         unlnk_inside_s( Fd at , ::string const& dir_s ,                          _UnlnkAction={}      ) ;
+	bool/*done*/ unlnk         ( Fd at , ::string const& file  ,                          _UnlnkAction={}      ) ;
+	void         rmdir_s       ( Fd at , ::string const& dir_s ,                          NfsGuard*   =nullptr ) ;
+	void         mk_dir_empty_s( Fd at , ::string const& dir_s ,                          _UnlnkAction={}      ) ;
+	void         sym_lnk       ( Fd at , ::string const& file  , ::string const& target , NfsGuard*   =nullptr ) ;
 
-	inline bool  is_dir_s ( Fd at , ::string const& dir_s , bool no_follow=true ) { return FileInfo(at,dir_s,no_follow).tag()==FileTag::Dir ; }
-	inline bool  is_target( Fd at , ::string const& file  , bool no_follow=true ) { return FileInfo(at,file ,no_follow).exists()            ; }
-	inline bool  is_exe   ( Fd at , ::string const& file  , bool no_follow=true ) { return FileInfo(at,file ,no_follow).tag()==FileTag::Exe ; }
-	inline Ddate file_date( Fd at , ::string const& file  , bool no_follow=true ) { return FileInfo(at,file ,no_follow).date                ; }
+	inline void         unlnk_inside_s( Fd              at    ,                          _UnlnkAction a ={}      ) {        unlnk_inside_s( at      , {}    ,          a  ) ; }
+	inline void         unlnk_inside_s( ::string const& dir_s ,                          _UnlnkAction a ={}      ) {        unlnk_inside_s( Fd::Cwd , dir_s ,          a  ) ; }
+	inline bool/*done*/ unlnk         ( ::string const& file  ,                          _UnlnkAction a ={}      ) { return unlnk         ( Fd::Cwd , file  ,          a  ) ; }
+	inline void         rmdir_s       ( ::string const& dir_s ,                          NfsGuard*    ng=nullptr ) {        rmdir_s       ( Fd::Cwd , dir_s ,          ng ) ; }
+	inline void         mk_dir_empty_s( ::string const& dir_s ,                          _UnlnkAction a ={}      ) { return mk_dir_empty_s( Fd::Cwd , dir_s ,          a  ) ; }
+	inline void         sym_lnk       ( ::string const& file  , ::string const& target , NfsGuard*    ng=nullptr ) {        sym_lnk       ( Fd::Cwd , file  , target , ng ) ; }
 
-	inline ::vector_s      lst_dir_s( ::string const& dir_s , ::string const& pfx={}                                ) { return lst_dir_s(Fd::Cwd,dir_s,pfx                 ) ;               }
-	inline void            rmdir_s  ( ::string const& dir_s                                                         ) {        rmdir_s  (Fd::Cwd,dir_s                     ) ;               }
-	inline void            lnk      ( ::string const& file  , ::string const& target                                ) {        lnk      (Fd::Cwd,file ,target              ) ;               }
-	inline ::string        read_lnk ( ::string const& file                                                          ) { return read_lnk (Fd::Cwd,file                      ) ;               }
-	inline bool            is_dir_s ( ::string const& dir_s , bool no_follow=true                                   ) { return is_dir_s (Fd::Cwd,dir_s,no_follow           ) ;               }
-	inline bool            is_target( ::string const& file  , bool no_follow=true                                   ) { return is_target(Fd::Cwd,file ,no_follow           ) ;               }
-	inline bool            is_exe   ( ::string const& file  , bool no_follow=true                                   ) { return is_exe   (Fd::Cwd,file ,no_follow           ) ;               }
-	inline Ddate           file_date( ::string const& file  , bool no_follow=true                                   ) { return file_date(Fd::Cwd,file ,no_follow           ) ;               }
+	/**/   ::string read_lnk( Fd at , ::string const& file , NfsGuard*       =nullptr ) ;
+	inline ::string read_lnk (        ::string const& file , NfsGuard* action=nullptr ) { return read_lnk(Fd::Cwd,file,action) ; }
+
+	inline bool  is_dir_s ( Fd at , ::string const& dir_s , FileInfo::Action action={} ) { return FileInfo(at,dir_s,action).tag()==FileTag::Dir ; }
+	inline bool  is_target( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).exists()            ; }
+	inline bool  is_exe   ( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).tag()==FileTag::Exe ; }
+	inline Ddate file_date( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).date                ; }
+
+	inline bool       is_dir_s ( ::string const& dir_s , FileInfo::Action action={} ) { return is_dir_s ( Fd::Cwd , dir_s , action ) ; }
+	inline bool       is_target( ::string const& file  , FileInfo::Action action={} ) { return is_target( Fd::Cwd , file  , action ) ; }
+	inline bool       is_exe   ( ::string const& file  , FileInfo::Action action={} ) { return is_exe   ( Fd::Cwd , file  , action ) ; }
+	inline Ddate      file_date( ::string const& file  , FileInfo::Action action={} ) { return file_date( Fd::Cwd , file  , action ) ; }
 
 	// deep list files whose tag matches FileTags within dir with pfx in front of each entry, return a single entry {pfx} if file is not a dir (including if file does not exist)
 	::vmap_s<FileTag> walk(
@@ -419,24 +276,21 @@ namespace Disk {
 		return walk( Fd::Cwd , path , fts , pfx , prune )  ;
 	}
 
-	inline void         unlnk_inside_s( Fd              at    ,                                         bool force=false ) {        unlnk_inside_s( at      , {}    ,          false  , force ) ; }
-	inline void         unlnk_inside_s( ::string const& dir_s ,                     bool abs_ok=false , bool force=false ) {        unlnk_inside_s( Fd::Cwd , dir_s ,          abs_ok , force ) ; }
-	inline bool/*done*/ unlnk         ( ::string const& file  , bool dir_ok=false , bool abs_ok=false , bool force=false ) { return unlnk         ( Fd::Cwd , file  , dir_ok , abs_ok , force ) ; }
-
-	inline void mk_dir_empty_s( ::string const& dir_s , bool abs_ok=false ) {
-		return mk_dir_empty_s( Fd::Cwd , dir_s , abs_ok ) ;
-	}
-
 	inline ::string cwd_s() {
 		char cwd[PATH_MAX] ;                                   // use posix, not linux extension that allows to pass nullptr as argument and malloc's the returned string
 		if (!::getcwd(cwd,PATH_MAX)) throw "cannot get cwd"s ;
 		return with_slash(cwd) ;                               // cwd is "/" not empty when at root dir, so dont simply append '/'
 	}
 
-	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file ) ;
-	inline FileTag cpy(             ::string const& df       , Fd sat    , ::string const& sf       ) { return cpy(Fd::Cwd,df,sat    ,sf) ; }
-	inline FileTag cpy( Fd dat    , ::string const& df       ,             ::string const& sf       ) { return cpy(dat    ,df,Fd::Cwd,sf) ; }
-	inline FileTag cpy(             ::string const& df       ,             ::string const& sf       ) { return cpy(Fd::Cwd,df,Fd::Cwd,sf) ; }
+	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , NfsGuard*          =nullptr ) ;
+	inline FileTag cpy(             ::string const& df       , Fd sat    , ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,df,sat    ,sf,nfs_guard) ; }
+	inline FileTag cpy( Fd dat    , ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { return cpy(dat    ,df,Fd::Cwd,sf,nfs_guard) ; }
+	inline FileTag cpy(             ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,df,Fd::Cwd,sf,nfs_guard) ; }
+
+	/**/   void rename( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , NfsGuard*          =nullptr ) ;
+	inline void rename(             ::string const& df       , Fd sat    , ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,df,sat    ,sf,nfs_guard) ; }
+	inline void rename( Fd dat    , ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { rename(dat    ,df,Fd::Cwd,sf,nfs_guard) ; }
+	inline void rename(             ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,df,Fd::Cwd,sf,nfs_guard) ; }
 
 	struct FileMap {
 		// cxtors & casts

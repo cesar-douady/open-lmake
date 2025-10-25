@@ -59,7 +59,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 	return                              os <<')'                      ;
 }                                                                       // END_OF_NO_COV
 
-::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& pre_actions , NfsGuard& nfs_guard ) {
+::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& pre_actions , NfsGuard* nfs_guard ) {
 	::uset_s                  keep_dirs       ;
 	::string                  msg             ;
 	::string                  trash           ;
@@ -80,8 +80,9 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::None           : {
+				if (nfs_guard) nfs_guard->access(f) ;
 				FileStat fs ;
-				if (::lstat(nfs_guard.access(f).c_str(),&fs)!=0) {                     // file does not exist, nothing to do
+				if (::lstat(f.c_str(),&fs)!=0) {                                       // file does not exist, nothing to do
 					trace(a.tag,"no_file",f) ;
 					continue ;
 				}
@@ -103,15 +104,16 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 					dir_exists(f) ;                                                    // if a file exists, its dir necessarily exists
 				}
 				if (quarantine) {
+					if (nfs_guard) nfs_guard->update(f) ;
 					::string qf = QuarantineDirS+f ;
-					if (::rename( nfs_guard.update(f).c_str() , dir_guard(qf).c_str() )!=0) {
-						unlnk( qf , true/*dir_ok*/ ) ;                                                                         // try to unlink, in case it is a dir
+					if (::rename( f.c_str() , dir_guard(qf).c_str() )!=0) {
+						unlnk( qf , {.dir_ok=true} ) ;                                                                         // try to unlink, in case it is a dir
 						if (::rename( f.c_str() , qf.c_str() )!=0) throw "cannot quarantine "+f ;                              // and retry
 					}
 					msg <<"quarantined " << mk_file(f) <<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
-					if (!unlnk(nfs_guard.change(f))) throw "cannot unlink "+f ;
+					if (!unlnk(f,{.nfs_guard=nfs_guard})) throw "cannot unlink "+f ;
 					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) msg <<"unlinked "<<mk_file(f)<<'\n' ;     // if a file has been unlinked, its dir necessarily exists
 				}
 				trace(a.tag,STR(quarantine),f) ;
@@ -133,12 +135,12 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 			} break ;
 			case FileActionTag::Mkdir : {
 				::string f_s = with_slash(f) ;
-				if (!existing_dirs_s.contains(f_s)) mk_dir_s(f_s,nfs_guard) ;
+				if (!existing_dirs_s.contains(f_s)) mk_dir_s(f_s,{.nfs_guard=nfs_guard}) ;
 			} break ;
 			case FileActionTag::Rmdir :
 				if (!keep_dirs.contains(f))
 					try {
-						rmdir_s(with_slash(nfs_guard.change(f))) ;
+						rmdir_s(with_slash(f),nfs_guard) ;
 					} catch (::string const&) {                                                                                // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
@@ -601,7 +603,7 @@ namespace Caches {
 		}
 	}
 
-	JobInfo Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard& repo_nfs_guard ) {
+	JobInfo Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard* repo_nfs_guard ) {
 		Trace trace("Cache::download",key) ;
 		//
 		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key ) ;
@@ -628,30 +630,30 @@ namespace Caches {
 				::string const& tn    = entry.first            ;
 				FileTag         tag   = entry.second.sig.tag() ;
 				Sz              sz    = hdr.target_szs[ti]     ;
-				n_copied = ti+1 ;                                                                           // this is a protection, so record n_copied *before* action occurs
-				repo_nfs_guard.change(tn) ; //!                     dir_ok
-				if (tag==FileTag::None) try { unlnk(           tn  , false ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
-				else                          unlnk( dir_guard(tn) , true  ) ;
+				n_copied = ti+1 ;                                                                         // this is a protection, so record n_copied *before* action occurs
+				if (repo_nfs_guard    )       repo_nfs_guard->change(tn) ;
+				if (tag==FileTag::None) try { unlnk( tn                  ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
+				else                          unlnk( tn , {.dir_ok=true} ) ;
 				switch (tag) {
-					case FileTag::None  :                                                                                            break ;
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; lnk( tn , data_fd.read(hdr.target_szs[ti]) )                   ; break ;
-					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,0666/*mod*/} ) ; break ;
+					case FileTag::None  :                                                                                               break ;
+					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; sym_lnk( tn , data_fd.read(hdr.target_szs[ti]) )                  ; break ;
+					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd   ( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,0666/*mod*/} ) ; break ;
 					case FileTag::Exe   :
 					case FileTag::Reg   : {
 						AcFd fd { tn , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;
 						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
-						else      trace("no_data_to",tn   ) ;                                               // empty exe are Exe, not Empty
+						else      trace("no_data_to",tn   ) ;                                             // empty exe are Exe, not Empty
 					} break ;
 				DN}
-				entry.second.sig = FileSig(tn) ;                                                            // target digest is not stored in cache
+				entry.second.sig = FileSig(tn) ;                                                          // target digest is not stored in cache
 			}
-			end.end_date = New ;                                                                            // date must be after files are copied
+			end.end_date = New ;                                                                          // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 			return job_info ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
-			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                   // clean up partial job
+			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                 // clean up partial job
 			throw ;
 		}
 	}
@@ -793,8 +795,8 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	AcFd    fd  { file , false/*erro_ok*/ , {.flags=O_WRONLY|O_TRUNC} } ;
-	ssize_t cnt = ::write( fd , data.c_str() , data.size() )  ;
+	AcFd    fd  { file , {.flags=O_WRONLY|O_TRUNC,.err_ok=false} } ;
+	ssize_t cnt = ::write( fd , data.c_str() , data.size() )       ;
 	throw_unless( cnt>=0                   , "cannot write atomically ",data.size()," bytes to ",file," : ",StrErr()                  ) ;
 	throw_unless( size_t(cnt)>=data.size() , "cannot write atomically ",data.size()," bytes to ",file," : only ",cnt," bytes written" ) ;
 }
@@ -818,7 +820,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 		if ((dst_ok=+cpy(dst,src))) deps.emplace_back(dst,MountAction::Write) ;
 		else                        dst_ok = false ;
 	} else {
-		AcFd fd { dir_guard(dst) , true/*err_ok*/ , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
+		AcFd fd { dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} } ;
 		if ((dst_ok=+fd)) deps.emplace_back(dst,MountAction::Write) ;
 	}
 	return dst_ok ;
@@ -857,7 +859,10 @@ void JobSpace::update_env(
 	else             env.erase("TMPDIR") ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
-		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
+		if (!inserted) {
+			if (+it->second) it->second << ':'                ;
+			/**/             it->second << PY_LD_LIBRARY_PATH ;
+		}
 	}
 	for( auto& [k,v] : env ) {
 		for( size_t d=0 ;; d++ ) {
@@ -917,7 +922,7 @@ bool JobSpace::enter(
 			if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                          // in parent
 				int wstatus ;
 				if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
-				unlnk( phy_tmp_dir_s , true/*dir_ok*/ , true/*abs_ok*/ ) ;            // unlkink when child is done
+				unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                // unlkink when child is done
 				if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;    // all the cleanup stuff is done by the child, so we want to do nothing here
 				else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
 				else                           ::_exit(255                     ) ;
@@ -993,18 +998,17 @@ bool JobSpace::enter(
 		::vector_s top_lvls    = lst_dir_s(chroot_dir_s|"/") ;
 		::string   work_root   = work_dir_s+"root"           ;
 		::string   work_root_s = work_root+'/'               ;
-		mk_dir_s      (work_root_s) ;
-		unlnk_inside_s(work_root_s) ;
+		mk_dir_empty_s(work_root_s) ;
 		trace("top_lvls",work_root_s,top_lvls) ;
 		for( ::string const& f : top_lvls ) {
 			::string src_f     = (chroot_dir_s|"/"s) + f ;
 			::string private_f = work_root_s         + f ;
-			switch (FileInfo(src_f).tag()) {                                                                                                                         // exclude weird files
+			switch (FileInfo(src_f).tag()) {                                                                                                                           // exclude weird files
 				case FileTag::Reg   :
 				case FileTag::Empty :
-				case FileTag::Exe   : AcFd    (           private_f ,true/*err_ok*/,{O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/}) ; _mount_bind(private_f,src_f) ; break ; // create file
-				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                                      ) ; _mount_bind(private_f,src_f) ; break ; // create dir
-				case FileTag::Lnk   : lnk     (           private_f ,read_lnk(src_f)                                      ) ;                                break ; // copy symlink
+				case FileTag::Exe   : AcFd    (           private_f,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true}) ; _mount_bind(private_f,src_f) ; break ; // create file
+				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                                        ) ; _mount_bind(private_f,src_f) ; break ; // create dir
+				case FileTag::Lnk   : sym_lnk (           private_f,read_lnk(src_f)                                         ) ;                                break ; // copy symlink
 			DN}
 		}
 		if (must_create_lmake) mk_dir_s(work_root+lmake_view_s     ) ;
@@ -1061,7 +1065,7 @@ bool JobSpace::enter(
 
 void JobSpace::exit() {
 	if (+_tmp_dir_s)
-		try { unlnk(_tmp_dir_s,true/*dir_ok*/,true/*abs_ok*/) ; } catch (::string const&) {} // best effort
+		try { unlnk(_tmp_dir_s,{.dir_ok=true,.abs_ok=true}) ; } catch (::string const&) {} // best effort
 }
 
 // XXX! : implement recursive views
@@ -1262,7 +1266,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
 	if (+phy_tmp_dir_s) {
 		_tmp_dir_s = autodep_env.tmp_dir_s ;                                             // for use in exit (autodep.tmp_dir_s may be moved)
-		try                       { mk_dir_empty_s( phy_tmp_dir_s , true/*abs_ok*/ ) ; }
+		try                       { mk_dir_empty_s( phy_tmp_dir_s , {.abs_ok=true} ) ; }
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
 	} else {
 		if (+job_space.tmp_view_s) throw cat("cannot map tmp dir ",job_space.tmp_view_s," to nowhere") ;

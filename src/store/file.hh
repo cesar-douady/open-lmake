@@ -47,7 +47,6 @@ namespace Store {
 			//
 			_alloc() ;
 			if (+name) {
-				if (writable) Disk::dir_guard(name) ;
 				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY,0666/*mod*/} ) ;  // mode is only used if created, which implies writable
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

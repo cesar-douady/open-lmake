@@ -143,7 +143,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 				uint32_t word_sz = 0/*garbage*/ ;
 				#if HAS_PTRACE_GET_SYSCALL_INFO                                                       // use portable calls if implemented
 					struct ptrace_syscall_info syscall_info ;
-					if ( ::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info )<=0 ) throw cat("cannot get syscall info from ",pid) ;
+					if ( ::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info )<=0 ) throw cat("cannot get syscall info (",StrErr(),") from ",pid) ;
 					switch (syscall_info.arch) {
 						case AUDIT_ARCH_I386    :
 						case AUDIT_ARCH_ARM     : word_sz = 32 ; break ;
@@ -189,7 +189,9 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 								uint64_t *          args      = arg_array.data()                    ; // we need a variable to hold the data while we pass the pointer
 							#endif
 							SWEAR( !info.ctx , syscall ) ;                                            // ensure following SWEAR on info.ctx is pertinent
+							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
+							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							if (!descr.exit) SWEAR( !info.ctx , syscall ) ;                           // no need for a context if we are not called at exit
 						}
 						info.has_exit_proc = descr.exit ;
@@ -204,18 +206,18 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 					#if HAS_PTRACE_GET_SYSCALL_INFO
 						SWEAR( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
 					#endif
-					if (HAS_SECCOMP) SWEAR(info.has_exit_proc) ;                                      // should not have been stopped on exit
+					info.on_going = false ;                                                                        // ensure on_going is cleared even if exit proc throws
 					if (info.has_exit_proc) {
-						#if HAS_PTRACE_GET_SYSCALL_INFO                                               // use portable calls if implemented
+						#if HAS_PTRACE_GET_SYSCALL_INFO                                                            // use portable calls if implemented
 							int64_t res = syscall_info.exit.rval ;
 						#else
-							int64_t res = np_ptrace_get_res( pid , word_sz ) ;                        // use non-portable calls if portable accesses are not implemented
-						#endif
+							int64_t res = np_ptrace_get_res( pid , word_sz ) ;                                     // use non-portable calls if portable accesses are not implemented
+						#endif //!        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						int64_t new_res = SyscallDescr::s_tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
+						//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if (new_res!=res) np_ptrace_set_res( pid , new_res , word_sz ) ;
-						info.ctx = nullptr ;                                                          // ctx is used to retain some info between syscall entry and exit
+						info.ctx = nullptr ;                                                                       // ctx is used to retain some info between syscall entry and exit
 					}
-					info.on_going = false ;
 					goto NextSyscall ;
 				}
 			}
@@ -226,14 +228,8 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )!=0 ) throw cat("cannot set trace for syscall exit for ",pid) ;
 			return false/*done*/ ;
 		} catch (::string const& e) {
-			SWEAR( errno==ESRCH , errno ) ;           // if we cant find pid, it means we were not informed it terminated
-			int   ws   = 0/*garbage*/               ;
-			pid_t pid_ = ::waitpid(pid,&ws,WNOHANG) ;
-			if (pid_==0) {                            // XXX! : it seems that there is a race here : process cant receive a ptrace, but waitpid is not aware of the new status
-				sleep(1) ;
-				pid_ = ::waitpid(pid,&ws,WNOHANG) ;   // retry once the race is solved
-			}
-			if (pid_>0) wstatus = ws ;
+			if (errno!=ESRCH) info.record.report_trace( cat("unexpected syscall tracing error : ",e) ) ;           // ESRCH : it seems to happen that the process disappears without us being told
+			return false/*done*/ ;                                                                                 // in all cases, we need the process to say exit or signal
 		}
 	} else if (WIFEXITED  (wstatus)) {
 	} else if (WIFSIGNALED(wstatus)) {
@@ -241,12 +237,12 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 			// with seccomp, this is how we get a bad architecture as the filter is now
 			if ( (wstatus&0xff) == (0x80|SIGSYS) ) {
 				Trace trace("AutodepPtrace::_changed","panic","arch","seccomp") ;
-				info.record.report_panic( cat(NpWordSz==64?32:64," bits processes on ",NpWordSz," host not supported yet with ptrace") , false/*die*/ ) ;
+				info.record.report_panic( "unsupported architecture" , false/*die*/ ) ;
 			}
 		#endif
 	} else {
 		fail("unrecognized wstatus ",wstatus," for pid ",pid) ;
 	}
-	PidInfo::s_tab.erase(pid) ;                       // process pid is terminated
+	PidInfo::s_tab.erase(pid) ;                                                                                    // process pid is terminated
 	return pid==child_pid/*done*/ ;
 }

@@ -334,22 +334,22 @@ namespace Backdoor {
 		bool locked = false ;
 	Retry :
 		try {
-			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , nfs_guard } ;
+			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , &nfs_guard } ;
 			locked = true ;
-			res = AcFd(rfd,nfs_guard.access(rfd,node)).read() ; // if node exists, it contains the reply
-		} catch (::string const&) {                             // if node does not exist, create a code
-			if (locked) throw "cannot decode"s ;                // if we could lock, it means codec db was initialized and code does not exist
+			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ; // if node exists, it contains the reply
+		} catch (::string const&) {                               // if node does not exist, create a code
+			if (locked) throw "cannot decode"s ;                  // if we could lock, it means codec db was initialized and code does not exist
 			JobExecRpcReq jerr {
 				.proc         = JobExecProc::DepDirect
 			,	.sync         = Yes
 			,	.comment      = Comment::Decode
 			,	.comment_exts = CommentExt::Direct
-			,	.digest       {}                                // access to node is reported separately
+			,	.digest       {}                                  // access to node is reported separately
 			,	.date         = New
 			,	.files        { {node,{}} }
 			} ;
-			r.report_sync(::move(jerr)) ;                       // if we could not lock, codec db was not initialized, DepDirect will remedy to this
-			locked = true ;                                     // dont loop
+			r.report_sync(::move(jerr)) ;                         // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+			locked = true ;                                       // dont loop
 			goto Retry/*BACKWARD*/ ;
 		}
 		r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{::move(node),{}}} } , true/*force*/ ) ;
@@ -382,40 +382,40 @@ namespace Backdoor {
 		::string res            ;
 		bool     created        = false                                    ;
 		bool     locked         = false                                    ;
-		try {                                                                           // first try with share lock (light weight in case no update is necessary)
-			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , nfs_guard } ;
-			locked = true                                        ;
-			res    = AcFd(rfd,nfs_guard.access(rfd,node)).read() ;                      // if node exists, it contains the reply
-		} catch (::string const&) {                                                     // if node does not exist, create a code
-			if (!locked) {                                                              // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+		try {                                                                            // first try with share lock (light weight in case no update is necessary)
+			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , &nfs_guard } ;
+			locked = true                                          ;
+			res    = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                     // if node exists, it contains the reply
+		} catch (::string const&) {                                                      // if node does not exist, create a code
+			if (!locked) {                                                               // if we could not lock, codec db was not initialized, DepDirect will remedy to this
 				JobExecRpcReq jerr {
 					.proc         = JobExecProc::DepDirect
 				,	.sync         = Yes
 				,	.comment      = Comment::Encode
 				,	.comment_exts = CommentExt::Direct
-				,	.digest       {}                                                    // node access is reported separately
+				,	.digest       {}                                                     // node access is reported separately
 				,	.date         = New
 				,	.files        { {node,{}} }
 				} ;
 				r.report_sync(::move(jerr)) ;
 			}
-			::string             crc_str = crc.hex()                ;
-			Codec::CodecLockedFd lock    { rfd , file , nfs_guard } ;                   // must hold an exclusive lock as we probably need to create a code
+			::string             crc_str = crc.hex()                 ;
+			Codec::CodecLockedFd lock    { rfd , file , &nfs_guard } ;                   // must hold an exclusive lock as we probably need to create a code
 			try {
-				res = AcFd(rfd,nfs_guard.access(rfd,node)).read() ;                     // repeat test with exclusive lock as shared lock has been released before exclusive lock acquisition
+				res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                    // repeat test with exclusive lock as shared lock has been released before exclusive lock acquisition
 			} catch (::string const&) {
 				for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
 					::string decode_node = Codec::CodecFile( false/*encode*/ , file , ctx , code ).name() ;
-					if (FileInfo(rfd,nfs_guard.access(rfd,decode_node)).exists()) continue ;
-					// must write to new_codes_file first to allow replay in case of creash                      mod
-					AcFd( rfd , nfs_guard.update(rfd,dir_guard(rfd,new_codes_file)) , {O_WRONLY|O_CREAT|O_APPEND,0666} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
-					AcFd( rfd , nfs_guard.change(rfd,dir_guard(rfd,node          )) , {O_WRONLY|O_CREAT|O_TRUNC ,0666} ).write( code                                             ) ;
-					AcFd( rfd , nfs_guard.change(rfd,dir_guard(rfd,decode_node   )) , {O_WRONLY|O_CREAT|O_TRUNC ,0666} ).write( val                                              ) ;
-					nfs_guard.flush() ;                                                                                                 // flush before lock is released
+					if (FileInfo(rfd,decode_node,{.nfs_guard=&nfs_guard}).exists()) continue ;
+					// must write to new_codes_file first to allow replay in case of creash
+					AcFd( rfd , new_codes_file , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
+					AcFd( rfd , node           , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
+					AcFd( rfd , decode_node    , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
 					res     = code ;
 					created = true ;
 					break ;
 				}
+				nfs_guard.flush() ;                                                                                                     // flush before lock is released
 				throw_unless( created , "no prefix available in file ",file," with context ",ctx," of length at least ",min_len," with checksum ",crc_str," for value ",val ) ;
 			}
 		}

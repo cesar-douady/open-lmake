@@ -253,8 +253,8 @@ namespace Engine {
 		SeqId                     seq_id   = 0  ;
 		JobExec                   job_exec = {} ;
 		::vmap<Node,TargetDigest> targets  = {} ; // proc==ChkDeps
-		::vector<Dep>             deps     = {} ; // proc==ChkDeps|DepsInfo
-		::string                  txt      = {} ; // proc==LiveOut
+		::vector<Dep>             deps     = {} ; // proc==ChkDeps|DepDirect|DepVerbose
+		::string                  txt      = {} ; // proc==LiveOut|AddLiveOut
 	} ;
 
 	struct EngineClosure

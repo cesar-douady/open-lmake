@@ -70,7 +70,6 @@ namespace Backends::Slurm::SlurmApi {
 		::string                 gres0       ;                                                                                        // .             , .
 		::vector<job_desc_msg_t> job_descs   ;                            if (rsrcs.size()>1) job_descs.reserve(rsrcs.size()-1) ;     // other elements  .
 		::vector_s               gress       ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;     // .             , .
-		if (verbose) stderr_file = dir_guard(get_stderr_file(job)) ;
 		for( bool first=true ; RsrcsDataSingle const& r : rsrcs ) {
 			//                           first element other elements
 			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                     // keep alive

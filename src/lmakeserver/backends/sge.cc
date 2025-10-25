@@ -203,7 +203,6 @@ namespace Backends::Sge {
 			if (!se.zombie) _s_sge_cancel_thread.push(::pair(this,se.id.load())) ;                  // asynchronous (as faster and no return value) cancel
 		}
 		SpawnId launch_job( ::stop_token , Job j , ::vector<ReqIdx> const& reqs , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
-			::string stderr = se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s ;
 			::vector_s sge_cmd_line = {
 				"qsub"
 			,	"-terse"

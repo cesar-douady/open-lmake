@@ -413,7 +413,7 @@ namespace Backends::Slurm {
 		throw_unless( init_func          , "cannot find function slurm_init in "         ,lib_slurm_ ) ;
 		throw_unless( load_ctl_conf_func , "cannot find function slurm_load_ctl_conf in ",lib_slurm_ ) ;
 		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
-		if (!AcFd(config_file_,true/*err_ok*/)) {
+		if (!AcFd(config_file_,{.err_ok=true})) {
 			::string msg = "cannot find slurm config\n" ;
 			if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "   ,config_file_,'\n'            )) ;
 			else              msg << indent(cat("consider setting lmake.config.backends.slurm.config (using ",config_file_," by default)\n")) ;

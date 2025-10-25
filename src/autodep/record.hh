@@ -66,8 +66,8 @@ struct Record {
 		return _s_repo_root_fd ;
 	}
 	static void s_close_reports() {
-		_s_report_fd[0].close() ;
-		_s_report_fd[1].close() ;
+		if (_s_report_fd[0]==_s_report_fd[1])   _s_report_fd[0].close() ;                             // if both are identical we must only close one
+		else                                  { _s_report_fd[0].close() ; _s_report_fd[1].close() ; }
 	}
 	static AutodepEnv const& s_autodep_env() {
 		SWEAR( +_s_autodep_env && +s_access_cache ) ;
@@ -98,18 +98,18 @@ private :
 	}
 	// static data
 public :
-	static bool                                s_static_report       ;            // if true <=> report deps to s_deps instead of through report_fd() sockets
-	static bool                                s_enable_was_modified ;            // if true <=  the enable bit has been manipulated through the backdoor
+	static bool                                s_static_report       ;              // if true <=> report deps to s_deps instead of through report_fd() sockets
+	static bool                                s_enable_was_modified ;              // if true <=  the enable bit has been manipulated through the backdoor
 	static ::vmap_s<DepDigest>*                s_deps                ;
 	static ::string           *                s_deps_err            ;
-	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ;            // map file to read accesses
+	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ;              // map file to read accesses
 	static Mutex<MutexLvl::Record>             s_mutex               ;
 private :
 	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
-	static Fd                        _s_repo_root_fd          ;                   // a file descriptor to repo root dir
-	static pid_t                     _s_repo_root_pid         ;                   // pid in which _s_repo_root_fd is valid
-	static Fd                        _s_report_fd [2/*Fast*/] ;                   // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
-	static pid_t                     _s_report_pid[2/*Fast*/] ;                   // pid in which corresponding _s_report_fd is valid
+	static Fd                        _s_repo_root_fd          ;                     // a file descriptor to repo root dir
+	static pid_t                     _s_repo_root_pid         ;                     // pid in which _s_repo_root_fd is valid
+	static Fd                        _s_report_fd [2/*Fast*/] ;                     // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t                     _s_report_pid[2/*Fast*/] ;                     // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
 	Record( NewType ,                  pid_t pid   ) : Record( New , Maybe , pid ) {}
@@ -127,11 +127,11 @@ public :
 					_s_report_fd[Fast] = _s_autodep_env->fast_report_fd() ;
 				} catch(::string const& e) {
 					if ( +_s_report_fd[!Fast] && _s_report_pid[!Fast]==pid ) {
-						_s_report_fd [Fast ] = _s_report_fd[!Fast]              ; // copy available slow reporting as fast is unusable
+						_s_report_fd [Fast ] = _s_report_fd[!Fast]              ;   // copy available slow reporting as fast is unusable
 					} else {
-						_s_report_fd [Fast ] = _s_autodep_env->slow_report_fd() ; // use slow reporting as fast is unusable
-						_s_report_fd [false] = _s_report_fd [Fast]              ; // copy to slow
-						_s_report_pid[false] = _s_report_pid[Fast]              ; // .
+						_s_report_fd [Fast ] = _s_autodep_env->slow_report_fd() ;   // use slow reporting as fast is unusable
+						_s_report_fd [false] = _s_report_fd [Fast]              ;   // copy to slow
+						_s_report_pid[false] = _s_report_pid[Fast]              ;   // .
 					}
 				}
 			else
@@ -147,11 +147,11 @@ private :
 		else                 return IMsgBuf().receive<JobExecRpcReply>( report_fd<false/*Fast*/>() , true/*eof_ok*/ ) ;
 	}
 public :
-	Sent send_report() {                                                          // reports must be bufferized as doing several back-to-back writes may incur severe perf penalty (seen ~40ms)
-		/**/                   if (!_buf          ) return Sent::NotSent        ;
-		/**/                   if (s_static_report) return Sent::Static         ;
-		pid_t pid=::getpid() ; if (_buf_pid!=pid  ) return Sent::NotSent        ;
-		/**/                                        return _do_send_report(pid) ;
+	Sent send_report() {                                                            // XXX/ : reports must be bufferized as doing several back-to-back writes may incur severe perf penalty (seen ~40ms)
+		if (                        s_static_report ) return Sent::Static         ;
+		if (                        !_buf           ) return Sent::NotSent        ;
+		if ( pid_t pid=::getpid() ;  _buf_pid!=pid  ) return Sent::NotSent        ;
+		else                                          return _do_send_report(pid) ;
 	}
 	void              report_direct(           JobExecRpcReq&& ,                               bool force=false ) ; // if force, report even if disabled
 	void              report_cached(           JobExecRpcReq&& ,                               bool force=false ) ; // .
@@ -445,7 +445,7 @@ public :
 		// data
 		char*  buf   = nullptr ;
 		size_t sz    = 0       ;
-		bool   magic = false   ; // if true <=> backdoor was used
+		bool   magic = false   ;            // if true <=> backdoor was used
 	} ;
 	struct Rename {
 		// cxtors & casts

@@ -325,7 +325,7 @@ struct FileAction {
 	// END_OF_VERSIONING
 } ;
 // incremental means existing increment targets have been seen
-::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , Disk::NfsGuard& ) ;
+::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , NfsGuard* ) ;
 
 struct AccDflags {
 	// services
@@ -679,10 +679,10 @@ namespace Caches {
 		static ::vector<Cache*> s_tab ;
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
-		::optional<Match> match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                        ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
-		JobInfo           download( ::string const& job , ::string const& key , bool no_incremental , Disk::NfsGuard& ) ;
-		void              commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                         ) ;
-		void              dismiss ( uint64_t upload_key                                                               ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
+		::optional<Match> match   ( ::string const& job , ::vmap_s<DepDigest> const& repo_deps                  ) { Trace trace("Cache::match",job) ; return sub_match(job,repo_deps) ;  }
+		JobInfo           download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard* ) ;
+		void              commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&&                   ) ;
+		void              dismiss ( uint64_t upload_key                                                         ) { Trace trace("Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		//
 		uint64_t/*upload_key*/ upload( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl={} ) ;
 		// default implementation : no caching, but enforce protocol

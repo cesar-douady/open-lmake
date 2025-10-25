@@ -72,7 +72,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* set up a journaling mechanism for LMAKE/lmake/codec
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -192,20 +191,12 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* make access T access only distinguish between existent and non-existent files, nothing about reg versus link
-* rework codec :
-	- provide physically LMAKE/lmake/codec content
-	- so that encode/decode is merely reading files therein when available
-	- maintain added codes in a separate file
-	- refresh real codec file at start and end of server execution
-	- simple and more perf than current implementation
-* manage to only check codec files that have been written to when refreshing codec files at end of Req
-* codec management in cache can be thoroughly optimized
-	- maintain codec_map in the deps file so as to be readily accessible when matching
-	- overall review code
+* implement UNIX sockets for local communication
+* make T access only distinguish between existent and non-existent files, nothing about reg versus link
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case
+	- add a Direct Dflag so that only deps that have been asked direct are passed to job_exec
 ! implement UDP communication
 	- between server and job_exec
 	- as there are a lot of short-live servers an connections
@@ -277,6 +268,9 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
+* pass all tests in python
+	- suppress .script tests
+	- use named pipes rather than time to order events
 * test system_tag
 ! add a unit_test to validate max_retries_on_lost
 ! idx overflow

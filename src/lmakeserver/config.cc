@@ -439,11 +439,11 @@ namespace Engine {
 			local_admin_dir_s = user_local_admin_dir_s+key+"-la/" ;
 			::string lnk_target_s = mk_rel_s( local_admin_dir_s , dir_name_s(std_dir_s) ) ;
 			if (read_lnk(no_slash(std_dir_s))!=no_slash(lnk_target_s)) {
-				unlnk( no_slash(std_dir_s) , true/*dir_ok*/         ) ;
-				lnk  ( no_slash(std_dir_s) , no_slash(lnk_target_s) ) ;
+				unlnk  ( no_slash(std_dir_s) , {.dir_ok=true}         ) ;
+				sym_lnk( no_slash(std_dir_s) , no_slash(lnk_target_s) ) ;
 			}
 		}
-		mk_dir_s(local_admin_dir_s,true/*unlnk_ok*/) ;
+		mk_dir_s( local_admin_dir_s , {.unlnk_ok=true} ) ;
 		//
 		Backends::Backend::s_config( backends , dyn , first_time ) ;
 		//

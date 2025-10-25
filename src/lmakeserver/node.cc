@@ -89,11 +89,12 @@ namespace Engine {
 					stamp = false ;                      // the final state will be to wash the file, in the mean time, dont stamp result
 				} else {
 					::string n = name() ;
-					if (::rename( n.c_str() , dir_guard(QuarantineDirS+n).c_str() )==0) {
-						req->audit_node( Color::Warning , "quarantined" , idx() ) ;
+					try {
+						rename( QuarantineDirS+n/*dst*/ , n/*src*/ ) ;
+						req->audit_node( Color::Warning , "quarantined"       , idx() ) ;
 						res = Manual::Unlnked ;
-					} else {
-						req->audit_node( Color::Err , "failed to quarantine" , idx() ) ;
+					} catch (::string const& e) {
+						req->audit_node( Color::Err     , "cannot quarantine" , idx() ) ;
 					}
 				}
 			} break ;
@@ -112,12 +113,12 @@ namespace Engine {
 	}
 
 	bool/*modified*/ NodeData::refresh_src_anti( ::string const& name_ , Accesses a , ::vector<Req> const& reqs_ , bool report_no_file ) { // reqs_ are for reporting only
-		bool             prev_ok   = crc.valid() && crc.exists() ;
-		bool             frozen    = idx().frozen()              ;
+		bool             prev_ok   = crc.valid() && crc.exists()       ;
+		bool             frozen    = idx().frozen()                    ;
 		::string/*lazy*/ msg       ;
-		NfsGuard         nfs_guard { g_config->file_sync     }   ;
-		FileInfo         fi        { nfs_guard.access(name_) }   ;
-		FileSig          sig       { fi                      }   ;
+		NfsGuard         nfs_guard { g_config->file_sync             } ;
+		FileInfo         fi        { name_ , {.nfs_guard=&nfs_guard} } ;
+		FileSig          sig       { fi                              } ;
 		auto lazy_msg = [&]()->::string const& {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;
@@ -505,7 +506,7 @@ namespace Engine {
 						lazy_name() ;                                                                            // solve
 						SWEAR( is_lcl(name_) , name_ ) ;
 						if (query) { trace("query","unlnk") ; return false ; }
-						unlnk(name_,true/*dir_ok*/) ;                                                            // wash pollution if not manual
+						unlnk(name_,{.dir_ok=true}) ;                                                            // wash pollution if not manual
 						req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , name_ ) ;
 					}
 					set_crc_date(Crc::None) ;                                                                    // if not physically unlinked, node will be manual
@@ -515,11 +516,11 @@ namespace Engine {
 			} else {
 				trace("no_src",ri.goal,crc,actual_job) ;
 				if (crc!=Crc::None) {
-					set_crc_date(Crc::None) ;                                                                    // if not physically unlinked, node will be manual
 					if (+actual_job) {
 						polluted      = Polluted::Job ;                                                          // disk has been modified, actual_job cannot be the official job
 						polluting_job = actual_job    ;
 					}
+					set_crc_date(Crc::None) ;                                                                    // if not physically unlinked, node will be manual
 					actual_job = {} ;
 				}
 				goto Done ;

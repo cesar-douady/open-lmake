@@ -54,7 +54,7 @@ for l in stdout.splitlines() :
 err = False
 
 if proc.returncode!=ref_rc :
-	print(f'bad return code {proc.returncode} != {ref_rc}')
+	print(f'bad return code {proc.returncode} != {ref_rc}',file=sys.stderr)
 	err = True
 
 for k,c in ref_cnt.items() :
