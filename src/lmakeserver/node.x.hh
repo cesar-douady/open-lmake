@@ -365,12 +365,12 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                                              // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                               // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                                            // if necessary, we must take care of the union
+		NodeData() = delete ;                                                                                                             // if necessary, we must take care of the union
 		NodeData( NodeName n             ) : NodeDataBase{n} {              }
 		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir = dir_ ; }
 		~NodeData() {
@@ -382,7 +382,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                   // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                    // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -394,9 +394,9 @@ namespace Engine {
 		bool has_actual_job(     ) const {                     return +actual_job && +actual_job->rule() ; }
 		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return actual_job==j                      ; }
 		//
-		Manual           manual          ( FileSig         , Accesses=~Accesses()                                              ) const ;
-		Manual           manual_refresh  (                   Accesses             , Req                                        )       ; // refresh date if file was updated but steady
-		bool/*modified*/ refresh_src_anti( ::string const& , Accesses             , ::vector<Req> const& , bool report_no_file )       ; // Req's are for reporting only
+		Manual           manual          ( FileSig         , Accesses=FullAccesses                                              ) const ;
+		Manual           manual_refresh  (                   Accesses              , Req                                        )       ; // refresh date if file was updated but steady
+		bool/*modified*/ refresh_src_anti( ::string const& , Accesses              , ::vector<Req> const& , bool report_no_file )       ; // Req's are for reporting only
 		//
 		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       set_conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }
@@ -419,7 +419,7 @@ namespace Engine {
 				default                : return Maybe                                           ;
 			}
 		}
-		Bool3 ok( ReqInfo const& cri , Accesses a=~Accesses() ) const {
+		Bool3 ok( ReqInfo const& cri , Accesses a=FullAccesses ) const {
 			SWEAR(cri.done(NodeGoal::Status)) ;
 			return ok(+(cri.overwritten&a)) ;
 		}

@@ -13,19 +13,22 @@
 #include "serialize.hh"
 #include "time.hh"
 
-enum class Access : uint8_t {                                          // in all cases, dirs are deemed non-existing
-	Lnk                                                                // file is accessed with readlink              , regular files are deemed non-existing
-,	Reg                                                                // file is accessed with open                  , symlinks      are deemed non-existing
-,	Stat                                                               // file is accessed with stat like (read inode), only distinguish tag
+// START_OF_VERSIONING
+enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
+	Lnk                                                                               // file is accessed with readlink              , regular files are deemed non-existing
+,	Reg                                                                               // file is accessed with open                  , symlinks      are deemed non-existing
+,	Stat                                                                              // file is sensed for existence only
 } ;
+// END_OF_VERSIONING
 static constexpr ::amap<Access,char,N<Access>> AccessChars = {{
 	{ Access::Lnk  , 'L' }
 ,	{ Access::Reg  , 'R' }
 ,	{ Access::Stat , 'T' }
 }} ;
 static_assert(chk_enum_tab(AccessChars)) ;
-using Accesses = BitMap<Access> ;                                      // distinguish files as soon as they can be distinguished by one of the liste Access'es
-static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg } ;
+using Accesses = BitMap<Access> ;                                                     // distinguish files as soon as they can be distinguished by one of the liste Access'es
+static constexpr Accesses DataAccesses { Access::Lnk , Access::Reg                } ;
+static constexpr Accesses FullAccesses { Access::Lnk , Access::Reg , Access::Stat } ;
 
 enum class FileDisplay : uint8_t {
 	None

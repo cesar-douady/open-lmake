@@ -55,8 +55,8 @@ namespace Engine {
 			if (ecr.options.flags[ReqFlag::Nice        ]) data.nice         = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::Nice        ]                 ) ;
 			if (ecr.options.flags[ReqFlag::CacheMethod ]) data.cache_method = mk_enum<CacheMethod>(ecr.options.flag_args[+ReqFlag::CacheMethod ]                 ) ;
 			JobIdx                                        n_jobs            = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
-			if (ecr.is_job()) data.job = ecr.job()                                                                               ;
-			else              data.job = Job( Special::Req , Deps(ecr.targets(),~Accesses(),DflagsDfltStatic,true/*parallel*/) ) ;
+			if (ecr.is_job()) data.job = ecr.job()                                                                                ;
+			else              data.job = Job( Special::Req , Deps(ecr.targets(),FullAccesses,DflagsDfltStatic,true/*parallel*/) ) ;
 			Backend::s_open_req( +self , n_jobs ) ;
 			data.has_backend = true ;
 			trace("job",data.job) ;

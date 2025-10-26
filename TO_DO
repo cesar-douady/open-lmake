@@ -192,7 +192,6 @@ M port to Darwin
 ****************************************************************************************************
 
 * implement UNIX sockets for local communication
-* make T access only distinguish between existent and non-existent files, nothing about reg versus link
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

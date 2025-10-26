@@ -78,10 +78,10 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
 		bool     val = +py_val                     ;
 		switch (key[0]) {
-			case 'd' : if (key=="direct"         ) {          direct      =  val         ; continue ; } break ;
-			case 'f' : if (key=="follow_symlinks") {          no_follow   = !val         ; continue ; } break ;
-			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  ~Accesses() ; continue ; }
-			/**/       if (key=="regexpr"        ) {          regexpr     =  val         ; continue ; } break ;
+			case 'd' : if (key=="direct"         ) {          direct      =  val          ; continue ; } break ;
+			case 'f' : if (key=="follow_symlinks") {          no_follow   = !val          ; continue ; } break ;
+			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  DataAccesses ; continue ; }
+			/**/       if (key=="regexpr"        ) {          regexpr     =  val          ; continue ; } break ;
 		DN}
 		if      (can_mk_enum<Dflag     >(key)) { if ( Dflag      df =mk_enum<Dflag     >(key) ; df<Dflag::NDyn ) { ad.flags.dflags      .set(df ,val) ; continue ; } }
 		else if (can_mk_enum<ExtraDflag>(key)) {      ExtraDflag edf=mk_enum<ExtraDflag>(key) ;                    ad.flags.extra_dflags.set(edf,val) ; continue ;   }

@@ -119,8 +119,8 @@ namespace Engine {
 		for( auto const& k_ds : dep_specs_holes ) {
 			DepSpec const& ds = k_ds.second ;
 			if (!ds.txt) continue ;                                                                                                           // filter out holes
-			Node           d  { New , ds.txt }                                                 ;
-			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : ~Accesses() ;
+			Node           d  { New , ds.txt }                                                  ;
+			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			d->set_buildable( req , lvl , true/*throw_if_infinite*/ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -249,7 +249,7 @@ namespace Engine {
 		if (+reqs)                                                                                      // if job is not running, it is too late
 			switch (ecjm.proc) {
 				case JobMngtProc::DepDirect : {
-					Job job { Special::Dep , Deps(mk_vector<Node>(ecjm.deps),~Accesses(),DflagsDfltStatic,true/*parallel*/) } ;
+					Job job { Special::Dep , Deps(mk_vector<Node>(ecjm.deps),FullAccesses,DflagsDfltStatic,true/*parallel*/) } ;
 					//
 					job->fd        () = ecjm.fd     ;
 					job->seq_id    () = ecjm.seq_id ;

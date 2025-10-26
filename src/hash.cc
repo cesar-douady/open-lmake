@@ -100,16 +100,18 @@ namespace Hash {
 			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near checksum clash, must increase CRC size",self,"versus",other) ;
 		}
 		// qualify the accesses that can perceive the difference
-		Accesses res = ~Accesses() ;
+		Accesses res = FullAccesses ;
 		if (is_reg()) {
-			if      (other.is_reg()  ) res =  Access::Reg ; // regular accesses see modifications of regular files
-			else if (other==Crc::None) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
+			if      (other.is_reg()  ) res =  Access::Reg  ; // regular accesses see modifications of regular files
+			else if (other.is_lnk()  ) res = ~Access::Stat ; // both exist, Stat does not see the difference
+			else if (other==Crc::None) res = ~Access::Lnk  ; // readlink accesses cannot see the difference between no file and a regular file
 		} else if (is_lnk()) {
-			if      (other.is_lnk()  ) res =  Access::Lnk ; // only readlink accesses see modifications of links
-			else if (other==Crc::None) res = ~Access::Reg ; // regular accesses cannot see the difference between no file and a link
+			if      (other.is_reg()  ) res = ~Access::Stat ; // both exist, Stat does not see the difference
+			else if (other.is_lnk()  ) res =  Access::Lnk  ; // only readlink accesses see modifications of links
+			else if (other==Crc::None) res = ~Access::Reg  ; // regular accesses cannot see the difference between no file and a link
 		} else if (self==Crc::None) {
-			if      (other.is_reg()  ) res = ~Access::Lnk ; // readlink accesses cannot see the difference between no file and a regular file
-			else if (other.is_lnk()  ) res = ~Access::Reg ; // regular  accesses cannot see the difference between no file and a link
+			if      (other.is_reg()  ) res = ~Access::Lnk  ; // readlink accesses cannot see the difference between no file and a regular file
+			else if (other.is_lnk()  ) res = ~Access::Reg  ; // regular  accesses cannot see the difference between no file and a link
 		}
 		return res ;
 	}

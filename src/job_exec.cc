@@ -68,8 +68,8 @@ JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
 	if (+file) {
 		Pdate                 now { New }                 ;
 		RealPath::SolveReport sr  = real_path.solve(file) ;
-		for( ::string& l : sr.lnks )   g_gather.new_access(now,::move(l      ),{.accesses= Access::Lnk },FileInfo(l      ),Comment::OsInfo,CommentExt::Lnk  ) ;
-		if (sr.file_loc<=FileLoc::Dep) g_gather.new_access(now,::move(sr.real),{.accesses=~Access::Stat},FileInfo(sr.real),Comment::OsInfo,CommentExt::Read ) ;
+		for( ::string& l : sr.lnks )   g_gather.new_access( now , ::move(l      ) , {.accesses=Access::Lnk} , FileInfo(l      ) , Comment::OsInfo,CommentExt::Lnk  ) ;
+		if (sr.file_loc<=FileLoc::Dep) g_gather.new_access( now , ::move(sr.real) , {.accesses=Access::Reg} , FileInfo(sr.real) , Comment::OsInfo,CommentExt::Read ) ;
 		//
 		try                     { res = AcFd(file).read() ; }
 		catch (::string const&) {                         ; }                                                                  // report empty in case of error
@@ -431,14 +431,14 @@ int main( int argc , char* argv[] ) {
 			if (entered) {
 				for( auto& [f,a] : enter_actions ) {
 					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
-					for( ::string& l : sr.lnks ) //!                                                                                          late
-						/**/                            g_gather.new_access(washed,::move(l      ),{.accesses= Access::Lnk },FileInfo(l      ),    Comment::mount,CommentExt::Lnk  ) ;
+					for( ::string& l : sr.lnks ) //!                                                                                         late
+						/**/                            g_gather.new_access(washed,::move(l      ),{.accesses=Access::Lnk },FileInfo(l      ),    Comment::mount,CommentExt::Lnk  ) ;
 					if (sr.file_loc<=FileLoc::Dep) {
-						if      (a==MountAction::Read ) g_gather.new_access(washed,::move(sr.real),{.accesses=~Access::Stat},FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
-						else if (sr.file_accessed==Yes) g_gather.new_access(washed,::move(sr.real),{.accesses= Access::Lnk },FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
+						if      (a==MountAction::Read ) g_gather.new_access(washed,::move(sr.real),{.accesses=DataAccesses},FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
+						else if (sr.file_accessed==Yes) g_gather.new_access(washed,::move(sr.real),{.accesses=Access::Lnk },FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
 					}
 					if (sr.file_loc<=FileLoc::Repo) {
-						if      (a==MountAction::Write) g_gather.new_access(washed,::move(sr.real),{.write=Yes             },FileInfo(       ),Yes,Comment::mount,CommentExt::Write) ;
+						if      (a==MountAction::Write) g_gather.new_access(washed,::move(sr.real),{.write=Yes            },FileInfo(       ),Yes,Comment::mount,CommentExt::Write) ;
 					}
 				}
 				g_exec_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
@@ -485,7 +485,7 @@ int main( int argc , char* argv[] ) {
 		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
 				DepDigest& dd = dd_edf.first ;
-				dd.accesses = ~Accesses() ;
+				dd.accesses = FullAccesses ;
 				if ( dd.is_crc && !dd.crc().valid() ) dd.set_sig(FileSig(d)) ;
 			}
 		//

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Oct 15 21:22:11 2025 -->
+<!-- CreationDate: Sun Oct 26 21:49:15 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -440,7 +440,9 @@ kind of accesses is either a letter if done, or a - if not
 
 
 <p style="margin-top: 1em">dep has been accessed as a
-symbolic link.</p></td></tr>
+symbolic link. Note that this is implied when accessing a
+file while following symbolic links (which is the usual
+case).</p> </td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="10%">
@@ -462,8 +464,11 @@ symbolic link.</p></td></tr>
 <td width="64%">
 
 
-<p>dep has been accessed with a stat-like system call (i.e.
-its inode has been accessed).</p></td></tr>
+<p>dep has been sensed for existence. Note that this is
+only semantically meaningful in absence of other accesses.
+As a rule of thumb, this flag is positioned with
+<b>stat</b>(2) but not with <b>open</b>(2) nor
+<b>readlink</b>(2).</p> </td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="10%">

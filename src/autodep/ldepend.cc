@@ -75,7 +75,7 @@ int main( int argc , char* argv[]) {
 		bool         verbose = cmd_line.flags[Flag::Verbose]                                          ;
 		bool         direct  = cmd_line.flags[Flag::Direct ]                                          ;
 		//
-		if (cmd_line.flags[Flag::Read         ]) ad.accesses            = ~Accesses()              ;
+		if (cmd_line.flags[Flag::Read         ]) ad.accesses            = DataAccesses             ;
 		if (cmd_line.flags[Flag::Critical     ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
 		if (cmd_line.flags[Flag::Essential    ]) ad.flags.dflags       |=  Dflag     ::Essential   ;
 		if (cmd_line.flags[Flag::Ignore       ]) ad.flags.extra_dflags |=  ExtraDflag::Ignore      ;

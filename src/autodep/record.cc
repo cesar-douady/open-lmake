@@ -336,16 +336,15 @@ Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , Comment c ) :
 	dst.send_report(r) ;
 }
 
-static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                                                        ; }
-static bool _do_stat  (int flags) { return (flags&O_PATH)     || ( (flags&O_CREAT) && (flags&O_EXCL) ) || ( !(flags&O_CREAT) && (flags&O_ACCMODE)!=O_RDONLY ) ; }
-static bool _do_read  (int flags) { return !(flags&O_PATH) && !(flags&O_TRUNC)                                                                                ; }
-static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) || (flags&O_TRUNC)                                              ; }
-static bool _do_create(int flags) { return flags&O_CREAT                                                                                                      ; }
+static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                     ; }
+static bool _do_stat  (int flags) { return                       ( (flags&O_CREAT) && (flags&O_EXCL) ) || !(flags&O_CREAT) ; }
+static bool _do_read  (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY ) && !(flags&O_TRUNC)          ; }
+static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) ||  (flags&O_TRUNC)          ; }
 //
-Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , _do_create(flags) , c } {
+Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , bool(flags&O_CREAT) , c } {
 	if ( !file || !file[0]             ) return ;
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                    // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                                                    // fast path
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                     // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                                                     // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
@@ -354,10 +353,11 @@ Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveMod
 	if (!( do_stat || do_read || do_write )) return ;
 	//
 	CommentExts ces ;
-	if (_no_follow(flags))   ces |= CommentExt::NoFollow ;
-	if (do_stat          ) { ces |= CommentExt::Stat     ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Stat ; } // if  not written, there may be a further fstat
-	if (do_read          ) { ces |= CommentExt::Read     ; if (!do_write) accesses = ~Accesses() ; else accesses |= Access::Reg  ; } // .
-	if (do_write         )   ces |= CommentExt::Write    ;
+	if ( _no_follow(flags)    )   ces |= CommentExt::NoFollow ;
+	if ( do_write             )   ces |= CommentExt::Write    ;
+	if ( do_read              ) { ces |= CommentExt::Read     ; accesses |= Access::Reg  ; if (!do_write) accesses |= DataAccesses ; } // if  not written, there may be a further fstat
+	if ( do_stat              ) {                                                          if (!do_write) accesses |= DataAccesses ; }
+	if ( do_stat && !accesses ) { ces |= CommentExt::Stat     ; accesses |= Access::Stat ;                                           } // Stat is only meaningful if alone
 	//
 	if (do_write) report_update( r , Accesses() , c , ces ) ;
 	else          report_dep   ( r , Accesses() , c , ces ) ;

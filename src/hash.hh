@@ -111,10 +111,10 @@ namespace Hash {
 		}
 		// services
 	public :
-		bool     match        ( Crc other , Accesses a=~Accesses() ) const { return !( diff_accesses(other) & a ) ; }
-		Accesses diff_accesses( Crc other                          ) const ;
-		bool     never_match  (             Accesses a=~Accesses() ) const ;
-		size_t   hash         (                                    ) const { return _val                          ; }
+		bool     match        ( Crc other , Accesses a=FullAccesses ) const { return !( diff_accesses(other) & a ) ; }
+		Accesses diff_accesses( Crc other                           ) const ;
+		bool     never_match  (             Accesses a=FullAccesses ) const ;
+		size_t   hash         (                                     ) const { return _val                          ; }
 		// data
 	private :
 		Val _val = +CrcSpecial::Unknown ;
