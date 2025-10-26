@@ -764,7 +764,10 @@ void JobSpace::update_env(
 	else             env.erase("TMPDIR") ;
 	if (PY_LD_LIBRARY_PATH[0]!=0) {
 		auto [it,inserted] = env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
-		if (!inserted) it->second <<':'<< PY_LD_LIBRARY_PATH ;
+		if (!inserted) {
+			if (+it->second) it->second << ':'                ;
+			/**/             it->second << PY_LD_LIBRARY_PATH ;
+		}
 	}
 	for( auto& [k,v] : env ) {
 		for( size_t d=0 ;; d++ ) {

@@ -371,7 +371,7 @@ Status Gather::exec_child() {
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	if (+autodep_env.fast_report_pipe) {
-		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666 )<0 ) SWEAR(errno=EEXIST,errno) ; // if it already exists, assume it is already a fifo
+		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0666 )<0 ) trace("mk_fast_report_pipe",::strerror(errno)) ; // in case it already exists, assume it is already a fifo
 		open_fast_report_fd() ;
 	}
 	if (+server_master_fd) {

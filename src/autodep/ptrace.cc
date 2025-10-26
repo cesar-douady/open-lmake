@@ -181,7 +181,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 					#if HAS_PTRACE_GET_SYSCALL_INFO
 						SWEAR( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
 					#endif
-					if (HAS_SECCOMP) SWEAR(info.has_exit_proc,"should not have been stopped on exit") ;
+					info.on_going = false ;                                                       // ensure on_going is cleared even if exit proc throws
 					if (info.has_exit_proc) {
 						#if HAS_PTRACE_GET_SYSCALL_INFO                                           // use portable calls if implemented
 							int64_t res = syscall_info.exit.rval ;
@@ -192,7 +192,6 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 						if (new_res!=res) np_ptrace_set_res( pid , new_res , word_sz ) ;
 						info.ctx = nullptr ;                                                      // ctx is used to retain some info between syscall entry and exit
 					}
-					info.on_going = false ;
 					goto NextSyscall ;
 				}
 			}
@@ -203,14 +202,9 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int& wstatus ) {
 			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )<0 ) throw cat("cannot set trace for syscall exit for ",pid) ;
 			return false/*done*/ ;
 		} catch (::string const& e) {
-			SWEAR(errno==ESRCH,errno) ;               // if we cant find pid, it means we were not informed it terminated
-			int   ws   = 0/*garbage*/               ;
-			pid_t pid_ = ::waitpid(pid,&ws,WNOHANG) ;
-			if (pid_==0) {                            // XXX! : it seems that there is a race here : process cant receive a ptrace, but waitpid is not aware of the new status
-				sleep(1) ;
-				pid_ = ::waitpid(pid,&ws,WNOHANG) ;   // retry once the race is solved
-			}
-			if (pid_>0) wstatus = ws ;
+			if (errno!=ESRCH)                                                                     // ESRCH : it seems to happen that the process disappears without us being told
+				info.record.report_direct({ .proc=JobExecProc::Trace , .file="unexpected syscall tracing error : "+e }) ;
+			return false/*done*/ ;
 		}
 	} else if (WIFEXITED  (wstatus)) {
 	} else if (WIFSIGNALED(wstatus)) {
