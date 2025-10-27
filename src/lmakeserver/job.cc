@@ -263,15 +263,9 @@ namespace Engine {
 					res.verbose_infos.reserve(ecjm.deps.size()) ;
 					for( Dep const& dep : ecjm.deps ) {
 						dep.full_refresh( false/*report_no_file*/ , reqs ) ;
-						Bool3 dep_ok = Yes ;
-						for( Req req : reqs ) {
-							NodeReqInfo& dri = dep->req_info(req) ;
-							Node(dep)->make(dri,NodeMakeAction::Query) ;
-							if      (!dri.done(NodeGoal::Status)  ) { trace("waiting",dep,req) ; dep_ok = Maybe ;         }
-							else if (dep->ok(dri,dep.accesses)==No) { trace("bad"    ,dep,req) ; dep_ok = No    ; break ; }
-						}
-						trace("dep_info",dep,dep_ok) ;
-						res.verbose_infos.push_back({ .ok=dep_ok , .crc=dep_ok!=Maybe?dep->crc:Crc() }) ;
+						Bool3 dep_ok = No|(dep->ok()!=No) ;
+						trace("dep_info",dep,dep_ok,dep->crc) ;
+						res.verbose_infos.push_back({ .ok=dep_ok , .crc=dep->crc }) ;
 					}
 				break ;
 				case JobMngtProc::ChkDeps : {

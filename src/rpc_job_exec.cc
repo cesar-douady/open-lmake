@@ -26,9 +26,10 @@ using namespace Hash ;
 }                                                                                                    // END_OF_NO_COV
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
-	if (write!=Yes) accesses |= ad.accesses ;
-	/**/            write    |= ad.write    ;
-	/**/            flags    |= ad.flags    ;
+	if (write!=Yes) accesses     |= ad.accesses     ;
+	/**/            write        |= ad.write        ;
+	/**/            flags        |= ad.flags        ;
+	/**/            force_is_dep |= ad.force_is_dep ;
 	return self ;
 }
 

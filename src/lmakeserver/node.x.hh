@@ -411,17 +411,18 @@ namespace Engine {
 			Job cj = conform_job_tgt() ;
 			return +cj && ( !cj->is_plain(true/*frozen_ok*/) || has_actual_job(cj) ) ;
 		}
-		Bool3 ok(bool force_err=false) const {                                                          // if Maybe <=> not built
+		Bool3 ok() const {                                                          // if Maybe <=> not built
 			switch (status()) {
-				case NodeStatus::Plain : return No | !( force_err || conform_job_tgt()->err() ) ;
-				case NodeStatus::Multi : return No                                              ;
-				case NodeStatus::Src   : return No | !( force_err || crc==Crc::None           ) ;
-				default                : return Maybe                                           ;
+				case NodeStatus::Plain : return No | !conform_job_tgt()->err() ;
+				case NodeStatus::Multi : return No                             ;
+				case NodeStatus::Src   : return No | (crc!=Crc::None)          ;
+				default                : return Maybe                          ;
 			}
 		}
 		Bool3 ok( ReqInfo const& cri , Accesses a=FullAccesses ) const {
 			SWEAR(cri.done(NodeGoal::Status)) ;
-			return ok(+(cri.overwritten&a)) ;
+			if (+(cri.overwritten&a)) return Maybe & (status()>NodeStatus::Makable) ;
+			else                      return ok()                                   ;
 		}
 		bool running(ReqInfo const& cri) const {
 			for( Job j : conform_job_tgts(cri) )

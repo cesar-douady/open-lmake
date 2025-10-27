@@ -298,8 +298,8 @@ using CommentExts = BitMap<CommentExt> ;
 
 struct VerboseInfo {
 	friend ::string& operator+=( ::string& , VerboseInfo ) ;
-	Bool3     ok      = Maybe ;
-	Hash::Crc crc     = {}    ;
+	Bool3     ok  = Maybe ;                                     // Maybe is used when info has been masked
+	Hash::Crc crc = {}    ;
 } ;
 inline ::string& operator+=( ::string& os , VerboseInfo dvi ) { // START_OF_NO_COV
 	/**/          os <<'('<< dvi.ok  ;

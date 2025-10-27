@@ -414,16 +414,10 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 		else                    self = ddb.sig() ;
 	}
 	// accesses
-	bool operator==(DepInfo const& di) const {                                              // if true => self and di are idential (but there may be false negative if one is a Crc)
-		if (kind()!=di.kind()) {
-			if ( kind()==Kind::Crc || di.kind()==Kind::Crc ) return exists()==di.exists() ; // this is all we can check with one Crc (and not the other)
-			else                                             return sig   ()==di.sig   () ; // one is Sig, the other is Info, convert Info into Sig
-		}
-		switch (kind()) {
-			case Kind::Crc  : return crc() ==di.crc () ;
-			case Kind::Sig  : return sig() ==di.sig () ;
-			case Kind::Info : return info()==di.info() ;
-		DF}                                                                                 // NO_COV
+	bool operator==(DepInfo const& di) const {                                                         // if true => self and di are identical (but there may be false negative if one is a Crc)
+		if      ( kind()==di.kind()                         ) return static_cast<Base const&>(self)==static_cast<Base const&>(di) ;
+		else if ( is_a<Kind::Crc>() || di.is_a<Kind::Crc>() ) return exists()==No && di.exists()==No                              ; // this is all we can check with one Crc (and not the other)
+		else                                                  return sig()==di.sig()                                              ; // if one is Info and the other is Sig, convert Info into Sig
 	}
 	bool operator+() const { return !is_a<Kind::Crc>() || +crc() ; }
 	//
@@ -435,24 +429,24 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	FileSig  sig () const {
 		if (is_a<Kind::Sig >()) return ::get<FileSig >(self)       ;
 		if (is_a<Kind::Info>()) return ::get<FileInfo>(self).sig() ;
-		FAIL(self) ;                                                                        // NO_COV
+		FAIL(self) ;                                                                                   // NO_COV
 	}
 	//
-	bool seen(Accesses a) const {                                                           // return true if accesses could perceive the existence of file
+	bool seen(Accesses a) const {                                                                      // return true if accesses could perceive the existence of file
 		if (!a) return false ;
 		SWEAR( +self , self,a ) ;
 		switch (kind()) {
 			case Kind::Crc  : return !Crc::None.match( crc()             , a ) ;
 			case Kind::Sig  : return !Crc::None.match( Crc(sig ().tag()) , a ) ;
 			case Kind::Info : return !Crc::None.match( Crc(info().tag()) , a ) ;
-		DF}                                                                                 // NO_COV
+		DF}                                                                                            // NO_COV
 	}
 	Bool3 exists() const {
 		switch (kind()) {
 			case Kind::Crc  : return +crc() ? No|(crc()!=Crc::None) : Maybe ;
 			case Kind::Sig  : return          No|+sig()                     ;
 			case Kind::Info : return          No|info().exists()            ;
-		DF}                                                                                 // NO_COV
+		DF}                                                                                            // NO_COV
 	}
 } ;
 

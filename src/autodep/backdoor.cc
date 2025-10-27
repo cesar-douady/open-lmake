@@ -152,7 +152,7 @@ namespace Backdoor {
 		} ;
 		JobExecRpcReply reply ; if (+jerr.files) reply = r.report_sync(::move(jerr)) ;
 		for( size_t i : iota(files.size()) )
-			if (!dep_idxs1[i]) res.push_back({.ok=Maybe}                                ) ; // 0 is reserved to mean no dep info
+			if (!dep_idxs1[i]) res.push_back({}                                         ) ; // 0 is reserved to mean no dep info
 			else               res.push_back(::move(reply.verbose_infos[dep_idxs1[i]-1])) ;
 		return res ;
 	}

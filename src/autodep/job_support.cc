@@ -30,13 +30,16 @@ namespace JobSupport {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                 // it is meaningless to exclude regexpr when we are a regexpr
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                              // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		if (readdir_ok) {
-			ad.flags.dflags &= ~Dflag::Required ;                                          // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
-			ad.read_dir     |= +ad.accesses     ;                                          // if reading and allow dir access, assume user meant reading a dir
+			ad.flags.dflags &= ~Dflag::Required ;                                       // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
+			ad.read_dir     |= +ad.accesses     ;                                       // if reading and allow dir access, assume user meant reading a dir
 		}
-		if ( verbose && ad.flags.dflags[Dflag::IgnoreError] ) ad.accesses |= Access::Err ; // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
+		if (verbose) {
+			if (+(ad.accesses&FullAccesses)          ) ad.force_is_dep  = true        ; // we access the content of the file even if file has been written to
+			if (  ad.flags.dflags[Dflag::IgnoreError]) ad.accesses     |= Access::Err ; // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
+		}
 		_chk_files(files) ;
 		//
 		if (regexpr) {               Backdoor::call<Backdoor::Regexpr      >( { .files=files , .access_digest=ad                        } )                ; return {{},true/*ok*/} ; }

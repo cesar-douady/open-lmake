@@ -92,8 +92,9 @@ struct Gather {                                                       // NOLINT(
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		MatchFlags flags    { .dflags={} } ;                                           // initially, no dflags, not even default ones (as they accumulate)
-		DI         dep_info ;                                                          // state when first read
+		MatchFlags flags        { .dflags={} } ;                                       // initially, no dflags, not even default ones (as they accumulate)
+		bool       force_is_dep = false        ;                                       // if true => access must be a dep even if written to beforehand
+		DI         dep_info     ;                                                      // state when first read
 	private :
 		::array<PD,N<Access>> _read         { mk_array<N<Access>>(PD::Future) } ;      // first access date for each access
 		PD                    _read_dir     = PD::Future                        ;      // first date at which file has been read as a dir

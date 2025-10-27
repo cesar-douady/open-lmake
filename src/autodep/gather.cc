@@ -77,7 +77,8 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 	SWEAR(ad.write!=Maybe) ;                                                                                                        // this must have been solved by caller
 	if ( ad.flags.extra_tflags[ExtraTflag::Ignore] ) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                  // ignore target implies ignore dep
 	if ( ad.write==Yes && late                     ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
-	flags |= ad.flags ;
+	flags        |= ad.flags        ;
+	force_is_dep |= ad.force_is_dep ;
 	//
 	if ( +di && ::all_of( _read , [&](PD d) { return pd<d ; } ) ) dep_info = di ;
 	//
@@ -185,16 +186,17 @@ Gather::Digest Gather::analyze(Status status) {
 			res.refresh_codecs.insert(Codec::CodecFile(file).file) ;
 		}
 		//
-		Accesses accesses    = info.accesses()                  ;
-		bool     was_written = info.first_write()<Pdate::Future ;
+		Accesses accesses     = info.accesses()                  ;
+		bool     was_written  = info.first_write()<Pdate::Future ;
+		bool     force_is_dep = info.force_is_dep                ;
 		//
 		if (file==".") continue ;                                                                             // . is only reported when reading dir but otherwise is an external file
 		//
-		Pdate first_read = info.first_read(false/*with_readdir*/)                               ;
-		bool  was_read   = first_read<Pdate::Future                                             ;
-		bool  is_dep     = +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
-		bool  allow      = info.allow()                                                         ;
-		bool  is_tgt     = was_written || allow                                                 ;
+		Pdate first_read = info.first_read(false/*with_readdir*/)                                               ;
+		bool  was_read   = first_read<Pdate::Future                                                             ;
+		bool  is_dep     = force_is_dep || +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
+		bool  allow      = info.allow()                                                                         ;
+		bool  is_tgt     = was_written || allow                                                                 ;
 		//
 		if ( !is_dep && !is_tgt ) {
 			trace("ignore ",file) ;
@@ -273,12 +275,12 @@ Gather::Digest Gather::analyze(Status status) {
 			}
 			if (unlnk) {
 				td.crc = Crc::None ;
-			} else if ( was_written || (+sig&&st.st_nlink>1) ) {                                                           // file may change through another link if any
-				if ( status==Status::Killed || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
-				else                                                         res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
+			} else if ( was_written || (+sig&&st.st_nlink>1) ) {                                                            // file may change through another link if any
+				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
+				else                                                          res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                    // target is expected, not produced and no more important reason
-				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                // warn specifically
+			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                     // target is expected, not produced and no more important reason
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                 // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -692,21 +694,17 @@ Status Gather::_exec_child() {
 								//
 								if (verbose) {
 									for( VerboseInfo& vi : jmrr.verbose_infos ) {
-										if      ( vi.ok==Maybe                                                           ) vi.crc = {}        ;
-										else if ( vi.ok==No       && ! jse.jerr.digest.flags.dflags[Dflag ::IgnoreError] ) vi.ok  = Yes       ;
-										if      (                    !(jse.jerr.digest.accesses&DataAccesses)            ) vi.crc = {}        ;
-										else if ( vi.crc.is_lnk() && ! jse.jerr.digest.accesses[Access::Lnk]             ) vi.crc = Crc::None ;
-										else if ( vi.crc.is_reg() && ! jse.jerr.digest.accesses[Access::Reg]             ) vi.crc = Crc::None ;
 										::string ok_str  ;
 										::string crc_str ;
-										if (jse.jerr.digest.flags.dflags[Dflag::IgnoreError])
-											switch (vi.ok) {
-												case Yes   : ok_str = "ok"      ; break ;
-												case Maybe : ok_str = "ongoing" ; break ;
-												case No    : ok_str = "err"     ; break ;
-											}
-										if (+(jse.jerr.digest.accesses&DataAccesses))
+										if (!jse.jerr.digest.flags.dflags[Dflag::IgnoreError]) vi.ok  = Maybe                                         ;
+										else                                                   ok_str = vi.ok==Yes ? "ok" : vi.ok==No ? "error" : "-" ;
+										if ( !(jse.jerr.digest.accesses&DataAccesses) ) {
+											vi.crc = {} ;
+										} else {
+											if      ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish regular from no file
+											else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish link    from no file
 											crc_str = ::string(vi.crc) ;
+										}
 										_exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
 									}
 								} else {

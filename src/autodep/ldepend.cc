@@ -90,7 +90,7 @@ int main( int argc , char* argv[]) {
 		//
 		SWEAR(!(direct&&verbose)) ;
 		if (direct) {
-			rc = dep_infos.second ? Rc::Ok : Rc::Fail ;
+			if (!dep_infos.second) rc = Rc::Fail ;
 		} else if (verbose) {
 			SWEAR( dep_infos.first.size()==cmd_line.args.size() , dep_infos.first.size() , cmd_line.args.size() ) ;
 			auto ok_str = [](Bool3 ok)->::string {
@@ -108,7 +108,7 @@ int main( int argc , char* argv[]) {
 			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return crc_str(vi.crc).size() ; } ) ;
 			for( size_t i : iota(dep_infos.first.size()) ) {
 				VerboseInfo vi = dep_infos.first[i] ;
-				if (vi.ok!=Yes) rc = Rc::Fail ;
+				if (vi.ok==No) rc = Rc::Fail ;
 				out <<      widen(ok_str (vi.ok ),w_ok ) ;
 				out <<' '<< widen(crc_str(vi.crc),w_crc) ;
 				out <<' '<< cmd_line.args[i]             ;

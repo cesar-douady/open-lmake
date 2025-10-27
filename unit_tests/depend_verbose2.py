@@ -50,7 +50,7 @@ else :
 	import ut
 	open('dep0','w').close()
 	print('step=0',file=open('step.py','w'))
-	ut.lmake( 'dut0_1' , 'dut1_1' , new=2 , done=4 , may_rerun=2 )
+	ut.lmake( 'dut0_1' , 'dut1_1' , new=1 , done=4 , may_rerun=2 )
 	ut.lmake( 'dut1_2' , 'dep_2'  ,         done=3 , may_rerun=1 ) # dep is being built while depend verbose fires
 
 	import os

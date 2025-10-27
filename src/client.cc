@@ -211,7 +211,7 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 		case 'r' :
 		case 'R' : rv = Yes                                    ; break ;
 		case 'f' :
-		case 'F' : rv = Maybe                                  ; break ;                                // force no color
+		case 'F' : rv = Maybe                                  ; break ;           // force no color
 		default  : rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("reverse_video",rv) ;
@@ -220,29 +220,28 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	Rc        rc         = Rc::ServerCrash                             ;
 	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)  ;
 	trace("starting") ;
-	cb(true/*start*/) ;                                                                                 // block INT once server is initialized so as to be interruptible at all time
-	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func }                      ; // /!\ must be after call to cb so INT can be blocked before creating threads
+	cb(true/*start*/) ;                                                            // block INT once server is initialized so as to be interruptible at all time
+	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ; // /!\ must be after call to cb so INT can be blocked before creating threads
 	OMsgBuf().send(g_server_fds.out,rrr) ;
 	trace("started") ;
 	try {
 		for(;;) {
-			using Proc = ReqRpcReplyProc ;
-			ReqRpcReply report = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
-			switch (report.proc) {
-				case Proc::None   : trace("done"                 ) ;                                               goto Return ;
-				case Proc::Status : trace("status",STR(report.rc)) ; rc = report.rc ;                              goto Return ; // XXX! : why is it necessary to goto Return here ? ...
-				case Proc::File   : trace("file"  ,report.txt    ) ; SWEAR(files) ; files->push_back(report.txt) ; break       ; // ... we should receive None when server closes stream
-				case Proc::Stderr :
-				case Proc::Stdout : out_thread.push(::move(report)) ;                                              break       ; // queue reports to avoid blocking server should std/stdout be blocked
-			DF}                                                                                                                  // NO_COV
+			ReqRpcReply rrr = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
+			switch (rrr.proc) {
+				case ReqRpcReplyProc::None   : trace("done"             ) ;                                         goto Return ;
+				case ReqRpcReplyProc::Status : trace("status",rrr.rc ) ; rc = rrr.rc ;                              goto Return ; // XXX! : why is it necessary to goto Return here ? ...
+				case ReqRpcReplyProc::File   : trace("file"  ,rrr.txt) ; SWEAR(files) ; files->push_back(rrr.txt) ; break       ; // ... we should receive None when server closes stream
+				case ReqRpcReplyProc::Stderr :
+				case ReqRpcReplyProc::Stdout : out_thread.push(::move(rrr)) ;                                       break       ; // queue reports to avoid blocking server if stderr/stdout is blocked
+			DF}                                                                                                                   // NO_COV
 		}
-	} catch(...) {
-		trace("disconnected") ;
 	}
+	catch (::string const& e) { trace("disconnected",e) ; }
+	catch (...              ) { trace("disconnected"  ) ; }
 Return :
 	trace("exiting") ;
 	cb(false/*start*/) ;
-	g_server_fds.out.close() ;                                                                                                   // ensure server stops living because of us
+	g_server_fds.out.close() ;                                                                                                    // ensure server stops living because of us
 	if (sync) waitpid( server_pid , nullptr , 0 ) ;
 	trace("done") ;
 	return rc ;

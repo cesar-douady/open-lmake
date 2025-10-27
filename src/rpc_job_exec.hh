@@ -42,15 +42,16 @@ struct AccessDigest {                                                           
 	bool operator+() const { return has_read() || write!=No ; }                          // true if some      access of some sort is done
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
-	AccessDigest& operator|=(AccessDigest const&   ) ;
+	AccessDigest& operator|=(AccessDigest const&   )       ;
 	AccessDigest  operator| (AccessDigest const& ad) const {                 return ::copy(self)|=ad ; }
 	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return        self      ; }
 	AccessDigest  operator| (Accesses     const& a ) const {                 return ::copy(self)|=a  ; }
 	// data
-	Bool3      write    = No                                                           ; // if Maybe, write is not confirmed
-	bool       read_dir = false                                                        ;
-	Accesses   accesses = {}                                                           ;
-	MatchFlags flags    = { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn } ; // kind is unused
+	Bool3      write        = No                                                           ; // if Maybe => write is not confirmed
+	bool       read_dir     = false                                                        ;
+	bool       force_is_dep = false                                                        ; // if true => access must be a dep even if written to beforehand
+	Accesses   accesses     = {}                                                           ;
+	MatchFlags flags        = { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn } ; // kind is unused
 } ;
 
 struct JobExecRpcReq {
