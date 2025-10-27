@@ -18,7 +18,6 @@ enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
 ,	Essential                // show when generating user oriented graphs
 ,	IgnoreError              // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 ,	Required                 // dep must be buildable (static deps are always required)
-,	Verbose                  // dep has been seen in a depend(verbose=True) call, which makes it sensitive to err state
 ,	Static                   // is static dep, for internal use only
 ,	Full                     // if false, dep is only necessary to compute resources
 //
@@ -32,7 +31,6 @@ static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
 ,	{ Dflag::Essential   , 'E' }
 ,	{ Dflag::IgnoreError , 'e' }
 ,	{ Dflag::Required    , 'r' }
-,	{ Dflag::Verbose     , 'v' }
 ,	{ Dflag::Static      , 'S' }
 ,	{ Dflag::Full        , 'F' }
 }} ;

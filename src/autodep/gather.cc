@@ -53,9 +53,9 @@ Pdate Gather::AccessInfo::first_read(bool with_readdir) const {
 	PD    res = PD::Future               ;
 	Pdate mr  = _max_read(false/*phys*/) ;
 	//
-	for( Access a : iota(All<Access>) ) if ( _read[+a]<res                 ) res = _read[+a] ;
-	/**/                                if ( _read_dir<res && with_readdir ) res = _read_dir ;
-	/**/                                if ( _required<res                 ) res = _required ;
+	for( PD d : _read ) if ( d        <res                 ) res = d         ;
+	/**/                if ( _read_dir<res && with_readdir ) res = _read_dir ;
+	/**/                if ( _required<res                 ) res = _required ;
 	//
 	if (res<=mr) return res           ;
 	else         return Pdate::Future ;
@@ -79,7 +79,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 	if ( ad.write==Yes && late                     ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
 	flags |= ad.flags ;
 	//
-	if ( +di && ::all_of( iota(All<Access>) , [&](Access a) { return pd<_read[+a] ; } ) ) dep_info = di ;
+	if ( +di && ::all_of( _read , [&](PD d) { return pd<d ; } ) ) dep_info = di ;
 	//
 	for( Access a : iota(All<Access>) )   if ( pd<_read[+a] && ad.accesses[a]                           ) _read[+a] = pd   ;
 	/**/                                  if ( pd<_read_dir && ad.read_dir                              ) _read_dir = pd   ;
@@ -131,9 +131,9 @@ void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI 
 		if (info.dep_info.is_a<DepInfoKind::Crc>()) ad.write = No | (Crc    (f)!=info.dep_info.crc()) ;
 		else                                        ad.write = No | (FileSig(f)!=info.dep_info.sig()) ;
 	}
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	info.update( pd , ad , late==Yes , di ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || info!=old_info ) {
 		if (+c) _exec_trace( pd , c , ces , f ) ;
 		Trace("new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , info , f ) ; // only trace if something changes
@@ -691,12 +691,24 @@ Status Gather::_exec_child() {
 								Pdate          now     { New }                              ;
 								//
 								if (verbose) {
-									for( VerboseInfo vi : jmrr.verbose_infos )
-										switch (vi.ok) {
-											case Yes   : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , ::string(vi.crc) ) ; break ;
-											case Maybe : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , "???"            ) ; break ;
-											case No    : _exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , "error"          ) ; break ;
-										}
+									for( VerboseInfo& vi : jmrr.verbose_infos ) {
+										if      ( vi.ok==Maybe                                                           ) vi.crc = {}        ;
+										else if ( vi.ok==No       && ! jse.jerr.digest.flags.dflags[Dflag ::IgnoreError] ) vi.ok  = Yes       ;
+										if      (                    !(jse.jerr.digest.accesses&DataAccesses)            ) vi.crc = {}        ;
+										else if ( vi.crc.is_lnk() && ! jse.jerr.digest.accesses[Access::Lnk]             ) vi.crc = Crc::None ;
+										else if ( vi.crc.is_reg() && ! jse.jerr.digest.accesses[Access::Reg]             ) vi.crc = Crc::None ;
+										::string ok_str  ;
+										::string crc_str ;
+										if (jse.jerr.digest.flags.dflags[Dflag::IgnoreError])
+											switch (vi.ok) {
+												case Yes   : ok_str = "ok"      ; break ;
+												case Maybe : ok_str = "ongoing" ; break ;
+												case No    : ok_str = "err"     ; break ;
+											}
+										if (+(jse.jerr.digest.accesses&DataAccesses))
+											crc_str = ::string(vi.crc) ;
+										_exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
+									}
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
 									for( auto const& [f,_] : jse.jerr.files )

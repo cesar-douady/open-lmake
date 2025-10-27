@@ -47,13 +47,11 @@ Item(B(-d),B(--direct))          Build deps before command completion (cf. note 
 Item(B(-v),B(--verbose))
 	Write lines composed of:
 	.RS
-	Item(I(status))   B(ok) if dep is built ok, B(error) if dep is built in error, B(???) if dep is no built.
-	Item(I(checksum)) See C(xxhsum,1).
-	Item(I(rule))     The rule name of the job that has generated the dep.
+	Item(I(status))   B(ok) if dep is built ok, B(error) if dep is built in error, B(-) if dep is no built or if B(--ignore_error) was not passed
+	Item(I(checksum)) The checksum of the dep (cf C(xxhsum,1)) if B(--read) was passed, else B(-).
 	Item(I(file))     The file name
 	.RE
 	.IP
-	For each file, such line is followed by one line for each stem, starting with a tab, composed of the name of the stem followed by its value.
 Item(B(-R),B(--read))            Report an actual read. Default is to only alter flags.
 Item(B(-z),B(--dir))             Specify a directory for use with I(--list).
 Item(B(-l),B(--list))            Print list of currently accessed deps to stdout.

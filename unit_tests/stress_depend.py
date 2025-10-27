@@ -51,7 +51,7 @@ if __name__!='__main__' :
 	class All(PyRule):
 		target = r'all_{Backend:slurm|local}{Verbose:(_verbose)?}_{N:\d+}{SFX:.*}'
 		def cmd():
-			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))),verbose=Verbose)
+			lmake.depend(*(f'out_{Backend}{Verbose}_{i}' for i in range(int(N))),read=Verbose,verbose=Verbose)
 
 	class Multi(PyRule):
 		target = r'multi_{N:\d+}_{P:\d+}'

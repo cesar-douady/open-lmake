@@ -64,9 +64,9 @@ struct Gather {                                                       // NOLINT(
 		::pair<PD,bool/*write*/> sort_key   (                      ) const ;
 		Accesses                 accesses   (                      ) const ;
 		//
-		void clear_accesses() { for( Access a : iota(All<Access>) ) _read[+a          ] = PD::Future ; }
-		void clear_lnk     () {                                     _read[+Access::Lnk] = PD::Future ; }
-		void clear_readdir () {                                     _read_dir           = PD::Future ; }
+		void clear_accesses() { for( PD& d : _read ) d                   = PD::Future ; }
+		void clear_lnk     () {                      _read[+Access::Lnk] = PD::Future ; }
+		void clear_readdir () {                      _read_dir           = PD::Future ; }
 		//                                                  phys
 		bool seen    () const { return _seen    <_max_read (true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
 		bool read_dir() const { return _read_dir<_max_read (true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
@@ -81,10 +81,10 @@ struct Gather {                                                       // NOLINT(
 		void no_hot( PD                                            ) ;
 		bool is_hot( Time::Delay prec                              ) const {
 			// if file date is not comfortable enough, we make it hot and server will ensure job producing dep was done before this job started
-			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                                      // we have a crc, no risk to gather bad crc from sig
+			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                    // we have a crc, no risk to gather bad crc from sig
 			PD fr = first_read() ;
-			if (fr>=_no_hot) return false                                       ;                        // file has been rebuilt and we are guarded against nfs, no risk
-			/**/             return !dep_info.info().date.avail_at( fr , prec ) ;                        // mark hot if dep is not old enough
+			if (fr>=_no_hot) return false                                       ;      // file has been rebuilt and we are guarded against nfs, no risk
+			/**/             return !dep_info.info().date.avail_at( fr , prec ) ;      // mark hot if dep is not old enough
 			;
 		}
 		//
@@ -92,32 +92,32 @@ struct Gather {                                                       // NOLINT(
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		MatchFlags flags    { .dflags={} } ;                                                             // initially, no dflags, not even default ones (as they accumulate)
-		DI         dep_info ;                                                                            // state when first read
+		MatchFlags flags    { .dflags={} } ;                                           // initially, no dflags, not even default ones (as they accumulate)
+		DI         dep_info ;                                                          // state when first read
 	private :
-		PD   _read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ; // first access date for each access
-		PD   _read_dir        = PD::Future                             ;                                 // first date at which file has been read as a dir
-		PD   _write           = PD::Future                             ;                                 // first sure write
-		PD   _allow           = PD::Future                             ;                                 // first date at which file was known to be a target
-		PD   _required        = PD::Future                             ;                                 // first date at which file was required
-		PD   _seen            = PD::Future                             ;                                 // first date at which file has been seen existing
-		PD   _read_ignore     = PD::Future1                            ;                                 // first date at which reads  are ignored, always <Future
-		PD   _write_ignore    = PD::Future1                            ;                                 // first date at which writes are ignored, always <Future
-		PD   _no_hot          = PD::Future                             ;                                 // first date at which dep is known sync'ed on disk
-		bool _washed          = false                                  ;
+		::array<PD,N<Access>> _read         { mk_array<N<Access>>(PD::Future) } ;      // first access date for each access
+		PD                    _read_dir     = PD::Future                        ;      // first date at which file has been read as a dir
+		PD                    _write        = PD::Future                        ;      // first sure write
+		PD                    _allow        = PD::Future                        ;      // first date at which file was known to be a target
+		PD                    _required     = PD::Future                        ;      // first date at which file was required
+		PD                    _seen         = PD::Future                        ;      // first date at which file has been seen existing
+		PD                    _read_ignore  = PD::Future1                       ;      // first date at which reads  are ignored, always <Future
+		PD                    _write_ignore = PD::Future1                       ;      // first date at which writes are ignored, always <Future
+		PD                    _no_hot       = PD::Future                        ;      // first date at which dep is known sync'ed on disk
+		bool                  _washed       = false                             ;
 	} ;
 	struct Digest {
 		::vmap_s<TargetDigest> targets        ;
 		::vmap_s<DepDigest   > deps           ;
-		::vector<NodeIdx     > crcs           ;                                                          // index in targets of entry for which we need to compute a crc
+		::vector<NodeIdx     > crcs           ;                                        // index in targets of entry for which we need to compute a crc
 		::set_s                refresh_codecs ;
 		::string               msg            ;
 	} ;
 	struct JobSlaveEntry {
 		friend ::string& operator+=( ::string& , JobSlaveEntry const& ) ;
 		// data
-		Jerr                            jerr       ;                                                     // used for DepDirect/DepVerbose until server reply
-		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                                     // jerrs waiting for confirmation
+		Jerr                            jerr       ;                                   // used for DepDirect/DepVerbose until server reply
+		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                   // jerrs waiting for confirmation
 		::string                        buf        ;
 	} ;
 	// statics

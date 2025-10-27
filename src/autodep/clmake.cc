@@ -72,7 +72,9 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                                                                   ;
 	bool         regexpr   = false                                                                  ;
 	bool         direct    = false                                                                  ;
+	bool         verbose   = false                                                                  ;
 	AccessDigest ad        { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
+	::vector_s   files     = _get_files(py_args)                                                    ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
@@ -82,21 +84,19 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 			case 'f' : if (key=="follow_symlinks") {          no_follow   = !val          ; continue ; } break ;
 			case 'r' : if (key=="read"           ) { if (val) ad.accesses =  DataAccesses ; continue ; }
 			/**/       if (key=="regexpr"        ) {          regexpr     =  val          ; continue ; } break ;
+			case 'v' : if (key=="verbose"        ) {          verbose     =  val          ; continue ; } break ;
 		DN}
 		if      (can_mk_enum<Dflag     >(key)) { if ( Dflag      df =mk_enum<Dflag     >(key) ; df<Dflag::NDyn ) { ad.flags.dflags      .set(df ,val) ; continue ; } }
 		else if (can_mk_enum<ExtraDflag>(key)) {      ExtraDflag edf=mk_enum<ExtraDflag>(key) ;                    ad.flags.extra_dflags.set(edf,val) ; continue ;   }
 		throw "unexpected keyword arg "+key ;
 	}
 	//
-	::vector_s files   = _get_files(py_args)             ;
-	bool       verbose = ad.flags.dflags[Dflag::Verbose] ;
-	bool       sync    = verbose || direct               ;
 	//
 	::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-	try                       { dep_infos = JobSupport::depend( ::copy(files) , ad , no_follow , regexpr , direct ) ; }
-	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                               }
+	try                       { dep_infos = JobSupport::depend( ::copy(files) , ad , no_follow , regexpr , direct , verbose ) ; }
+	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                         }
 	//
-	if (!sync) return &None ;
+	if (!(verbose||direct)) return &None ;
 	//
 	if (direct) {
 		return Ptr<Bool>(dep_infos.second) ;
@@ -106,27 +106,22 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 		//
 		SWEAR( dep_infos.first.size()==files.size() , dep_infos.first.size() , files.size() ) ;
 		for( size_t i : iota(dep_infos.first.size()) ) {
-			VerboseInfo vi = dep_infos.first[i] ;
-			Object*   py_ok    ;
-			switch (vi.ok) {
-				case Yes   : py_ok = &True  ; break ;
-				case Maybe : py_ok = &None  ; break ;
-				case No    : py_ok = &False ; break ;
-			DF}
-			Ptr<Dict> py_dep_info { New } ;
-			/**/         py_dep_info->set_item( "ok"       , *py_ok                      ) ;
-			if (+vi.crc) py_dep_info->set_item( "checksum" , *Ptr<Str>(::string(vi.crc)) ) ;
+			VerboseInfo vi          = dep_infos.first[i] ;
+			Ptr<Dict>   py_dep_info { New }              ;
+			if ( vi.ok!=Maybe) py_dep_info->set_item( "ok"       , *Ptr<Bool>(         vi.ok==Yes) ) ;
+			if (+vi.crc      ) py_dep_info->set_item( "checksum" , *Ptr<Str >(::string(vi.crc)   ) ) ;
 			res->set_item( files[i] , *py_dep_info ) ;
 		}
 		return res ;
 	}
-	FAIL() ; // if sync, we have either direct or verbose
+	FAIL() ;
 }
 
 static void target( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                                                                       ;
 	bool         regexpr   = false                                                                      ;
 	AccessDigest ad        { .flags{.extra_tflags=ExtraTflag::Allow,.extra_dflags=ExtraDflag::NoStar} } ;
+	::vector_s   files     = _get_files(py_args)                                                        ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
@@ -143,7 +138,6 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 		throw "unexpected keyword arg "+key ;
 	}
 	//
-	::vector_s files = _get_files(py_args) ;
 	try                       { JobSupport::target( ::move(files) , ad , no_follow , regexpr ) ; }
 	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                          }
 }

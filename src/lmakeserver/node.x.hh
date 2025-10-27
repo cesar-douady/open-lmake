@@ -616,8 +616,8 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date() const {
-		if ( dflags[Dflag::Verbose] && err!=(self->ok()==No) ) return false                                         ;
-		/**/                                                   return is_crc && crc().match( self->crc , accesses ) ;
+		if ( accesses[Access::Err] && err!=(self->ok()==No) ) return false                                         ;
+		/**/                                                  return is_crc && crc().match( self->crc , accesses ) ;
 	}
 
 	inline void Dep::acquire_crc() {

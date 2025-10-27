@@ -38,7 +38,7 @@ if __name__!='__main__' :
 			target  = f'{{File}}.sh.{ad}.{step.link_support}.cpy'
 			autodep = ad
 			cmd = '''
-				from_server=$(ldepend -v {File} | awk '$1=="ok" {{print $2}}')
+				from_server=$(ldepend -v -R {File} | awk '$1=="ok" {{print $2}}')
 				expected=$(   xxhsum     {File}                              )
 				echo $from_server
 				[ "$from_server" = "$expected" ] || echo expected $expected got $from_server >&2
@@ -48,7 +48,7 @@ if __name__!='__main__' :
 			target  = f'{{File}}.py.{ad}.{step.link_support}.cpy'
 			autodep = ad
 			def cmd() :
-				from_server = lmake.depend(File,verbose=True)[File]
+				from_server = lmake.depend(File,verbose=True,read=True)[File]
 				expected    = sp.check_output(('xxhsum',File),universal_newlines=True).strip()
 				assert from_server['checksum']==expected,f"expected {expected} got {from_server['checksum']}"
 				print(from_server)

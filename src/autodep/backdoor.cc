@@ -141,7 +141,6 @@ namespace Backdoor {
 		::vector<NodeIdx    > dep_idxs1 ;
 		::vector<VerboseInfo> res       ; res.reserve(files.size()) ;
 		//
-		access_digest.accesses = DataAccesses ;                                             // verbose captures full content of dep
 		JobExecRpcReq jerr {
 			.proc         = JobExecProc::DepVerbose
 		,	.sync         = Yes

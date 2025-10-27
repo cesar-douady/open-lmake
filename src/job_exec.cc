@@ -582,9 +582,9 @@ int main( int argc , char* argv[] ) {
 		} ;
 		end_report.digest = {
 			.upload_key     = upload_key
-		,	.targets        = ::move     (digest.targets       )
-		,	.deps           = ::move     (digest.deps          )
-		,	.refresh_codecs = ::mk_vector(digest.refresh_codecs)
+		,	.targets        = ::move   (digest.targets       )
+		,	.deps           = ::move   (digest.deps          )
+		,	.refresh_codecs = mk_vector(digest.refresh_codecs)
 		,	.cache_idx      = g_start_info.cache_idx
 		,	.status         = status
 		,	.incremental    = incremental

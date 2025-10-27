@@ -90,6 +90,12 @@ template<class M> ::set   <   VT(M)::second_type >       mk_val_set   (M const& 
 template<class M> ::uset  <   VT(M)::second_type >       mk_val_uset  (M const& m) { return mk_val_uset  <   VT(M)::second_type >(m) ; }
 template<class M> ::vector<   VT(M)::second_type >       mk_val_vector(M const& m) { return mk_val_vector<   VT(M)::second_type >(m) ; }
 
+// item replication
+template<size_t N,class V> ::array<V,N> mk_array(V const& v) {
+	::array<V,N> res ; for( V& e : res ) e = v ;
+	return res ;
+}
+
 #undef RC
 #undef VT
 

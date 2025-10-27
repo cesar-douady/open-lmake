@@ -114,6 +114,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* dep verbose must report crc only when asked to read
+	- replace Dflag::Verbose by Access::Status
+	- pass it with dep verbose
+	- report crc and set FullAccesses only when read is passed
 * implement codec table in cache
 * in ldircache_repair
 	- check target crcs

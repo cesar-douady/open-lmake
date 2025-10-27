@@ -23,20 +23,20 @@ namespace JobSupport {
 		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
 	}
 
-	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr , bool direct ) {
-		bool verbose    = ad.flags.dflags      [Dflag     ::Verbose  ] ;
+	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr , bool direct , bool verbose ) {
 		bool readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
 		throw_if( regexpr + verbose + direct > 1 , "regexpr, verbose and direct are mutually exclusive" ) ;
 		if (regexpr) {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                           // it is meaningless to exclude regexpr when we are a regexpr
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                 // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		if (readdir_ok) {
-			ad.flags.dflags &= ~Dflag::Required ;                                    // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
-			ad.read_dir     |= +ad.accesses     ;                                    // if reading and allow dir access, assume user meant reading a dir
+			ad.flags.dflags &= ~Dflag::Required ;                                          // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
+			ad.read_dir     |= +ad.accesses     ;                                          // if reading and allow dir access, assume user meant reading a dir
 		}
+		if ( verbose && ad.flags.dflags[Dflag::IgnoreError] ) ad.accesses |= Access::Err ; // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
 		_chk_files(files) ;
 		//
 		if (regexpr) {               Backdoor::call<Backdoor::Regexpr      >( { .files=files , .access_digest=ad                        } )                ; return {{},true/*ok*/} ; }

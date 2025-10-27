@@ -12,6 +12,7 @@
 #include "record.hh"
 
 using namespace Disk ;
+using namespace Hash ;
 
 enum class Key : uint8_t { None } ;
 
@@ -41,6 +42,7 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Read           , { .short_name='R' ,                 .doc="report a read"                         } }
 	,	{ Flag::Regexpr        , { .short_name='X' ,                 .doc="args are regexprs"                     } }
 	,	{ Flag::Direct         , { .short_name='d' ,                 .doc="suspend job until deps are up-to-date" } }
+	,	{ Flag::Verbose        , { .short_name='v' ,                 .doc="write dep checksums on stdout"         } }
 	//
 	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
 	,	{ Flag::Essential     , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .doc="ask that deps be seen in graphical flow" } }
@@ -49,7 +51,6 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::NoExcludeStar , { .short_name=ExtraDflagChars[+ExtraDflag::NoStar     ].second , .doc="accept regexpr-based flags"              } }
 	,	{ Flag::NoRequired    , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .doc="ignore if deps cannot be built"          } }
 	,	{ Flag::ReaddirOk     , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                           } }
-	,	{ Flag::Verbose       , { .short_name=DflagChars     [+Dflag     ::Verbose    ].second , .doc="write dep checksums on stdout"           } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	Rc                rc       = Rc::Ok                 ;
@@ -83,31 +84,35 @@ int main( int argc , char* argv[]) {
 		if (cmd_line.flags[Flag::NoRequired   ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
 		if (cmd_line.flags[Flag::ReaddirOk    ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
 		if (cmd_line.flags[Flag::NoExcludeStar]) ad.flags.extra_dflags &= ~ExtraDflag::NoStar      ;
-		if (verbose                            ) ad.flags.dflags       |=  Dflag     ::Verbose     ;
 		::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] , direct ) ; }
-		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                             }
+		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] , direct , verbose ) ; }
+		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                                       }
 		//
+		SWEAR(!(direct&&verbose)) ;
 		if (direct) {
 			rc = dep_infos.second ? Rc::Ok : Rc::Fail ;
 		} else if (verbose) {
 			SWEAR( dep_infos.first.size()==cmd_line.args.size() , dep_infos.first.size() , cmd_line.args.size() ) ;
-			auto ok_str = [](Bool3 ok)->const char* {
+			auto ok_str = [](Bool3 ok)->::string {
 				switch (ok) {
 					case Yes   : return "ok"    ;
-					case Maybe : return "???"   ;
+					case Maybe : return "-"     ;                                                      // ensure easy analysis
 					case No    : return "error" ;
 				DF}                                                                                    // NO_COV
 			} ;
-			size_t w_ok  = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ::strlen(ok_str(vi.ok)) ; } ) ;
-			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ::string(vi.crc).size() ; } ) ;
+			auto crc_str = [](Crc crc)->::string {
+				if (+crc) return ::string(crc) ;
+				else      return "-"           ;                                                       // ensure easy analysis
+			} ;
+			size_t w_ok  = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ok_str (vi.ok ).size() ; } ) ;
+			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return crc_str(vi.crc).size() ; } ) ;
 			for( size_t i : iota(dep_infos.first.size()) ) {
 				VerboseInfo vi = dep_infos.first[i] ;
 				if (vi.ok!=Yes) rc = Rc::Fail ;
-				out <<      widen(ok_str(vi.ok)   ,w_ok ) ;
-				out <<' '<< widen(::string(vi.crc),w_crc) ;
-				out <<' '<< cmd_line.args[i]              ;
-				out <<'\n'                                ;
+				out <<      widen(ok_str (vi.ok ),w_ok ) ;
+				out <<' '<< widen(crc_str(vi.crc),w_crc) ;
+				out <<' '<< cmd_line.args[i]             ;
+				out <<'\n'                               ;
 			}
 			if (cmd_line.flags[Flag::IgnoreError]) rc = Rc::Ok ;
 		}

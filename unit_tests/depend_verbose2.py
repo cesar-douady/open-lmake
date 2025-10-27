@@ -34,9 +34,10 @@ if __name__!='__main__' :
 		def cmd():
 			import time
 			from lmake import depend
-			time.sleep(1)                                            # ensure dep is being built if launched in //
-			status = depend(f'dep_{S}',verbose=True,required=int(R))
-			if status[f'dep_{S}']['ok'] and status[f'dep_{S}']['checksum']!='none' :
+			time.sleep(1)                                                                        # ensure dep is being built if launched in //
+			status = depend(f'dep_{S}',verbose=True,read=True,ignore_error=True,required=int(R))
+			if not status[f'dep_{S}']['ok'] : raise RuntimeError(f"bad status : {status[f'dep_{S}']['ok']}")
+			if status[f'dep_{S}']['checksum']!='none' :
 				open(f'dep_{S}')
 			print(status)
 
@@ -49,7 +50,7 @@ else :
 	import ut
 	open('dep0','w').close()
 	print('step=0',file=open('step.py','w'))
-	ut.lmake( 'dut0_1' , 'dut1_1' , new=1 , done=4 , may_rerun=2 )
+	ut.lmake( 'dut0_1' , 'dut1_1' , new=2 , done=4 , may_rerun=2 )
 	ut.lmake( 'dut1_2' , 'dep_2'  ,         done=3 , may_rerun=1 ) # dep is being built while depend verbose fires
 
 	import os

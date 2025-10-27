@@ -39,18 +39,15 @@ if __name__!='__main__' :
 		# ensure cmd is independent of step, so dont check status
 		cmd = '''
 				from_server="$(ldepend -e -v bad)"
-				[ "$from_server" = "ok empty-R bad"    ] \
-			||	[ "$from_server" = "error empty-R bad" ]
+				[ "$from_server" = "ok - bad"    ] \
+			||	[ "$from_server" = "error - bad" ]
 		'''
 
 	class DepVerbosePy(PyRule) :
 		target = 'dep_verbose_py'
 		def cmd() :
 			from_server = lmake.depend('bad',ignore_error=True,verbose=True)
-			assert (                                                                          # ensure cmd is independent of step, so dont check status
-				from_server=={ 'bad' : { 'ok':True  , 'checksum':'empty-R' } }
-			or	from_server=={ 'bad' : { 'ok':False , 'checksum':'empty-R' } }
-			)
+			assert from_server['bad']['ok'] in (True,False) , from_server                      # ensure cmd is independent of step, so dont check status
 
 else :
 

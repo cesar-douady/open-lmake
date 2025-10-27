@@ -508,10 +508,10 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		if (!dd.accesses) return ;
 		if ( dd.is_crc  ) set_crc(dd.crc(),dd.err) ;
 		else              set_sig(dd.sig()       ) ;
-	} //!                                                                                                                                                  err
-	constexpr void del_crc        (                 ) {                                                                                     set_crc    ({},false) ; }
-	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && dflags[Dflag::Verbose] )) set_crc    (c ,false) ; } // only set crc if err is useless
-	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && dflags[Dflag::Verbose] )) set_crc_sig(di,false) ; } // .
+	} //!                                                                                                                                                 err
+	constexpr void del_crc        (                 ) {                                                                                    set_crc    ({},false) ; }
+	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && accesses[Access::Err] )) set_crc    (c ,false) ; } // only set crc if err is useless
+	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && accesses[Access::Err] )) set_crc_sig(di,false) ; } // .
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , sz,accesses,dflags ) ;
@@ -549,7 +549,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	bool          parallel      :1         = false      ;                                //   1 bit , dep is parallel with prev dep
 	bool          is_crc        :1         = true       ;                                //   1 bit
 	bool          hot           :1         = false      ;                                //   1 bit , if true <= file date was very close from access date (within date granularity)
-	Accesses::Val chunk_accesses:N<Access> = 0          ;                                //   3 bits
+	Accesses::Val chunk_accesses:N<Access> = 0          ;                                //   4 bits
 	bool          err           :1         = false      ;                                //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
 private :
 	union {
