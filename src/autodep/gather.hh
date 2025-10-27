@@ -43,7 +43,7 @@ enum class KillStep : uint8_t {
 ,	Kill   // must be last as following values are used
 } ;
 
-struct Gather {                                                       // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct Gather {                                                        // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , Gather const& ) ;
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
@@ -51,7 +51,7 @@ struct Gather {                                                       // NOLINT(
 	using Crc  = Hash::Crc     ;
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ;               // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
+	static constexpr Time::Delay HeartbeatTick { 10 } ;                // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
 	struct AccessInfo {
 		friend ::string& operator+=( ::string& , AccessInfo const& ) ;
 		// cxtors & casts
@@ -68,12 +68,12 @@ struct Gather {                                                       // NOLINT(
 		void clear_lnk     () {                                     _read[+Access::Lnk] = PD::Future ; }
 		void clear_readdir () {                                     _read_dir           = PD::Future ; }
 		//                                                  phys
-		bool seen    () const { return _seen    <_max_read (true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
-		bool read_dir() const { return _read_dir<_max_read (true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
-		bool allow   () const { return _allow   <_max_write(    ) ; } // if true <=> file has been declared target
+		bool seen    () const { return _seen    <_max_read (true)  ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
+		bool read_dir() const { return _read_dir<_max_read (true)  ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
+		bool allow   () const { return _allow   <_max_write(    )  ; } // if true <=> file has been declared target
 	private :
-		PD _max_write(         ) const { return _write_ignore ; }     // max date for a write to be taken into account, always <Future
-		PD _max_read (bool phys) const ;                              // max date for a read  to be taken into account, always <Future
+		PD _max_write(         ) const { return _write_ignore ; }      // max date for a write to be taken into account, always <Future
+		PD _max_read (bool phys) const ;                               // max date for a read  to be taken into account, always <Future
 		// services
 	public :
 		void update( PD , AccessDigest , bool late , DI const& ={} ) ;
@@ -82,8 +82,8 @@ struct Gather {                                                       // NOLINT(
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		MatchFlags flags    { .dflags={} } ;                          // initially, no dflags, not even default ones (as they accumulate)
-		DI         dep_info ;                                         // state when first read
+		MatchFlags flags    { .dflags={} } ;                           // initially, no dflags, not even default ones (as they accumulate)
+		DI         dep_info ;                                          // state when first read
 	private :
 		PD   _read[N<Access>] { PD::Future , PD::Future , PD::Future } ; static_assert((N<Access>)==3) ;      // first access date for each access
 		PD   _read_dir        = PD::Future                             ;                                      // first date at which file has been read as a dir

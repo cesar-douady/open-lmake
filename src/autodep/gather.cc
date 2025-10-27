@@ -20,17 +20,17 @@ using namespace Time ;
 // Gather::AccessInfo
 //
 
-::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) { // START_OF_NO_COV
+::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) {              // START_OF_NO_COV
 	Pdate fr = ai.first_read() ;
-	/**/                          os << "AccessInfo("           ;
-	if (fr       !=Pdate::Future) os << "R:" <<fr         <<',' ;
-	if (ai._allow!=Pdate::Future) os << "A:" <<ai._allow  <<',' ;
-	if (ai._write!=Pdate::Future) os << "W:" <<ai._write  <<',' ;
+	/**/                          os << "AccessInfo("                            ;
+	if (fr       !=Pdate::Future) os << "R:" <<fr                          <<',' ;
+	if (ai._allow!=Pdate::Future) os << "A:" <<ai._allow                   <<',' ;
+	if (ai._write!=Pdate::Future) os << "W:" <<ai._write                   <<',' ;
 	if (+ai.dep_info            ) os << ai.dep_info       <<',' ;
-	/**/                          os << ai.flags                ;
-	if (ai._seen!=Pdate::Future ) os <<",seen"                  ;
-	return                        os <<')'                      ;
-}                                                                     // END_OF_NO_COV
+	/**/                          os << ai.flags                                 ;
+	if (ai._seen!=Pdate::Future ) os <<",seen"                                   ;
+	return                        os <<')'                                       ;
+}                                                                                  // END_OF_NO_COV
 
 Pdate Gather::AccessInfo::_max_read(bool phys) const {
 	if (_washed) {
@@ -312,22 +312,23 @@ Status Gather::exec_child() {
 	if (env) { trace("env",*env) ; swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ; }
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
-	ServerSockFd             job_master_fd      { New }       ;
-	AcFd                     fast_report_fd     ;                                                     // always open, never waited for
-	AcFd                     child_fd           ;
-	Epoll<Kind>              epoll              { New }       ;
-	Status                   status             = Status::New ;
-	::umap<Fd,Jerr>          delayed_check_deps ;                                                     // check_deps events are delayed to ensure all previous deps are received
-	size_t                   live_out_pos       = 0           ;
-	::umap<Fd,IMsgBuf      > server_slaves      ;
-	::umap<Fd,JobSlaveEntry> job_slaves         ;                                                     // Jerr's are waiting for confirmation
-	bool                     panic_seen         = false       ;
-	PD                       end_timeout        = PD::Future  ;
-	PD                       end_child          = PD::Future  ;
-	PD                       end_kill           = PD::Future  ;
-	PD                       end_heartbeat      = PD::Future  ;                                       // heartbeat to probe server when waiting for it
-	bool                     timeout_fired      = false       ;
-	size_t                   kill_step          = 0           ;
+	ServerSockFd             job_master_fd         { New }       ;
+	AcFd                     fast_report_fd        ;                                                     // always open, never waited for
+	AcFd                     child_fd              ;
+	Epoll<Kind>              epoll                 { New }       ;
+	Status                   status                = Status::New ;
+	::umap<Fd,Jerr>          delayed_check_deps    ;                                                     // check_deps events are delayed to ensure all previous deps are received
+	size_t                   live_out_pos          = 0           ;
+	::umap<Fd,IMsgBuf      > server_slaves         ;
+	::umap<Fd,JobSlaveEntry> job_slaves            ;                                                     // Jerr's are waiting for confirmation
+	bool                     panic_seen            = false       ;
+	PD                       end_timeout           = PD::Future  ;
+	PD                       end_child             = PD::Future  ;
+	PD                       end_kill              = PD::Future  ;
+	PD                       end_heartbeat         = PD::Future  ;                                       // heartbeat to probe server when waiting for it
+	bool                     timeout_fired         = false       ;
+	size_t                   kill_step             = 0           ;
+	bool                     dep_unstable_reported = true        ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
 		if (status==Status::New) status = status_ ;                                                   // only record first status
@@ -385,7 +386,7 @@ Status Gather::exec_child() {
 		if (now>=end_child) {
 			_exec_trace(now,Comment::stillAlive) ;
 			if (!_wait[Kind::ChildEnd]) {
-				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;      // else we should already have exited
+				SWEAR( _wait[Kind::Stdout] || _wait[Kind::Stderr] , _wait , now , end_child ) ;                           // else we should already have exited
 				::string msg_ ;
 				if ( _wait[Kind::Stdout]                        ) msg_ += "stdout " ;
 				if ( _wait[Kind::Stdout] && _wait[Kind::Stderr] ) msg_ += "and "    ;
@@ -541,12 +542,17 @@ Status Gather::exec_child() {
 							case JobMngtProc::DepVerbose : {
 								Pdate now { New } ;
 								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
-								for( DepVerboseInfo const& dvi : jmrr.dep_infos )
+								for( DepVerboseInfo const& dvi : jmrr.dep_infos ) {
 									switch (dvi.ok) {
 										case Yes   : _exec_trace( now , Comment::depend , CommentExt::Reply , ::string(dvi.crc) ) ; break ;
 										case Maybe : _exec_trace( now , Comment::depend , CommentExt::Reply , "???"             ) ; break ;
 										case No    : _exec_trace( now , Comment::depend , CommentExt::Reply , "error"           ) ; break ;
 									}
+									if (dvi.ok==Maybe && !dep_unstable_reported ) {
+										set_status(Status::ChkDeps,"dep verbose deps were out-of-date") ;
+										dep_unstable_reported = true ;
+									}
+								}
 							} break ;
 							case JobMngtProc::Heartbeat :                                                                                                      break ;
 							case JobMngtProc::Kill      : _exec_trace( New , Comment::kill       , CommentExt::Reply ) ; set_status(Status::Killed) ; kill() ; break ;
@@ -760,7 +766,7 @@ void Gather::reorder(bool at_end) {
 				if (!( last->first.starts_with(file) && last->first[file.size()]=='/' )) continue ;
 				//
 				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
-				else                                     { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
+				else                                       { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
 			}
 			if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
 				lasts.clear() ;                                                     // not a parallel dep => clear old ones that are no more last
