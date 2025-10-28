@@ -47,7 +47,7 @@ namespace Backends::Slurm {
 	struct RsrcsData : ::vector<RsrcsDataSingle> {
 		using Base = ::vector<RsrcsDataSingle> ;
 		// cxtors & casts
-		RsrcsData(                               ) = default ;
+		RsrcsData() = default ;
 		RsrcsData( ::vmap_ss&& , Daemon , JobIdx ) ;
 		// services
 		::vmap_ss mk_vmap() const ;

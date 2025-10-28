@@ -342,7 +342,7 @@ struct JobReason {
 	friend ::string& operator+=( ::string& , JobReason const& ) ;
 	using Tag = JobReasonTag ;
 	// cxtors & casts
-	JobReason(                   ) = default ;
+	JobReason() = default ;
 	JobReason( Tag t             ) :           tag{t} { SWEAR( t< Tag::HasNode          , t        ) ; }
 	JobReason( Tag t , NodeIdx n ) : node{n} , tag{t} { SWEAR( t>=Tag::HasNode && +node , t , node ) ; }
 	// accesses

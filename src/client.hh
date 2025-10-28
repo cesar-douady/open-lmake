@@ -11,7 +11,7 @@
 
 struct ClientFdPair {
 	// cxtors & casts
-	ClientFdPair(                      ) = default ;
+	ClientFdPair() = default ;
 	ClientFdPair( ClientFdPair&& acfdp ) : in{::move(acfdp.in)} , out{::move(acfdp.out)} {}
 	ClientFdPair( Fd in_fd , Fd out_fd ) : in{       in_fd    } , out{       out_fd    } {}
 	ClientFdPair( ClientSockFd&& fd    ) : in{       fd.fd    } , out{       fd.fd     } { fd.detach() ; }

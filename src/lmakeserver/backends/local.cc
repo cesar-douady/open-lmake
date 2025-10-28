@@ -22,7 +22,7 @@ namespace Backends::Local {
 
 	struct RsrcsData : ::vector<Rsrc> {
 		// cxtors & casts
-		RsrcsData(                                                                    ) = default ;
+		RsrcsData() = default ;
 		RsrcsData( size_t sz                                                          ) : ::vector<Rsrc>(sz) {}
 		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs , bool rnd_up=true ) ;
 		//

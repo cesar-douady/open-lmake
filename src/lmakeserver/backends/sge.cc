@@ -23,7 +23,7 @@ namespace Backends::Sge {
 	struct RsrcsData {
 		friend ::string& operator+=( ::string& , RsrcsData const& ) ;
 		// cxtors & casts
-		RsrcsData(           ) = default ;
+		RsrcsData() = default ;
 		RsrcsData(::vmap_ss&&) ;
 		// accesses
 		bool operator==(RsrcsData const&) const = default ;

@@ -545,7 +545,7 @@ struct Fd {
 private :
 	static int _s_mk_fd( Fd at , ::string const& file , Action action ) ;
 public :
-	constexpr Fd(                        ) = default ;
+	constexpr Fd() = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
@@ -591,7 +591,7 @@ constexpr Fd Fd::Std   {2            } ;
 struct AcFd : Fd {
 	friend ::string& operator+=( ::string& , AcFd const& ) ;
 	// cxtors & casts
-	AcFd(                              ) = default ;
+	AcFd() = default ;
 	AcFd( Fd fd_                       ) : Fd{fd_        } {              }
 	AcFd( AcFd&& acfd                  )                   { swap(acfd) ; }
 	AcFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }

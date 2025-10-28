@@ -339,7 +339,7 @@ namespace Engine {
 		using Base   = ::vector<RuleData> ;
 		using PyType = Py::Dict           ;
 		// cxtors & casts
-		RulesBase(               ) = default ;
+		RulesBase() = default ;
 		RulesBase(NewType        ) ;
 		RulesBase(Py::Dict const&) ;
 		//
@@ -380,7 +380,7 @@ namespace Engine {
 	struct Sources : ::vector_s {     // used to read manifest and pass it to store
 		using PyType = Py::Sequence ;
 		// cxtors & casts
-		Sources(                 ) = default ;
+		Sources() = default ;
 		Sources(PyType const&) ;
 	} ;
 

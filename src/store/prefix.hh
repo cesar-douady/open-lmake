@@ -591,7 +591,7 @@ namespace Store {
 		} ;
 
 		// cxtors
-		/**/                 MultiPrefixFile(                                                           ) = default ;
+		/**/                 MultiPrefixFile() = default ;
 		template<class... A> MultiPrefixFile( NewType                                 , A&&... hdr_args ) { init( New              , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> MultiPrefixFile( ::string const&   name , bool writable_ , A&&... hdr_args ) { init( name , writable_ , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> void init( NewType , A&&... hdr_args ) {
@@ -1425,7 +1425,7 @@ namespace Store {
 		Idx emplace_root() = delete ;
 		// cxtors
 		using Base::Base ;
-		/**/                 SinglePrefixFile(                                                        ) = default ;
+		/**/                 SinglePrefixFile() = default ;
 		template<class... A> SinglePrefixFile( NewType                              , A&&... hdr_args ) { init( New             , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> SinglePrefixFile( ::string const& name , bool writable , A&&... hdr_args ) { init( name , writable , ::forward<A>(hdr_args)... ) ; }
 		template<class... A> void init( NewType , A&&... hdr_args ) {

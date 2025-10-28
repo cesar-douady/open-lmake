@@ -315,7 +315,7 @@ namespace Engine {
 		}
 	Done :
 		self->audit_status(!job_err) ;
-		self->audit_fd.detach() ;                                                       // ensure we send nothing anymore
+		self->audit_fd.detach()      ;                                                  // ensure we send nothing anymore
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,self) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

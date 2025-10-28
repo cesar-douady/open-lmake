@@ -169,7 +169,7 @@ namespace Engine {
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::string& operator+=( ::string& , Target const ) ;
 		// cxtors & casts
-		Target(                       ) = default ;
+		Target() = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} { SWEAR(+self) ; }
 		// accesses
 		bool static_phony() const { return ::static_phony(tflags) ; }
@@ -228,7 +228,7 @@ namespace Engine {
 			uint8_t i_chunk = 0 ;
 		} ;
 		// cxtors & casts
-		DepsIter(                     ) = default ;
+		DepsIter() = default ;
 		DepsIter( DepsIter const& dit ) : hdr{dit.hdr} , i_chunk{dit.i_chunk} {}
 		DepsIter( GenericDep const* d ) : hdr{d      }                        {}
 		DepsIter( Deps , Digest       ) ;

@@ -37,7 +37,7 @@ struct AutodepPtrace {
 		static ::scmp_filter_ctx s_scmp ;
 	#endif
 	// cxtors & casts
-	AutodepPtrace(        ) = default ;
+	AutodepPtrace() = default ;
 	AutodepPtrace(pid_t cp) { init(cp) ; }
 	void init(pid_t child_pid) ;
 	// services

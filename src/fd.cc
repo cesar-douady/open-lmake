@@ -18,6 +18,8 @@
 
 using namespace Time ;
 
+static constexpr bool ReuseAddr = true ; // XXX : need to do some trials to know if this is still required now that we have randomization of local communications
+
 StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
 ::string& operator+=( ::string& os , LockedFd     const& fd ) { return fd.append_to_str(os,"LockedFd"    ) ; } // NO_COV
@@ -90,8 +92,8 @@ static Ports const& _ports() {
 }
 
 in_addr_t SockFd::s_random_loopback() {
-	in_addr_t a = (LoopBackAddr&LoopBackMask) | (Time::Pdate(New).hash()&~LoopBackMask) ;
-	if (a==(LoopBackAddr|~LoopBackMask)) return LoopBackAddr ;                            // never generate broadcast address as it is not routable
+	in_addr_t a = (LoopBackAddr&LoopBackMask) | (Pdate(New).hash()&~LoopBackMask) ;
+	if (a==(LoopBackAddr|~LoopBackMask)) return LoopBackAddr ;                      // never generate broadcast address as it is not routable
 	else                                 return a            ;
 }
 
@@ -192,7 +194,7 @@ SockFd::SockFd( NewType , bool reuse_addr , in_addr_t local_addr , bool for_serv
 	static constexpr in_port_t PortInc = 199 ;                                                                                                    // a prime number to ensure all ports are tried
 	//
 	self = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ; no_std() ; if (!self) fail_prod("cannot create socket : ",StrErr()) ;
-	if (!reuse_addr) return ;                                                                                                                     // dont reuse addr
+	if (!(ReuseAddr&&reuse_addr)) return ;                                                                                                        // dont reuse addr
 	// if we want to set SO_REUSEADDR, we cannot auto-bind to an ephemeral port as SO_REUSEADDR is not taken into account in that case
 	// so we try random port numbers in the ephemeral range until we find a free one
 	//
@@ -246,7 +248,7 @@ in_addr_t SockFd::peer_addr() const {
 // ServerSockFd
 //
 
-ServerSockFd::ServerSockFd( NewType , int backlog , bool reuse_addr , in_addr_t local_addr ) : SockFd{New,reuse_addr,local_addr,true/*for_server*/} {
+ServerSockFd::ServerSockFd( NewType , int backlog , bool reuse_addr , in_addr_t local_addr ) : SockFd{ New , reuse_addr , local_addr , true/*for_server*/ } {
 	if (!backlog) backlog = 100 ;
 	for( uint32_t i=1 ;; i++ ) {
 		if ( ::listen(fd,backlog)==0 ) break ;
@@ -266,7 +268,7 @@ SlaveSockFd ServerSockFd::accept() {
 // ClientSockFd
 //
 
-ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr , Time::Delay timeout ) : SockFd{ New , reuse_addr , server?0:s_random_loopback() , false/*for_server*/ } {
+ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr , Delay timeout ) : SockFd{ New , reuse_addr , server?0:s_random_loopback()/*local_addr*/ , false/*for_server*/ } {
 	bool has_timeout = +timeout ;
 	if (!server ) server  = s_random_loopback() ;
 	if (!timeout) timeout = ConnectTimeout      ;

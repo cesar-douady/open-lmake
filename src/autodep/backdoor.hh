@@ -52,17 +52,21 @@ namespace Backdoor {
 		for( int i=0 ;; i++ ) {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
-			if (cnt<0) {
-				if (cnt==-1) {
-					Lock lock { Record::s_mutex } ;
-					return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                                   // no autodep available, directly process args
-				}
+			if (cnt<0)
 				switch (BackdoorErr(-cnt)) {
-					case BackdoorErr::Fail        : throw cat("cannot "                 ,args.descr()) ;
 					case BackdoorErr::PokeErr     : throw cat("cannot poke reply while ",args.descr()) ;
 					case BackdoorErr::InternalErr : throw cat("internal error while "   ,args.descr()) ;
+					case BackdoorErr::Fail        : {
+						size_t pos = buf.find(char(0)) ;
+						if      (pos==0    ) throw cat("cannot ",args.descr(                               )) ;
+						else if (pos==Npos ) throw cat("cannot ",args.descr(" (unknown reason)"            )) ;
+						else                 throw cat("cannot ",args.descr(cat(" (",buf.substr(0,pos),')'))) ;
+					} break ;
+					case BackdoorErr::OfficialReadlinkErr : {
+						Lock lock { Record::s_mutex } ;
+						return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                               // no autodep available, directly process args
+					}
 				DF}
-			}
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
 			auto reply = deserialize<Expected<_Reply<T>>>(buf) ;
@@ -75,23 +79,27 @@ namespace Backdoor {
 	template<class T> ssize_t/*len*/ func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
 		::string            parsed    ;
 		T                   cmd       ;
-		Expected<_Reply<T>> reply     { .ok=true } ;
+		Expected<_Reply<T>> reply     { .ok=true }               ;
 		::string            reply_str ;
-		size_t              pos       = 0          ;
+		BackdoorErr         err       = BackdoorErr::InternalErr ;
+		::string            msg       ;
 		//
-		try { parsed     = parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"") ; } catch (::string const&) { return -+BackdoorErr::InternalErr ; }
-		try { cmd        = deserialize<T>(parsed)        ;                                         } catch (::string const&) { return -+BackdoorErr::InternalErr ; }
-		try { reply.data = cmd.process   (r     )        ;                                         } catch (::string const&) { return -+BackdoorErr::Fail        ; }
-		try { reply_str  = serialize     (reply )        ;                                         } catch (::string const&) { return -+BackdoorErr::InternalErr ; }
+		try { size_t pos = 0 ;        parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"") ; } catch (::string const& e) { msg=e ; goto Err ; }
+		try {                         cmd       =deserialize<T>(parsed)        ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
+		try { err=BackdoorErr::Fail ; reply.data=cmd.process(r)                ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
+		try {                         reply_str =serialize(reply )             ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
 		//
-		if (reply_str.size()>=sz) {
+		if (reply_str.size()>=sz) {                             // if reply does not fit, replace with a short reply that provides the necessary size and caller will retry
 			reply.ok  = false            ;
 			reply.sz  = reply_str.size() ;
 			reply_str = serialize(reply) ;
 		}
-		SWEAR( reply_str.size()<sz , reply_str.size(),sz ) ;
+		SWEAR( reply_str.size()<sz , reply_str.size(),sz ) ;    // ensure final reply fits
 		::memcpy( buf , reply_str.data() , reply_str.size() ) ;
 		return reply_str.size() ;
+	Err :
+		::memcpy( buf , msg.c_str() , ::min(sz,msg.size()+1 ) ) ;
+		return -+err ;
 	}
 
 	struct Enable {
@@ -100,8 +108,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true         ;
 		static constexpr size_t MaxReplySz         = sizeof(bool) ;
 		// services
-		bool/*enabled*/ process(Record& r)       ;
-		::string        descr  (         ) const ;
+		bool/*enabled*/ process(Record&         r        )       ;
+		::string        descr  (::string const& reason={}) const ;
 		// data
 		Bool3 enable = Maybe ; // Maybe means dont update record state
 	} ;
@@ -112,8 +120,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true      ;
 		static constexpr size_t MaxReplySz         = 0         ;
 		// services
-		::monostate process(Record& r)       ;
-		::string    descr  (         ) const ;
+		::monostate process(Record&         r        )       ;
+		::string    descr  (::string const& reason={}) const ;
 		// data
 		::vector_s   files         = {} ;
 		AccessDigest access_digest = {} ;
@@ -125,7 +133,8 @@ namespace Backdoor {
 			::serdes( s , files,access_digest,no_follow ) ;
 		}
 	protected :
-		::vmap_s<FileInfo> _mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1=nullptr ) ;
+		::vmap_s<FileInfo> _mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1=nullptr )       ;
+		::string           _descr  (const char* cmd,::string const& reason={}                             ) const { return cat(cmd,reason,' ',files) ; }
 		// data
 	public :
 		::vector_s   files         = {}    ;
@@ -139,8 +148,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true     ;
 		static constexpr size_t MaxReplySz         = 0        ;
 		// services
-		::monostate process(Record& r)       ;
-		::string    descr  (         ) const { return cat(Cmd,' ',files) ; }
+		::monostate process(Record& r                )       ;
+		::string    descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct DependVerbose : AccessBase {
@@ -149,8 +158,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = false                                      ;
 		static constexpr size_t MaxReplySz         = sizeof(SerdesSz) + 256*sizeof(VerboseInfo) ;
 		// services
-		::vector<VerboseInfo> process(Record& r)       ;
-		::string              descr  (         ) const { return cat(Cmd,' ',files) ; }
+		::vector<VerboseInfo> process(Record&         r        )       ;
+		::string              descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct DependDirect : AccessBase {
@@ -159,8 +168,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true            ;
 		static constexpr size_t MaxReplySz         = sizeof(bool)    ;
 		// services
-		bool/*ok*/ process(Record& r)       ;
-		::string   descr  (         ) const { return cat(Cmd,' ',files) ; }
+		bool/*ok*/ process(Record&         r        )       ;
+		::string   descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct Target : AccessBase {
@@ -169,8 +178,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true     ;
 		static constexpr size_t MaxReplySz         = 0        ;
 		// services
-		::monostate process(Record& r)       ;
-		::string    descr  (         ) const { return cat(Cmd,' ',files) ; }
+		::monostate process(Record&         r        )       ;
+		::string    descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct ChkDeps {
@@ -179,8 +188,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true          ;
 		static constexpr size_t MaxReplySz         = sizeof(Bool3) ;
 		// services
-		Bool3    process(Record& r)       ;
-		::string descr  (         ) const { return Cmd ; }
+		Bool3    process(Record& r                )       ;
+		::string descr  (::string const& reason={}) const { return cat(Cmd,reason) ; }
 		// data
 		Time::Delay delay = {}    ;
 		bool        sync  = false ;
@@ -192,8 +201,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = false  ;
 		static constexpr size_t MaxReplySz         = 1<<16  ; // well, not many clues to choose a good fit, 64k should be ok
 		// services
-		::vector_s process(Record& r)       ;
-		::string   descr  (         ) const ;
+		::vector_s process(Record& r                )       ;
+		::string   descr  (::string const& reason={}) const ;
 		// data
 		Bool3        write   = Maybe ;                        // No:deps, Yes:targets, Maybe:both
 		::optional_s dir     = {}    ;
@@ -206,8 +215,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true                      ;
 		static constexpr size_t MaxReplySz         = sizeof(::string)+PATH_MAX ;
 		// services
-		::string process(Record& r)       ;
-		::string descr  (         ) const { return cat("list root in ",dir) ; }
+		::string process(Record& r                )       ;
+		::string descr  (::string const& reason={}) const { return cat("list root",reason," in ",dir) ; }
 		// data
 		::string dir = {} ;
 	} ;
@@ -218,8 +227,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = false    ;
 		static constexpr size_t MaxReplySz         = 1<<16    ; // 64k is already a pretty comfortable size for values
 		// services
-		::string process(Record& r)       ;
-		::string descr  (         ) const ;
+		::string process(Record& r                )       ;
+		::string descr  (::string const& reason={}) const ;
 		// data
 		::string file = {} ;
 		::string ctx  = {} ;
@@ -232,8 +241,8 @@ namespace Backdoor {
 		static constexpr bool   ReliableMaxReplySz = true ;
 		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+sizeof(Hash::Crc)*2 ; // 2 digit per Crc byte
 		// services
-		::string process(Record& r)       ;
-		::string descr  (         ) const ;
+		::string process(Record& r                )       ;
+		::string descr  (::string const& reason={}) const ;
 		// data
 		::string file    = {} ;
 		::string ctx     = {} ;

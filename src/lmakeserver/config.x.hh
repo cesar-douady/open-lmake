@@ -177,7 +177,7 @@ namespace Engine {
 	struct Config : ConfigClean , ConfigStatic , ConfigDyn {
 		friend ::string& operator+=( ::string& , Config const& ) ;
 		// cxtors & casts
-		Config(                      ) = default ;
+		Config() = default ;
 		Config(Py::Dict const& py_map) ;
 		// accesses
 		bool operator+() const { return booted ; }

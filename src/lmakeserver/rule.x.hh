@@ -488,7 +488,7 @@ namespace Engine {
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
-		RuleData(                                        ) = default ;
+		RuleData() = default ;
 		RuleData( Special , ::string const& src_dir_s={} ) ;                                                                                    // src_dir in case Special is SrcDir
 		RuleData(::string_view str) {
 			serdes(str) ;
@@ -604,7 +604,7 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , RuleMatch const& ) ;
 		// cxtors & casts
 	public :
-		RuleMatch(                                                           ) = default ;
+		RuleMatch() = default ;
 		RuleMatch( Rule    r , ::vector_s const& ss                          ) : rule{r} , stems{ss} {}
 		RuleMatch( Job                                                       ) ;
 		RuleMatch( Rule    r , ::string const& job_name , Bool3 chk_psfx=Yes ) : RuleMatch{r,r->job_name_pattern,job_name,chk_psfx} {} // chk_psfx=Maybe means check size only
@@ -647,7 +647,7 @@ namespace Engine {
 		friend ::string& operator+=( ::string& , RuleTgt const ) ;
 		using Rep = Uint< NBits<RuleCrc> + NBits<VarIdx> > ;
 		//cxtors & casts
-		RuleTgt(                        ) = default ;
+		RuleTgt() = default ;
 		RuleTgt( RuleCrc rc , VarIdx ti ) : RuleCrc{rc} , tgt_idx{ti} {}
 		// accesses
 		Rep                operator+   (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx  ; }

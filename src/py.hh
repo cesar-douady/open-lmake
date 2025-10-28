@@ -148,7 +148,7 @@ namespace Py {
 		static Callable* s_dumps ;
 		static Callable* s_loads ;
 		// cxtors & casts
-		Ptr(               ) = default ;
+		Ptr() = default ;
 		Ptr(PyObject*     p) : ptr{from_py(p)            } {              } // steal ownership from argument
 		Ptr(Object const* o) : ptr{const_cast<Object*>(o)} { boost()    ; }
 		Ptr(Ptr    const& p) : ptr{p.ptr                 } { boost()    ; }
@@ -387,7 +387,7 @@ namespace Py {
 		using PtrItem  = ::conditional_t< C , Ptr<>    const , Ptr<>    > ;
 		using Item     = ::conditional_t< C , Object   const , Object   > ;
 		// cxtors & casts
-		SequenceIter(                       ) = default ;
+		SequenceIter() = default ;
 		SequenceIter(Iterable& i,bool at_end) : _item {::launder(reinterpret_cast<PtrItem*>(PySequence_Fast_ITEMS(i.to_py())))} { if (at_end) _item += i.size() ; }
 		// accesses
 		bool operator==(SequenceIter const&) const = default ;
@@ -485,7 +485,7 @@ namespace Py {
 		using Iterable = ::conditional_t< C , Dict   const , Dict   > ;
 		using Item     = ::conditional_t< C , Object const , Object > ;
 		// cxtors & casts
-		DictIter(           ) = default ;
+		DictIter() = default ;
 		DictIter(Iterable& i) : _iterable{&i},_pos{0} { _legalize() ; }
 		bool operator==(DictIter const&) const = default ;
 		// services

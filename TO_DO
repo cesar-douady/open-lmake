@@ -191,7 +191,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* implement UNIX sockets for local communication
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case
@@ -220,6 +219,10 @@ M port to Darwin
 	- to improve lmakeserver memory footprint
 ! find a way to serialize global dict
 	- like marshal, with functions
+? implement UNIX sockets for local communication
+	- unclear it brings any value now that we have local host address randomization
+	- UNIX sockets have been measured only marginally faster than IP sockets
+	- local host address randomization (using 127.x.y.z exluding 127.255.255.255) suppresses pressure on local port attribution
 ? ensure preference in cache entries to non-incremental jobs over incremental jobs
 	- when uploading
 ? evaluate dynamic deps only if static deps match
@@ -260,6 +263,7 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
+* add pointers to UT in doc
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 

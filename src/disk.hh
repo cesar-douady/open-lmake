@@ -177,7 +177,7 @@ namespace Disk {
 		using Action = _FileInfoAction ;
 		// cxtors & casts
 	public :
-		FileSig(                                                 ) = default ;
+		FileSig() = default ;
 		FileSig( Fd at                                           ) : FileSig{at     ,{}              } {}
 		FileSig(         ::string const& name , Action action={} ) : FileSig{Fd::Cwd,name,action     } {}
 		FileSig( Fd at , ::string const& name , Action action={} ) : FileSig{FileInfo(at,name,action)} {}
@@ -207,7 +207,7 @@ namespace Disk {
 		friend ::string& operator+=( ::string& , SigDate const& ) ;
 		using Pdate = Time::Pdate ;
 		// cxtors & casts
-		SigDate(                     ) = default ;
+		SigDate() = default ;
 		SigDate( NewType             ) :          date{New} {}
 		SigDate( FileSig s           ) : sig{s} , date{New} {}
 		SigDate(             Pdate d ) :          date{d  } {}
@@ -302,7 +302,7 @@ namespace Disk {
 
 	struct FileMap {
 		// cxtors & casts
-		FileMap(                        ) = default ;
+		FileMap() = default ;
 		FileMap( Fd , ::string const&   ) ;
 		FileMap(      ::string const& f ) : FileMap{Fd::Cwd,f} {}
 		bool operator+() const { return _ok ; }

@@ -53,7 +53,7 @@ namespace Time {
 		using TimeSpec = struct ::timespec                            ;
 		using TimeVal  = struct ::timeval                             ;
 		// cxtors & casts
-		constexpr          TimeBase(                  )                      = default ;
+		constexpr          TimeBase() = default ;
 		constexpr explicit TimeBase(int             v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
 		constexpr explicit TimeBase(long            v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
 		constexpr explicit TimeBase(uint            v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
@@ -161,7 +161,7 @@ namespace Time {
 		// cxtors & casts
 		explicit constexpr CoarseDelay( NewType , Val v ) : _val{v} {}
 	public :
-		constexpr CoarseDelay(       ) = default ;
+		constexpr CoarseDelay() = default ;
 		constexpr CoarseDelay(Delay d) {
 			if (!d._val) {
 				_val = 0 ;

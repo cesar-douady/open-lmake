@@ -47,11 +47,11 @@ namespace Backdoor {
 		return res ;
 	}
 
-	::string Enable::descr() const {
+	::string Enable::descr(::string const& reason) const {
 		switch (enable) {
-			case No    : return "disable autodep"   ;
-			case Yes   : return "enable autodep"    ;
-			case Maybe : return "get autodep state" ;
+			case No    : return cat("disable autodep"  ,reason) ;
+			case Yes   : return cat("enable autodep"   ,reason) ;
+			case Maybe : return cat("get autodep state",reason) ;
 		DF}
 	}
 
@@ -69,10 +69,10 @@ namespace Backdoor {
 		return {} ;
 	}
 
-	::string Regexpr::descr() const {
+	::string Regexpr::descr(::string const& reason) const {
 		const char* kind = +access_digest.write ? "target" : "dep" ;
-		if (files.size()==1) return cat(kind," regexpr " ,files[0]) ;
-		else                 return cat(kind," regexprs ",files   ) ;
+		if (files.size()==1) return cat(kind," regexpr" ,reason,' ',files[0]) ;
+		else                 return cat(kind," regexprs",reason,' ',files   ) ;
 	}
 
 	//
@@ -280,13 +280,14 @@ namespace Backdoor {
 		return res ;
 	}
 
-	::string List::descr() const {
+	::string List::descr(::string const& reason) const {
 		::string res = "list" ;
 		switch (write) {
 			case No    : res << " deps"                  ; break ;
 			case Yes   : res << " targets"               ; break ;
 			case Maybe : res << " both deps and targets" ; break ;
 		DF}
+		/**/          res << reason                           ;
 		if (+dir    ) res <<" in "                << *dir     ;
 		if (+regexpr) res <<" satisfying regexpr "<< *regexpr ;
 		return res ;
@@ -337,7 +338,7 @@ namespace Backdoor {
 			locked = true ;
 			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ; // if node exists, it contains the reply
 		} catch (::string const&) {                               // if node does not exist, create a code
-			if (locked) throw "cannot decode"s ;                  // if we could lock, it means codec db was initialized and code does not exist
+			if (locked) throw "code not found"s ;                 // if we could lock, it means codec db was initialized and code does not exist
 			JobExecRpcReq jerr {
 				.proc         = JobExecProc::DepDirect
 			,	.sync         = Yes
@@ -356,8 +357,8 @@ namespace Backdoor {
 		return res ;
 	}
 
-	::string Decode::descr() const {
-		return cat("decode in file ",file," with context ",ctx," code ",code) ;
+	::string Decode::descr(::string const& reason) const {
+		return cat("decode",reason," in file ",file," with context ",ctx," code ",code) ;
 	}
 
 	//
@@ -415,7 +416,7 @@ namespace Backdoor {
 					break ;
 				}
 				nfs_guard.flush() ;                                                                                                     // flush before lock is released
-				throw_unless( created , "no prefix available in file ",file," with context ",ctx," of length at least ",min_len," with checksum ",crc_str," for value ",val ) ;
+				throw_unless( created , "no code available" ) ;
 			}
 		}
 		ExtraDflags edf ; if (created) edf |= ExtraDflag::CreateEncode ;
@@ -424,8 +425,8 @@ namespace Backdoor {
 		return res ;
 	}
 
-	::string Encode::descr() const {
-		return cat("encode in file ",file," with context ",ctx," value of size ",val.size()) ;
+	::string Encode::descr(::string const& reason) const {
+		return cat("encode",reason," in file ",file," with context ",ctx," value of size ",val.size()," with checksum ",Crc(New,val).hex()) ;
 	}
 
 }

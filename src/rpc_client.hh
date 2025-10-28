@@ -214,7 +214,7 @@ struct ReqRpcReply {
 	friend ::string& operator+=( ::string& , ReqRpcReply const& ) ;
 	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
-	ReqRpcReply(                          ) = default ;
+	ReqRpcReply() = default ;
 	ReqRpcReply( Proc p , Rc         rc_  ) : proc{p} , rc {rc_         } { SWEAR( p==Proc::Status                                     ) ; }
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Stderr || p==Proc::Stdout ) ; }
 	//

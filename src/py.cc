@@ -27,7 +27,7 @@ namespace Py {
 
 	struct SaveExc {
 		// cxtors & casts
-		SaveExc (       ) = default ;
+		SaveExc () = default ;
 		SaveExc (NewType) { Gil::s_swear_locked() ; PyErr_Fetch  ( &exc , &val , &tb ) ; }
 		~SaveExc(       ) { Gil::s_swear_locked() ; PyErr_Restore(  exc ,  val ,  tb ) ; }
 		// data

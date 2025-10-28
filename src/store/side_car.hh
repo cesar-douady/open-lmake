@@ -26,7 +26,7 @@ namespace Store {
 		using Base::HasDataSz ;
 		using Base::size      ;
 		// cxtors
-		/**/                 SideCarFile(                                                        ) = default ;
+		/**/                 SideCarFile() = default ;
 		template<class... A> SideCarFile( NewType                              , A&&... hdr_args ) { init(New          ,::forward<A>(hdr_args)...) ; }
 		template<class... A> SideCarFile( ::string const& name , bool writable , A&&... hdr_args ) { init(name,writable,::forward<A>(hdr_args)...) ; }
 		template<class... A> void init( NewType , A&&... hdr_args ) {

@@ -141,7 +141,7 @@ namespace Engine {
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		friend ::string& operator+=( ::string& , JobTgt ) ;
 		// cxtors & casts
-		JobTgt(                                                                                   ) = default ;
+		JobTgt() = default ;
 		JobTgt( Job j , bool isp=false                                                            ) : Job{j} { if (+j) _set_is_static_phony(isp) ; } // if no job, ensure !sure()
 		JobTgt( RuleTgt rt , ::string const& t , Bool3 chk_psfx=Yes , Req req={} , DepDepth lvl=0 ) ;                                                // chk_psfx=Maybe means check size only
 		JobTgt( Rule::RuleMatch&& m , bool sure                     , Req req={} , DepDepth lvl=0 ) ;
@@ -177,7 +177,7 @@ namespace Engine {
 		} ;
 		// cxtors & casts
 	public :
-		JobExec(                                         ) = default ;
+		JobExec() = default ;
 		JobExec( Job j ,               Pdate s           ) : Job{j} ,           start_date{s} , end_date{s} {}
 		JobExec( Job j , in_addr_t h , Pdate s           ) : Job{j} , host{h} , start_date{s} , end_date{s} {}
 		JobExec( Job j ,               Pdate s , Pdate e ) : Job{j} ,           start_date{s} , end_date{e} {}

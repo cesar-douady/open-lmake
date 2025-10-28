@@ -16,7 +16,7 @@ private :
 	static Mutex<MutexLvl::Autodep> _s_mutex ;
 	// cxtors & casts
 public :
-	AutodepLock(                                 ) = default ;
+	AutodepLock() = default ;
 	AutodepLock(::vmap_s<DepDigest>* deps=nullptr) ;
 	//
 	~AutodepLock() ;

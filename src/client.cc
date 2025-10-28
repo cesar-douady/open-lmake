@@ -224,11 +224,14 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ; // /!\ must be after call to cb so INT can be blocked before creating threads
 	OMsgBuf().send(g_server_fds.out,rrr) ;
 	trace("started") ;
+	bool received = false ;                                                        // for trace only
 	try {
 		for(;;) {
+			received = false ;
 			ReqRpcReply rrr = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
+			received = true ;
 			switch (rrr.proc) {
-				case ReqRpcReplyProc::None   : trace("done"             ) ;                                         goto Return ;
+				case ReqRpcReplyProc::None   : trace("done"          ) ;                                            goto Return ;
 				case ReqRpcReplyProc::Status : trace("status",rrr.rc ) ; rc = rrr.rc ;                              goto Return ; // XXX! : why is it necessary to goto Return here ? ...
 				case ReqRpcReplyProc::File   : trace("file"  ,rrr.txt) ; SWEAR(files) ; files->push_back(rrr.txt) ; break       ; // ... we should receive None when server closes stream
 				case ReqRpcReplyProc::Stderr :
@@ -236,8 +239,9 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 			DF}                                                                                                                   // NO_COV
 		}
 	}
-	catch (::string const& e) { trace("disconnected",e) ; }
-	catch (...              ) { trace("disconnected"  ) ; }
+	catch (::string    const& e) { trace("disconnected1",STR(received),e       ) ; }
+	catch (::exception const& e) { trace("disconnected2",STR(received),e.what()) ; }
+	catch (...                 ) { trace("disconnected3",STR(received)         ) ; }
 Return :
 	trace("exiting") ;
 	cb(false/*start*/) ;

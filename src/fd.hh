@@ -145,8 +145,8 @@ inline bool is_blocked_sig(int sig) {
 inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
 inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot unblock sigs ",sigs) ; }
 struct BlockedSig {
-	BlockedSig (                         ) = default ;
-	BlockedSig (BlockedSig&&             ) = default ;                                         // copy is meaningless
+	BlockedSig (            ) = default ;
+	BlockedSig (BlockedSig&&) = default ;                                                      // copy is meaningless
 	BlockedSig (::vector<int> const& sigs) : blocked{       sigs } { block_sigs  (blocked) ; }
 	BlockedSig (::vector<int>     && sigs) : blocked{::move(sigs)} { block_sigs  (blocked) ; }
 	~BlockedSig(                         )                         { unblock_sigs(blocked) ; }
@@ -160,7 +160,7 @@ struct BlockedSig {
 
 template<class F> struct _Pipe {
 	// cxtors & casts
-	_Pipe(                                    ) = default ;
+	_Pipe() = default ;
 	_Pipe( NewType                            ) { open(             ) ; }
 	_Pipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
 	// services
@@ -247,8 +247,8 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 		E   data      (               ) const { return E       (::epoll_event::data.u64>>32) ; }
 	} ;
 	// cxtors & casts
-	Epoll(       ) = default ;
-	Epoll(NewType) { init () ; }
+	Epoll() = default ;
+	Epoll(NewType) { init() ; }
 	~Epoll() {
 		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
 	}
