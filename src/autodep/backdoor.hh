@@ -88,10 +88,10 @@ namespace Backdoor {
 		BackdoorErr         err       = BackdoorErr::InternalErr ;
 		::string            msg       ;
 		//
-		try { size_t pos = 0 ;        parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"") ; } catch (::string const& e) { msg=e ; goto Err ; }
-		try {                         cmd       =deserialize<T>(parsed)        ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
-		try { err=BackdoorErr::Fail ; reply.data=cmd.process(r)                ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
-		try {                         reply_str =serialize(reply)              ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
+		try { size_t pos=0 ; parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"parse args") ; } catch (::string const& e) {                         msg=e ; goto Err ; }
+		try {                cmd       =deserialize<T>(parsed)        ;                                                   } catch (::string const& e) {                         msg=e ; goto Err ; }
+		try {                reply.data=cmd.process(r)                ;                                                   } catch (::string const& e) { err=BackdoorErr::Fail ; msg=e ; goto Err ; }
+		try {                reply_str =serialize(reply)              ;                                                   } catch (::string const& e) {                         msg=e ; goto Err ; }
 		//
 		if (reply_str.size()>=sz) {                             // if reply does not fit, replace with a short reply that provides the necessary size and caller will retry
 			reply.ok  = false            ;

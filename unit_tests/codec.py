@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os
+
 if __name__!='__main__' :
 
 	import sys
@@ -28,7 +30,7 @@ if __name__!='__main__' :
 	class CodecPy(PyRule) :
 		target = r'{File:.*}_py'
 		def cmd() :
-			code = lmake.encode('codec_file','ctx',File+'_py\n',3)
+			code = lmake.encode( f'{os.getcwd()}/codec_file' , 'ctx' , File+'_py\n' , 3 ) # check absolute paths work
 			print(code)
 			print(lmake.decode('codec_file','ctx',code))
 			lmake.check_deps()
@@ -41,8 +43,6 @@ if __name__!='__main__' :
 			assert l[1]==File,f'{l[1]!r} != {File!r}'
 
 else :
-
-	import os
 
 	import ut
 
