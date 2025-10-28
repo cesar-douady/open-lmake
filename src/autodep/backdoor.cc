@@ -335,21 +335,21 @@ namespace Backdoor {
 	Retry :
 		try {
 			Codec::CodecLockedFd lock { rfd , file , false/*exclusive*/ , &nfs_guard } ;
-			locked = true ;
-			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ; // if node exists, it contains the reply
-		} catch (::string const&) {                               // if node does not exist, create a code
-			if (locked) throw "code not found"s ;                 // if we could lock, it means codec db was initialized and code does not exist
+			locked = true                                          ;
+			res    = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ; // if node exists, it contains the reply
+		} catch (::string const&) {                                  // if node does not exist, create a code
+			if (locked) throw "code not found"s ;                    // if we could lock, it means codec db was initialized and code does not exist
 			JobExecRpcReq jerr {
 				.proc         = JobExecProc::DepDirect
 			,	.sync         = Yes
 			,	.comment      = Comment::Decode
 			,	.comment_exts = CommentExt::Direct
-			,	.digest       {}                                  // access to node is reported separately
+			,	.digest       {}                                     // access to node is reported separately
 			,	.date         = New
 			,	.files        { {node,{}} }
 			} ;
-			r.report_sync(::move(jerr)) ;                         // if we could not lock, codec db was not initialized, DepDirect will remedy to this
-			locked = true ;                                       // dont loop
+			r.report_sync(::move(jerr)) ;                            // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+			locked = true ;                                          // dont loop
 			goto Retry/*BACKWARD*/ ;
 		}
 		r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{::move(node),{}}} } , true/*force*/ ) ;
@@ -358,7 +358,7 @@ namespace Backdoor {
 	}
 
 	::string Decode::descr(::string const& reason) const {
-		return cat("decode",reason," in file ",file," with context ",ctx," code ",code) ;
+		return cat("decode ",reason," code ",code," with context ",ctx," in file ",file) ;
 	}
 
 	//
@@ -426,7 +426,7 @@ namespace Backdoor {
 	}
 
 	::string Encode::descr(::string const& reason) const {
-		return cat("encode",reason," in file ",file," with context ",ctx," value of size ",val.size()," with checksum ",Crc(New,val).hex()) ;
+		return cat("encode",reason," value of size ",val.size()," with checksum ",Crc(New,val).hex()," with context ",ctx," in file ",file) ;
 	}
 
 }

@@ -26,6 +26,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* use git ls-files --stage to list files  under git
+	- and filter out 160000 files (submodules) to eliminate submodules that are not loaded
+* consider to differ sources checks
+	- check when used, not when lmake inits
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job

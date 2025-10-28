@@ -557,6 +557,11 @@ namespace Engine::Persistent {
 		size_t      repo_root_depth = 0                                                                 ; { for( char c : *g_repo_root_s ) repo_root_depth += c=='/' ; } repo_root_depth-- ;
 		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
 		RealPath    real_path      { rpe                                                              } ;
+		// user report done before analysis so manifest is available for investigation in case of error
+		{	::string content ;
+			for( ::string const& src : src_names ) content << src <<'\n' ;
+			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
+		}
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool is_dir_ = is_dir_name(src) ;

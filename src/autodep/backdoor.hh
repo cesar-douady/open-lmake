@@ -47,8 +47,9 @@ namespace Backdoor {
 	template<class T> using _Reply = decltype(::declval<T>().process(::declval<Record&>())) ;
 
 	template<class T> _Reply<T> call(T const& args) {
-		::string file = cat(MagicPfx,T::Cmd,'/',mk_printable(serialize(args))) ;
-		size_t   sz   = ::max( T::MaxReplySz , Expected<T>::MinSz ) + 1        ;                                       // +1 to distinguish truncation
+		static constexpr size_t ErrMsgSz = 1000 ;                                                                      // quite comfortable for an error message
+		::string file = cat(MagicPfx,T::Cmd,'/',mk_printable(serialize(args)))              ;
+		size_t   sz   = ::max( ErrMsgSz , ::max( T::MaxReplySz , Expected<T>::MinSz ) ) + 1 ;                          // +1 to distinguish truncation
 		for( int i=0 ;; i++ ) {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
@@ -58,9 +59,12 @@ namespace Backdoor {
 					case BackdoorErr::InternalErr : throw cat("internal error while "   ,args.descr()) ;
 					case BackdoorErr::Fail        : {
 						size_t pos = buf.find(char(0)) ;
-						if      (pos==0    ) throw cat("cannot ",args.descr(                               )) ;
-						else if (pos==Npos ) throw cat("cannot ",args.descr(" (unknown reason)"            )) ;
-						else                 throw cat("cannot ",args.descr(cat(" (",buf.substr(0,pos),')'))) ;
+						if (pos==Npos) {
+							if (sz>=4) buf.resize(sz-4) ;
+							/**/       buf += " ..." ;
+						}
+						if (pos==0) throw cat("cannot ",args.descr(                                    )) ;
+						else        throw cat("cannot ",args.descr(cat(" (",substr_view(buf,0,pos),')'))) ;
 					} break ;
 					case BackdoorErr::OfficialReadlinkErr : {
 						Lock lock { Record::s_mutex } ;
@@ -87,7 +91,7 @@ namespace Backdoor {
 		try { size_t pos = 0 ;        parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"") ; } catch (::string const& e) { msg=e ; goto Err ; }
 		try {                         cmd       =deserialize<T>(parsed)        ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
 		try { err=BackdoorErr::Fail ; reply.data=cmd.process(r)                ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
-		try {                         reply_str =serialize(reply )             ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
+		try {                         reply_str =serialize(reply)              ;                                         } catch (::string const& e) { msg=e ; goto Err ; }
 		//
 		if (reply_str.size()>=sz) {                             // if reply does not fit, replace with a short reply that provides the necessary size and caller will retry
 			reply.ok  = false            ;
