@@ -314,7 +314,6 @@ align.tok : _bin/align_comments $(filter-out lmake_env/ext_lnk,$(SRCS))
 			*.cc        ) c=//                                    ;;        \
 			*.hh        ) c=//                                    ;;        \
 			*.py        ) c='#'                                   ;;        \
-			*.script    ) c='#'                                   ;;        \
 			Makefile    ) c='#'                                   ;;        \
 			_bin/*      ) c='#'                                   ;;        \
 			unit_tests/*)                                         ;;        \
@@ -755,7 +754,6 @@ UT_SRCS := $(filter-out unit_tests/base/%,$(SRCS))
 
 UNIT_TESTS : \
 	$(patsubst %.py,%.dir/tok,     $(filter unit_tests/%.py,    $(UT_SRCS))) \
-	$(patsubst %.script,%.dir/tok, $(filter unit_tests/%.script,$(UT_SRCS))) \
 	$(patsubst %.dir/run,%.dir/tok,$(filter examples/%.dir/run ,$(UT_SRCS)))
 
 TEST_ENV = \
@@ -777,13 +775,6 @@ TEST_POSTLUDE = \
 	then ( if [ ! -f $(@D)/skipped ] ; then mv $@.out $@ ; else echo skipped $@ : $$(cat $(@D)/skipped) ; fi ) ; \
 	else ( cat $@.out $@.err ; exit 1                                                                        ) ; \
 	fi ;
-
-%.dir/tok : %.script $(LMAKE_FILES) $(UT_BASE) _bin/ut_launch
-	@echo script test to $@
-	@$(TEST_PRELUDE)
-	@for f in $(UT_BASE) ; do df=$(@D)/$${f#unit_tests/base/} ; mkdir -p $$(dirname $$df) ; cp $$f $$df ; done
-	@cd $(@D) ; find . -type f -printf '%P\n' > Manifest
-	@( $(TEST_ENV) ; cd $(@D) ; $(REPO_ROOT)/$< ) ; $(TEST_POSTLUDE)
 
 %.dir/tok : %.py $(LMAKE_FILES) _lib/ut.py
 	@echo py test to $@

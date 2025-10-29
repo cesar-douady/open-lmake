@@ -44,10 +44,10 @@ bad_target_dep = {
 ,	'/usr' : (
 		{ 'tgt':'x' , 'dep':'y' , 'ok':False }
 	,)
-,	'../base' : (
+,	'../ext' : (
 		{ 'tgt':'..{File}'   , 'dep':'../{File}'     , 'ok':True  }
 	,	{ 'tgt':'..x{File}'  , 'dep':'../x{File}'    , 'ok':False }
-	,	{ 'tgt':'..x{File}'  , 'dep':'../base{File}' , 'ok':True  }
+	,	{ 'tgt':'..x{File}'  , 'dep':'../ext{File}'  , 'ok':True  }
 	,	{ 'tgt':'....{File}' , 'dep':'../../{File}'  , 'ok':False }
 	,	{ 'tgt':'....{File}' , 'dep':'..//../{File}' , 'ok':False }
 	)
@@ -107,13 +107,18 @@ else :
 
 	import ut
 
+	os.makedirs('ext'      ,exist_ok=True)
+	os.makedirs('dut/LMAKE',exist_ok=True)
+	os.chdir('dut')
+	os.symlink( '../Lmakefile.py' , 'Lmakefile.py' )
+
 	for src_dir,lst in bad_target_dep.items() :
-		os.system('rm -rf LMAKE')
+		os.system(' rm -rf LMAKE ; mkdir LMAKE ')
 		for s in range(len(lst)) :
 			print(f'bad=True ; src_dir={src_dir!r} ; step={s}',file=open('step.py','w'))
 			ut.lmake( rc = 0 if lst[s]['ok'] else 8 )
 
-	os.system('rm -rf LMAKE')
+	os.system(' rm -rf LMAKE ; mkdir LMAKE ')
 	print(f'bad=False',file=open('step.py','w'))
 
 	ut.lmake( '11'        , bad_dep=1 , rc=1 )

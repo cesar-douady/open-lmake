@@ -47,7 +47,7 @@ private :
 		,	.l_len    = 1                                         // ensure a lock exists even if file is empty
 		,	.l_pid    = 0
 		} ;
-		while (::fcntl(fd,F_SETLKW,&lock)!=0) swear_prod( errno==EINTR , +self ) ;
+		while (::fcntl(fd,F_SETLKW,&lock)!=0) SWEAR_PROD( errno==EINTR , "cannot_lock",self,take,StrErr() ) ;
 	}
 } ;
 

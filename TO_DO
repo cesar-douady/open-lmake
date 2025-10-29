@@ -195,6 +195,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* move LMAKE/lmake/codec/<codec_file>/manifest to LMAKE/lmake/local_admin/codec/<codec_file>/manifest
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

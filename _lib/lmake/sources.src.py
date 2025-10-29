@@ -70,15 +70,15 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		submodules = run( (_git,'submodule','--quiet','foreach','--recursive','echo $toplevel/$sm_path') , abs_git_repo ) # less file accesses than git submodule status
 		submodules = [ sm[len(repo_root_s):] for sm in submodules if _osp.join(sm,'').startswith(repo_root_s) ]
 		try :
-			lines = [ l.split() for l in run((_git,'ls-files','--stage','--recurse-submodules')) ]
-			srcs  = { l[-1]     for l in lines if l[0]!='160000'                                 } # git ls-files lists uninitialized sub-modules that must be filtered out ...
-			for sm in submodules :                                                                 # ... and sometimes, it duplicates some files that must be uniquified
+			lines = [ l.split(None,3) for l in run((_git,'ls-files','--stage','--recurse-submodules')) ]
+			srcs  = { l[-1]     for l in lines if l[0]!='160000'                                       }                  # git ls-files lists uninitialized sub-modules that must be filtered out ...
+			for sm in submodules :                                                                                        # ... and sometimes, it duplicates some files that must be uniquified
 				sm_admin = _osp.join(sm,'.git')
 				if   _osp.isfile(sm_admin)         : srcs.add(sm_admin)
 				elif not ignore_missing_submodules : raise FileNotFoundError(f'cannot find {sm_admin}')
 		except _sp.CalledProcessError :
-			srcs = set(run((_git,'ls-files')))                                                     # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
-			for sm in submodules :                                                                 # proceed top-down so that srcs includes its sub-modules
+			srcs = set(run((_git,'ls-files'))) # old versions of git ls-files (e.g. 1.8) do not support the --recurse-submodules option
+			for sm in submodules :             # proceed top-down so that srcs includes its sub-modules
 				srcs.remove(sm)
 				try :
 					sub_srcs = run( (_git,'ls-files') , repo_root_s+sm  )
@@ -89,11 +89,11 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 					if not ignore_missing_submodules : raise
 	else :
 		srcs = set(run((_git,'ls-files')))
-	srcs = sorted(srcs)                                                                            # avoid random order
+	srcs = sorted(srcs)                        # avoid random order
 	#
 	#  update source_dirs
 	#
-	dot_git = _osp.join(abs_git_repo,'.git')                                                       # dot_git may be the git directory or a file containing the name of the git directory
+	dot_git = _osp.join(abs_git_repo,'.git')   # dot_git may be the git directory or a file containing the name of the git directory
 	if _osp.isdir(dot_git) :
 		rel_git_dir_s = rel_git_repo_s + '.git/'
 	else :
