@@ -72,5 +72,5 @@ else :
 	for backend in backends :
 		ut.lmake( f'all_{backend}_{n}'     , done=n   , may_rerun=n+1 , was_done=n+1 )
 	if not lmake.Autodep.IsFake :
-		ut.lmake( f'all_local_verbose_{n}' , done=n+1 , may_rerun=  1                )
+		ut.lmake( f'all_local_verbose_{n}' , done=n+1 , rerun    =  1                )
 		ut.lmake( f'multi_{n}_{p}'         , done=p   , may_rerun=  1 , was_done=  1 )

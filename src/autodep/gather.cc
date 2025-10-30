@@ -328,7 +328,7 @@ Status Gather::exec_child() {
 	PD                       end_heartbeat         = PD::Future  ;                                       // heartbeat to probe server when waiting for it
 	bool                     timeout_fired         = false       ;
 	size_t                   kill_step             = 0           ;
-	bool                     dep_unstable_reported = true        ;
+	bool                     dep_unstable_reported = false       ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} )->void {
 		if (status==Status::New) status = status_ ;                                                   // only record first status
