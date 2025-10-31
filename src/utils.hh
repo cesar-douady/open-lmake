@@ -115,6 +115,12 @@ enum class Rc : uint8_t {
 } ;
 
 //
+// basic miscelaneous
+//
+
+::string const& host() ;
+
+//
 // string
 //
 
@@ -525,7 +531,7 @@ struct NfsGuard ;
 
 struct _FdAction {
 	int       flags     = O_RDONLY ;
-	mode_t    mod       = 0        ;
+	mode_t    mod       = -1       ;                                                                          // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      err_ok    = false    ;
 	PermExt   perm_ext  = {}       ;
 	bool      no_std    = false    ;
@@ -554,8 +560,8 @@ public :
 	Fd( Fd at , const char*     file , Action action={} ) : Fd{ at  , ::string(file) , action            } {} // ensure no confusion
 	Fd(         const char*     file , Action action={} ) : Fd{       ::string(file) , action            } {} // .
 	//
-	constexpr operator int  () const { return fd    ; }
-	constexpr bool operator+() const { return fd>=0 ; }
+	constexpr operator int  () const { return fd                    ; }
+	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                                       // other negative values are used to spawn processes
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
@@ -568,6 +574,7 @@ public :
 	/**/      Fd                dup        (                             ) const { return ::dup(fd) ;                     }
 	constexpr Fd                detach     (                             )       { Fd res = self ; fd = -1 ; return res ; }
 	constexpr void              close      (                             )       ;
+	/**/      bool              is_std     (                             ) const { return fd>=0 && fd<Std.fd            ; }
 	/**/      void              no_std     (                             )       ;
 	/**/      void              cloexec    (bool          set       =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
 	constexpr size_t            hash       (                             ) const { return fd ;                            }
@@ -609,12 +616,20 @@ struct AcFd : Fd {
 } ;
 
 struct FileSpec {
-	FileSpec( Fd at_ , ::string const& file_ ) : at{at_},file{       file_ } {} // XXX/ : necessary for clang
-	FileSpec( Fd at_ , ::string     && file_ ) : at{at_},file{::move(file_)} {} // .
+	friend ::string& operator+=( ::string& , FileSpec const& ) ;
+	// cxtors & casts
+	FileSpec() = default ;
+	FileSpec( Fd at_ , ::string const& file_ ) : at{at_    },file{       file_ } {}
+	FileSpec( Fd at_ , ::string     && file_ ) : at{at_    },file{::move(file_)} {}
+	FileSpec(          ::string const& file_ ) : at{Fd::Cwd},file{       file_ } {}
+	FileSpec(          ::string     && file_ ) : at{Fd::Cwd},file{::move(file_)} {}
+	// accesses
+	bool operator+() const { return +at ; }
+	// services
 	bool operator==(FileSpec const&) const = default ;
 	size_t hash() const ;
 	// data
-	Fd       at   = Fd::Cwd ;
+	Fd       at   ;
 	::string file ;
 } ;
 
@@ -651,6 +666,14 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case FileSync::None :                break ;
 			case FileSync::Dir  : emplace<1>() ; break ;
 			case FileSync::Sync : emplace<2>() ; break ;
+		DF}
+	}
+	// accesses
+	FileSync file_sync() const {
+		switch (index()) {                                                                   // PER_FILE_SYNC : add entry here
+			case 0 : return FileSync::None ;
+			case 1 : return FileSync::Dir  ;
+			case 2 : return FileSync::Sync ;
 		DF}
 	}
 	// services
@@ -697,14 +720,112 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 } ;
 
 //
+// FileLock
+//
+
+// several methods are implemented :
+// - fd based
+//   - using fcntl
+//   - using flock
+// - file based
+//   - using O_CREAT|O_EXCL options in open
+//   - creating a tmp file and using link to create the lock
+//   - using mkdir
+// dont know yet which are faster and which actually work even under heavy loads
+
+struct _FileLockAction {
+	bool    err_ok   = false ; // ok if the lock cannot be created
+	PermExt perm_ext = {}    ; // used for fd based to ensure lock file can be adequately accessed
+} ;
+
+//
+// fd based locks
+//
+struct _LockerFd {
+	using Action = _FileLockAction ;
+	// cxtors & casts
+	_LockerFd( FileSpec const& fs , Action a={} ) : fd{ fs.at , fs.file , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.perm_ext=a.perm_ext} } {}
+	// services
+	void lock() = delete ; // must be provided by child
+	// data
+	AcFd fd ;
+} ;
+struct _LockerFcntl : _LockerFd {
+	using _LockerFd::_LockerFd ;
+	void lock() ;
+} ;
+struct _LockerFlock : _LockerFd {
+	using _LockerFd::_LockerFd ;
+	void lock() ;
+} ;
+template<class Locker> struct _FileLockFd : Locker {
+	using typename Locker::Action ;
+	using          Locker::lock   ;
+	using          Locker::fd     ;
+	// cxtors & casts
+	_FileLockFd() = default ;
+	_FileLockFd( Fd at , ::string const& f , Action a={} ) : Locker{{at,f},a} {
+		if (!fd) return ;
+		lock() ;
+	}
+} ;
+
+//
+// file based locks
+//
+struct _LockerFile {
+	using Action = _FileLockAction ;
+	// cxtors & casts
+	_LockerFile(FileSpec const& fs) : spec{fs.at,fs.file+"_tmp"} {} // use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
+	// services
+	Bool3/*ok*/ try_lock() = delete ;                              // must be provided by child
+	// data
+	FileSpec spec ;
+} ;
+struct _LockerExcl : _LockerFile {
+	static constexpr bool IsDir = false ;
+	using _LockerFile::_LockerFile ;
+	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
+} ;
+struct _LockerLink : _LockerFile {
+	static constexpr bool IsDir = false ;
+	using _LockerFile::_LockerFile ;
+	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
+	// data
+	::string tmp ;
+} ;
+struct _LockerMkdir : _LockerFile {
+	static constexpr bool IsDir = true ;
+	using _LockerFile::_LockerFile ;
+	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
+} ;
+template<class Locker> struct _FileLockFile : Locker {
+	using typename Locker::Action   ;
+	using          Locker::IsDir    ;
+	using          Locker::try_lock ;
+	using          Locker::spec     ;
+	// cxtors & casts
+	_FileLockFile( Fd at , ::string const& f , Action action ) ;
+	~_FileLockFile() {
+		if (!spec.at) return ;
+		int rc = ::unlinkat( spec.at , spec.file.c_str() , IsDir?AT_REMOVEDIR:0 ) ; SWEAR( rc==0 , spec ) ;
+	}
+} ;
+
+//
+// actual class to be used
+//
+struct FileLock : ::variant< ::monostate , _FileLockFd<_LockerFcntl> , _FileLockFd<_LockerFlock> , _FileLockFile<_LockerExcl> , _FileLockFile<_LockerLink> , _FileLockFile<_LockerMkdir> > {
+	using Action = _FileLockAction ;
+	FileLock( FileSync    , Fd at , ::string const& file , Action  ={} ) ;
+	FileLock( FileSync fs ,         ::string const& f    , Action a={} ) : FileLock{fs,Fd::Cwd,f,a} {}
+} ;
+
+//
 // miscellaneous
 //
 
-inline ::string file_msg( Fd at , ::string file ) {
-	if      (at==Fd::Cwd) return                   file  ;
-	else if (+at        ) return cat('@',at.fd,':',file) ;
-	else                  return cat("@<nowhere>:",file) ;
-}
+::string file_msg( Fd at , ::string const& file ) ;
 
 inline bool has_env(::string const& name) {
 	return ::getenv(name.c_str()) ;
@@ -838,7 +959,7 @@ inline constexpr void Fd::close() {
 }
 
 inline void Fd::no_std() {
-	if ( !self || fd>Std.fd ) return ;
+	if (!is_std()) return ;
 	int new_fd = ::fcntl( fd , F_DUPFD_CLOEXEC , Std.fd+1 ) ;
 	swear_prod(new_fd>Std.fd,"cannot duplicate",fd) ;
 	close() ;

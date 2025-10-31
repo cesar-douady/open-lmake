@@ -22,22 +22,12 @@ static constexpr bool ReuseAddr = true ; // XXX : need to do some trials to know
 
 StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
-::string& operator+=( ::string& os , LockedFd     const& fd ) { return fd.append_to_str(os,"LockedFd"    ) ; } // NO_COV
 ::string& operator+=( ::string& os , SockFd       const& fd ) { return fd.append_to_str(os,"SockFd"      ) ; } // NO_COV
 ::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return fd.append_to_str(os,"SlaveSockFd" ) ; } // NO_COV
 ::string& operator+=( ::string& os , ServerSockFd const& fd ) { return fd.append_to_str(os,"ServerSockFd") ; } // NO_COV
 ::string& operator+=( ::string& os , ClientSockFd const& fd ) { return fd.append_to_str(os,"ClientSockFd") ; } // NO_COV
 ::string& operator+=( ::string& os , EventFd      const& fd ) { return fd.append_to_str(os,"EventFd"     ) ; } // NO_COV
 ::string& operator+=( ::string& os , SignalFd     const& fd ) { return fd.append_to_str(os,"SignalFd"    ) ; } // NO_COV
-
-::string const& host() {
-	static ::string s_host = []()->::string {
-		char buf[HOST_NAME_MAX+1] ;
-		int  rc                   = ::gethostname( buf , sizeof(buf) ) ; SWEAR( rc==0 , errno ) ;
-		return buf ;
-	}() ;
-	return s_host ;
-}
 
 ::string const& fqdn() {
 	static ::string s_fqdn = []() {

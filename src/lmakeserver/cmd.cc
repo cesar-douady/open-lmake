@@ -96,7 +96,7 @@ namespace Engine {
 				{	/**/                         if ((key=ignore(target))         ) goto Keep       ;
 					Node    n  { target }      ; if (!n                           ) goto Quarantine ;
 					/**/                         if (n->buildable==Buildable::Src ) goto Keep       ;
-					/**/                         if (n->date.sig!=FileSig(target) ) goto Quarantine ;
+					/**/                         if (n->sig.sig!=FileSig(target)  ) goto Quarantine ;
 					Job     j  = n->actual_job ; if (!j                           ) goto Quarantine ;
 					RuleCrc rc = j->rule_crc   ; if (!rc                          ) goto Quarantine ;
 					/**/                         if (rc->state>RuleCrcState::CmdOk) goto Unlnk      ;
@@ -107,8 +107,8 @@ namespace Engine {
 				continue ;
 			Quarantine :
 				try {
-					if (!dry_run) rename( QuarantineDirS+target/*dst*/ , target/*src*/ ) ;
-					audit( fd , ro ,              cat("quarantine "                      ,mk_file(target)) ) ;
+					if (!dry_run) rename( target/*src*/ , QuarantineDirS+target/*dst*/ ) ;
+					audit( fd , ro ,              cat("quarantine "               ,mk_file(target)) ) ;
 				} catch (::string const& e) {
 					audit( fd , ro , Color::Err , cat("cannot quarantine (",e,") ",mk_file(target)) ) ;
 				}
@@ -1271,7 +1271,7 @@ namespace Engine {
 						if      (+n->asking) entries.push_back({ porcelaine?"required_by":"required by" , {Job(n->asking)->name(),{}} }) ;
 						else if (n!=target ) entries.push_back({ porcelaine?"required_by":"required by" , {    n         ->name(),{}} }) ;
 						if (target->is_src_anti()) {
-							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->date.sig ) c = Color::Warning ;
+							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->sig.sig ) c = Color::Warning ;
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
 							if (verbose) entries.push_back({ "checksum" , {::string(target->crc)               ,c } }) ;

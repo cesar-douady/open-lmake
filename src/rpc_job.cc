@@ -817,7 +817,7 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 		deps.emplace_back(dst,MountAction::Access) ;
 	} else if (+src) {
 		/**/                        deps.emplace_back(src,MountAction::Read ) ;
-		if ((dst_ok=+cpy(dst,src))) deps.emplace_back(dst,MountAction::Write) ;
+		if ((dst_ok=+cpy(src,dst))) deps.emplace_back(dst,MountAction::Write) ;
 		else                        dst_ok = false ;
 	} else {
 		AcFd fd { dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} } ;

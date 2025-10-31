@@ -180,7 +180,7 @@ namespace Engine {
 			else if (                       !incremental            ) fat = FileActionTag::Unlink         ; // wash non-polluted non-incremental
 			else                                                      fat = FileActionTag::Uniquify       ;
 			//
-			FileAction fa { .tag=fat , .tflags=t.tflags , .crc=t->crc , .sig=t->date.sig } ;
+			FileAction fa { .tag=fat , .tflags=t.tflags , .crc=t->crc , .sig=t->sig.sig } ;
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
@@ -780,7 +780,7 @@ namespace Engine {
 		//
 		_read_manifest  ( file_name ,                     /*out*/old_decode_tab ) ;
 		_read_codec_file( file_name , /*out*/decode_tab , /*out*/has_new_codes  ) ;
-		if (has_new_codes==No) {                                                            // codes are strictly increasing and hence no code conflict
+		if (has_new_codes==No) {                                                                                                    // codes are strictly increasing and hence no code conflict
 			deps.assign({Dep( file , Access::Reg , FileInfo(file_name) , false/*err*/ )}) ;
 		} else {
 			Crc file_crc = _refresh_codec_file( file_name , decode_tab ) ;
@@ -793,13 +793,15 @@ namespace Engine {
 			case Yes   : req->audit_job( Color::Note , New , "update"   , rule() , file_name ) ; break ;
 		}
 		auto create = [&]( CodecFile const& codec_file , ::string const& val , bool clean ) {
-			::string node_name = codec_file.name()    ;
-			NodeData& nd       = *Node(New,node_name) ;
+			::string node_name     = codec_file.name()    ;
+			::string tmp_node_name = node_name+".tmp"     ;
+			NodeData& nd           = *Node(New,node_name) ;
 			//
 			if (!clean) unlnk(node_name) ;
-			AcFd( node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard} ).write( val ) ;
-			nd.set_buildable()                                                                                 ;
-			nd.set_crc_date( Crc(node_name) , FileSig(node_name) )                                             ;
+			AcFd( tmp_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard} ).write( val ) ; // ensure node_name is always correct when it exists as there is no read lock
+			rename( tmp_node_name/*src*/ , node_name/*dst*/ )                                                      ; // .
+			nd.set_buildable()                                                                                     ;
+			nd.set_crc_date( Crc(node_name) , FileSig(node_name) )                                                 ;
 			//
 			nd.polluted      = {}                                                    ;
 			nd.actual_job    = job                                                   ;
@@ -817,10 +819,9 @@ namespace Engine {
 			nd.actual_job    = {} ;
 			nd.actual_tflags = {} ;
 		} ;
-		::string      lock_file = CodecFile::s_lock_file(file_name) ;
-		::string      manifest  ;
-		CodecLockedFd lock      ;                                     try { lock = CodecLockedFd(lock_file,&nfs_guard) ; } catch (::string const&) {} // if lock_file does not exist, jobs do ...
-		for( auto const& [ctx,d_entry] : decode_tab ) {                                                                                               // ... not access db, so no need to lock
+		::string  manifest  ;
+		CodecLock lock      = CodecLock( file_name , true/*err_ok*/ , &nfs_guard ) ; // if we cannot lock, jobs do not access db, so no need to lock
+		for( auto const& [ctx,d_entry] : decode_tab ) {
 			::umap_s<Crc>&       old_d_entry = old_decode_tab[ctx] ;
 			::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
 			manifest << mk_printable(ctx) <<'\n' ;
@@ -838,10 +839,9 @@ namespace Engine {
 			}
 			for( auto const& [code,_] : old_d_entry ) erase({false/*encode*/,file_name,ctx,code}) ;
 			for( auto const& [crc ,_] : old_e_entry ) erase({                file_name,ctx,crc }) ;
-		} //!                                                                                mod
-		/**/       AcFd ( CodecFile::s_manifest_file (file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666} ).write( manifest ) ;
-		if (!lock) AcFd ( lock_file                              , {O_WRONLY|O_CREAT|O_TRUNC,0666} )                   ;
-		/**/       unlnk( CodecFile::s_new_codes_file(file_name) , {.nfs_guard=&nfs_guard} ) ;
+		}
+		AcFd ( CodecFile::s_manifest_file (file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( manifest ) ;
+		unlnk( CodecFile::s_new_codes_file(file_name) , {.nfs_guard=&nfs_guard} ) ;
 		status = Status::Ok ;
 	}
 
@@ -868,11 +868,11 @@ namespace Engine {
 				for( Target t : targets() ) {
 					::string    tn = t->name()         ;
 					SpecialStep ss = SpecialStep::Idle ;
-					if (!( t->crc.valid() && FileSig(tn,{.nfs_guard=&nfs_guard})==t->date.sig )) {
+					if (!( t->crc.valid() && FileSig(tn,{.nfs_guard=&nfs_guard})==t->sig.sig )) {
 						FileSig sig  ;
 						Crc   crc { tn , /*out*/sig } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
-						Trace trace( "frozen" , t->crc ,"->", crc , t->date ,"->", sig ) ;
+						Trace trace( "frozen" , t->crc ,"->", crc , t->sig ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 						t->set_crc_date( crc , {sig,{}} ) ;        // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

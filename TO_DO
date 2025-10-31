@@ -26,6 +26,10 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* replace cache/LMAKE/size by cache/LMAKE/config
+	- put size and file_sync in it
+	- load when reading Lmakefile.py
+	- try to find a mechanism to auto clean lock file when going from fnctl to file based
 * use git ls-files --stage to list files  under git
 	- and filter out 160000 files (submodules) to eliminate submodules that are not loaded
 * consider to differ sources checks
@@ -76,6 +80,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* use a File struct instead of at/file
+	- implement File and FileView classes to avoid too many copies
+	- everywhere applicable
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -105,9 +112,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- getpwname_r
 	- getpwuid
 	- getpwuid_r
-? use a Path struct instead of at/file
-	- everywhere applicable
-	- possibly too expensive performance wise
 ? if a job cannot connect to job_exec to report deps
 	- note fact in a marker file
 		- exit with error is not enough as it could be hidden by the job itself if in a sub-process
@@ -119,6 +123,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * implement codec table in cache
+	- consider such a table as soon as codec file is a dir (ends with /)
+	- check codec files are local and codec dirs are not
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
@@ -196,6 +202,8 @@ M port to Darwin
 ****************************************************************************************************
 
 * move LMAKE/lmake/codec/<codec_file>/manifest to LMAKE/lmake/local_admin/codec/<codec_file>/manifest
+* optimize JobData::_submit_codec
+	- in case codec dir does not exist, create the whole dir as tmp and globally move dir instead of moving each created file
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case
@@ -276,9 +284,8 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* pass all tests in python
-	- suppress .script tests
-	- use named pipes rather than time to order events
+* test codec errors
+	- including non existent codec files
 * test system_tag
 ! add a unit_test to validate max_retries_on_lost
 ! idx overflow

@@ -161,7 +161,7 @@ namespace Codec {
 		friend ::string& operator+=( ::string& , CodecFile const& ) ;
 		// statics
 		static bool     s_is_codec      (::string const& node) { return node.starts_with(Pfx)     ; }
-		static ::string s_lock_file     (::string const& file) { return cat(Pfx,file,LockSfx    ) ; }
+		static ::string s_dir_s         (::string const& file) { return cat(Pfx,file,'/'        ) ; }
 		static ::string s_manifest_file (::string const& file) { return cat(Pfx,file,ManifestSfx) ; }
 		static ::string s_new_codes_file(::string const& file) { return cat(Pfx,file,NewCodesSfx) ; }
 		// cxtors & casts
@@ -191,22 +191,15 @@ namespace Codec {
 
 	// this lock ensures correct operation even in case of crash
 	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
-	struct CodecLockedFd : LockedFd {
+	struct CodecLock : FileLock {
 		// ctxors & casts
-		CodecLockedFd () = default ;
-		CodecLockedFd ( Fd at , ::string const& file , bool exclusive , NfsGuard*    ) ;
-		CodecLockedFd (         ::string const& file , bool exclusive , NfsGuard* ng ) : CodecLockedFd{Fd::Cwd,file,exclusive,ng} {}
-		CodecLockedFd ( Fd at , ::string const& file ,                  NfsGuard* ng ) : CodecLockedFd{at     ,file,true     ,ng} {}
-		CodecLockedFd (         ::string const& file ,                  NfsGuard* ng ) : CodecLockedFd{Fd::Cwd,file,true     ,ng} {}
-		~CodecLockedFd() { _close() ; }
-		//
-		CodecLockedFd& operator=(CodecLockedFd&& clfd) {
-			_close() ;
-			static_cast<LockedFd&>(self) = ::move(static_cast<LockedFd&>(clfd     )) ;
-			at                           =                               clfd.at     ;
-			file                         = ::move(                       clfd.file ) ;
-			return self ;
-		}
+		CodecLock ( Fd at , ::string const& file , bool err_ok=false , NfsGuard* ng=nullptr ) ;
+		CodecLock (         ::string const& file , bool err_ok=false , NfsGuard* ng=nullptr ) : CodecLock{Fd::Cwd,file,err_ok,ng} {}
+		CodecLock ( Fd at , ::string const& file ,                     NfsGuard* ng         ) : CodecLock{at     ,file,false ,ng} {}
+		CodecLock (         ::string const& file ,                     NfsGuard* ng         ) : CodecLock{Fd::Cwd,file,false ,ng} {}
+		~CodecLock() { _close() ; }
+		// accesses
+		bool operator+() const { return +at ; }
 		// sevices
 		void _close() ;
 		// data

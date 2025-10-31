@@ -36,13 +36,11 @@ pid_t get_ppid(pid_t pid) {
 	::string status_file = cat("/proc/",pid,"/status") ;
 	::string status      = AcFd(status_file).read()    ;
 	//
-	size_t start = status.find("\nPPid:") ;
-	throw_unless( start!=Npos , "bad format in ",status_file ) ;
+	size_t start = status.find("\nPPid:") ; throw_unless( start!=Npos , "bad format in ",status_file ) ;
 	start += strlen("\nPPid:") ;
 	while (is_space(status[start])) start++ ;
 	//
-	size_t end = status.find('\n',start) ;
-	throw_unless( end!=Npos , "bad format in ",status_file ) ;
+	size_t end = status.find('\n',start) ; throw_unless( end!=Npos , "bad format in ",status_file ) ;
 	//
 	try         { return from_string<pid_t>(substr_view( status , start , end-start )) ; }
 	catch (...) { throw cat("bad format in ",status_file)                              ; }
@@ -67,10 +65,10 @@ pid_t get_umask() {
 	return res ;
 }
 
-[[noreturn]] void Child::_exit( Rc rc , const char* msg ) { // signal-safe
-	if (msg) {
+[[noreturn]] void Child::_exit( Rc rc , const char* msg ) {                                // signal-safe
+	if (msg) {                                                                             // msg contains terminating null
 		bool ok = true ;
-		ok &= ::write(2,msg,::strlen(msg))>=0 ;             // /!\ cannot use high level I/O because we are only allowed signal-safe functions. Msg contains terminating null
+		ok &= ::write(2,msg,::strlen(msg))>=0 ;                                            // /!\ cannot use high level I/O because we are only allowed signal-safe functions
 		if (_child_args) {
 			ok &= ::write(2," :",2)>=0 ;                                                   // .
 			for( const char* const* p=_child_args ; *p ; p++ ) {
@@ -107,7 +105,7 @@ pid_t get_umask() {
 			catch (::string const&e) { nice_val = ::nice(nice) ;                                                 } // best effort
 	}
 	//
-	sigset_t full_mask ; ::sigfillset(&full_mask) ;                          // sig fillset may be a macro
+	sigset_t full_mask ; sigfillset(&full_mask) ;                            // sigfillset may be a macro
 	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                // restore default behavior
 	//
 	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage

@@ -154,7 +154,7 @@ namespace Engine::Makefiles {
 	}
 
 	static void _stamp_deps(Action action) {
-		try                       { rename( _deps_file(action,false/*new*/)/*dst*/ , _deps_file(action,true/*new*/) ) ; }
+		try                       { rename( _deps_file(action,true/*new*/) , _deps_file(action,false/*new*/)/*dst*/ ) ; }
 		catch (::string const& e) { fail_prod("cannot stamp deps : ",e) ;                                               }
 	}
 

@@ -135,7 +135,7 @@ int main( int argc , char* /*argv*/[] ) {
 			mk_lad() ;
 			exit(Rc::BadState,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
 		}
-		try                       { rename( admin_dir/*dst*/ , bck_admin_dir/*src*/ ) ; }
+		try                       { rename( bck_admin_dir/*src*/ , admin_dir/*dst*/ ) ; }
 		catch (::string const& e) { fail_prod(e) ;                                      }
 	}
 	if (!is_dir_s(cat(PrivateAdminDirS,"local_admin/job_data/"))) exit(Rc::Fail,"nothing to repair") ;
@@ -148,7 +148,7 @@ int main( int argc , char* /*argv*/[] ) {
 	Record::s_static_report = true           ;
 	Record::s_autodep_env(ade) ;
 	//
-	try                       { rename( bck_admin_dir/*dst*/ , admin_dir/*src*/ ) ; }
+	try                       { rename( admin_dir/*src*/ , bck_admin_dir/*dst*/ ) ; }
 	catch (::string const& e) { fail_prod(e) ;                                      }
 	//
 	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker

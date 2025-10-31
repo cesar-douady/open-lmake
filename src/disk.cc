@@ -319,7 +319,7 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , NfsGuard* nfs_guard ) {
+	FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , NfsGuard* nfs_guard ) {
 		FileInfo fi  { src_at , src_file } ;
 		FileTag  tag = fi.tag()            ;
 		//
@@ -345,7 +345,7 @@ namespace Disk {
 		return tag ;
 	}
 
-	void rename( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , NfsGuard* nfs_guard ) {
+	void rename( Fd src_at,::string const& src_file , Fd dst_at,::string const& dst_file , NfsGuard* nfs_guard ) {
 		int first = true ;
 		if (nfs_guard) {
 			nfs_guard->update(src_at,src_file) ;

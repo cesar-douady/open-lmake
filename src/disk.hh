@@ -208,10 +208,7 @@ namespace Disk {
 		using Pdate = Time::Pdate ;
 		// cxtors & casts
 		SigDate() = default ;
-		SigDate( NewType             ) :          date{New} {}
-		SigDate( FileSig s           ) : sig{s} , date{New} {}
-		SigDate(             Pdate d ) :          date{d  } {}
-		SigDate( FileSig s , Pdate d ) : sig{s} , date{d  } {}
+		SigDate( FileSig s , Pdate d=New ) : sig{s} , date{d  } {}
 		// accesses
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
@@ -290,15 +287,15 @@ namespace Disk {
 		return with_slash(cwd) ;                               // cwd is "/" not empty when at root dir, so dont simply append '/'
 	}
 
-	/**/   FileTag cpy( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , NfsGuard*          =nullptr ) ;
-	inline FileTag cpy(             ::string const& df       , Fd sat    , ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,df,sat    ,sf,nfs_guard) ; }
-	inline FileTag cpy( Fd dat    , ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { return cpy(dat    ,df,Fd::Cwd,sf,nfs_guard) ; }
-	inline FileTag cpy(             ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,df,Fd::Cwd,sf,nfs_guard) ; }
+	/**/   FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , NfsGuard*          =nullptr ) ;
+	inline FileTag cpy( Fd sat    , ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { return cpy(sat    ,sf,Fd::Cwd,df,nfs_guard) ; }
+	inline FileTag cpy(             ::string const& sf       , Fd dat    , ::string const& df       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,sf,dat    ,df,nfs_guard) ; }
+	inline FileTag cpy(             ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,sf,Fd::Cwd,df,nfs_guard) ; }
 
-	/**/   void rename( Fd dst_at , ::string const& dst_file , Fd src_at , ::string const& src_file , NfsGuard*          =nullptr ) ;
-	inline void rename(             ::string const& df       , Fd sat    , ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,df,sat    ,sf,nfs_guard) ; }
-	inline void rename( Fd dat    , ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { rename(dat    ,df,Fd::Cwd,sf,nfs_guard) ; }
-	inline void rename(             ::string const& df       ,             ::string const& sf       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,df,Fd::Cwd,sf,nfs_guard) ; }
+	/**/   void rename( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , NfsGuard*          =nullptr ) ;
+	inline void rename( Fd sat    , ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { rename(sat    ,sf,Fd::Cwd,df,nfs_guard) ; }
+	inline void rename(             ::string const& sf       , Fd dat    , ::string const& df       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,sf,dat    ,df,nfs_guard) ; }
+	inline void rename(             ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,sf,Fd::Cwd,df,nfs_guard) ; }
 
 	struct FileMap {
 		// cxtors & casts

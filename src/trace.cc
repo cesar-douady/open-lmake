@@ -59,9 +59,9 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		if (!s_channels   ) return ; // nothing to trace
 		if (!*g_trace_file) return ; // nowhere to trace to
 		if (s_backup_trace) {
-			::string prev_old ;
-			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) try { rename( prev_old , old           ) ; } catch (::string const&) {} prev_old = ::move(old) ; }
-			/**/                                                            if (+prev_old) try { rename( prev_old , *g_trace_file ) ; } catch (::string const&) {}
+			::string prev_old ; //                                                                       src             dst
+			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) try { rename( old           , prev_old ) ; } catch (::string const&) {} prev_old = ::move(old) ; }
+			/**/                                                            if (+prev_old) try { rename( *g_trace_file , prev_old ) ; } catch (::string const&) {}
 		}
 		::string trace_dir_s    = dir_name_s(*g_trace_file)                                         ;
 		::string tmp_trace_file = cat(trace_dir_s,::to_string(Pdate(New).nsec_in_s()),'-',getpid()) ;
@@ -70,7 +70,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		//
 		try                       { _s_fd = { tmp_trace_file , {.flags=O_RDWR|O_TRUNC|O_CREAT,.mod=0666,.no_std=true} } ;         }
 		catch (::string const& e) { throw cat("cannot create temporary trace file : ",e) ;                                        }
-		try                       { rename( *g_trace_file , tmp_trace_file ) ;                                                    }
+		try                       { rename( tmp_trace_file/*src*/ , *g_trace_file/*dst*/ ) ;                                      }
 		catch (::string const& e) { throw cat("cannot create trace file : ",e) ;                                                  }
 		try                       { _s_fd.write(::string(_s_cur_sz,0/*ch*/)) ;                                                    }
 		catch (::string const& e) { throw cat("cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz," : ",e) ; }

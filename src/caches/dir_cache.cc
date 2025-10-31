@@ -96,8 +96,6 @@ namespace Caches {
 		//
 		try                     { chk_version( may_init , admin_dir_s , perm_ext) ;         }
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
-		//
-		AcFd( lock_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666/*mod*/,.perm_ext=perm_ext} ) ;
 	}
 
 	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard* nfs_guard ) const {
@@ -485,21 +483,21 @@ namespace Caches {
 
 	::optional<Cache::Match> DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::sub_match",job) ;
-		LockedFd lock { lock_file } ;
-		::optional<Match> res = _sub_match( job , repo_deps ) ;
+		FileLock          lock { file_sync , lock_file , {.perm_ext=perm_ext} } ;
+		::optional<Match> res  = _sub_match( job , repo_deps )                  ;
 		trace("done") ;
 		return res ;
 	}
 
-	::pair<JobInfo,AcFd> DirCache::sub_download( ::string const& job , ::string const& key ) {                // key is returned by sub_match()
+	::pair<JobInfo,AcFd> DirCache::sub_download( ::string const& job , ::string const& key ) {                         // key is returned by sub_match()
 		Trace trace("DirCache::sub_download",key) ;
 		::string job_key_s = cat(job,'/',key,'/')                                                    ;
 		NfsGuard nfs_guard { file_sync }                                                             ;
 		AcFd     dfd       { dir_s+job_key_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&nfs_guard} } ;
 		AcFd     info_fd   ;
 		AcFd     data_fd   ;
-		{	LockedFd lock { lock_file }                           ;                                           // because we manipulate LRU, we need exclusive
-			Sz       sz   = _lru_remove( job_key_s , &nfs_guard ) ; throw_if( !sz , "no entry ",job_key_s ) ;
+		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext} } ;                                           // because we manipulate LRU, we need exclusive
+			Sz       sz   = _lru_remove( job_key_s , &nfs_guard )          ; throw_if( !sz , "no entry ",job_key_s ) ;
 			_lru_mk_newest( job_key_s , sz , &nfs_guard ) ;
 			info_fd = AcFd( dfd , "info" ) ;
 			data_fd = AcFd( dfd , "data" ) ;
@@ -513,7 +511,7 @@ namespace Caches {
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
 		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
-		{	LockedFd lock { lock_file } ;                                            // lock for minimal time
+		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ;          // lock for minimal time
 			_mk_room( 0 , reserve_sz , &nfs_guard ) ;
 		}
 		AcFd         (_reserved_file(upload_key,"sz"  ),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444                   ,.nfs_guard=&nfs_guard}).write(serialize(reserve_sz)) ; // private
@@ -531,9 +529,9 @@ namespace Caches {
 		::string jn_s          = job+'/'                                                      ;
 		::string abs_jn_s      = dir_s + jn_s                                                 ;
 		::string abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                         // deps_hint are hint only, hence no versioning problem
-		LockedFd lock          { lock_file }                                                  ;                         // lock as late as possible
+		FileLock lock          { file_sync , lock_file , {.perm_ext=perm_ext} }               ;                         // lock as late as possible
 		Match    match         = _sub_match( job , job_info.end.digest.deps )                 ;
-		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                           ;
+		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                          ;
 		if (match.hit_info==CacheHitInfo::Hit) {                                                                        // dont populate if a matching entry appeared while the job was running
 			trace("hit",match.key) ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
@@ -561,7 +559,7 @@ namespace Caches {
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
 				AcFd(dfd,"deps",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;   // store deps in a compact format so that matching is fast
-				rename( dfd,"data"/*dst*/ , _reserved_file(upload_key,"data")/*src*/ , &nfs_guard ) ;
+				rename( _reserved_file(upload_key,"data")/*src*/ , dfd,"data"/*dst*/ , &nfs_guard ) ;
 				// END_OF_VERSIONING
 				unlnk( _reserved_file(upload_key,"sz") , {.abs_ok=true,.nfs_guard=&nfs_guard} ) ;
 				_lru_mk_newest( jnid_s , new_sz , &nfs_guard ) ;
@@ -580,8 +578,8 @@ namespace Caches {
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {
 		Trace trace("DirCache::sub_dismiss",upload_key) ;
-		NfsGuard nfs_guard { file_sync } ;
-		LockedFd lock      { lock_file } ;                                          // lock as late as possible
+		NfsGuard nfs_guard { file_sync                                    } ;
+		FileLock lock      { file_sync , lock_file , {.perm_ext=perm_ext} } ;       // lock as late as possible
 		_dismiss( upload_key , _reserved_sz(upload_key,&nfs_guard) , &nfs_guard ) ;
 		trace("done") ;
 	}

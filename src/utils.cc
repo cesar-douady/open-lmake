@@ -27,6 +27,27 @@ using namespace Hash ;
 using namespace Time ;
 
 //
+// FileSpec
+//
+
+::string file_msg( Fd at , ::string const& file ) {
+	if      (at==Fd::Cwd) return                    file  ;
+	else if (+at        ) return cat('<',at.fd,">/",file) ;
+	else                  return cat("<>/"         ,file) ;
+}
+
+::string& operator+=( ::string& os , FileSpec const& fs ) {
+	return os << file_msg(fs.at,fs.file) ;
+}
+
+size_t FileSpec::hash() const {
+	Fnv fnv ;                         // good enough
+	fnv += at                       ;
+	fnv += ::hash<::string>()(file) ;
+	return +fnv ;
+}
+
+//
 // Fd
 //
 
@@ -36,7 +57,7 @@ using namespace Time ;
 int Fd::_s_mk_fd( Fd at , ::string const& file , Action action ) {
 	bool creat = action.flags&O_CREAT ;
 	if (creat) {
-		SWEAR(   action.mod                           , file,action.flags ) ;                              // mod must be specified if creating
+		SWEAR(   action.mod!=mode_t(-1)               , file,action.flags ) ;                              // mod must be specified if creating
 		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ;                              // mod must only specify perm
 		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ;                              // mod must be independent of usr/grp/oth (this is umask job)
 		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ;                              // .
@@ -69,8 +90,8 @@ Retry :
 	if ( creat && +action.perm_ext ) {
 		static mode_t umask_ = get_umask() ;
 		switch (action.perm_ext) {
-			case PermExt::Other : if (!((action.mod&umask_)     )) goto PermOk ; else break ;
-			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; else break ;
+			case PermExt::Other : if (!((action.mod&umask_)     )) goto PermOk ; break ;
+			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; break ;
 		DN}
 		//
 		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file_msg(at,file)) ;
@@ -134,17 +155,6 @@ size_t Fd::read_to(::span<char> dst) const {
 }
 
 //
-// FileSpec
-//
-
-size_t FileSpec::hash() const {
-	Fnv fnv ;                         // good enough
-	fnv += at                       ;
-	fnv += ::hash<::string>()(file) ;
-	return +fnv ;
-}
-
-//
 // NfsGuard
 //
 
@@ -174,6 +184,97 @@ void NfsGuardDir::change( Fd at , ::string const& path ) {
 void NfsGuardDir::flush() {
 	for( auto const& [at,d_s] : to_stamp_dirs_s ) _nfs_guard_protect(at,d_s) ;
 	to_stamp_dirs_s.clear() ;
+}
+
+//
+// FileLock
+//
+
+void _LockerFcntl::lock() {
+	struct flock lock {
+		.l_type   = F_WRLCK
+	,	.l_whence = SEEK_SET
+	,	.l_start  = 0
+	,	.l_len    = 1 // ensure a lock exists even if file is empty
+	,	.l_pid    = 0
+	} ;
+	while (::fcntl(fd,F_SETLKW,&lock)!=0) SWEAR_PROD( errno==EINTR , fd,StrErr() ) ;
+}
+
+void _LockerFlock::lock() {
+	while (::flock(fd,LOCK_EX)!=0) SWEAR_PROD( errno==EINTR , fd,StrErr() ) ;
+}
+
+Bool3/*ok*/ _LockerExcl::try_lock() {
+	int fd = ::openat( spec.at , spec.file.c_str() , O_WRONLY|O_CREAT|O_EXCL , 0000/*mod*/ ) ; // file is a marker only, it is not meant to be read/written
+	if (fd>=0        ) { ::close(fd) ; return Yes   ; }                                        // locked
+	if (errno==EEXIST)                 return Maybe ;                                          // lock is held by someone else
+	else                               return No    ;                                          // not lockable
+}
+
+Bool3/*ok*/ _LockerLink::try_lock() {
+	if (!tmp) {
+		tmp = cat(spec.file,'.',host(),'.',::getpid()) ;
+		try                     { AcFd( spec.at , tmp , {O_WRONLY|O_CREAT,0000/*mod*/} ) ; } // file is only a marker, it is not meant to be read/written
+		catch (::string const&) { return No ;                                              }
+	}
+	int rc = ::linkat( spec.at,tmp.c_str() , spec.at,spec.file.c_str() , 0/*flags*/ ) ;
+	if (rc==0) {
+		int rc = ::unlinkat( spec.at , tmp.c_str() , 0/*flags*/ ) ; SWEAR( rc==0 , spec ) ;
+		return Yes   ;                                                                       // locked
+	}
+	return Maybe & (errno==EEXIST) ;                                                         // if file exists, lock is held by someone else
+}
+
+Bool3/*ok*/ _LockerMkdir::try_lock() {
+	int rc = ::mkdirat( spec.at , spec.file.c_str() , 0777/*mod*/ ) ;
+	if (rc==0        ) return Yes   ;                                 // locked
+	if (errno==EEXIST) return Maybe ;                                 // lock is held by someone else
+	else               return No    ;                                 // not lockable
+}
+
+// cannot put this cxtor in .hh file as Pdate is not available
+template<class Locker> _FileLockFile<Locker>::_FileLockFile( Fd at , ::string const& f , Action a ) : Locker{{at,f}} {
+	if (!spec) return ;
+	Pdate start { New } ;
+	for ( Bool3 rc ; (rc=try_lock())!=Yes ;)
+		if      (rc!=No  ) ::min( Pdate(New)-start , Delay(1) ).sleep_for() ;             // ensure logarithmic trials, but try at least every second
+		else if (a.err_ok) return                                                ;
+		else               throw cat("cannot create lock (",StrErr(),") ",spec ) ;
+}
+template _FileLockFile<_LockerExcl >::_FileLockFile( Fd at , ::string const& , Action ) ; // explicit instantiation
+template _FileLockFile<_LockerLink >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
+template _FileLockFile<_LockerMkdir>::_FileLockFile( Fd at , ::string const& , Action ) ; // .
+
+#define FILE_LOCK_ALTERNATIVE 0
+FileLock::FileLock( FileSync fs , Fd at , ::string const& file , Action a ) {
+	switch (fs) {                                                             // PER_FILE_SYNC : add entry here
+		#if FILE_LOCK_ALTERNATIVE==0
+			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+		#elif FILE_LOCK_ALTERNATIVE==1
+			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
+		#elif FILE_LOCK_ALTERNATIVE==2
+			case FileSync::None : emplace<_FileLockFd  <_LockerFlock>>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFlock>>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFd  <_LockerFlock>>(at,file,a) ; break ;
+		#elif FILE_LOCK_ALTERNATIVE==3
+			case FileSync::None : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+		#elif FILE_LOCK_ALTERNATIVE==4
+			case FileSync::None : emplace<_FileLockFile<_LockerLink >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerLink >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerLink >>(at,file,a) ; break ;
+		#elif FILE_LOCK_ALTERNATIVE==5
+			case FileSync::None : emplace<_FileLockFile<_LockerMkdir>>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerMkdir>>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerMkdir>>(at,file,a) ; break ;
+		#endif
+	DF}
 }
 
 //
@@ -521,4 +622,13 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 
 ::string& operator+=( ::string& os , StrErr const& se ) {
 	return os << ::string(se) ;
+}
+
+::string const& host() {
+	static ::string s_host = []()->::string {
+		char buf[HOST_NAME_MAX+1] ;
+		int  rc                   = ::gethostname( buf , sizeof(buf) ) ; SWEAR( rc==0 , errno ) ;
+		return buf ;
+	}() ;
+	return s_host ;
 }

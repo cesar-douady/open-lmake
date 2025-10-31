@@ -55,4 +55,5 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , may_rerun=1+n_targets , update=n_files )
+	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , rerun=... , may_rerun=... , update=n_files )
+	assert cnt.rerun+cnt.may_rerun==1+n_targets

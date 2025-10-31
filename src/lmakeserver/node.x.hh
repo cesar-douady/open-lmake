@@ -411,7 +411,7 @@ namespace Engine {
 			Job cj = conform_job_tgt() ;
 			return +cj && ( !cj->is_plain(true/*frozen_ok*/) || has_actual_job(cj) ) ;
 		}
-		Bool3 ok() const {                                                          // if Maybe <=> not built
+		Bool3 ok() const {                                                                              // if Maybe <=> not built
 			switch (status()) {
 				case NodeStatus::Plain : return No | !conform_job_tgt()->err() ;
 				case NodeStatus::Multi : return No                             ;
@@ -498,7 +498,7 @@ namespace Engine {
 		//NodeName name   ;                                         //         32 bits, inherited
 		Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
 		Crc       crc                        = Crc::None          ; // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
-		SigDate   date                       ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
+		SigDate   sig                        ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
 		Node      dir                        ;                      //  31   < 32 bits, shared
 		JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
 		RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
@@ -558,13 +558,13 @@ namespace Engine {
 	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
-	inline Manual NodeData::manual( FileSig sig , Accesses a ) const {
+	inline Manual NodeData::manual( FileSig sig_ , Accesses a ) const {
 		SWEAR( buildable!=Buildable::Codec , idx() ) ;                                                                               // handled by caller to avoid computing sig in most cases
-		if (    sig       ==         date.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
-		if (Crc(sig.tag()).match(Crc(date.sig.tag()),a))                                                  return Manual::Ok      ;   // if tags are enough, do as if no modif
-		if (!sig                                       ) { Trace("manual","unlnked",idx(),sig,crc,date) ; return Manual::Unlnked ; }
-		if (sig.tag()==FileTag::Empty                  ) { Trace("manual","empty"  ,idx(),sig,crc,date) ; return Manual::Empty   ; }
-		/**/                                             { Trace("manual","modif"  ,idx(),sig,crc,date) ; return Manual::Modif   ; }
+		if (    sig_      ==          sig.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
+		if (Crc(sig_.tag()).match(Crc(sig.sig.tag()),a))                                                  return Manual::Ok      ;   // if tags are enough, do as if no modif
+		if (!sig_                                      ) { Trace("manual","unlnked",idx(),sig_,crc,sig) ; return Manual::Unlnked ; }
+		if (sig_.tag()==FileTag::Empty                 ) { Trace("manual","empty"  ,idx(),sig_,crc,sig) ; return Manual::Empty   ; }
+		/**/                                             { Trace("manual","modif"  ,idx(),sig_,crc,sig) ; return Manual::Modif   ; }
 	}
 
 	inline ::span<JobTgt const> NodeData::conform_job_tgts(ReqInfo const& cri) const { return prio_job_tgts(cri.prio_idx) ; }
@@ -625,7 +625,7 @@ namespace Engine {
 		if (is_crc              ) return ;                                                                 // already a crc ==> nothing to do
 		if (!self->crc.valid()  ) return ;                                                                 // nothing to acquire
 		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) set_crc(self->crc,self->ok()==No) ; } // no file (cannot test sig as it contains date at which file was known non-existent)
-		else                      { if (sig()==self->date.sig      ) set_crc(self->crc,self->ok()==No) ; } // existing file
+		else                      { if (sig()==self->sig.sig       ) set_crc(self->crc,self->ok()==No) ; } // existing file
 	}
 
 	//
