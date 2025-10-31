@@ -404,14 +404,21 @@ namespace Backdoor {
 					::string decode_node = Codec::CodecFile( false/*encode*/ , sr.real , ctx , code ).name() ;
 					if (FileInfo(rfd,decode_node,{.nfs_guard=&nfs_guard}).exists()) continue ;
 					// must write to new_codes_file first to allow replay in case of creash
-					AcFd( rfd , new_codes_file , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
-					AcFd( rfd , node           , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
-					AcFd( rfd , decode_node    , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
+					::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
+					::string tmp_node        = node       +tmp_sfx                   ; // nodes must be always correct when they exist as there is no read lock
+					::string tmp_decode_node = decode_node+tmp_sfx                   ; // .
+					//
+					AcFd( rfd , new_codes_file  , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
+					AcFd( rfd , tmp_node        , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
+					AcFd( rfd , tmp_decode_node , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
+					rename( rfd,tmp_node       /*src*/ , rfd,node       /*dst*/ ) ;
+					rename( rfd,tmp_decode_node/*src*/ , rfd,decode_node/*dst*/ ) ;
+					//
 					res     = code ;
 					created = true ;
 					break ;
 				}
-				nfs_guard.flush() ;                                                                                                     // flush before lock is released
+				nfs_guard.flush() ;                                                    // flush before lock is released
 				throw_unless( created , "no code available" ) ;
 			}
 		}

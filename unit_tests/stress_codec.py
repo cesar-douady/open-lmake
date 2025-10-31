@@ -17,9 +17,10 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	lmake.config.backends.local.cpu = n_jobs
-	lmake.config.network_delay      =    10  # host is overloaded
-	lmake.config.trace.n_jobs       = 20000  # ensure we keep all traces for analysis
+	lmake.config.backends.local.cpu     = n_jobs
+	lmake.config.network_delay          =    10  # host is overloaded
+	lmake.config.trace.n_jobs           = 20000  # ensure we keep all traces for analysis
+	lmake.config.console.date_precision =     3
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -31,17 +32,22 @@ if __name__!='__main__' :
 		cmd    = 'ldecode -f {File} -x {Ctx} -c {Code}'
 
 	class Encode(PyRule) :
-		target = r'encode/{I:\d+}'
+		max_runs = 2
+		target   = r'encode/{I:\d+}'
 		def cmd() :
 			fail = None
 			for i in range(n_encodes) :
 				n    = int(I)*n_targets+i
 				file = f'codec_{n*97%n_files}'
 				ctx  = f'ctx_{n*53%n_files}'
-				code = lmake.encode( val=('val',int(I)+i) , file=file , ctx=ctx )
-				try    : print(open(f'decode/{file}/{ctx}/{code}').read())
-				except : fail = True
-			assert not fail,'missing some vals'
+				val  = ('val',int(I)+i)
+				code = lmake.encode( val=val , file=file , ctx=ctx )
+				dep  = f'decode/{file}/{ctx}/{code}'
+				try    : print(open(dep).read(),'from',dep)
+				except : fail = fail or (file,ctx,code,val,i)
+			if fail :
+				print(f'missing decode/{fail[0]}/{fail[1]}/{fail[2]} (at {fail[-1]} for {fail[3]})')
+				assert False
 
 	class Dut(PyRule) :
 		target = 'dut'
@@ -55,5 +61,4 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , rerun=... , may_rerun=... , update=n_files )
-	assert cnt.rerun+cnt.may_rerun==1+n_targets
+	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , may_rerun=1+n_targets , update=n_files )

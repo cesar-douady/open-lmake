@@ -115,10 +115,24 @@ enum class Rc : uint8_t {
 } ;
 
 //
-// basic miscelaneous
+// basic miscellaneous
 //
 
+struct Fd ;
+
+template<class... As> void dbg( Fd fd , ::string const& title , As const&... args ) ;
+template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) ;
+template<class... As> void dbg(                                  ::string const& title , As const&... args ) ;
+template<class... As> void dbg(                                  const char*     title , As const&... args ) ; // disambiguate
+
 ::string const& host() ;
+
+struct StrErr {
+	friend ::string& operator+=( ::string& , StrErr const& ) ;
+	StrErr(int e=errno) : err{e} {}
+	operator ::string() const { return ::strerror(err) ; }
+	int err ;
+} ;
 
 //
 // string
@@ -774,6 +788,7 @@ template<class Locker> struct _FileLockFd : Locker {
 // file based locks
 //
 struct _LockerFile {
+	static constexpr bool IsDir = false ;
 	using Action = _FileLockAction ;
 	// cxtors & casts
 	_LockerFile(FileSpec const& fs) : spec{fs.at,fs.file+"_tmp"} {} // use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
@@ -783,12 +798,14 @@ struct _LockerFile {
 	FileSpec spec ;
 } ;
 struct _LockerExcl : _LockerFile {
-	static constexpr bool IsDir = false ;
+	using _LockerFile::_LockerFile ;
+	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
+} ;
+struct _LockerSymlink : _LockerFile {
 	using _LockerFile::_LockerFile ;
 	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
 } ;
 struct _LockerLink : _LockerFile {
-	static constexpr bool IsDir = false ;
 	using _LockerFile::_LockerFile ;
 	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
 	// data
@@ -808,14 +825,24 @@ template<class Locker> struct _FileLockFile : Locker {
 	_FileLockFile( Fd at , ::string const& f , Action action ) ;
 	~_FileLockFile() {
 		if (!spec.at) return ;
-		int rc = ::unlinkat( spec.at , spec.file.c_str() , IsDir?AT_REMOVEDIR:0 ) ; SWEAR( rc==0 , spec ) ;
+		int rc = ::unlinkat( spec.at , spec.file.c_str() , IsDir?AT_REMOVEDIR:0 ) ; SWEAR( rc==0 , spec,StrErr() ) ;
 	}
 } ;
 
 //
 // actual class to be used
 //
-struct FileLock : ::variant< ::monostate , _FileLockFd<_LockerFcntl> , _FileLockFd<_LockerFlock> , _FileLockFile<_LockerExcl> , _FileLockFile<_LockerLink> , _FileLockFile<_LockerMkdir> > {
+struct FileLock :
+	::variant<
+		::monostate
+	,	_FileLockFd  <_LockerFcntl  >
+	,	_FileLockFd  <_LockerFlock  >
+	,	_FileLockFile<_LockerExcl   >
+	,	_FileLockFile<_LockerSymlink>
+	,	_FileLockFile<_LockerLink   >
+	,	_FileLockFile<_LockerMkdir  >
+	>
+{
 	using Action = _FileLockAction ;
 	FileLock( FileSync    , Fd at , ::string const& file , Action  ={} ) ;
 	FileLock( FileSync fs ,         ::string const& f    , Action a={} ) : FileLock{fs,Fd::Cwd,f,a} {}
@@ -934,15 +961,8 @@ template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 	if ( !::is_same_v<I,bool> && is_neg ) n = -n ;
 	return n ;
 }
-#define _MACRO_VAL_STR(x         ) #x                                                         // indirect macro to ensure we get the defined value when arg to FILL_ENTRY is a defined macro
+#define _MACRO_VAL_STR(x         ) #x                                                         // indirect macro to ensure we get the defined value when arg to MACRO_VAL is a defined macro
 #define MACRO_VAL(     macro,dflt) _macro_val_str<decltype(dflt),dflt>(_MACRO_VAL_STR(macro))
-
-struct StrErr {
-	friend ::string& operator+=( ::string& , StrErr const& ) ;
-	StrErr(int e=errno) : err{e} {}
-	operator ::string() const { return ::strerror(err) ; }
-	int err ;
-} ;
 
 //
 // Implementation

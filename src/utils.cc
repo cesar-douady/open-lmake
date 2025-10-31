@@ -212,18 +212,31 @@ Bool3/*ok*/ _LockerExcl::try_lock() {
 	else                               return No    ;                                          // not lockable
 }
 
+Bool3/*ok*/ _LockerSymlink::try_lock() {
+	int rc = ::symlinkat( "?" , spec.at,spec.file.c_str() ) ;
+	if (rc==0        ) return Yes   ;              // locked
+	if (errno==EEXIST) return Maybe ;              // lock is held by someone else
+	else               return No    ;              // not lockable
+}
+
 Bool3/*ok*/ _LockerLink::try_lock() {
 	if (!tmp) {
 		tmp = cat(spec.file,'.',host(),'.',::getpid()) ;
 		try                     { AcFd( spec.at , tmp , {O_WRONLY|O_CREAT,0000/*mod*/} ) ; } // file is only a marker, it is not meant to be read/written
 		catch (::string const&) { return No ;                                              }
 	}
-	int rc = ::linkat( spec.at,tmp.c_str() , spec.at,spec.file.c_str() , 0/*flags*/ ) ;
-	if (rc==0) {
-		int rc = ::unlinkat( spec.at , tmp.c_str() , 0/*flags*/ ) ; SWEAR( rc==0 , spec ) ;
-		return Yes   ;                                                                       // locked
+	int  rc     = ::linkat( spec.at,tmp.c_str() , spec.at,spec.file.c_str() , 0/*flags*/ ) ;
+	bool exists = errno==EEXIST                                                            ;
+	if (rc!=0) {                                                                             // it seems (cf man 2 open in section relative to O_EXCL) linkat may succeed while returning an error
+		FileStat fs ;
+		int      rc = ::fstatat( spec.at,tmp.c_str() , &fs , AT_SYMLINK_NOFOLLOW ) ; SWEAR( rc==0 , spec,StrErr() ) ;
+		if (fs.st_nlink==2) rc = 0 ;                                                                                  // /!\ if link count has increased, the link actually occurred
 	}
-	return Maybe & (errno==EEXIST) ;                                                         // if file exists, lock is held by someone else
+	if (rc==0) {
+		rc = ::unlinkat( spec.at , tmp.c_str() , 0/*flags*/ ) ; SWEAR( rc==0 , spec ) ;
+		return Yes   ;                                                                                                // locked
+	}
+	return Maybe & exists ;                                                                                           // if file exists, lock is held by someone else
 }
 
 Bool3/*ok*/ _LockerMkdir::try_lock() {
@@ -238,41 +251,46 @@ template<class Locker> _FileLockFile<Locker>::_FileLockFile( Fd at , ::string co
 	if (!spec) return ;
 	Pdate start { New } ;
 	for ( Bool3 rc ; (rc=try_lock())!=Yes ;)
-		if      (rc!=No  ) ::min( Pdate(New)-start , Delay(1) ).sleep_for() ;             // ensure logarithmic trials, but try at least every second
-		else if (a.err_ok) return                                                ;
-		else               throw cat("cannot create lock (",StrErr(),") ",spec ) ;
+		if      (rc!=No  ) ::min( Pdate(New)-start , Delay(1) ).sleep_for() ;                         // ensure logarithmic trials, but try at least every second
+		else if (a.err_ok) { spec.at = {} ; return                                                ; } // if err_ok, object is built empty
+		else                                throw cat("cannot create lock (",StrErr(),") ",spec ) ;
 }
-template _FileLockFile<_LockerExcl >::_FileLockFile( Fd at , ::string const& , Action ) ; // explicit instantiation
-template _FileLockFile<_LockerLink >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
-template _FileLockFile<_LockerMkdir>::_FileLockFile( Fd at , ::string const& , Action ) ; // .
+template _FileLockFile<_LockerExcl   >::_FileLockFile( Fd at , ::string const& , Action ) ;           // explicit instantiation
+template _FileLockFile<_LockerSymlink>::_FileLockFile( Fd at , ::string const& , Action ) ;           // .
+template _FileLockFile<_LockerLink   >::_FileLockFile( Fd at , ::string const& , Action ) ;           // .
+template _FileLockFile<_LockerMkdir  >::_FileLockFile( Fd at , ::string const& , Action ) ;           // .
 
-#define FILE_LOCK_ALTERNATIVE 0
+#define FILE_LOCK_ALTERNATIVE 4
 FileLock::FileLock( FileSync fs , Fd at , ::string const& file , Action a ) {
 	switch (fs) {                                                             // PER_FILE_SYNC : add entry here
 		#if FILE_LOCK_ALTERNATIVE==0
-			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
 		#elif FILE_LOCK_ALTERNATIVE==1
-			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFd  <_LockerFcntl>>(at,file,a) ; break ;
+			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
 		#elif FILE_LOCK_ALTERNATIVE==2
-			case FileSync::None : emplace<_FileLockFd  <_LockerFlock>>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFlock>>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFd  <_LockerFlock>>(at,file,a) ; break ;
+			case FileSync::None : emplace<_FileLockFd  <_LockerFlock  >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFlock  >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFd  <_LockerFlock  >>(at,file,a) ; break ;
 		#elif FILE_LOCK_ALTERNATIVE==3
-			case FileSync::None : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl >>(at,file,a) ; break ;
+			case FileSync::None : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
 		#elif FILE_LOCK_ALTERNATIVE==4
-			case FileSync::None : emplace<_FileLockFile<_LockerLink >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerLink >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerLink >>(at,file,a) ; break ;
+			case FileSync::None : emplace<_FileLockFile<_LockerSymlink>>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerSymlink>>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerSymlink>>(at,file,a) ; break ;
 		#elif FILE_LOCK_ALTERNATIVE==5
-			case FileSync::None : emplace<_FileLockFile<_LockerMkdir>>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerMkdir>>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerMkdir>>(at,file,a) ; break ;
+			case FileSync::None : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
+		#elif FILE_LOCK_ALTERNATIVE==6
+			case FileSync::None : emplace<_FileLockFile<_LockerMkdir  >>(at,file,a) ; break ;
+			case FileSync::Dir  : emplace<_FileLockFile<_LockerMkdir  >>(at,file,a) ; break ;
+			case FileSync::Sync : emplace<_FileLockFile<_LockerMkdir  >>(at,file,a) ; break ;
 		#endif
 	DF}
 }

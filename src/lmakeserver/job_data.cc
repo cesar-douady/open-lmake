@@ -799,7 +799,7 @@ namespace Engine {
 			//
 			if (!clean) unlnk(node_name) ;
 			AcFd( tmp_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard} ).write( val ) ; // ensure node_name is always correct when it exists as there is no read lock
-			rename( tmp_node_name/*src*/ , node_name/*dst*/ )                                                      ; // .
+			rename( tmp_node_name/*src*/ , node_name/*dst*/ , &nfs_guard )                                         ; // .
 			nd.set_buildable()                                                                                     ;
 			nd.set_crc_date( Crc(node_name) , FileSig(node_name) )                                                 ;
 			//
