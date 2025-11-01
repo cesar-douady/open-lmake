@@ -26,13 +26,15 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* erase codec locks upon server startup
+* find a way to clean cache locks in case of crash
 * add an lmake option to play with ETA
 * replace cache/LMAKE/size by cache/LMAKE/config
 	- put size and file_sync in it
 	- load when reading Lmakefile.py
 	- try to find a mechanism to auto clean lock file when going from fnctl to file based
-* use git ls-files --stage to list files  under git
-	- and filter out 160000 files (submodules) to eliminate submodules that are not loaded
+* use git ls-files --stage to list files  under git in v25.07
+	- mimic main
 * consider to differ sources checks
 	- check when used, not when lmake inits
 ! manage 32 bits executables with ptrace
@@ -202,6 +204,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* dont upload to cache if a dep never matches
 * move LMAKE/lmake/codec/<codec_file>/manifest to LMAKE/lmake/local_admin/codec/<codec_file>/manifest
 * optimize JobData::_submit_codec
 	- in case codec dir does not exist, create the whole dir as tmp and globally move dir instead of moving each created file

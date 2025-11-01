@@ -43,19 +43,27 @@ namespace Codec {
 		else                                  return PATH_MAX*2-code.size() ;     // prefer shorter codes
 	}
 
-	static void _read_manifest( ::string const& file_name , ::umap_s/*ctx*/<::umap_s/*code*/<Crc>>&/*out*/ old_decode_tab ) {
-		::string ctx ;
+	static ::umap_s/*ctx*/<::umap_s/*code*/<Crc>> _prepare_old_decode_tab(::string const& file_name) {
+		::umap_s/*ctx*/<::umap_s/*code*/<Crc>> res ;
+		::string                               ctx ;
+		Trace trace("_prepare_old_decode_tab",file_name) ;
 		for( ::string const& line : AcFd(CodecFile::s_manifest_file(file_name),{.err_ok=true}).read_lines(false/*partial_ok*/) ) {
 			if (!line) continue ;
 			if (line[0]!='\t') {
 				ctx = parse_printable(line) ;
 			} else {
-				size_t   pos  = 1                                   ;                                                 // skip initial \t
+				size_t   pos  = 1                                   ;                                       // skip initial \t
 				::string code = parse_printable(line,pos          ) ; SWEAR( line[pos]=='\t' , pos,line ) ;
 				Crc      crc  = Crc::s_from_hex(line.substr(pos+1)) ;
-				old_decode_tab[ctx].try_emplace( ::move(code) , crc ) ;
+				res[ctx].try_emplace( ::move(code) , crc ) ;
 			}
 		}
+		trace("done",res.size()) ;
+		return res ;
+	}
+
+	static void _update_old_decode_tab( ::string const& file_name , ::umap_s/*ctx*/<::umap_s/*code*/<Crc>>&/*inout*/ old_decode_tab ) {
+		Trace trace("_update_old_decode_tab",file_name,old_decode_tab.size()) ;
 		for( ::string const& line : AcFd(CodecFile::s_new_codes_file(file_name),{.err_ok=true}).read_lines(false/*partial_ok*/) ) {
 			Codec::Entry entry ;
 			try                     { entry = {line} ; }
@@ -63,60 +71,71 @@ namespace Codec {
 			bool inserted = old_decode_tab[entry.ctx].try_emplace( ::move(entry.code) , Crc(New,entry.val) ).second ;
 			SWEAR( inserted , file_name,line ) ;                                                                      // there must be no internal conlict
 		}
+		trace("done",old_decode_tab.size()) ;
 	}
 
-	static void _read_codec_file( ::string const& file_name , ::map_s/*ctx*/<::map_ss/*code->val*/>&/*out*/ decode_tab , Bool3&/*out*/ has_new_codes ) {
-		Trace trace("_read_codec_file",file_name) ;
-		::map_s/*ctx*/<::map_ss/*val->code*/> encode_tab ;
-		//
+	static void _do_file( ::string const& file_name , bool do_new_codes , ::map_s/*ctx*/<::map_ss/*val->code*/>&/*inout*/ encode_tab , Bool3&/*inout*/ has_new_codes ) {
+		::vector_s   lines      = AcFd(file_name,{.err_ok=do_new_codes}).read_lines(false/*partial_ok*/) ;                                                               // new codes may not exist
 		Codec::Entry prev_entry ;
-		auto process_file = [&]( ::string const& f , bool do_new_codes ) {
-			::vector_s lines = AcFd(f,{.err_ok=do_new_codes}).read_lines(false/*partial_ok*/) ;                                                                         // new codes may not exist
-			trace("process",f,lines.size()) ;
-			for( ::string const& line : lines ) {
-				Codec::Entry entry ;
-				try {
-					entry = {line} ;
-				} catch (::string const&) {
-					trace("bad_format",line) ;
-					if (!do_new_codes) has_new_codes |= Maybe ;
-					continue ;
-				}
-				//
-				bool first         = !encode_tab                                             ;
-				auto [it,inserted] = encode_tab[entry.ctx].try_emplace(entry.val,entry.code) ;
-				if (inserted) {
-					if      ( do_new_codes                                     )   has_new_codes = Yes   ;
-					else if ( has_new_codes==No && !first && prev_entry>=entry ) { has_new_codes = Maybe ; trace("wrong_order",prev_entry,entry) ; }
-					prev_entry = entry ;
+		Trace trace("_do_file",file_name,STR(do_new_codes),encode_tab.size(),has_new_codes,lines.size()) ;
+		for( ::string const& line : lines ) {
+			Codec::Entry entry ;
+			try {
+				entry = {line} ;
+			} catch (::string const&) {
+				trace("bad_format",line) ;
+				if (!do_new_codes) has_new_codes |= Maybe ;
+				continue ;
+			}
+			//
+			bool first         = !encode_tab                                             ;
+			auto [it,inserted] = encode_tab[entry.ctx].try_emplace(entry.val,entry.code) ;
+			if (inserted) {
+				if (do_new_codes) {
+					has_new_codes = Yes ;
 				} else {
-					if (it->second==entry.code) {
-						trace("duplicate",line) ;
-						if (!do_new_codes) has_new_codes |= Maybe ;
-					} else if (do_new_codes) {
-						trace("val_conflict",it->second,entry.code,"keep") ;
-					} else {
-						has_new_codes |= Maybe ;
-						::string crc = Crc(New,entry.val).hex() ;
-						if (_code_prio(entry.code,crc)>_code_prio(it->second,crc)) { trace("val_conflict",it->second,entry.code,"keep"  ) ; it->second = entry.code ; } // keep best code
-						else                                                         trace("val_conflict",it->second,entry.code,"forget") ;
-					}
+					if ( has_new_codes==No && !first && prev_entry>=entry ) { has_new_codes = Maybe ; trace("wrong_order",prev_entry,entry) ; }
+					prev_entry = ::move(entry) ;
+				}
+			} else {
+				if (it->second==entry.code) {
+					trace("duplicate",line) ;
+					if (!do_new_codes) has_new_codes |= Maybe ;
+				} else if (do_new_codes) {
+					trace("val_conflict",it->second,entry.code,"keep") ;
+				} else {
+					has_new_codes |= Maybe ;
+					::string crc = Crc(New,entry.val).hex() ;
+					if (_code_prio(entry.code,crc)>_code_prio(it->second,crc)) { trace("val_conflict",it->second,entry.code,"keep"  ) ; it->second = entry.code ; }      // keep best code
+					else                                                         trace("val_conflict",it->second,entry.code,"forget") ;
 				}
 			}
-		} ;
-		has_new_codes  = No ; //!                          do_new_codes
-		process_file(file_name                             ,false     ) ;
-		process_file(CodecFile::s_new_codes_file(file_name),true      ) ;
-		trace(has_new_codes) ;
-		// create decode_tab an disambiguate in case the same code is used for the several vals
-		for( auto& [ctx,e_entry] : encode_tab ) {
-			::map_ss&                            d_entry = decode_tab[ctx] ;
+		}
+		trace("done",encode_tab.size(),has_new_codes) ;
+	}
+
+	static ::map_s/*ctx*/<::map_ss/*val->code*/> _prepare_encode_tab( ::string const& file_name , Bool3&/*out*/ has_new_codes ) {
+		::map_s/*ctx*/<::map_ss/*val->code*/> res ;
+		has_new_codes = No ;
+		_do_file( file_name , false/*do_new_codes*/ , /*inout*/res , /*inout*/has_new_codes ) ;
+		return res ;
+	}
+
+	static void _update_encode_tab( ::string const& file_name , ::map_s/*ctx*/<::map_ss/*val->code*/>&/*inout*/ encode_tab , Bool3&/*inout*/ has_new_codes ) {
+		_do_file( CodecFile::s_new_codes_file(file_name) , true/*do_new_codes*/ , /*inout*/encode_tab , /*inout*/has_new_codes ) ;
+	}
+
+	static ::map_s/*ctx*/<::map_ss/*code->val*/> _mk_decode_tab(::map_s/*ctx*/<::map_ss/*val->code*/> const& encode_tab) {
+		Trace trace("_mk_decode_tab",encode_tab.size()) ;
+		::map_s/*ctx*/<::map_ss/*code->val*/> res ;
+		// create decode_tab and disambiguate in case the same code is used for the several vals
+		for( auto const& [ctx,e_entry] : encode_tab ) {
+			::map_ss&                            d_entry = res[ctx] ;
 			::umap_s/*code*/<::vector_s/*vals*/> clashes ;
 			for( auto const& [val,code] : e_entry )
 				if (!d_entry.try_emplace(code,val).second)
 					clashes[code].push_back(val) ;
 			if (+clashes) {
-				SWEAR( has_new_codes!=No , file_name,ctx ) ;                                                                    // if no refresh is necessary, there must be no conflict
 				for( auto const& [code,vals] : clashes )
 					for( ::string const& val : vals ) {
 						::string crc      = Crc(val).hex()                ;
@@ -124,16 +143,15 @@ namespace Codec {
 						::string new_code = code                          ; new_code.reserve(code.size()+1) ;                   // most of the time, adding a single char is enough
 						for( char c : substr_view(crc,d) ) {
 							new_code.push_back(c) ;
-							if (d_entry.try_emplace(new_code,val).second) {
-								e_entry.try_emplace(val,new_code) ;
-								goto FoundNewCode ;
-							}
+							if (d_entry.try_emplace(new_code,val).second) goto FoundNewCode ;
 						}
 						FAIL("codec checksum clash for code",code,crc,val) ;                                                    // NO_COV
 					FoundNewCode : ;
 					}
 			}
 		}
+		trace("done",res.size()) ;
+		return res ;
 	}
 
 	static Crc _refresh_codec_file( ::string const& file_name , ::map_s/*ctx*/<::map_ss/*code->val*/> const& decode_tab ) {
@@ -144,7 +162,7 @@ namespace Codec {
 				lines << Entry(ctx,code,val).line(true/*with_nl*/) ;
 				n_lines++ ;
 			}
-		Trace trace("_refresh_codec_file",n_lines,file_name) ;
+		Trace trace("_refresh_codec_file",file_name,n_lines) ;
 		AcFd( file_name , {O_WRONLY|O_TRUNC,0666/*mod*/} ).write( lines ) ;
 		return { New , lines , No/*is_lnk*/ } ;
 	}
@@ -763,24 +781,86 @@ namespace Engine {
 		if (FileInfo(Codec::CodecFile::s_new_codes_file(file->name())).exists()) _submit_codec(req) ;
 	}
 
+	static void _create( Codec::CodecFile const& codec_file , ::string const& code_val , bool is_clean , Job job , bool tmp , NfsGuard* nfs_guard ) {
+		::string  node_name      = codec_file.name()    ;
+		NodeData& nd             = *Node(New,node_name) ;
+		::string  disk_node_name ;
+		//
+		if (tmp) { disk_node_name = codec_file.name(true/*tmp*/) ; SWEAR( is_clean , codec_file ) ;  }                // nothing to clean in tmp space
+		else     { disk_node_name = node_name+".tmp"             ; if (!is_clean) unlnk(node_name) ; }
+		AcFd( disk_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=nfs_guard} ).write( code_val ) ; // ensure node_name is always correct when it exists as there is no read lock
+		//
+		nd.set_buildable()                                             ;
+		nd.set_crc_date( Crc(New,code_val) , FileSig(disk_node_name) ) ;
+		nd.polluted      = {}                                                    ;
+		nd.actual_job    = job                                                   ;
+		nd.actual_tflags = { Tflag::Incremental , Tflag::Phony , Tflag::Target } ;
+		//
+		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , nfs_guard ) ;                       // .
+	} ;
+	static void _erase( Codec::CodecFile const& codec_file , NfsGuard* nfs_guard ) {
+		::string  node_name = codec_file.name() ;
+		NodeData& nd        = *Node(node_name)  ;
+		//
+		unlnk( node_name , {.nfs_guard=nfs_guard} )    ;
+		nd.set_buildable()                             ;
+		nd.set_crc_date( Crc::None , {FileTag::None} ) ;
+		//
+		nd.polluted      = {} ;
+		nd.actual_job    = {} ;
+		nd.actual_tflags = {} ;
+	} ;
 	void JobData::_submit_codec(Req req) {
 		using namespace Codec ;
 		// there must be a single dep which is the codec file
-		Job                                  job            = idx()                         ;
-		Node                                 file           ;                                 for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,idx()) ;
-		::string                             file_name      = file->name()                  ;
-		::umap_s/*ctx*/<umap_s/*code*/<Crc>> old_decode_tab ;
-		::map_s /*ctx*/<map_ss/*code->val*/> decode_tab     ;
-		Bool3                                has_new_codes  ;
-		NfsGuard                             nfs_guard      { Engine::g_config->file_sync } ;
+		Job      job        = idx()                         ;
+		Node     file       ;                                 for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,idx()) ;
+		::string file_name  = file->name()                  ;
+		::string manifest   ;
+		NfsGuard nfs_guard  { Engine::g_config->file_sync } ;
+		//
 		Trace trace("_submit_codec",job,req) ;
 		//
 		file->set_buildable() ;
 		throw_unless( file->is_src_anti() && file->crc.is_reg() , "codec file must be a regular source" ) ;
 		//
-		_read_manifest  ( file_name ,                     /*out*/old_decode_tab ) ;
-		_read_codec_file( file_name , /*out*/decode_tab , /*out*/has_new_codes  ) ;
-		if (has_new_codes==No) {                                                                                                    // codes are strictly increasing and hence no code conflict
+		Bool3                                   has_new_codes  ;
+		::umap_s/*ctx*/<::umap_s/*code*/<Crc> > old_decode_tab = _prepare_old_decode_tab( file_name                        ) ;
+		::map_s /*ctx*/<::map_ss/*val ->code*/> encode_tab     = _prepare_encode_tab    ( file_name , /*out*/has_new_codes ) ;
+		::map_s /*ctx*/<::map_ss/*code->val */> decode_tab     ;
+		//
+		{	CodecLock lock  = CodecLock( file_name , {.err_ok=true,.nfs_guard=&nfs_guard} ) ;            // if we cannot lock, jobs do not access db, so no need to lock
+			bool      fresh = !lock                                                         ;            // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
+			if (fresh) {
+				SWEAR( !old_decode_tab , file_name ) ;                                                   // cannot have old codes if not initialized
+				mk_dir_s(CodecFile::s_dir_s(file_name,true/*tmp*/)) ;                                    // we want a dir to appear initialized, even if empty
+			} else {                                                                                     // .
+				_update_old_decode_tab( file_name , /*inout*/old_decode_tab                          ) ;
+				_update_encode_tab    ( file_name , /*inout*/encode_tab     , /*inout*/has_new_codes ) ;
+			}
+			decode_tab = _mk_decode_tab(encode_tab) ;
+			for( auto const& [ctx,d_entry] : decode_tab ) {
+				::umap_s<Crc>&       old_d_entry = old_decode_tab[ctx] ;
+				::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
+				manifest << mk_printable(ctx) <<'\n' ;
+				for( auto const& [code,val] : d_entry ) {
+					Crc  crc { New , val }            ;
+					auto dit        = old_d_entry.find(code) ;
+					auto eit        = old_e_entry.find(crc ) ;
+					bool d_is_clean = dit==old_d_entry.end() ;
+					bool e_is_clean = eit==old_e_entry.end() ;
+					if (  d_is_clean || dit->second!=crc  ) _create( {false/*encode*/,file_name,ctx,code} , val  , d_is_clean , job , fresh , &nfs_guard ) ;
+					if (  e_is_clean || eit->second!=code ) _create( {                file_name,ctx,crc } , code , e_is_clean , job , fresh , &nfs_guard ) ;
+					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                         ;
+					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                         ;
+					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
+				}
+				for( auto const& [code,_] : old_d_entry ) _erase( {false/*encode*/,file_name,ctx,code} , &nfs_guard ) ;
+				for( auto const& [crc ,_] : old_e_entry ) _erase( {                file_name,ctx,crc } , &nfs_guard ) ;
+			}
+			if (fresh) rename( CodecFile::s_dir_s(file_name,true/*tmp*/)/*src*/ , CodecFile::s_dir_s(file_name,false/*tmp*/)/*dst*/ ) ; // global move
+		}
+		if (has_new_codes==No) {                                                                                                        // codes are strictly increasing and hence no code conflict
 			deps.assign({Dep( file , Access::Reg , FileInfo(file_name) , false/*err*/ )}) ;
 		} else {
 			Crc file_crc = _refresh_codec_file( file_name , decode_tab ) ;
@@ -791,54 +871,6 @@ namespace Engine {
 			case No    : req->audit_job( Color::Note , New , "expand"   , rule() , file_name ) ; break ;
 			case Maybe : req->audit_job( Color::Note , New , "reformat" , rule() , file_name ) ; break ;
 			case Yes   : req->audit_job( Color::Note , New , "update"   , rule() , file_name ) ; break ;
-		}
-		auto create = [&]( CodecFile const& codec_file , ::string const& val , bool clean ) {
-			::string node_name     = codec_file.name()    ;
-			::string tmp_node_name = node_name+".tmp"     ;
-			NodeData& nd           = *Node(New,node_name) ;
-			//
-			if (!clean) unlnk(node_name) ;
-			AcFd( tmp_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard} ).write( val ) ; // ensure node_name is always correct when it exists as there is no read lock
-			rename( tmp_node_name/*src*/ , node_name/*dst*/ , &nfs_guard )                                         ; // .
-			nd.set_buildable()                                                                                     ;
-			nd.set_crc_date( Crc(node_name) , FileSig(node_name) )                                                 ;
-			//
-			nd.polluted      = {}                                                    ;
-			nd.actual_job    = job                                                   ;
-			nd.actual_tflags = { Tflag::Incremental , Tflag::Phony , Tflag::Target } ;
-		} ;
-		auto erase = [&](CodecFile const& codec_file) {
-			::string  node_name = codec_file.name() ;
-			NodeData& nd        = *Node(node_name)  ;
-			//
-			unlnk(node_name,{.nfs_guard=&nfs_guard})       ;
-			nd.set_buildable()                             ;
-			nd.set_crc_date( Crc::None , {FileTag::None} ) ;
-			//
-			nd.polluted      = {} ;
-			nd.actual_job    = {} ;
-			nd.actual_tflags = {} ;
-		} ;
-		::string  manifest  ;
-		CodecLock lock      = CodecLock( file_name , true/*err_ok*/ , &nfs_guard ) ; // if we cannot lock, jobs do not access db, so no need to lock
-		for( auto const& [ctx,d_entry] : decode_tab ) {
-			::umap_s<Crc>&       old_d_entry = old_decode_tab[ctx] ;
-			::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
-			manifest << mk_printable(ctx) <<'\n' ;
-			for( auto const& [code,val] : d_entry ) {
-				Crc  crc { New , val }            ;
-				auto dit     = old_d_entry.find(code) ;
-				auto eit     = old_e_entry.find(crc ) ;
-				bool d_clean = dit==old_d_entry.end() ;
-				bool e_clean = eit==old_e_entry.end() ;
-				if (  d_clean || dit->second!=crc  ) create( {false/*encode*/,file_name,ctx,code} , val  , d_clean ) ;
-				if (  e_clean || eit->second!=code ) create( {                file_name,ctx,crc } , code , e_clean ) ;
-				if ( !d_clean                      ) old_d_entry.erase(dit)                                          ;
-				if ( !e_clean                      ) old_e_entry.erase(eit)                                          ;
-				manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
-			}
-			for( auto const& [code,_] : old_d_entry ) erase({false/*encode*/,file_name,ctx,code}) ;
-			for( auto const& [crc ,_] : old_e_entry ) erase({                file_name,ctx,crc }) ;
 		}
 		AcFd ( CodecFile::s_manifest_file (file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( manifest ) ;
 		unlnk( CodecFile::s_new_codes_file(file_name) , {.nfs_guard=&nfs_guard} ) ;

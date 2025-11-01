@@ -437,8 +437,10 @@ namespace Caches {
 				hit = false ;                                                                 // this entry is not found, no more a hit, but search must continue
 				continue ;
 			FoundDep :
-				if (!dd.crc().match(repo_dd->crc(),dd.accesses)) goto Miss ;
-				//
+				if (!dd.crc().match(repo_dd->crc(),dd.accesses)) {
+					trace("miss",dn,dd.accesses,dd.crc(),repo_dd->crc()) ;
+					goto Miss ;
+				}
 				/**/     idx++ ;                                                              // count entries even when not in order for early break
 				if (hit) dvg++ ;
 			}
@@ -476,7 +478,7 @@ namespace Caches {
 			if (has_new_deps) return { .hit_info=CacheHitInfo::Match , .deps{::move(*matching_deps)} } ;
 			trace("no_new_deps") ;
 		} else {
-			trace("miss") ;
+			trace("no_matching") ;
 		}
 		return { .hit_info=found_rule?CacheHitInfo::BadDeps:CacheHitInfo::NoRule } ;
 	}

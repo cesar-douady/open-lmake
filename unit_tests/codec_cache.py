@@ -72,4 +72,3 @@ else :
 	+	'\tcode2\tctx\tval2\n'
 	)
 	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , hit_done=2 )
-

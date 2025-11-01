@@ -539,7 +539,7 @@ int main( int argc , char* argv[] ) {
 			status = g_gather.exec_child() ;
 			//       ^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {                                                                                                 // START_OF_NO_COV defensive programming
-			if (g_gather.started) end_report.digest.status = Status::Err ;                                                            // not early as soon as job is started
+			end_report.digest.status = g_gather.started ? Status::LateLost : Status::EarlyLost ;                                      // not early as soon as job is started
 			end_report.msg_stderr.msg << "open-lmake error : " << e ;
 			goto End ;
 		}                                                                                                                             // END_OF_NO_COV

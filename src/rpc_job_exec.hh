@@ -35,11 +35,11 @@ enum class JobExecProc : uint8_t {
 struct JobExecRpcReq   ;
 struct JobExecRpcReply ;
 
-struct AccessDigest {                                                                    // semantic access order is first read, first write, last write, unlink
+struct AccessDigest {                                                                        // semantic access order is first read, first write, last write, unlink
 	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
-	bool has_read () const { return +accesses || read_dir   ; }                          // true if some read access of some sort is done
-	bool operator+() const { return has_read() || write!=No ; }                          // true if some      access of some sort is done
+	bool has_read () const { return +accesses || read_dir   ; }                              // true if some read access of some sort is done
+	bool operator+() const { return has_read() || write!=No ; }                              // true if some      access of some sort is done
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&   )       ;
@@ -60,8 +60,8 @@ struct JobExecRpcReq {
 	using Proc = JobExecProc ;
 	using Id   = uint64_t    ;
 	// accesses
-	::string const& txt() const { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // reuse files to pass specific info
-	::string      & txt()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; } // .
+	::string const& txt() const { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; }                                     // reuse files to pass specific info
+	::string      & txt()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; }                                     // .
 	// services
 	void chk() const {
 		/**/                                                 SWEAR( (+files)==(proc>=Proc::HasFile)                                                , proc,files ) ;
@@ -79,7 +79,7 @@ struct JobExecRpcReq {
 			case Proc::Trace         : SWEAR(              !digest            &&  !id                       && +date && files.size()==1 , self ) ; break ; // files = {txt}
 			case Proc::Access        : SWEAR(                                    ( id||digest.write!=Maybe) && +date                    , self ) ; break ;
 			case Proc::AccessPattern : SWEAR(              !digest.has_read() && (!id&&digest.write!=Maybe) && +date                    , self ) ; break ;
-		DF}                                                                                                                                                            // NO_COV
+		DF}                                                                                                                                                // NO_COV
 	}
 	template<IsStream S> void serdes(S& s) {
 		/**/                     ::serdes(s,proc        ) ;
@@ -141,29 +141,47 @@ struct JobExecRpcReply {
 	// data
 	Proc                  proc          = Proc::None ;
 	Bool3                 ok            = Maybe      ;                                       // if proc==ChkDeps|DepDirect
-	::vector<VerboseInfo> verbose_infos = {}         ;                                       // if proc==DepVerbose                      , same order as deps
+	::vector<VerboseInfo> verbose_infos = {}         ;                                       // if proc==DepVerbose       , same order as deps
 	::vector_s            files         = {}         ;                                       // if proc==List
 } ;
 
 namespace Codec {
 
 	// START_OF_VERSIONING
-	static constexpr char Pfx        [] = PRIVATE_ADMIN_DIR_S "codec/" ; static constexpr size_t PfxSz  = sizeof(Pfx )-1 ; // account for terminating null
-	static constexpr char Infx       [] = "/\t"                        ; static constexpr size_t InfxSz = sizeof(Infx)-1 ; // .
-	static constexpr char LockSfx    [] = "/lock"                      ;
-	static constexpr char ManifestSfx[] = "/manifest"                  ;
-	static constexpr char NewCodesSfx[] = "/new_codes"                 ;
-	static constexpr char DecodeSfx  [] = ".decode"                    ;
-	static constexpr char EncodeSfx  [] = ".encode"                    ;
+	static constexpr char Pfx        [] = PRIVATE_ADMIN_DIR_S "codec/"     ; static constexpr size_t PfxSz  = sizeof(Pfx )-1 ; // account for terminating null
+	static constexpr char TmpPfx     [] = PRIVATE_ADMIN_DIR_S "codec_tmp/" ;
+	static constexpr char Infx       [] = "/\t"                            ; static constexpr size_t InfxSz = sizeof(Infx)-1 ; // .
+	static constexpr char LockSfx    [] = "/lock"                          ;
+	static constexpr char ManifestSfx[] = "/manifest"                      ;
+	static constexpr char NewCodesSfx[] = "/new_codes"                     ;
+	static constexpr char DecodeSfx  [] = ".decode"                        ;
+	static constexpr char EncodeSfx  [] = ".encode"                        ;
 	// END_OF_VERSIONING
+
+	// this lock ensures correct operation even in case of crash
+	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
+	struct _LockAction {
+		bool      err_ok    = false   ;
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
+	struct CodecLock : FileLock {
+		using Action = _LockAction ;
+		// ctxors & casts
+		CodecLock ( Fd at , ::string const& file , Action  ={} ) ;
+		CodecLock (         ::string const& file , Action a={} ) : CodecLock{Fd::Cwd,file,a} {}
+		~CodecLock() ;
+		// data
+		Fd       at   ;
+		::string file ;
+	} ;
 
 	struct CodecFile {
 		friend ::string& operator+=( ::string& , CodecFile const& ) ;
 		// statics
-		static bool     s_is_codec      (::string const& node) { return node.starts_with(Pfx)     ; }
-		static ::string s_dir_s         (::string const& file) { return cat(Pfx,file,'/'        ) ; }
-		static ::string s_manifest_file (::string const& file) { return cat(Pfx,file,ManifestSfx) ; }
-		static ::string s_new_codes_file(::string const& file) { return cat(Pfx,file,NewCodesSfx) ; }
+		static bool     s_is_codec      ( ::string const& node , bool tmp=false ) { return node.starts_with(tmp?TmpPfx:Pfx)     ; }
+		static ::string s_dir_s         ( ::string const& file , bool tmp=false ) { return cat(tmp?TmpPfx:Pfx,file,'/'        ) ; }
+		static ::string s_manifest_file ( ::string const& file , bool tmp=false ) { return cat(tmp?TmpPfx:Pfx,file,ManifestSfx) ; }
+		static ::string s_new_codes_file( ::string const& file , bool tmp=false ) { return cat(tmp?TmpPfx:Pfx,file,NewCodesSfx) ; }
 		// cxtors & casts
 		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
@@ -181,7 +199,7 @@ namespace Codec {
 		::string  const& code     () const { return get<0>(_code_val_crc)           ; }
 		Hash::Crc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
 		// services
-		::string name() const ;
+		::string name(bool tmp=false) const ;
 		// data
 		::string file ;
 		::string ctx  ;
@@ -189,32 +207,14 @@ namespace Codec {
 		::variant<::string/*decode*/,Hash::Crc/*encode*/> _code_val_crc ;
 	} ;
 
-	// this lock ensures correct operation even in case of crash
-	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
-	struct CodecLock : FileLock {
-		// ctxors & casts
-		CodecLock ( Fd at , ::string const& file , bool err_ok=false , NfsGuard* ng=nullptr ) ;
-		CodecLock (         ::string const& file , bool err_ok=false , NfsGuard* ng=nullptr ) : CodecLock{Fd::Cwd,file,err_ok,ng} {}
-		CodecLock ( Fd at , ::string const& file ,                     NfsGuard* ng         ) : CodecLock{at     ,file,false ,ng} {}
-		CodecLock (         ::string const& file ,                     NfsGuard* ng         ) : CodecLock{Fd::Cwd,file,false ,ng} {}
-		~CodecLock() { _close() ; }
-		// accesses
-		bool operator+() const { return +at ; }
-		// sevices
-		void _close() ;
-		// data
-		Fd       at   ;
-		::string file ;
-	} ;
-
-	struct Entry {                    // format : "\t<ctx>\t<code>\t<val>" exactly
+	struct Entry {
 		friend ::string& operator+=( ::string& , Entry const& ) ;
 		// cxtors & casts
 		Entry() = default ;
 		Entry( ::string const& x , ::string const& c , ::string const& v ) : ctx{x} , code{c} , val{v} {}
-		Entry( ::string const& line                                      ) ;
+		Entry( ::string const& line                                      ) ;                              // format : "\t<ctx>\t<code>\t<val>" exactly
 		// services
-		::string line(bool with_nl=false) const ;
+		::string line(bool with_nl=false) const ;                                                         // .
 		// data
 		::string ctx  ;
 		::string code ;

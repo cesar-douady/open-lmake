@@ -377,9 +377,9 @@ namespace Backdoor {
 		//
 		if (+sr.accesses) r.report_access( { .comment=Comment::Encode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
 		//
-		::string new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real) ;
-		::string res            ;
-		bool     created        = false                                       ;
+		::string    new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real) ;
+		::string    res            ;
+		ExtraDflags edf            ;
 		try {                                                                           // first try with share lock (light weight in case no update is necessary)
 			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                       // if node exists, it contains the reply
 		} catch (::string const&) {                                                     // if node does not exist, create a code
@@ -395,8 +395,8 @@ namespace Backdoor {
 				} ;
 				r.report_sync(::move(jerr)) ;
 			}
-			::string         crc_str = crc.hex()                    ;
-			Codec::CodecLock lock    { rfd , sr.real , &nfs_guard } ;                   // must hold the lock as we probably need to create a code
+			::string         crc_str = crc.hex()                                 ;
+			Codec::CodecLock lock    { rfd , sr.real , {.nfs_guard=&nfs_guard} } ;      // must hold the lock as we probably need to create a code
 			try {
 				res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                   // repeat test with lock
 			} catch (::string const&) {
@@ -411,18 +411,17 @@ namespace Backdoor {
 					AcFd( rfd , new_codes_file  , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
 					AcFd( rfd , tmp_node        , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
 					AcFd( rfd , tmp_decode_node , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
-					rename( rfd,tmp_node       /*src*/ , rfd,node       /*dst*/ ) ;
-					rename( rfd,tmp_decode_node/*src*/ , rfd,decode_node/*dst*/ ) ;
+					rename( rfd,tmp_node       /*src*/ , rfd,node       /*dst*/ , &nfs_guard ) ;
+					rename( rfd,tmp_decode_node/*src*/ , rfd,decode_node/*dst*/ , &nfs_guard ) ;
 					//
-					res     = code ;
-					created = true ;
+					res  = code                     ;
+					edf |= ExtraDflag::CreateEncode ;
 					break ;
 				}
 				nfs_guard.flush() ;                                                    // flush before lock is released
-				throw_unless( created , "no code available" ) ;
+				throw_unless( edf[ExtraDflag::CreateEncode] , "no code available" ) ;
 			}
 		}
-		ExtraDflags edf ; if (created) edf |= ExtraDflag::CreateEncode ;
 		r.report_access( { .comment=Comment::Encode , .digest={.accesses=Access::Reg,.flags{.extra_dflags=edf}} , .files={{::move(node),{}}} } , true/*force*/ ) ;
 		r.send_report() ;
 		return res ;

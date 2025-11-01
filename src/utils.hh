@@ -547,6 +547,7 @@ struct _FdAction {
 	int       flags     = O_RDONLY ;
 	mode_t    mod       = -1       ;                                                                          // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      err_ok    = false    ;
+	bool      mk_dir    = true     ;
 	PermExt   perm_ext  = {}       ;
 	bool      no_std    = false    ;
 	NfsGuard* nfs_guard = nullptr  ;
@@ -749,6 +750,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 
 struct _FileLockAction {
 	bool    err_ok   = false ; // ok if the lock cannot be created
+	bool    mk_dir   = true  ; // create dir chain as needed
 	PermExt perm_ext = {}    ; // used for fd based to ensure lock file can be adequately accessed
 } ;
 
@@ -758,20 +760,18 @@ struct _FileLockAction {
 struct _LockerFd {
 	using Action = _FileLockAction ;
 	// cxtors & casts
-	_LockerFd( FileSpec const& fs , Action a={} ) : fd{ fs.at , fs.file , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.perm_ext=a.perm_ext} } {}
+	_LockerFd( FileSpec const& fs , Action a={} ) : fd{ fs.at , fs.file , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
+	// accesses
+	bool operator+() const { return +fd ; }
 	// services
 	void lock() = delete ; // must be provided by child
 	// data
 	AcFd fd ;
 } ;
-struct _LockerFcntl : _LockerFd {
-	using _LockerFd::_LockerFd ;
-	void lock() ;
-} ;
-struct _LockerFlock : _LockerFd {
-	using _LockerFd::_LockerFd ;
-	void lock() ;
-} ;
+//
+struct _LockerFcntl : _LockerFd { using _LockerFd::_LockerFd ; void lock() ; } ;
+struct _LockerFlock : _LockerFd { using _LockerFd::_LockerFd ; void lock() ; } ;
+//
 template<class Locker> struct _FileLockFd : Locker {
 	using typename Locker::Action ;
 	using          Locker::lock   ;
@@ -788,44 +788,32 @@ template<class Locker> struct _FileLockFd : Locker {
 // file based locks
 //
 struct _LockerFile {
-	static constexpr bool IsDir = false ;
 	using Action = _FileLockAction ;
 	// cxtors & casts
 	_LockerFile(FileSpec const& fs) : spec{fs.at,fs.file+"_tmp"} {} // use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
+	// accesses
+	bool operator+() const { return +spec ; }
 	// services
-	Bool3/*ok*/ try_lock() = delete ;                              // must be provided by child
+	Bool3/*ok*/ try_lock(                 ) = delete ;                                                                                                        // must be provided by child
+	void        unlock  (bool is_dir=false) { int rc = ::unlinkat( spec.at , spec.file.c_str() , is_dir?AT_REMOVEDIR:0 ) ; SWEAR( rc==0 , spec,StrErr() ) ; }
 	// data
 	FileSpec spec ;
-} ;
-struct _LockerExcl : _LockerFile {
-	using _LockerFile::_LockerFile ;
-	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
-} ;
-struct _LockerSymlink : _LockerFile {
-	using _LockerFile::_LockerFile ;
-	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
-} ;
-struct _LockerLink : _LockerFile {
-	using _LockerFile::_LockerFile ;
-	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
-	// data
-	::string tmp ;
-} ;
-struct _LockerMkdir : _LockerFile {
-	static constexpr bool IsDir = true ;
-	using _LockerFile::_LockerFile ;
-	Bool3/*ok*/ try_lock() ;                                       // Maybe means retry
-} ;
+} ; //!                                                                ok
+struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; ::string tmp ;  } ;
+struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                 } ;
+struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                 } ;
+struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; void unlock() ; } ;
+//
 template<class Locker> struct _FileLockFile : Locker {
 	using typename Locker::Action   ;
-	using          Locker::IsDir    ;
 	using          Locker::try_lock ;
 	using          Locker::spec     ;
+	using          Locker::unlock   ;
 	// cxtors & casts
 	_FileLockFile( Fd at , ::string const& f , Action action ) ;
 	~_FileLockFile() {
 		if (!spec.at) return ;
-		int rc = ::unlinkat( spec.at , spec.file.c_str() , IsDir?AT_REMOVEDIR:0 ) ; SWEAR( rc==0 , spec,StrErr() ) ;
+		unlock() ;
 	}
 } ;
 
@@ -846,6 +834,17 @@ struct FileLock :
 	using Action = _FileLockAction ;
 	FileLock( FileSync    , Fd at , ::string const& file , Action  ={} ) ;
 	FileLock( FileSync fs ,         ::string const& f    , Action a={} ) : FileLock{fs,Fd::Cwd,f,a} {}
+	bool operator+() const {
+		switch (index()) {                  // PER_FILE_SYNC : add entry here
+			case 0 : return false         ;
+			case 1 : return +get<1>(self) ;
+			case 2 : return +get<2>(self) ;
+			case 3 : return +get<3>(self) ;
+			case 4 : return +get<4>(self) ;
+			case 5 : return +get<5>(self) ;
+			case 6 : return +get<6>(self) ;
+		DF}
+	}
 } ;
 
 //
@@ -934,11 +933,14 @@ template<class... As> void dbg( Fd fd , ::string const& title , As const&... arg
 	::string msg = title             ;
 	/**/  (( msg <<' '<< args ),...) ;
 	/**/     msg <<'\n'              ;
-	fd.write(msg) ;
+	{ Save sav_errno{errno} ; fd.write(msg) ; }
 }
-template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) { dbg( AcFd(file,{O_WRONLY|O_APPEND|O_CREAT,0666}) , title , args... ) ; }
-template<class... As> void dbg(                                  ::string const& title , As const&... args ) { dbg( Fd::Stderr                                  , title , args... ) ; }
-template<class... As> void dbg(                                  const char*     title , As const&... args ) { dbg( Fd::Stderr                                  , title , args... ) ; } // disambiguate
+template<class... As> void dbg( ::string const& title , As const&... args ) { dbg( Fd::Stderr , title , args... ) ; }
+template<class... As> void dbg( const char*     title , As const&... args ) { dbg( Fd::Stderr , title , args... ) ; } // disambiguate
+template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) {
+	Save sav_errno { errno } ;
+	dbg( AcFd(file,{O_WRONLY|O_APPEND|O_CREAT,0666}) , title , args... ) ;
+}
 
 template<::integral I> I random() {
 	::string buf_char = AcFd("/dev/urandom").read(sizeof(I)) ; SWEAR(buf_char.size()==sizeof(I),buf_char.size()) ;
