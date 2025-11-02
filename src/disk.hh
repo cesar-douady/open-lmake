@@ -57,7 +57,6 @@ enum class FileLoc : uint8_t {
 } ;
 
 namespace Disk {
-	using Ddate       = Time::Ddate              ;
 	using DiskSz      = uint64_t                 ;
 	using FileNameIdx = Uint<n_bits(PATH_MAX+1)> ; // file names are limited to PATH_MAX
 
@@ -168,8 +167,8 @@ namespace Disk {
 			::serdes( s , sz,date ) ;
 		}
 		// data
-		DiskSz sz   = 0 ;
-		Ddate  date ;
+		DiskSz      sz   = 0 ;
+		Time::Ddate date ;
 	} ;
 
 	struct FileSig {
@@ -205,16 +204,15 @@ namespace Disk {
 
 	struct SigDate {
 		friend ::string& operator+=( ::string& , SigDate const& ) ;
-		using Pdate = Time::Pdate ;
 		// cxtors & casts
 		SigDate() = default ;
-		SigDate( FileSig s , Pdate d=New ) : sig{s} , date{d  } {}
+		SigDate( FileSig s , Time::Pdate d=New ) : sig{s} , date{d  } {}
 		// accesses
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
 		// data
-		FileSig sig  ;
-		Pdate   date ;
+		FileSig     sig  ;
+		Time::Pdate date ;
 	} ;
 
 	// list files within dir with prefix in front of each entry
@@ -238,11 +236,14 @@ namespace Disk {
 		bool      force     = false   ;
 		NfsGuard* nfs_guard = nullptr ;
 	} ;
-	void         unlnk_inside_s( Fd at , ::string const& dir_s ,                          _UnlnkAction={}      ) ;
-	bool/*done*/ unlnk         ( Fd at , ::string const& file  ,                          _UnlnkAction={}      ) ;
-	void         rmdir_s       ( Fd at , ::string const& dir_s ,                          NfsGuard*   =nullptr ) ;
-	void         mk_dir_empty_s( Fd at , ::string const& dir_s ,                          _UnlnkAction={}      ) ;
-	void         sym_lnk       ( Fd at , ::string const& file  , ::string const& target , NfsGuard*   =nullptr ) ;
+	void         unlnk_inside_s( Fd at , ::string const& dir_s ,                          _UnlnkAction   ={}      ) ;
+	bool/*done*/ unlnk         ( Fd at , ::string const& file  ,                          _UnlnkAction   ={}      ) ;
+	void         rmdir_s       ( Fd at , ::string const& dir_s ,                          NfsGuard*      =nullptr ) ;
+	void         mk_dir_empty_s( Fd at , ::string const& dir_s ,                          _UnlnkAction   ={}      ) ;
+	void         sym_lnk       ( Fd at , ::string const& file  , ::string const& target , NfsGuard*      =nullptr ) ;
+	void         touch         ( Fd at , ::string const& path  , Time::Pdate            , NfsGuard*      =nullptr ) ;
+
+	inline void touch( Fd at , ::string const& path  , NfsGuard*    ng=nullptr ) { touch(at,path,New,ng) ; }
 
 	inline void         unlnk_inside_s( Fd              at    ,                          _UnlnkAction a ={}      ) {        unlnk_inside_s( at      , {}    ,          a  ) ; }
 	inline void         unlnk_inside_s( ::string const& dir_s ,                          _UnlnkAction a ={}      ) {        unlnk_inside_s( Fd::Cwd , dir_s ,          a  ) ; }
@@ -250,19 +251,21 @@ namespace Disk {
 	inline void         rmdir_s       ( ::string const& dir_s ,                          NfsGuard*    ng=nullptr ) {        rmdir_s       ( Fd::Cwd , dir_s ,          ng ) ; }
 	inline void         mk_dir_empty_s( ::string const& dir_s ,                          _UnlnkAction a ={}      ) { return mk_dir_empty_s( Fd::Cwd , dir_s ,          a  ) ; }
 	inline void         sym_lnk       ( ::string const& file  , ::string const& target , NfsGuard*    ng=nullptr ) {        sym_lnk       ( Fd::Cwd , file  , target , ng ) ; }
+	inline void         touch         ( ::string const& path  , Time::Pdate     date   , NfsGuard*    ng=nullptr ) { return touch         ( Fd::Cwd , path  , date   , ng ) ; }
+	inline void         touch         ( ::string const& path  ,                          NfsGuard*    ng=nullptr ) { return touch         ( Fd::Cwd , path  , New    , ng ) ; }
 
 	/**/   ::string read_lnk( Fd at , ::string const& file , NfsGuard*       =nullptr ) ;
 	inline ::string read_lnk (        ::string const& file , NfsGuard* action=nullptr ) { return read_lnk(Fd::Cwd,file,action) ; }
 
-	inline bool  is_dir_s ( Fd at , ::string const& dir_s , FileInfo::Action action={} ) { return FileInfo(at,dir_s,action).tag()==FileTag::Dir ; }
-	inline bool  is_target( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).exists()            ; }
-	inline bool  is_exe   ( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).tag()==FileTag::Exe ; }
-	inline Ddate file_date( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).date                ; }
+	inline bool        is_dir_s ( Fd at , ::string const& dir_s , FileInfo::Action action={} ) { return FileInfo(at,dir_s,action).tag()==FileTag::Dir ; }
+	inline bool        is_target( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).exists()            ; }
+	inline bool        is_exe   ( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).tag()==FileTag::Exe ; }
+	inline Time::Ddate file_date( Fd at , ::string const& file  , FileInfo::Action action={} ) { return FileInfo(at,file ,action).date                ; }
 
-	inline bool       is_dir_s ( ::string const& dir_s , FileInfo::Action action={} ) { return is_dir_s ( Fd::Cwd , dir_s , action ) ; }
-	inline bool       is_target( ::string const& file  , FileInfo::Action action={} ) { return is_target( Fd::Cwd , file  , action ) ; }
-	inline bool       is_exe   ( ::string const& file  , FileInfo::Action action={} ) { return is_exe   ( Fd::Cwd , file  , action ) ; }
-	inline Ddate      file_date( ::string const& file  , FileInfo::Action action={} ) { return file_date( Fd::Cwd , file  , action ) ; }
+	inline bool        is_dir_s ( ::string const& dir_s , FileInfo::Action action={} ) { return is_dir_s ( Fd::Cwd , dir_s , action ) ; }
+	inline bool        is_target( ::string const& file  , FileInfo::Action action={} ) { return is_target( Fd::Cwd , file  , action ) ; }
+	inline bool        is_exe   ( ::string const& file  , FileInfo::Action action={} ) { return is_exe   ( Fd::Cwd , file  , action ) ; }
+	inline Time::Ddate file_date( ::string const& file  , FileInfo::Action action={} ) { return file_date( Fd::Cwd , file  , action ) ; }
 
 	// deep list files whose tag matches FileTags within dir with pfx in front of each entry, return a single entry {pfx} if file is not a dir (including if file does not exist)
 	::vmap_s<FileTag> walk(

@@ -859,7 +859,8 @@ namespace Engine {
 				::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
 				manifest << mk_printable(ctx) <<'\n' ;
 				for( auto const& [code,val] : d_entry ) {
-					Crc  crc { New , val }            ;
+					lock.keep_alive() ;                                                                                                         // lock have limited liveness, keep it alive regularly
+					Crc  crc        { New , val }            ;
 					auto dit        = old_d_entry.find(code) ;
 					auto eit        = old_e_entry.find(crc ) ;
 					bool d_is_clean = dit==old_d_entry.end() ;
@@ -870,11 +871,11 @@ namespace Engine {
 					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                         ;
 					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 				}
-				for( auto const& [code,_] : old_d_entry ) _erase( {false/*encode*/,file_name,ctx,code} , &nfs_guard ) ;
-				for( auto const& [crc ,_] : old_e_entry ) _erase( {                file_name,ctx,crc } , &nfs_guard ) ;
+				for( auto const& [code,_] : old_d_entry ) { lock.keep_alive() ; _erase( {false/*encode*/,file_name,ctx,code} , &nfs_guard ) ; } // lock have limited liveness, keep it alive regularly
+				for( auto const& [crc ,_] : old_e_entry ) { lock.keep_alive() ; _erase( {                file_name,ctx,crc } , &nfs_guard ) ; } // .
 			}
 		}
-		if (has_new_codes==No) {                                                                     // codes are strictly increasing and hence no code conflict
+		if (has_new_codes==No) {                                                            // codes are strictly increasing and hence no code conflict
 			deps.assign({Dep( file , Access::Reg , FileInfo(file_name) , false/*err*/ )}) ;
 		} else {
 			Crc file_crc = _refresh_codec_file( file_name , decode_tab ) ;

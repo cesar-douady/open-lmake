@@ -190,6 +190,8 @@ void NfsGuardDir::flush() {
 // FileLock
 //
 
+static constexpr Delay FileLockFileTimeout { 10 } ; // a file based lock that is that old is ignored (fd based lcoks are spontaneously released when process dies)
+
 void _LockerFcntl::lock() {
 	struct flock lock {
 		.l_type   = F_WRLCK
@@ -203,6 +205,21 @@ void _LockerFcntl::lock() {
 
 void _LockerFlock::lock() {
 	while (::flock(fd,LOCK_EX)!=0) SWEAR_PROD( errno==EINTR , fd,StrErr() ) ;
+}
+
+// use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
+_LockerFile::_LockerFile(FileSpec const& fs) : spec{fs.at,fs.file+"_tmp"} , date{Pdate(New).val()} {}
+
+void _LockerFile::unlock( bool err_ok , bool is_dir ) {
+	int rc = ::unlinkat( spec.at , spec.file.c_str() , is_dir?AT_REMOVEDIR:0 ) ;
+	if (!err_ok) SWEAR( rc==0 , spec,StrErr() ) ;
+}
+
+void _LockerFile::keep_alive() {
+	Pdate now { New } ;
+	if (now<Pdate(New,date)+FileLockFileTimeout/2) return ;
+	//
+	touch( spec.at , spec.file ) ;
 }
 
 Bool3/*ok*/ _LockerExcl::try_lock() {
@@ -246,24 +263,32 @@ Bool3/*ok*/ _LockerMkdir::try_lock() {
 	else               return No    ;                                 // not lockable
 }
 
-void _LockerMkdir::unlock() {
-	_LockerFile::unlock(true/*is_dir*/) ;
+void _LockerMkdir::unlock(bool err_ok) {
+	_LockerFile::unlock(err_ok,true/*is_dir*/) ;
 }
 
 // cannot put this cxtor in .hh file as Pdate is not available
 template<class Locker> _FileLockFile<Locker>::_FileLockFile( Fd at , ::string const& f , Action a ) : Locker{{at,f}} {
 	if (!spec) return ;
+	//
 	Pdate start { New } ;
-	for ( Bool3 rc ; (rc=try_lock())!=Yes ;)
-		if      (rc!=No  ) ::min( Pdate(New)-start , Delay(1) ).sleep_for() ;                         // ensure logarithmic trials, but try at least every second
+	Pdate now   = start ;
+	//
+	auto chk_prev = [&]() {
+		Pdate prev { New , FileInfo(spec.at,spec.file).date.val() } ;                                 // lock dates are actually Pdate's
+		if ( +prev && now-prev>FileLockFileTimeout ) unlock(true/*err_ok*/) ;                         // XXX! : find a way for this timeout-unlock to be atomic
+	} ;
+	for ( Bool3 rc ; (chk_prev(),rc=try_lock())!=Yes ;)
+		if      (rc!=No  ) ::min( now-start , Delay(1) ).sleep_for() ;                                // ensure logarithmic trials, but try at least every second
 		else if (a.err_ok) { spec.at = {} ; return                                                ; } // if err_ok, object is built empty
 		else                                throw cat("cannot create lock (",StrErr(),") ",spec ) ;
+	touch( spec.at , spec.file ) ;                                                                    // ensure disk date is compatible with Pdate
 }
 
-template _FileLockFile<_LockerExcl   >::_FileLockFile( Fd at , ::string const& , Action ) ;       // explicit instantiation
-template _FileLockFile<_LockerSymlink>::_FileLockFile( Fd at , ::string const& , Action ) ;       // .
-template _FileLockFile<_LockerLink   >::_FileLockFile( Fd at , ::string const& , Action ) ;       // .
-template _FileLockFile<_LockerMkdir  >::_FileLockFile( Fd at , ::string const& , Action ) ;       // .
+template _FileLockFile<_LockerExcl   >::_FileLockFile( Fd at , ::string const& , Action ) ; // explicit instantiation
+template _FileLockFile<_LockerSymlink>::_FileLockFile( Fd at , ::string const& , Action ) ; // .
+template _FileLockFile<_LockerLink   >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
+template _FileLockFile<_LockerMkdir  >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
 
 #define FILE_LOCK_ALTERNATIVE 0
 FileLock::FileLock( FileSync fs , Fd at , ::string const& file , Action a ) {

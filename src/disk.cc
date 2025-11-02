@@ -9,6 +9,7 @@
 
 namespace Disk {
 	using namespace Hash ;
+	using namespace Time ;
 
 	//
 	// path name library
@@ -205,6 +206,12 @@ namespace Disk {
 		SWEAR(+dir_s) ;
 		if (nfs_guard) nfs_guard->change(at,dir_s) ;
 		if (::unlinkat(at,dir_s.c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
+	}
+
+	void touch( Fd at , ::string const& path , Pdate date , NfsGuard* nfs_guard ) {
+		TimeSpec time_specs[2] { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} } ;
+		::utimensat( at , path.c_str() , time_specs , AT_SYMLINK_NOFOLLOW ) ;
+		if (nfs_guard) nfs_guard->change(at,path) ;
 	}
 
 	// path and pfx are restored after execution

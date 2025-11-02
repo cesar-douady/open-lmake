@@ -54,8 +54,8 @@ protected :
 	// services
 public :
 	// if timeout is 0, it means infinity (no timeout)
-	void set_receive_timeout(Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
-	void set_send_timeout   (Time::Delay to={}) { Time::Pdate::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
+	void set_receive_timeout(Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
+	void set_send_timeout   (Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
 	void set_timeout        (Time::Delay to={}) {
 		set_receive_timeout(to) ;
 		set_send_timeout   (to) ;
@@ -268,16 +268,16 @@ public :
 			timeout.sleep_for() ;
 			return {} ;
 		}
-		struct ::timespec now         ;
-		struct ::timespec end         ;
-		bool              has_timeout = timeout>Time::Delay() && timeout!=Time::Delay::Forever ;
+		Time::TimeSpec now         ;
+		Time::TimeSpec end         ;
+		bool           has_timeout = timeout>Time::Delay() && timeout!=Time::Delay::Forever ;
 		if (has_timeout) {
 			::clock_gettime(CLOCK_MONOTONIC,&now) ;
-			end.tv_sec  = now.tv_sec  + timeout.sec()       ;
-			end.tv_nsec = now.tv_nsec + timeout.nsec_in_s() ;
-			if (end.tv_nsec>=1'000'000'000l) {
-				end.tv_nsec -= 1'000'000'000l ;
-				end.tv_sec  += 1              ;
+			end.tv_sec  = time_t ( now.tv_sec  + timeout.sec()       ) ;
+			end.tv_nsec = int32_t( now.tv_nsec + timeout.nsec_in_s() ) ;
+			if (end.tv_nsec>=int32_t(1'000'000'000)) {
+				end.tv_nsec -= int32_t(1'000'000'000) ;
+				end.tv_sec  += 1                      ;
 			}
 		}
 		for(;;) {                                                     // manage case where timeout is longer than the maximum allowed timeout by looping over partial timeouts
@@ -289,8 +289,8 @@ public :
 				static constexpr time_t WaitMax = Max<int>/1000 - 1 ; // ensure time can be expressed in ms with an int after adding fractional part
 				time_t wait_s = end.tv_sec - now.tv_sec ;
 				if ((wait_overflow=(wait_s>WaitMax))) wait_s = WaitMax ;
-				wait_ms  = wait_s                    * 1'000      ;
-				wait_ms += (end.tv_nsec-now.tv_nsec) / 1'000'000l ;   // /!\ protect against possible conversion to time_t which may be unsigned
+				wait_ms  = wait_s * 1'000                                  ;
+				wait_ms += time_t( (end.tv_nsec-now.tv_nsec) / 1'000'000 ) ;
 			} else {
 				wait_ms = timeout==Time::Delay::Forever ? -1 : 0 ;
 			}

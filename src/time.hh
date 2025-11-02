@@ -36,6 +36,9 @@ constexpr FileTags TargetTags = []()->FileTags {
 
 namespace Time {
 
+	using TimeSpec = struct ::timespec ;
+	using TimeVal  = struct ::timeval  ;
+
 	struct Delay       ;
 	struct CoarseDelay ;
 	struct Date        ;
@@ -50,8 +53,6 @@ namespace Time {
 		//
 		using Tick     = T                                            ;
 		using Tick32   = ::conditional_t<IsUnsigned,uint32_t,int32_t> ;
-		using TimeSpec = struct ::timespec                            ;
-		using TimeVal  = struct ::timeval                             ;
 		// cxtors & casts
 		constexpr          TimeBase() = default ;
 		constexpr explicit TimeBase(int             v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
@@ -63,10 +64,11 @@ namespace Time {
 		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
 		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
 		constexpr explicit TimeBase(NewType,Tick    v )                      : _val{   v                                          } {}
-		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=time_t(sec()) , .tv_nsec=nsec_in_s() } ; return ts                          ; }
-		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=time_t(sec()) , .tv_usec=usec_in_s() } ; return tv                          ; }
-		constexpr explicit operator double  () const {                                                               return double(_val)/TicksPerSecond ; }
-		constexpr explicit operator float   () const {                                                               return float (_val)/TicksPerSecond ; }
+		//
+		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=time_t(sec()) , .tv_nsec=int32_t    (nsec_in_s()) } ; return ts                          ; }
+		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=time_t(sec()) , .tv_usec=suseconds_t(usec_in_s()) } ; return tv                          ; }
+		constexpr explicit operator double  () const {                                                                            return double(_val)/TicksPerSecond ; }
+		constexpr explicit operator float   () const {                                                                            return float (_val)/TicksPerSecond ; }
 		// accesses
 		constexpr bool operator+ (   ) const { return _val ;                     }
 		constexpr Tick val       (   ) const { return _val ;                     }

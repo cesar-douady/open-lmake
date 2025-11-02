@@ -28,12 +28,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* implement a timeout on codec/cache locks
-* find a way to clean cache locks in case of crash
 * replace cache/LMAKE/size by cache/LMAKE/config
 	- put size and file_sync in it
 	- load when reading Lmakefile.py
-	- try to find a mechanism to auto clean lock file when going from fnctl to file based
 * use git ls-files --stage to list files  under git in v25.07
 	- mimic main
 * consider to differ sources checks

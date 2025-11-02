@@ -764,7 +764,8 @@ struct _LockerFd {
 	// accesses
 	bool operator+() const { return +fd ; }
 	// services
-	void lock() = delete ; // must be provided by child
+	void lock      () = delete ; // must be provided by child
+	void keep_alive() {}
 	// data
 	AcFd fd ;
 } ;
@@ -790,19 +791,21 @@ template<class Locker> struct _FileLockFd : Locker {
 struct _LockerFile {
 	using Action = _FileLockAction ;
 	// cxtors & casts
-	_LockerFile(FileSpec const& fs) : spec{fs.at,fs.file+"_tmp"} {} // use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
+	_LockerFile(FileSpec const& fs) ;
 	// accesses
 	bool operator+() const { return +spec ; }
 	// services
-	Bool3/*ok*/ try_lock(                 ) = delete ;                                                                                                        // must be provided by child
-	void        unlock  (bool is_dir=false) { int rc = ::unlinkat( spec.at , spec.file.c_str() , is_dir?AT_REMOVEDIR:0 ) ; SWEAR( rc==0 , spec,StrErr() ) ; }
+	Bool3/*ok*/ try_lock  (                                       ) = delete ;  // must be provided by child
+	void        unlock    ( bool err_ok=false , bool is_dir=false ) ;
+	void        keep_alive(                                       ) ;
 	// data
 	FileSpec spec ;
+	uint64_t date ;                                                       // cant use Pdate here
 } ; //!                                                                ok
-struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; ::string tmp ;  } ;
-struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                 } ;
-struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                 } ;
-struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; void unlock() ; } ;
+struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; ::string tmp ;                   } ;
+struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                                  } ;
+struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                                  } ;
+struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; void unlock(bool err_ok=false) ; } ;
 //
 template<class Locker> struct _FileLockFile : Locker {
 	using typename Locker::Action   ;
@@ -835,7 +838,7 @@ struct FileLock :
 	FileLock( FileSync    , Fd at , ::string const& file , Action  ={} ) ;
 	FileLock( FileSync fs ,         ::string const& f    , Action a={} ) : FileLock{fs,Fd::Cwd,f,a} {}
 	bool operator+() const {
-		switch (index()) {                  // PER_FILE_SYNC : add entry here
+		switch (index()) {                              // PER_FILE_SYNC : add entry here
 			case 0 : return false         ;
 			case 1 : return +get<1>(self) ;
 			case 2 : return +get<2>(self) ;
@@ -843,6 +846,17 @@ struct FileLock :
 			case 4 : return +get<4>(self) ;
 			case 5 : return +get<5>(self) ;
 			case 6 : return +get<6>(self) ;
+		DF}
+	}
+	void keep_alive() {
+		switch (index()) {                              // PER_FILE_SYNC : add entry here
+			case 0 : return                           ;
+			case 1 : return get<1>(self).keep_alive() ;
+			case 2 : return get<2>(self).keep_alive() ;
+			case 3 : return get<3>(self).keep_alive() ;
+			case 4 : return get<4>(self).keep_alive() ;
+			case 5 : return get<5>(self).keep_alive() ;
+			case 6 : return get<6>(self).keep_alive() ;
 		DF}
 	}
 } ;

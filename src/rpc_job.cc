@@ -41,15 +41,15 @@ struct UniqKey {
 } ;
 
 struct UniqEntry {
-	size_t          n_lnks     = 0/*garbage*/ ;
-	off_t           sz         = 0/*garbage*/ ;
-	mode_t          mode       = 0/*garbage*/ ;
-	struct timespec mtim       = {}           ;
-	bool            no_warning = true         ;
-	::vector_s      files      ;
+	size_t     n_lnks     = 0/*garbage*/ ;
+	off_t      sz         = 0/*garbage*/ ;
+	mode_t     mode       = 0/*garbage*/ ;
+	TimeSpec   mtim       = {}           ;
+	bool       no_warning = true         ;
+	::vector_s files      ;
 } ;
 
-bool operator==( struct timespec const& a , struct timespec const& b ) {
+bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 	return a.tv_sec==b.tv_sec && a.tv_nsec==b.tv_nsec ;
 }
 
@@ -164,7 +164,7 @@ bool operator==( struct timespec const& a , struct timespec const& b ) {
 				if (::unlink(   e.files[i].c_str())!=0) { err = "cannot unlink" ; goto Bad ; }
 				if (::link  (f0,e.files[i].c_str())!=0) { err = "cannot link"   ; goto Bad ; }
 			}
-			struct ::timespec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , e.mtim } ;
+			TimeSpec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , e.mtim } ;
 			::futimens(wfd,times) ;                                                                                            // maintain original date
 			if (!e.no_warning) {
 				/**/                               msg <<"uniquified"  ;

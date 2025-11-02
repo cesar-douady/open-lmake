@@ -261,9 +261,12 @@ namespace Caches {
 			Fd::Stdout.write(cat("rebuild head lru (total ",to_short_string_with_unit(new_head_lru.sz),"B) to ",head_lru_file,'\n')) ;
 			if (!dry_run) AcFd(head_lru_file,{.flags=O_WRONLY|O_TRUNC}).write(serialize(new_head_lru)) ;
 		}
+		//
+		SWEAR_PROD( lock_file.ends_with("/lock") ) ;
+		unlnk( lock_file , {.dir_ok=true,.abs_ok=true} ) ;                                                                                   // ensure no lock
 	}
 
-	void DirCache::_mk_room( Sz old_sz , Sz new_sz , NfsGuard* nfs_guard ) {
+	void DirCache::_mk_room( Sz old_sz , Sz new_sz , FileLock& lock , NfsGuard* nfs_guard ) {
 		Trace trace("DirCache::_mk_room",max_sz,old_sz,new_sz) ;
 		if (new_sz>max_sz) {
 			trace("too_large1") ;
@@ -279,6 +282,7 @@ namespace Caches {
 		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                                   // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>max_sz) {
+			lock.keep_alive() ;                                                                                                       // locks have limited liveness and must be refreshed regularly
 			if (head.newer_s==HeadS) {
 				trace("too_large2",head.sz) ;
 				throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz," with ",head.sz," bytes already reserved") ;
@@ -298,7 +302,10 @@ namespace Caches {
 		SWEAR( head.sz<=max_sz , head.sz,max_sz ) ;
 		//
 		if (+to_unlnk) {
-			for( ::string const& e : to_unlnk ) unlnk( dir_s+e , {.dir_ok=true,.abs_ok=true,.nfs_guard=nfs_guard} ) ;
+			for( ::string const& e : to_unlnk ) {
+				lock.keep_alive() ;                                                                                                   // locks have limited liveness and must be refreshed regularly
+				unlnk( dir_s+e , {.dir_ok=true,.abs_ok=true,.nfs_guard=nfs_guard} ) ;
+			}
 			if (head.newer_s==HeadS) {
 				head.older_s = HeadS ;
 			} else {
@@ -361,8 +368,8 @@ namespace Caches {
 		AcFd( here_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext,.nfs_guard=nfs_guard} ).write( serialize(here) ) ;
 	}
 
-	void DirCache::_dismiss( uint64_t upload_key , Sz sz , NfsGuard* nfs_guard ) {
-		_mk_room( sz , 0 , nfs_guard ) ;
+	void DirCache::_dismiss( uint64_t upload_key , Sz sz , FileLock& lock , NfsGuard* nfs_guard ) {
+		_mk_room( sz , 0 , lock , nfs_guard ) ;
 		unlnk( _reserved_file(upload_key,"sz"  ) , {.abs_ok=true,.nfs_guard=nfs_guard} ) ;
 		unlnk( _reserved_file(upload_key,"data") , {.abs_ok=true,.nfs_guard=nfs_guard} ) ;
 	}
@@ -377,7 +384,7 @@ namespace Caches {
 		return xxh.digest().hex() ;
 	}
 
-	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
+	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , FileLock& lock ) const {
 		Trace trace("DirCache::_sub_match",job) ;
 		//
 		NfsGuard nfs_guard { file_sync }                                                                   ;
@@ -419,6 +426,8 @@ namespace Caches {
 			::vmap_s<DepDigest> cache_deps ;                        try { deserialize(fd.read(),cache_deps) ;            } catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ; }
 			//
 			found_rule = true ;
+			//
+			lock.keep_alive() ;                                                               // locks have limited liveness and must be refreshed regularly
 			//
 			for( auto& [dn,dd] : cache_deps ) {
 				DepDigest const* repo_dd  ;
@@ -486,7 +495,7 @@ namespace Caches {
 	::optional<Cache::Match> DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
 		Trace trace("DirCache::sub_match",job) ;
 		FileLock          lock { file_sync , lock_file , {.perm_ext=perm_ext} } ;
-		::optional<Match> res  = _sub_match( job , repo_deps )                  ;
+		::optional<Match> res  = _sub_match( job , repo_deps , lock )           ;
 		trace("done") ;
 		return res ;
 	}
@@ -514,7 +523,7 @@ namespace Caches {
 		NfsGuard nfs_guard  { file_sync }        ;
 		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
 		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ;          // lock for minimal time
-			_mk_room( 0 , reserve_sz , &nfs_guard ) ;
+			_mk_room( 0 , reserve_sz , lock , &nfs_guard ) ;
 		}
 		AcFd         (_reserved_file(upload_key,"sz"  ),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444                   ,.nfs_guard=&nfs_guard}).write(serialize(reserve_sz)) ; // private
 		AcFd data_fd {_reserved_file(upload_key,"data"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard}} ; // will be moved to permanent storage
@@ -532,12 +541,12 @@ namespace Caches {
 		::string abs_jn_s      = dir_s + jn_s                                                 ;
 		::string abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                         // deps_hint are hint only, hence no versioning problem
 		FileLock lock          { file_sync , lock_file , {.perm_ext=perm_ext} }               ;                         // lock as late as possible
-		Match    match         = _sub_match( job , job_info.end.digest.deps )                 ;
+		Match    match         = _sub_match( job , job_info.end.digest.deps , lock )          ;
 		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                          ;
 		if (match.hit_info==CacheHitInfo::Hit) {                                                                        // dont populate if a matching entry appeared while the job was running
 			trace("hit",match.key) ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
-			_dismiss( upload_key , old_sz , &nfs_guard ) ;                                                              // finally, we did not populate
+			_dismiss( upload_key , old_sz , lock , &nfs_guard ) ;                                                       // finally, we did not populate
 			throw_unless( AcFd(abs_jn_s+match.key+"/data").read()==job_data , "already cached with another content" ) ; // check coherence
 		} else {
 			match.key = cat( "key-" , key_crc.hex() ) ; match.key += is_target(cat(abs_jn_s,match.key,"-first/lru")) ? "-last" : "-first" ;
@@ -555,8 +564,8 @@ namespace Caches {
 			trace("upload",match.key,new_sz) ;
 			try {
 				old_sz += _lru_remove( jnid_s , &nfs_guard ) ;
-				unlnk_inside_s(dfd)                      ; unlnked   = true ;
-				_mk_room( old_sz , new_sz , &nfs_guard ) ; made_room = true ;
+				unlnk_inside_s(dfd)                             ; unlnked   = true ;
+				_mk_room( old_sz , new_sz , lock , &nfs_guard ) ; made_room = true ;
 				// store meta-data and data
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
@@ -569,7 +578,7 @@ namespace Caches {
 			} catch (::string const& e) {
 				trace("failed",e) ;
 				if (!unlnked) unlnk_inside_s(dfd) ;                                                                     // clean up in case of partial execution
-				_dismiss( upload_key , made_room?new_sz:old_sz , &nfs_guard ) ;                                         // finally, we did not populate the entry
+				_dismiss( upload_key , made_room?new_sz:old_sz , lock , &nfs_guard ) ;                                  // finally, we did not populate the entry
 				throw ;
 			}
 		}
@@ -581,8 +590,8 @@ namespace Caches {
 	void DirCache::sub_dismiss(uint64_t upload_key) {
 		Trace trace("DirCache::sub_dismiss",upload_key) ;
 		NfsGuard nfs_guard { file_sync                                    } ;
-		FileLock lock      { file_sync , lock_file , {.perm_ext=perm_ext} } ;       // lock as late as possible
-		_dismiss( upload_key , _reserved_sz(upload_key,&nfs_guard) , &nfs_guard ) ;
+		FileLock lock      { file_sync , lock_file , {.perm_ext=perm_ext} } ;              // lock as late as possible
+		_dismiss( upload_key , _reserved_sz(upload_key,&nfs_guard) , lock , &nfs_guard ) ;
 		trace("done") ;
 	}
 

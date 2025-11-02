@@ -269,11 +269,11 @@ ClientSockFd::ClientSockFd( in_addr_t server , in_port_t port , bool reuse_addr 
 	uint32_t i_connect    = 1                    ;
 	for( uint32_t i=1 ;; i++ ) {
 		if (has_timeout) {
-			Delay::TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                              // ensure to is positive
+			TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                              // ensure to is positive
 			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(to) ) ;
 		}
 		if ( ::connect( fd , &sa.as_sockaddr() , sizeof(sa) )==0 ) {
-			if (has_timeout) ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &::ref(Delay::TimeVal(Delay())) , sizeof(Delay::TimeVal) ) ; // restore no timeout
+			if (has_timeout) ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &::ref(TimeVal(Delay())) , sizeof(TimeVal) ) ; // restore no timeout
 			break ;
 		}
 		switch (errno) {
