@@ -8,6 +8,7 @@
 #include <sys/inotify.h>
 
 #include "rpc_client.hh"
+#include "rpc_job_exec.hh"
 #include "autodep/record.hh"
 #include "cmd.hh"
 #include "makefiles.hh"
@@ -511,6 +512,7 @@ int main( int argc , char** argv ) {
 	Trace::s_sz       = g_config->trace.sz       ;
 	if (g_writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	Job::s_init() ;
+	Codec::s_init() ;
 	//
 	static ::jthread reqs_thread { _reqs_thread_func , in_fd , out_fd } ;
 	//

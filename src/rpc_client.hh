@@ -83,6 +83,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	CacheMethod                // if proc==Make    , whether to download/upload/check cache
 ,	Deps                       // if proc==Forget  , forget deps
 ,	DryRun                     // if proc==Collect , dont execute, just report
+,	Ete                        // if proc==Make    , estimated time of execution for scheduling purpose
 ,	Force                      // if proc==Mark    , act if doable, even if awkward
 ,	ForgetOldErrors            // if proc==Make    , assume old errors are transient
 ,	Freeze                     // if proc==Mark    , prevent job rebuild

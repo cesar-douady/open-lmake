@@ -34,7 +34,9 @@ namespace Engine {
 		//
 		data._open_log() ;
 		//
-		data.eta          = data.start_pdate  ;
+		if (ecr.options.flags[ReqFlag::Ete]) data.et1 = data.start_pdate ;
+		else                                 data.et1 = data.start_pdate ;
+		//
 		data.idx_by_start = s_n_reqs()        ;
 		data.idx_by_eta   = s_n_reqs()        ;   // initially, eta is far future
 		data.options      = ecr.options       ;
@@ -44,8 +46,9 @@ namespace Engine {
 		//
 		{	Lock lock { s_req_idxs_mutex } ;
 			_s_reqs_by_start.push_back(self) ;
-		}
-		_adjust_eta( {}/*eta*/ , true/*push_self*/ ) ;
+		} //!                                             eta                                                    push_self
+		if (ecr.options.flags[ReqFlag::Ete]) _adjust_eta( Pdate(New)+Delay(ecr.options.flag_args[+ReqFlag::Ete]) , true  ) ;
+		else                                 _adjust_eta( {}                                                     , true  ) ;
 		//
 		Trace trace("Rmake",self,s_n_reqs(),data.start_ddate,data.start_pdate) ;
 		try {
@@ -113,9 +116,13 @@ namespace Engine {
 	}
 
 	void Req::new_eta() {
+		if (self->options.flags[ReqFlag::Ete]) {
+			self->et2 = ::min( Delay() , self->et1-Pdate(New) ) ;
+			return ;
+		}
 		Pdate now       = New                                                       ;
 		Pdate new_eta   = Backend::s_submitted_eta(self) + self->stats.waiting_cost ;
-		Pdate old_eta   = self->eta                                                 ;
+		Pdate old_eta   = self->et1                                                 ;
 		Delay old_ete   = old_eta-now                                               ;
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
@@ -123,26 +130,26 @@ namespace Engine {
 			_adjust_eta(new_eta) ;
 			Backend::s_new_req_etas() ;                                               // tell backends that etas changed significatively
 		}
-		self->ete = new_eta-now ;
+		self->et2 = new_eta-now ;
 	}
 
 	void Req::_adjust_eta( Pdate eta , bool push_self ) {
-			Trace trace("R_adjust_eta",self->eta,eta) ;
+			Trace trace("R_adjust_eta",self->et1,eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed    = false              ;
 			Lock lock       { s_req_idxs_mutex } ;
 			Idx  idx_by_eta = self->idx_by_eta   ;
 			//
-			if (+eta     ) self->eta = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
+			if (+eta     ) self->et1 = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
 			if (push_self) _s_reqs_by_eta.push_back(self) ;
 			//
-			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>self->eta ) {                          // if eta is decreased
+			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->et1>self->et1 ) {                          // if eta is decreased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
 				( _s_reqs_by_eta[idx_by_eta-1] = self                         )->idx_by_eta = idx_by_eta-1 ; // .
 				changed = true ;
 			}
 			if (changed) return ;
-			while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<self->eta ) {               // if eta is increased
+			while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->et1<self->et1 ) {               // if eta is increased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
 				( _s_reqs_by_eta[idx_by_eta+1] = self                         )->idx_by_eta = idx_by_eta+1 ; // .
 			}
@@ -283,7 +290,7 @@ namespace Engine {
 		// refresh codec files
 		for( ::string const& f : self->refresh_codecs ) {
 			trace("refresh_codecs",self->refresh_codecs) ;
-			Job job { Rule(Special::Codec) , cat(Codec::Pfx,f) } ;
+			Job job { Rule(Special::Codec) , Codec::CodecFile::s_file(f) } ;
 			if (!job) continue ;                                                        // ignore errors as there is nothing much we can do
 			job->refresh_codec(self) ;
 		}
@@ -547,8 +554,8 @@ namespace Engine {
 				,	                                                    cat( " running:" ,  stats.cur(JobStep::Exec  )                               )
 				,	stats.cur(JobStep::Queued)                        ? cat( " queued:"  ,  stats.cur(JobStep::Queued)                               ) : ""s
 				,	stats.cur(JobStep::Dep   )>1                      ? cat( " waiting:" , (stats.cur(JobStep::Dep   )-!options.flags[ReqFlag::Job]) ) : ""s // suppress job representing Req itself
-				,	g_config->console.show_ete                        ? cat( " - ETE:"   ,  ete.short_str()                                          ) : ""s
-				,	g_config->console.show_eta                        ? cat( " - ETA:"   ,  eta.str(0/*prec*/,true/*in_day*/)                        ) : ""s
+				,	g_config->console.show_ete                        ? cat( " - ETE:"   ,  et2.short_str()                                          ) : ""s
+				,	g_config->console.show_eta                        ? cat( " - ETA:"   ,  et1.str(0/*prec*/,true/*in_day*/)                        ) : ""s
 				))
 			} ;
 			OMsgBuf().send( audit_fd , rrr ) ;

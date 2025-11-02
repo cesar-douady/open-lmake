@@ -17,9 +17,9 @@ namespace Backends {
 		if (!jmrr.proc) return ;
 		//
 		Trace trace("send_reply",job) ;
-		TraceLock                  lock { Backend::_s_mutex , "send_reply" } ;
-		auto                       it   = Backend::_s_start_tab.find(job)    ; if (it==Backend::_s_start_tab.end()) return ; // job is dead without waiting for reply, curious but possible
-		Backend::StartEntry const& e    = it->second                         ; if (jmrr.seq_id!=e.conn.seq_id     ) return ; // .
+		TraceLock                  lock { Backend::_s_mutex , BeChnl , "send_reply" } ;
+		auto                       it   = Backend::_s_start_tab.find(job)             ; if (it==Backend::_s_start_tab.end()) return ; // job is dead without waiting for reply, curious but possible
+		Backend::StartEntry const& e    = it->second                                  ; if (jmrr.seq_id!=e.conn.seq_id     ) return ; // .
 		try {
 			OMsgBuf().send( ClientSockFd(e.conn.host,e.conn.port) , jmrr ) ;
 		} catch (...) {                                                      // if we cannot connect to job, assume it is dead while we processed the request
@@ -148,7 +148,7 @@ namespace Backends {
 		Lock  lock     { Req::s_reqs_mutex } ; // taking Req::s_reqs_mutex is compulsory to derefence req
 		for( Req r : reqs ) {
 			keep_tmp |= r->options.flags[ReqFlag::KeepTmp] ;
-			eta       = ::min(eta,r->eta)                  ;
+			eta       = ::min(eta,r->et1)                  ;
 		}
 		return {eta,keep_tmp} ;
 	}

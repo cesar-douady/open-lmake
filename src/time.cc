@@ -44,6 +44,38 @@ namespace Time {
 		return                os << cat(s,'.',widen(cat(ns),9,true/*right*/,'0'/*fill*/)) ;
 	}                                                                                       // END_OF_NO_COV
 
+	Delay::Delay(::string const& s) {
+		bool    first        = true  ;
+		bool    dot_seen     = false ;
+		bool    neg          = false ; // value is (-1)^neg*val_mantissa/(10^val_exp)
+		uint8_t val_exp      = 0     ; // .
+		int64_t val_mantissa = 0     ; // .
+		for( char c : s ) {
+			switch (c) {
+				case '-' : throw_unless( first     , "internal - : "  ,s ) ; neg      = true ; break ;
+				case '.' : throw_unless( !dot_seen , "several dots : ",s ) ; dot_seen = true ; break ;
+				case 'd' : val_mantissa *= 24 ; [[fallthrough]] ;
+				case 'h' : val_mantissa *= 60 ; [[fallthrough]] ;
+				case 'm' : val_mantissa *= 60 ; [[fallthrough]] ;
+				case 's' : {
+					for( [[maybe_unused]] uint8_t _ : iota(val_exp,9) ) val_mantissa *= 10 ;
+					if (neg) val_mantissa = -val_mantissa ;
+					_val += val_mantissa ;
+					//
+					dot_seen     = false ;
+					val_exp      = 0     ;
+					val_mantissa = 0     ;
+				} break ;
+				default :
+					throw_unless( '0'<=c && c <='9' , "unrecognized char (",c,") : ",s ) ;
+					/**/          val_mantissa = val_mantissa*10 + (c-'0') ;
+					if (dot_seen) val_exp++ ;
+					throw_unless( val_exp<=9 ,  "too many digits after dot : ",s ) ;
+			}
+			first = false ;
+		}
+	}
+
 	::string Delay::str(uint8_t prec) const {
 		Tick     s   = sec      () ;
 		int32_t  ns  = nsec_in_s() ;
@@ -66,7 +98,7 @@ namespace Time {
 		v /=100 ; if (v< 60*  60) return sign+widen(cat(v/  60),2,true)+'m'+widen(cat(v%  60),2,true,'0')+'s' ;
 		v /= 60 ; if (v<100*  60) return sign+widen(cat(v/  60),2,true)+'h'+widen(cat(v%  60),2,true,'0')+'m' ;
 		v /= 60 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'h'                                   ;
-		v /= 24 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'j'                                   ;
+		v /= 24 ; if (v<100'000 ) return sign+widen(cat(v     ),5,true)+'d'                                   ;
 		#pragma GCC diagnostic pop
 		/**/                      return "forevr"                                                             ; // ensure  size is 6
 	}

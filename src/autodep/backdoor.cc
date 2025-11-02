@@ -322,6 +322,21 @@ namespace Backdoor {
 		return os << "Decode(" << d.file <<','<< d.ctx <<','<< d.code <<')' ;
 	}                                                                         // END_OF_NO_COV
 
+	static bool/*retry*/ _retry_codec( Record& r , Fd at , ::string const& file , ::string const& node ) {
+		if( FileInfo(at,Codec::CodecFile::s_dir_s(file)).tag()==FileTag::Dir ) return false/*retry*/ ;     // if dir exists, it means codec db was initialized
+		JobExecRpcReq jerr {
+			.proc         = JobExecProc::DepDirect
+		,	.sync         = Yes
+		,	.comment      = Comment::Decode
+		,	.comment_exts = CommentExt::Direct
+		,	.digest       {}                                                                               // access to node is reported separately
+		,	.date         = New
+		,	.files        { {node,{}} }
+		} ;
+		r.report_sync(::move(jerr)) ;                                                                      // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+		return true/*retry*/ ;
+	}
+
 	::string Decode::process(Record& r) {
 		NfsGuard                     nfs_guard { Record::s_autodep_env().file_sync                                                } ;
 		Record::Solve<false/*Send*/> sr        { r , file , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Decode } ;
@@ -334,19 +349,9 @@ namespace Backdoor {
 		if (+sr.accesses) r.report_access( { .comment=Comment::Decode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
 	Retry :
 		try {
-			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                                                 // if node exists, it contains the reply
-		} catch (::string const&) {                                                                               // if node does not exist, create a code
-			throw_if( FileInfo(rfd,Codec::CodecFile::s_dir_s(sr.real)).tag()==FileTag::Dir , "code not found" ) ; // if dir exists, it means codec db was initialized and code does not exist
-			JobExecRpcReq jerr {
-				.proc         = JobExecProc::DepDirect
-			,	.sync         = Yes
-			,	.comment      = Comment::Decode
-			,	.comment_exts = CommentExt::Direct
-			,	.digest       {}                                                                                  // access to node is reported separately
-			,	.date         = New
-			,	.files        { {node,{}} }
-			} ;
-			r.report_sync(::move(jerr)) ;                                                                         // if we could not lock, codec db was not initialized, DepDirect will remedy to this
+			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;              // if node exists, it contains the reply
+		} catch (::string const&) {                                            // if node does not exist, create a code
+			throw_if( !_retry_codec(r,rfd,sr.real,node) , "code not found" ) ;
 			goto Retry/*BACKWARD*/ ;
 		}
 		r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{::move(node),{}}} } , true/*force*/ ) ;
@@ -380,25 +385,14 @@ namespace Backdoor {
 		::string    new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real) ;
 		::string    res            ;
 		ExtraDflags edf            ;
-		try {                                                                           // first try with share lock (light weight in case no update is necessary)
-			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                       // if node exists, it contains the reply
-		} catch (::string const&) {                                                     // if node does not exist, create a code
-			if (FileInfo(rfd,Codec::CodecFile::s_dir_s(sr.real)).tag()!=FileTag::Dir) { // if dir exists, it means codec db was initialized and code does not exist
-				JobExecRpcReq jerr {
-					.proc         = JobExecProc::DepDirect
-				,	.sync         = Yes
-				,	.comment      = Comment::Encode
-				,	.comment_exts = CommentExt::Direct
-				,	.digest       {}                                                    // node access is reported separately
-				,	.date         = New
-				,	.files        { {node,{}} }
-				} ;
-				r.report_sync(::move(jerr)) ;
-			}
+		try {                                                                      // first try with share lock (light weight in case no update is necessary)
+			res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                  // if node exists, it contains the reply
+		} catch (::string const&) {                                                // if node does not exist, create a code
+			_retry_codec( r , rfd , sr.real , node ) ;                             // in all cases, retry with the lock
 			::string         crc_str = crc.hex()                                 ;
-			Codec::CodecLock lock    { rfd , sr.real , {.nfs_guard=&nfs_guard} } ;      // must hold the lock as we probably need to create a code
+			Codec::CodecLock lock    { rfd , sr.real , {.nfs_guard=&nfs_guard} } ; // must hold the lock as we probably need to create a code
 			try {
-				res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;                   // repeat test with lock
+				res = AcFd(rfd,node,{.nfs_guard=&nfs_guard}).read() ;              // repeat test with lock
 			} catch (::string const&) {
 				for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
 					::string decode_node = Codec::CodecFile( false/*encode*/ , sr.real , ctx , code ).name() ;

@@ -11,6 +11,12 @@
 
 #include "rpc_job_common.hh"
 
+enum class CodecDir : uint8_t {
+	Plain
+,	Tmp
+,	Lock
+} ;
+
 enum class JobExecProc : uint8_t {
 	None
 ,	ChkDeps
@@ -148,40 +154,23 @@ struct JobExecRpcReply {
 namespace Codec {
 
 	// START_OF_VERSIONING
-	static constexpr char Pfx        [] = PRIVATE_ADMIN_DIR_S "codec/"     ; static constexpr size_t PfxSz  = sizeof(Pfx )-1 ; // account for terminating null
-	static constexpr char TmpPfx     [] = PRIVATE_ADMIN_DIR_S "codec_tmp/" ;
-	static constexpr char Infx       [] = "/\t"                            ; static constexpr size_t InfxSz = sizeof(Infx)-1 ; // .
-	static constexpr char LockSfx    [] = "/lock"                          ;
-	static constexpr char ManifestSfx[] = "/manifest"                      ;
-	static constexpr char NewCodesSfx[] = "/new_codes"                     ;
-	static constexpr char DecodeSfx  [] = ".decode"                        ;
-	static constexpr char EncodeSfx  [] = ".encode"                        ;
+	static constexpr char Pfx      [] = PRIVATE_ADMIN_DIR_S "codec" ;
+	static constexpr char Infx     [] = "/\t"                       ; static constexpr size_t InfxSz = sizeof(Infx)-1 ; // account for terminating null
+	static constexpr char DecodeSfx[] = ".decode"                   ;
+	static constexpr char EncodeSfx[] = ".encode"                   ;
 	// END_OF_VERSIONING
 
-	// this lock ensures correct operation even in case of crash
-	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
-	struct _LockAction {
-		bool      err_ok    = false   ;
-		NfsGuard* nfs_guard = nullptr ;
-	} ;
-	struct CodecLock : FileLock {
-		using Action = _LockAction ;
-		// ctxors & casts
-		CodecLock ( Fd at , ::string const& file , Action  ={} ) ;
-		CodecLock (         ::string const& file , Action a={} ) : CodecLock{Fd::Cwd,file,a} {}
-		~CodecLock() ;
-		// data
-		Fd       at   ;
-		::string file ;
-	} ;
+	void s_init() ;
 
 	struct CodecFile {
 		friend ::string& operator+=( ::string& , CodecFile const& ) ;
 		// statics
-		static bool     s_is_codec      ( ::string const& node , bool tmp=false ) { return node.starts_with(tmp?TmpPfx:Pfx)     ; }
-		static ::string s_dir_s         ( ::string const& file , bool tmp=false ) { return cat(tmp?TmpPfx:Pfx,file,'/'        ) ; }
-		static ::string s_manifest_file ( ::string const& file , bool tmp=false ) { return cat(tmp?TmpPfx:Pfx,file,ManifestSfx) ; }
-		static ::string s_new_codes_file( ::string const& file , bool tmp=false ) { return cat(tmp?TmpPfx:Pfx,file,NewCodesSfx) ; }
+		static ::string s_pfx_s         (                        CodecDir d=CodecDir::Plain ) { return cat(Pfx,'_',d,'/'               ) ; }
+		static ::string s_file          ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_pfx_s(     d),file        ) ; }
+		static ::string s_dir_s         ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_file (file,d),'/'         ) ; }
+		static ::string s_new_codes_file( ::string const& file                              ) { return cat(s_dir_s(file  ) ,"new_codes") ; }
+		//
+		static bool s_is_codec(::string const& node) { return node.starts_with(s_pfx_s()) ; }
 		// cxtors & casts
 		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
@@ -219,6 +208,26 @@ namespace Codec {
 		::string ctx  ;
 		::string code ;
 		::string val  ;
+	} ;
+
+	// this lock ensures correct operation even in case of crash
+	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
+	struct _LockAction {
+		bool      err_ok    = false   ;
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
+	struct CodecLock : FileLock {
+		using Action = _LockAction ;
+		// statics
+		static ::string s_dir_s(                    ) { return CodecFile::s_pfx_s(CodecDir::Lock) ; }
+		static ::string s_file (::string const& file) { return s_dir_s()+mk_printable<'/'>(file)  ; }
+		// ctxors & casts
+		CodecLock ( Fd at , ::string const& file , Action  ={} ) ;
+		CodecLock (         ::string const& file , Action a={} ) : CodecLock{Fd::Cwd,file,a} {}
+		~CodecLock() ;
+		// data
+		Fd       at   ;
+		::string file ;
 	} ;
 
 }

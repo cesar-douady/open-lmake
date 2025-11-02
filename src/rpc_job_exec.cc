@@ -79,15 +79,67 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 
 namespace Codec {
 
+	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
+		/**/                os <<"CodecFile("<< cf.file <<','<< cf.ctx ;
+		if (cf.is_encode()) os <<",E:"<< cf.val_crc()                  ;
+		else                os <<",D:"<< cf.code   ()                  ;
+		return              os <<')'                                   ;
+	}                                                                    // END_OF_NO_COV
+
+	CodecFile::CodecFile(::string const& node) {
+		throw_unless( s_is_codec(node) , "not a codec node : ",node ) ;
+		static_assert( Infx[InfxSz-1]=='\t' ) ;
+		size_t pos1 = s_pfx_s().size()        ;
+		size_t pos3 = node.rfind('\t'       ) ; SWEAR( pos1<pos3 && pos3!=Npos , node,pos1,     pos3 ) ;
+		size_t pos2 = node.rfind('\t',pos3-1) ; SWEAR( pos1<pos2 && pos2<pos3  , node,pos1,pos2,pos3 ) ;
+		//
+		/**/     file = node.substr(pos1,pos2-(InfxSz-1)-pos1) ;
+		pos2++ ; ctx  = parse_printable(node,pos2)             ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-(InfxSz-1)) ;
+		pos3++ ;
+		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable      (node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1)-pos3)) ; // account for terminating null
+		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1)-pos3)) ; // .
+		else    FAIL(node) ;
+	}
+
+	// START_OF_VERSIONING
+	::string CodecFile::name(bool tmp) const {
+		if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),Infx,mk_printable(ctx),Infx,val_crc().hex()     ,EncodeSfx) ;
+		else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),Infx,mk_printable(ctx),Infx,mk_printable(code()),DecodeSfx) ;
+	}
+	// END_OF_VERSIONING
+
+	::string& operator+=( ::string& os , Entry const& e ) {               // START_OF_NO_COV
+		return os <<"Entry("<< e.ctx <<','<< e.code <<','<< e.val <<')' ;
+	}                                                                     // END_OF_NO_COV
+
+	Entry::Entry(::string const& line) {
+		size_t pos = 0 ;
+		/**/                               throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
+		code = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
+		ctx  = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
+		val  = parse_printable(line,pos) ; throw_unless( line[pos]==0    , "bad codec line format : ",line ) ;
+	}
+
+	::string Entry::line(bool with_nl) const {
+		::string res = cat('\t',mk_printable(code),'\t',mk_printable(ctx),'\t',mk_printable(val)) ;
+		if (with_nl) res <<'\n' ;
+		return res ;
+	}
+
 	// while lock is held, lock_file contains the size of new_codes_file at the time of the lock
 	// in case of interruption, this info is used to determine last action to be replayed
+
+	void s_init() {
+		try { unlnk_inside_s(CodecLock::s_dir_s()) ; } catch (::string const&) {} // if dir does not exist, nothing to do
+	}
+
 	CodecLock::CodecLock( Fd at_ , ::string const& file_ , Action action ) :
-		FileLock { action.nfs_guard?action.nfs_guard->file_sync():FileSync::None , at_ , CodecFile::s_dir_s(file_)+"lock" , {.err_ok=action.err_ok,.mk_dir=false} }
+		FileLock { action.nfs_guard?action.nfs_guard->file_sync():FileSync::None , at_ , s_file(file_) , {.err_ok=action.err_ok} }
 	{	if (!self) return ;
 		at   = at_   ;
 		file = file_ ;
 		//
-		::string new_codes_file    = CodecFile::s_dir_s(file)+"new_codes"                                                                               ;
+		::string new_codes_file    = CodecFile::s_new_codes_file(file)                                                                                  ;
 		::string new_codes_sz_file = new_codes_file+"_sz"                                                                                               ;
 		DiskSz   actual_sz         = FileInfo( at , new_codes_file    , {                                             .nfs_guard=action.nfs_guard} ).sz ;
 		AcFd     known_sz_fd       {           at , new_codes_sz_file , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=action.nfs_guard} }    ;
@@ -127,54 +179,7 @@ namespace Codec {
 
 	CodecLock::~CodecLock() {
 		if (!self) return ;
-		unlnk( at , CodecFile::s_dir_s(file)+"new_codes_sz" ) ;
-	}
-
-	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
-		/**/                os <<"CodecFile("<< cf.file <<','<< cf.ctx ;
-		if (cf.is_encode()) os <<",E:"<< cf.val_crc()                  ;
-		else                os <<",D:"<< cf.code   ()                  ;
-		return              os <<')'                                   ;
-	}                                                                    // END_OF_NO_COV
-
-	CodecFile::CodecFile(::string const& node) {
-		throw_unless( s_is_codec(node) , "not a codec node : ",node ) ;
-		static_assert( Infx[InfxSz-1]=='\t' ) ;
-		size_t pos1 = PfxSz                   ;
-		size_t pos3 = node.rfind('\t'       ) ; SWEAR( pos1<pos3 && pos3!=Npos , node,pos1,     pos3 ) ;
-		size_t pos2 = node.rfind('\t',pos3-1) ; SWEAR( pos1<pos2 && pos2<pos3  , node,pos1,pos2,pos3 ) ;
-		//
-		/**/     file = node.substr(pos1,pos2-(InfxSz-1)-pos1) ;
-		pos2++ ; ctx  = parse_printable(node,pos2)             ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-(InfxSz-1)) ;
-		pos3++ ;
-		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable      (node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1)-pos3)) ; // account for terminating null
-		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1)-pos3)) ; // .
-		else    FAIL(node) ;
-	}
-
-	// START_OF_VERSIONING
-	::string CodecFile::name(bool tmp) const {
-		if (is_encode()) return cat(tmp?TmpPfx:Pfx,file,Infx,mk_printable(ctx),Infx,val_crc().hex()     ,EncodeSfx) ;
-		else             return cat(tmp?TmpPfx:Pfx,file,Infx,mk_printable(ctx),Infx,mk_printable(code()),DecodeSfx) ;
-	}
-	// END_OF_VERSIONING
-
-	::string& operator+=( ::string& os , Entry const& e ) {               // START_OF_NO_COV
-		return os <<"Entry("<< e.ctx <<','<< e.code <<','<< e.val <<')' ;
-	}                                                                     // END_OF_NO_COV
-
-	Entry::Entry(::string const& line) {
-		size_t pos = 0 ;
-		/**/                               throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
-		code = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
-		ctx  = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
-		val  = parse_printable(line,pos) ; throw_unless( line[pos]==0    , "bad codec line format : ",line ) ;
-	}
-
-	::string Entry::line(bool with_nl) const {
-		::string res = cat('\t',mk_printable(code),'\t',mk_printable(ctx),'\t',mk_printable(val)) ;
-		if (with_nl) res <<'\n' ;
-		return res ;
+		unlnk( at , CodecFile::s_new_codes_file(file)+"_sz" ) ;
 	}
 
 }

@@ -1340,14 +1340,14 @@ void JobStartRpcReply::chk(bool for_cache) const {
 // JobMngtRpcReq
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {                                                // START_OF_NO_COV
-	/**/               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job <<','<< jmrr.fd ;
-	if (+jmrr.fd     ) os <<','<< jmrr.fd                                                                       ;
-	if (+jmrr.targets) os <<','<< jmrr.targets                                                                  ;
-	if (+jmrr.deps   ) os <<','<< jmrr.deps                                                                     ;
-	if (+jmrr.txt    ) os <<','<< jmrr.txt                                                                      ;
-	return             os <<')'                                                                                 ;
-}                                                                                                                 // END_OF_NO_COV
+::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {                                // START_OF_NO_COV
+	/**/               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job ;
+	if (+jmrr.fd     ) os <<','<< jmrr.fd                                                       ;
+	if (+jmrr.targets) os <<','<< jmrr.targets                                                  ;
+	if (+jmrr.deps   ) os <<','<< jmrr.deps                                                     ;
+	if (+jmrr.txt    ) os <<','<< jmrr.txt                                                      ;
+	return             os <<')'                                                                 ;
+}                                                                                                 // END_OF_NO_COV
 
 //
 // JobMngtRpcReply

@@ -91,6 +91,12 @@ Item(B(-e),B(--forget-old-errors))
 Assume previous errors (before this command) are transicent.
 Contrarily to the B(lforget -e) command, this only concerns this execution, not subsequent ones.
 
+Item(B(-E) I(value),B(--ete)=I(value))
+Pass value as the estimated time of the command.
+Format is the same as reported job execution times : a succession of numbers (with optional dot) followed by B(d) (days), h (hours), m (minutes) or B(s) (seconds), e.g. B(2h30m).
+This value is used for job scheduling when backend supports it (at least local backend does).
+ETE is an aeronautic term meaning B(Estimated Time Enroute).
+
 Item(B(-j) jobs,B(--jobs)=I(jobs))
 When this option is used, B(lmake) will limit the overall number of simultaneous jobs to I(jobs) per backend.
 If several B(lmake) commands run simultaneously, a job cannot be launched on behalf of a given command if the number of running jobs is not less than its associated I(jobs).

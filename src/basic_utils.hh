@@ -346,10 +346,21 @@ inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (
 
 // END_OF_NO_COV
 
+template<class... A> struct _CatHelper {
+	static ::string s_cat(A&&... args) {
+		::string res ;
+		((res+=args),...) ;
+		return res ;
+	}
+} ;
+template<class... A> struct _CatHelper<::string&&,A...> {
+	static ::string s_cat(::string&& res , A&&... args ) {
+		((res+=args),...) ;
+		return ::move(res) ;
+	}
+} ;
 template<class... A> ::string cat(A&&... args) {
-	::string res ;
-	((res+=args),...) ;
-	return res ;
+	return _CatHelper<A...>::s_cat(::forward<A>(args)...) ;
 }
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization

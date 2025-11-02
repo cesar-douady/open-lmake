@@ -108,7 +108,8 @@ namespace Time {
 		// cxtors & casts
 	public :
 		using Base::Base ;
-		constexpr Delay(Base v) : Base(v) {}
+		constexpr Delay(Base v         ) : Base(v) {}
+		/**/      Delay(::string const&) ;                                                                // format is same as short_str
 		operator ::chrono::nanoseconds() const { return ::chrono::nanoseconds(nsec()) ; }
 		// services
 		constexpr bool              operator== (Delay const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
@@ -244,8 +245,8 @@ namespace Time {
 	struct Pdate : Date {
 		friend ::string& operator+=( ::string& , Pdate const ) ;
 		friend Delay ;
-		static const Pdate Future  ; // highest date, used as infinity
-		static const Pdate Future1 ; // last date before Future
+		static const Pdate Future  ;                        // highest date, used as infinity
+		static const Pdate Future1 ;                        // last date before Future
 		// static data
 	private :
 		#if __cplusplus<202600L
@@ -284,8 +285,8 @@ namespace Time {
 	struct Ddate : Date {
 		friend ::string& operator+=( ::string& , Ddate const ) ;
 		friend Delay ;
-		static const Ddate Future  ; // highest date, used as infinity
-		static const Ddate Future1 ; // last date before Future
+		static const Ddate Future  ;                                                                      // highest date, used as infinity
+		static const Ddate Future1 ;                                                                      // last date before Future
 	private :
 		static constexpr Tick _TagMsk = (1<<NBits<FileTag>)-1 ;
 		// cxtors & casts

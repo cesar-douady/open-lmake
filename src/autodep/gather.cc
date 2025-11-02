@@ -534,7 +534,7 @@ Status Gather::_exec_child() {
 			else                              { if (!_n_server_req_pending) end_heartbeat = Pdate::Future       ; }
 			if (now>end_heartbeat             ) {
 				SWEAR(has_server,_n_server_req_pending) ;
-				trace("server_heartbeat") ;
+				trace("server_heartbeat",_n_server_req_pending) ;
 				JobMngtRpcReq jmrr ;
 				jmrr.seq_id = seq_id                 ;
 				jmrr.job    = job                    ;
@@ -640,7 +640,7 @@ Status Gather::_exec_child() {
 					} else {
 						epoll.del(false/*write*/,fd) ;
 						_wait &= ~kind ;
-						trace("close",kind,fd,"wait",_wait,+epoll) ;
+						trace(kind,fd,"close","wait",_wait,+epoll) ;
 					}
 				} break ;
 				case Kind::ChildEnd   :
@@ -662,7 +662,7 @@ Status Gather::_exec_child() {
 					_wait &= ~Kind::ChildEnd ;
 					/**/                   epoll.dec() ;                                                                      // dont wait for new connections from job (but process those that come)
 					if (+server_master_fd) epoll.dec() ;                                                                      // idem for connections from server
-					trace("close",kind,status,"wait",_wait,+epoll) ;
+					trace(kind,fd,"close",status,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobMaster    :
 				case Kind::ServerMaster : {
@@ -681,13 +681,13 @@ Status Gather::_exec_child() {
 						continue ;
 					}
 					JobMngtRpcReply& jmrr = *received ;
-					trace(kind,fd,jmrr) ;
-					Fd rfd = jmrr.fd ;                                                                                         // capture before move
+					trace(kind,fd,"received",_n_server_req_pending,jmrr) ;
+					Fd rfd = jmrr.fd ;                                                                                                 // capture before move
 					if (jmrr.seq_id==seq_id) {
 						switch (jmrr.proc) {
 							case JobMngtProc::DepDirect  :
 							case JobMngtProc::DepVerbose : {
-								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
+								_n_server_req_pending-- ;
 								JobSlaveEntry& jse     = job_slaves.at(rfd)                 ;
 								bool           verbose = jmrr.proc==JobMngtProc::DepVerbose ;
 								Pdate          now     { New }                              ;
@@ -726,7 +726,7 @@ Status Gather::_exec_child() {
 							case JobMngtProc::ChkTargets : {
 								bool        is_target = jmrr.proc==JobMngtProc::ChkTargets ;
 								CommentExts ces       = CommentExt::Reply                  ;
-								_n_server_req_pending-- ; trace("resume_server",_n_server_req_pending) ;
+								_n_server_req_pending-- ;
 								switch (jmrr.ok) {
 									case Maybe :
 										ces |= CommentExt::Killed ;
@@ -773,7 +773,7 @@ Status Gather::_exec_child() {
 						}
 					}
 					epoll.close(false/*write*/,fd) ;
-					trace("close",kind,fd,"wait",_wait,+epoll) ;
+					trace(kind,fd,"close","wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobSlave : {
 					auto   sit            = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
@@ -791,7 +791,7 @@ Status Gather::_exec_child() {
 						} else {
 							epoll.close(false/*write*/,fd) ;
 						}
-						trace("close",kind,fd,"wait",_wait,+epoll) ;
+						trace(kind,fd,"close","wait",_wait,+epoll) ;
 						for( auto& [_,um] : jse.to_confirm )
 							for( Jerr& j : um )
 								_new_accesses(fd,::move(j)) ;            // process deferred entries although with uncertain outcome

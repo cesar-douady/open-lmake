@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Oct 27 14:32:49 2025 -->
+<!-- CreationDate: Sun Nov  2 18:59:56 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -599,6 +599,18 @@ in case of hit, and cache is updated in case of miss.</p></td></tr>
 this command) are transicent. Contrarily to the <b>lforget
 -e</b> command, this only concerns this execution, not
 subsequent ones.</p>
+
+<p style="margin-left:9%;"><b>-E</b> <i>value</i>,
+<b>--ete</b>=<i>value</i></p>
+
+<p style="margin-left:18%;">Pass value as the estimated
+time of the command. Format is the same as reported job
+execution times : a succession of numbers (with optional
+dot) followed by <b>d</b> (days), h (hours), m (minutes) or
+<b>s</b> (seconds), e.g. <b>2h30m</b>. This value is used
+for job scheduling when backend supports it (at least local
+backend does). ETE is an aeronautic term meaning
+<b>Estimated Time Enroute</b>.</p>
 
 <p style="margin-left:9%;"><b>-j</b> jobs,
 <b>--jobs</b>=<i>jobs</i></p>
