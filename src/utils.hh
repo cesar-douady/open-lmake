@@ -788,24 +788,32 @@ template<class Locker> struct _FileLockFd : Locker {
 //
 // file based locks
 //
+enum class _FileLockFileTrial {
+	Locked
+,	NoDir
+,	Retry
+,	Fail
+} ;
+//
 struct _LockerFile {
-	using Action = _FileLockAction ;
+	using Action = _FileLockAction    ;
+	using Trial  = _FileLockFileTrial ;
 	// cxtors & casts
 	_LockerFile(FileSpec const& fs) ;
 	// accesses
 	bool operator+() const { return +spec ; }
 	// services
-	Bool3/*ok*/ try_lock  (                                       ) = delete ;  // must be provided by child
-	void        unlock    ( bool err_ok=false , bool is_dir=false ) ;
-	void        keep_alive(                                       ) ;
+	Trial try_lock  (                                       ) = delete ; // must be provided by child
+	void  unlock    ( bool err_ok=false , bool is_dir=false ) ;
+	void  keep_alive(                                       ) ;
 	// data
 	FileSpec spec ;
-	uint64_t date ;                                                       // cant use Pdate here
-} ; //!                                                                ok
-struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; ::string tmp ;                   } ;
-struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                                  } ;
-struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ;                                  } ;
-struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Bool3 try_lock() ; void unlock(bool err_ok=false) ; } ;
+	uint64_t date ;                                                            // cant use Pdate here
+} ;
+struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; ::string tmp ; bool has_tmp=false ; } ;
+struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
+struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
+struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; void unlock(bool err_ok=false) ;    } ;
 //
 template<class Locker> struct _FileLockFile : Locker {
 	using typename Locker::Action   ;
@@ -825,7 +833,7 @@ template<class Locker> struct _FileLockFile : Locker {
 //
 struct FileLock :
 	::variant<
-		::monostate
+		::monostate                                     // /!\ fake locks, for experimental purpose only
 	,	_FileLockFd  <_LockerFcntl  >
 	,	_FileLockFd  <_LockerFlock  >
 	,	_FileLockFile<_LockerExcl   >
@@ -839,7 +847,7 @@ struct FileLock :
 	FileLock( FileSync fs ,         ::string const& f    , Action a={} ) : FileLock{fs,Fd::Cwd,f,a} {}
 	bool operator+() const {
 		switch (index()) {                              // PER_FILE_SYNC : add entry here
-			case 0 : return false         ;
+			case 0 : return true          ;             // pretend lock is taken
 			case 1 : return +get<1>(self) ;
 			case 2 : return +get<2>(self) ;
 			case 3 : return +get<3>(self) ;

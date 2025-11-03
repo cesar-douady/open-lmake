@@ -445,10 +445,9 @@ namespace Engine {
 		//
 		Manual manual_wash( ReqInfo& ri , bool query , bool dangling ) ;
 		//
-		void mk_old   (                        ) ;
-		void mk_src   (Buildable=Buildable::Src) ;
-		void mk_src   (FileTag                 ) ;
-		void mk_no_src(                        ) ;
+		void mk_old   (                                                   ) ;
+		void mk_src   ( Buildable=Buildable::Src , ::optional<Crc> crc={} ) ;
+		void mk_no_src(                                                   ) ;
 		//
 		::span<JobTgt const> prio_job_tgts     (RuleIdx prio_idx) const ;
 		::span<JobTgt const> conform_job_tgts  (ReqInfo const&  ) const ;

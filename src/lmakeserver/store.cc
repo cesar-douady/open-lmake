@@ -575,21 +575,20 @@ namespace Engine::Persistent {
 				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw cat("cannot access relative source dir ",no_slash(src)," from repository ",no_slash(*g_repo_root_s)) ;
 				src.pop_back() ;
 			}
-			FileInfo              fi { src , {.nfs_guard=&nfs_guard} }        ;
-			RealPath::SolveReport sr = real_path.solve(src,true/*no_follow*/) ;
+			FileTag               tag ;
+			RealPath::SolveReport sr  = real_path.solve(src,true/*no_follow*/) ;
 			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ; // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (is_dir_) {
-				throw_unless( fi.tag()==FileTag::Dir                                            , "source dir ",src,"/ is not a directory"                       ) ;
+				tag = FileTag::Dir ;
 			} else {
-				throw_unless( sr.file_loc==FileLoc::Repo                                        , "source ",src," is not in repo"                                ) ;
-				throw_unless( fi.exists()                                                       , "source ",src," is not a regular file nor a symbolic link"     ) ;
-				throw_if    ( g_config->lnk_support==LnkSupport::None && fi.tag()==FileTag::Lnk , "source ",src," is a symbolic link and they are not supported" ) ;
-				SWEAR( src==sr.real , src,sr.real ) ;                              // src is local, canonic and there are no links, what may justify real from being different ?
+				throw_unless( sr.file_loc==FileLoc::Repo , "source ",src," is not in repo" ) ;
+				SWEAR( src==sr.real , src,sr.real ) ;                                          // src is local, canonic and there are no links, what may justify real from being different ?
+				tag = FileInfo(src,{.nfs_guard=&nfs_guard}).tag() ; if (tag==FileTag::Dir) tag = FileTag::None ;                                 // dirs do not officially exist as source
 			}
-			srcs.emplace_back( Node(New,src,!is_lcl(src)/*no_dir*/) , fi.tag() ) ; // external src dirs need no uphill dir
+			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo) , tag ) ;                                                                 // external src dirs need no uphill dir
 		}
 		// format old srcs
-		for( bool dirs : {false,true} ) for( Node s : Node::s_srcs(dirs) ) old_srcs.emplace(s,dirs?FileTag::Dir:FileTag::None) ;                 // dont care whether we delete a regular file or a link
+		for( bool is_dir : {false,true} ) for( Node s : Node::s_srcs(is_dir) ) old_srcs.emplace(s,is_dir?FileTag::Dir:FileTag::None) ;           // dont care whether we delete a regular file or a link
 		//
 		for( auto [n,_] : srcs     ) for( Node d=n->dir ; +d ; d = d->dir ) if (!src_dirs    .insert(d).second) break ;                          // non-local nodes have no dir
 		for( auto [n,_] : old_srcs ) for( Node d=n->dir ; +d ; d = d->dir ) if (!old_src_dirs.insert(d).second) break ;                          // .
@@ -643,10 +642,11 @@ namespace Engine::Persistent {
 			for( Node d : old_src_dirs ) d->mk_no_src() ;
 			for( auto [n,t] : new_srcs ) {
 				if (!( n->buildable==Buildable::Unknown || n->buildable>=Buildable::Yes )) invalidate = true ; // if node was unknown or known buildable, making it a source cannot change matching
-				Node(n)->mk_src(t) ;
+				if (t==FileTag::Empty) t = FileTag::Reg ;                                                      // do not remember file is empty, so it is marked new instead of steady/changed ...
+				Node(n)->mk_src( t==FileTag::Dir?Buildable::SrcDir:Buildable::Src , t ) ;                      // ... when first seen
 				trace2('+',t==FileTag::Dir?"dir":"",n) ;
 			}
-			for( Node d : new_src_dirs ) d->mk_src(FileTag::None) ;
+			for( Node d : new_src_dirs ) d->mk_src( Buildable::Anti , Crc::None ) ;
 		}
 		_compile_srcs() ;
 		// user report

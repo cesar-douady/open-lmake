@@ -754,7 +754,7 @@ namespace Engine {
 		DF}                                                                           // NO_COV
 	}
 
-	void NodeData::mk_src(Buildable b) {
+	void NodeData::mk_src( Buildable b , ::optional<Crc> crc ) {
 		Trace trace("mk_src",idx()) ;
 		buildable = b ;
 		fence() ;
@@ -762,17 +762,10 @@ namespace Engine {
 		job_tgts  .clear() ; n_job_tgts = 0 ;
 		actual_job.clear() ;
 		_set_match_ok() ;
-	}
-
-	void NodeData::mk_src(FileTag tag) {
-		Trace trace("mk_src",idx(),tag) ;
-		switch (tag) {
-			case FileTag::None  : mk_src(Buildable::Anti  ) ;                      break ;
-			case FileTag::Dir   : mk_src(Buildable::SrcDir) ;                      break ;
-			case FileTag::Empty : mk_src(Buildable::Src   ) ; tag = FileTag::Reg ; break ; // do not remember file is empty, so it is marked new instead of steady/changed when first seen
-			default             : mk_src(Buildable::Src   ) ;                      break ;
+		if (+crc) {
+			if (BuildableAttrs[+b].second.has_file==No) SWEAR( *crc==Crc::None , self,b,crc ) ;
+			set_crc_date(*crc) ;
 		}
-		set_crc_date(tag) ;
 	}
 
 	bool/*modified*/ NodeData::set_crc_date( Crc crc_ , SigDate const& sd ) {

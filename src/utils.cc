@@ -222,25 +222,32 @@ void _LockerFile::keep_alive() {
 	touch( spec.at , spec.file ) ;
 }
 
-Bool3/*ok*/ _LockerExcl::try_lock() {
+_LockerExcl::Trial _LockerExcl::try_lock() {
 	int fd = ::openat( spec.at , spec.file.c_str() , O_WRONLY|O_CREAT|O_EXCL , 0000/*mod*/ ) ; // file is a marker only, it is not meant to be read/written
-	if (fd>=0        ) { ::close(fd) ; return Yes   ; }                                        // locked
-	if (errno==EEXIST)                 return Maybe ;                                          // lock is held by someone else
-	else                               return No    ;                                          // not lockable
+	if (fd>=0        ) { ::close(fd) ; return Trial::Locked ; }
+	if (errno==EEXIST)                 return Trial::Retry  ;                     // lock is held by someone else
+	if (errno==ENOENT)                 return Trial::NoDir  ;                     // lock is held by someone else
+	/**/                               return Trial::Fail   ;                     // not lockable
 }
 
-Bool3/*ok*/ _LockerSymlink::try_lock() {
+_LockerSymlink::Trial _LockerSymlink::try_lock() {
 	int rc = ::symlinkat( "?" , spec.at,spec.file.c_str() ) ;
-	if (rc==0        ) return Yes   ;                         // locked
-	if (errno==EEXIST) return Maybe ;                         // lock is held by someone else
-	else               return No    ;                         // not lockable
+	if (rc==0        ) return Trial::Locked ;
+	if (errno==EEXIST) return Trial::Retry  ; // lock is held by someone else
+	if (errno==ENOENT) return Trial::NoDir  ;
+	/**/               return Trial::Fail   ; // not lockable
 }
 
-Bool3/*ok*/ _LockerLink::try_lock() {
-	if (!tmp) {
-		tmp = cat(spec.file,'.',host(),'.',::getpid()) ;
-		try                     { AcFd( spec.at , tmp , {O_WRONLY|O_CREAT,0000/*mod*/} ) ; } // file is only a marker, it is not meant to be read/written
-		catch (::string const&) { return No ;                                              }
+_LockerLink::Trial _LockerLink::try_lock() {
+	if (!tmp    ) tmp = cat(spec.file,'.',host(),'.',::getpid()) ;
+	if (!has_tmp) {
+		int fd = ::openat( spec.at , tmp.c_str() , O_WRONLY|O_CREAT , 0000/*mod*/ ) ;        // file is a marker only, it is not meant to be read/written
+		if (fd<0) {
+			if (errno==ENOENT) return Trial::NoDir ;
+			else               return Trial::Fail  ;                            // not lockable
+		}
+		::close(fd) ;
+		has_tmp = true ;
 	}
 	int  rc     = ::linkat( spec.at,tmp.c_str() , spec.at,spec.file.c_str() , 0/*flags*/ ) ;
 	bool exists = errno==EEXIST                                                            ;
@@ -251,16 +258,18 @@ Bool3/*ok*/ _LockerLink::try_lock() {
 	}
 	if (rc==0) {
 		rc = ::unlinkat( spec.at , tmp.c_str() , 0/*flags*/ ) ; SWEAR( rc==0 , spec ) ;
-		return Yes   ;                                                                                                // locked
+		return Trial::Locked ;
 	}
-	return Maybe & exists ;                                                                                           // if file exists, lock is held by someone else
+	if (exists) return Trial::Retry ;                                                                    // if file exists, lock is held by someone else
+	else        return Trial::Fail  ;
 }
 
-Bool3/*ok*/ _LockerMkdir::try_lock() {
+_LockerMkdir::Trial _LockerMkdir::try_lock() {
 	int rc = ::mkdirat( spec.at , spec.file.c_str() , 0777/*mod*/ ) ;
-	if (rc==0        ) return Yes   ;                                 // locked
-	if (errno==EEXIST) return Maybe ;                                 // lock is held by someone else
-	else               return No    ;                                 // not lockable
+	if (rc==0        ) return Trial::Locked ;
+	if (errno==EEXIST) return Trial::Retry  ; // lock is held by someone else
+	if (errno==ENOENT) return Trial::NoDir  ;
+	/**/               return Trial::Fail   ; // not lockable
 }
 
 void _LockerMkdir::unlock(bool err_ok) {
@@ -269,20 +278,21 @@ void _LockerMkdir::unlock(bool err_ok) {
 
 // cannot put this cxtor in .hh file as Pdate is not available
 template<class Locker> _FileLockFile<Locker>::_FileLockFile( Fd at , ::string const& f , Action a ) : Locker{{at,f}} {
+	using Trial = typename Locker::Trial ;
 	if (!spec) return ;
 	//
 	Pdate start { New } ;
-	Pdate now   = start ;
-	//
-	auto chk_prev = [&]() {
-		Pdate prev { New , FileInfo(spec.at,spec.file).date.val() } ;                                 // lock dates are actually Pdate's
-		if ( +prev && now-prev>FileLockFileTimeout ) unlock(true/*err_ok*/) ;                         // XXX! : find a way for this timeout-unlock to be atomic
-	} ;
-	for ( Bool3 rc ; (chk_prev(),rc=try_lock())!=Yes ;)
-		if      (rc!=No  ) ::min( now-start , Delay(1) ).sleep_for() ;                                // ensure logarithmic trials, but try at least every second
-		else if (a.err_ok) { spec.at = {} ; return                                                ; } // if err_ok, object is built empty
-		else                                throw cat("cannot create lock (",StrErr(),") ",spec ) ;
-	touch( spec.at , spec.file ) ;                                                                    // ensure disk date is compatible with Pdate
+	for(;;) {
+		Pdate prev { New , FileInfo(spec.at,spec.file).date.val() } ;                                                                     // lock dates are actually Pdate's
+		Pdate now  { New                                          } ;
+		if ( +prev && now-prev>FileLockFileTimeout ) unlock(true/*err_ok*/) ;                                                             // XXX! : find a way for this timeout-unlock to be atomic
+		switch (try_lock()) {
+			case Trial::Locked : touch( spec.at , spec.file )              ;                                        return ;
+			case Trial::NoDir  : dir_guard( spec.at , spec.file )          ;                                        break  ;
+			case Trial::Retry  : ::min( now-start , Delay(1) ).sleep_for() ;                                        break  ; // ensure logarithmic trials, but try at least every second
+			case Trial::Fail   : throw_if( !a.err_ok , "cannot create lock (",StrErr(),") ",spec ) ; spec.at = {} ; return ; // if err_ok, object is built empty
+		DF}
+	}
 }
 
 template _FileLockFile<_LockerExcl   >::_FileLockFile( Fd at , ::string const& , Action ) ; // explicit instantiation
@@ -290,38 +300,16 @@ template _FileLockFile<_LockerSymlink>::_FileLockFile( Fd at , ::string const& ,
 template _FileLockFile<_LockerLink   >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
 template _FileLockFile<_LockerMkdir  >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
 
-#define FILE_LOCK_ALTERNATIVE 0
 FileLock::FileLock( FileSync fs , Fd at , ::string const& file , Action a ) {
 	switch (fs) {                                                             // PER_FILE_SYNC : add entry here
-		#if FILE_LOCK_ALTERNATIVE==0
-			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
-		#elif FILE_LOCK_ALTERNATIVE==1
-			case FileSync::None : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFd  <_LockerFcntl  >>(at,file,a) ; break ;
-		#elif FILE_LOCK_ALTERNATIVE==2
-			case FileSync::None : emplace<_FileLockFd  <_LockerFlock  >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFd  <_LockerFlock  >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFd  <_LockerFlock  >>(at,file,a) ; break ;
-		#elif FILE_LOCK_ALTERNATIVE==3
-			case FileSync::None : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerExcl   >>(at,file,a) ; break ;
-		#elif FILE_LOCK_ALTERNATIVE==4
-			case FileSync::None : emplace<_FileLockFile<_LockerSymlink>>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerSymlink>>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerSymlink>>(at,file,a) ; break ;
-		#elif FILE_LOCK_ALTERNATIVE==5
-			case FileSync::None : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerLink   >>(at,file,a) ; break ;
-		#elif FILE_LOCK_ALTERNATIVE==6
-			case FileSync::None : emplace<_FileLockFile<_LockerMkdir  >>(at,file,a) ; break ;
-			case FileSync::Dir  : emplace<_FileLockFile<_LockerMkdir  >>(at,file,a) ; break ;
-			case FileSync::Sync : emplace<_FileLockFile<_LockerMkdir  >>(at,file,a) ; break ;
-		#endif
+		// XXX/ : _LockerFcntl has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
+		// XXX/ : _LockerFlock has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
+		// XXX/ : _LockerMkdir has been observed as not working with rocky9/NFSv4
+		// for each FileSync mechanism, we can choose any of the variant alternative (cf struct FileLock in utils.hh)
+		// /!\ monostate fakes locks, for experimental purpose only
+		case FileSync::None : emplace<_FileLockFd<_LockerFcntl>>(at,file,a) ; break ;
+		case FileSync::Dir  : emplace<_FileLockFd<_LockerFcntl>>(at,file,a) ; break ;
+		case FileSync::Sync : emplace<_FileLockFd<_LockerFcntl>>(at,file,a) ; break ;
 	DF}
 }
 
