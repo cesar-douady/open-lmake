@@ -11,7 +11,6 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
-	lmake.config.heartbeat          =     1 # produce a lot of heatbeat messages server->job_exec
 	lmake.config.backends.local.cpu =  1000 # a unreasonable but stressing value
 	lmake.config.network_delay      =    10 # under heavy load, delays can grow up
 	lmake.config.trace.n_jobs       = 10000 # ensure we keep all traces for analysis

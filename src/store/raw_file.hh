@@ -16,7 +16,7 @@
 
 namespace Store {
 
-	template<char ThreadKey,size_t Capacity> struct File {
+	template<char ThreadKey,size_t Capacity> struct RawFile {
 		// statics
 	private :
 		static size_t _s_round_up(size_t sz) {
@@ -25,12 +25,12 @@ namespace Store {
 		}
 		// cxtors & casts
 	public :
-		File () = default ;
-		File ( NewType                                ) { init(New            ) ; }
-		File ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
-		~File(                                        ) { close()               ; }
+		RawFile () = default ;
+		RawFile ( NewType                                ) { init(New            ) ; }
+		RawFile ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
+		~RawFile(                                        ) { close()               ; }
 		//
-		File& operator=(File&& other) {
+		RawFile& operator=(RawFile&& other) {
 			close() ;
 			name     = ::move(other.name    ) ;
 			base     =        other.base      ; other.base     = nullptr ;
@@ -53,7 +53,7 @@ namespace Store {
 				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END) , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
 				Disk::FileInfo fi{_fd} ;
-				SWEAR(fi.tag()>=FileTag::Reg) ;
+				SWEAR( fi.tag()>=FileTag::Reg , fi ) ;
 				_map(fi.sz) ;
 			}
 		}

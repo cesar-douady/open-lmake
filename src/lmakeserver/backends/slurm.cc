@@ -456,7 +456,7 @@ namespace Backends::Slurm {
 		ToFree to_free { .free_func=free_ctl_conf_func } ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
 		{	Lock lock { slurm_mutex } ;
-			throw_unless( is_target(config_file_)                               , "no slurm config file ",config_file_ ) ;
+			throw_unless( FileInfo(config_file_).exists()                       , "no slurm config file ",config_file_ ) ;
 			throw_unless( load_ctl_conf_func(0/*update_time*/,&to_free.conf)==0 , "cannot reach slurm daemon"          ) ;
 		}
 		SWEAR(to_free.conf) ;

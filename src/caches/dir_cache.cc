@@ -403,7 +403,7 @@ namespace Caches {
 			::string key ;
 			switch (candidate) {
 				case -1 :
-					key = read_lnk( dfd , "deps_hint-"+_mk_crc(repo_deps) ) ;                 // may point to the right entry (hint only as link is not updated when entry is modified)
+					key = read_lnk( {dfd,"deps_hint-"+_mk_crc(repo_deps)} ) ;                 // may point to the right entry (hint only as link is not updated when entry is modified)
 					if (!key) continue ;
 					SWEAR( key.starts_with("key-") && key.find('/')==Npos , key ) ;           // fast check
 					hint_key = key ;
@@ -510,8 +510,8 @@ namespace Caches {
 		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext} } ;                                           // because we manipulate LRU, we need exclusive
 			Sz       sz   = _lru_remove( job_key_s , &nfs_guard )          ; throw_if( !sz , "no entry ",job_key_s ) ;
 			_lru_mk_newest( job_key_s , sz , &nfs_guard ) ;
-			info_fd = AcFd( dfd , "info" ) ;
-			data_fd = AcFd( dfd , "data" ) ;
+			info_fd = AcFd(File(dfd,"info")) ;
+			data_fd = AcFd(File(dfd,"data")) ;
 		}
 		trace("done") ;
 		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
@@ -572,7 +572,7 @@ namespace Caches {
 			_dismiss( upload_key , old_sz , lock , &nfs_guard ) ;                                                           // finally, we did not populate
 			throw_if( w , msg ) ;
 		} else {
-			match.key = cat( "key-" , key_crc.hex() ) ; match.key += is_target(cat(abs_jn_s,match.key,"-first/lru")) ? "-last" : "-first" ;
+			match.key = cat( "key-" , key_crc.hex() ) ; match.key += FileInfo(cat(abs_jn_s,match.key,"-first/lru")).exists() ? "-last" : "-first" ;
 			//
 			::string jnid_s     = cat(jn_s,match.key,'/') ;
 			::string abs_jnid_s = dir_s + jnid_s          ;
@@ -580,10 +580,10 @@ namespace Caches {
 			::string job_info_str = serialize(job_info) ;
 			// END_OF_VERSIONING
 			mk_dir_s( abs_jnid_s , {.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ) ;
-			AcFd dfd       { abs_jnid_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&nfs_guard} }                                                ;
-			Sz   new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
-			bool made_room = false                                                                                                             ;
-			bool unlnked   = false                                                                                                             ;
+			AcFd dfd       { abs_jnid_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&nfs_guard} }                                                     ;
+			Sz   new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")).file , deps_str.size() , job_info_str.size() ) ;
+			bool made_room = false                                                                                                                  ;
+			bool unlnked   = false                                                                                                                  ;
 			trace("upload",match.key,new_sz) ;
 			try {
 				old_sz += _lru_remove( jnid_s , &nfs_guard ) ;
@@ -591,9 +591,9 @@ namespace Caches {
 				_mk_room( old_sz , new_sz , lock , &nfs_guard ) ; made_room = true ;
 				// store meta-data and data
 				// START_OF_VERSIONING
-				AcFd(dfd,"info",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
-				AcFd(dfd,"deps",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;       // store deps in a compact format so that matching is fast
-				rename( _reserved_file(upload_key,"data")/*src*/ , dfd,"data"/*dst*/ , {.nfs_guard=&nfs_guard} ) ;
+				AcFd(File(dfd,"info"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
+				AcFd(File(dfd,"deps"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;       // store deps in a compact format so that matching is fast
+				rename( _reserved_file(upload_key,"data")/*src*/ , File(dfd,"data")/*dst*/ , {.nfs_guard=&nfs_guard} ) ;
 				// END_OF_VERSIONING
 				unlnk( _reserved_file(upload_key,"sz") , {.abs_ok=true,.nfs_guard=&nfs_guard} ) ;
 				_lru_mk_newest( jnid_s , new_sz , &nfs_guard ) ;

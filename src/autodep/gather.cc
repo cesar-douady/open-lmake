@@ -710,7 +710,7 @@ Status Gather::_exec_child() {
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
 									for( auto const& [f,_] : jse.jerr.files )
-										_access_info(::copy(nfs_guard.access(f))).second.no_hot(now) ;                         // dep has been built and we are guarded : it cannot be hot from now on
+										_access_info(::copy(nfs_guard.access(f).file)).second.no_hot(now) ;                    // dep has been built and we are guarded : it cannot be hot from now on
 									_exec_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
 								}
 								for( auto& [f,_] : jse.jerr.files ) {
@@ -802,27 +802,33 @@ Status Gather::_exec_child() {
 						MsgBuf::Len pos = 0 ;
 						for(;;) {
 							using Len = MsgBuf::Len ;
-							{ if (pos+sizeof(Len)>buf_sz) break ; } MsgBuf::Len sz = sizeof(Len) + decode_int<MsgBuf::Len>(&jse.buf[pos]) ;             // read message size
+							{ if (pos+sizeof(Len)>buf_sz) break ; } MsgBuf::Len sz = sizeof(Len) + decode_int<MsgBuf::Len>(&jse.buf[pos]) ; // read message size
 							{ if (pos+sz>buf_sz         ) break ; }
-							Jerr jerr ;
-							try                       { deserialize( {&jse.buf[pos+sizeof(Len)],sz-sizeof(Len)} , jerr ) ;                            } // read message
-							catch (::string const& e) { trace("bad_deserialization",pos,sz,buf_sz,mk_printable(::string(&jse.buf[pos],sz))) ; throw ; }
+							::string_view msg { &jse.buf[pos+sizeof(Len)] , sz-sizeof(Len) } ;
+							Jerr         jerr ;
+//
+if ( !is_fast_report && msg.size()==9/*proc+seq_id*/ && msg[0]==+JobMngtProc::Heartbeat ) { // XXX : suppress this kludge to avoid errant Heartbeart messages
+	epoll.close(false/*write*/,fd) ;
+	break ;
+}
+//
+							deserialize( {&jse.buf[pos+sizeof(Len)],sz-sizeof(Len)} , jerr ) ;                                              // read message
 							pos += sz ;
 							//
-							Proc proc  = jerr.proc      ;                                                                                               // capture before jerr is ::move()'ed
-							bool sync_ = jerr.sync==Yes ;                                                                                               // Maybe means not sync, only for transport
-							if (is_fast_report) SWEAR(!sync_) ;                                                                                         // cannot reply on fast_report_fd
+							Proc proc  = jerr.proc      ;                                                                                   // capture before jerr is ::move()'ed
+							bool sync_ = jerr.sync==Yes ;                                                                                   // Maybe means not sync, only for transport
+							if (is_fast_report) SWEAR(!sync_) ;                                                                             // cannot reply on fast_report_fd
 							switch (proc) {
 								case Proc::ChkDeps :
 								case Proc::List    :
 									trace(kind,fd,proc) ;
 									delayed_jerrs.try_emplace(jerr.date,::pair(fd,::move(jerr))) ;
-									sync_ = false ;                                                                                                     // if sync, reply is delayed
+									sync_ = false ;                                                                                         // if sync, reply is delayed
 								break ;
 								case Proc::DepDirect  :
 								case Proc::DepVerbose :
 									trace(kind,fd,proc) ;
-									if (has_server) { _send_to_server( fd , ::move(jerr) , jse ) ; sync_ = false ; }                                    // if sent to server, reply is delayed
+									if (has_server) { _send_to_server( fd , ::move(jerr) , jse ) ; sync_ = false ; }                        // if sent to server, reply is delayed
 								break ;
 								case Proc::Guard      :
 									trace(kind,fd,proc,jerr.files.size()) ;
@@ -832,7 +838,7 @@ Status Gather::_exec_child() {
 									trace(kind,fd,proc,jerr.digest.write,jerr.id) ;
 									Trace trace2 ;
 									auto it = jse.to_confirm.find(jerr.id) ; SWEAR( it!=jse.to_confirm.end() , jerr.id , jse.to_confirm ) ;
-									SWEAR(jerr.digest.write!=Maybe) ;                                                                                   // ensure we confirm/infirm
+									SWEAR(jerr.digest.write!=Maybe) ;                                                                       // ensure we confirm/infirm
 									for ( Jerr& j : it->second ) {
 										SWEAR(j.digest.write==Maybe) ;
 										/**/                    j.digest.write  = jerr.digest.write ;

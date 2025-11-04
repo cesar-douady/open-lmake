@@ -116,20 +116,16 @@ namespace Engine {
 				}
 				continue ;
 			Unlnk :
-				try {
-					if (!dry_run) unlnk(target) ;
-					audit( fd , ro ,              cat("rm "               ,mk_file(target)) ) ;
-				} catch (::string const& e) {
-					audit( fd , ro , Color::Err , cat("cannot rm (",e,") ",mk_file(target)) ) ;
-				}
+				try                       { if (!dry_run) unlnk(target) ; audit( fd , ro ,              cat("rm "               ,mk_file(target,FileDisplay::Shell)) ) ; }
+				catch (::string const& e) {                               audit( fd , ro , Color::Err , cat("cannot rm (",e,") ",mk_file(target                   )) ) ; }
 			}
 		}
 		for( auto const& [d_s,k] : dirs ) {
 			if (k) continue ;
 			::string d  = no_slash(d_s)                    ;
 			int      rc = dry_run ? 0 : ::rmdir(d.c_str()) ;
-			if (rc==0) audit( fd , ro ,              cat("rmdir "       ,mk_file(d)) ) ;
-			else       audit( fd , ro , Color::Err , cat("cannot rmdir ",mk_file(d)) ) ;
+			if (rc==0) audit( fd , ro ,              cat("rmdir "       ,mk_file(d,FileDisplay::Shell)) ) ;
+			else       audit( fd , ro , Color::Err , cat("cannot rmdir ",mk_file(d                   )) ) ;
 		}
 		return true ;
 	}

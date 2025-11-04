@@ -227,8 +227,8 @@ struct _Execp : _Exec<false/*Send*/> {
 					size_t   len       = (end==Npos?p.size():end)-pos            ;
 					::string full_file = len ? p.substr(pos,len)+'/'+file : file ;
 					Record::Read<false/*Send*/>(r,full_file,false/*no_follow*/,true/*keep_real*/,c) ;
-					if (is_exe(full_file,{.no_follow=false})) { static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,c) ; break ; }
-					if (end==Npos                           )                                                                            break ;
+					if (FileInfo(full_file,{.no_follow=false}).tag()==FileTag::Exe) { static_cast<Base&>(self) = Base(r,full_file,false/*no_follow*/,envp,c) ; break ; }
+					if (end==Npos                                                 )                                                                            break ;
 					pos = end+1 ;
 				}
 			}

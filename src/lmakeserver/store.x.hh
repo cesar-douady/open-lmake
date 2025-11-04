@@ -347,9 +347,9 @@ namespace Engine::Persistent {
 }
 
 namespace Vector {
-	template<> struct File<Engine::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_g_deps_file     ; } ;
-	template<> struct File<Engine::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_g_targets_file  ; } ;
-	template<> struct File<Engine::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_g_job_tgts_file ; } ;
+	template<> struct Descr<Engine::DepsBase   > { static constexpr Engine::Persistent::DepsFile   & file = Engine::Persistent::_g_deps_file     ; } ;
+	template<> struct Descr<Engine::TargetsBase> { static constexpr Engine::Persistent::TargetsFile& file = Engine::Persistent::_g_targets_file  ; } ;
+	template<> struct Descr<Engine::JobTgtsBase> { static constexpr Engine::Persistent::JobTgtsFile& file = Engine::Persistent::_g_job_tgts_file ; } ;
 }
 
 namespace Engine::Persistent {

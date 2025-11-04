@@ -542,13 +542,19 @@ inline ::string const& no_empty_s(::string const& dir_s) {
 }
 
 struct NfsGuard ;
+//
+template<class F> struct _File ;
+template<class F> ::string& operator+=( ::string& os , _File<F> const& fs ) ;
+using File     = _File<::string       > ;
+using FileRef  = _File<::string const&> ;
+using FileView = _File<::string_view  > ;
 
 struct _FdAction {
 	int       flags     = O_RDONLY ;
-	mode_t    mod       = -1       ;                                                                          // default to an invalid mod (0 may be usefully used to create a no-access file)
+	mode_t    mod       = -1       ;                                                         // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      err_ok    = false    ;
 	bool      mk_dir    = true     ;
-	bool      force     = false    ;                                                                          // unlink any file on path to file if necessary
+	bool      force     = false    ;                                                         // unlink any file on path to file if necessary
 	PermExt   perm_ext  = {}       ;
 	bool      no_std    = false    ;
 	NfsGuard* nfs_guard = nullptr  ;
@@ -560,32 +566,30 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                                                  // the highest standard fd
+	static const Fd Std    ;                                                                 // the highest standard fd
 	//
 	using Action = _FdAction ;
 	// cxtors & casts
 private :
-	static int _s_mk_fd( Fd at , ::string const& file , Action action ) ;
+	static int _s_mk_fd( FileRef file , Action action ) ;
 public :
 	constexpr Fd() = default ;
 	constexpr Fd( int fd_                ) : fd{fd_} {                         }
 	/**/      Fd( int fd_ , bool no_std_ ) : fd{fd_} { if (no_std_) no_std() ; }
 	//
-	Fd( Fd at , ::string const& file , Action action={} ) : Fd{ _s_mk_fd(at,file,action) , action.no_std } {}
-	Fd(         ::string const& file , Action action={} ) : Fd{ Cwd ,          file  , action            } {}
-	Fd( Fd at , const char*     file , Action action={} ) : Fd{ at  , ::string(file) , action            } {} // ensure no confusion
-	Fd(         const char*     file , Action action={} ) : Fd{       ::string(file) , action            } {} // .
+	Fd( FileRef     file , Action action={} ) ;
+	Fd( const char* file , Action action={} ) ;
 	//
 	constexpr operator int  () const { return fd                    ; }
-	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                                       // other negative values are used to spawn processes
+	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                      // other negative values are used to spawn processes
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// services
 	constexpr bool              operator== (Fd const&                    ) const = default ;
 	constexpr ::strong_ordering operator<=>(Fd const&                    ) const = default ;
-	/**/      void              write      (::string_view data           ) const ;                            // writing does not modify the Fd object
-	/**/      ::string          read       (size_t        sz        =Npos) const ;                            // read sz bytes or to eof
-	/**/      ::vector_s        read_lines (bool          partial_ok=true) const ;                            // if partial_ok => ok if last line does not end with \n
+	/**/      void              write      (::string_view data           ) const ;           // writing does not modify the Fd object
+	/**/      ::string          read       (size_t        sz        =Npos) const ;           // read sz bytes or to eof
+	/**/      ::vector_s        read_lines (bool          partial_ok=true) const ;           // if partial_ok => ok if last line does not end with \n
 	/**/      size_t            read_to    (::span<char>  dst            ) const ;
 	/**/      Fd                dup        (                             ) const { return ::dup(fd) ;                     }
 	constexpr Fd                detach     (                             )       { Fd res = self ; fd = -1 ; return res ; }
@@ -619,10 +623,8 @@ struct AcFd : Fd {
 	AcFd( AcFd&& acfd                  )                   { swap(acfd) ; }
 	AcFd( int fd_ , bool no_std_=false ) : Fd{fd_,no_std_} {              }
 	//
-	AcFd( Fd at , ::string const& file , Action action={} ) : Fd  { at  ,          file  , action } {}
-	AcFd(         ::string const& file , Action action={} ) : AcFd{ Cwd ,          file  , action } {}
-	AcFd( Fd at , const char*     file , Action action={} ) : AcFd{ at  , ::string(file) , action } {} // ensure no confusion
-	AcFd(         const char*     file , Action action={} ) : AcFd{       ::string(file) , action } {} // .
+	AcFd( FileRef     file , Action action={} ) ;
+	AcFd( const char* file , Action action={} ) ;
 	//
 	~AcFd() { close() ; }
 	//
@@ -631,54 +633,80 @@ struct AcFd : Fd {
 	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
 } ;
 
-struct FileSpec {
-	friend ::string& operator+=( ::string& , FileSpec const& ) ;
+template<class F> struct _File {
+	friend ::string& operator+=<>( ::string& , _File<F> const& ) ;
+	static constexpr bool IsStr  = ::is_same_v<F,::string       > ;
+	static constexpr bool IsRef  = ::is_same_v<F,::string const&> ;
+	static constexpr bool IsView = ::is_same_v<F,::string_view  > ;
+private :
+	static F _s_dflt_file() requires(IsStr ) {                         return {}    ; }
+	static F _s_dflt_file() requires(IsRef ) { static ::string s_str ; return s_str ; } // although documented as constexpr constructible, ::string constants may not be available before main started
+	static F _s_dflt_file() requires(IsView) { static ::string s_str ; return s_str ; } // .
 	// cxtors & casts
-	FileSpec() = default ;
-	FileSpec( Fd at_ , ::string const& file_ ) : at{at_    },file{       file_ } {}
-	FileSpec( Fd at_ , ::string     && file_ ) : at{at_    },file{::move(file_)} {}
-	FileSpec(          ::string const& file_ ) : at{Fd::Cwd},file{       file_ } {}
-	FileSpec(          ::string     && file_ ) : at{Fd::Cwd},file{::move(file_)} {}
+public :
+	_File( Fd at_ , F        const& file_=_s_dflt_file() )                   : at{at_    } , file{       file_ } {}
+	_File(          F        const& file_=_s_dflt_file() )                   : at{Fd::Cwd} , file{       file_ } {}
+	_File( Fd at_ , ::string const& file_                ) requires( IsView) : at{at_    } , file{       file_ } {}
+	_File(          ::string const& file_                ) requires( IsView) : at{Fd::Cwd} , file{       file_ } {}
+	_File( Fd at_ , F            && file_                ) requires( IsStr ) : at{at_    } , file{::move(file_)} {}
+	_File(          F            && file_                ) requires( IsStr ) : at{Fd::Cwd} , file{::move(file_)} {}
+	_File( Fd at_ , const char*     file_                ) requires(!IsRef ) : at{at_    } , file{       file_ } {} // disambiguate
+	_File(          const char*     file_                ) requires(!IsRef ) : at{Fd::Cwd} , file{       file_ } {} // .
+	_File( Fd at_ , const char*     file_                ) requires( IsRef ) = delete ;                             // .
+	_File(          const char*     file_                ) requires( IsRef ) = delete ;                             // .
+	//
+	template<class F2> _File(_File<F2> const& f2)                 : at{f2.at} , file{       f2.file } {}
+	template<class F2> _File(_File<F2>     && f2) requires(IsStr) : at{f2.at} , file{::move(f2.file)} {}
+	//
+	template<class F2> _File& operator=(F2 const& f2)                 { at = f2.at ; file =        f2.file  ; return self ; }
+	template<class F2> _File& operator=(F2     && f2) requires(IsStr) { at = f2.at ; file = ::move(f2.file) ; return self ; }
+	//
 	// accesses
 	bool operator+() const { return +at ; }
 	// services
-	bool operator==(FileSpec const&) const = default ;
+	template<class F2> bool operator==(_File<F2> const& f2) const { return at==f2.at && file==f2.file ; }
 	size_t hash() const ;
 	// data
-	Fd       at   ;
-	::string file ;
+	Fd at   ;
+	F  file ;
 } ;
-
-struct NfsGuardDir {                                                                         // open/close uphill dirs before read accesses and after write accesses
+template<class F> ::string& operator+=( ::string& os , _File<F> const& f ) {
+	if (f.at!=Fd::Cwd) {
+		if (+f.at) os <<'<'<< f.at.fd <<">/" ;
+		else       os <<"<>/"                ;
+	}
+	return os << f.file ;
+}
+struct NfsGuardDir {                                              // open/close uphill dirs before read accesses and after write accesses
 	// cxtors & casts
 	~NfsGuardDir() { flush() ; }
 	//services
-	void access      ( Fd at , ::string const& path  ) ;
-	void access_dir_s( Fd at , ::string const& dir_s ) ;
-	void change      ( Fd at , ::string const& path  ) ;
-	void flush       (                               ) ;
+	void access      (FileRef path ) ;
+	void access_dir_s(FileRef dir_s) ;
+	void change      (FileRef path ) ;
+	void flush       (             ) ;
 	// data
-	::uset<FileSpec> fetched_dirs_s  ;
-	::uset<FileSpec> to_stamp_dirs_s ;
+	::uset<File> fetched_dirs_s  ;
+	::uset<File> to_stamp_dirs_s ;
 } ;
-struct NfsGuardSync {                                                                        // fsync file after they are written
+struct NfsGuardSync {                                             // fsync file after they are written
 	// cxtors & casts
 	~NfsGuardSync() { flush() ; }
 	//services
-	void access      ( Fd /*at*/ , ::string const& /*path*/  ) {                             }
-	void access_dir_s( Fd /*at*/ , ::string const& /*dir_s*/ ) {                             }
-	void change      ( Fd   at   , ::string const&   path    ) { to_stamp.emplace(at,path) ; }
+	void access      (FileRef     ) {                          }
+	void access_dir_s(FileRef     ) {                          }
+	void change      (FileRef path) { to_stamp.emplace(path) ; }
 	void flush() {
-		for( auto const& [at,f] : to_stamp ) if ( AcFd fd{at,f,{.err_ok=true}} ; +fd ) ::fsync(fd) ;
+		for( auto const& f : to_stamp ) if ( AcFd fd{f,{.err_ok=true}} ; +fd ) ::fsync(fd) ;
 		to_stamp.clear() ;
 	}
 	// data
-	::uset<FileSpec> to_stamp ;
+	::uset<File> to_stamp ;
 } ;
 struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 	// cxtors & casts
 	constexpr NfsGuard(FileSync fs=FileSync::None) {
-		switch (fs) {                                                                        // PER_FILE_SYNC : add entry here
+		switch (fs) {                                             // PER_FILE_SYNC : add entry here
 			case FileSync::None :                break ;
 			case FileSync::Dir  : emplace<1>() ; break ;
 			case FileSync::Sync : emplace<2>() ; break ;
@@ -686,48 +714,44 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 	}
 	// accesses
 	FileSync file_sync() const {
-		switch (index()) {                                                                   // PER_FILE_SYNC : add entry here
+		switch (index()) {                                        // PER_FILE_SYNC : add entry here
 			case 0 : return FileSync::None ;
 			case 1 : return FileSync::Dir  ;
 			case 2 : return FileSync::Sync ;
 		DF}
 	}
 	// services
-	::string const& access(         ::string const& file ) { return access(Fd::Cwd,file) ; }
-	::string const& access( Fd at , ::string const& path ) {                                 // return file, must be called before any access to file or its inode if not sure it was produced locally
-		switch (index()) {                                                                   // PER_FILE_SYNC : add entry here
-			case 0 :                                  break ;
-			case 1 : ::get<1>(self).access(at,path) ; break ;
-			case 2 : ::get<2>(self).access(at,path) ; break ;
+	FileRef access(FileRef path) {                                // return file, must be called before any access to file or its inode if not sure it was produced locally
+		switch (index()) {                                        // PER_FILE_SYNC : add entry here
+			case 0 :                               break ;
+			case 1 : ::get<1>(self).access(path) ; break ;
+			case 2 : ::get<2>(self).access(path) ; break ;
 		DF}
 		return path ;
 	}
-	::string const& access_dir_s(         ::string const& dir_s ) { return access_dir_s(Fd::Cwd,dir_s) ; }
-	::string const& access_dir_s( Fd at , ::string const& dir_s ) {  // return file, must be called before any access to file or its inode if not sure it was produced locally
-		switch (index()) {                                           // PER_FILE_SYNC : add entry here
-			case 0 :                                         break ;
-			case 1 : ::get<1>(self).access_dir_s(at,dir_s) ; break ;
-			case 2 : ::get<2>(self).access_dir_s(at,dir_s) ; break ;
+	FileRef access_dir_s(FileRef dir_s) {                         // return file, must be called before any access to file or its inode if not sure it was produced locally
+		switch (index()) {                                        // PER_FILE_SYNC : add entry here
+			case 0 :                                      break ;
+			case 1 : ::get<1>(self).access_dir_s(dir_s) ; break ;
+			case 2 : ::get<2>(self).access_dir_s(dir_s) ; break ;
 		DF}
 		return dir_s ;
 	}
-	::string const& change(         ::string const& path ) { return change(Fd::Cwd,path) ; }
-	::string const& change( Fd at , ::string const& path ) {         // return file, must be called before any write access to file or its inode if not sure it is going to be read only locally
-		switch (index()) {                                           // PER_FILE_SYNC : add entry here
-			case 0 :                                  break ;
-			case 1 : ::get<1>(self).change(at,path) ; break ;
-			case 2 : ::get<2>(self).change(at,path) ; break ;
+	FileRef change(FileRef path) {                                // return file, must be called before any write access to file or its inode if not sure it is going to be read only locally
+		switch (index()) {                                        // PER_FILE_SYNC : add entry here
+			case 0 :                               break ;
+			case 1 : ::get<1>(self).change(path) ; break ;
+			case 2 : ::get<2>(self).change(path) ; break ;
 		DF}
 		return path ;
 	}
-	::string const& update(         ::string const& path ) { return update(Fd::Cwd,path) ; }
-	::string const& update( Fd at , ::string const& path ) {
-		access(at,path) ;
-		change(at,path) ;
+	FileRef update(FileRef path) {
+		access(path) ;
+		change(path) ;
 		return path ;
 	}
 	void flush() {
-		switch (index()) {                                           // PER_FILE_SYNC : add entry here
+		switch (index()) {                                        // PER_FILE_SYNC : add entry here
 			case 0 :                          break ;
 			case 1 : ::get<1>(self).flush() ; break ;
 			case 2 : ::get<2>(self).flush() ; break ;
@@ -761,7 +785,7 @@ struct _FileLockAction {
 struct _LockerFd {
 	using Action = _FileLockAction ;
 	// cxtors & casts
-	_LockerFd( FileSpec const& fs , Action a={} ) : fd{ fs.at , fs.file , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
+	_LockerFd( FileRef f , Action a={} ) : fd{ f , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
 	// accesses
 	bool operator+() const { return +fd ; }
 	// services
@@ -780,7 +804,7 @@ template<class Locker> struct _FileLockFd : Locker {
 	using          Locker::fd     ;
 	// cxtors & casts
 	_FileLockFd() = default ;
-	_FileLockFd( Fd at , ::string const& f , Action a={} ) : Locker{{at,f},a} {
+	_FileLockFd( FileRef f , Action a={} ) : Locker{f,a} {
 		if (!fd) return ;
 		lock() ;
 	}
@@ -800,7 +824,7 @@ struct _LockerFile {
 	using Action = _FileLockAction    ;
 	using Trial  = _FileLockFileTrial ;
 	// cxtors & casts
-	_LockerFile(FileSpec const& fs) ;
+	_LockerFile(FileRef) ;
 	// accesses
 	bool operator+() const { return +spec ; }
 	// services
@@ -808,7 +832,7 @@ struct _LockerFile {
 	void  unlock    ( bool err_ok=false , bool is_dir=false ) ;
 	void  keep_alive(                                       ) ;
 	// data
-	FileSpec spec ;
+	File     spec ;
 	uint64_t date ;                                                      // cant use Pdate here
 } ;
 struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; ::string tmp ; bool has_tmp=false ; } ;
@@ -822,7 +846,7 @@ template<class Locker> struct _FileLockFile : Locker {
 	using          Locker::spec     ;
 	using          Locker::unlock   ;
 	// cxtors & casts
-	_FileLockFile( Fd at , ::string const& f , Action action ) ;
+	_FileLockFile( FileRef , Action ) ;
 	~_FileLockFile() {
 		if (!spec.at) return ;
 		unlock() ;
@@ -844,8 +868,7 @@ struct FileLock :
 	>
 {
 	using Action = _FileLockAction ;
-	FileLock( FileSync    , Fd at , ::string const& file , Action  ={} ) ;
-	FileLock( FileSync fs ,         ::string const& f    , Action a={} ) : FileLock{fs,Fd::Cwd,f,a} {}
+	FileLock( FileSync , FileRef , Action ={} ) ;
 	bool operator+() const {
 		switch (index()) {                              // PER_FILE_SYNC : add entry here
 			case 0 : return true          ;             // pretend lock is taken
@@ -873,8 +896,6 @@ struct FileLock :
 //
 // miscellaneous
 //
-
-::string file_msg( Fd at , ::string const& file ) ;
 
 inline bool has_env(::string const& name) {
 	return ::getenv(name.c_str()) ;
@@ -996,6 +1017,12 @@ template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 //
 // Fd
 //
+
+inline Fd  ::Fd  ( FileRef file , Action action ) : Fd{ _s_mk_fd(file,action) , action.no_std } {}
+inline AcFd::AcFd( FileRef file , Action action ) : Fd{ file , action                         } {}
+
+inline Fd  ::Fd  ( const char* file , Action action ) : Fd  {File(file),action} {}
+inline AcFd::AcFd( const char* file , Action action ) : AcFd{File(file),action} {}
 
 inline constexpr void Fd::close() {
 	if (!self         ) return ;

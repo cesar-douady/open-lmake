@@ -48,7 +48,7 @@ static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 
 static void _server_cleanup() {
 	Trace trace("_server_cleanup") ;
-	unlnk(ServerMrkr) ;
+	unlnk(File(ServerMrkr)) ;
 }
 
 static void _report_server( Fd fd , bool running ) {
@@ -70,7 +70,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 			trace("already_existing",mrkr) ;
 			return { {}/*msg*/ , Rc::BadServer } ;
 		}
-		unlnk(ServerMrkr) ;                                     // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlnk(File(ServerMrkr)) ;                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		rescue = true ;
 		trace("vanished",mrkr) ;
 	}

@@ -27,25 +27,18 @@ using namespace Hash ;
 using namespace Time ;
 
 //
-// FileSpec
+// File
 //
 
-::string file_msg( Fd at , ::string const& file ) {
-	if      (at==Fd::Cwd) return                    file  ;
-	else if (+at        ) return cat('<',at.fd,">/",file) ;
-	else                  return cat("<>/"         ,file) ;
-}
-
-::string& operator+=( ::string& os , FileSpec const& fs ) {
-	return os << file_msg(fs.at,fs.file) ;
-}
-
-size_t FileSpec::hash() const {
-	Fnv fnv ;                         // good enough
-	fnv += at                       ;
-	fnv += ::hash<::string>()(file) ;
+template<class F> size_t _File<F>::hash() const {
+	Fnv fnv ;                                     // good enough
+	fnv += at                           ;
+	fnv += ::hash<::decay_t<F>>()(file) ;
 	return +fnv ;
 }
+template size_t _File<::string       >::hash() const ;          // explicit instantiation
+template size_t _File<::string const&>::hash() const ;
+template size_t _File<::string_view  >::hash() const ;
 
 //
 // Fd
@@ -54,37 +47,37 @@ size_t FileSpec::hash() const {
 ::string& operator+=( ::string& os , Fd   const& fd ) { return fd.append_to_str( os , "Fd"   ) ; }
 ::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
 
-int Fd::_s_mk_fd( Fd at , ::string const& file , Action action ) {
+int Fd::_s_mk_fd( FileRef file , Action action ) {
 	bool creat = action.flags&O_CREAT ;
 	if (creat) {
-		SWEAR(   action.mod!=mode_t(-1)               , file,action.flags ) ;                              // mod must be specified if creating
-		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ;                              // mod must only specify perm
-		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ;                              // mod must be independent of usr/grp/oth (this is umask job)
-		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ;                              // .
+		SWEAR(   action.mod!=mode_t(-1)               , file,action.flags ) ;                                                            // mod must be specified if creating
+		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ;                                                            // mod must only specify perm
+		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ;                                                            // mod must be independent of usr/grp/oth (this is umask job)
+		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ;                                                            // .
 	}
 	if (action.nfs_guard) {
 		if (action.flags&O_DIRECTORY) {
-			/**/                                                                 action.nfs_guard->access_dir_s( at , with_slash(file) ) ;
+			/**/                                                                 action.nfs_guard->access_dir_s({file.at,with_slash(file.file)}) ;
 		} else {
-			if ( (action.flags&O_ACCMODE)!=O_WRONLY || !(action.flags&O_TRUNC) ) action.nfs_guard->access      ( at ,            file  ) ;
-			if ( (action.flags&O_ACCMODE)!=O_RDONLY                            ) action.nfs_guard->change      ( at ,            file  ) ;
+			if ( (action.flags&O_ACCMODE)!=O_WRONLY || !(action.flags&O_TRUNC) ) action.nfs_guard->access      (                    file       ) ;
+			if ( (action.flags&O_ACCMODE)!=O_RDONLY                            ) action.nfs_guard->change      (                    file       ) ;
 		}
 	}
 	int  res   ;
 	bool first = true ;
 Retry :
-	if      (+file      ) res = ::openat( at , file.c_str() , action.flags|O_CLOEXEC , action.mod ) ;
-	else if (at==Fd::Cwd) res = ::openat( at , "."          , action.flags|O_CLOEXEC , action.mod ) ;
-	else                  res =           at                                                        ;
+	if      (+file.file      ) res = ::openat( file.at , file.file.c_str() , action.flags|O_CLOEXEC , action.mod ) ;
+	else if (file.at==Fd::Cwd) res = ::openat( file.at , "."               , action.flags|O_CLOEXEC , action.mod ) ;
+	else                       res = ::dup   ( file.at                                                           ) ;
 	if (res<0) {
 		if ( errno==ENOENT && creat && first && action.mk_dir ) {
-			if (action.flags&O_TMPFILE) mk_dir_s ( at , with_slash(file) , {.force=action.force,.perm_ext=action.perm_ext} ) ;
-			else                        dir_guard( at ,            file  , {.force=action.force,.perm_ext=action.perm_ext} ) ;
-			first = false ;                                                                                // ensure we retry at most once
+			if (action.flags&O_TMPFILE) mk_dir_s ( {file.at,with_slash(file.file)} , {.force=action.force,.perm_ext=action.perm_ext} ) ;
+			else                        dir_guard(  file                           , {.force=action.force,.perm_ext=action.perm_ext} ) ;
+			first = false ;                                                                                                              // ensure we retry at most once
 			goto Retry ;
 		}
-		if (!action.err_ok) throw cat("cannot open (",StrErr(),") : ",file_msg(at,file)) ;
-		else                return res                                                   ;
+		if (!action.err_ok) throw cat("cannot open (",StrErr(),") : ",file) ;
+		else                return res                                      ;
 	}
 	//
 	if ( creat && +action.perm_ext ) {
@@ -94,7 +87,7 @@ Retry :
 			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; break ;
 		DN}
 		//
-		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file_msg(at,file)) ;
+		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file) ;
 		//
 		mode_t usr_mod = (st.st_mode>>6)&07 ;
 		mode_t new_mod = st.st_mode         ;
@@ -104,7 +97,7 @@ Retry :
 		DN}
 		if (new_mod!=st.st_mode)
 			if (::fchmod(res,new_mod)!=0)
-				throw cat("cannot chmod (",StrErr(),") to extend permissions : ",file_msg(at,file)) ;
+				throw cat("cannot chmod (",StrErr(),") to extend permissions : ",file) ;
 	}
 PermOk :
 	return res ;
@@ -158,31 +151,31 @@ size_t Fd::read_to(::span<char> dst) const {
 // NfsGuard
 //
 
-static void _nfs_guard_protect( Fd at , ::string const& dir_s ) {
-	::close( ::openat( at , dir_s.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
+static void _nfs_guard_protect(FileRef dir_s) {
+	::close( ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
 }
 
-void NfsGuardDir::access( Fd at , ::string const& path ) {
-	if ( is_dir_name(path) ? path.ends_with("../") : path.ends_with("..") ) return ; // cannot go uphill
-	if ( !has_dir(path)                                                   ) return ;
-	access_dir_s( at , dir_name_s(path) ) ;
+void NfsGuardDir::access(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ; // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	access_dir_s({path.at,dir_name_s(path.file)}) ;
 }
 
-void NfsGuardDir::access_dir_s( Fd at , ::string const& dir_s ) {
-	access(at,dir_s) ;                                                          // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-	if (fetched_dirs_s.emplace(at,dir_s).second) _nfs_guard_protect(at,dir_s) ; // open to force NFS close to open coherence, close is useless
+void NfsGuardDir::access_dir_s(FileRef dir_s) {
+	access(dir_s) ;                                                       // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
+	if (fetched_dirs_s.emplace(dir_s).second) _nfs_guard_protect(dir_s) ; // open to force NFS close to open coherence, close is useless
 }
 
-void NfsGuardDir::change( Fd at , ::string const& path ) {
-	if ( is_dir_name(path) ? path.ends_with("../") : path.ends_with("..") ) return ; // cannot go uphill
-	if ( !has_dir(path)                                                   ) return ;
-	::string dir_s = dir_name_s(path) ;
-	access_dir_s(at,dir_s) ;
-	to_stamp_dirs_s.emplace(at,::move(dir_s)) ;
+void NfsGuardDir::change(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ; // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	File dir_s { path.at , dir_name_s(path.file) } ;
+	access_dir_s(dir_s) ;
+	to_stamp_dirs_s.emplace(::move(dir_s)) ;
 }
 
 void NfsGuardDir::flush() {
-	for( auto const& [at,d_s] : to_stamp_dirs_s ) _nfs_guard_protect(at,d_s) ;
+	for( auto const& f : to_stamp_dirs_s ) _nfs_guard_protect(f) ;
 	to_stamp_dirs_s.clear() ;
 }
 
@@ -208,7 +201,7 @@ void _LockerFlock::lock() {
 }
 
 // use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
-_LockerFile::_LockerFile(FileSpec const& fs) : spec{fs.at,fs.file+"_tmp"} , date{Pdate(New).val()} {}
+_LockerFile::_LockerFile(FileRef f) : spec{f.at,f.file+"_tmp"} , date{Pdate(New).val()} {}
 
 void _LockerFile::unlock( bool err_ok , bool is_dir ) {
 	int rc = ::unlinkat( spec.at , spec.file.c_str() , is_dir?AT_REMOVEDIR:0 ) ;
@@ -219,15 +212,15 @@ void _LockerFile::keep_alive() {
 	Pdate now { New } ;
 	if (now<Pdate(New,date)+FileLockFileTimeout/2) return ;
 	//
-	touch( spec.at , spec.file ) ;
+	touch(spec) ;
 }
 
 _LockerExcl::Trial _LockerExcl::try_lock() {
 	int fd = ::openat( spec.at , spec.file.c_str() , O_WRONLY|O_CREAT|O_EXCL , 0000/*mod*/ ) ; // file is a marker only, it is not meant to be read/written
 	if (fd>=0        ) { ::close(fd) ; return Trial::Locked ; }
-	if (errno==EEXIST)                 return Trial::Retry  ;                     // lock is held by someone else
-	if (errno==ENOENT)                 return Trial::NoDir  ;                     // lock is held by someone else
-	/**/                               return Trial::Fail   ;                     // not lockable
+	if (errno==EEXIST)                 return Trial::Retry  ;                                  // lock is held by someone else
+	if (errno==ENOENT)                 return Trial::NoDir  ;                                  // lock is held by someone else
+	/**/                               return Trial::Fail   ;                                  // not lockable
 }
 
 _LockerSymlink::Trial _LockerSymlink::try_lock() {
@@ -244,7 +237,7 @@ _LockerLink::Trial _LockerLink::try_lock() {
 		int fd = ::openat( spec.at , tmp.c_str() , O_WRONLY|O_CREAT , 0000/*mod*/ ) ;        // file is a marker only, it is not meant to be read/written
 		if (fd<0) {
 			if (errno==ENOENT) return Trial::NoDir ;
-			else               return Trial::Fail  ;                            // not lockable
+			else               return Trial::Fail  ;                                         // not lockable
 		}
 		::close(fd) ;
 		has_tmp = true ;
@@ -260,7 +253,7 @@ _LockerLink::Trial _LockerLink::try_lock() {
 		rc = ::unlinkat( spec.at , tmp.c_str() , 0/*flags*/ ) ; SWEAR( rc==0 , spec ) ;
 		return Trial::Locked ;
 	}
-	if (exists) return Trial::Retry ;                                                                    // if file exists, lock is held by someone else
+	if (exists) return Trial::Retry ;                                                                                 // if file exists, lock is held by someone else
 	else        return Trial::Fail  ;
 }
 
@@ -277,39 +270,39 @@ void _LockerMkdir::unlock(bool err_ok) {
 }
 
 // cannot put this cxtor in .hh file as Pdate is not available
-template<class Locker> _FileLockFile<Locker>::_FileLockFile( Fd at , ::string const& f , Action a ) : Locker{{at,f}} {
+template<class Locker> _FileLockFile<Locker>::_FileLockFile( FileRef f , Action a ) : Locker{f} {
 	using Trial = typename Locker::Trial ;
 	if (!spec) return ;
 	//
 	Pdate start { New } ;
 	for(;;) {
-		Pdate prev { New , FileInfo(spec.at,spec.file).date.val() } ;                                                                     // lock dates are actually Pdate's
-		Pdate now  { New                                          } ;
-		if ( +prev && now-prev>FileLockFileTimeout ) unlock(true/*err_ok*/) ;                                                             // XXX! : find a way for this timeout-unlock to be atomic
+		Pdate prev { New , FileInfo(spec).date.val() } ;                                                                     // lock dates are actually Pdate's
+		Pdate now  { New                             } ;
+		if ( +prev && now-prev>FileLockFileTimeout ) unlock(true/*err_ok*/) ;                                                // XXX! : find a way for this timeout-unlock to be atomic
 		switch (try_lock()) {
-			case Trial::Locked : touch( spec.at , spec.file )              ;                                        return ;
-			case Trial::NoDir  : dir_guard( spec.at , spec.file )          ;                                        break  ;
+			case Trial::Locked : touch    (spec)                           ;                                        return ;
+			case Trial::NoDir  : dir_guard(spec)                           ;                                        break  ;
 			case Trial::Retry  : ::min( now-start , Delay(1) ).sleep_for() ;                                        break  ; // ensure logarithmic trials, but try at least every second
 			case Trial::Fail   : throw_if( !a.err_ok , "cannot create lock (",StrErr(),") ",spec ) ; spec.at = {} ; return ; // if err_ok, object is built empty
 		DF}
 	}
 }
 
-template _FileLockFile<_LockerExcl   >::_FileLockFile( Fd at , ::string const& , Action ) ; // explicit instantiation
-template _FileLockFile<_LockerSymlink>::_FileLockFile( Fd at , ::string const& , Action ) ; // .
-template _FileLockFile<_LockerLink   >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
-template _FileLockFile<_LockerMkdir  >::_FileLockFile( Fd at , ::string const& , Action ) ; // .
+template _FileLockFile<_LockerExcl   >::_FileLockFile( FileRef , Action ) ; // explicit instantiation
+template _FileLockFile<_LockerSymlink>::_FileLockFile( FileRef , Action ) ; // .
+template _FileLockFile<_LockerLink   >::_FileLockFile( FileRef , Action ) ; // .
+template _FileLockFile<_LockerMkdir  >::_FileLockFile( FileRef , Action ) ; // .
 
-FileLock::FileLock( FileSync fs , Fd at , ::string const& file , Action a ) {
+FileLock::FileLock( FileSync fs , FileRef file , Action a ) {
 	switch (fs) {                                                             // PER_FILE_SYNC : add entry here
 		// XXX/ : _LockerFcntl has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
 		// XXX/ : _LockerFlock has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
 		// XXX/ : _LockerMkdir has been observed as not working with rocky9/NFSv4
 		// for each FileSync mechanism, we can choose any of the variant alternative (cf struct FileLock in utils.hh)
 		// /!\ monostate fakes locks, for experimental purpose only
-		case FileSync::None : emplace<_FileLockFd<_LockerFcntl>>(at,file,a) ; break ;
-		case FileSync::Dir  : emplace<_FileLockFd<_LockerFcntl>>(at,file,a) ; break ;
-		case FileSync::Sync : emplace<_FileLockFd<_LockerFcntl>>(at,file,a) ; break ;
+		case FileSync::None : emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
+		case FileSync::Dir  : emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
+		case FileSync::Sync : emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
 	DF}
 }
 
@@ -464,8 +457,8 @@ Fail :                    // NO_COV defensive programming
 thread_local char t_thread_key = '?'   ;
 bool              _crash_busy  = false ;
 
-::string get_exe       () { return read_lnk("/proc/self/exe") ; }
-::string _crash_get_now() { return Pdate(New).str(3/*prec*/)  ; } // NO_COV for debug only
+::string get_exe       () { return read_lnk(File("/proc/self/exe")) ; }
+::string _crash_get_now() { return Pdate(New).str(3/*prec*/)        ; } // NO_COV for debug only
 
 // START_OF_NO_COV for debug only
 

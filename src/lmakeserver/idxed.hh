@@ -116,7 +116,7 @@ template<IsIdxed2 I2> ::string& operator+=( ::string& os , I2 const i2 ) {      
 
 namespace Vector {
 
-	template<class T> struct File ;
+	template<class T> struct Descr ;
 
 	template<class Idx_,class Item_,class Mrkr_=void,uint8_t NGuardBits=0> struct SimpleBase ;
 	template<class Idx_,class Item_,class Mrkr_=void,uint8_t NGuardBits=1> struct CrunchBase ;
@@ -133,32 +133,32 @@ namespace Vector {
 	template<class Idx_,class Item_,class Mrkr_,uint8_t NGuardBits> struct SimpleBase
 	:	             Idxed<Idx_,NGuardBits>
 	{	using Base = Idxed<Idx_,NGuardBits> ;
-		using Idx  = Idx_                        ;
-		using Item = Item_                       ;
-		using Mrkr = Mrkr_                       ;
-		using Sz   = Idx                         ;
-		using F    = File<Simple<Idx,Item,Mrkr>> ;
+		using Idx  = Idx_                         ;
+		using Item = Item_                        ;
+		using Mrkr = Mrkr_                        ;
+		using Sz   = Idx                          ;
+		using D    = Descr<Simple<Idx,Item,Mrkr>> ;
 		static const Idx EmptyIdx ;
 		// cxtors & casts
 		using Base::Base ;
 		//
 		template<::convertible_to<Item> I> SimpleBase ( NewType , I        const& x ) : SimpleBase{::span<I const>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
-		template<::convertible_to<Item> I> SimpleBase (          ::span<I> const& v ) : Base{F::file.emplace(v)}          {}
-		template<::convertible_to<Item> I> void assign(          ::span<I> const& v ) { self = F::file.assign(+self,v) ; }
+		template<::convertible_to<Item> I> SimpleBase (          ::span<I> const& v ) : Base{D::file.emplace(v)}          {}
+		template<::convertible_to<Item> I> void assign(          ::span<I> const& v ) { self = D::file.assign(+self,v) ; }
 		//
-		void pop   () { F::file.pop(+self) ; forget() ; }
+		void pop   () { D::file.pop(+self) ; forget() ; }
 		void clear () { pop() ;                         }
 		void forget() { Base::clear() ;                 }
 		// accesses
-		Sz          size () const { return ::as_const(F::file).size (+self) ; }
-		Item const* items() const { return ::as_const(F::file).items(+self) ; }
-		Item      * items()       { return            F::file .items(+self) ; }
+		Sz          size () const { return ::as_const(D::file).size (+self) ; }
+		Item const* items() const { return ::as_const(D::file).items(+self) ; }
+		Item      * items()       { return            D::file .items(+self) ; }
 		// services
-		void shorten_by(Sz by) { self = F::file.shorten_by(+self,by) ; }
+		void shorten_by(Sz by) { self = D::file.shorten_by(+self,by) ; }
 		//
-		template<::convertible_to<Item> I> void append(::span<I> const& v) { self = F::file.append(+self,v ) ; }
+		template<::convertible_to<Item> I> void append(::span<I> const& v) { self = D::file.append(+self,v ) ; }
 	} ;
-	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = ::as_const(F::file).EmptyIdx ;
+	template<class Idx,class Item,class Mrkr,uint8_t NGuardBits> constexpr Idx SimpleBase<Idx,Item,Mrkr,NGuardBits>::EmptyIdx = ::as_const(D::file).EmptyIdx ;
 
 	//
 	// CrunchBase
@@ -171,10 +171,10 @@ namespace Vector {
 	{	using Base   = Idxed2< Item_ , Idxed<Idx_,NGuardBits> > ;
 		using Item   =         Item_                            ;
 		using Vector =                 Idxed<Idx_,NGuardBits>   ;
-		using Idx    = Idx_                        ;
-		using Mrkr   = Mrkr_                       ;
-		using Sz     = Idx                         ;
-		using F      = File<Crunch<Idx,Item,Mrkr>> ;
+		using Idx    = Idx_                         ;
+		using Mrkr   = Mrkr_                        ;
+		using Sz     = Idx                          ;
+		using D      = Descr<Crunch<Idx,Item,Mrkr>> ;
 		//
 		// cxtors & casts
 		using Base::Base ;
@@ -182,22 +182,22 @@ namespace Vector {
 		template<IsA<Item>              I> CrunchBase(           I         const& x ) = delete ;
 		template<::convertible_to<Item> I> CrunchBase( NewType , I         const& x ) : Base{Item(x)} {}
 		template<::convertible_to<Item> I> CrunchBase(           ::span<I> const& v ) {
-			if (v.size()!=1) static_cast<Base&>(self) = F::file.emplace(v) ;
+			if (v.size()!=1) static_cast<Base&>(self) = D::file.emplace(v) ;
 			else             static_cast<Base&>(self) = v[0]               ;
 		}
 		template<::convertible_to<Item> I> void assign(::span<I> const& v) {
 			if      (!_multi()  )                       self = CrunchBase(v)          ;
-			else if (v.size()!=1)                       self = F::file.assign(self,v) ;
-			else                  { F::file.pop(self) ; self = CrunchBase(New,v[0])   ; }
+			else if (v.size()!=1)                       self = D::file.assign(self,v) ;
+			else                  { D::file.pop(self) ; self = CrunchBase(New,v[0])   ; }
 		}
 		//
-		void pop   () { if (_multi()) F::file.pop(self) ; forget     () ; }
+		void pop   () { if (_multi()) D::file.pop(self) ; forget     () ; }
 		void clear () {                                   pop        () ; }
 		void forget() {                                   Base::clear() ; }
 		// accesses
-		auto        size () const -> Sz { if (_single()) return 1                               ; else return            F::file .size (self) ; }
-		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::as_const(F::file).items(self) ; }
-		Item      * items()             { if (_single()) return &static_cast<Item      &>(self) ; else return            F::file .items(self) ; }
+		auto        size () const -> Sz { if (_single()) return 1                               ; else return            D::file .size (self) ; }
+		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::as_const(D::file).items(self) ; }
+		Item      * items()             { if (_single()) return &static_cast<Item      &>(self) ; else return            D::file .items(self) ; }
 	private :
 		bool _multi () const { return !self.template is_a<Item  >() ; } // 0 is both a Vector and an Item, so this way 0 is !_multi ()
 		bool _single() const { return !self.template is_a<Vector>() ; } // 0 is both a Vector and an Item, so this way 0 is !_single()
@@ -207,14 +207,14 @@ namespace Vector {
 			Sz sz = size() ;
 			SWEAR( by<=sz , by , sz ) ;
 			if      (!_multi()) { if (by==sz) forget() ;                   }
-			else if (by!=sz-1 )   self = F::file.shorten_by( self , by ) ;
+			else if (by!=sz-1 )   self = D::file.shorten_by( self , by ) ;
 			else                  assign(::span(items(),1)) ;
 		}
 		//
 		template<::convertible_to<Item> I> void append(::span<I> const& v) {
 			if      (!self  ) assign(v) ;
-			else if (_multi()) self = F::file.append (     self ,v) ;
-			else if (+v      ) self = F::file.emplace(Item(self),v) ;
+			else if (_multi()) self = D::file.append (     self ,v) ;
+			else if (+v      ) self = D::file.emplace(Item(self),v) ;
 		}
 	} ;
 

@@ -983,10 +983,10 @@ bool JobSpace::enter(
 	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw cat("non top-level repo_view " ,no_slash(super_repo_view_s)," not yet implemented") ;
 	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw cat("non top-level tmp_view "  ,no_slash(tmp_view_s       )," not yet implemented") ;
 	//
-	::string chroot_dir        = chroot_dir_s                                                  ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly manage the '/' case
-	bool     must_create_lmake = +lmake_view_s      && !is_dir_s(chroot_dir+lmake_view_s     ) ;
-	bool     must_create_repo  = +super_repo_view_s && !is_dir_s(chroot_dir+super_repo_view_s) ;
-	bool     must_create_tmp   = +tmp_view_s        && !is_dir_s(chroot_dir+tmp_view_s       ) ;
+	::string chroot_dir        = chroot_dir_s                                                                     ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly ...
+	bool     must_create_lmake = +lmake_view_s      && FileInfo(chroot_dir+lmake_view_s     ).tag()!=FileTag::Dir ;                                          // ... manage the '/' case
+	bool     must_create_repo  = +super_repo_view_s && FileInfo(chroot_dir+super_repo_view_s).tag()!=FileTag::Dir ;
+	bool     must_create_tmp   = +tmp_view_s        && FileInfo(chroot_dir+tmp_view_s       ).tag()!=FileTag::Dir ;
 	//
 	if (must_create_tmp) SWEAR(+phy_tmp_dir_s) ;
 	trace("create",STR(must_create_lmake),STR(must_create_repo),STR(must_create_tmp)) ;

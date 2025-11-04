@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "file.hh"
+#include "raw_file.hh"
 
 namespace Store {
 
@@ -39,8 +39,8 @@ namespace Store {
 	}
 
 	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,bool Multi=false> struct StructFile
-	:	              File<ThreadKey,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)>
-	{	using Base  = File<ThreadKey,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)> ;
+	:	              RawFile<ThreadKey,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)>
+	{	using Base  = RawFile<ThreadKey,Struct::_offset<Hdr_,Idx_,Data_>(size_t(1)<<NIdxBits)> ;
 		using Hdr   = Hdr_         ;
 		using Idx   = Idx_         ;
 		using Data  = Data_        ;

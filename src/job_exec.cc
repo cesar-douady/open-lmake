@@ -38,18 +38,19 @@ SeqId                     g_trace_id        = 0/*garbage*/ ;
 ::vector_s                g_washed          ;
 
 JobStartRpcReply get_start_info(ServerSockFd const& server_fd) {
-	Trace trace("get_start_info",g_service_start) ;
-	bool             found_server = false ;
+	bool             found_server = false            ;
+	in_port_t        port         = server_fd.port() ;
 	JobStartRpcReply res          ;
+	Trace trace("get_start_info",g_service_start,port) ;
 	try {
 		ClientSockFd fd { SockFd::s_host(g_service_start) , SockFd::s_port(g_service_start) } ;
 		fd.set_timeout(Delay(100)) ;                                                            // ensure we dont stay stuck in case server is in the coma : ...
 		throw_unless(+fd) ;                                                                     // ... 100s = 1000 simultaneous connections @ 10 jobs/s
 		found_server = true ;
-		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		/**/  OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},server_fd.port()) ) ;
-		res = IMsgBuf().receive<JobStartRpcReply>( fd                                                     ) ;
-		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		/**/  OMsgBuf().send                     ( fd , JobStartRpcReq({g_seq_id,g_job},port) ) ;
+		res = IMsgBuf().receive<JobStartRpcReply>( fd                                         ) ;
+		//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	} catch (::string const& e) {
 		trace("no_start_info",STR(found_server),e) ;
 		if      (found_server) exit(Rc::Fail                                               ) ;  // this is typically a ^C

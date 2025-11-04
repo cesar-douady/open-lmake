@@ -53,9 +53,9 @@ namespace Engine::Makefiles {
 	static ::string _chk_deps( Action action , ::umap_ss const& user_env , ::string const& startup_dir_s , FileSync file_sync=FileSync::Dflt ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		NfsGuard nfs_guard { file_sync }          ;
-		::string deps_file = _deps_file(action)   ;
-		Ddate    deps_date = file_date(deps_file) ; if (!deps_date) { trace("not_found") ; return action>=Action::Plural ? "they were never read" : "it was never read" ; }
+		NfsGuard nfs_guard { file_sync }              ;
+		::string deps_file = _deps_file(action)       ;
+		Ddate    deps_date = FileInfo(deps_file).date ; if (!deps_date) { trace("not_found") ; return action>=Action::Plural ? "they were never read" : "it was never read" ; }
 		::string reason    ;
 		//
 		::vector_s deps = AcFd(deps_file,{.err_ok=true}).read_lines(false/*partial_ok*/) ;

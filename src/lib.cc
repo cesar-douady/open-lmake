@@ -22,15 +22,15 @@ SearchRootResult search_root(::string const& cwd_s_) {
 	::string   repo_root_s = from_dir_s                               ;
 	::vector_s candidates  ;
 	for(;; repo_root_s=dir_name_s(repo_root_s) ) {
-		if ( is_target(repo_root_s+"Lmakefile.py") || is_target(repo_root_s+"Lmakefile/__init__.py") ) candidates.push_back(repo_root_s) ;
-		if ( repo_root_s.size()==1                                                                   ) break ;
+		if ( FileInfo(repo_root_s+"Lmakefile.py").exists() || FileInfo(repo_root_s+"Lmakefile/__init__.py").exists() ) candidates.push_back(repo_root_s) ;
+		if ( repo_root_s.size()==1                                                                                   ) break ;
 	}
 	switch (candidates.size()) {
 		case 0 : throw "cannot find root dir"s ;
 		case 1 : repo_root_s = candidates[0] ; break ;
 		default : {
 			::vector_s candidates2 ;
-			for( ::string const& c : candidates ) if (is_dir_s(c+AdminDirS)) candidates2.push_back(c) ;
+			for( ::string const& c : candidates ) if (FileInfo(c+AdminDirS).tag()==FileTag::Dir) candidates2.push_back(c) ;
 			switch (candidates2.size()) {
 				case 0 : {
 					::string msg = "ambiguous root dir, to disambiguate, consider one of :\n" ;

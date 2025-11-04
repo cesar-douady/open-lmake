@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "file.hh"
+#include "raw_file.hh"
 #include "struct.hh"
 #include "side_car.hh"
 #include "prefix.hh"
@@ -25,21 +25,21 @@ template<bool Multi,bool HasDataSz> struct TestData {
 } ;
 
 //
-// File
+// RawFile
 //
 
 struct TestFile {
 	TestFile() {
 		Fd::Stdout.write("check file ...") ;
 		::string file_name = g_dir_s+"file" ;
-		{	File<0/*ThreadKey*/,10000> f(file_name,true/*writable*/) ;
+		{	RawFile<0/*ThreadKey*/,10000> f(file_name,true/*writable*/) ;
 			f.expand(1000) ;
 			f.base[100] = 'a' ;
 			f.expand(5000) ;
 			f.base[101] = 'b' ;
 			f.clear(1000) ;
 		}
-		{	File<0/*ThreadKey*/,10000> f(file_name,false/*writable*/) ;
+		{	RawFile<0/*ThreadKey*/,10000> f(file_name,false/*writable*/) ;
 			SWEAR(f.base[100]=='a') ;
 			SWEAR(f.base[101]=='b') ;
 		}

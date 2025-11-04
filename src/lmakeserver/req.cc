@@ -244,8 +244,8 @@ namespace Engine {
 					err = "not built" ;                                                              // if no better explanation found
 			break ;
 			case NodeStatus::None :
-				if      (dep->manual(dep->name())>=Manual::Changed) err = "dangling" ;
-				else if (dep.dflags[Dflag::Required]              ) err = "missing"  ;
+				if      (dep->manual({dep->name()})>=Manual::Changed) err = "dangling" ;
+				else if (dep.dflags[Dflag::Required]                    ) err = "missing"  ;
 			break ;
 		DF}                                                                                          // NO_COV
 		if (err) return self->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
@@ -428,11 +428,11 @@ namespace Engine {
 			log_fd = Fd( log_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;
 			try         { sym_lnk(Last,lcl_log_file) ;                                         }
 			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
-			start_ddate = file_date(log_file) ;                                                  // use log_file as a date marker
+			start_ddate = FileInfo(log_file).date ;                                              // use log_file as a date marker
 		} else {
 			trace("no_log") ;
 			AcFd( Last , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;                              // use Last as a marker, just to gather its date
-			start_ddate = file_date(Last) ;
+			start_ddate = FileInfo(Last).date ;
 			unlnk(Last) ;
 		}
 	}
@@ -473,11 +473,11 @@ namespace Engine {
 			size_t w = 0 ;
 			for( Node n : up_to_dates ) n->set_buildable() ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) w = ::max(w,(is_target(n->name())?src_msg     :anti_msg     ).size()) ;
-				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No         ?plain_ok_msg:plain_err_msg).size()) ;
+				if      (n->is_src_anti()                ) w = ::max(w,(FileInfo(n->name()).exists()?src_msg     :anti_msg     ).size()) ;
+				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No                 ?plain_ok_msg:plain_err_msg).size()) ;
 			for( Node n : up_to_dates )
-				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , widen(is_target(n->name())?src_msg     :anti_msg     ,w)+" :" , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , widen(n->ok()!=No         ?plain_ok_msg:plain_err_msg,w)+" :" , n ) ;
+				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , widen(FileInfo(n->name()).exists()?src_msg     :anti_msg     ,w)+" :" , n ) ;
+				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , widen(n->ok()!=No                 ?plain_ok_msg:plain_err_msg,w)+" :" , n ) ;
 		}
 		if (+frozen_jobs) {
 			::vector<Job> frozen_jobs_sorted = frozen_jobs ;
@@ -608,9 +608,9 @@ namespace Engine {
 			mrts.emplace_back(rt,::move(m)) ;
 		}
 		//
-		if ( !art && !mrts                                  ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
-		else                                                  audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
-		if ( !art && is_target(name,{.nfs_guard=nfs_guard}) ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
+		if ( !art && !mrts                                          ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
+		else                                                          audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
+		if ( !art && FileInfo(name,{.nfs_guard=nfs_guard}).exists() ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
 		for( auto const& [rt,m] : mrts ) {                                                     // second pass to do report
 			Rule              r           = rt->rule                ;

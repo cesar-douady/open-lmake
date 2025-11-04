@@ -222,12 +222,10 @@ namespace Codec {
 		static ::string s_dir_s(                    ) { return CodecFile::s_pfx_s(CodecDir::Lock) ; }
 		static ::string s_file (::string const& file) { return s_dir_s()+mk_printable<'/'>(file)  ; }
 		// ctxors & casts
-		CodecLock ( Fd at , ::string const& file , Action  ={} ) ;
-		CodecLock (         ::string const& file , Action a={} ) : CodecLock{Fd::Cwd,file,a} {}
-		~CodecLock() ;
+		CodecLock ( FileRef , Action={} ) ;
+		~CodecLock(                     ) ;
 		// data
-		Fd       at   ;
-		::string file ;
+		File file ;
 	} ;
 
 }

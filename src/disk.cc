@@ -124,8 +124,8 @@ namespace Disk {
 		pfx[1] = char(fd) ;
 		encode_int<FileNameIdx>(&pfx[2],f.size()) ;
 		switch (exists) {
-			case Yes : { if (!is_target(f)) return "(not existing) "+pfx+f ; } break ;
-			case No  : { if ( is_target(f)) return "(existing) "    +pfx+f ; } break ;
+			case Yes : { if (!FileInfo(f).exists()) return "(not existing) "+pfx+f ; } break ;
+			case No  : { if ( FileInfo(f).exists()) return "(existing) "    +pfx+f ; } break ;
 		DN}
 		return pfx+f ;
 	}
@@ -156,75 +156,95 @@ namespace Disk {
 	// disk access library
 	//
 
-	vector_s lst_dir_s( Fd at , ::string const& dir_s , ::string const& prefix , NfsGuard* nfs_guard ) {
-		Fd dir_fd { at , dir_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=nfs_guard} } ;
+	vector_s lst_dir_s( FileRef dir_s , ::string const& prefix , NfsGuard* nfs_guard ) {
+		AcFd dir_fd { dir_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=nfs_guard} } ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
-		if (!dir_fp) throw cat("cannot list dir ",file_msg(at,dir_s)," : ",StrErr()) ;
+		throw_unless( dir_fp , "cannot list dir ",dir_s," : ",StrErr() ) ;
+		dir_fd.detach() ;                                                  // ownership is transferred to dir_fp
 		//
 		::vector_s res ;
 		while ( struct dirent* entry = ::readdir(dir_fp) ) {
 			if (entry->d_name[0]!='.') goto Ok  ;
-			if (entry->d_name[1]==0  ) continue ; // ignore .
+			if (entry->d_name[1]==0  ) continue ;                          // ignore .
 			if (entry->d_name[1]!='.') goto Ok  ;
-			if (entry->d_name[2]==0  ) continue ; // ignore ..
+			if (entry->d_name[2]==0  ) continue ;                          // ignore ..
 		Ok :
 			res.emplace_back(prefix+entry->d_name) ;
 		}
-		if (dir_fd!=at) ::closedir(dir_fp) ;
+		::closedir(dir_fp) ;
 		return res ;
 	}
 
-	void unlnk_inside_s( Fd at , ::string const& dir_s , _UnlnkAction action ) {
-		if (!action.abs_ok) SWEAR( is_lcl_s(dir_s) , dir_s ) ;                                                                                  // unless certain, prevent accidental non-local unlinks
-		if (action.force) [[maybe_unused]] int _ = ::fchmodat( at , no_empty_s(dir_s).c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , 0 ) ; // best effort
+	void unlnk_inside_s( FileRef dir_s , _UnlnkAction action ) {
+		if (!action.abs_ok) SWEAR( is_lcl_s(dir_s.file) , dir_s ) ; // unless certain, prevent accidental non-local unlinks
+		if (action.force) [[maybe_unused]] int _ = ::fchmodat( dir_s.at , no_empty_s(dir_s.file).c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , 0 ) ; // best effort
 		::string e ;
 		action.dir_ok = true ;
-		for( ::string const& f : lst_dir_s(at,dir_s,dir_s,action.nfs_guard) ) {
-			try                        { unlnk(at,f,action) ; }                                                                                 // remove all removable files
-			catch (::string const& e2) { e = e2 ;             }
+		for( ::string const& f : lst_dir_s(dir_s,dir_s.file,action.nfs_guard) ) {
+			try                        { unlnk({dir_s.at,f},action) ; }                                                                                    // remove all removable files
+			catch (::string const& e2) { e = e2 ;                     }
 		}
 		if (+e) throw e ;
 	}
 
-	bool/*done*/ unlnk( Fd at , ::string const& file , _UnlnkAction action ) {
-		/**/                                  SWEAR( +file || at!=Fd::Cwd  , file,at,action.abs_ok ) ; // do not unlink cwd
-		if (!action.abs_ok                  ) SWEAR( !file || is_lcl(file) , file                  ) ; // unless certain, prevent accidental non-local unlinks
-		if (::unlinkat(at,file.c_str(),0)==0) return true /*done*/ ;
-		if (errno==ENOENT                   ) return false/*done*/ ;
+	bool/*done*/ unlnk( FileRef file , _UnlnkAction action ) {
+		/**/                                            SWEAR( +file                           , action.abs_ok ) ; // do not unlink cwd
+		if (!action.abs_ok                            ) SWEAR( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
+		if (::unlinkat(file.at,file.file.c_str(),0)==0) return true /*done*/ ;
+		if (errno==ENOENT                             ) return false/*done*/ ;
 		//
-		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file_msg(at,file) ) ;
+		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file ) ;
 		//
-		unlnk_inside_s(at,with_slash(file),action) ;
+		unlnk_inside_s({file.at,with_slash(file.file)},action) ;
 		//
-		if (action.nfs_guard) action.nfs_guard->change(at,file) ;
-		if (::unlinkat(at,file.c_str(),AT_REMOVEDIR)!=0) throw "cannot unlink dir "+no_slash(file) ;
+		if (action.nfs_guard) action.nfs_guard->change(file) ;
+		if (::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot unlink dir ",file) ;
 		return true/*done*/ ;
 	}
 
-	void rmdir_s( Fd at , ::string const& dir_s , NfsGuard* nfs_guard ) {
-		SWEAR(+dir_s) ;
-		if (nfs_guard) nfs_guard->change(at,dir_s) ;
-		if (::unlinkat(at,dir_s.c_str(),AT_REMOVEDIR)!=0) throw "cannot rmdir "+dir_s ;
+	void rmdir_s( FileRef dir_s , NfsGuard* nfs_guard ) {
+		SWEAR(+dir_s.file) ;
+		if (nfs_guard) nfs_guard->change(dir_s) ;
+		if (::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot rmdir ",dir_s) ;
 	}
 
-	void touch( Fd at , ::string const& path , Pdate date , NfsGuard* nfs_guard ) {
+	void touch( FileRef path , Pdate date , NfsGuard* nfs_guard ) {
 		TimeSpec time_specs[2] { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} } ;
-		::utimensat( at , path.c_str() , time_specs , AT_SYMLINK_NOFOLLOW ) ;
-		if (nfs_guard) nfs_guard->change(at,path) ;
+		::utimensat( path.at , path.file.c_str() , time_specs , AT_SYMLINK_NOFOLLOW ) ;
+		if (nfs_guard) nfs_guard->change(path) ;
+	}
+
+	void mk_dir_empty_s( FileRef dir_s , _UnlnkAction action ) {
+		try                     { unlnk_inside_s(dir_s,action                       ) ; }
+		catch (::string const&) { mk_dir_s      (dir_s,{.nfs_guard=action.nfs_guard}) ; } // ensure tmp dir exists
+	}
+
+	void sym_lnk( FileRef file , ::string const& target , _CreatAction action ) {
+		bool first = true ;
+		if (action.nfs_guard) action.nfs_guard->change(file) ;
+	Retry :
+		if (::symlinkat(target.c_str(),file.at,file.file.c_str())!=0) {
+			if ( errno==ENOENT && first ) {
+				first = false ;              // ensure we retry at most once
+				dir_guard( file , action ) ;
+				goto Retry/*BACKWARD*/ ;
+			}
+			throw cat("cannot create symlink from ",file," to ",target) ;
+		}
 	}
 
 	// path and pfx are restored after execution
 	static void _walk( ::vmap_s<FileTag>& res , Fd at , ::string& path , FileTags file_tags , ::string& pfx , ::function<bool(::string const&)> prune ) {
-		FileTag tag = FileInfo(at,path).tag() ;
+		FileTag tag = FileInfo({at,path}).tag() ;
 		//
 		if (file_tags[tag]   ) res.emplace_back(pfx,tag) ;
 		if (tag!=FileTag::Dir) return ;
 		//
 		path += '/' ;
 		::vector_s lst ;
-		try                     { lst = lst_dir_s(at,path) ; }
-		catch (::string const&) { path.pop_back() ; return ; } // list only accessible files
+		try                     { lst = lst_dir_s({at,path}) ; }
+		catch (::string const&) { path.pop_back() ; return ;   } // list only accessible files
 		pfx += '/' ;
 		size_t path_sz = path.size() ;
 		size_t pfx_sz  = pfx .size() ;
@@ -238,22 +258,22 @@ namespace Disk {
 		path.pop_back() ;
 		pfx .pop_back() ;
 	}
-	::vmap_s<FileTag> walk( Fd at , ::string const& path , FileTags file_tags , ::string const& pfx , ::function<bool(::string const&)> prune ) {
+	::vmap_s<FileTag> walk( FileRef path , FileTags file_tags , ::string const& pfx , ::function<bool(::string const&)> prune ) {
 		::vmap_s<FileTag> res ;
-		_walk( res , at , ::ref(::copy(path)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
+		_walk( res , path.at , ::ref(::copy(path.file)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
 		return res ;
 	}
 
-	size_t/*pos*/ mk_dir_s( Fd at , ::string const& dir_s , _MkDirAction action ) {
-		if (!dir_s) return Npos ;                                                   // nothing to create
+	size_t/*pos*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
+		if (!dir_s.file) return Npos ;                                                           // nothing to create
 		//
-		::vector_s  to_mk_s { dir_s }              ;
-		const char* msg     = nullptr              ;
-		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                // return the pos of the / between existing and new components
+		::vector_s  to_mk_s { dir_s.file }              ;
+		const char* msg     = nullptr                   ;
+		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                        // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string const& d_s = to_mk_s.back() ;                                                                                                         // parents are after children in to_mk
-			if (action.nfs_guard                    ) action.nfs_guard->change(at,d_s) ;
-			if (::mkdirat(at,d_s.c_str(),0777/*mod*/)==0) {
+			::string const& d_s = to_mk_s.back() ;                                               // parents are after children in to_mk
+			if (action.nfs_guard                    ) action.nfs_guard->change({dir_s.at,d_s}) ;
+			if (::mkdirat(dir_s.at,d_s.c_str(),0777/*mod*/)==0) {
 				if (+action.perm_ext) {
 					static mode_t umask_ = get_umask() ;
 					switch (action.perm_ext) {
@@ -261,9 +281,9 @@ namespace Disk {
 						case PermExt::Group : if (!(umask_&0770)) goto PermOk ; break ;
 					DN}
 					//
-					if (action.nfs_guard) action.nfs_guard->access_dir_s(at,d_s) ;
+					if (action.nfs_guard) action.nfs_guard->access_dir_s({dir_s.at,d_s}) ;
 					FileStat st ;
-					if ( ::fstatat(at,d_s.c_str(),&st,0/*flags*/)!=0 ) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
+					if ( ::fstatat(dir_s.at,d_s.c_str(),&st,0/*flags*/)!=0 ) throw cat("cannot stat (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(d_s))) ;
 					//
 					mode_t usr_mod = (st.st_mode>>6)&07 ;
 					mode_t new_mod = st.st_mode         ;
@@ -272,17 +292,17 @@ namespace Disk {
 						case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
 					DN}
 					if (new_mod!=st.st_mode)
-						if ( ::fchmodat(at,d_s.c_str(),new_mod,0/*flags*/)!=0 ) throw cat("cannot chmod (",StrErr(),") to extend permissions : ",file_msg(at,no_slash(d_s))) ;
+						if ( ::fchmodat(dir_s.at,d_s.c_str(),new_mod,0/*flags*/)!=0 ) throw cat("cannot chmod (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(d_s))) ;
 				}
 			PermOk :
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                                                              // done
+			}                                                                                    // done
 			switch (errno) {
 				case EEXIST :
-					if ( action.force && !is_dir_s(at,d_s,{.nfs_guard=action.nfs_guard}) )   unlnk(at,d_s,{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
-					else                                                                   { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                   } // done
+					if ( action.force && FileInfo({dir_s.at,d_s},{.nfs_guard=action.nfs_guard}).tag()!=FileTag::Dir )   unlnk({dir_s.at,d_s},{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
+					else                                                                                              { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                           } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
@@ -292,81 +312,61 @@ namespace Disk {
 				default :
 					msg = "cannot create dir" ;
 				Bad :
-					throw cat(msg,file_msg(at.fd,no_slash(d_s))) ;
+					throw cat(msg,File(dir_s.at.fd,no_slash(d_s))) ;
 			}
 		}
 		return pos ;
 	}
 
-	void mk_dir_empty_s( Fd at , ::string const& dir_s , _UnlnkAction action ) {
-		try                     { unlnk_inside_s(at,dir_s,action                       ) ; }
-		catch (::string const&) { mk_dir_s      (at,dir_s,{.nfs_guard=action.nfs_guard}) ; } // ensure tmp dir exists
-	}
-
-	void sym_lnk( Fd at , ::string const& file , ::string const& target , _CreatAction action ) {
-		bool first = true ;
-		if (action.nfs_guard) action.nfs_guard->change(at,target) ;
-	Retry :
-		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
-			if ( errno==ENOENT && first ) {
-				first = false ;                                                             // ensure we retry at most once
-				dir_guard( at , file , {.force=action.force,.nfs_guard=action.nfs_guard}) ;
-				goto Retry/*BACKWARD*/ ;
-			}
-			::string at_str = at==Fd::Cwd ? ""s : cat('<',at.fd,">/") ;
-			throw cat("cannot create symlink from ",at_str,file," to ",target) ;
-		}
-	}
-
-	::string read_lnk( Fd at , ::string const& file , NfsGuard* nfs_guard ) {
-		if (nfs_guard) nfs_guard->access(at,file) ;
+	::string read_lnk( FileRef file , NfsGuard* nfs_guard ) {
+		if (nfs_guard) nfs_guard->access(file) ;
 		char    buf[PATH_MAX] ;
-		ssize_t cnt           = ::readlinkat(at,file.c_str(),buf,PATH_MAX) ;
+		ssize_t cnt           = ::readlinkat(file.at,file.file.c_str(),buf,PATH_MAX) ;
 		if ( cnt<0 || cnt>=PATH_MAX ) return {} ;
 		return {buf,size_t(cnt)} ;
 	}
 
-	FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , _CreatAction action ) {
-		FileInfo fi  { src_at , src_file } ;
-		FileTag  tag = fi.tag()            ;
+	FileTag cpy( FileRef src , FileRef dst , _CreatAction action ) {
+		FileInfo fi  {src }     ;
+		FileTag  tag = fi.tag() ;
 		//
-		SWEAR( !is_target(dst_at,dst_file) , dst_at,dst_file ) ;
+		SWEAR( !FileInfo(dst).exists() , dst ) ;
 		//
 		switch (tag) {
 			case FileTag::None  :
-			case FileTag::Dir   : break ;                                                                                                            // dirs are like no file
-			case FileTag::Empty :                                                                                                                    // fast path : no need to access empty src
-				AcFd( dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666,.force=action.force,.nfs_guard=action.nfs_guard} ) ;
+			case FileTag::Dir   : break ;                                                                                              // dirs are like no file
+			case FileTag::Empty :                                                                                                      // fast path : no need to access empty src
+				AcFd( dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666,.force=action.force,.nfs_guard=action.nfs_guard} ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
-				AcFd rfd { src_at , src_file , {                                                                                    .force=action.force,.nfs_guard=action.nfs_guard} } ;
-				AcFd wfd { dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=mode_t(tag==FileTag::Exe?0777:0666),.force=action.force,.nfs_guard=action.nfs_guard} } ;
-				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                                         ;
-				if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
+				AcFd rfd { src , {                                                                                    .force=action.force,.nfs_guard=action.nfs_guard} } ;
+				AcFd wfd { dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=mode_t(tag==FileTag::Exe?0777:0666),.force=action.force,.nfs_guard=action.nfs_guard} } ;
+				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                           ;
+				if (rc!=0) throw cat("cannot copy ",src," to ",dst) ;
 			} break ;
 			case FileTag::Lnk :
-				sym_lnk( dst_at , dst_file , read_lnk(src_at,src_file,action.nfs_guard) , {.force=action.force,.nfs_guard=action.nfs_guard} ) ;
+				sym_lnk( dst , read_lnk(src,action.nfs_guard) , {.force=action.force,.nfs_guard=action.nfs_guard} ) ;
 			break ;
-		DF}                                                                                                                                          // NO_COV
+		DF}                                                                                                                            // NO_COV
 		return tag ;
 	}
 
-	void rename( Fd src_at,::string const& src_file , Fd dst_at,::string const& dst_file , _CreatAction action ) {
+	void rename( FileRef src , FileRef dst , _CreatAction action ) {
 		int first = true ;
 		if (action.nfs_guard) {
-			action.nfs_guard->update(src_at,src_file) ;
-			action.nfs_guard->change(dst_at,dst_file) ;
+			action.nfs_guard->update(src) ;
+			action.nfs_guard->change(dst) ;
 		}
 	Retry :
-		int rc = ::renameat( src_at , src_file.c_str() , dst_at , dst_file.c_str() ) ;
+		int rc = ::renameat( src.at , src.file.c_str() , dst.at , dst.file.c_str() ) ;
 		if (rc!=0) {
 			if ( errno==ENOENT && first ) {
-				dir_guard( dst_at,dst_file , {.force=action.force,.nfs_guard=action.nfs_guard} ) ; // hope error is due to destination (else penalty is just retrying once, not a big deal)
+				dir_guard( dst , action ) ; // hope error is due to destination (else penalty is just retrying once, not a big deal)
 				first = false ;
 				goto Retry ;
 			}
-			throw cat("cannot rename (",StrErr(),") ",file_msg(src_at,src_file)," into ",file_msg(dst_at,dst_file)) ;
+			throw cat("cannot rename (",StrErr(),") ",src," into ",dst) ;
 		}
 	}
 
@@ -396,11 +396,11 @@ namespace Disk {
 		sz   = st.st_size    ;
 	}
 
-	FileInfo::FileInfo( Fd at , ::string const& name , Action action ) {
-		if (action.nfs_guard) action.nfs_guard->access(at,name) ;
+	FileInfo::FileInfo( FileRef path , Action action ) {
+		if (action.nfs_guard) action.nfs_guard->access(path) ;
 		FileStat st ;
-		if (+name) { if (::fstatat( at , name.c_str() , &st , action.no_follow?AT_SYMLINK_NOFOLLOW:0 )!=0) return ; }
-		else       { if (::fstat  ( at ,                &st                                          )!=0) return ; }
+		if (+path.file) { if (::fstatat( path.at , path.file.c_str() , &st , action.no_follow?AT_SYMLINK_NOFOLLOW:0 )!=0) return ; }
+		else            { if (::fstat  ( path.at ,                     &st                                          )!=0) return ; }
 		self = st ;
 	}
 
@@ -443,10 +443,10 @@ namespace Disk {
 	// FileMap
 	//
 
-	FileMap::FileMap( Fd at , ::string const& file_name ) {
-		_fd = Fd( at , file_name , {.err_ok=true} ) ;
+	FileMap::FileMap(FileRef file) {
+		_fd = Fd( file , {.err_ok=true} ) ;
 		if (!_fd) return ;
-		sz = FileInfo(_fd,{}/*name*/,{.no_follow=false}).sz ;
+		sz = FileInfo(_fd,{.no_follow=false}).sz ;
 		if (sz) {
 			data = static_cast<const uint8_t*>(::mmap( nullptr/*addr*/ , sz , PROT_READ , MAP_PRIVATE , _fd , 0/*offset*/ )) ;
 			if (data==MAP_FAILED) {
@@ -554,60 +554,66 @@ namespace Disk {
 	// - avoid ::string copying as much as possible
 	// - do not support links outside repo & tmp, except from /proc (which is meaningful)
 	// - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
-	RealPath::SolveReport RealPath::solve( Fd at , ::string_view file , bool no_follow ) {
-		static constexpr int NMaxLnks = _POSIX_SYMLOOP_MAX ;                               // max number of links to follow before decreting it is a loop
+	RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
+		static constexpr int NMaxLnks = _POSIX_SYMLOOP_MAX ;                  // max number of links to follow before decreting it is a loop
 		//
 		::string_view tmp_dir_s = +_env->tmp_dir_s ? ::string_view(_env->tmp_dir_s) : ::string_view(P_tmpdir "/") ;
 		//
 		SolveReport res           ;
-		::vector_s& lnks          = res.lnks              ;
-		::string  & real          = res.real              ;             // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
-		::string    local_file[2] ;                                     // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
-		bool        ping          = false/*garbage*/      ;             // ping-pong state
-		bool        exists        = true                  ;             // if false, we have seen a non-existent component and there cannot be symlinks within it
-		size_t      pos           = +file && file[0]=='/' ;
-		if (!pos) {                                                     // file is relative, meaning relative to at
-			real = at_file(at) ;
+		::vector_s& lnks          = res.lnks                        ;
+		::string  & real          = res.real                        ;         // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
+		::string    local_file[2] ;                                           // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
+		bool        ping          = false/*garbage*/                ;         // ping-pong state
+		bool        exists        = true                            ;         // if false, we have seen a non-existent component and there cannot be symlinks within it
+		size_t      pos           = +file.file && file.file[0]=='/' ;
+		if (!pos) {                                                           // file is relative, meaning relative to at
+			if (file.at==Fd::Cwd) {
+				if (pid) real = read_lnk(cat("/proc/",pid,"/cwd")) ;
+				else     real = cwd()                              ;
+			} else {
+				if (pid) real = read_lnk(cat("/proc/",pid,"/fd/",file.at.fd)) ;
+				else     real = read_lnk(cat("/proc/self/fd/"   ,file.at.fd)) ;
+			}
 			//
-			if (!real         ) return {} ;                             // user code might use the strangest at, it will be an error but we must support it
-			if (real.size()==1) real.clear() ;                          // if '/', we must substitute the empty string to enforce invariant
+			if (!real         ) return {} ;                                   // user code might use the strangest at, it will be an error but we must support it
+			if (real.size()==1) real.clear() ;                                // if '/', we must substitute the empty string to enforce invariant
 		}
-		real.reserve(real.size()+1+file.size()) ;                       // anticipate no link
-		_Dvg in_repo { _env->repo_root_s , real } ;                     // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
-		_Dvg in_tmp  { tmp_dir_s         , real } ;                     // keep track of where we are w.r.t. tmp  , always track symlinks
-		_Dvg in_proc { "/proc/"          , real } ;                     // keep track of where we are w.r.t. /proc, always track symlinks
+		real.reserve(real.size()+1+file.file.size()) ;                        // anticipate no link
+		_Dvg in_repo { _env->repo_root_s , real } ;                           // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
+		_Dvg in_tmp  { tmp_dir_s         , real } ;                           // keep track of where we are w.r.t. tmp  , always track symlinks
+		_Dvg in_proc { "/proc/"          , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
 		// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
 		// when pos>file.size(), we are done and result is real
 		size_t   end      ;
 		int      n_lnks   = 0 ;
 		::string last_lnk ;
 		for (
-		;	pos <= file.size()
+		;	pos <= file.file.size()
 		;		pos = end + 1
-			,	in_repo.update( _env->repo_root_s , real )              // all domains start only when inside, i.e. the domain root is not part of the domain
-			,	in_tmp .update( tmp_dir_s         , real )              // .
-			,	in_proc.update( "/proc/"          , real )              // .
+			,	in_repo.update( _env->repo_root_s , real )                    // all domains start only when inside, i.e. the domain root is not part of the domain
+			,	in_tmp .update( tmp_dir_s         , real )                    // .
+			,	in_proc.update( "/proc/"          , real )                    // .
 		) {
-			end = file.find( '/' , pos ) ;
+			end = file.file.find( '/' , pos ) ;
 			bool last = end==Npos ;
-			if (last    ) end = file.size() ;
-			if (end==pos) continue ;                                    // empty component, ignore
-			if (file[pos]=='.') {
-				if ( end==pos+1                     ) continue ;        // component is .
-				if ( end==pos+2 && file[pos+1]=='.' ) {                 // component is ..
+			if (last    ) end = file.file.size() ;
+			if (end==pos) continue ;                                          // empty component, ignore
+			if (file.file[pos]=='.') {
+				if ( end==pos+1                          ) continue ;         // component is .
+				if ( end==pos+2 && file.file[pos+1]=='.' ) {                  // component is ..
 					if (+real) real.resize(real.rfind('/')) ;
 					continue ;
 				}
 			}
 			size_t prev_real_size = real.size() ;
-			size_t src_idx        = Npos        ;                       // Npos means not in a source dir
+			size_t src_idx        = Npos        ;                             // Npos means not in a source dir
 			real.push_back('/')           ;
-			real.append(file,pos,end-pos) ;
-			if ( !exists             ) continue       ;                 // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-			if ( no_follow && last   ) continue       ;                 // dont care about last component if no_follow
-			if ( +in_tmp || +in_proc ) goto HandleLnk ;                 // note that tmp can lie within repo
+			real.append(file.file,pos,end-pos) ;
+			if ( !exists             ) continue       ;                       // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+			if ( no_follow && last   ) continue       ;                       // dont care about last component if no_follow
+			if ( +in_tmp || +in_proc ) goto HandleLnk ;                       // note that tmp can lie within repo
 			if ( +in_repo            ) {
-				if (real.size()<_repo_root_sz) continue ;               // at repo root, no sym link to handle
+				if (real.size()<_repo_root_sz) continue ;                     // at repo root, no sym link to handle
 			} else {
 				src_idx = _find_src_idx(real) ;
 				if (src_idx==Npos) continue ;
@@ -615,10 +621,10 @@ namespace Disk {
 			//
 			switch (_env->lnk_support) {
 				case LnkSupport::None :            continue ;
-				case LnkSupport::File : if (!last) continue ;           // only handle sym links as last component
-			DN}                                                         // NO_COV
+				case LnkSupport::File : if (!last) continue ;                 // only handle sym links as last component
+			DN}                                                               // NO_COV
 		HandleLnk :
-			::string& nxt = local_file[ping] ;                          // bounce, initially, when file is neither local_file's, any buffer is ok
+			::string& nxt = local_file[ping] ;                                // bounce, initially, when file is neither local_file's, any buffer is ok
 			nxt = read_lnk( real , &_nfs_guard ) ;
 			if (!nxt) {
 				if (errno==ENOENT) exists = false ;
@@ -633,13 +639,13 @@ namespace Disk {
 				if      (!in_repo                                                    ) lnks.push_back( _env->src_dirs_s[src_idx] + substr_view(real,_abs_src_dirs_s[src_idx].size()) ) ;
 				else if (_lcl_file_loc(substr_view(real,_repo_root_sz))<=FileLoc::Dep) lnks.push_back( real.substr(_repo_root_sz)                                                    ) ;
 			}
-			if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;          // link loop detected, same check as system
-			if (!last             )   nxt << '/'<<(file.data()+end+1) ; // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
-			if (nxt[0]=='/'       ) { end =  0 ; prev_real_size = 0 ; } // absolute link target : flush real
-			else                      end = -1 ;                        // end must point to the /, invent a virtual one before the string
-			real.resize(prev_real_size) ;                               // links are relative to containing dir, suppress last component
-			ping = !ping ;
-			file = nxt   ;
+			if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;                // link loop detected, same check as system
+			if (!last             )   nxt << '/'<<(file.file.data()+end+1) ;  // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
+			if (nxt[0]=='/'       ) { end =  0 ; prev_real_size = 0 ; }       // absolute link target : flush real
+			else                      end = -1 ;                              // end must point to the /, invent a virtual one before the string
+			real.resize(prev_real_size) ;                                     // links are relative to containing dir, suppress last component
+			ping      = !ping ;
+			file.file = nxt   ;
 		}
 		// /!\ : this code must be in sync with RealPathEnv::file_loc
 		// tmp may be in_repo, repo root is in_repo

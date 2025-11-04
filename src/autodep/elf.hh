@@ -57,7 +57,7 @@ struct Elf {
 	// cxtors & casts
 	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
 		if (!llp) return ;
-		::string const& root_s = Record::s_autodep_env().repo_root_s ; SWEAR(+root_s) ;   // root_s contains at least /
+		::string const& root_s = Record::s_autodep_env().repo_root_s ; SWEAR(+root_s) ;     // root_s contains at least /
 		size_t          sz     = root_s.size()-1 ;
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
@@ -77,9 +77,9 @@ struct Elf {
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
-	::string                  rpath           ;                                           // DT_RPATH or DT_RUNPATH entry
+	::string                  rpath           ;                                             // DT_RPATH or DT_RUNPATH entry
 	::umap_s<Bool3/*exists*/> seen            = {}                 ;
-	bool                      simple_llp      = false              ;                      // if true => ld_library_path contains no dir to the repo
+	bool                      simple_llp      = false              ;                        // if true => ld_library_path contains no dir to the repo
 } ;
 
 inline Elf::Dyn const* Elf::DynDigest::_s_search_dyn_tab( FileMap const& file_map ) {
@@ -168,7 +168,7 @@ inline Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map )
 
 inline ::string _mk_abs_exe(::string const& exe) {
 	if (+exe) {        ::string abs_exe = mk_glb(exe,Record::s_autodep_env().repo_root_s) ; return abs_exe ; }
-	else      { static ::string abs_exe = read_lnk("/proc/self/exe")                      ; return abs_exe ; }
+	else      { static ::string abs_exe = read_lnk(File("/proc/self/exe"))                ; return abs_exe ; }
 } ;
 inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	static constexpr const char* LdSoLib   =                 LD_SO_LIB              ;
@@ -215,8 +215,8 @@ inline Record::Read<true/*Send*/> Elf::search_elf( ::string const& file , ::stri
 			/**/            full_file += file                     ;
 			Record::Read<true/*Send*/> rr            { *r , full_file , false/*no_follow*/ , true/*keep_real*/ , c } ;
 			auto                       [it,inserted] = seen.try_emplace(rr.real,Maybe)                               ;
-			if ( it->second==Maybe           )   it->second = No | is_target(Record::s_repo_root_fd(),rr.real,{.no_follow=false}) ;   // real may be a sym link in the system directories
-			if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , c ) ; return rr ;                                    }
+			if ( it->second==Maybe           )   it->second = No | FileInfo({Record::s_repo_root_fd(),rr.real},{.no_follow=false}).exists() ;   // real may be a sym link in the system directories
+			if ( it->second==Yes && inserted ) { elf_deps( rr , false/*top*/ , c ) ; return rr ;                                              }
 			if ( it->second==Yes             )                                       return {} ;
 			if (end==Npos) break ;
 			pos = end+1 ;
@@ -227,8 +227,8 @@ inline Record::Read<true/*Send*/> Elf::search_elf( ::string const& file , ::stri
 inline void Elf::elf_deps( Record::Solve<false/*Send*/> const& file , bool top , Comment c ) {
 	if ( simple_llp && file.file_loc==FileLoc::Ext ) return ;
 	try {
-		FileMap   file_map { Record::s_repo_root_fd() , file.real } ; if (!file_map) return ;                                          // real may be a sym link in system dirs
-		DynDigest digest   { file_map }                             ;
+		FileMap   file_map {{ Record::s_repo_root_fd() , file.real }} ; if (!file_map) return ;                                        // real may be a sym link in system dirs
+		DynDigest digest   { file_map }                               ;
 		if ( top && digest.rpath ) rpath = digest.rpath ;                                                                              // rpath applies to the whole search
 		for( const char* needed : digest.neededs ) search_elf( s_expand(needed,file.real) , s_expand(digest.runpath,file.real) , c ) ;
 	} catch (int) { return ; }                                                                                                         // bad file format, ignore

@@ -127,18 +127,18 @@ int main( int argc , char* /*argv*/[] ) {
 	if (argc!=1              )                                                exit(Rc::Usage   ,"must be called without arg"                                               ) ;
 	try { startup_s = search_root().startup_s ; } catch (::string const& e) { exit(Rc::Usage   ,e                                                                          ) ; }
 	if (+startup_s           )                                                exit(Rc::Usage   ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
-	if (is_target(ServerMrkr))                                                exit(Rc::BadState,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
+	if (FileInfo(File(ServerMrkr)).exists())                                  exit(Rc::BadState,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
 	//
 	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,{.dir_ok=true}) ; // if last lrepair was interrupted, admin_dir contains no useful information
-	if (is_dir_s(bck_admin_dir_s)) {
-		if (is_dir_s(admin_dir_s)) {
+	if (FileInfo(bck_admin_dir_s).tag()==FileTag::Dir) {
+		if (FileInfo(admin_dir_s).tag()==FileTag::Dir) {
 			mk_lad() ;
 			exit(Rc::BadState,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
 		}
 		try                       { rename( bck_admin_dir/*src*/ , admin_dir/*dst*/ ) ; }
 		catch (::string const& e) { fail_prod(e) ;                                      }
 	}
-	if (!is_dir_s(cat(PrivateAdminDirS,"local_admin/job_data/"))) exit(Rc::Fail,"nothing to repair") ;
+	if (FileInfo(cat(PrivateAdminDirS,"local_admin/job_data/")).tag()!=FileTag::Dir) exit(Rc::Fail,"nothing to repair") ;
 	//
 	g_trace_file = New ;
 	block_sigs({SIGCHLD}) ;

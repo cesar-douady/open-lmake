@@ -116,11 +116,11 @@ Sent Record::_do_send_report(pid_t pid) {
 	SWEAR(+_buf) ;
 	s_mutex.swear_locked() ;
 	//
-	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF                              ;                                         // several processes share fast report, so only small messages can be sent
+	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF                              ; // several processes share fast report, so only small messages can be sent
 	Fd   fd   = fast ? report_fd<true/*Fast*/>(pid) : report_fd<false/*Fast*/>(pid) ;
 	if (+fd)
-		try                       { _buf.send(fd) ;                                                                         }
-		catch (::string const& e) { exit(Rc::System,read_lnk("/proc/self/exe"),'(',pid,") : cannot report accesses : ",e) ; } // NO_COV this justifies panic : do our best
+		try                       { _buf.send(fd) ;                                                                               }
+		catch (::string const& e) { exit(Rc::System,read_lnk(File("/proc/self/exe")),'(',pid,") : cannot report accesses : ",e) ; } // NO_COV this justifies panic : do our best
 	_buf = {} ;
 	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;
 }
@@ -230,10 +230,10 @@ JobExecRpcReq::Id Record::report_access( JobExecRpcReq&& jerr , bool force ) {
 	if      (need_id   ) { now = New ; id = now.val() ; if (!_real_path.pid) id += Jerr::Id(::getpid())*((uint64_t(1)<<48)+(uint64_t(1)<<32)) ; } // .
 	else if (!jerr.date)   now = New ;
 	//
-	/**/                                                                 jerr.proc = JobExecProc::Access  ;
-	if (!jerr.date           )                                           jerr.date = now                  ;
-	if (need_id              )                                           jerr.id   = id                   ;
-	if (+jerr.digest.accesses) for( auto& [f,fi] : jerr.files ) if (!fi) fi        = {s_repo_root_fd(),f} ;
+	/**/                                                                 jerr.proc = JobExecProc::Access    ;
+	if (!jerr.date           )                                           jerr.date = now                    ;
+	if (need_id              )                                           jerr.id   = id                     ;
+	if (+jerr.digest.accesses) for( auto& [f,fi] : jerr.files ) if (!fi) fi        = {{s_repo_root_fd(),f}} ;
 	//
 	report_cached( ::move(jerr) , force ) ;
 	if (jerr.digest.write==Maybe) return id ;
@@ -264,14 +264,14 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , Fil
 
 Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
 	SWEAR(!accesses) ;                                                                                                                    // no access to last component when no_follow
-	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s(at,with_slash(file)) ;                                          // in case of overlay, create dir in the view
+	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s({at,with_slash(file)}) ;                                        // in case of overlay, create dir in the view
 	r.report_guard( file_loc , ::move(real_write()) ) ;
 	send_report(r) ;
 }
 
 Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comment c ) : SolveModify{r,::move(path),no_follow,true/*read*/,false/*create*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
-	FileInfo fi { s_repo_root_fd() , real } ;
+	FileInfo fi {{ s_repo_root_fd() , real }} ;
 	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) ) // only consider as a target if exe bit changes
 		report_update( r , Access::Reg , c ) ;
 	send_report(r) ;
@@ -343,8 +343,8 @@ static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE
 //
 Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , bool(flags&O_CREAT) , c } {
 	if ( !file || !file[0]             ) return ;
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                     // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                                                     // fast path
+	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                      // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep         ) return ;                                                                                      // fast path
 	//
 	bool do_stat  = _do_stat (flags) ;
 	bool do_read  = _do_read (flags) ;
@@ -399,7 +399,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	::vmap_s<FileInfo>     unlnks    ;
 	::vmap_s<FileInfo>     writes    ;
 	auto do1 = [&]( Solve<> const& src , Solve<> const& dst ) {
-		for( auto const& [f,_] : walk(s_repo_root_fd(),src.real,TargetTags) ) {
+		for( auto const& [f,_] : walk({s_repo_root_fd(),src.real},TargetTags) ) {
 			if (+src.real0) {
 				if      (src.file_loc0<=FileLoc::Repo) unlnk_map.try_emplace (src.real0+f,false/*read*/) ;      // real is read, real0 is unlinked
 				if      (src.file_loc <=FileLoc::Dep ) reads    .emplace_back(src.real +f,FileInfo()   ) ;
