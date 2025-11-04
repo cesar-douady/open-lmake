@@ -161,8 +161,8 @@ namespace Codec {
 					AcFd( at , dn_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=action.nfs_guard} ).write( e.code ) ; // .
 					AcFd( at , en_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=action.nfs_guard} ).write( e.val  ) ; // .
 					//      src         dst
-					rename( at,dn_tmp , at,dn , action.nfs_guard ) ;
-					rename( at,en_tmp , at,en , action.nfs_guard ) ;
+					rename( at,dn_tmp , at,dn , {.nfs_guard=action.nfs_guard} ) ;
+					rename( at,en_tmp , at,en , {.nfs_guard=action.nfs_guard} ) ;
 				} else {                                                                         // action is invalid, forget it as no file has been created and info is incomplete
 					int rc = ::ftruncate( new_codes_fd , known_sz ) ; SWEAR( rc==0 , file,rc ) ;
 					actual_sz = known_sz ;

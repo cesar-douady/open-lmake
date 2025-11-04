@@ -405,8 +405,8 @@ namespace Backdoor {
 					AcFd( rfd , new_codes_file  , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
 					AcFd( rfd , tmp_node        , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
 					AcFd( rfd , tmp_decode_node , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
-					rename( rfd,tmp_node       /*src*/ , rfd,node       /*dst*/ , &nfs_guard ) ;
-					rename( rfd,tmp_decode_node/*src*/ , rfd,decode_node/*dst*/ , &nfs_guard ) ;
+					rename( rfd,tmp_node       /*src*/ , rfd,node       /*dst*/ , {.nfs_guard=&nfs_guard} ) ;
+					rename( rfd,tmp_decode_node/*src*/ , rfd,decode_node/*dst*/ , {.nfs_guard=&nfs_guard} ) ;
 					//
 					res  = code                     ;
 					edf |= ExtraDflag::CreateEncode ;

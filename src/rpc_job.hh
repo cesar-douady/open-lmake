@@ -306,13 +306,13 @@ enum class ZlvlTag : uint8_t {
 static const ::string PassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
 static const ::string DynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed variable
 
-static constexpr char QuarantineDirS[] = ADMIN_DIR_S "quarantine/" ;
-
 namespace Caches {
 
 	using CacheKey = uint64_t ; // used to identify temporary data to upload
 
 }
+
+void quarantine( ::string const& file , NfsGuard* =nullptr ) ;
 
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;

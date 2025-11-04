@@ -26,6 +26,18 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
+void quarantine( ::string const& file , NfsGuard* nfs_guard ) {
+	if (!FileInfo(file).exists()) return ;
+	//
+	::string qf = cat( ADMIN_DIR_S "quarantine/" , file ) ;
+	try {
+		unlnk (        qf , {.dir_ok=true,.force=true,.nfs_guard=nfs_guard} ) ;
+		rename( file , qf , {             .force=true,.nfs_guard=nfs_guard} ) ;
+	} catch (::string const& e) {
+		throw cat("cannot quarantine : ",e) ;
+	}
+}
+
 //
 // FileAction
 //
@@ -86,38 +98,32 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 					trace(a.tag,"no_file",f) ;
 					continue ;
 				}
-				FileSig sig        { fs } ;
-				bool    quarantine ;
+				FileSig sig         { fs } ;
+				bool    quarantine_ ;
 				if (!sig) {
 					if ( a.tag==FileActionTag::None && sig.tag()==FileTag::Dir ) {     // if None, we dont want to generate the file, so dir is ok (and there may be sub-files to generate)
 						trace(a.tag,"dir",f) ;
 						continue ;
 					}
 					trace(a.tag,"awkward",f) ;
-					quarantine = true ;
+					quarantine_ = true ;
 				} else {
-					quarantine =
+					quarantine_ =
 						sig!=a.sig
 					&&	sig.tag()!=Crc::Empty
 					&&	( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) // only compute crc if file has been modified
 					;
 					dir_exists(f) ;                                                    // if a file exists, its dir necessarily exists
 				}
-				if (quarantine) {
-					::string qf = QuarantineDirS+f ;
-					try {
-						unlnk (     qf , {.dir_ok=true,.force=true,.nfs_guard=nfs_guard} ) ;
-						rename( f , qf ,                                      nfs_guard  ) ;
-					} catch (::string const& e) {
-						throw cat("cannot quarantine : ",e) ;
-					}
+				if (quarantine_) {
+					quarantine( f , nfs_guard ) ;
 					msg << "quarantined "<<mk_file(f)<<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
 					unlnk(f,{.nfs_guard=nfs_guard}) ;
 					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) msg <<"unlinked "<<mk_file(f)<<'\n' ;     // if a file has been unlinked, its dir necessarily exists
 				}
-				trace(a.tag,STR(quarantine),f) ;
+				trace(a.tag,STR(quarantine_),f) ;
 				if (+sig) unlnks.push_back(f) ;
 			} break ;
 			case FileActionTag::Uniquify : {

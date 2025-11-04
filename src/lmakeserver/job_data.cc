@@ -800,7 +800,7 @@ namespace Engine {
 		nd.actual_job    = job                                                   ;
 		nd.actual_tflags = { Tflag::Incremental , Tflag::Phony , Tflag::Target } ;
 		//
-		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , nfs_guard ) ;                                    // .
+		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , {.nfs_guard=nfs_guard} ) ;                       // .
 	} ;
 	static void _erase( Codec::CodecFile const& codec_file , NfsGuard* nfs_guard ) {
 		::string  node_name = codec_file.name()    ;

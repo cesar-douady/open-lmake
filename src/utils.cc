@@ -78,8 +78,8 @@ Retry :
 	else                  res =           at                                                        ;
 	if (res<0) {
 		if ( errno==ENOENT && creat && first && action.mk_dir ) {
-			if (action.flags&O_TMPFILE) mk_dir_s ( at , with_slash(file) , {.perm_ext=action.perm_ext} ) ;
-			else                        dir_guard( at ,            file  , {.perm_ext=action.perm_ext} ) ;
+			if (action.flags&O_TMPFILE) mk_dir_s ( at , with_slash(file) , {.force=action.force,.perm_ext=action.perm_ext} ) ;
+			else                        dir_guard( at ,            file  , {.force=action.force,.perm_ext=action.perm_ext} ) ;
 			first = false ;                                                                                // ensure we retry at most once
 			goto Retry ;
 		}

@@ -443,7 +443,7 @@ namespace Engine {
 				sym_lnk( no_slash(std_dir_s) , no_slash(lnk_target_s) ) ;
 			}
 		}
-		mk_dir_s( local_admin_dir_s , {.unlnk_ok=true} ) ;
+		mk_dir_s( local_admin_dir_s , {.force=true} ) ;
 		//
 		Backends::Backend::s_config( backends , dyn , first_time ) ;
 		//

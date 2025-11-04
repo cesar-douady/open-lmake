@@ -5,6 +5,8 @@
 
 #include "core.hh" // /!\ must be first to include Python.h first
 
+#include "rpc_job.hh"
+
 namespace Engine {
 	using namespace Disk ;
 	using namespace Time ;
@@ -90,11 +92,11 @@ namespace Engine {
 				} else {
 					::string n = name() ;
 					try {
-						rename( n/*src*/ , QuarantineDirS+n/*dst*/ ) ;
+						quarantine(n) ;
 						res = Manual::Unlnked ;
-						req->audit_node( Color::Warning ,     "quarantined"                , idx() ) ;
+						req->audit_node( Color::Warning , "quarantined" , idx() ) ;
 					} catch (::string const& e) {
-						req->audit_node( Color::Err     , cat("cannot quarantine (",e,')') , idx() ) ;
+						req->audit_node( Color::Err     , e             , idx() ) ;
 					}
 				}
 			} break ;

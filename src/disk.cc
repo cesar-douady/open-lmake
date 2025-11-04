@@ -251,7 +251,7 @@ namespace Disk {
 		const char* msg     = nullptr              ;
 		size_t      pos     = dir_s[0]=='/'?0:Npos ;                                // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string const& d_s = to_mk_s.back() ;                                                                                                            // parents are after children in to_mk
+			::string const& d_s = to_mk_s.back() ;                                                                                                         // parents are after children in to_mk
 			if (action.nfs_guard                    ) action.nfs_guard->change(at,d_s) ;
 			if (::mkdirat(at,d_s.c_str(),0777/*mod*/)==0) {
 				if (+action.perm_ext) {
@@ -278,11 +278,11 @@ namespace Disk {
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                                                                 // done
+			}                                                                                                                                              // done
 			switch (errno) {
 				case EEXIST :
-					if ( action.unlnk_ok && !is_dir_s(at,d_s,{.nfs_guard=action.nfs_guard}) )   unlnk(at,d_s,{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
-					else                                                                      { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                   } // done
+					if ( action.force && !is_dir_s(at,d_s,{.nfs_guard=action.nfs_guard}) )   unlnk(at,d_s,{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
+					else                                                                   { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                   } // done
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
@@ -303,14 +303,14 @@ namespace Disk {
 		catch (::string const&) { mk_dir_s      (at,dir_s,{.nfs_guard=action.nfs_guard}) ; } // ensure tmp dir exists
 	}
 
-	void sym_lnk( Fd at , ::string const& file , ::string const& target , NfsGuard* nfs_guard ) {
+	void sym_lnk( Fd at , ::string const& file , ::string const& target , _CreatAction action ) {
 		bool first = true ;
-		if (nfs_guard) nfs_guard->change(at,target) ;
+		if (action.nfs_guard) action.nfs_guard->change(at,target) ;
 	Retry :
 		if (::symlinkat(target.c_str(),at,file.c_str())!=0) {
 			if ( errno==ENOENT && first ) {
-				first = false ;             // ensure we retry at most once
-				dir_guard( at , file ) ;
+				first = false ;                                                             // ensure we retry at most once
+				dir_guard( at , file , {.force=action.force,.nfs_guard=action.nfs_guard}) ;
 				goto Retry/*BACKWARD*/ ;
 			}
 			::string at_str = at==Fd::Cwd ? ""s : cat('<',at.fd,">/") ;
@@ -326,7 +326,7 @@ namespace Disk {
 		return {buf,size_t(cnt)} ;
 	}
 
-	FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , NfsGuard* nfs_guard ) {
+	FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , _CreatAction action ) {
 		FileInfo fi  { src_at , src_file } ;
 		FileTag  tag = fi.tag()            ;
 		//
@@ -334,35 +334,35 @@ namespace Disk {
 		//
 		switch (tag) {
 			case FileTag::None  :
-			case FileTag::Dir   : break ;                                                                                 // dirs are like no file
-			case FileTag::Empty :                                                                                         // fast path : no need to access empty src
-				AcFd( dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666,.nfs_guard=nfs_guard} ) ;
+			case FileTag::Dir   : break ;                                                                                                            // dirs are like no file
+			case FileTag::Empty :                                                                                                                    // fast path : no need to access empty src
+				AcFd( dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666,.force=action.force,.nfs_guard=action.nfs_guard} ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
-				AcFd rfd { src_at , src_file , {                                                                                    .nfs_guard=nfs_guard } } ;
-				AcFd wfd { dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=mode_t(tag==FileTag::Exe?0777:0666),.nfs_guard=nfs_guard } } ;
-				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                 ;
+				AcFd rfd { src_at , src_file , {                                                                                    .force=action.force,.nfs_guard=action.nfs_guard} } ;
+				AcFd wfd { dst_at , dst_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=mode_t(tag==FileTag::Exe?0777:0666),.force=action.force,.nfs_guard=action.nfs_guard} } ;
+				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                                         ;
 				if (rc!=0) throw cat("cannot copy ",file_msg(src_at,src_file)," to ",file_msg(dst_at,dst_file)) ;
 			} break ;
 			case FileTag::Lnk :
-				sym_lnk( dst_at , dst_file , read_lnk(src_at,src_file,nfs_guard) , nfs_guard ) ;
+				sym_lnk( dst_at , dst_file , read_lnk(src_at,src_file,action.nfs_guard) , {.force=action.force,.nfs_guard=action.nfs_guard} ) ;
 			break ;
-		DF}                                                                                                               // NO_COV
+		DF}                                                                                                                                          // NO_COV
 		return tag ;
 	}
 
-	void rename( Fd src_at,::string const& src_file , Fd dst_at,::string const& dst_file , NfsGuard* nfs_guard ) {
+	void rename( Fd src_at,::string const& src_file , Fd dst_at,::string const& dst_file , _CreatAction action ) {
 		int first = true ;
-		if (nfs_guard) {
-			nfs_guard->update(src_at,src_file) ;
-			nfs_guard->change(dst_at,dst_file) ;
+		if (action.nfs_guard) {
+			action.nfs_guard->update(src_at,src_file) ;
+			action.nfs_guard->change(dst_at,dst_file) ;
 		}
 	Retry :
 		int rc = ::renameat( src_at , src_file.c_str() , dst_at , dst_file.c_str() ) ;
 		if (rc!=0) {
 			if ( errno==ENOENT && first ) {
-				dir_guard(dst_at,dst_file) ; // hope error is due to destination (else penalty is just retrying once, not a big deal)
+				dir_guard( dst_at,dst_file , {.force=action.force,.nfs_guard=action.nfs_guard} ) ; // hope error is due to destination (else penalty is just retrying once, not a big deal)
 				first = false ;
 				goto Retry ;
 			}

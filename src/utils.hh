@@ -548,6 +548,7 @@ struct _FdAction {
 	mode_t    mod       = -1       ;                                                                          // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      err_ok    = false    ;
 	bool      mk_dir    = true     ;
+	bool      force     = false    ;                                                                          // unlink any file on path to file if necessary
 	PermExt   perm_ext  = {}       ;
 	bool      no_std    = false    ;
 	NfsGuard* nfs_guard = nullptr  ;
@@ -808,7 +809,7 @@ struct _LockerFile {
 	void  keep_alive(                                       ) ;
 	// data
 	FileSpec spec ;
-	uint64_t date ;                                                            // cant use Pdate here
+	uint64_t date ;                                                      // cant use Pdate here
 } ;
 struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; ::string tmp ; bool has_tmp=false ; } ;
 struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;

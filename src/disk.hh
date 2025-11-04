@@ -220,7 +220,7 @@ namespace Disk {
 	inline ::vector_s lst_dir_s(         ::string const& dir_s    , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) { return lst_dir_s(Fd::Cwd,dir_s,pfx,nfs_guard) ; }
 	//
 	struct _MkDirAction {
-		bool      unlnk_ok  = false   ; // if unlnk_ok <=> unlink any file on the path if necessary to make dir
+		bool      force     = false   ; // if force <=> unlink any file on the path if necessary to make dir
 		PermExt   perm_ext  = {}      ;
 		NfsGuard* nfs_guard = nullptr ;
 	} ;
@@ -236,11 +236,16 @@ namespace Disk {
 		bool      force     = false   ;
 		NfsGuard* nfs_guard = nullptr ;
 	} ;
+	struct _CreatAction {
+		bool      force     = false   ; // unlink any file on the path to dst
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
+
 	void         unlnk_inside_s( Fd at , ::string const& dir_s ,                          _UnlnkAction   ={}      ) ;
 	bool/*done*/ unlnk         ( Fd at , ::string const& file  ,                          _UnlnkAction   ={}      ) ;
 	void         rmdir_s       ( Fd at , ::string const& dir_s ,                          NfsGuard*      =nullptr ) ;
 	void         mk_dir_empty_s( Fd at , ::string const& dir_s ,                          _UnlnkAction   ={}      ) ;
-	void         sym_lnk       ( Fd at , ::string const& file  , ::string const& target , NfsGuard*      =nullptr ) ;
+	void         sym_lnk       ( Fd at , ::string const& file  , ::string const& target , _CreatAction   ={}      ) ;
 	void         touch         ( Fd at , ::string const& path  , Time::Pdate            , NfsGuard*      =nullptr ) ;
 
 	inline void touch( Fd at , ::string const& path  , NfsGuard*    ng=nullptr ) { touch(at,path,New,ng) ; }
@@ -250,7 +255,7 @@ namespace Disk {
 	inline bool/*done*/ unlnk         ( ::string const& file  ,                          _UnlnkAction a ={}      ) { return unlnk         ( Fd::Cwd , file  ,          a  ) ; }
 	inline void         rmdir_s       ( ::string const& dir_s ,                          NfsGuard*    ng=nullptr ) {        rmdir_s       ( Fd::Cwd , dir_s ,          ng ) ; }
 	inline void         mk_dir_empty_s( ::string const& dir_s ,                          _UnlnkAction a ={}      ) { return mk_dir_empty_s( Fd::Cwd , dir_s ,          a  ) ; }
-	inline void         sym_lnk       ( ::string const& file  , ::string const& target , NfsGuard*    ng=nullptr ) {        sym_lnk       ( Fd::Cwd , file  , target , ng ) ; }
+	inline void         sym_lnk       ( ::string const& file  , ::string const& target , _CreatAction a ={}      ) {        sym_lnk       ( Fd::Cwd , file  , target , a  ) ; }
 	inline void         touch         ( ::string const& path  , Time::Pdate     date   , NfsGuard*    ng=nullptr ) { return touch         ( Fd::Cwd , path  , date   , ng ) ; }
 	inline void         touch         ( ::string const& path  ,                          NfsGuard*    ng=nullptr ) { return touch         ( Fd::Cwd , path  , New    , ng ) ; }
 
@@ -290,15 +295,15 @@ namespace Disk {
 		return with_slash(cwd) ;                               // cwd is "/" not empty when at root dir, so dont simply append '/'
 	}
 
-	/**/   FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , NfsGuard*          =nullptr ) ;
-	inline FileTag cpy( Fd sat    , ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { return cpy(sat    ,sf,Fd::Cwd,df,nfs_guard) ; }
-	inline FileTag cpy(             ::string const& sf       , Fd dat    , ::string const& df       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,sf,dat    ,df,nfs_guard) ; }
-	inline FileTag cpy(             ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { return cpy(Fd::Cwd,sf,Fd::Cwd,df,nfs_guard) ; }
+	/**/   FileTag cpy( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , _CreatAction  ={} ) ;
+	inline FileTag cpy( Fd sat    , ::string const& sf       ,             ::string const& df       , _CreatAction a={} ) { return cpy(sat    ,sf,Fd::Cwd,df,a) ; }
+	inline FileTag cpy(             ::string const& sf       , Fd dat    , ::string const& df       , _CreatAction a={} ) { return cpy(Fd::Cwd,sf,dat    ,df,a) ; }
+	inline FileTag cpy(             ::string const& sf       ,             ::string const& df       , _CreatAction a={} ) { return cpy(Fd::Cwd,sf,Fd::Cwd,df,a) ; }
 
-	/**/   void rename( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , NfsGuard*          =nullptr ) ;
-	inline void rename( Fd sat    , ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { rename(sat    ,sf,Fd::Cwd,df,nfs_guard) ; }
-	inline void rename(             ::string const& sf       , Fd dat    , ::string const& df       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,sf,dat    ,df,nfs_guard) ; }
-	inline void rename(             ::string const& sf       ,             ::string const& df       , NfsGuard* nfs_guard=nullptr ) { rename(Fd::Cwd,sf,Fd::Cwd,df,nfs_guard) ; }
+	/**/   void rename( Fd src_at , ::string const& src_file , Fd dst_at , ::string const& dst_file , _CreatAction  ={} ) ;
+	inline void rename( Fd sat    , ::string const& sf       ,             ::string const& df       , _CreatAction a={} ) { rename(sat    ,sf,Fd::Cwd,df,a) ; }
+	inline void rename(             ::string const& sf       , Fd dat    , ::string const& df       , _CreatAction a={} ) { rename(Fd::Cwd,sf,dat    ,df,a) ; }
+	inline void rename(             ::string const& sf       ,             ::string const& df       , _CreatAction a={} ) { rename(Fd::Cwd,sf,Fd::Cwd,df,a) ; }
 
 	struct FileMap {
 		// cxtors & casts

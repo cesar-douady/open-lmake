@@ -31,8 +31,6 @@ items (also used in XXX comments) :
 * replace cache/LMAKE/size by cache/LMAKE/config
 	- put size and file_sync in it
 	- load when reading Lmakefile.py
-* use git ls-files --stage to list files  under git in v25.07
-	- mimic main
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -56,16 +54,14 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* be more specific when job is found in cache at upload time
-	- provide a detailed report per target (existing in repo only, existing in cache only, different content)
-	- add a target attribute to mean that content may vary from one execution to another
-		- in that case, ommit from detailed report
 * in lshow -d, show codec files in more user-friendly way
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
 	- better to be told upfront that we have redimension id's
 	- should not occur as id's are comfortably sized (but never knows...)
+? add a target attribute to mean that content may vary from one execution to another
+	- in that case, ommit from detailed report when cache is updated while job runs and contents differ
 ? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later

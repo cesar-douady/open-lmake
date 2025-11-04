@@ -545,9 +545,32 @@ namespace Caches {
 		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                          ;
 		if (match.hit_info==CacheHitInfo::Hit) {                                                                            // dont populate if a matching entry appeared while the job was running
 			trace("hit",match.key) ;
-			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
+			auto                                       cache_job_info = deserialize<JobInfo>(AcFd(cat(dir_s,jn_s,match.key,"/info"),{.nfs_guard=&nfs_guard}).read()) ;
+			::umap_s<::pair<Crc/*cache*/,Crc/*repo*/>> diff_targets   ;
+			for( auto const& [key,td] : job_info      .end.digest.targets ) diff_targets.try_emplace( key , ::pair(Crc::None,td.crc) ) ;
+			for( auto const& [key,td] : cache_job_info.end.digest.targets ) {
+				auto [it,inserted] = diff_targets.try_emplace( key , ::pair(td.crc,Crc::None) ) ;
+				if (!inserted) it->second.first = td.crc ;
+			}
+			::string msg               ;
+			size_t   w                 = 0                   ;
+			::string only_in_repo      = "only in repo"      ;
+			::string only_in_cache     = "only in cache"     ;
+			::string different_content = "different content" ;
+			for( auto const& [key,cache_repo] : diff_targets ) {
+				if (cache_repo.first==cache_repo.second) continue ;
+				if      (cache_repo.first ==Crc::None) w = ::max( w , only_in_repo     .size() ) ;
+				else if (cache_repo.second==Crc::None) w = ::max( w , only_in_cache    .size() ) ;
+				else                                   w = ::max( w , different_content.size() ) ;
+			}
+			for( auto const& [key,cache_repo] : diff_targets ) {
+				if (cache_repo.first==cache_repo.second) continue ;
+				if      (cache_repo.first ==Crc::None) msg << widen(only_in_repo     ,w)<<" : "<<key<<'\n' ;
+				else if (cache_repo.second==Crc::None) msg << widen(only_in_cache    ,w)<<" : "<<key<<'\n' ;
+				else                                   msg << widen(different_content,w)<<" : "<<key<<'\n' ;
+			}
 			_dismiss( upload_key , old_sz , lock , &nfs_guard ) ;                                                           // finally, we did not populate
-			throw_unless( AcFd(abs_jn_s+match.key+"/data").read()==job_data , "already cached with a different content" ) ; // check coherence
+			throw_if( w , msg ) ;
 		} else {
 			match.key = cat( "key-" , key_crc.hex() ) ; match.key += is_target(cat(abs_jn_s,match.key,"-first/lru")) ? "-last" : "-first" ;
 			//
@@ -570,7 +593,7 @@ namespace Caches {
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
 				AcFd(dfd,"deps",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;       // store deps in a compact format so that matching is fast
-				rename( _reserved_file(upload_key,"data")/*src*/ , dfd,"data"/*dst*/ , &nfs_guard ) ;
+				rename( _reserved_file(upload_key,"data")/*src*/ , dfd,"data"/*dst*/ , {.nfs_guard=&nfs_guard} ) ;
 				// END_OF_VERSIONING
 				unlnk( _reserved_file(upload_key,"sz") , {.abs_ok=true,.nfs_guard=&nfs_guard} ) ;
 				_lru_mk_newest( jnid_s , new_sz , &nfs_guard ) ;

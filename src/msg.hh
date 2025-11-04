@@ -99,7 +99,7 @@ private :
 		else                     _buf += x                  ;
 		//
 		SWEAR( _buf.size()>=offset+sizeof(Len) ) ;
-		size_t len = _buf.size()-(offset+sizeof(Len)) ; SWEAR( Len(len)==len , len ) ;                   // ensure truncation is harmless
-		encode_int( &_buf[offset] , Len(len) ) ;                                                         // overwrite len
+		size_t len = _buf.size()-(offset+sizeof(Len)) ; SWEAR( Len(len)==len , len ) ; // ensure truncation is harmless
+		encode_int( &_buf[offset] , Len(len) ) ;                                       // overwrite len
 	}
 } ;
