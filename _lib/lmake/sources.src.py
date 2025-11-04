@@ -69,10 +69,10 @@ def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 		# old versions of git (e.g. 1.8) do not support submodule command when not launched from top nor $displaypath
 		submodules = run( (_git,'submodule','--quiet','foreach','--recursive','echo $toplevel/$sm_path') , abs_git_repo ) # less file accesses than git submodule status
 		submodules = [ sm[len(repo_root_s):] for sm in submodules if _osp.join(sm,'').startswith(repo_root_s) ]
-		# sometimes, git ls-files duplicates some files, ensure we filter out such duplicates
 		try :
-			srcs = set(run((_git,'ls-files','--recurse-submodules')))
-			for sm in submodules :
+			lines = [ l.split(None,3) for l in run((_git,'ls-files','--stage','--recurse-submodules')) ]
+			srcs  = { l[-1]     for l in lines if l[0]!='160000'                                       }                  # git ls-files lists uninitialized sub-modules that must be filtered out ...
+			for sm in submodules :                                                                                        # ... and sometimes, it duplicates some files that must be uniquified
 				sm_admin = _osp.join(sm,'.git')
 				if   _osp.isfile(sm_admin)         : srcs.add(sm_admin)
 				elif not ignore_missing_submodules : raise FileNotFoundError(f'cannot find {sm_admin}')
