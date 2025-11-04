@@ -669,7 +669,7 @@ namespace Engine {
 			//
 			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time()) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 			//
-			JobReason jr  = reason(ri.state)                                                              ;
+			JobReason jr  = reason(ri.state) ;
 			::string  pfx =
 				status==Status::RunLoop    ? ""
 			:	status==Status::SubmitLoop ? ""

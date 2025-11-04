@@ -78,8 +78,8 @@ struct OMsgBuf : MsgBuf {
 	size_t size() const { return _buf.size() ; }
 	// services
 	//                                                                       Serialize
-	template<class T> void add           (         T        const& x ) { _add<true   >(x) ;      }
-	/**/              void add_serialized(         ::string const& s ) { _add<false  >(s) ;      }
+	template<class T> void add           (         T        const& x ) { _add<true   >(x) ;       }
+	/**/              void add_serialized(         ::string const& s ) { _add<false  >(s) ;       }
 	template<class T> void send          ( Fd fd , T        const& x ) { add(x) ; send(fd) ;      }
 	/**/              void send          ( Fd fd                     ) { while (!send_step(fd)) ; }
 	//

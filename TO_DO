@@ -56,6 +56,10 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* be more specific when job is found in cache at upload time
+	- provide a detailed report per target (existing in repo only, existing in cache only, different content)
+	- add a target attribute to mean that content may vary from one execution to another
+		- in that case, ommit from detailed report
 * in lshow -d, show codec files in more user-friendly way
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way

@@ -539,15 +539,15 @@ namespace Caches {
 		NfsGuard nfs_guard     { file_sync }                                                  ;
 		::string jn_s          = job+'/'                                                      ;
 		::string abs_jn_s      = dir_s + jn_s                                                 ;
-		::string abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                         // deps_hint are hint only, hence no versioning problem
-		FileLock lock          { file_sync , lock_file , {.perm_ext=perm_ext} }               ;                         // lock as late as possible
+		::string abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                             // deps_hint are hint only, hence no versioning problem
+		FileLock lock          { file_sync , lock_file , {.perm_ext=perm_ext} }               ;                             // lock as late as possible
 		Match    match         = _sub_match( job , job_info.end.digest.deps , lock )          ;
 		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                          ;
-		if (match.hit_info==CacheHitInfo::Hit) {                                                                        // dont populate if a matching entry appeared while the job was running
+		if (match.hit_info==CacheHitInfo::Hit) {                                                                            // dont populate if a matching entry appeared while the job was running
 			trace("hit",match.key) ;
 			::string job_data = AcFd(_reserved_file(upload_key,"data")).read() ;
-			_dismiss( upload_key , old_sz , lock , &nfs_guard ) ;                                                       // finally, we did not populate
-			throw_unless( AcFd(abs_jn_s+match.key+"/data").read()==job_data , "already cached with another content" ) ; // check coherence
+			_dismiss( upload_key , old_sz , lock , &nfs_guard ) ;                                                           // finally, we did not populate
+			throw_unless( AcFd(abs_jn_s+match.key+"/data").read()==job_data , "already cached with a different content" ) ; // check coherence
 		} else {
 			match.key = cat( "key-" , key_crc.hex() ) ; match.key += is_target(cat(abs_jn_s,match.key,"-first/lru")) ? "-last" : "-first" ;
 			//
@@ -557,7 +557,7 @@ namespace Caches {
 			::string job_info_str = serialize(job_info) ;
 			// END_OF_VERSIONING
 			mk_dir_s( abs_jnid_s , {.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ) ;
-			AcFd dfd       { abs_jnid_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&nfs_guard} }                                                 ;
+			AcFd dfd       { abs_jnid_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&nfs_guard} }                                                ;
 			Sz   new_sz    = _entry_sz( jnid_s , nfs_guard.access(_reserved_file(upload_key,"data")) , deps_str.size() , job_info_str.size() ) ;
 			bool made_room = false                                                                                                             ;
 			bool unlnked   = false                                                                                                             ;
@@ -569,7 +569,7 @@ namespace Caches {
 				// store meta-data and data
 				// START_OF_VERSIONING
 				AcFd(dfd,"info",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
-				AcFd(dfd,"deps",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;   // store deps in a compact format so that matching is fast
+				AcFd(dfd,"deps",{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;       // store deps in a compact format so that matching is fast
 				rename( _reserved_file(upload_key,"data")/*src*/ , dfd,"data"/*dst*/ , &nfs_guard ) ;
 				// END_OF_VERSIONING
 				unlnk( _reserved_file(upload_key,"sz") , {.abs_ok=true,.nfs_guard=&nfs_guard} ) ;
@@ -577,8 +577,8 @@ namespace Caches {
 				//
 			} catch (::string const& e) {
 				trace("failed",e) ;
-				if (!unlnked) unlnk_inside_s(dfd) ;                                                                     // clean up in case of partial execution
-				_dismiss( upload_key , made_room?new_sz:old_sz , lock , &nfs_guard ) ;                                  // finally, we did not populate the entry
+				if (!unlnked) unlnk_inside_s(dfd) ;                                                                         // clean up in case of partial execution
+				_dismiss( upload_key , made_room?new_sz:old_sz , lock , &nfs_guard ) ;                                      // finally, we did not populate the entry
 				throw ;
 			}
 		}

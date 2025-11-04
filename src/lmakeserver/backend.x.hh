@@ -114,6 +114,7 @@ namespace Backends {
 			::vmap_ss        rsrcs          ;
 			::vector<ReqIdx> reqs           ;
 			SubmitAttrs      submit_attrs   ;
+			Bool3            started        = No           ; // Maybe means _s_handle_job_start is executing
 			uint16_t         max_stderr_len = 0            ;
 			Tag              tag            = Tag::Unknown ;
 		} ;

@@ -25,7 +25,7 @@ namespace Backends {
 		} catch (...) {                                                      // if we cannot connect to job, assume it is dead while we processed the request
 			Backend::_s_deferred_wakeup_thread.emplace_after(
 				g_config->network_delay
-			,	Backend::DeferredEntry { e.conn.seq_id , JobExec(job,e.conn.host,e.start_date) }
+			,	Backend::DeferredEntry( e.conn.seq_id , JobExec(job,e.conn.host,e.start_date) )
 			) ;
 		}
 		trace("done") ;
@@ -92,9 +92,9 @@ namespace Backends {
 		Lock        lock { _mutex }               ;
 		Delay::Tick dly  = Delay(j->cost()).val() ;
 		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost(),j->exec_time(),dly) ;
-		for( Req r : reqs ) {
-			SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , r , dly , j ) ;
-			_queued_cost[+r] -= dly ;
+		for( ReqIdx ri : reqs ) {
+			SWEAR( _queued_cost[ri]>=dly , _queued_cost[ri] , Req(ri) , dly , j ) ;
+			_queued_cost[ri] -= dly ;
 		}
 		_refresh() ;
 		Tokens tokens = j->tokens1+1 ;
@@ -316,9 +316,16 @@ namespace Backends {
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
 		// because the only thing that can happend between the 2 locks is that entry disappears, we can move info from entry during 1st lock
 		{	TraceLock lock { _s_mutex , BeChnl , "_s_handle_job_start1" } ;                         // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
-			//                                                                                                                                                 keep_fd
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1",job                              ) ; return false ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1",job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
+			//                                                                                                                                                  keep_fd
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1" ,job                              ) ; return false ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad_seq_id1" ,job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
+			if (entry.started!=No) {
+				Lock lock{Req::s_reqs_mutex} ;                                                                     // taking Req::s_reqs_mutex is compulsory to derefence req
+				for( Req r : entry.reqs ) r->audit_job( Color::Warning , "double_start" , job , fd.peer_addr() ) ;
+				trace("double_start",job,entry.conn.seq_id,jsrr.seq_id) ;
+				return false ;
+			}
+			entry.started               = Maybe                      ;
 			submit_attrs                = ::move(entry.submit_attrs) ;
 			rsrcs                       = ::move(entry.rsrcs       ) ;
 			reqs                        =        entry.reqs          ;
@@ -332,12 +339,15 @@ namespace Backends {
 		StartAncillaryAttrs        start_ancillary_attrs ;
 		MsgStderr                  start_msg_err         ;
 		Rule::RuleMatch            match                 = job->rule_match()              ;
-		::vmap_s<DepDigest>&       deps                  = submit_attrs.deps              ;         // these are the deps for dynamic attriute evaluation
+		::vmap_s<DepDigest>&       deps                  = submit_attrs.deps              ;                        // these are the deps for dynamic attriute evaluation
 		size_t                     n_submit_deps         = deps.size()                    ;
 		int                        step                  = 0                              ;
-		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;         // this cannot fail as it was already run to construct job
+		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                        // this cannot fail as it was already run to construct job
 		//
-		bool no_incremental = ::any_of( reqs , [&](ReqIdx ri) { return Req(ri)->options.flags[ReqFlag::NoIncremental] ; } ) ;
+		bool no_incremental ;
+		{	Lock lock{Req::s_reqs_mutex} ;                                                                         // taking Req::s_reqs_mutex is compulsory to derefence req
+			no_incremental = ::any_of( reqs , [&](Req r) { return r->options.flags[ReqFlag::NoIncremental] ; } ) ;
+		}
 		try {
 			try {
 				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
@@ -443,8 +453,7 @@ namespace Backends {
 		bool deps_done =                                                        // true if all deps are done for at least one non-zombie req
 			::any_of(
 				reqs
-			,	[&](ReqIdx ri) {
-					Req r { ri } ;
+			,	[&](Req r) {
 					return
 						!r.zombie()
 					&&	::all_of(
@@ -466,9 +475,9 @@ namespace Backends {
 				//
 				entry.max_stderr_len = start_ancillary_attrs.max_stderr_len ;
 				//
-				if ( ::all_of( entry.reqs , [](ReqIdx ri) { return Req(ri).zombie() ; } ) ) return false ;
+				if ( ::all_of( entry.reqs , [](Req r) { return r.zombie() ; } ) ) return false ;
 				//
-				SWEAR( !entry.start_date , job,reply.addr,entry.start_date ) ;  // ensure we do not overwrite an already started entry
+				SWEAR( entry.started==Maybe , job,reply.addr,entry.started,entry.start_date ) ;                      // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvvvvvvvv
 				jis.pre_start.msg <<set_nl<< s_start(entry.tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^^^^^^^
@@ -511,6 +520,7 @@ namespace Backends {
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^
 				job_exec = { job , entry.tag!=Tag::Local?reply.addr:0 , New/*start*/ , {}/*end*/ } ;                 // job starts
 				//
+				entry.started       = Yes                               ;
 				entry.start_date    = job_exec.start_date               ;
 				entry.workload      = _s_workload.start(entry.reqs,job) ;
 				entry.conn.host     = job_exec.host                     ;

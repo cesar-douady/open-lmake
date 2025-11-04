@@ -672,8 +672,8 @@ namespace Engine {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;
 				for( Req req : end_digest.running_reqs ) {
-					req->audit_job   ( Color::Warning , cat("bad_cache_",action) , self , true/*at_end*/ ) ;
-					req->audit_stderr(                                             self , {.msg=e}       ) ;
+					req->audit_job   ( Color::Warning , cat("no_cache_",action) , self , true/*at_end*/ ) ;
+					req->audit_stderr(                                            self , {.msg=e}       ) ;
 				}
 			}
 		}

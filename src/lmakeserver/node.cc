@@ -91,10 +91,10 @@ namespace Engine {
 					::string n = name() ;
 					try {
 						rename( n/*src*/ , QuarantineDirS+n/*dst*/ ) ;
-						req->audit_node( Color::Warning , "quarantined"       , idx() ) ;
 						res = Manual::Unlnked ;
+						req->audit_node( Color::Warning ,     "quarantined"                , idx() ) ;
 					} catch (::string const& e) {
-						req->audit_node( Color::Err     , "cannot quarantine" , idx() ) ;
+						req->audit_node( Color::Err     , cat("cannot quarantine (",e,')') , idx() ) ;
 					}
 				}
 			} break ;

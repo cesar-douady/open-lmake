@@ -104,16 +104,17 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 					dir_exists(f) ;                                                    // if a file exists, its dir necessarily exists
 				}
 				if (quarantine) {
-					if (nfs_guard) nfs_guard->update(f) ;
 					::string qf = QuarantineDirS+f ;
-					if (::rename( f.c_str() , dir_guard(qf).c_str() )!=0) {
-						unlnk( qf , {.dir_ok=true} ) ;                                                                         // try to unlink, in case it is a dir
-						if (::rename( f.c_str() , qf.c_str() )!=0) throw "cannot quarantine "+f ;                              // and retry
+					try {
+						unlnk (     qf , {.dir_ok=true,.force=true,.nfs_guard=nfs_guard} ) ;
+						rename( f , qf ,                                      nfs_guard  ) ;
+					} catch (::string const& e) {
+						throw cat("cannot quarantine : ",e) ;
 					}
-					msg <<"quarantined " << mk_file(f) <<'\n' ;
+					msg << "quarantined "<<mk_file(f)<<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
-					if (!unlnk(f,{.nfs_guard=nfs_guard})) throw "cannot unlink "+f ;
+					unlnk(f,{.nfs_guard=nfs_guard}) ;
 					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) msg <<"unlinked "<<mk_file(f)<<'\n' ;     // if a file has been unlinked, its dir necessarily exists
 				}
 				trace(a.tag,STR(quarantine),f) ;
