@@ -6,23 +6,25 @@
 #include <termios.h>
 
 #include "disk.hh"
+#include "fd.hh"
 #include "rpc_client.hh"
 #include "trace.hh"
 
 struct ClientFdPair {
 	// cxtors & casts
 	ClientFdPair() = default ;
-	ClientFdPair( ClientFdPair&& acfdp ) : in{::move(acfdp.in)} , out{::move(acfdp.out)} {}
-	ClientFdPair( Fd in_fd , Fd out_fd ) : in{       in_fd    } , out{       out_fd    } {}
-	ClientFdPair( ClientSockFd&& fd    ) : in{       fd.fd    } , out{       fd.fd     } { fd.detach() ; }
+	ClientFdPair( ClientFdPair&& acfdp , SockFd::Key k={} ) : in{::move(acfdp.in)} , out{::move(acfdp.out)} , key{k} {}
+	ClientFdPair( Fd in_fd , Fd out_fd , SockFd::Key k={} ) : in{       in_fd    } , out{       out_fd    } , key{k} {}
+	ClientFdPair( ClientSockFd&& fd    , SockFd::Key k={} ) : in{       fd.fd    } , out{       fd.fd     } , key{k} { fd.detach() ; }
 	//
 	ClientFdPair& operator=(ClientFdPair&&) = default ;
 	// data
-	Fd   in  ; // close only once
-	AcFd out ;
+	Fd          in  ; // close only once
+	AcFd        out ;
+	SockFd::Key key = {} ;
 } ;
 
-extern ClientFdPair g_server_fds ;
+extern ClientFdPair g_server_fds  ;
 
 using OutProcCb = ::function<void(bool start)> ;
 

@@ -20,6 +20,7 @@ if __name__!='__main__' :
 	class CodecSh(Rule) :
 		target = r'{File:.*}_sh'
 		shell  = ('/bin/bash','-e')
+		autodep='ld_preload'
 		cmd    = '''
 			code=$( echo {File}_sh | lencode -f codec_file -x ctx -l 4 )
 			echo $code

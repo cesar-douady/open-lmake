@@ -6,6 +6,7 @@
 #pragma once
 
 #include "disk.hh"
+#include "fd.hh"
 #include "hash.hh"
 #include "msg.hh"
 #include "process.hh"
@@ -114,12 +115,19 @@ struct Gather {                                                       // NOLINT(
 		::set_s                refresh_codecs ;
 		::string               msg            ;
 	} ;
+	struct ServerSlaveEntry {
+		friend ::string& operator+=( ::string& , ServerSlaveEntry const& ) ;
+		// data
+		IMsgBuf     buf = {} ;
+		SockFd::Key key = {} ;
+	} ;
 	struct JobSlaveEntry {
 		friend ::string& operator+=( ::string& , JobSlaveEntry const& ) ;
 		// data
-		Jerr                            jerr       ;                                   // used for DepDirect/DepVerbose until server reply
-		::umap<Jerr::Id,::vector<Jerr>> to_confirm ;                                   // jerrs waiting for confirmation
-		::string                        buf        ;
+		Jerr                            jerr       = {} ;                              // used for DepDirect/DepVerbose until server reply
+		::umap<Jerr::Id,::vector<Jerr>> to_confirm = {} ;                              // jerrs waiting for confirmation
+		IMsgBuf                         buf        = {} ;
+		SockFd::Key                     key        = {} ;
 	} ;
 	// statics
 private :
@@ -148,8 +156,7 @@ public :
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;
-		try                     { OMsgBuf().send(fd,jerr) ; }
-		catch (::string const&) {                           }                          // dont care if we cannot report the reply to job
+		try { OMsgBuf(jerr).send(fd,{}/*key*/) ; } catch (::string const&) {}          // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child() ;
@@ -196,8 +203,7 @@ public :
 	bool                                      seen_tmp         = false               ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
-	::string                                  server_mngt      ;
-	in_port_t                                 port_mngt        = 0                   ; // no server if =0
+	SockFd::Service                           service_mngt     ;                       // no server if empty
 	::vector<Re::RegExpr>                     star_targets     ;                       // excludes Target flag as it must be fully predictible to ensure a sound rule selection process
 	PD                                        start_date       ;
 	bool                                      started          = false               ;

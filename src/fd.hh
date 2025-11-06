@@ -9,6 +9,7 @@
 #include <sys/eventfd.h>
 #include <sys/signalfd.h>
 
+#include "serialize.hh"
 #include "time.hh"
 
 #ifndef SOCK_CLOEXEC
@@ -17,40 +18,69 @@
 
 ::string const& fqdn() ; // fully qualified domain name (includes hostname)
 
+// manage endianness in ::sockaddr_in (which must not be used directly)
+struct SockAddr : private ::sockaddr_in { // ensure fields cannot be accessed directly so as to not forget endianness converstion
+	// cxtors & casts
+	SockAddr( in_addr_t a=0 , in_port_t p=0 ) : ::sockaddr_in{ .sin_family=AF_INET , .sin_port=htons(p) , .sin_addr{.s_addr=htonl(a)} , .sin_zero{} } {} // dont prefix with :: as hton* may be macros
+	SockAddr(                 in_port_t p   ) : ::sockaddr_in{ .sin_family=AF_INET , .sin_port=htons(p) , .sin_addr{.s_addr=htonl(0)} , .sin_zero{} } {} // .
+	//
+	::sockaddr const& as_sockaddr() const { return *::launder(reinterpret_cast<::sockaddr const*>(this)) ; }
+	::sockaddr      & as_sockaddr()       { return *::launder(reinterpret_cast<::sockaddr      *>(this)) ; }
+	// accesses
+	in_port_t port    (           ) const { return ntohs(sin_port       ) ; }                                                                            // dont prefix with :: as ntoh* may be macros
+	in_addr_t addr    (           ) const { return ntohl(sin_addr.s_addr) ; }                                                                            // .
+	void      set_port(in_port_t p)       { sin_port        = htons(p) ;    }                                                                            // dont prefix with :: as hton* may be macros
+	void      set_addr(in_addr_t a)       { sin_addr.s_addr = htonl(a) ;    }                                                                            // .
+} ;
+
 struct SockFd : AcFd {
 	friend ::string& operator+=( ::string& , SockFd const& ) ;
-	static constexpr in_addr_t   LoopBackAddr      = 0x7f000001                 ; // 127.0.0.1
+	using Key = uint64_t ;
+	struct Service {
+		friend ::string& operator+=( ::string& , Service const& ) ;
+		// cxtors & casts
+		Service() = default ;
+		Service( in_addr_t a , in_port_t p , Key k={}   ) : addr{a} , port{p} , key{k} {}
+		Service( ::string const& s , bool name_ok=false ) ;
+		//
+		operator ::string() const { return str() ; }
+		// access
+		bool     operator+(                    ) const { return addr || port ;                                                            }
+		::string str      (::string const& host) const { ::string res = host ; res <<':'<< port ; if (key) res <<'/'<< key ; return res ; }
+		::string user_str (::string const& host) const { ::string res = host ; res <<':'<< port ;                            return res ; }
+		::string str      (                    ) const { return str     (s_addr_str(addr)) ;                                              }
+		::string user_str (                    ) const { return user_str(s_addr_str(addr)) ;                                              }
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , addr,port,key ) ;
+		}
+		// data
+		in_addr_t addr = 0  ;
+		in_port_t port = 0  ;
+		Key       key  = {} ;
+	} ;
+	static constexpr in_addr_t   LoopBackAddr      = 0x7f000001                 ;                              // 127.0.0.1
 	static constexpr in_addr_t   LoopBackMask      = 0xff000000                 ;
-	static constexpr in_addr_t   LoopBackBroadcast = LoopBackAddr|~LoopBackMask ; // must be avoided as it is illegal
+	static constexpr in_addr_t   LoopBackBroadcast = LoopBackAddr|~LoopBackMask ;                              // must be avoided as it is illegal
 	static constexpr Time::Delay AddrInUseTick     {    0.010 }                 ;
 	static constexpr uint32_t    NAddrInUseTrials  = 1000                       ;
 	static constexpr uint32_t    NConnectTrials    =  100                       ;
 	static constexpr Time::Delay ConnectTimeout    { 1000     }                 ;
 	// statics
-	static bool                s_is_loopback    (in_addr_t       a      ) { return (a&LoopBackMask)==(LoopBackAddr&LoopBackMask)                                                            ; }
-	static in_addr_t           s_random_loopback(                       ) ;
-	static ::string            s_addr_str       (in_addr_t              ) ;
-	static in_addr_t           s_addr           (::string const& server ) ;
-	static ::vmap_s<in_addr_t> s_addrs_self     (::string const& ifce={}) ;
-	static ::string const&     s_host           (in_addr_t              ) ;
-	static ::string            s_host           (::string const& service) { size_t col = _s_col(service) ; return   service.substr(0,col)                                                   ; }
-	static in_port_t           s_port           (::string const& service) { size_t col = _s_col(service) ; return                           from_string<in_port_t>(service.c_str()+col+1)   ; }
-	static ::pair_s<in_port_t> s_host_port      (::string const& service) { size_t col = _s_col(service) ; return { service.substr(0,col) , from_string<in_port_t>(service.c_str()+col+1) } ; }
-	//
-	static ::string s_service( ::string const& host , in_port_t port ) { return cat(host,':',port)               ; }
-	static ::string s_service( in_addr_t       addr , in_port_t port ) { return s_service(s_addr_str(addr),port) ; }
-	static ::string s_service(                        in_port_t port ) { return s_service(host()          ,port) ; }
-private :
-	static size_t _s_col(::string const& service) {
-		size_t col = service.rfind(':') ;
-		throw_unless( col!=Npos , "bad service : ",service ) ;
-		return col ;
-	}
+	static bool            s_is_loopback    ( in_addr_t a                               ) {                                             return (a&LoopBackMask)==(LoopBackAddr&LoopBackMask) ; }
+	static in_addr_t       s_random_loopback(                                           ) ;
+	static ::string        s_addr_str       ( in_addr_t                                 ) ;
+	static in_addr_t       s_addr           ( ::string const& host , bool name_ok=false ) ;                    // if !name_ok, host must be empty or in dot notation
+	static ::string const& s_host           ( in_addr_t                                 ) ;
+	static ::string        s_host           ( ::string const& service                   ) { size_t    pos=service.rfind(':')          ; return service.substr(0,pos)                         ; }
+	static SockAddr        s_sock_addr      ( Fd    , bool peer                         ) ;
+	static in_port_t       s_port           ( Fd fd , bool peer                         ) {                                             return s_sock_addr(fd,peer).port()                   ; }
+	static in_addr_t       s_addr           ( Fd fd , bool peer                         ) { in_addr_t a  =s_sock_addr(fd,peer).addr() ; return s_is_loopback(a) ? 0 : a                      ; }
 	// cxtors & casts
-public :
-	using AcFd::AcFd ;
 protected :
-	SockFd( NewType , bool reuse_addr , in_addr_t local_addr , bool for_server ) ;
+	SockFd() = default ;
+	SockFd(          Key k , bool reuse_addr , in_addr_t local_addr , bool for_server ) ;                      // for Server and Client
+	SockFd( int fd , Key k                                                            ) : AcFd{fd} , key{k} {} // for Slave
 	// services
 public :
 	// if timeout is 0, it means infinity (no timeout)
@@ -60,37 +90,39 @@ public :
 		set_receive_timeout(to) ;
 		set_send_timeout   (to) ;
 	}
-	in_port_t port     () const ;
-	in_addr_t peer_addr() const ;
-protected :
-	void _set_reuse_addr() ;
+	SockAddr  sock_addr(bool peer) const { return s_sock_addr( fd , peer ) ; }
+	in_addr_t addr     (bool peer) const { return s_addr     ( fd , peer ) ; }
+	in_port_t port     (bool peer) const { return s_port     ( fd , peer ) ; }
+	// data
+	bool key_done = false ;
+	Key  key      = {}    ;
 } ;
 
 struct SlaveSockFd : SockFd {
 	friend ::string& operator+=( ::string& , SlaveSockFd const& ) ;
 	// cxtors & casts
-	using SockFd::SockFd ;
-	SlaveSockFd( NewType , bool reuse_addr=true , in_addr_t local_addr=0 ) = delete ;
+	SlaveSockFd() = default ;
+	SlaveSockFd( int fd , Key k={} ) : SockFd{fd,k} {}
 } ;
 
 struct ServerSockFd : SockFd {
 	friend ::string& operator+=( ::string& , ServerSockFd const& ) ;
 	// cxtors & casts
-	using SockFd::SockFd ;
-	ServerSockFd( NewType ,               bool reuse_addr=true , in_addr_t local_addr=0 ) = delete ;
-	ServerSockFd( NewType , int backlog , bool reuse_addr=true , in_addr_t local_addr=0 ) ;
+	ServerSockFd() = default ;
+	ServerSockFd( int backlog , bool reuse_addr=true , in_addr_t local_addr=0 ) ;
 	// services
-	::string service(in_addr_t addr) const { return s_service(addr,port()) ; }
-	::string service(              ) const { return s_service(     port()) ; }
+	Service  service    (in_addr_t       a      ) const { return Service(a                  ,port(false/*peer*/),key) ; }
+	Service  service    (                       ) const { return Service(addr(false/*peer*/),port(false/*peer*/),key) ; }
+	::string service_str(::string const& host={}) const { return service(0).str(host)                                 ; }
+	::string service_str(                       ) const { return service( ).str(    )                                 ; }
 	SlaveSockFd accept() ;
 } ;
 
 struct ClientSockFd : SockFd {
 	friend ::string& operator+=( ::string& , ClientSockFd const& ) ;
 	// cxtors & casts
-	using SockFd::SockFd ;
-	ClientSockFd( in_addr_t              , in_port_t      , bool reuse_addr=true , Time::Delay timeout={} ) ;
-	ClientSockFd( ::string const& server , in_port_t port , bool reuse_addr=true , Time::Delay timeout={} ) : ClientSockFd{ s_addr(server) , port , reuse_addr , timeout } {}
+	ClientSockFd() = default ;
+	ClientSockFd( Service , bool reuse_addr=true , Time::Delay timeout={} ) ;
 } ;
 
 //
@@ -262,6 +294,11 @@ public :
 	void add_write(              Fd fd , E data={} , bool wait=true ) {              add(true ,fd,data,wait) ;              }
 	void close    ( bool write , Fd fd ,             bool wait=true ) { SWEAR(+fd) ; del(write,fd,     wait) ; fd.close() ; } // wait must be coherent with corresponding add
 	//
+	::vector<Event> wait(Time::Pdate timeout) const {
+		if      (                        timeout==Time::Pdate::Future ) return wait(Time::Delay::Forever) ;
+		else if ( Time::Pdate now{New} ; timeout< now                 ) return wait(Time::Delay()       ) ;
+		else                                                            return wait(timeout-now         ) ;
+	}
 	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const {
 		if (!_n_events) {
 			SWEAR(timeout<Time::Delay::Forever) ;                     // if we wait for nothing with no timeout, we would block forever
@@ -297,12 +334,12 @@ public :
 			SWEAR(_n_events<=Max<int>) ;
 			cnt_ = ::epoll_wait( _fd , events.data() , int(_n_events) , wait_ms ) ;
 			switch (cnt_) {
-				case  0 :                                                                                                   // timeout
+				case 0 :                                                                                                   // timeout
 					if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
 					else               return {} ;
 				break ;
 				case -1 :
-					SWEAR( errno==EINTR , errno ) ;
+					SWEAR( errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR , errno ) ;
 				break ;
 				default :
 					events.resize(cnt_) ;
@@ -319,7 +356,7 @@ public :
 								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
 								found |= pid_t(si.ssi_pid)==pid ;
 							}
-							SWEAR( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK) , n,fd,errno ) ;                              // fd is non-blocking
+							SWEAR( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;                // fd is non-blocking
 							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
 						if (shorten) {

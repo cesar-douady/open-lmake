@@ -7,14 +7,15 @@
 
 FROM rockylinux:8
 
-RUN dnf update -y
+RUN dnf update -y # version 1 (increment this number to force an update)
 RUN dnf clean all
+RUN dnf install -y 'dnf-command(config-manager)' && dnf config-manager --set-enabled powertools
 
 # build an intermediate environment
 
 # compulsory
 RUN dnf install -y epel-release
-RUN dnf install -y gcc-toolset-11
+RUN dnf install -y gcc-toolset-11 gcc-toolset-11-gdb
 RUN dnf install -y python3 python3-devel
 RUN dnf install -y git
 RUN dnf install -y wget

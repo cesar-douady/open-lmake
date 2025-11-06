@@ -369,10 +369,11 @@ namespace Engine {
 	}
 
 	void JobExec::started( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& msg_stderr ) {
-		Trace trace("started",self) ;
+		::vector<Req> running_reqs = self->running_reqs() ;
+		Trace trace("started",self,STR(report),STR(report_unlnks),STR(+msg_stderr.stderr),running_reqs) ;
 		SWEAR( self->is_plain() , self->rule()->special ) ;
 		report |= +report_unlnks || +msg_stderr.stderr ;
-		for( Req req : self->running_reqs() ) {
+		for( Req req : running_reqs ) {
 			ReqInfo& ri = self->req_info(req) ;
 			ri.start_reported = false ;
 			if (report) report_start( ri , report_unlnks , msg_stderr ) ;

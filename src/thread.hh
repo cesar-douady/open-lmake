@@ -229,17 +229,21 @@ enum class ServerThreadEventKind : uint8_t {
 ,	Slave
 ,	Stop
 } ;
-template<class T,bool Flush=true> struct ServerThread {                            // if Flush, finish on going connections
-	using Delay     = Time::Delay           ;
+template<class T,bool Flush=true> struct ServerThread {                                           // if Flush, finish on going connections
 	using EventKind = ServerThreadEventKind ;
 private :
-	static void _s_thread_func( ::stop_token stop , char key , ServerThread* this_ , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> func ) {
+	static void _s_thread_func( ::stop_token stop , char key , ServerThread* this_ , ::function<void(::stop_token,T&&,Fd)> func ) {
 		using Event = Epoll<EventKind>::Event ;
+		struct SlaveEntry {
+			SlaveEntry(SockFd::Key k) : key{k} {}
+			IMsgBuf     buf = {} ;
+			SockFd::Key key = {} ;
+		} ;
 		t_thread_key = key ;
-		EventFd            stop_fd { New } ;
-		Epoll<EventKind>   epoll   { New } ;
-		::umap<Fd,IMsgBuf> slaves  ;
-		::stop_callback    stop_cb {                                               // transform request_stop into an event Epoll can wait for
+		EventFd               stop_fd { New } ;
+		Epoll<EventKind>      epoll   { New } ;
+		::umap<Fd,SlaveEntry> slaves  ;
+		::stop_callback       stop_cb {                                                           // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&]() {
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
@@ -247,15 +251,15 @@ private :
 			}
 		} ;
 		//
-		Trace trace("ServerThread::_s_thread_func",this_->fd,this_->fd.port(),stop_fd) ;
+		Trace trace("ServerThread::_s_thread_func",this_->fd,stop_fd) ;
 		this_->_ready.count_down() ;
 		//
 		epoll.add_read( this_->fd , EventKind::Master ) ;
 		epoll.add_read( stop_fd   , EventKind::Stop   ) ;
 		for(;;) {
 			trace("wait") ;
-			::vector<Event> events = epoll.wait(+epoll?Delay::Forever:Delay()) ;   // wait for 1 event, no timeout unless stopped
-			if (!events) { SWEAR(Flush) ; return ; }                               // if !Flush, we should have returned immediately
+			::vector<Event> events = epoll.wait( +epoll ? Time::Pdate::Future : Time::Pdate() ) ; // wait for 1 event, no timeout unless stopped
+			if (!events) { SWEAR(Flush) ; return ; }                                              // if !Flush, we should have returned immediately
 			for( Event event : events ) {
 				EventKind kind = event.data() ;
 				Fd        efd  = event.fd  () ;
@@ -267,41 +271,37 @@ private :
 							Fd slave_fd = this_->fd.accept().detach() ;
 							trace("new_req",slave_fd) ;
 							epoll.add_read( slave_fd , EventKind::Slave ) ;
-							slaves.try_emplace(slave_fd) ;
-						} catch (::string const& e) { trace("cannot_accept",e) ; } // ignore error as this may be fd starvation and client will retry
+							slaves.try_emplace( slave_fd , this_->fd.key ) ;
+						} catch (::string const& e) { trace("cannot_accept",e) ; }                // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {
 						stop_fd.flush() ;
 						trace("stop",mk_key_vector(slaves)) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(false/*write*/,sfd) ;
 						trace("done") ;
-						if (Flush) epoll.dec() ;                                   // dont wait for new incoming connections, but finish on going connections and process what comes
-						else       return ;                                        // stop immediately
+						if (Flush) epoll.dec() ;                                                  // dont wait for new incoming connections, but finish on going connections and process what comes
+						else       return ;                                                       // stop immediately
 					} break ;
 					case EventKind::Slave : {
-						auto          it = slaves.find(efd) ;
+						auto          it = slaves.find(efd) ; SWEAR( it!=slaves.end() , this_->fd,efd ) ;
 						::optional<T> r  ;
 						try {
-							r = it->second.receive_step<T>(efd) ;
-							if (!r) { trace("partial") ; continue ; }
+							r = it->second.buf.template receive_step<T>( efd , Yes/*fetch*/ , it->second.key ) ; // passing fetch=Yes makes a single read instead of 2 and efd is closed anyway ...
+							if (!r) { trace("partial") ; continue ; }                                            // ... once message is received, so no risk of reading too much
 						} catch (::string const& e) {
-							if (+e) trace("malformed",e) ;                         // close upon malformed messages
+							if (+e) trace("malformed",e) ;                                                       // close upon malformed messages
 							else    trace("eof"        ) ;
-							epoll.close( false/*write*/ , efd ) ;
-							slaves.erase(it) ;
-							continue ;
+							goto Close ;
 						}
-						SlaveSockFd ssfd { efd }                            ;
-						bool        keep = func( stop , ::move(*r) , ssfd ) ;
-						if (keep) {
-							ssfd.detach() ;                                        // dont close ssfd if requested to keep it
-						} else {
-							slaves.erase(it) ;
-							epoll.del( false/*write*/ , efd ) ;
-						}
-						trace("called",STR(keep)) ;
+						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						func( stop , ::move(*r) , efd ) ;
+						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						trace("called") ;
+					Close :
+						slaves.erase(it) ;
+						epoll.close( false/*write*/ , efd ) ;
 					} break ;
-				DF}                                                                // NO_COV
+				DF}                                                                                              // NO_COV
 			}
 		}
 		trace("done") ;
@@ -309,15 +309,14 @@ private :
 	// cxtors & casts
 public :
 	ServerThread() = default ;
-	ServerThread( char key , ::function<bool/*keep_fd*/(             T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
-	ServerThread( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) { open(key,f,backlog) ; }
 	//
-	void open( char key , ::function<bool/*keep_fd*/(::stop_token,T&&,SlaveSockFd const&)> f , int backlog=0 ) {
-		fd     = { New , backlog }                            ;
-		thread = ::jthread( _s_thread_func , key , this , f ) ;
-	}
-	void open( char key , ::function<bool/*keep_fd*/(T&&,SlaveSockFd const&)> f , int backlog=0 ) {
-		open( key , [=](::stop_token,T&& r,SlaveSockFd const& fd)->bool/*keep_fd*/ { return f(::move(r),fd) ; } , backlog ) ;
+	ServerThread( char thread_key , ::function<void(             T&&,Fd)> f , int backlog ) { open( thread_key , f                                                          , backlog ) ; }
+	ServerThread( char thread_key , ::function<void(::stop_token,T&&,Fd)> f , int backlog ) { open( thread_key , f                                                          , backlog ) ; }
+	//
+	void open   ( char thread_key , ::function<void(             T&&,Fd)> f , int backlog ) { open( thread_key , [=](::stop_token,T&& r,Fd fd) { return f(::move(r),fd) ; } , backlog ) ; }
+	void open   ( char thread_key , ::function<void(::stop_token,T&&,Fd)> f , int backlog ) {
+		fd     = { backlog }                                         ;
+		thread = ::jthread( _s_thread_func , thread_key , this , f ) ;
 	}
 	// services
 	void wait_started() {
@@ -328,5 +327,5 @@ public :
 private :
 	::latch   _ready  { 1 } ;
 public :
-	::jthread thread ;                                                             // ensure thread is last so other fields are constructed when it starts
+	::jthread thread ;                                                                                           // ensure thread is last so other fields are constructed when it starts
 } ;

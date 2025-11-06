@@ -26,7 +26,7 @@ static void _int_thread_func(::stop_token stop) {
 		bool stop_requested = stop.stop_requested() ;
 		trace("int",STR(stop_requested)) ;
 		if (stop_requested) break ;                                                                                 // not an interrupt, just normal exit
-		OMsgBuf().send(g_server_fds.out,ReqRpcReq(ReqProc::Kill)) ;
+		OMsgBuf(ReqRpcReq(ReqProc::Kill)).send(g_server_fds.out,g_server_fds.key) ;
 		Fd::Stdout.write("\n") ;                                                                                    // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}

@@ -14,81 +14,136 @@
 
 struct MsgBuf {
 	friend ::string& operator+=( ::string& , MsgBuf const& ) ;
-	using Len = uint32_t ;                                       // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
+	using Len = uint32_t    ;                                    // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
+	using Key = SockFd::Key ;
 	// statics
 	static Len s_sz(const char* str) {
 		Len len ; ::memcpy( &len , str , sizeof(Len) ) ;
 		return len ;
 	}
+	// cxtors & casts
+	MsgBuf() = default ;                                         // suppress aggregate cxtors
 	// accesses
-	bool operator+() const { return +_buf ; }
+	bool   operator+() const { return +_buf       ; }
+	size_t size     () const { return _buf.size() ; }
 	// data
 protected :
-	::string _buf ;                                              // reading : sized after expected size, but actually filled up only with len char's   // writing : contains len+data to be sent
-	Len      _len = 0 ;                                          // data sent/received so far, reading : may also apply to len accumulated in _buf
+	::string _buf = {} ;
 } ;
 inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { // START_OF_NO_COV
-	return os<<"MsgBuf("<<mb._len<<','<<mb._buf.size()<<')' ;
+	return os<<"MsgBuf("<<mb._buf.size()<<')' ;
 }                                                                // END_OF_NO_COV
 
 struct IMsgBuf : MsgBuf {
-	// cxtors & casts
-	IMsgBuf() { _buf.resize(sizeof(Len)) ; }                   // prepare to receive len
 	// services
-	template<class T> T receive( Fd fd , bool eof_ok=false ) { // if eof_ok, return T() upon eof
+	template<class T> T receive( SockFd&&         fd , bool once                   ) { return receive<T>( fd , once , fd.key ) ; }
+	template<class T> T receive( SockFd&/*inout*/ fd , bool once                   ) { return receive<T>( fd , once , fd.key ) ; }
+	template<class T> T receive( Fd               fd , bool once , Key&&         k ) { return receive<T>( fd , once , k      ) ; }
+	template<class T> T receive( Fd               fd , bool once , Key&/*inout*/ k ) {
 		for(;;)
-			if ( ::optional<T> x = receive_step<T>(fd,eof_ok) ; +x ) return *x ;
+			if ( ::optional<T> x = receive_step<T>( fd , Maybe|!once , k ) ; +x ) return ::move(*x) ;
 	}
-	template<class T> ::optional<T> receive_step( Fd fd , bool eof_ok=false ) {
-	DataPass :
-		ssize_t cnt = ::read( fd , &_buf[_len] , _buf.size()-_len ) ;
-		if (cnt<=0) {
-			throw_unless( cnt==0 , "cannot receive over ",fd," : ",StrErr()) ;
-			if (eof_ok) return T() ;
-			else        throw ""s  ;
+	template<class T> ::optional<T> receive_step( SockFd&&         fd , Bool3 fetch                   ) { return _receive_step<T>( fd , fetch , fd.key ) ; } // Maybe means read only necessary bytes
+	template<class T> ::optional<T> receive_step( SockFd&/*inout*/ fd , Bool3 fetch                   ) { return _receive_step<T>( fd , fetch , fd.key ) ; } // .
+	template<class T> ::optional<T> receive_step( Fd               fd , Bool3 fetch , Key&&         k ) { return _receive_step<T>( fd , fetch , k      ) ; } // .
+	template<class T> ::optional<T> receive_step( Fd               fd , Bool3 fetch , Key&/*inout*/ k ) { return _receive_step<T>( fd , fetch , k      ) ; } // .
+	//
+private :
+	template<class T> ::optional<T> _receive_step( Fd fd , Bool3 fetch , Key&/*inout*/ key ) {  // Maybe means read only necessary bytes
+		static constexpr Len ChunkSz = 4096 ;
+		//
+		::optional<T> res      ;
+		bool          can_read = fetch!=No ;
+		auto advance = [&](Len sz) {
+			Len pos = _buf.size() ;
+			Len end = _start+sz   ;
+			if      (pos>=end ) return true  ;
+			else if (!can_read) return false ;
+			//
+			_buf.resize( end + (fetch==Yes?ChunkSz:0) ) ;                                       // if fetch==Maybe, read only necessary bytes
+			ssize_t cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
+			if (cnt<=0) {
+				if (cnt<0) {
+					switch (errno) {
+						#if EWOULDBLOCK!=EAGAIN
+							case EWOULDBLOCK :
+						#endif
+						case EAGAIN     :
+						case EINTR      : return false                                        ;
+						case ECONNRESET : break                                               ; // if peer dies abruptly, we get ECONNRESET, but this is equivalent to eof
+						default         : throw cat("cannot receive over ",fd," : ",StrErr()) ;
+					}
+				}
+				_buf.resize(pos) ;
+				res = T() ;                                                                     // return empty on eof, including if not at a message boundary
+				return false ;
+			}
+			_buf.resize(pos+cnt) ;
+			can_read = false ;                                                                  // when used with epoll, we are only sure of a single non-blocking read
+			return _buf.size()>=end ;
+		} ;
+		if ( key || _len==0 ) {
+			if ( !advance( (key?sizeof(Key):0) + sizeof(Len) ) ) return res ;                   // waiting header
+			if (key) {                                                                          // check key
+				Key rk = decode_int<Key>(&_buf[_start]) ; if (rk!=key) return T() ;             // this connection is not for us, pretend it was closed immediately
+				key = {} ;                                                                      // key has been checked, dont process it again
+				_start += sizeof(Key) ;
+			}
+			if (_len==0) {                                                                      // acquire message length
+				_len = decode_int<Len>(&_buf[_start]) ;
+				if (!_len) FAIL( fd,_start,_buf.size(), mk_printable(_buf) ) ;                 // no empty messages
+				_start += sizeof(Len) ;
+			}
 		}
-		_len += cnt ;
-		if (_len<_buf.size()) return {} ;                      // _buf is still partial
-		if (!_data_pass     ) {
-			SWEAR( _buf.size()==sizeof(Len) , _buf.size() ) ;
-			Len len = s_sz(_buf.data()) ;
-			// we now expect the data
-			try         { _buf.resize(len) ;                                  }
-			catch (...) { throw cat("cannot resize message to length ",len) ; }
-			_data_pass = true ;
-			_len       = 0    ;
-			goto DataPass/*BACKWARD*/ ;                        // length is acquired, process data
-		} else {
-			//                  vvvvvvvvvvvvvvvvvvvv
-			::optional<T> res = deserialize<T>(_buf) ;
-			//                  ^^^^^^^^^^^^^^^^^^^^
-			self = {} ;
-			return res ;
+		if (!advance(_len)) return res ;                                                        // waiting data
+		::string_view bv = substr_view(_buf,_start) ;
+		//    vvvvvvvvvvvvvvvvvv
+		res = deserialize<T>(bv) ;                                                              // make res optional to avoid moving when return
+		//    ^^^^^^^^^^^^^^^^^^
+		SWEAR( _buf.size()==_start+_len+bv.size() , _len , _buf.size()-_start-bv.size() ) ;
+		_start += _len ;
+		_len    = 0    ;
+		if ( fetch==Maybe || _start>=ChunkSz ) {                                                // suppress old messages, but only move data once in a while
+			_buf.erase(0,_start) ;
+			_start = 0 ;
 		}
+		return res ;
 	}
 	// data
-	bool _data_pass = false ;                                  // if true <=> _buf contains partial data, else it contains partial data len
+	Len _start = 0 ;                                                                            // start of next message to return
+	Len _len   = 0 ;                                                                            // if 0, message len is not yet processed
 } ;
 
 struct OMsgBuf : MsgBuf {
 	// cxtors & casts
-	OMsgBuf() = default ;
-	template<class T> OMsgBuf(T const& x) { add(x) ; }
+	/**/              OMsgBuf(          )             { _buf.resize(sizeof(Key)) ; }
+	template<class T> OMsgBuf(T const& x) : OMsgBuf{} { add(x)                   ; }
 	// accesses
-	size_t size() const { return _buf.size() ; }
-	// services
-	//                                                                       Serialize
-	template<class T> void add           (         T        const& x ) { _add<true   >(x) ;       }
-	/**/              void add_serialized(         ::string const& s ) { _add<false  >(s) ;       }
-	template<class T> void send          ( Fd fd , T        const& x ) { add(x) ; send(fd) ;      }
-	/**/              void send          ( Fd fd                     ) { while (!send_step(fd)) ; }
+	bool operator+() const { return _buf.size()>sizeof(Key) ; }
+	// services                                                                          Serialize
+	template<class T> void add           ( T        const& x                     ) { _add<true   >(x)         ; }
+	/**/              void add_serialized( ::string const& s                     ) { _add<false  >(s)         ; }
+	/**/              void send          ( SockFd&&         fd                   ) { send( fd , fd.key )      ; }
+	/**/              void send          ( SockFd&/*inout*/ fd                   ) { send( fd , fd.key )      ; }
+	/**/              void send          ( Fd               fd , Key&&         k ) { send( fd , k      )      ; }
+	/**/              void send          ( Fd               fd , Key&/*inout*/ k ) { while (!send_step(fd,k)) ; }
 	//
-	bool/*complete*/ send_step(Fd fd) {
-		ssize_t cnt = ::write( fd , &_buf[_len] , _buf.size()-_len ) ;
+	bool/*complete*/ send_step( SockFd&&         fd                     ) { return send_step( fd , fd.key ) ; }
+	bool/*complete*/ send_step( SockFd&/*inout*/ fd                     ) { return send_step( fd , fd.key ) ; }
+	bool/*complete*/ send_step( Fd               fd , Key&&         k   ) { return send_step( fd , k      ) ; }
+	bool/*complete*/ send_step( Fd               fd , Key&/*inout*/ key ) {                                     // key is only used on first call
+		if (key) {
+			SWEAR( !_pos , fd,_pos,key ) ;
+			encode_int( &_buf[0] , key ) ;                                                                      // overwrite key
+			key = {} ;
+		} else {
+			_pos = sizeof(Key) ;
+		}
+		ssize_t cnt = ::write( fd , &_buf[_pos] , _buf.size()-_pos ) ;
 		throw_unless( cnt>=0 , "cannot send over ",fd," : ", StrErr()             ) ;
 		throw_unless( cnt> 0 , "cannot send over ",fd," : peer closed connection" ) ;
-		_len += cnt ;
-		return _len==_buf.size()/*complete*/ ;
+		_pos += cnt ;
+		return _pos==_buf.size()/*complete*/ ;
 	}
 private :
 	template<bool Serialize,class T> void _add(T const& x) {
@@ -99,7 +154,9 @@ private :
 		else                     _buf += x                  ;
 		//
 		SWEAR( _buf.size()>=offset+sizeof(Len) ) ;
-		size_t len = _buf.size()-(offset+sizeof(Len)) ; SWEAR( Len(len)==len , len ) ; // ensure truncation is harmless
-		encode_int( &_buf[offset] , Len(len) ) ;                                       // overwrite len
+		size_t l = _buf.size()-(offset+sizeof(Len)) ; SWEAR( Len(l)==l , l ) ;                                  // ensure truncation is harmless
+		encode_int( &_buf[offset] , Len(l) ) ;                                                                  // overwrite _len
 	}
+	// data
+	Len _pos = 0 ;
 } ;

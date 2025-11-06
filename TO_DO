@@ -28,6 +28,7 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* use user@host for fast_host as pipe is now restricted to user access
 * replace cache/LMAKE/size by cache/LMAKE/config
 	- put size and file_sync in it
 	- load when reading Lmakefile.py

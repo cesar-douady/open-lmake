@@ -259,13 +259,14 @@ template<class T> using Iota1 = Iota<false   ,T> ;
 template<class T> using Iota2 = Iota<true    ,T> ;
 
 struct First {
-	bool operator()() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
+	// services
+	bool advance() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
 	//
-	template<class T> T operator()( T&& first , T&& other=T() ) { return self() ? ::forward<T>(first) : ::forward<T>(other) ; }
-	//
-	template<class T> T operator()( T&& first , T&& second , T&& other ) {
+	/**/              const char* operator()(                                       ) { return advance() , ""                                        ; }
+	template<class T> T           operator()( T&& first , T&& other =T()            ) { return advance() ? ::forward<T>(first) : ::forward<T>(other) ; }
+	template<class T> T           operator()( T&& first , T&& second    , T&& other ) {
 		uint8_t v = _val ;
-		self() ;
+		advance() ;
 		switch (v) {
 			case 0 : return ::forward<T>(first ) ;
 			case 1 : return ::forward<T>(second) ;
@@ -275,6 +276,8 @@ struct First {
 	//
 	const char* operator()( const char* first ,                      const char* other="" ) { return operator()<const char*&>(first,       other) ; }
 	const char* operator()( const char* first , const char* second , const char* other    ) { return operator()<const char*&>(first,second,other) ; }
+	//
+	// data
 private :
 	uint8_t _val=0 ;
 } ;

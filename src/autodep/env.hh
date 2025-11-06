@@ -6,6 +6,7 @@
 #pragma once
 
 #include "disk.hh"
+#include "fd.hh"
 #include "serialize.hh"
 #include "time.hh"
 
@@ -13,14 +14,13 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
+	// env format : server:port:fast_mail:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
 	operator ::string() const ;
 	// accesses
-	bool operator+ () const { return +service                        ; }
-	bool has_server() const { return +service && service.back()!=':' ; }
+	bool operator+() const { return +service ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,static_cast<RealPathEnv&>(self)) ;
@@ -33,19 +33,20 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,sub_repo_s                     ) ;
 		::serdes(s,views                          ) ;
 	}
-	Fd   repo_root_fd  (                    ) const ;
-	Fd   fast_report_fd(                    ) const ;
-	Fd   slow_report_fd(                    ) const ;
-	void chk           (bool for_cache=false) const ;
+	Fd           repo_root_fd   (                    ) const ;
+	bool         can_fast_report(                    ) const ;
+	AcFd         fast_report_fd (                    ) const ;
+	ClientSockFd slow_report_fd (                    ) const ;
+	void         chk            (bool for_cache=false) const ;
 	// data
-	bool                 auto_mkdir       = false ;                                                                  // if true  <=> auto mkdir in case of chdir
-	bool                 enable           = true  ;                                                                  // if false <=> no automatic report
-	bool                 ignore_stat      = false ;                                                                  // if true  <=> stat-like syscalls do not trigger dependencies
-	bool                 readdir_ok       = false ;                                                                  // if true  <=> allow reading local non-ignored dirs
-	::string             fast_report_pipe ;                                                                          // pipe to report accesses, faster than sockets, but does not allow replies
-	::string             service          ;
-	::string             sub_repo_s       ;                                                                          // relative to repo_root_s
+	bool                 auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
+	bool                 enable           = true  ; // if false <=> no automatic report
+	bool                 ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
+	bool                 readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
+	::string             fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+	SockFd::Service      service          ;
+	::string             sub_repo_s       ;         // relative to repo_root_s
 	::vmap_s<::vector_s> views            ;
 	// not transported
-	::string fast_host ;                                                                                             // host on which fast_report_pipe can be used
+	::string fast_mail ;                            // host on which fast_report_pipe can be used
 } ;

@@ -21,6 +21,7 @@ if __name__!='__main__' :
 	lmake.config.network_delay          =    10  # host is overloaded
 	lmake.config.trace.n_jobs           = 20000  # ensure we keep all traces for analysis
 	lmake.config.console.date_precision =     3
+	lmake.config.trace.size             = 1<<30
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -61,4 +62,5 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , may_rerun=1+n_targets , update=n_files )
+	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , rerun=... , may_rerun=... , update=n_files )
+	assert cnt.rerun+cnt.may_rerun==1+n_targets

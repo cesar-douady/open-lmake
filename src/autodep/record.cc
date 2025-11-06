@@ -28,17 +28,18 @@ using namespace Time ;
 // Record
 //
 
-bool                                        Record::s_static_report       = false     ;
-bool                                        Record::s_enable_was_modified = false     ;
-::vmap_s<DepDigest>*                        Record::s_deps                = nullptr   ;
-::string           *                        Record::s_deps_err            = nullptr   ;
-StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache        ;             // map file to read accesses
-Mutex<MutexLvl::Record>                     Record::s_mutex               ;
-StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env        ;             // declare as pointer to avoid late initialization
-Fd                                          Record::_s_repo_root_fd       ;
-pid_t                                       Record::_s_repo_root_pid      = 0         ;
-Fd                                          Record::_s_report_fd[2]       ;
-pid_t                                       Record::_s_report_pid[2]      = { 0 , 0 } ;
+bool                                        Record::s_static_report          = false       ;
+bool                                        Record::s_enable_was_modified    = false       ;
+::vmap_s<DepDigest>*                        Record::s_deps                   = nullptr     ;
+::string           *                        Record::s_deps_err               = nullptr     ;
+StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache           ;               // map file to read accesses
+Mutex<MutexLvl::Record>                     Record::s_mutex                  ;
+StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env           ;               // declare as pointer to avoid late initialization
+Fd                                          Record::_s_repo_root_fd          ;
+pid_t                                       Record::_s_repo_root_pid         = 0           ;
+SockFd::Key                                 Record::_s_report_key[2/*fast*/] = { {} , {} } ;
+Fd                                          Record::_s_report_fd [2/*fast*/] ;
+pid_t                                       Record::_s_report_pid[2/*fast*/] = { 0  , 0  } ;
 
 bool Record::s_is_simple( const char* file , bool empty_is_simple ) {
 	if (!file        ) return empty_is_simple ;                       // no file is simple (not documented, but used in practice)
@@ -116,10 +117,10 @@ Sent Record::_do_send_report(pid_t pid) {
 	SWEAR(+_buf) ;
 	s_mutex.swear_locked() ;
 	//
-	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF                              ; // several processes share fast report, so only small messages can be sent
-	Fd   fd   = fast ? report_fd<true/*Fast*/>(pid) : report_fd<false/*Fast*/>(pid) ;
+	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF && s_autodep_env().can_fast_report() ;             // several processes share fast report, so only small messages can be sent
+	Fd   fd   = report_fd(fast,pid)                                                         ;
 	if (+fd)
-		try                       { _buf.send(fd) ;                                                                               }
+		try                       { _buf.send( fd , _s_report_key[fast] ) ;                                                       }
 		catch (::string const& e) { exit(Rc::System,read_lnk(File("/proc/self/exe")),'(',pid,") : cannot report accesses : ",e) ; } // NO_COV this justifies panic : do our best
 	_buf = {} ;
 	return !fd ? Sent::NotSent : fast ? Sent::Fast : Sent::Slow ;

@@ -90,7 +90,7 @@ Item(B(5))  internal repo state was inconsistent
 Item(B(6))  repo need to be cleaned, e.g. with B(git clean -ffdx)
 Item(B(7))  adequate permissions were missing, typically write access
 Item(B(8))  server crashed, should not occur
-Item(B(10)) some syscall failed (including debug session could not be B(exec)'ed
+Item(B(10)) some syscall failed (including debug session could not be B(exec)'ed)
 Item(B(11)) bad usage : command line options and arguments coul not be parsed
 Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ffdx)
 

@@ -124,7 +124,11 @@ namespace Backends::Slurm::SlurmApi {
 			SWEAR(sav_errno!=0) ;                                                      // if err, we should have a errno, else if no errno, we should have had a msg containing an id
 			::string err_msg ;
 			switch (sav_errno) {
+				#if EWOULDBLOCK!=EAGAIN
+					case EWOULDBLOCK :
+				#endif
 				case EAGAIN                              :
+				case EINTR                               :
 				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :
 				case ESLURM_NODES_BUSY                   : {
 					trace("retry",sav_errno,_strerror(sav_errno)) ;
@@ -173,6 +177,9 @@ namespace Backends::Slurm::SlurmApi {
 			if (_load_job(&resp,slurm_id,SHOW_LOCAL)==SLURM_SUCCESS) goto Report ;
 		}
 		switch (errno) {
+			#if EWOULDBLOCK!=EAGAIN
+				case EWOULDBLOCK :
+			#endif
 			case EAGAIN                              :
 			case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                                                                           job_ok
 			case ESLURM_NODES_BUSY                   : return { cat("slurm daemon busy ("   ,errno," after ",NTrials,"trials) : ",_strerror(errno)) , Maybe } ; // heartbeat will retry and ...

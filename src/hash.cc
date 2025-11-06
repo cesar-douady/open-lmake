@@ -38,6 +38,9 @@ namespace Hash {
 						if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
 						else if (cnt==0) break ;                                // file could change while crc is being computed
 						else switch (errno) {
+							#if EWOULDBLOCK!=EAGAIN
+								case EWOULDBLOCK :
+							#endif
 							case EAGAIN :
 							case EINTR  : continue                                        ;
 							default     : throw "I/O error while reading file "+file_name ;

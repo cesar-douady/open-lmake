@@ -10,7 +10,7 @@ using namespace Disk ;
 ::string& operator+=( ::string& os , AutodepEnv const& ade ) {                   // START_OF_NO_COV
 	/**/                       os << "AutodepEnv("                             ;
 	/**/                       os <<      static_cast<RealPathEnv const&>(ade) ;
-	if (+ade.fast_host       ) os <<','<< ade.fast_host                        ;
+	if (+ade.fast_mail       ) os <<','<< ade.fast_mail                        ;
 	if (+ade.fast_report_pipe) os <<','<< ade.fast_report_pipe                 ;
 	/**/                       os <<','<< ade.service                          ;
 	if ( ade.enable          ) os <<",enable"                                  ;
@@ -37,7 +37,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	// service
 	service = env.substr(0,pos) ;
 	// fast report
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_host        = parse_printable<'"'>(env,pos) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_mail        = parse_printable<'"'>(env,pos) ; { if (env[pos++]!='"') goto Fail ; }
 	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fast_report_pipe = parse_printable<'"'>(env,pos) ; { if (env[pos++]!='"') goto Fail ; }
 	// options
 	if (env[pos++]!=':') goto Fail ;
@@ -82,9 +82,9 @@ Fail :
 
 AutodepEnv::operator ::string() const {
 	// service
-	::string res = service ;
+	::string res = +service ? ::string(service) : ":"s ;
 	// fast report
-	res <<':'<< '"'<<mk_printable<'"'>(fast_host       )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(fast_mail       )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(fast_report_pipe)<<'"' ;
 	// options
 	res << ':' ;
@@ -128,24 +128,25 @@ Fd AutodepEnv::repo_root_fd() const {
 	catch (::string const& e) { fail_prod("cannot open repo root dir",repo_root_s) ;                  }
 }
 
-Fd AutodepEnv::fast_report_fd() const {
-	if (!has_server()) return {} ;
-	//
-	throw_unless( +fast_report_pipe , "no fast channel"  ) ;                                              // use slow report in that case
-	throw_unless( host()==fast_host , "from host",host() ) ;                                              // .
-	//
-	try                       { return { fast_report_pipe , {.flags=O_WRONLY|O_APPEND,.no_std=true} } ; } // append if writing to a file
-	catch (::string const& e) { fail_prod("while trying to report deps :",e) ;                          } // NO_COV
+bool AutodepEnv::can_fast_report() const {
+	return +fast_report_pipe && mail()==fast_mail ;
 }
 
-Fd AutodepEnv::slow_report_fd() const {
-	if (!has_server()) return {} ;
-	//
+AcFd AutodepEnv::fast_report_fd() const {
+	SWEAR( can_fast_report() , "cannot fast report" , self ) ;                             // else must use slow report
 	try {
-		in_port_t p = ClientSockFd::s_port(service) ;
-		if(host()==fast_host) { ClientSockFd fd{in_addr_t(0)                 ,p} ; return fd.detach() ; } // if on fast_host, connect locally
-		else                  { ClientSockFd fd{ClientSockFd::s_host(service),p} ; return fd.detach() ; }
-	} catch (::string const& e) {                                                                         // START_OF_NO_COV
+		if (+self) return { fast_report_pipe , {.flags=O_WRONLY|O_APPEND,.no_std=true} } ; // append if writing to a file
+		else       return {                                                            } ;
+	} catch (::string const& e) {                                                          // START_OF_NO_COV
 		fail_prod("while trying to report deps :",e) ;
-	}                                                                                                     // END_OF_NO_COV
+	}                                                                                      // END_OF_NO_COV
+}
+
+ClientSockFd AutodepEnv::slow_report_fd() const {
+	try {
+		if (+self) { SockFd::Service s = service ; if (host()==fast_mail) s.addr = 0 ; return ClientSockFd(s) ; }
+		else                                                                           return {}              ;
+	} catch (::string const& e) {                                                                               // START_OF_NO_COV
+		fail_prod("while trying to report deps :",e) ;
+	}                                                                                                           // END_OF_NO_COV
 }

@@ -32,10 +32,10 @@ static bool _server_ok( Fd fd , ::string const& tag ) {
 
 static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { // if sync, ensure we launch our own server
 	Trace trace("_connect_to_server",STR(refresh)) ;
-	::string server_service  ;
-	Bool3    server_is_local = Maybe ;
-	pid_t    server_pid      = 0     ;
-	Pdate    now             = New   ;
+	::string file_service_str  ;
+	Bool3    server_is_local   = Maybe ;
+	pid_t    server_pid        = 0     ;
+	Pdate    now               = New   ;
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
@@ -43,23 +43,24 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			AcFd       server_mrkr_fd { ServerMrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
 			::vector_s lines          = server_mrkr_fd.read_lines()   ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			//
-			server_service = ::move            (lines[0]) ;
-			server_pid     = from_string<pid_t>(lines[1]) ;
+			file_service_str = ::move            (lines[0]) ;
+			server_pid       = from_string<pid_t>(lines[1]) ;
 			try {
-				::string  server      = SockFd::s_host(server_service) ;
-				in_port_t server_port = SockFd::s_port(server_service) ;
-				server_is_local = No | (fqdn()==server) ;
-				if (server_is_local==Yes) server = {} ;                                                                                            // dont use network if not necessary
+				SockFd::Service service { file_service_str , true/*name_ok*/ } ;
+				server_is_local = No | (fqdn()==SockFd::s_host(file_service_str)) ;
+				if (server_is_local==Yes) service.addr = 0 ;                                                    // dont use network if not necessary
 				//
-				ClientSockFd req_fd { server , server_port , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; req_fd.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is ...
-				if (_server_ok(req_fd,"old")) {                                                                                                    // ... probably not working properly
-					req_fd.set_receive_timeout() ;                                                                                                 // restore
-					g_server_fds = ::move(req_fd) ;
+				ClientSockFd req_fd { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ;
+				req_fd.set_receive_timeout(Delay(10)) ;                                                         // if server is too long to answer, it is probably not working properly
+				if (_server_ok(req_fd,"old")) {
+					SockFd::Key k = req_fd.key ;                                                                // capture before move
+					req_fd.set_receive_timeout() ;                                                              // restore
+					g_server_fds = { ::move(req_fd) , k } ;
 					if (sync) exit(Rc::BadServer,"server already exists") ;
 					return 0 ;
 				}
-			} catch(::string const&) { trace("cannot_connect",server_service) ; }
-			trace("server",server_service,server_pid) ;
+			} catch(::string const&) { trace("cannot_connect",file_service_str) ; }
+			trace("server",file_service_str,server_pid) ;
 			//
 		}
 	LaunchServer :
@@ -74,9 +75,9 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 		Pipe server_to_client{New,0/*flags*/,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
 		/**/           cmd_line.push_back   (cat("-i",client_to_server.read .fd)) ;
 		/**/           cmd_line.push_back   (cat("-o",server_to_client.write.fd)) ;
-		if (!refresh ) cmd_line.emplace_back(    "-r"                           ) ; // -r means no refresh
-		if (read_only) cmd_line.emplace_back(    "-R"                           ) ; // -R means read-only
-		/**/           cmd_line.emplace_back(    "--"                           ) ; // ensure no further option processing in case a file starts with a -
+		if (!refresh ) cmd_line.emplace_back(    "-r"                           ) ;                             // -r means no refresh
+		if (read_only) cmd_line.emplace_back(    "-R"                           ) ;                             // -R means read-only
+		/**/           cmd_line.emplace_back(    "--"                           ) ;                             // ensure no further option processing in case a file starts with a -
 		trace("try_new",i,cmd_line) ;
 		try {
 			Child server { .as_session=true , .cmd_line=cmd_line } ;
@@ -87,12 +88,12 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 			if (_server_ok(server_to_client.read,"new")) {
 				g_server_fds = ClientFdPair{ server_to_client.read , client_to_server.write } ;
 				pid_t pid = server.pid ;
-				server.mk_daemon() ;                                                // let process survive to server dxtor
+				server.mk_daemon() ;                                                                            // let process survive to server dxtor
 				return pid ;
 			}
 			client_to_server.write.close() ;
 			server_to_client.read .close() ;
-			server.wait() ;                                                         // dont care about return code, we are going to relauch/reconnect anyway
+			server.wait() ;                                                                                     // dont care about return code, we are going to relauch/reconnect anyway
 		} catch (::string const& e) {
 			exit(Rc::System,e) ;
 		}
@@ -102,12 +103,12 @@ static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { /
 	}
 	::string kill_server_msg ;
 	if ( server_pid && server_is_local!=Maybe && (server_is_local==No||sense_process(server_pid)) ) {
-		/**/                     kill_server_msg << '\t'                                       ;
-		if (server_is_local==No) kill_server_msg << "ssh "<<SockFd::s_host(server_service)+' ' ;
-		/**/                     kill_server_msg << "kill "<<server_pid                        ;
-		/**/                     kill_server_msg << '\n'                                       ;
+		/**/                     kill_server_msg << '\t'                                         ;
+		if (server_is_local==No) kill_server_msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
+		/**/                     kill_server_msg << "kill "<<server_pid                          ;
+		/**/                     kill_server_msg << '\n'                                         ;
 	}
-	trace("cannot_connect",server_service,kill_server_msg) ;
+	trace("cannot_connect",file_service_str,kill_server_msg) ;
 	exit(Rc::BadServer
 	,	"cannot connect to server, consider :\n"
 	,	kill_server_msg
@@ -128,7 +129,7 @@ static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	if (          in_stat.st_ino   !=          out_stat.st_ino   ) return Maybe ;               // .
 	if (          in_stat.st_rdev  !=          out_stat.st_rdev  ) return Maybe ;               // .
 	//
-	Bool3          res       = Maybe                         ;
+	Bool3          res       = Maybe ;
 	struct termios old_attrs ;
 	struct termios new_attrs ;
 	//
@@ -206,13 +207,10 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	if (!rv_str) { rv_str = cmd_line.flag_args[+ReqFlag::Video] ; trace("cmd_line",rv_str) ; }
 	if (!rv_str) { rv_str = get_env("LMAKE_VIDEO")              ; trace("env"     ,rv_str) ; }
 	switch (rv_str[0]) {
-		case 'n' :
-		case 'N' : rv = No                                     ; break ;
-		case 'r' :
-		case 'R' : rv = Yes                                    ; break ;
-		case 'f' :
-		case 'F' : rv = Maybe                                  ; break ;           // force no color
-		default  : rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
+		case 'n' : case 'N' : rv = No                                     ; break ;
+		case 'r' : case 'R' : rv = Yes                                    ; break ;
+		case 'f' : case 'F' : rv = Maybe                                  ; break ; // force no color
+		default  :            rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("reverse_video",rv) ;
 	//
@@ -220,15 +218,16 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	Rc        rc         = Rc::ServerCrash                             ;
 	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)  ;
 	trace("starting") ;
-	cb(true/*start*/) ;                                                            // block INT once server is initialized so as to be interruptible at all time
-	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ; // /!\ must be after call to cb so INT can be blocked before creating threads
-	OMsgBuf().send(g_server_fds.out,rrr) ;
+	cb(true/*start*/) ;                                                             // block INT once server is initialized so as to be interruptible at all time
+	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ;  // /!\ must be after call to cb so INT can be blocked before creating threads
+	OMsgBuf(rrr).send( g_server_fds.out , g_server_fds.key ) ;
 	trace("started") ;
-	bool received = false ;                                                        // for trace only
+	bool    received = false/*garbage*/ ;                                           // for trace only
+	IMsgBuf buf      ;
 	try {
 		for(;;) {
 			received = false ;
-			ReqRpcReply rrr = IMsgBuf().receive<ReqRpcReply>(g_server_fds.in) ;
+			ReqRpcReply rrr = buf.receive<ReqRpcReply>( g_server_fds.in , true/*once*/ , {}/*key*/ ) ;
 			received = true ;
 			switch (rrr.proc) {
 				case ReqRpcReplyProc::None   : trace("done"          ) ;                                            goto Return ;

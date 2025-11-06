@@ -122,13 +122,12 @@ namespace Engine {
 			// services
 			bool operator==(Backend const&) const = default ;
 			template<IsStream S> void serdes(S& s) {
-				::serdes( s , ifce,dct,env,configured ) ;
+				::serdes( s , dct,env,configured ) ;
 			}
 			// data
 			// START_OF_VERSIONING
-			::string  ifce        ;
-			::vmap_ss dct         ;
-			::vmap_ss env         ;
+			::vmap_ss dct        ;
+			::vmap_ss env        ;
 			bool      configured = false ;
 			// END_OF_VERSIONING
 		} ;

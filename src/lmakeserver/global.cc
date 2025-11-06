@@ -43,28 +43,28 @@ namespace Engine {
 		//
 		ReqRpcReplyProc proc = err ? ReqRpcReplyProc::Stderr : ReqRpcReplyProc::Stdout ;
 		Lock            lock { _g_audit_mutex }                                        ;
-		try                       { OMsgBuf().send( out , ReqRpcReply( proc , _audit_indent(::move(report_txt),lvl,sep) ) ) ; } // if we lose connection, there is nothing much we can do about it
-		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                          }
+		try                       { OMsgBuf( ReqRpcReply(proc,_audit_indent(::move(report_txt),lvl,sep)) ).send( out , {}/*key*/ ) ; } // if we lose connection, we cant do much about it
+		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                                 }
 		if (+log)
-			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }             // .
-			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }             // NO_COV defensive programming
+			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }                    // .
+			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }                    // NO_COV defensive programming
 	}
 
 	void audit_file( Fd out , ::string&& file ) {
 		Trace trace("audit_file",file) ;
 		Lock lock { _g_audit_mutex } ;
-		try                       { OMsgBuf().send( out , ReqRpcReply( ReqRpcReplyProc::File , ::move(file) ) ) ; } // if we lose connection, there is nothing much we can do about it
-		catch (::string const& e) { trace("lost_client",e) ;                                                      }
+		try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::File,::move(file)) ).send( out , {}/*key*/ ) ; } // if we lose connection, there is nothing much we can do about it
+		catch (::string const& e) { trace("lost_client",e) ;                                                             }
 	}
 
 	void audit_status( Fd out , Fd log , ReqOptions const& , Rc rc ) {
 		Trace trace("audit_status",rc) ;
 		Lock lock { _g_audit_mutex } ;
-		try                       { OMsgBuf().send( out , ReqRpcReply( ReqRpcReplyProc::Status , rc ) ) ; }               // if we lose connection, there is nothing much we can do about it
-		catch (::string const& e) { trace("lost_client",e) ;                                                            }
+		try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::Status,rc) ).send( out , {}/*key*/ ) ; } // if we lose connection, there is nothing much we can do about it
+		catch (::string const& e) { trace("lost_client",e) ;                                                     }
 		if (+log)
-			try                       { log.write(cat("status : ",rc,'\n')) ; }                                           // .
-			catch (::string const& e) { trace("lost_log",e) ;                 }                                           // NO_COV defensive programming
+			try                       { log.write(cat("status : ",rc,'\n')) ; }                                    // .
+			catch (::string const& e) { trace("lost_log",e) ;                 }                                    // NO_COV defensive programming
 	}
 
 	void audit_ctrl_c( Fd out, Fd log , ReqOptions const& ro ) {
@@ -76,11 +76,11 @@ namespace Engine {
 		::string report_txt  = color_pfx(ro,Color::Note) + msg + color_sfx(ro,Color::Note) +'\n' ;
 		//
 		Lock lock { _g_audit_mutex } ;
-		try                       { OMsgBuf().send( out, ReqRpcReply( ReqRpcReplyProc::Stdout , ::move(report_txt) ) ) ; } // if we lose connection, there is nothing much we can do about it
-		catch (::string const& e) { trace("lost_client",e) ;                                                             }
+		try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::Stdout,::move(report_txt)) ).send( out , {}/*key*/ ) ; } // if we lose connection, there is nothing much we can do about it
+		catch (::string const& e) { trace("lost_client",e) ;                                                                     }
 		if (+log)
-			try                       { log.write("^C\n"+msg+'\n') ; }                                                     // .
-			catch (::string const& e) { trace("lost_log",e) ;        }                                                     // NO_COV defensive programming
+			try                       { log.write("^C\n"+msg+'\n') ; }                                                             // .
+			catch (::string const& e) { trace("lost_log",e) ;        }                                                             // NO_COV defensive programming
 	}
 
 	// str has the same syntax as python f-strings

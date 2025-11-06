@@ -94,10 +94,9 @@ namespace Backends {
 				// accesses
 				bool operator+() const { return seq_id ; }
 				// data
-				SeqId     seq_id   = 0 ;
-				SmallId   small_id = 0 ;
-				in_addr_t host     = 0 ;
-				in_port_t port     = 0 ;
+				SeqId           seq_id   = 0  ;
+				SmallId         small_id = 0  ;
+				SockFd::Service service  ;
 			} ;
 			// cxtors & casts
 			StartEntry() = default ;
@@ -167,15 +166,15 @@ namespace Backends {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void            _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
-		static void            _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
-		static void            _s_heartbeat_thread_func ( ::stop_token                                              ) ;
-		static bool/*keep_fd*/ _s_handle_job_start      ( JobStartRpcReq&& , SlaveSockFd const& ={}                 ) ;
-		static bool/*keep_fd*/ _s_handle_job_mngt       ( JobMngtRpcReq && , SlaveSockFd const& ={}                 ) ;
-		static bool/*keep_fd*/ _s_handle_job_end        ( JobEndRpcReq  && , SlaveSockFd const& ={}                 ) ;
-		static void            _s_handle_deferred_report( ::stop_token                                              ) ;
-		static void            _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
-		static void            _s_start_tab_erase       ( ::map<Job,StartEntry>::iterator                           ) ;
+		static void _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
+		static void _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
+		static void _s_heartbeat_thread_func ( ::stop_token                                              ) ;
+		static void _s_handle_job_start      ( JobStartRpcReq&& , Fd={}                                  ) ;
+		static void _s_handle_job_mngt       ( JobMngtRpcReq && , Fd={}                                  ) ;
+		static void _s_handle_job_end        ( JobEndRpcReq  && , Fd={}                                  ) ;
+		static void _s_handle_deferred_report( ::stop_token                                              ) ;
+		static void _s_handle_deferred_wakeup( DeferredEntry&&                                           ) ;
+		static void _s_start_tab_erase       ( ::map<Job,StartEntry>::iterator                           ) ;
 		// static data
 	public :
 		static StaticUniqPtr<Backend> s_tab[N<Tag>] ;
@@ -229,7 +228,7 @@ namespace Backends {
 		/**/                                                                                                // ... the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		in_addr_t addr       = 0 ;
+		::string  addr_str   ;
 		::string  config_err ;
 	} ;
 

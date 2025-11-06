@@ -629,8 +629,8 @@ namespace Caches {
 				throw_if( zlvl.tag==ZlvlTag::Zstd , "cannot uncompress without zstd" ) ;
 			#endif
 			//
-			InflateFd data_fd { ::move(info_fd.second) , zlvl } ;
-			Hdr       hdr     = IMsgBuf().receive<Hdr>(data_fd) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
+			InflateFd data_fd { ::move(info_fd.second) , zlvl }                              ;
+			Hdr       hdr     = IMsgBuf().receive<Hdr>( data_fd , true/*once*/ , {}/*key*/ ) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
 				auto&           entry = targets[ti]            ;
@@ -681,7 +681,7 @@ namespace Caches {
 		//
 		try {
 			DeflateFd data_fd { ::move(key_fd.second) , zlvl } ;
-			OMsgBuf().send( data_fd , hdr ) ;
+			OMsgBuf(hdr).send( data_fd , {}/*key*/ ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
 				::pair_s<TargetDigest> const& entry = targets[ti]            ;
@@ -1150,20 +1150,18 @@ void JobSpace::mk_canon(::string const& phy_repo_root_s) {
 // JobStartRpcReq
 //
 
-::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {                                           // START_OF_NO_COV
-	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.port <<','<< jsrr.msg <<')' ;
-}                                                                                                             // END_OF_NO_COV
+::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {                                              // START_OF_NO_COV
+	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.service <<','<< jsrr.msg <<')' ;
+}                                                                                                                // END_OF_NO_COV
 
 void JobStartRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
-	port = 0 ;                   // execution dependent
+	service = {} ;               // execution dependent
 }
 
 void JobStartRpcReq::chk(bool for_cache) const {
 	JobRpcReq::chk(for_cache) ;
-	if (for_cache) {
-		throw_unless( !port , "bad port" ) ;
-	}
+	if (for_cache) throw_unless( !service , "bad connection info" ) ;
 }
 
 //
@@ -1224,33 +1222,32 @@ void JobEndRpcReq::chk(bool for_cache) const {
 // JobStartRpcReply
 //
 
-::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {         // START_OF_NO_COV
-	/**/                           os << "JobStartRpcReply("<<jsrr.rule     ;
-	/**/                           os <<','  << to_hex(jsrr.addr)           ;
-	/**/                           os <<','  << jsrr.autodep_env            ;
-	if (+jsrr.job_space          ) os <<','  << jsrr.job_space              ;
-	if ( jsrr.keep_tmp           ) os <<','  << "keep"                      ;
-	if (+jsrr.ddate_prec         ) os <<','  << jsrr.ddate_prec             ;
-	/**/                           os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable PassMrkr value
-	/**/                           os <<','  << jsrr.interpreter            ;
-	/**/                           os <<','  << jsrr.kill_sigs              ;
-	if (jsrr.live_out            ) os <<','  << "live_out"                  ;
-	if (jsrr.nice                ) os <<','  << "nice:"<<jsrr.nice          ;
-	if (jsrr.stderr_ok           ) os <<','  << "stderr_ok"                 ;
-	/**/                           os <<','  << jsrr.method                 ;
-	if (+jsrr.network_delay      ) os <<','  << jsrr.network_delay          ;
-	if (+jsrr.pre_actions        ) os <<','  << jsrr.pre_actions            ;
-	/**/                           os <<','  << jsrr.small_id               ;
-	if (+jsrr.star_matches       ) os <<','  << jsrr.star_matches           ;
-	if (+jsrr.deps               ) os <<'<'  << jsrr.deps                   ;
-	if (+jsrr.static_matches     ) os <<'>'  << jsrr.static_matches         ;
-	if (+jsrr.stdin              ) os <<'<'  << jsrr.stdin                  ;
-	if (+jsrr.stdout             ) os <<'>'  << jsrr.stdout                 ;
-	if (+jsrr.timeout            ) os <<','  << jsrr.timeout                ;
-	if (+jsrr.cache_idx          ) os <<','  << jsrr.cache_idx              ;
-	/**/                           os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
-	return                         os <<')'                                 ;
-}                                                                             // END_OF_NO_COV
+::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {    // START_OF_NO_COV
+	/**/                      os << "JobStartRpcReply("<<jsrr.rule     ;
+	/**/                      os <<','  << jsrr.autodep_env            ;
+	if (+jsrr.job_space     ) os <<','  << jsrr.job_space              ;
+	if ( jsrr.keep_tmp      ) os <<','  << "keep"                      ;
+	if (+jsrr.ddate_prec    ) os <<','  << jsrr.ddate_prec             ;
+	/**/                      os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable PassMrkr value
+	/**/                      os <<','  << jsrr.interpreter            ;
+	/**/                      os <<','  << jsrr.kill_sigs              ;
+	if (jsrr.live_out       ) os <<','  << "live_out"                  ;
+	if (jsrr.nice           ) os <<','  << "nice:"<<jsrr.nice          ;
+	if (jsrr.stderr_ok      ) os <<','  << "stderr_ok"                 ;
+	/**/                      os <<','  << jsrr.method                 ;
+	if (+jsrr.network_delay ) os <<','  << jsrr.network_delay          ;
+	if (+jsrr.pre_actions   ) os <<','  << jsrr.pre_actions            ;
+	/**/                      os <<','  << jsrr.small_id               ;
+	if (+jsrr.star_matches  ) os <<','  << jsrr.star_matches           ;
+	if (+jsrr.deps          ) os <<'<'  << jsrr.deps                   ;
+	if (+jsrr.static_matches) os <<'>'  << jsrr.static_matches         ;
+	if (+jsrr.stdin         ) os <<'<'  << jsrr.stdin                  ;
+	if (+jsrr.stdout        ) os <<'>'  << jsrr.stdout                 ;
+	if (+jsrr.timeout       ) os <<','  << jsrr.timeout                ;
+	if (+jsrr.cache_idx     ) os <<','  << jsrr.cache_idx              ;
+	/**/                      os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
+	return                    os <<')'                                 ;
+}                                                                        // END_OF_NO_COV
 
 bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>&/*out*/ actions
@@ -1424,9 +1421,7 @@ void JobInfoStart::chk(bool for_cache) const {
 	submit_attrs.chk(for_cache) ;
 	pre_start   .chk(for_cache) ;
 	start       .chk(for_cache) ;
-	if (for_cache) {
-		throw_unless( !eta , "bad eta" ) ;
-	}
+	if (for_cache) throw_unless( !eta , "bad eta" ) ;
 }
 
 //
@@ -1463,10 +1458,8 @@ void JobInfo::cache_cleanup() {
 void JobInfo::chk(bool for_cache) const {
 	start.chk(for_cache) ;
 	end  .chk(for_cache) ;
-	for( size_t i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ;
-	if (for_cache) {
-		throw_unless( !dep_crcs , "bad dep_crcs" ) ;
-	} else {
-		throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size() , "incoherent deps" ) ;
-	}
+	/**/                                                   throw_unless( start.submit_attrs.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
+	for( size_t i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps discovered ...
+	if (for_cache)                                         throw_unless( !dep_crcs                                                  , "bad dep_crcs"    ) ; // ... before job execution
+	else                                                   throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()       , "incoherent deps" ) ;
 }

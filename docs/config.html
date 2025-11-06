@@ -269,22 +269,12 @@ It is subject to infinite recursion and several means are provided to avoid it.<
 Inside such sub-repos, the applied flow is the one described in it (cf. <a href="experimental_subrepos.html">Subrepos</a>).</p>
 <h3 id="system_tag--static-see-below"><a class="header" href="#system_tag--static-see-below"><code>system_tag</code> : Static (see below)</a></h3>
 <p>This attribute provide a way to identify hosts by category to ensure proper config reload.</p>
-<p>Some configuration elements, such as backend interfaces, may vary from one host to another.
+<p>Some configuration elements may vary from one host to another.
 To ensure config is reloaded when elements change, this attribute, which must be function, is run and if its result is not the same as last time, config is reloaded.</p>
 <p>By default, the <code>hostname</code> is returned, so config is reloaded as soon as the open-lmake server is launched on a different host.</p>
 <h3 id="backends--dynamic"><a class="header" href="#backends--dynamic"><code>backends</code> : Dynamic</a></h3>
 <p>This attribute is a <code>pdict</code> with one entry for each active backend (cf. <a href="backends.html">backends</a>).</p>
 <p>Each entry is a <code>pdict</code> providing resources. Such resources are backend specific.</p>
-<h4 id="backendsinterface--dynamic-best-guess"><a class="header" href="#backendsinterface--dynamic-best-guess"><code>backends.*.interface</code> : Dynamic (best guess)</a></h4>
-<p>When jobs are launched remotely, they must connect to open-lmake when they start and when they complete.
-The same is true if the job is launched locally but launches sub-commands remotely (in this case it is the command that needs to connect to the job trampoline).
-This is done by connecting to a socket open-lmake has opened for listening, which requires that we must have a means to determine an IP address to connect to.
-The host running open-lmake may have several network interfaces, one of them (typically only one) being usable by such remote hosts.
-There is no generic way to determine this address, so in general, open-lmake cannot determine it automatically.</p>
-<p>This value may be empty (using <code>hostname</code> for addresse look up), given in standard dot notation, as the name of an interface (as shown by <code>ifconfig</code>)
-or the name of a host (looked up as for <code>ping</code>).
-In case of ambiguity, local backend will use the loop-back address, remote backends will generate an error message showing the possible choices.</p>
-<p>If it is defined as a function, then this function is called when server launches, which allows it to be tailored to each particular host.</p>
 <h4 id="backendsenviron--dynamic-"><a class="header" href="#backendsenviron--dynamic-"><code>backends.*.environ</code> : Dynamic (<code>{}</code>)</a></h4>
 <p>Environment to pass when launching job in backend.
 This environment is accessed when the value mentioned in the rule is <code>...</code>.</p>

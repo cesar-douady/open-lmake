@@ -31,12 +31,12 @@ using namespace Time ;
 //
 
 template<class F> size_t _File<F>::hash() const {
-	Fnv fnv ;                                     // good enough
+	Fnv fnv ;                                          // good enough
 	fnv += at                           ;
 	fnv += ::hash<::decay_t<F>>()(file) ;
 	return +fnv ;
 }
-template size_t _File<::string       >::hash() const ;          // explicit instantiation
+template size_t _File<::string       >::hash() const ; // explicit instantiation
 template size_t _File<::string const&>::hash() const ;
 template size_t _File<::string_view  >::hash() const ;
 
@@ -105,7 +105,17 @@ PermOk :
 
 void Fd::write(::string_view data) const {
 	for( size_t cnt=0 ; cnt<data.size() ;) {
-		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ; throw_unless( c>0 , "cannot write to fd ",fd ) ;
+		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ;
+		if (c<=0) {
+			switch (errno) {
+				#if EWOULDBLOCK!=EAGAIN
+					case EWOULDBLOCK :
+				#endif
+				case EAGAIN :
+				case EINTR  : c = 0 ; break                                               ;
+				default     :         throw cat("cannot write (",StrErr(),") to fd ",fd ) ;
+			}
+		}
 		cnt += c ;
 	}
 }
@@ -120,11 +130,25 @@ void Fd::write(::string_view data) const {
 		size_t goal_sz = 4096 ;
 		for( size_t cnt=0 ;;) {
 			res.resize(goal_sz) ;
-			ssize_t c = ::read( fd , &res[cnt] , goal_sz-cnt ) ; throw_unless( c>=0 , "cannot read from fd ",fd ) ;
-			if (c==0) { res.resize(cnt) ; break ; }
+			ssize_t c = ::read( fd , &res[cnt] , goal_sz-cnt ) ;
+			if (c<=0) {
+				if (c<0) {
+					switch (errno) {
+						#if EWOULDBLOCK!=EAGAIN
+							case EWOULDBLOCK :
+						#endif
+						case EAGAIN     :
+						case EINTR      : continue                                            ; // retry
+						case ECONNRESET : break                                               ; // process as eof as this appears with sockets when peer dies abruptly
+						default         : throw cat("cannot read (",StrErr(),") from fd ",fd) ; // consider ECONNRESET as eof as this appears with sockets when peer dies abruptly
+					}
+				}
+				res.resize(cnt) ;                                                               // eof
+				break ;
+			}
 			cnt += c ;
-			if (cnt==goal_sz) goal_sz += goal_sz ; // increase buf size as long as it is filled up
-			else              goal_sz += c       ; // we reach system limit, no interest to read more
+			if (cnt==goal_sz) goal_sz += goal_sz ;                                              // increase buf size as long as it is filled up
+			else              goal_sz += c       ;                                              // we reach system limit, no interest to read more
 		}
 	}
 	return res ;
@@ -132,8 +156,21 @@ void Fd::write(::string_view data) const {
 
 size_t Fd::read_to(::span<char> dst) const {
 	for( size_t pos=0 ; pos<dst.size() ;) {
-		ssize_t cnt = ::read( fd , &dst[pos] , dst.size()-pos ) ; throw_unless( cnt>=0 , "cannot read ",dst.size()," bytes from fd ",fd ) ;
-		if (cnt==0) return pos ;
+		ssize_t cnt = ::read( fd , &dst[pos] , dst.size()-pos ) ;
+		if (cnt<=0) {
+			if (cnt<0) {
+				switch (errno) {
+					#if EWOULDBLOCK!=EAGAIN
+						case EWOULDBLOCK :
+					#endif
+					case EAGAIN     :
+					case EINTR      : continue                                                  ; // retry
+					case ECONNRESET : break                                                     ; // process as eof as this appears with sockets when peer dies abruptly
+					default         : throw cat("cannot read ",dst.size()," bytes from fd ",fd) ;
+				}
+			}
+			return pos ;                                                                          // eof
+		}
 		pos += cnt ;
 	}
 	return dst.size() ;
@@ -294,7 +331,7 @@ template _FileLockFile<_LockerLink   >::_FileLockFile( FileRef , Action ) ; // .
 template _FileLockFile<_LockerMkdir  >::_FileLockFile( FileRef , Action ) ; // .
 
 FileLock::FileLock( FileSync fs , FileRef file , Action a ) {
-	switch (fs) {                                                             // PER_FILE_SYNC : add entry here
+	switch (fs) {                                             // PER_FILE_SYNC : add entry here
 		// XXX/ : _LockerFcntl has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
 		// XXX/ : _LockerFlock has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
 		// XXX/ : _LockerMkdir has been observed as not working with rocky9/NFSv4
@@ -387,7 +424,7 @@ template<> ::vector_s parse_printable( ::string const& txt , size_t& pos , bool 
 	::vector_s res ;
 	if (txt[pos++]!='(') goto Fail ;
 	for ( First first ; txt[pos]!=')' ;) {
-		if (!first() && txt[pos++]!=',') goto Fail ;
+		if (!first.advance() && txt[pos++]!=',') goto Fail ;
 		if (txt[pos++]!='"') goto Fail ;
 		::string v = parse_printable<'"'>(txt,pos) ;
 		if (txt[pos++]!='"') goto Fail ;
@@ -608,11 +645,11 @@ bool              _crash_busy  = false ;
 	void write_backtrace( Fd fd , int hide_cnt ) {
 		static constexpr size_t StackSize = 100 ;
 		//
-		static void*    stack         [StackSize] ;     // avoid big allocation on stack
-		static SrcPoint symbolic_stack[StackSize] ;     // .
+		static void*    stack         [StackSize] ;       // avoid big allocation on stack
+		static SrcPoint symbolic_stack[StackSize] ;       // .
 		//
-		int backtrace_sz = backtrace(stack,StackSize) ; // XXX! : dont know how to avoid malloc here
-		int stack_sz     = 0                          ;
+		int backtrace_sz = ::backtrace(stack,StackSize) ; // XXX! : dont know how to avoid malloc here
+		int stack_sz     = 0                            ;
 		for( int i : iota( hide_cnt+1 , backtrace_sz ) ) {
 			stack_sz += fill_src_points( stack[i] , symbolic_stack+stack_sz , StackSize-stack_sz ) ;
 			if (::strcmp(symbolic_stack[stack_sz-1].func,"main")==0) break ;
@@ -654,10 +691,15 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 }
 
 ::string const& host() {
-	static ::string s_host = []()->::string {
+	static ::string s_res = []()->::string {
 		char buf[HOST_NAME_MAX+1] ;
 		int  rc                   = ::gethostname( buf , sizeof(buf) ) ; SWEAR( rc==0 , errno ) ;
 		return buf ;
 	}() ;
-	return s_host ;
+	return s_res ;
+}
+
+::string const& mail() {
+	static ::string s_res = cat(::getuid(),'@',host()) ;
+	return s_res ;
 }

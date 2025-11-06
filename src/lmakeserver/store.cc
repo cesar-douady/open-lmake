@@ -276,13 +276,8 @@ namespace Engine::Persistent {
 		AcFd( cat(AdminDirS       ,"config"      ) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( g_config->pretty_str() ) ;
 	}
 
-	static void _diff_config( Config const& old_config , bool dyn ) {
+	static void _diff_config(Config const& old_config) {
 		Trace trace("_diff_config",old_config) ;
-		for( BackendTag t : iota(All<BackendTag>) ) {
-			if (g_config->backends[+t].ifce==old_config.backends[+t].ifce) continue ;
-			throw_if( dyn , "cannot change server address while running" ) ;
-			break ;
-		}
 		//
 		if (
 			g_config->path_max     !=old_config.path_max
@@ -310,7 +305,7 @@ namespace Engine::Persistent {
 		/**/                                                g_config->open( dyn , true/*first_time*/ ) ;
 		if (         +d                                   ) _save_config()                             ;
 		if ( !dyn                                         ) _init_srcs_rules(rescue)                   ;
-		if (         +d                                   ) _diff_config(old_config,dyn)               ;
+		if (         +d                                   ) _diff_config(old_config)                   ;
 		trace("done",Pdate(New)) ;
 	}
 

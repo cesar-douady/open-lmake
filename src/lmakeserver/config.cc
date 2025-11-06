@@ -19,9 +19,8 @@ namespace Engine {
 	::string& operator+=( ::string& os , Config::Backend const& be ) { // START_OF_NO_COV
 		os << "Backend(" ;
 		if (be.configured) {
-			if (+be.ifce) os <<      be.ifce <<',' ;
-			/**/          os <<      be.dct        ;
-			if (+be.env ) os <<','<< be.env        ;
+			/**/          os <<      be.dct ;
+			if (+be.env ) os <<','<< be.env ;
 		}
 		return os <<')' ;
 	}                                                                  // END_OF_NO_COV
@@ -64,8 +63,12 @@ namespace Engine {
 			for( auto const& [py_k,py_v] : py_map ) {
 				field = py_k.as_a<Str>() ;
 				switch (field[0]) {
-					case 'e' : if (field=="environ"  ) { { for( auto const& [py_k2,py_v2] : py_v.as_a<Dict>() ) env.emplace_back( py_k2.as_a<Str>() , *py_v2.str() ) ; } continue ; } break ;
-					case 'i' : if (field=="interface") { ifce = *py_v.str() ;                                                                                            continue ; } break ;
+					case 'e' :
+						if (field=="environ") {
+							for( auto const& [py_k2,py_v2] : py_v.as_a<Dict>() ) env.emplace_back( py_k2.as_a<Str>() , *py_v2.str() ) ;
+							continue ;
+						}
+					break ;
 				DN}
 				dct.emplace_back( field , py_v==True ? "1"s : py_v==False ? "0"s : ::string(*py_v.str()) ) ;
 			}
@@ -352,11 +355,11 @@ namespace Engine {
 		if (nice         ) res << "\tnice            : " << size_t(nice)  <<'\n' ;
 		//
 		res << "\tbackends :\n" ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) {                         // local backend is always present
+		for( BackendTag t : iota(1,All<BackendTag>) ) {      // local backend is always present
 			Backend     const& be  = backends[+t]          ;
 			auto const& bbe = Backends::Backend::s_tab[+t] ;
-			if (!bbe                          ) continue ;                      // not implemented
-			if (!be.configured                ) continue ;                      // not configured
+			if (!bbe                          ) continue ;   // not implemented
+			if (!be.configured                ) continue ;   // not configured
 			if (!Backends::Backend::s_ready(t)) {
 				res <<"\t\t"<< t <<" : "<< Backends::Backend::s_config_err(t) << '\n' ;
 				continue ;
@@ -364,17 +367,11 @@ namespace Engine {
 			res <<"\t\t"<< t <<" :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			if ( +be.ifce && be.ifce.find('\n')==Npos ) w = ::max(w,::strlen("interface")) ;
-			/**/                                        w = ::max(w,::strlen("address"  )) ;
-			for( auto const& [k,v] : be.dct )           w = ::max(w,k.size()             ) ;
-			for( auto const& [k,v] : descr  )           w = ::max(w,k.size()             ) ;
+			for( auto const& [k,v] : be.dct ) w = ::max( w , k.size() ) ;
+			for( auto const& [k,v] : descr  ) w = ::max( w , k.size() ) ;
 			//
-			if      ( !be.ifce                 ) {}
-			else if ( be.ifce.find('\n')==Npos ) res <<"\t\t\t"<< widen("interface",w) <<" : " << be.ifce                       <<'\n' ;
-			else                                 res <<"\t\t\t"<<       "interface"    <<" :\n"<< indent(be.ifce,4)             <<'\n' ;
-			/**/                                 res <<"\t\t\t"<< widen("address"  ,w) <<" : " << SockFd::s_addr_str(bbe->addr) <<'\n' ;
-			for( auto const& [k,v] : be.dct )    res <<"\t\t\t"<< widen(k          ,w) <<" : " << v                             <<'\n' ;
-			for( auto const& [k,v] : descr  )    res <<"\t\t\t"<< widen(k          ,w) <<" : " << v                             <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k,w) <<" : " << v <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k,w) <<" : " << v <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
 				size_t w2 = ::max<size_t>( be.env , [](auto const& k_v) { return k_v.first.size() ; } ) ;

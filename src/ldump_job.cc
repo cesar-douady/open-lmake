@@ -42,27 +42,26 @@ void print_pre_start(JobStartRpcReq const& jsrr) {
 void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "--start--\n" ;
 	//
-	g_out << "addr          : "  << to_hex(jsrr.addr)           <<'\n' ;
-	g_out << "auto_mkdir    : "  << jsrr.autodep_env.auto_mkdir <<'\n' ;
-	g_out << "chroot_dir_s  : "  << jsrr.job_space.chroot_dir_s <<'\n' ;
-	g_out << "sub_repo_s    : "  << jsrr.autodep_env.sub_repo_s <<'\n' ;
-	g_out << "ddate_prec    : "  << jsrr.ddate_prec             <<'\n' ;
-	g_out << "interpreter   : "  << jsrr.interpreter            <<'\n' ;
-	g_out << "keep_tmp      : "  << jsrr.keep_tmp               <<'\n' ;
-	g_out << "key           : "  << jsrr.key                    <<'\n' ;
-	g_out << "kill_sigs     : "  << jsrr.kill_sigs              <<'\n' ;
-	g_out << "live_out      : "  << jsrr.live_out               <<'\n' ;
-	g_out << "lmake_view_s  : "  << jsrr.job_space.lmake_view_s <<'\n' ;
-	g_out << "method        : "  << jsrr.method                 <<'\n' ;
-	g_out << "readdir_ok    : "  << jsrr.autodep_env.readdir_ok <<'\n' ;
-	g_out << "repo_view_s   : "  << jsrr.job_space.repo_view_s  <<'\n' ;
-	g_out << "small_id      : "  << jsrr.small_id               <<'\n' ;
-	g_out << "stdin         : "  << jsrr.stdin                  <<'\n' ;
-	g_out << "stdout        : "  << jsrr.stdout                 <<'\n' ;
-	g_out << "timeout       : "  << jsrr.timeout                <<'\n' ;
-	g_out << "tmp_dir_s     : "  << jsrr.autodep_env.tmp_dir_s  <<'\n' ; // tmp directory on disk
-	g_out << "tmp_view_s    : "  << jsrr.job_space.tmp_view_s   <<'\n' ;
-	g_out << "use_script    : "  << jsrr.use_script             <<'\n' ;
+	g_out << "auto_mkdir    : " << jsrr.autodep_env.auto_mkdir <<'\n' ;
+	g_out << "chroot_dir_s  : " << jsrr.job_space.chroot_dir_s <<'\n' ;
+	g_out << "sub_repo_s    : " << jsrr.autodep_env.sub_repo_s <<'\n' ;
+	g_out << "ddate_prec    : " << jsrr.ddate_prec             <<'\n' ;
+	g_out << "interpreter   : " << jsrr.interpreter            <<'\n' ;
+	g_out << "keep_tmp      : " << jsrr.keep_tmp               <<'\n' ;
+	g_out << "key           : " << jsrr.key                    <<'\n' ;
+	g_out << "kill_sigs     : " << jsrr.kill_sigs              <<'\n' ;
+	g_out << "live_out      : " << jsrr.live_out               <<'\n' ;
+	g_out << "lmake_view_s  : " << jsrr.job_space.lmake_view_s <<'\n' ;
+	g_out << "method        : " << jsrr.method                 <<'\n' ;
+	g_out << "readdir_ok    : " << jsrr.autodep_env.readdir_ok <<'\n' ;
+	g_out << "repo_view_s   : " << jsrr.job_space.repo_view_s  <<'\n' ;
+	g_out << "small_id      : " << jsrr.small_id               <<'\n' ;
+	g_out << "stdin         : " << jsrr.stdin                  <<'\n' ;
+	g_out << "stdout        : " << jsrr.stdout                 <<'\n' ;
+	g_out << "timeout       : " << jsrr.timeout                <<'\n' ;
+	g_out << "tmp_dir_s     : " << jsrr.autodep_env.tmp_dir_s  <<'\n' ; // tmp directory on disk
+	g_out << "tmp_view_s    : " << jsrr.job_space.tmp_view_s   <<'\n' ;
+	g_out << "use_script    : " << jsrr.use_script             <<'\n' ;
 	//
 	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )   ;
 	g_out << "env :\n"            ; _print_map  (jsrr.env            )   ;
@@ -101,8 +100,8 @@ int main( int argc , char* argv[] ) {
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {
-		g_out << "eta  : " << job_info.start.eta                        <<'\n' ;
-		g_out << "host : " << SockFd::s_host(job_info.start.start.addr) <<'\n' ;
+		g_out << "eta  : " << job_info.start.eta                                    <<'\n' ;
+		g_out << "host : " << SockFd::s_host(job_info.start.pre_start.service.addr) <<'\n' ;
 		print_submit_attrs(job_info.start.submit_attrs) ;
 		g_out << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
 		print_pre_start   (job_info.start.pre_start   ) ;

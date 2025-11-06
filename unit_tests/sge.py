@@ -23,8 +23,7 @@ if __name__!='__main__' :
 	sge_bin  = osp.dirname(shutil.which('qsub',path=lmake.user_environ['PATH']))
 	sge_root = osp.dirname(osp.dirname(sge_bin))
 	lmake.config.backends.sge = {
-		'interface'    : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-	,	'environ'      : { 'DUT':'dut' }
+		'environ'      : { 'DUT':'dut' }
 	,	'bin'          : sge_bin
 	,	'root'         : sge_root
 	#,	'cpu_resource' : 'cpu'

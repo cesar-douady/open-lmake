@@ -126,6 +126,7 @@ template<class... As> void dbg(                                  ::string const&
 template<class... As> void dbg(                                  const char*     title , As const&... args ) ; // disambiguate
 
 ::string const& host() ;
+::string const& mail() ; // user@host
 
 struct StrErr {
 	friend ::string& operator+=( ::string& , StrErr const& ) ;

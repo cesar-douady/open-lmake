@@ -558,8 +558,8 @@ namespace Engine {
 				,	g_config->console.show_eta                        ? cat( " - ETA:"   ,  et1.str(0/*prec*/,true/*in_day*/)                        ) : ""s
 				))
 			} ;
-			OMsgBuf().send( audit_fd , rrr ) ;
-		} catch (::string const&) {}           // if client has disappeared, well, we cannot do much
+			OMsgBuf(rrr).send( audit_fd , {}/*key*/ ) ;
+		} catch (::string const&) {}                    // if client has disappeared, well, we cannot do much
 	}
 
 	bool/*overflow*/ ReqData::_send_err( bool intermediate , ::string const& pfx , ::string const& target , size_t& n_err , DepDepth lvl ) {

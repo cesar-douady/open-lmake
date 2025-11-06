@@ -31,16 +31,13 @@ static constexpr Delay StatsRefresh { 1 } ;
 static ServerSockFd    _g_server_fd ;
 static bool            _g_is_daemon = true                  ;
 static Atomic<bool>    _g_done      = false                 ;
-static ::pair_s<pid_t> _g_mrkr      { fqdn() , ::getpid() } ;
 static bool            _g_seen_make = false                 ;
 static Fd              _g_watch_fd  ;                         // watch LMAKE/server
 
 static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 	try {
-		::vector_s      lines   = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
-		::string const& service = lines[0]                      ;
-		::string const& pid     = lines[1]                      ;
-		return { SockFd::s_host(service) , from_string<pid_t>(pid) } ; }
+		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		return { SockFd::s_host(lines[0]/*service*/) , from_string<pid_t>(lines[1]) } ; }
 	catch (::string const&) {
 		return { {}/*fqdn*/ , 0/*pid*/ } ;
 	}
@@ -58,28 +55,29 @@ static void _report_server( Fd fd , bool running ) {
 }
 
 static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means last server crashed
-	::pair_s<pid_t>     mrkr = _get_mrkr()     ;
-	::pair_s/*msg*/<Rc> res  = { {} , Rc::Ok } ;
-	Trace trace("_start_server",_g_mrkr) ;
-	if ( +mrkr.first && mrkr.first!=_g_mrkr.first ) {
-		trace("already_existing_elsewhere",mrkr) ;
+	::pair_s<pid_t>     mrkr      { fqdn() , ::getpid() } ;
+	::pair_s<pid_t>     file_mrkr = _get_mrkr()           ;
+	::pair_s/*msg*/<Rc> res       = { {} , Rc::Ok }       ;
+	Trace trace("_start_server",mrkr) ;
+	if ( +file_mrkr.first && file_mrkr.first!=mrkr.first ) {
+		trace("already_existing_elsewhere",file_mrkr) ;
 		return { {}/*msg*/ , Rc::BadServer } ;
 	}
-	if (mrkr.second) {
-		if (sense_process(mrkr.second)) {                       // another server exists on same host
-			trace("already_existing",mrkr) ;
+	if (file_mrkr.second) {
+		if (sense_process(file_mrkr.second)) {                       // another server exists on same host
+			trace("already_existing",file_mrkr) ;
 			return { {}/*msg*/ , Rc::BadServer } ;
 		}
 		unlnk(File(ServerMrkr)) ;                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		rescue = true ;
-		trace("vanished",mrkr) ;
+		trace("vanished",file_mrkr) ;
 	}
 	if (g_writable) {
-		::string tmp = cat(ServerMrkr,'.',_g_mrkr.first,'.',_g_mrkr.second) ;
-		_g_server_fd = ServerSockFd( New , 0/*backlog*/ , false/*reuse_addr*/ ) ;
+		::string tmp = cat(ServerMrkr,'.',mrkr.first,'.',mrkr.second) ;
+		_g_server_fd = ServerSockFd( 0/*backlog*/ , false/*reuse_addr*/ )   ;
 		AcFd( tmp , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write(cat(
-			SockFd::s_service(_g_mrkr.first,_g_server_fd.port()) , '\n'
-		,	_g_mrkr.second                                       , '\n'
+			_g_server_fd.service_str(mrkr.first) , '\n'
+		,	mrkr.second                          , '\n'
 		)) ;
 		//  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if (::link(tmp.c_str(),ServerMrkr)==0) {
@@ -145,14 +143,20 @@ static void _record_targets(Job job) {
 	AcFd( targets_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
 }
 
+struct ReqEntry {
+	IMsgBuf     buf = {} ;
+	Req         req = {} ;
+	SockFd::Key key = {} ;
+} ;
+
 static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	using Event = Epoll<EventKind>::Event ;
 	t_thread_key = 'Q' ;
 	Trace trace("_reqs_thread_func",STR(_g_is_daemon)) ;
 	//
-	::stop_callback                stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;               // transform request_stop into an event we wait for
-	::umap<Fd,::pair<IMsgBuf,Req>> in_tab  ;
-	Epoll<EventKind>               epoll   { New }                                                 ;
+	::stop_callback     stop_cb    { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ;                       // transform request_stop into an event we wait for
+	::umap<Fd,ReqEntry> req_slaves ;
+	Epoll<EventKind>    epoll      { New }                                                 ;
 	//
 	if (g_writable  ) { epoll.add_read( _g_server_fd , EventKind::Master ) ; trace("read_master",_g_server_fd) ; } // if read-only, we do not expect additional connections
 	/**/              { epoll.add_sig ( SIGHUP       , EventKind::Int    ) ; trace("read_hup"                ) ; }
@@ -160,7 +164,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 	if (+_g_watch_fd) { epoll.add_read( _g_watch_fd  , EventKind::Watch  ) ; trace("read_watch" ,_g_watch_fd ) ; }
 	//
 	if (!_g_is_daemon) {
-		in_tab[in_fd] ;
+		req_slaves[in_fd] ;                                                                                        // allocate entry
 		epoll.add_read(in_fd,EventKind::Std) ; trace("read_std",in_fd) ;
 	}
 	//
@@ -206,73 +210,77 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 				} break ;
 				case EventKind::Slave :
 				case EventKind::Std   : {
-					::optional<ReqRpcReq> received = in_tab.at(fd).first.receive_step<ReqRpcReq>( fd , true/*eof_ok*/ ) ; if (!received) continue ;
-					ReqRpcReq&            rrr      = *received                                                          ;
-					Fd                    ofd      = kind==EventKind::Std ? out_fd : fd                                 ;
-					trace("req",rrr) ;
-					switch (rrr.proc) {
-						case ReqProc::Make : {
-							SWEAR(g_writable) ;
-							Req r ;
-							try {
-								r = New ;
-							} catch (::string const& e) {
-								audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
-								try                       { OMsgBuf().send( ofd , ReqRpcReply( ReqRpcReplyProc::Status , Rc::Fail ) ) ; }
-								catch (::string const& e) { trace("lost_client",e) ;                                                    } // there is nothing much we can do if we cant communicate
-								if (ofd!=fd) ::close   (ofd        ) ;
-								else         ::shutdown(ofd,SHUT_WR) ;
-								break ;
-							}
-							r.zombie(false) ;
-							in_tab.at(fd).second = r ;
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;                          // urgent to ensure in order Kill/None
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							trace("make",r) ;
-						} break ;
-						case ReqProc::Collect : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
-						case ReqProc::Debug   :
-						case ReqProc::Forget  :
-						case ReqProc::Mark    :
-							SWEAR(g_writable) ;
-						[[fallthrough]] ;
-						case ReqProc::Show :
-							epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;                     // must precede close(fd) which may occur as soon as we push to g_engine_queue
-							in_tab.erase(fd) ;
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( rrr.proc , fd , ofd , rrr.files , rrr.options ) ; // urgent to ensure in order Kill/None
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						break ;
-						case ReqProc::Kill :
-						case ReqProc::None : {
-							epoll.del(false/*write*/,fd) ; trace("stop_fd",rrr.proc,fd) ;                    // must precede close(fd) which may occur as soon as we push to g_engine_queue
-							auto it=in_tab.find(fd) ;
-							Req r = it->second.second ;
-							trace("eof",fd) ;
-							if (+r) { trace("zombie",r) ; r.zombie(true) ; }                                 // make req zombie immediately to optimize reaction time
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd ) ;                       // this will close ofd when done writing to it, urgent to ensure good reactivity
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							in_tab.erase(it) ;
-						} break ;
-					DF}                                                                                      // NO_COV
+					auto      rit = req_slaves.find(fd) ; SWEAR( rit!=req_slaves.end() , fd ) ;
+					ReqEntry& re  = rit->second                                               ;
+					for( Bool3 fetch=Yes ;; fetch=No ) {
+						::optional<ReqRpcReq> received = re.buf.receive_step<ReqRpcReq>( fd , fetch , re.key ) ; if (!received) break ; // partial message
+						ReqRpcReq&            rrr      = *received                                             ;
+						Fd                    ofd      = kind==EventKind::Std ? out_fd : fd                    ;
+						trace("req",rrr) ;
+						switch (rrr.proc) {
+							case ReqProc::Kill :
+							case ReqProc::None : {
+								Req r = re.req ;
+								trace("eof",fd,r) ;
+								if (+r) { trace("zombie",r) ; r.zombie(true) ; }             // make req zombie immediately to optimize reaction time
+								epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ; // /!\ must precede close(fd) which may occur as soon as we push to g_engine_queue
+								req_slaves.erase(rit) ;
+								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd ) ;   // this will close ofd when done writing to it, urgent to ensure good reactivity
+								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							} goto NextEvent ;
+							case ReqProc::Collect : // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
+							case ReqProc::Debug   :
+							case ReqProc::Forget  :
+							case ReqProc::Mark    :
+								SWEAR(g_writable) ;
+							[[fallthrough]] ;
+							case ReqProc::Show :
+								epoll.del(false/*write*/,fd) ; trace("del_fd",rrr.proc,fd) ;                     // /!\ must precede close(fd) which may occur as soon as we push to g_engine_queue
+								req_slaves.erase(rit) ;
+								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								g_engine_queue.emplace_urgent( rrr.proc , fd , ofd , rrr.files , rrr.options ) ; // urgent to ensure in order Kill/None
+								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							goto NextEvent ;
+							case ReqProc::Make : {
+								SWEAR(g_writable) ;
+								Req r ;
+								try {
+									r = New ;
+								} catch (::string const& e) {
+									audit( ofd , rrr.options , Color::None , e , true/*as_is*/ ) ;
+									try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::Status,Rc::Fail) ).send( ofd , {}/*key*/ ) ; }
+									catch (::string const& e) { trace("lost_client",e) ;                                                           } // we cant do much if we cant communicate
+									if (ofd!=fd) ::close   (ofd        ) ;
+									else         ::shutdown(ofd,SHUT_WR) ;
+									break ;
+								}
+								r.zombie(false) ;
+								re.req = r ;
+								//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+								g_engine_queue.emplace_urgent( rrr.proc , r , fd , ofd , rrr.files , rrr.options ) ;                                 // urgent to ensure in order Kill/None
+								//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+								trace("make",r) ;
+							} break ;
+						DF}                                                                                                                          // NO_COV
+					}
 				} break ;
-			DF}                                                                                              // NO_COV
+			DF}                                                                                                                                      // NO_COV
+		NextEvent : ;
 		}
 		//
-		if ( !_g_is_daemon && !in_tab ) break ;                                                              // check end of loop after processing slave events and before master events
+		if ( !_g_is_daemon && !req_slaves ) break ;                                 // check end of loop after processing slave events and before master events
 		//
 		if (new_fd) {
 			Fd slave_fd = _g_server_fd.accept().detach() ;
-			in_tab[slave_fd] ;                                                                               // allocate entry
+			req_slaves[slave_fd] = {.key=_g_server_fd.key} ;                        // allocate entry
 			epoll.add_read(slave_fd,EventKind::Slave) ; trace("new_req",slave_fd) ;
 			_report_server(slave_fd,true/*running*/) ;
 		}
 	}
 Done :
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                                           // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                  // ensure engine loop sees we are done
 	trace("done") ;
 }
 
@@ -335,10 +343,10 @@ static bool/*interrupted*/ _engine_loop() {
 							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+no_slash(startup_dir_s) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
-						try                       { OMsgBuf().send( ecr.out_fd , ReqRpcReply( ReqRpcReplyProc::Status , ok?Rc::Ok:Rc::Fail ) ) ; }
-						catch (::string const& e) { trace("lost_client",e) ;                                                                     } // there is nothing we can do if we cant communicate
-						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                                                            // close out_fd before in_fd as closing clears ...
-						/**/                       ecr.in_fd .close() ;                                                                            // ... out_fd, defeating the equality test
+						try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::Status,ok?Rc::Ok:Rc::Fail) ).send( ecr.out_fd , {}/*key*/ ) ; }
+						catch (::string const& e) { trace("lost_client",e) ;                                                                            } // we cant do much if we cant communicate
+						if (ecr.out_fd!=ecr.in_fd) ecr.out_fd.close() ;                                       // close out_fd before in_fd as closing clears out_fd, defeating the equality test
+						/**/                       ecr.in_fd .close() ;
 					} break ;
 					// 2 possible orders : Make-Kill-Close or Make-Close-Kill
 					// None counts as Kill

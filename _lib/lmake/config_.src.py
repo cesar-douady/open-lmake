@@ -21,8 +21,7 @@ else :
 	try    : _cpu = len(_os.sched_getaffinity(0))
 	except : _cpu = _os.cpu_count()
 
-#_group     = _os.getgroups()[0]
-#def _interface() : return _socket.getfqdn()
+#_group = _os.getgroups()[0]
 
 def _system_tag() :              # by default re-read Lmakefile as soon as the executing host changes
 	return _os.uname().nodename
@@ -53,12 +52,6 @@ config = pdict(
 		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	#,	sge = pdict(
-	#		interface         = _interface                  # address at which lmake can be contacted from jobs launched by this backend, can be :
-	#		                                                # - ''                     : loop-back address (127.0.0.1) for local backend, hostname for remote backends
-	#		                                                # - standard dot notation  : for example '192.168.0.1'
-	#		                                                # - network interface name : the address of the host on this interface (as shown by ifconfig)
-	#		                                                # - a host name            : the address of the host as found in networkd database (as shown by ping)
-	#		                                                # - default is loopback for local backend and hostname for the others
 	#	,	bin               = '/opt/sge/bin/ls-amd64'     # directory where sge binaries are located
 	#	,	cell              = 'default'                   # cell     used for SGE job submission, by default, SGE automatically determines it
 	#	,	cluster           = 'p6444'                     # cluster used for SGE job submission, by default, SGE automatically determines it
@@ -71,7 +64,6 @@ config = pdict(
 	#	,	tmp_resource      = 'tmp'                       # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
 	#	)
 	#,	slurm = pdict(
-	#		interface         = _interface                  # cf sge entry above
 	#	,	config            = '/etc/slurm/slurm.conf'     # config file (this is the default value if not specified)
 	#	,	init_timeout      = 10                          # maximum time allowed for slurm initialization
 	#	,	lib_slurm         = '/usr/lib/slurm.so'         # slurm dynamic lib (this is a typical default value if not specified)
@@ -122,7 +114,7 @@ config = pdict(
 	,	'g' : 'lmake_debug.gdb     (launch interpreter under gdb)'
 	})
 ,	trace = pdict(
-#		size     = 100<20                                             # overall size of lmakeserver trace
+#		size     = 100<<20                                            # overall size of lmakeserver trace
 #	,	n_jobs   = 1000                                               # number of kept job traces
 #	,	channels = ('backend','default')                              # channels traced in lmakeserver trace
 	)

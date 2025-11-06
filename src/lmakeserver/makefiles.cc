@@ -354,7 +354,7 @@ namespace Engine::Makefiles {
 			try                           { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;                                }
 			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string     const& e) { throw         cat("cannot ",dyn?"dynamically ":"","update rules : ",e      )              ; }
-			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update rules : ",e.first) , e.second ) ; }
+		catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update rules : ",e.first) , e.second ) ; }
 		//
 		if (invalidate) Persistent::invalidate_match() ;
 		//
@@ -375,9 +375,11 @@ namespace Engine::Makefiles {
 			for( auto const& [k,v] : ue ) user_env_str << k<<'='<<mk_printable(v)<<'\n' ;
 			AcFd( EnvironFile , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;
 		}
+		trace("done") ;
 	}
 
 	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                                           // msg may be updated even if throwing
+		Trace trace("refresh",STR(rescue),STR(refresh_)) ;
 		::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;
 		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                             // load from persistent cache
 		catch (...) {                                                                                }                             // perf only, dont care of errors (e.g. first time)
@@ -391,6 +393,7 @@ namespace Engine::Makefiles {
 			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(RegExpr::s_cache) ) ; } // update persistent cache
 			catch (...) {                                                                                                        } // perf only, ignore errors (e.g. read-only)
 		}
+		trace("done",msg) ;
 	}
 	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) {                              // msg may be updated even if throwing
 		_refresh( /*out*/msg , false/*rescue*/  , true/*refresh*/ , true/*dyn*/ , env , startup_dir_s ) ;
