@@ -203,7 +203,7 @@ void JobRpcReq::cache_cleanup() {
 void JobRpcReq::chk(bool for_cache) const {
 	if (for_cache) {
 		throw_unless( seq_id==SeqId(-1) , "bad seq_id",' ',seq_id ) ;
-		throw_unless( !job              , "bad job"    ) ;
+		throw_unless( !job              , "bad job"               ) ;
 	}
 }
 
@@ -673,8 +673,8 @@ void JobSpace::chk() const {
 	throw_unless( !tmp_view_s   || (tmp_view_s  .front()=='/'&&tmp_view_s  .back()=='/'&&is_canon(tmp_view_s )) , "bad tmp_view"   ) ;
 	for( auto const& [view,phys] : views ) {
 		/**/                                     throw_unless( is_canon(view) , "bad views"        ) ;
-		for( ::string const& p  : phys.phys    ) throw_unless( is_canon(p )   , "bad view phys"    ) ;
-		for( ::string const& cu : phys.copy_up ) throw_unless( is_canon(cu)   , "bad view copy_up" ) ;
+		for( ::string const& p  : phys.phys    ) throw_unless( is_canon(p   ) , "bad view phys"    ) ;
+		for( ::string const& cu : phys.copy_up ) throw_unless( is_canon(cu  ) , "bad view copy_up" ) ;
 	}
 }
 
@@ -1346,12 +1346,10 @@ void JobInfo::cache_cleanup() {
 void JobInfo::chk(bool for_cache) const {
 	start.chk(for_cache) ;
 	end  .chk(for_cache) ;
-	for( size_t i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ;
-	if (for_cache) {
-		throw_unless( !dep_crcs , "bad dep_crcs" ) ;
-	} else {
-		throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size() , "incoherent deps" ) ;
-	}
+	/**/                                                   throw_unless( start.submit_attrs.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
+	for( size_t i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps discovered ...
+	if (for_cache)                                         throw_unless( !dep_crcs                                                  , "bad dep_crcs"    ) ; // ... before job execution
+	else                                                   throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()       , "incoherent deps" ) ;
 }
 
 //
