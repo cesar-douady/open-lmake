@@ -7,8 +7,8 @@
 
 #include "backdoor.hh"
 
-using namespace Re   ;
 using namespace Hash ;
+using namespace Re   ;
 using namespace Time ;
 
 namespace Backdoor {
@@ -338,23 +338,29 @@ namespace Backdoor {
 	}
 
 	::string Decode::process(Record& r) {
-		NfsGuard                     nfs_guard { Record::s_autodep_env().file_sync                                                } ;
-		Record::Solve<false/*Send*/> sr        { r , file , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Decode } ;
-		::string                     node      = Codec::CodecFile( false/*Encode*/ , sr.real , ctx , code ).name()                  ;
-		Fd                           rfd       = Record::s_repo_root_fd()                                                           ;
-		::string                     res       ;
-		//
-		throw_unless( sr.file_loc<=FileLoc::Repo , "file ",file,"is outside repo" ) ;
-		//
-		if (+sr.accesses) r.report_access( { .comment=Comment::Decode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
+		SWEAR(+file) ;
+		bool                         is_dir = is_dir_name(file)                                                                  ;
+		Record::Solve<false/*Send*/> sr     { r , file , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Decode } ;
+		if (is_dir) {
+			throw_unless( sr.file_loc>FileLoc::Repo , "file must not be within repo : "    ,file ) ;
+			throw_unless( sr.file_loc<=FileLoc::Dep , "file must be within a source dir : ",file ) ;
+		} else {
+			throw_unless( sr.file_loc<=FileLoc::Repo , "file ",file,"must be within repo" ) ;
+			if (+sr.accesses) r.report_access( { .comment=Comment::Decode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
+		}
+		::string real      = is_dir ? with_slash(::move(sr.real)) : ::move(sr.real)         ;
+		::string node      = Codec::CodecFile( false/*Encode*/ , real , ctx , code ).name() ;
+		Fd       rfd       = Record::s_repo_root_fd()                                       ;
+		NfsGuard nfs_guard { file_sync }                                                    ;
+		::string res       ;
 	Retry :
 		try {
-			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;              // if node exists, it contains the reply
-		} catch (::string const&) {                                              // if node does not exist, create a code
-			throw_if( !_retry_codec(r,{rfd,sr.real},node) , "code not found" ) ;
+			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                     // if node exists, it contains the reply
+		} catch (::string const&) {                                                     // if node does not exist, create a code
+			throw_if( is_dir || !_retry_codec(r,{rfd,real},node) , "code not found" ) ;
 			goto Retry/*BACKWARD*/ ;
 		}
-		r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{::move(node),{}}} } , true/*force*/ ) ;
+		if (!is_dir) r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{::move(node),{}}} } , true/*force*/ ) ;
 		r.send_report() ;
 		return res ;
 	}
@@ -372,51 +378,55 @@ namespace Backdoor {
 	}                                                                                                 // END_OF_NO_COV
 
 	::string Encode::process(Record& r) {
-		NfsGuard                     nfs_guard { Record::s_autodep_env().file_sync                                                } ;
-		Record::Solve<false/*Send*/> sr        { r , file , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
-		Crc                          crc       { New , val }                                                                        ;
-		::string                     node      = Codec::CodecFile( sr.real , ctx , crc ).name()                                     ;
-		Fd                           rfd       = Record::s_repo_root_fd()                                                           ;
-		//
-		throw_unless( sr.file_loc<=FileLoc::Repo , "file ",file,"is outside repo" ) ;
-		//
-		if (+sr.accesses) r.report_access( { .comment=Comment::Encode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
-		//
-		::string    new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real) ;
-		::string    res            ;
+		SWEAR(+file) ;
+		bool                         is_dir = is_dir_name(file)                                                                  ;
+		Record::Solve<false/*Send*/> sr     { r , file , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
+		if (is_dir) {
+			throw_unless( sr.file_loc>FileLoc::Repo , "file must not be within repo : "    ,file ) ;
+			throw_unless( sr.file_loc<=FileLoc::Dep , "file must be within a source dir : ",file ) ;
+		} else {
+			throw_unless( sr.file_loc<=FileLoc::Repo , "file ",file,"must be within repo" ) ;
+			if (+sr.accesses) r.report_access( { .comment=Comment::Encode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
+		}
+		::string    real           = is_dir ? with_slash(::move(sr.real)) : ::move(sr.real) ;
+		Crc         crc            { New , val }                                            ;
+		::string    node           = Codec::CodecFile( real , ctx , crc ).name()            ;
+		Fd          rfd            = Record::s_repo_root_fd()                               ;
+		NfsGuard    nfs_guard      { file_sync }                                            ;
+		::string    new_codes_file = Codec::CodecFile::s_new_codes_file(real)               ;
 		ExtraDflags edf            ;
-		try {                                                                      // first try with share lock (light weight in case no update is necessary)
-			res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;            // if node exists, it contains the reply
-		} catch (::string const&) {                                                // if node does not exist, create a code
-			_retry_codec( r , {rfd,sr.real} , node ) ;                             // in all cases, retry with the lock
-			::string         crc_str = crc.hex()                                 ;
-			Codec::CodecLock lock    { {rfd,sr.real} , {.nfs_guard=&nfs_guard} } ; // must hold the lock as we probably need to create a code
+		::string    res            ;
+		try {                                                                   // first try with share lock (light weight in case no update is necessary)
+			res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;         // if node exists, it contains the reply
+		} catch (::string const&) {                                             // if node does not exist, create a code
+			if (!is_dir) _retry_codec( r , {rfd,real} , node ) ;                // in all cases, retry with the lock
+			::string         crc_str = crc.hex()                              ;
+			Codec::CodecLock lock    { {rfd,real} , {.nfs_guard=&nfs_guard} } ; // must hold the lock as we probably need to create a code
 			try {
-				res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;        // repeat test with lock
+				res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;     // repeat test with lock
 			} catch (::string const&) {
 				for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
-					::string decode_node = Codec::CodecFile( false/*encode*/ , sr.real , ctx , code ).name() ;
+					::string decode_node = Codec::CodecFile( false/*encode*/ , real , ctx , code ).name() ;
 					if (FileInfo({rfd,decode_node},{.nfs_guard=&nfs_guard}).exists()) continue ;
-					// must write to new_codes_file first to allow replay in case of creash
+					// must write to new_codes_file first to allow replay in case of crash
 					::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
 					::string tmp_node        = node       +tmp_sfx                   ; // nodes must be always correct when they exist as there is no read lock
 					::string tmp_decode_node = decode_node+tmp_sfx                   ; // .
-					//
-					AcFd( {rfd,new_codes_file } , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
-					AcFd( {rfd,tmp_node       } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
-					AcFd( {rfd,tmp_decode_node} , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
+					AcFd( {rfd,new_codes_file } , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ).write( Codec::Entry(ctx,code,val).line(true/*with_nl*/) ) ;
+					AcFd( {rfd,tmp_node       } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ).write( code                                             ) ;
+					AcFd( {rfd,tmp_decode_node} , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ).write( val                                              ) ;
 					rename( {rfd,tmp_node       /*src*/} , {rfd,node       /*dst*/} , {.nfs_guard=&nfs_guard} ) ;
-					rename( {rfd,tmp_decode_node/*src*/} , {rfd,decode_node/*dst*/} , {.nfs_guard=&nfs_guard} ) ;
+					rename( {rfd,tmp_decode_node/*.  */} , {rfd,decode_node/*.  */} , {.nfs_guard=&nfs_guard} ) ;
 					//
 					res  = code                     ;
 					edf |= ExtraDflag::CreateEncode ;
 					break ;
 				}
-				nfs_guard.flush() ;                                                    // flush before lock is released
+				nfs_guard.flush() ;                                                        // flush before lock is released
 				throw_unless( edf[ExtraDflag::CreateEncode] , "no code available" ) ;
 			}
 		}
-		r.report_access( { .comment=Comment::Encode , .digest={.accesses=Access::Reg,.flags{.extra_dflags=edf}} , .files={{::move(node),{}}} } , true/*force*/ ) ;
+		if (!is_dir) r.report_access( { .comment=Comment::Encode , .digest={.accesses=Access::Reg,.flags{.extra_dflags=edf}} , .files={{::move(node),{}}} } , true/*force*/ ) ;
 		r.send_report() ;
 		return res ;
 	}

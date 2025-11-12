@@ -15,9 +15,12 @@ B(ldecode) may be used to ask for a value (typically rather large) associated wi
 This must have been generated using the command C(lencode) with the same association_file and context.
 The value corresponding to I(code) is output on stdout.
 .LP
-It is an error if
-Bullet I(association_file) is not a source (symbolic links are followed, though)
-Bullet I(code) cannot be found with the accompanying I(context)
+I(association_file) (symbolic links are followed) may be either a source file within repo or a dir (ending with B('/')) that lies within a source dir.
+In the latter case, such a dir must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for :
+Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
+Item(B(perm))      one of B(none), B(group) or B(other) which specifies who is given permission to access this shared dir.
+.LP
+It is also an error if I(code) cannot be found with the accompanying I(context).
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
 

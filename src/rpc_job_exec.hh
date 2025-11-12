@@ -165,12 +165,23 @@ namespace Codec {
 	struct CodecFile {
 		friend ::string& operator+=( ::string& , CodecFile const& ) ;
 		// statics
-		static ::string s_pfx_s         (                        CodecDir d=CodecDir::Plain ) { return cat(Pfx,'_',d,'/'               ) ; }
-		static ::string s_file          ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_pfx_s(     d),file        ) ; }
-		static ::string s_dir_s         ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_file (file,d),'/'         ) ; }
-		static ::string s_new_codes_file( ::string const& file                              ) { return cat(s_dir_s(file  ) ,"new_codes") ; }
+		static ::string s_pfx_s         (                        CodecDir d=CodecDir::Plain ) { return cat(Pfx,'_',d,'/'              ) ; }
+		static ::string s_dir_s         ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_file (file,d),'/'        ) ; }
+		static ::string s_new_codes_file( ::string const& file                              ) { return cat(s_dir_s(file  ),"new_codes") ; }
+		static ::string s_file          ( ::string const& file , CodecDir d=CodecDir::Plain ) {
+			if (Disk::is_dir_name(file)) { SWEAR(d==CodecDir::Plain) ; return no_slash(file)       ; }
+			else                                                       return cat(s_pfx_s(d),file) ;
+		}
+		static ::string s_lock_file(::string const& file) {
+			if (Disk::is_dir_name(file)) return file+"\alock"                                   ;
+			else                         return s_pfx_s(CodecDir::Lock)+mk_printable<'/'>(file) ;
+		}
+		static ::string s_config_file(::string const& file) {
+			SWEAR(Disk::is_dir_name(file)) ;
+			return cat(file,AdminDirS,"config.py") ;
+		}
 		//
-		static bool s_is_codec(::string const& node) { return node.starts_with(s_pfx_s()) ; }
+		static bool s_is_codec(::string const& node) { return +node && ( !Disk::is_lcl(node) || node.starts_with(s_pfx_s()) ) ; }
 		// cxtors & casts
 		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
@@ -218,9 +229,6 @@ namespace Codec {
 	} ;
 	struct CodecLock : FileLock {
 		using Action = _LockAction ;
-		// statics
-		static ::string s_dir_s(                    ) { return CodecFile::s_pfx_s(CodecDir::Lock) ; }
-		static ::string s_file (::string const& file) { return s_dir_s()+mk_printable<'/'>(file)  ; }
 		// ctxors & casts
 		CodecLock ( FileRef , Action={} ) ;
 		~CodecLock(                     ) ;

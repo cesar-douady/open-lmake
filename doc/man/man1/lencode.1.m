@@ -19,7 +19,9 @@ The generated (or retrieved) code corresponding to the value is output on I(stdo
 .LP
 If generated, the code is generated after a checksum computed on the passed value in hexadecimal, with a length at least I(min_length) (default is 1), but may be longer in case of conflict.
 .LP
-It is an error if I(association_file) is not a source (symbolic links are followed, though).
+I(association_file) (symbolic links are followed) may be either a source file within repo or a dir (ending with B('/')) that lies within a source dir.
+.LP
+Associations are usually created using `encode` but not necessarily (they can be created by hand).
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
 

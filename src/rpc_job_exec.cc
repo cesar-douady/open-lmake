@@ -93,11 +93,11 @@ namespace Codec {
 		size_t pos3 = node.rfind('\t'       ) ; SWEAR( pos1<pos3 && pos3!=Npos , node,pos1,     pos3 ) ;
 		size_t pos2 = node.rfind('\t',pos3-1) ; SWEAR( pos1<pos2 && pos2<pos3  , node,pos1,pos2,pos3 ) ;
 		//
-		/**/     file = node.substr(pos1,pos2-(InfxSz-1)-pos1) ;
+		/**/     file = node.substr(pos1,pos2-(InfxSz-1)-pos1) ; if (!is_lcl(node)) file += '/' ;                                                // dir based codec
 		pos2++ ; ctx  = parse_printable(node,pos2)             ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-(InfxSz-1)) ;
 		pos3++ ;
-		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable      (node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1)-pos3)) ; // account for terminating null
-		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1)-pos3)) ; // .
+		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable      (node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1)-pos3)) ;    // account for terminating null
+		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1)-pos3)) ;    // .
 		else    FAIL(node) ;
 	}
 
@@ -130,15 +130,19 @@ namespace Codec {
 	// in case of interruption, this info is used to determine last action to be replayed
 
 	void s_init() {
-		try { unlnk_inside_s(CodecLock::s_dir_s()) ; } catch (::string const&) {} // if dir does not exist, nothing to do
+		try { unlnk_inside_s(CodecFile::s_pfx_s(CodecDir::Lock)) ; } catch (::string const&) {} // if dir does not exist, nothing to do
 	}
 
 	CodecLock::CodecLock( FileRef file_ , Action action ) :
-		FileLock { action.nfs_guard?action.nfs_guard->file_sync():FileSync::None , {file_.at,s_file(file_.file)} , {.err_ok=action.err_ok} }
-	{	if (!self) return ;
+		FileLock {
+			action.nfs_guard ? action.nfs_guard->file_sync() : FileSync::None
+		,	{ file_.at , CodecFile::s_lock_file(file_.file) }
+		,	{ .err_ok=action.err_ok                         }
+		}
+	{	if (!self) return ;                                                                                                                                  // nothing to lock
 		file = file_ ;
 		//
-		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                                     ;
+		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                                ;
 		::string new_codes_sz_file = new_codes_file+"_sz"                                                                                                  ;
 		DiskSz   actual_sz         = FileInfo({file.at,new_codes_file   }, {                                             .nfs_guard=action.nfs_guard} ).sz ;
 		AcFd     known_sz_fd       {          {file.at,new_codes_sz_file}, {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=action.nfs_guard} }    ;
@@ -178,7 +182,7 @@ namespace Codec {
 
 	CodecLock::~CodecLock() {
 		if (!self) return ;
-		unlnk( {file.at,CodecFile::s_new_codes_file(file.file)+"_sz"} ) ;
+		unlnk( {file.at,CodecFile::s_new_codes_file(file.file)+"_sz"} , {.abs_ok=is_dir_name(file.file)} ) ;
 	}
 
 }

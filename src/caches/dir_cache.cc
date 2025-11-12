@@ -80,27 +80,23 @@ namespace Caches {
 	void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
 		Trace trace("DirCache::config",dct.size(),STR(may_init)) ;
 		auto acquire_dct = [&]( ::vmap_ss const& d , uint8_t pass ) {
-			for( auto const& [key,val] : d ) {
+			for( auto const& [key,val] : d )
 				try {
 					switch (key[0]) {
-						case 'd' : if ( key=="dir"            ) { { if (pass==0) dir_s     = with_slash           (val) ; } continue ; } break ; // dir is necessary to access cache
-						case 'f' : if ( key=="file_sync"      ) { { if (pass>=1) file_sync = mk_enum<FileSync>    (val) ; } continue ; } break ;
-						case 'i' : if ( key=="inf" && pass==1 ) {                                                           continue ; } break ; // auto-defined by py_run
-						case 'k' : if ( key=="key"            ) { { if (pass==2) key_crc   = Crc(New              ,val) ; } continue ; } break ; // key cannot be shared as it identifies repo
-						case 'n' : if ( key=="nan" && pass==1 ) {                                                           continue ; } break ; // auto-defined by py_run
-						case 'p' : if ( key=="perm"           ) { { if (pass>=1) perm_ext  = mk_enum<PermExt >    (val) ; } continue ; } break ;
-						case 's' : if ( key=="size"           ) { { if (pass==1) max_sz    = from_string_with_unit(val) ; } continue ; } break ; // size must be shared as it cannot depend on repo
+						case 'd' : if ( key=="dir"       && pass==0 ) dir_s     = with_slash           (val) ; break ; // dir is necessary to access cache
+						case 'f' : if ( key=="file_sync" && pass>=1 ) file_sync = mk_enum<FileSync>    (val) ; break ;
+						case 'k' : if ( key=="key"       && pass==2 ) key_crc   = Crc(New              ,val) ; break ; // key cannot be shared as it identifies repo
+						case 'p' : if ( key=="perm"      && pass>=1 ) perm_ext  = mk_enum<PermExt >    (val) ; break ;
+						case 's' : if ( key=="size"      && pass==1 ) max_sz    = from_string_with_unit(val) ; break ; // size must be shared as it cannot depend on repo
 					DN}
 				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
-				/**/                        { trace("bad_key",key    ) ; throw cat("unexpected config entry : ",key         ) ; }
-			}
 		} ;
 		acquire_dct( dct , 0/*pass*/ ) ; throw_unless( +dir_s , "dir must be specified for dir_cache") ;
 		_compile() ;
-		::string  config_file = admin_dir_s+"config.py" ;    ;
-		AcFd      config_fd   { config_file,{.err_ok=true} } ;
-		if (+config_fd) {Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
-		/**/                       acquire_dct( dct                       , 2/*.   */ ) ;
+		::string  config_file = admin_dir_s+"config.py" ;      ;
+		AcFd      config_fd   { config_file , {.err_ok=true} } ;
+		if (+config_fd) { Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
+		/**/                        acquire_dct( dct                       , 2/*.   */ ) ;
 		//
 		if (!max_sz) { // XXX> : remove when compatibility with v25.07 is no more required
 			::string sz_file = admin_dir_s+"size" ;

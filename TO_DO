@@ -78,9 +78,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * check files are conformant to config.link_support
 	- each time it is mostly free (objective of this config is improved perf)
-* use a File struct instead of at/file
-	- implement File and FileView classes to avoid too many copies
-	- everywhere applicable
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -120,9 +117,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* implement codec table in cache
-	- consider such a table as soon as codec file is a dir (ends with /)
-	- check codec files are local and codec dirs are not
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

@@ -186,7 +186,7 @@
 <ul>
 <li>gcc version 10 and below</li>
 </ul>
-<p>It has been tested with the dockers listed in the docker directory.</p>
+<p>It has been tested with the dockers listed in the docker dir.</p>
 <h2 id="procedure"><a class="header" href="#procedure">Procedure</a></h2>
 <ul>
 <li>type <code>make</code>
@@ -195,8 +195,8 @@
 <li>you must invoke <code>git clean -fdx</code> if you modified the Makefile or otherwise if you want a reliable build (<code>make</code> is not open-lmake)</li>
 <li>you may have to invoke <code>git clean -fdx lmake_env*</code> or even <code>git clean -fdx</code> after a <code>git pull</code>
 <ul>
-<li><code>lmake_env</code> is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now</li>
-<li><code>lmake_env-cache</code> is a directory containing cached results from jobs in <code>lmake_env</code></li>
+<li><code>lmake_env</code> is a dir which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now</li>
+<li><code>lmake_env-cache</code> is a dir containing cached results from jobs in <code>lmake_env</code></li>
 <li>they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail</li>
 <li>and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build</li>
 </ul>
@@ -207,17 +207,17 @@
 </li>
 <li>install
 <ul>
-<li>untar <code>lmake.tar.gz</code> wherever you want and have your <code>$PATH</code> point to the <code>bin</code> directory.
+<li>untar <code>lmake.tar.gz</code> wherever you want and have your <code>$PATH</code> point to the <code>bin</code> dir.
 <ul>
-<li>the <code>bin</code> sub-directory contains the executables meant to be executed by the user</li>
-<li>the <code>_bin</code> sub-directory contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
+<li>the <code>bin</code> sub-dir contains the executables meant to be executed by the user</li>
+<li>the <code>_bin</code> sub-dir contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
 <ul>
 <li>it also contains some executables to help debugging open-lmake itself.</li>
 </ul>
 </li>
-<li>the <code>lib</code> sub-directory contains binary and python files for use by the user</li>
-<li>the <code>_lib</code> sub-directory contains the binary and python files necessary for open-lmake to run, but not meant for direct use by the user</li>
-<li>the relative positions of these 4 directories must remain the same, i.e. they must stay in the same directory with the same names.</li>
+<li>the <code>lib</code> sub-dir contains binary and python files for use by the user</li>
+<li>the <code>_lib</code> sub-dir contains the binary and python files necessary for open-lmake to run, but not meant for direct use by the user</li>
+<li>the relative positions of these 4 directories must remain the same, i.e. they must stay in the same dir with the same names.</li>
 </ul>
 </li>
 </ul>
@@ -231,7 +231,7 @@
 <li><code>$PYTHON2</code> can be set to your preferred python2 (defaults to <code>python2</code> as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
 <li><code>$PYTHON</code> can be set to your preferred python3  (defaults to <code>python3</code> as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
 <li><code>$CXX</code> can be set to your preferred C++ compiler (defaults to <code>g++</code>     as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
-<li><code>$SLURM_ROOT</code> can be set to the root directory of the slurm installation (by default, <code>slurm/slurm.h</code> will be searched in the standard include path).
+<li><code>$SLURM_ROOT</code> can be set to the root dir of the slurm installation (by default, <code>slurm/slurm.h</code> will be searched in the standard include path).
 For example, <code>slurm.h</code> will be found as <code>$SLURM_ROOT/include/slurm/slurm.h</code></li>
 <li><code>$LMAKE_FLAGS</code> can be defined as O[0123]g?d?t?S[AB]P?
 <ul>
@@ -257,7 +257,7 @@ it will be transferred as a default value for rules, to the extent it is necessa
 </ul>
 <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
 <p>Open-lmake does not require to be installed.
-You can run it directly from the build directory.
+You can run it directly from the build dir.
 This is the simplest way unless you seek a system-wide installation.</p>
 <p>If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry <code>DEBIAN_DEPS</code>),
 you can make a Debian package:</p>

@@ -179,9 +179,9 @@ But special attention has been devoted in its design to ensure that it is never 
 In case of any adverse event (lmake crashes or spurious system reboot),
 open-lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
 In extreme cases, there is a <code>lrepair</code> command that can recover all safe parts of a damaged repository.
-Similarly the <code>ldircache_repair</code> command is able to recover a damaged (or manually manipulated) cache directory.</p>
+Similarly the <code>ldircache_repair</code> command is able to recover a damaged (or manually manipulated) cache dir.</p>
 <p>Note that open-lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
-This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or jobs spuriously disappearing.</p>
+This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the dir containing the file) or jobs spuriously disappearing.</p>
 <p>By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in <code>Lmakefile.py</code>.
 We also mean that open-lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
 Such effort includes checksum based modification detection rather than date based, so that if a job is rerun and produces an identical content, subsequent jobs are not rerun.
@@ -197,10 +197,10 @@ Finally a test suite is a collection of such tests.</p>
 <pre><code class="language-bash">lmake &lt;my_target&gt;
 </code></pre>
 <p>suffices to perform all necessary steps so that <code>&lt;my_target&gt;</code> is reproduced as if all steps leading to it were carried out although only necessary steps were actually carried out.
-The <code>lmake</code> program maintains an internal state in the <code>LMAKE</code> directory to decide which files need to be regenerated.
+The <code>lmake</code> program maintains an internal state in the <code>LMAKE</code> dir to decide which files need to be regenerated.
 For each one of those, it issues the recipes recorded in <code>Lmakefile.py</code>.
 During job execution, <code>lmake</code> instruments them in order to gather which files are read and written in order to determine hidden deps and whether such actions are legal.
-These information are recorded in the <code>LMAKE</code> directory.</p>
+These information are recorded in the <code>LMAKE</code> dir.</p>
 <p>You can provide command line arguments to <code>lmake</code> to somewhat control this process.</p>
 <h2 id="problems-and-bugs"><a class="header" href="#problems-and-bugs">Problems and Bugs</a></h2>
 <p>If you have problems with open-lmake or think you've found a bug,
@@ -218,7 +218,7 @@ When generating this small <code>Lmakefile.py</code>, be sure to not use any non
 or unusual tools in your recipes: you can almost always emulate what
 such a tool would do with simple shell commands.
 Finally, be sure to explain what you expected to occur; this will help us decide whether the problem is in the code or the documentation.</p>
-<p>if your problem is non-deterministic, i.e. it shows up once in a while, include the entire content of the <code>LMAKE</code> directory.
+<p>if your problem is non-deterministic, i.e. it shows up once in a while, include the entire content of the <code>LMAKE</code> dir.
 This directory contains extensive execution traces meant to help developers to track down problems.
 Make sure, though, to trim it from any sensitive data (with regard to your IP).</p>
 <p>Once you have a precise problem, you can report it on <a href="https://github.com/cesar-douady/open-lmake">github</a></p>
@@ -463,7 +463,7 @@ In our example, we have <code>File</code> and <code>Test</code>.</p>
 <ul>
 <li>gcc version 10 and below</li>
 </ul>
-<p>It has been tested with the dockers listed in the docker directory.</p>
+<p>It has been tested with the dockers listed in the docker dir.</p>
 <h2 id="procedure"><a class="header" href="#procedure">Procedure</a></h2>
 <ul>
 <li>type <code>make</code>
@@ -472,8 +472,8 @@ In our example, we have <code>File</code> and <code>Test</code>.</p>
 <li>you must invoke <code>git clean -fdx</code> if you modified the Makefile or otherwise if you want a reliable build (<code>make</code> is not open-lmake)</li>
 <li>you may have to invoke <code>git clean -fdx lmake_env*</code> or even <code>git clean -fdx</code> after a <code>git pull</code>
 <ul>
-<li><code>lmake_env</code> is a directory which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now</li>
-<li><code>lmake_env-cache</code> is a directory containing cached results from jobs in <code>lmake_env</code></li>
+<li><code>lmake_env</code> is a dir which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now</li>
+<li><code>lmake_env-cache</code> is a dir containing cached results from jobs in <code>lmake_env</code></li>
 <li>they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail</li>
 <li>and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build</li>
 </ul>
@@ -484,17 +484,17 @@ In our example, we have <code>File</code> and <code>Test</code>.</p>
 </li>
 <li>install
 <ul>
-<li>untar <code>lmake.tar.gz</code> wherever you want and have your <code>$PATH</code> point to the <code>bin</code> directory.
+<li>untar <code>lmake.tar.gz</code> wherever you want and have your <code>$PATH</code> point to the <code>bin</code> dir.
 <ul>
-<li>the <code>bin</code> sub-directory contains the executables meant to be executed by the user</li>
-<li>the <code>_bin</code> sub-directory contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
+<li>the <code>bin</code> sub-dir contains the executables meant to be executed by the user</li>
+<li>the <code>_bin</code> sub-dir contains the executables necessary for open-lmake to run, but not meant to be directly invoked by the user
 <ul>
 <li>it also contains some executables to help debugging open-lmake itself.</li>
 </ul>
 </li>
-<li>the <code>lib</code> sub-directory contains binary and python files for use by the user</li>
-<li>the <code>_lib</code> sub-directory contains the binary and python files necessary for open-lmake to run, but not meant for direct use by the user</li>
-<li>the relative positions of these 4 directories must remain the same, i.e. they must stay in the same directory with the same names.</li>
+<li>the <code>lib</code> sub-dir contains binary and python files for use by the user</li>
+<li>the <code>_lib</code> sub-dir contains the binary and python files necessary for open-lmake to run, but not meant for direct use by the user</li>
+<li>the relative positions of these 4 directories must remain the same, i.e. they must stay in the same dir with the same names.</li>
 </ul>
 </li>
 </ul>
@@ -508,7 +508,7 @@ In our example, we have <code>File</code> and <code>Test</code>.</p>
 <li><code>$PYTHON2</code> can be set to your preferred python2 (defaults to <code>python2</code> as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
 <li><code>$PYTHON</code> can be set to your preferred python3  (defaults to <code>python3</code> as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
 <li><code>$CXX</code> can be set to your preferred C++ compiler (defaults to <code>g++</code>     as found in your <code>$PATH</code>). You will be told if it is not supported.</li>
-<li><code>$SLURM_ROOT</code> can be set to the root directory of the slurm installation (by default, <code>slurm/slurm.h</code> will be searched in the standard include path).
+<li><code>$SLURM_ROOT</code> can be set to the root dir of the slurm installation (by default, <code>slurm/slurm.h</code> will be searched in the standard include path).
 For example, <code>slurm.h</code> will be found as <code>$SLURM_ROOT/include/slurm/slurm.h</code></li>
 <li><code>$LMAKE_FLAGS</code> can be defined as O[0123]g?d?t?S[AB]P?
 <ul>
@@ -534,7 +534,7 @@ it will be transferred as a default value for rules, to the extent it is necessa
 </ul>
 <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
 <p>Open-lmake does not require to be installed.
-You can run it directly from the build directory.
+You can run it directly from the build dir.
 This is the simplest way unless you seek a system-wide installation.</p>
 <p>If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry <code>DEBIAN_DEPS</code>),
 you can make a Debian package:</p>
@@ -768,14 +768,14 @@ time can be save by avoiding full compilation with bad inputs when deps are bein
 <p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
 <h3 id="list_deps-dirnone--regexprnone-"><a class="header" href="#list_deps-dirnone--regexprnone-"><code>list_deps( dir=None , regexpr=None )</code></a></h3>
 <p>Returns a <code>tuple</code> of currently accessed deps.</p>
-<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> directory are listed.
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
 And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
 <p>If the cwd lies outside the repo, listed files are absolute.
 Else they are relative unless a dep is in an absolute source dir.</p>
 <p>The order of the listed deps is the chronological order.</p>
 <h3 id="list_targets-dirnone--regexprnone-"><a class="header" href="#list_targets-dirnone--regexprnone-"><code>list_targets( dir=None , regexpr=None )</code></a></h3>
 <p>Returns a <code>tuple</code> of currently generated targets.</p>
-<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> directory are listed.
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
 And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
 <p>If the cwd lies outside the repo, listed files are absolute.
 Else they are relative.</p>
@@ -795,14 +795,24 @@ Enclosing dirs becoming empty are removed as well if they are <code>from_dir</co
 <p>Links are copied as is, without effort to make them point to the same place.</p>
 <h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
 <p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
-Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.
-Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
-<p><code>file</code> must be a source file.</p>
+Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
+<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
+In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
+<p>Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><code>decode( file , ctx , code )</code></a></h3>
 <p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
-Else an exception is raised.
-Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
-<p><code>file</code> must be a source file.</p>
+Else an exception is raised.</p>
+<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
+In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
+<p>Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><code>xxhsum_file(file)</code></a></h3>
 <p>Return a checksum of provided file.</p>
@@ -1246,7 +1256,7 @@ Values can be:</p>
 <li><code>other</code>: cache is share with everybody, even if restricted by <code>umask</code> or ACL.</li>
 </ul>
 <p>It is usual to use this attribute when ACL are not used as most of the time, the cache wants to be share among several users and <code>umask</code> forbids it.</p>
-<p>On the contrary, when ACL are used, it is better to allow read/write accesses to the cache directory as this is more performant than relying on this attribute.</p>
+<p>On the contrary, when ACL are used, it is better to allow read/write accesses to the cache dir as this is more performant than relying on this attribute.</p>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><code>collect</code> : Dynamic</a></h3>
 <p>This attributes specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>
@@ -2788,7 +2798,7 @@ May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if def
 <h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
 <p>For all users accessing the cache:</p>
 <ul>
-<li>The root dir of the cache and its <code>LMAKE</code> directory must have read/write access (including if only download is done to maintain the LRU state).</li>
+<li>The root dir of the cache and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
 <li>The <code>LMAKE/size</code> must have read access.</li>
 </ul>
 <p>If the group to use for access permission is not the default group of the users:</p>
@@ -2887,6 +2897,13 @@ However, the file is sorted at every <code>lmake</code> command, making the cont
 <code>lencode</code> will only generate codes from checksums, but will handle any code generated externally (manually or otherwise).
 In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
 If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.</li>
+</ul>
+<p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
+In that case, all associations are stored as individual files within this dir.
+Such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->

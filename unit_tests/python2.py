@@ -51,7 +51,7 @@ else :
 	open('a_no_dep','w').write('1\n'    )
 	open('a_dep'   ,'w').write('1\n'    )
 
-	ut.lmake( 'hello+world' , done=1   , new    =4 ) # check targets are out of date
+	ut.lmake( 'hello+world' , done=1 , new=4       ) # check targets are out of date
 	open('a_dep','w').write('2\n')
 	ut.lmake( 'hello+world' , changed=1 , steady=1 ) # check target is sensitive to a_dep
 	open('a_no_dep','w').write('2\n')

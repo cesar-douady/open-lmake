@@ -29,7 +29,7 @@ For example `LMAKE/config` can contain `per='group' ; size=1.5T'`.
 
 For all users accessing the cache:
 
-- The root dir of the cache and its `LMAKE` directory must have read/write access (including if only download is done to maintain the LRU state).
+- The root dir of the cache and its `LMAKE` dir must have read/write access (including if only download is done to maintain the LRU state).
 - The `LMAKE/size` must have read access.
 
 If the group to use for access permission is not the default group of the users:

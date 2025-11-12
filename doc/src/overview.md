@@ -34,10 +34,10 @@ But special attention has been devoted in its design to ensure that it is never 
 In case of any adverse event (lmake crashes or spurious system reboot),
 open-lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
 In extreme cases, there is a `lrepair` command that can recover all safe parts of a damaged repository.
-Similarly the `ldircache_repair` command is able to recover a damaged (or manually manipulated) cache directory.
+Similarly the `ldircache_repair` command is able to recover a damaged (or manually manipulated) cache dir.
 
 Note that open-lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
-This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the directory containing the file) or jobs spuriously disappearing.
+This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the dir containing the file) or jobs spuriously disappearing.
 
 By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in `Lmakefile.py`.
 We also mean that open-lmake makes a lot of effort to determine if it is necessary to run a job (while always staying pessismistic).
@@ -61,10 +61,10 @@ lmake <my_target>
 ```
 
 suffices to perform all necessary steps so that `<my_target>` is reproduced as if all steps leading to it were carried out although only necessary steps were actually carried out.
-The `lmake` program maintains an internal state in the `LMAKE` directory to decide which files need to be regenerated.
+The `lmake` program maintains an internal state in the `LMAKE` dir to decide which files need to be regenerated.
 For each one of those, it issues the recipes recorded in `Lmakefile.py`.
 During job execution, `lmake` instruments them in order to gather which files are read and written in order to determine hidden deps and whether such actions are legal.
-These information are recorded in the `LMAKE` directory.
+These information are recorded in the `LMAKE` dir.
 
 You can provide command line arguments to `lmake` to somewhat control this process.
 
@@ -88,7 +88,7 @@ or unusual tools in your recipes: you can almost always emulate what
 such a tool would do with simple shell commands.
 Finally, be sure to explain what you expected to occur; this will help us decide whether the problem is in the code or the documentation.
 
-if your problem is non-deterministic, i.e. it shows up once in a while, include the entire content of the `LMAKE` directory.
+if your problem is non-deterministic, i.e. it shows up once in a while, include the entire content of the `LMAKE` dir.
 This directory contains extensive execution traces meant to help developers to track down problems.
 Make sure, though, to trim it from any sensitive data (with regard to your IP).
 

@@ -27,7 +27,7 @@ Following symbolic links would inevitably lead to files being read (to check if 
 .LP
 Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
 Item(B(-W),B(--write))           Report an actual write, not only target flags. Default is to only alter flags.
-Item(B(-z),B(--dir))             Specify a directory for use with I(--list).
+Item(B(-z),B(--dir))             Specify a dir for use with I(--list).
 Item(B(-l),B(--list))            Print list of currently generated targets to stdout.
 Only targets lying in the dir mentioned with I(--dir) are listed (if this option is used), and only if they match the regexpr argument (if I(--regexpr)) as reported.
 If the cwd lies outside the repo, listed files are absolute, else they are relative unless they are within an absolute source dir.

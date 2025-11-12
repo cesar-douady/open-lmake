@@ -530,7 +530,7 @@ class LinkClmakeSo(LinkLibSo,LinkJobSupport) :
 	deps    = { 'MAIN'   : 'src/autodep/clmake.o' }
 
 for remote in ('lcheck_deps','ldecode','ldepend','lencode','ltarget') :
-	class LinkRemote(LinkAppExe,LinkJobSupport) :
+	class LinkRemote(LinkPython,LinkAppExe,LinkJobSupport) :
 		name    = f'link {remote}'
 		targets = { 'TARGET' : f'bin/{remote}'           }
 		deps    = { 'MAIN'   : f'src/autodep/{remote}.o' }

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Nov 12 16:28:23 2025 -->
+<!-- CreationDate: Wed Nov 12 21:03:55 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -62,36 +62,39 @@ using the command <b>lencode</b>(1) with the same
 association_file and context. The value corresponding to
 <i>code</i> is output on stdout.</p>
 
-<p style="margin-left:9%; margin-top: 1em">It is an error
-if</p>
+
+<p style="margin-left:9%; margin-top: 1em"><i>association_file</i>
+(symbolic links are followed) may be either a source file
+within repo or a dir (ending with <b>/&rsquo;&rsquo;</b>)
+that lies within a source dir. In the latter case, such a
+dir must lie within a source dir and must contain a file
+<i>LMAKE/config.py</i> containing definitions for : <b><br>
+file_sync</b></p>
+
+<p style="margin-left:18%;">one of <b>none</b>, <b>dir</b>
+(default) or <b>sync</b> for choosing the method to ensure
+proper consistent operations.</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
 <tr valign="top" align="left">
 <td width="9%"></td>
-<td width="1%">
+<td width="5%">
 
 
-<p>&bull;</p></td>
-<td width="8%"></td>
+<p><b>perm</b></p></td>
+<td width="4%"></td>
 <td width="82%">
 
 
-<p><i>association_file</i> is not a source (symbolic links
-are followed, though)</p></td></tr>
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="82%">
-
-
-<p><i>code</i> cannot be found with the accompanying
-<i>context</i></p> </td></tr>
+<p>one of <b>none</b>, <b>group</b> or <b>other</b> which
+specifies who is given permission to access this shared
+dir.</p> </td></tr>
 </table>
+
+<p style="margin-left:9%; margin-top: 1em">It is also an
+error if <i>code</i> cannot be found with the accompanying
+<i>context</i>.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Usage and use
 cases are more extensively documented the full

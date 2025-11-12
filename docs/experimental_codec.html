@@ -233,6 +233,13 @@ However, the file is sorted at every <code>lmake</code> command, making the cont
 In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
 If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.</li>
 </ul>
+<p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
+In that case, all associations are stored as individual files within this dir.
+Such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
 
                     </main>
 

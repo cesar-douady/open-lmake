@@ -53,7 +53,7 @@ Item(B(-v),B(--verbose))
 	.RE
 	.IP
 Item(B(-R),B(--read))            Report an actual read. Default is to only alter flags.
-Item(B(-z),B(--dir))             Specify a directory for use with I(--list).
+Item(B(-z),B(--dir))             Specify a dir for use with I(--list).
 Item(B(-l),B(--list))            Print list of currently accessed deps to stdout.
 Only deps lying in the dir mentioned with I(--dir) are listed (if this option is used), and only if they match the regexpr argument (if I(--regexpr)) as reported.
 If the cwd lies outside the repo, listed files are absolute, else they are relative unless they are within an absolute source dir.

@@ -234,9 +234,10 @@ namespace Backdoor {
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;
 		// data
-		::string file = {} ;
-		::string ctx  = {} ;
-		::string code = {} ;
+		::string file      = {}             ;
+		::string ctx       = {}             ;
+		::string code      = {}             ;
+		FileSync file_sync = FileSync::Dflt ;
 	} ;
 
 	struct Encode {
@@ -248,10 +249,12 @@ namespace Backdoor {
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;
 		// data
-		::string file    = {} ;
-		::string ctx     = {} ;
-		::string val     = {} ;
-		uint8_t  min_len = 0  ;
+		::string file      = {}             ;
+		::string ctx       = {}             ;
+		::string val       = {}             ;
+		uint8_t  min_len   = 0              ;
+		PermExt  perm_ext  = {}             ;
+		FileSync file_sync = FileSync::Dflt ;
 	} ;
 
 }

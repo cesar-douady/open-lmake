@@ -11,7 +11,7 @@ If you experience any of the following time-wasting situations:
 - Your computer executes some stuff you are sure or almost sure (say 99%) is useless.
 - You use a single computer although you have access to a compute farm.
 - You have not parallelized what can be done because it would take longer to write a sound parallelizing script.
-- You have written scripts while you felt that a sound organization of your workspace would have avoided such a need (e.g. preparing a clean tmp directory and cleaning it at the end).
+- You have written scripts while you felt that a sound organization of your workspace would have avoided such a need (e.g. preparing a clean tmp dir and cleaning it at the end).
 - You have written ad-hoc scripts to handle rather generic situations (e.g. detecting a file changed to save work in case it did not).
 - You navigate through your fancy workspace and each step is like a criminal investigation because you don't have the necessary forward & backward pointers (w.r.t your flow).
 - What works in your colleague & friend's repository does not work in yours or vice versa.

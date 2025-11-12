@@ -86,3 +86,9 @@ This has the following properties:
   In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
   If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.
 
+Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
+In that case, all associations are stored as individual files within this dir.
+Such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+
+- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.

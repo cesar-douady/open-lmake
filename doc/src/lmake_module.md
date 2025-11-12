@@ -243,7 +243,7 @@ executes `<some code>` with autodep active set as instructed.
 
 Returns a `tuple` of currently accessed deps.
 
-If `dir` is not `None`, oonly deps lying in the `dir` directory are listed.
+If `dir` is not `None`, oonly deps lying in the `dir` dir are listed.
 And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
 
 If the cwd lies outside the repo, listed files are absolute.
@@ -255,7 +255,7 @@ The order of the listed deps is the chronological order.
 
 Returns a `tuple` of currently generated targets.
 
-If `dir` is not `None`, oonly deps lying in the `dir` directory are listed.
+If `dir` is not `None`, oonly deps lying in the `dir` dir are listed.
 And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
 
 If the cwd lies outside the repo, listed files are absolute.
@@ -290,17 +290,27 @@ Links are copied as is, without effort to make them point to the same place.
 
 If a code is associated to `val` within file `file` and context `ctx`, return it.
 Else a code is created, of length at least `min_length`, is associated to `val` and is return.
-Cf. [encode/decode](experimental_codec.html).
 
-`file` must be a source file.
+`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
+In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+
+- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
+
+Cf. [encode/decode](experimental_codec.html).
 
 ### `decode( file , ctx , code )`
 
 If a val is associated to `code` within file `file` and context `ctx`, return it.
 Else an exception is raised.
-Cf. [encode/decode](experimental_codec.html).
 
-`file` must be a source file.
+`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
+In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+
+- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
+
+Cf. [encode/decode](experimental_codec.html).
 
 Associations are usually created using `encode` but not necessarily (they can be created by hand).
 

@@ -247,7 +247,7 @@ Values can be:
 
 It is usual to use this attribute when ACL are not used as most of the time, the cache wants to be share among several users and `umask` forbids it.
 
-On the contrary, when ACL are used, it is better to allow read/write accesses to the cache directory as this is more performant than relying on this attribute.
+On the contrary, when ACL are used, it is better to allow read/write accesses to the cache dir as this is more performant than relying on this attribute.
 
 ### `collect` : Dynamic
 

@@ -324,7 +324,7 @@ Values can be:</p>
 <li><code>other</code>: cache is share with everybody, even if restricted by <code>umask</code> or ACL.</li>
 </ul>
 <p>It is usual to use this attribute when ACL are not used as most of the time, the cache wants to be share among several users and <code>umask</code> forbids it.</p>
-<p>On the contrary, when ACL are used, it is better to allow read/write accesses to the cache directory as this is more performant than relying on this attribute.</p>
+<p>On the contrary, when ACL are used, it is better to allow read/write accesses to the cache dir as this is more performant than relying on this attribute.</p>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><code>collect</code> : Dynamic</a></h3>
 <p>This attributes specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>

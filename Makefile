@@ -656,8 +656,7 @@ AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
 REMOTE_OBJS  := \
 	$(BASIC_REMOTE_OBJS) \
 	src/app.o            \
-	src/trace.o          \
-	src/autodep/job_support.o
+	src/trace.o
 
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
@@ -701,24 +700,24 @@ _bin/job_exec bin/lautodep :
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
-bin/ldecode     : $(REMOTE_OBJS) src/autodep/ldecode.o
-bin/ldepend     : $(REMOTE_OBJS) src/autodep/ldepend.o
-bin/lencode     : $(REMOTE_OBJS) src/autodep/lencode.o
-bin/ltarget     : $(REMOTE_OBJS) src/autodep/ltarget.o
-bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/lcheck_deps.o
+bin/ldecode     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/ldecode.o
+bin/ldepend     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/ldepend.o
+bin/lencode     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/lencode.o
+bin/ltarget     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/ltarget.o
+bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/lcheck_deps.o
 
 bin/% :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(LIB_STDCPP) -o $@ $^ $(PCRE_LIB) $(LINK_LIB)
+	@$(LINK) $(LIB_STDCPP) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 # remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)
 
 LMAKE_DBG_FILES += lib/clmake.so $(if $(HAS_PY2_DYN),lib/clmake2.so)
 lib/clmake.so lib/clmake2.so : SO_FLAGS = $(PY_LINK_FLAGS)
-lib/clmake.so                : $(REMOTE_OBJS) src/py.o     src/autodep/clmake.o
-lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/clmake-py2.o
+lib/clmake.so                : $(REMOTE_OBJS) src/py.o     src/autodep/job_support.o     src/autodep/clmake.o
+lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/job_support-py2.o src/autodep/clmake-py2.o
 
 lib/%.so :
 	@mkdir -p $(@D)

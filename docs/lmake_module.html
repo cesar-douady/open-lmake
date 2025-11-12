@@ -349,14 +349,14 @@ time can be save by avoiding full compilation with bad inputs when deps are bein
 <p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
 <h3 id="list_deps-dirnone--regexprnone-"><a class="header" href="#list_deps-dirnone--regexprnone-"><code>list_deps( dir=None , regexpr=None )</code></a></h3>
 <p>Returns a <code>tuple</code> of currently accessed deps.</p>
-<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> directory are listed.
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
 And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
 <p>If the cwd lies outside the repo, listed files are absolute.
 Else they are relative unless a dep is in an absolute source dir.</p>
 <p>The order of the listed deps is the chronological order.</p>
 <h3 id="list_targets-dirnone--regexprnone-"><a class="header" href="#list_targets-dirnone--regexprnone-"><code>list_targets( dir=None , regexpr=None )</code></a></h3>
 <p>Returns a <code>tuple</code> of currently generated targets.</p>
-<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> directory are listed.
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
 And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
 <p>If the cwd lies outside the repo, listed files are absolute.
 Else they are relative.</p>
@@ -376,14 +376,24 @@ Enclosing dirs becoming empty are removed as well if they are <code>from_dir</co
 <p>Links are copied as is, without effort to make them point to the same place.</p>
 <h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
 <p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
-Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.
-Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
-<p><code>file</code> must be a source file.</p>
+Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
+<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
+In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
+<p>Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><code>decode( file , ctx , code )</code></a></h3>
 <p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
-Else an exception is raised.
-Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
-<p><code>file</code> must be a source file.</p>
+Else an exception is raised.</p>
+<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
+In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
+<p>Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><code>xxhsum_file(file)</code></a></h3>
 <p>Return a checksum of provided file.</p>
