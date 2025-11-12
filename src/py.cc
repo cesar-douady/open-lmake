@@ -62,7 +62,7 @@ namespace Py {
 		py_get_sys("implementation").set_attr("cache_tag",None) ;                                      // avoid pyc management
 		//
 		List& py_path = py_get_sys<List>("path") ;
-		py_path.append( *Ptr<Str>(lmake_root_s+"lib") ) ;
+		if (+lmake_root_s) py_path.append( *Ptr<Str>(lmake_root_s+"lib") ) ;
 		//
 		SWEAR( !_g_std_sys_path , _g_std_sys_path ) ;
 		/**/                       _g_std_sys_path = New ;

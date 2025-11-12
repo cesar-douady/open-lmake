@@ -31,6 +31,8 @@
 
 // XXX? : implement timeout when locking cache (cache v1 is a proof of concept anyway)
 
+#include "py.hh" // /!\ must be included first as Python.h must be included first
+
 #include "app.hh"
 #include "msg.hh"
 
@@ -40,6 +42,7 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Py   ;
 using namespace Time ;
 
 namespace Caches {
@@ -76,26 +79,42 @@ namespace Caches {
 
 	void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
 		Trace trace("DirCache::config",dct.size(),STR(may_init)) ;
-		for( auto const& [key,val] : dct ) {
-			try {
-				switch (key[0]) {
-					case 'd' : if (key=="dir"      ) { dir_s     = with_slash       (val) ; continue ; } break ;
-					case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ; continue ; } break ;
-					case 'k' : if (key=="key"      ) { key_crc   = Crc(New          ,val) ; continue ; } break ;
-					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >(val) ; continue ; } break ;
-				DN}
-			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
-			/**/                        { trace("bad_key",key    ) ; throw cat("unexpected config entry : ",key         ) ; }
-		}
+		auto acquire_dct = [&]( ::vmap_ss const& d , uint8_t pass ) {
+			for( auto const& [key,val] : d ) {
+				try {
+					switch (key[0]) {
+						case 'd' : if ( key=="dir"            ) { { if (pass==0) dir_s     = with_slash           (val) ; } continue ; } break ; // dir is necessary to access cache
+						case 'f' : if ( key=="file_sync"      ) { { if (pass>=1) file_sync = mk_enum<FileSync>    (val) ; } continue ; } break ;
+						case 'i' : if ( key=="inf" && pass==1 ) {                                                           continue ; } break ; // auto-defined by py_run
+						case 'k' : if ( key=="key"            ) { { if (pass==2) key_crc   = Crc(New              ,val) ; } continue ; } break ; // key cannot be shared as it identifies repo
+						case 'n' : if ( key=="nan" && pass==1 ) {                                                           continue ; } break ; // auto-defined by py_run
+						case 'p' : if ( key=="perm"           ) { { if (pass>=1) perm_ext  = mk_enum<PermExt >    (val) ; } continue ; } break ;
+						case 's' : if ( key=="size"           ) { { if (pass==1) max_sz    = from_string_with_unit(val) ; } continue ; } break ; // size must be shared as it cannot depend on repo
+					DN}
+				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
+				/**/                        { trace("bad_key",key    ) ; throw cat("unexpected config entry : ",key         ) ; }
+			}
+		} ;
+		acquire_dct( dct , 0/*pass*/ ) ; throw_unless( +dir_s , "dir must be specified for dir_cache") ;
 		_compile() ;
+		::string  config_file = admin_dir_s+"config.py" ;    ;
+		AcFd      config_fd   { config_file,{.err_ok=true} } ;
+		if (+config_fd) {Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
+		/**/                       acquire_dct( dct                       , 2/*.   */ ) ;
 		//
-		::string sz_file = admin_dir_s+"size"         ;
-		AcFd     sz_fd   { sz_file , {.err_ok=true} } ; throw_unless( +sz_fd , "file must exist and contain the size of the cache : ",sz_file ) ;
-		try                       { max_sz = from_string_with_unit(strip(sz_fd.read())) ; }
-		catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;           }
+		if (!max_sz) { // XXX> : remove when compatibility with v25.07 is no more required
+			::string sz_file = admin_dir_s+"size" ;
+			if (FileInfo(sz_file).exists()) {
+				Fd::Stderr.write(cat(sz_file," is deprecated, use size=<value> entry in ",config_file,'\n')) ;
+				try                       { max_sz = from_string_with_unit(strip(AcFd(sz_file).read())) ; }
+				catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;                   }
+			}
+		}
+		throw_unless( max_sz , "size must be specified for dir_cache ",no_slash(dir_s)," as size=<value> in ",config_file ) ;
 		//
 		try                     { chk_version( may_init , admin_dir_s , perm_ext) ;         }
 		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
+		//
 	}
 
 	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard* nfs_guard ) const {
@@ -172,9 +191,12 @@ namespace Caches {
 				case FileTag::Empty :
 					if (f.starts_with(HeadS)) {
 						::string_view sv = substr_view(f,sizeof(HeadS)-1) ;                                                                  // -1 to account for terminating null
-						if (sv=="lru"    ) continue ;
-						if (sv=="size"   ) continue ;
-						if (sv=="version") continue ;
+						switch (sv[0]) {
+							case 'c' : if (sv=="config.py") continue ; break ;
+							case 'l' : if (sv=="lru"      ) continue ; break ;
+							case 's' : if (sv=="size"     ) continue ; break ;
+							case 'v' : if (sv=="version"  ) continue ; break ;
+						DN}
 					}
 					if ( Re::Match m=entry_re.match(f) ; +m )
 						if ( ::string tag{m.group(f,4)} ; can_mk_enum<RepairTag>(tag)) {

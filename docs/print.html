@@ -2772,9 +2772,19 @@ They are:</p>
 <p>Several cache mechanisms will be implemented but for now, ony one exists.</p>
 <h2 id="dircache"><a class="header" href="#dircache">DirCache</a></h2>
 <p>This cache is based on a shared dir and requires no running daemon.</p>
-<p>It must be initialized with a file <code>LMAKE/size</code> containing the overall size the cache is allowed to occupy.
-The value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
-For example <code>LMAKE/size</code> can contain <code>1.5T</code>.</p>
+<p>It must be initialized with a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> (optional) as the method to use to ensure consistent access to the file system containing the cache.
+It may be <code>'none'</code>, <code>'dir'</code> (Default) or <code>'sync'</code> (cf. <a href="config.html">file_sync</a>).
+May be overridden by `Lmakefile.lmake.config.caches.<this cache>.file_sync if defined.</li>
+<li><code>perm</code> (optional) as the permissions to use when creating files in the cache, overriding current umask.
+It may be <code>'none'</code> (default), <code>'group'</code> (share cache within user group) or <code>'other'</code> (shared cache with everybody)
+May be overridden by `Lmakefile.lmake.config.caches.<this cache>.perm if defined.</li>
+<li><code>size</code> (required) as the overall size the cache is allowed to occupy.
+It can be an <code>int</code> (in bytes) or a <code>str</code> in which case value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
+May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if defined.</li>
+</ul>
+<p>For example <code>LMAKE/config</code> can contain <code>per='group' ; size=1.5T'</code>.</p>
 <h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
 <p>For all users accessing the cache:</p>
 <ul>

@@ -406,7 +406,7 @@ class LinkPython(Link) :
 	}
 	need_python = True
 
-class LinkAutodep(LinkAutodepEnv) :
+class LinkAutodep(LinkPython,LinkAutodepEnv) :
 	virtual = True
 	deps = {
 		'BACKDOOR'     : 'src/autodep/backdoor.o'
@@ -429,15 +429,15 @@ class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :
 	,	'LD'  : 'src/autodep/ld_{Method}.o'
 	}
 
-class LinkAutodepExe(LinkPython,LinkAutodep,LinkAppExe) :
+class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lautodep'          }
 	deps    = { 'MAIN'   : 'src/autodep/lautodep.o' }
 
-class LinkJobExecExe(LinkPython,LinkAutodep,LinkAppExe) :
+class LinkJobExecExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }
 	deps    = { 'MAIN'   : 'src/job_exec.o' }
 
-class LinkLmakeserverExe(LinkPython,LinkAutodep,LinkAppExe) :
+class LinkLmakeserverExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
@@ -469,7 +469,7 @@ class LinkLrepairExe(LinkLmakeserverExe) :
 		'MAIN' : 'src/lrepair.o' # lrepair is a server with another main
 	}
 
-class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
+class LinkLdumpExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/ldump' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
@@ -490,7 +490,7 @@ class LinkLdumpExe(LinkPython,LinkAutodep,LinkAppExe) :
 	}
 	need_compress = True
 
-class LinkLdumpJobExe(LinkAppExe,LinkAutodepEnv) :
+class LinkLdumpJobExe(LinkPython,LinkAppExe,LinkAutodepEnv) :
 	targets = { 'TARGET' : '_bin/ldump_job' }
 	deps = {
 		'RPC_JOB'      : 'src/rpc_job.o'

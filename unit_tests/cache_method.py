@@ -35,7 +35,7 @@ else :
 	# use setfacl(1) with adequate rights in the default ACL, e.g. :
 	# os.system('setfacl -m d:g::rw,d:o::r CACHE')
 	os.makedirs('CACHE/LMAKE')
-	print('1M',file=open('CACHE/LMAKE/size','w'))
+	print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
 
 	ut.lmake( '-cnone'     , 'stable1'  , 'stable2'  , 'stable3'  , 'stable4'  , 'unstable1'  , 'unstable2'  , 'unstable3'  , 'unstable4'  , done=8 )
 	ut.lmake( '-cdownload' , 'stable5'  , 'stable6'  , 'stable7'  , 'stable8'  , 'unstable5'  , 'unstable6'  , 'unstable7'  , 'unstable8'  , done=8 )

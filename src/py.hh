@@ -404,6 +404,11 @@ namespace Py {
 		static constexpr const char* Name = "list/tuple" ;
 		using Base = Object ;
 		template<bool C> friend struct SequenceIter ;
+		// cxtors & casts
+		operator ::vector_s() const {
+			::vector_s res ; for( Object const& py_v : self ) res.emplace_back(*py_v.str()) ;
+			return res ;
+		}
 		// accesses
 		bool   qualify() const { return PyTuple_Check(to_py()) || PyList_Check(to_py()) ; }
 		size_t size   () const { return PySequence_Fast_GET_SIZE(to_py())               ; }
@@ -520,6 +525,11 @@ namespace Py {
 		using value_type = ::pair<Object const&,Object&> ;
 		// statics
 		static Dict* s_builtins ;
+		// cxtors & casts
+		operator ::vmap_ss() const {
+			::vmap_ss res ; for( auto const& [py_k,py_v] : self ) res.emplace_back( *py_k.str() , *py_v.str() ) ;
+			return res ;
+		}
 		// services
 		bool   qualify() const { return PyDict_Check(to_py()) ; }
 		size_t size   () const { return PyDict_Size (to_py()) ; }
@@ -628,7 +638,7 @@ namespace Py {
 	// functions
 	//
 
-	void init(::string const& lmake_root_s) ;
+	void init(::string const& lmake_root_s={}) ;
 
 	template<class T=Object> T& py_get_sys(::string const& name) {
 		Gil::s_swear_locked() ;

@@ -11,9 +11,19 @@ Several cache mechanisms will be implemented but for now, ony one exists.
 
 This cache is based on a shared dir and requires no running daemon.
 
-It must be initialized with a file `LMAKE/size` containing the overall size the cache is allowed to occupy.
-The value may end with a unit suffix in `k`, `M`, `G`, `T` (powers of 1024).
-For example `LMAKE/size` can contain `1.5T`.
+It must be initialized with a file `LMAKE/config.py` containing definitions for :
+
+- `file_sync` (optional) as the method to use to ensure consistent access to the file system containing the cache.
+It may be `'none'`, `'dir'` (Default) or `'sync'` (cf. [file_sync](config.html)).
+May be overridden by `Lmakefile.lmake.config.caches.<this cache>.file_sync if defined.
+- `perm` (optional) as the permissions to use when creating files in the cache, overriding current umask.
+It may be `'none'` (default), `'group'` (share cache within user group) or `'other'` (shared cache with everybody)
+May be overridden by `Lmakefile.lmake.config.caches.<this cache>.perm if defined.
+- `size` (required) as the overall size the cache is allowed to occupy.
+It can be an `int` (in bytes) or a `str` in which case value may end with a unit suffix in `k`, `M`, `G`, `T` (powers of 1024).
+May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if defined.
+
+For example `LMAKE/config` can contain `per='group' ; size=1.5T'`.
 
 ### Permissions
 

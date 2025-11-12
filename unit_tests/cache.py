@@ -89,7 +89,7 @@ else :
 		os.makedirs('CACHE/LMAKE')
 		os.chmod('CACHE'      ,0o775)
 		os.chmod('CACHE/LMAKE',0o775)
-		print('1M',file=open('CACHE/LMAKE/size','w'))
+		print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
 
 		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date
 		ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up to date

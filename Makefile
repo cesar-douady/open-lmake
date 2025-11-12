@@ -490,6 +490,8 @@ src/lmakeserver/backends/slurm_api-%.cc : ext/slurm/%/META
 SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
 RPC_JOB_OBJS := \
+	src/py.o      \
+	src/re.o      \
 	src/rpc_job.o \
 	src/caches/dir_cache.o
 RPC_JOB_SAN_OBJS := $(RPC_JOB_OBJS:%.o=%$(SAN).o)
@@ -505,8 +507,6 @@ SERVER_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)           \
 	$(RPC_JOB_SAN_OBJS)               \
 	src/app$(SAN).o                   \
-	src/py$(SAN).o                    \
-	src/re$(SAN).o                    \
 	src/rpc_client$(SAN).o            \
 	src/rpc_job_exec$(SAN).o          \
 	src/trace$(SAN).o                 \
@@ -569,14 +569,13 @@ bin/ldircache_repair : \
 	$(LMAKE_BASIC_SAN_OBJS)  \
 	$(RPC_JOB_SAN_OBJS)      \
 	src/app$(SAN).o          \
-	src/re$(SAN).o           \
 	src/rpc_job_exec$(SAN).o \
 	src/trace$(SAN).o        \
 	src/autodep/env$(SAN).o  \
 	src/ldircache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/lcollect : $(CLIENT_SAN_OBJS) src/lcollect$(SAN).o
@@ -605,7 +604,6 @@ _bin/ldump_job : \
 	$(LMAKE_BASIC_SAN_OBJS)  \
 	$(RPC_JOB_SAN_OBJS)      \
 	src/app$(SAN).o          \
-	src/re$(SAN).o           \
 	src/rpc_job_exec$(SAN).o \
 	src/trace$(SAN).o        \
 	src/autodep/env$(SAN).o  \
@@ -667,7 +665,6 @@ REMOTE_OBJS  := \
 #	$(RPC_JOB_SAN_OBJS)        \
 #	src/app$(SAN).o            \
 #	src/non_portable$(SAN).o   \
-#	src/re$(SAN).o             \
 #	src/trace$(SAN).o          \
 #	src/autodep/gather$(SAN).o \
 #	src/autodep/ptrace$(SAN).o \
@@ -688,7 +685,6 @@ JOB_EXEC_OBJS := \
 	$(RPC_JOB_OBJS)      \
 	src/app.o            \
 	src/non_portable.o   \
-	src/re.o             \
 	src/trace.o          \
 	src/autodep/gather.o \
 	src/autodep/ptrace.o \
@@ -827,10 +823,10 @@ lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 		echo reset lmake_env book-keeping ;               \
 		rm -rf LMAKE ../lmake_env-cache   ;               \
 	}
-	@[ -f lmake_env-cache/LMAKE/size ] || {       \
-		echo init lmake_env-cache               ; \
-		mkdir -p lmake_env-cache/LMAKE          ; \
-		echo '100M' >lmake_env-cache/LMAKE/size ; \
+	@[ -f lmake_env-cache/LMAKE/size ] || {                    \
+		echo init lmake_env-cache                            ; \
+		mkdir -p lmake_env-cache/LMAKE                       ; \
+		echo 'size=100<<20' >lmake_env-cache/LMAKE/config.py ; \
 	}
 	@set -e ; cd lmake_env                            ; \
 	export CXX=$(CXX)                                 ; \

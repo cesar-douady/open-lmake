@@ -18,7 +18,7 @@ if __name__!='__main__' :
 	from lmake.rules import Rule,PyRule
 
 	lmake.config.backends.local.cpu     = n_jobs
-	lmake.config.network_delay          =    10  # host is overloaded
+	lmake.config.network_delay          =    20  # host is overloaded
 	lmake.config.trace.n_jobs           = 20000  # ensure we keep all traces for analysis
 	lmake.config.console.date_precision =     3
 	lmake.config.trace.size             = 1<<30

@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "py.hh" // /!\ must be included first as Python.h must be included first
+
 #include "app.hh"
 #include "caches/dir_cache.hh"
 
@@ -18,6 +20,8 @@ int main( int argc , char* argv[]) {
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	if (cmd_line.args.size()<1) syntax.usage("must provide a cache dir to repair") ;
 	if (cmd_line.args.size()>1) syntax.usage("cannot repair several cache dirs"  ) ;
+	//
+	Py::init() ;
 	//
 	DirCache cache ;
 	//

@@ -71,7 +71,7 @@ else :
 	# use setfacl(1) with adequate rights in the default ACL, e.g. :
 	# os.system('setfacl -m d:g::rw,d:o::r CACHE')
 	os.makedirs('CACHE/LMAKE')
-	print('1G',file=open('CACHE/LMAKE/size','w'))
+	print('size=1<<30',file=open('CACHE/LMAKE/config.py','w'))
 
 	rustup_home = osp.dirname(osp.dirname(osp.dirname(cargo)))+'/.rustup'
 	print(f'rustup_home={rustup_home!r}',file=open('step.py','w'))

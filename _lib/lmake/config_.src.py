@@ -23,7 +23,7 @@ else :
 
 #_group = _os.getgroups()[0]
 
-def _system_tag() :              # by default re-read Lmakefile as soon as the executing host changes
+def _system_tag() :             # by default re-read Lmakefile as soon as the executing host changes
 	return _os.uname().nodename
 
 # /!\ default values must stay in sync with src/lmakeserver/config.hh
@@ -75,9 +75,11 @@ config = pdict(
 	)
 ,	caches = pdict(                                         # PER_CACHE : provide an explanation for each cache method
 	#	dir = pdict(                                        # when rule specifies cache = 'dir' , this cache is selected
-	#		tag = 'dir'                                     # specify the caching method, must be one of the supported method
-	#	,	key = repo_root/git-sha1                        # an id that identifies the repository, no more than one entry is stored in the cache for a given job and tag
-	#	,	dir = '/cache_dir'                              # the directory in which cached results are stored
+	#		tag       = 'dir'                               # specify the caching method, must be one of the supported method
+	#	,	key       = '<repo_root>/<git-sha1>'            # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
+	#	,	dir       = '/cache_dir'                        # the directory in which cached results are stored
+	#	,	file_sync = 'dir'                               # synchronization method used to ensure consistent accesses to the cache, possible values are 'none', 'dir'(default) and 'sync'
+	#	,	perm      = 'group'                             # access permission (on top of umask) to cache. possible values are 'none', 'group' and 'other'
 	#	)
 	)
 ,	collect = pdict(

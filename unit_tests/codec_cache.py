@@ -36,7 +36,7 @@ else :
 	import ut
 
 	os.makedirs('CACHE/LMAKE',exist_ok=True)
-	print('1M',file=open('CACHE/LMAKE/size','w'))
+	print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
 
 	open('codec_file','w').write(
 		'\tcode2\tctx\tval2\n'    # lines are out of order to generate refresh line
