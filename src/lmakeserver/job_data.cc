@@ -818,7 +818,7 @@ namespace Engine {
 		using namespace Codec ;
 		// there must be a single dep which is the codec file
 		Job      job        = idx()                         ;
-		Node     file       ;                                 for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,idx()) ;
+		Node     file       ;                                 for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,job) ;
 		::string file_name  = file->name()                  ;
 		::string manifest   ;
 		NfsGuard nfs_guard  { Engine::g_config->file_sync } ;
@@ -834,10 +834,10 @@ namespace Engine {
 		::map_s /*ctx*/<::map_ss/*code->val */> decode_tab     ;
 		::string                                codec_dir_s    = CodecFile::s_dir_s(file_name)                               ;
 		//
-		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                             // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
+		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                                       // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			::string tmp_codec_dir_s = CodecFile::s_dir_s(file_name,CodecDir::Tmp) ;
-			SWEAR( !old_decode_tab , file_name ) ;                                   // cannot have old codes if not initialized
-			mk_dir_s(tmp_codec_dir_s) ;                                              // we want a dir to appear initialized, even if empty
+			SWEAR( !old_decode_tab , file_name ) ;                                             // cannot have old codes if not initialized
+			mk_dir_s(tmp_codec_dir_s) ;                                                        // we want a dir to appear initialized, even if empty
 			decode_tab = _mk_decode_tab(encode_tab) ;
 			for( auto const& [ctx,d_entry] : decode_tab ) {
 				manifest << mk_printable(ctx) <<'\n' ;
@@ -848,10 +848,10 @@ namespace Engine {
 					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 				}
 			}
-			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                  // global move
+			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                            // global move
 		} else {
 			::string  new_codes_file_name = CodecFile::s_new_codes_file(file_name)           ;
-			CodecLock lock                = CodecLock( file_name , {.nfs_guard=&nfs_guard} ) ;                             // if we cannot lock, jobs do not access db, so no need to lock
+			CodecLock lock                = CodecLock( file_name , {.nfs_guard=&nfs_guard} ) ; // if we cannot lock, jobs do not access db, so no need to lock
 			//
 			_update_old_decode_tab( file_name , new_codes_file_name , /*inout*/old_decode_tab                          ) ;
 			_update_encode_tab    (             new_codes_file_name , /*inout*/encode_tab     , /*inout*/has_new_codes ) ;
@@ -977,13 +977,17 @@ namespace Engine {
 			req->audit_stderr(                              job , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 		}
 		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                   // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
-		cache_hit_info = CacheHitInfo::NoCache ;                                                   // ... just record deps to trigger building on a best effort basis
 		CacheIdx cache_idx = 0 ;
-		if ( +req->cache_method && +submit_ancillary_attrs.cache ) {
+		if      (!submit_ancillary_attrs.cache) cache_hit_info = CacheHitInfo::NoCache    ;        // ... just record deps to trigger building on a best effort basis
+		else if (!req->cache_method           ) cache_hit_info = CacheHitInfo::NoDownload ;
+		else {
 			auto it = g_config->cache_idxs.find(submit_ancillary_attrs.cache) ;
-			if (it!=g_config->cache_idxs.end()) {
+			if (it==g_config->cache_idxs.end()) cache_hit_info = CacheHitInfo::BadCache ;
+			else {
 				cache_idx = it->second ;
-				if ( cache_idx && has_download(req->cache_method) ) {
+				if (!cache_idx                      ) cache_hit_info = CacheHitInfo::BadCache   ;
+				if (!has_download(req->cache_method)) cache_hit_info = CacheHitInfo::NoDownload ;
+				else {
 					::vmap_s<DepDigest> dns ;
 					for( Dep const& d : deps ) {
 						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                        // provide node actual crc as this is the hit criteria
@@ -1037,6 +1041,7 @@ namespace Engine {
 								goto ReportHit ;
 							} catch (::string const&e) {                                                                        // if we cant download result, it is like a miss
 								trace("cache_hit_throw",e) ;
+								cache_hit_info = CacheHitInfo::BadDownload ;
 								req->audit_job ( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
 								req->audit_info( Color::Note    , e , 1/*lvl*/                           ) ;
 							}

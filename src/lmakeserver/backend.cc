@@ -783,7 +783,7 @@ namespace Backends {
 		trace("done") ;
 	}
 
-	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& config , bool dyn , bool first_time ) {
+	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& cfgs , bool dyn , bool first_time ) {
 		if (!dyn) {                                                                                                                     // if dyn, threads are already running
 			// threads must be stopped while store is still mapped, i.e. before main() returns
 			_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;                          s_record_thread('H',_s_heartbeat_thread             ) ;
@@ -800,13 +800,14 @@ namespace Backends {
 		for( Tag t : iota(1,All<Tag>) ) {                                                                                               // local backend is always available
 			auto                 & be        = s_tab [+t] ; if (!be) { trace("not_implemented",t) ; continue ; }
 			bool                   was_ready = s_ready(t) ;
-			Config::Backend const& cfg       = config[+t] ;
+			Config::Backend const& cfg       = cfgs[+t]   ;
 			if (!cfg.configured) {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend ",t ) ;
 				be->config_err = "not configured" ;                                                                                     // empty config_err means ready
 				trace("not_configured" ,t) ;
 				continue ;
 			}
+			be->fqdn_ = +cfg.domain_name ? cat(host(),'.',cfg.domain_name) : fqdn() ;
 			try {
 				be->config(cfg.dct,cfg.env,dyn) ;
 			} catch (::string const& e) {
@@ -859,7 +860,7 @@ namespace Backends {
 		entry.reqs         = ::move(reqs        ) ;
 		entry.rsrcs        = ::move(rsrcs       ) ;
 		trace("create_start_tab",entry) ;
-		::string const& server_host = tag==Tag::Local || +s_tab[+tag]->addr_str ? s_tab[+tag]->addr_str : fqdn() ; // local backend always has an empty addr_str field
+		::string const& server_host = tag==Tag::Local || +s_tab[+tag]->addr_str ? s_tab[+tag]->addr_str : fqdn_ ; // local backend always has an empty addr_str field
 		::vector_s cmd_line {
 			_s_job_exec
 		,	_s_job_start_thread.fd.service_str(server_host) // server address is only passed as start service as others use the same

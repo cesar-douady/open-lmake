@@ -626,7 +626,7 @@ namespace Engine {
 	}
 
 	::string& operator+=( ::string& os , Rule::RuleMatch const& m ) { // START_OF_NO_COV
-		os << "RSM(" << m.rule << ',' << m.stems << ')' ;
+		os << "RM(" << m.rule << ',' << m.stems << ')' ;
 		return os ;
 	}                                                                 // END_OF_NO_COV
 

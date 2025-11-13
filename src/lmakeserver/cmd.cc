@@ -895,7 +895,7 @@ namespace Engine {
 								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
 								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
 							}
-							if (+job->cache_hit_info) push_entry( "cache hit info" , snake_str(job->cache_hit_info) ) ;
+							if (+job->cache_hit_info) push_entry( "cache hit info" , CacheHitInfoStrs[+job->cache_hit_info].second ) ;
 							if (+start) {
 								JobInfoStart const& rs       = job_info.start          ;
 								SubmitAttrs  const& sa       = rs.submit_attrs         ;

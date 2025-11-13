@@ -93,7 +93,11 @@ if '.config.' in actions :
 		)
 		config.system_tag = expr.glbs+'system_tag = '+expr.expr
 	if is_top :
-		for be in config.get('backends',{}).values() : be.pop('interface',None)                                           # XXX> suppress when compatibility with v25.07 is no more necessary
+		for tag,be in config.get('backends',{}).items() :
+			if 'interface' in be :
+				del be['interface']                                                                                       # XXX> suppress when compatibility with v25.07 is no more necessary
+				print(f'lmake.config.backends.{tag}.interface is deprecated and ignored',file=sys.stderr)
+				print(f'use lmake.config.backends.{tag}.domain_name if necessary'       ,file=sys.stderr)
 		git = '$GIT'                                                                                                      # value is substitued at installation configuration
 		for cache in config.get('caches',{}).values() :
 			if 'key' in cache : continue

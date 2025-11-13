@@ -111,9 +111,9 @@ namespace Engine {
 				//
 				static ::string pfx = Codec::CodecFile::s_pfx_s() ;
 				job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
-				matches  = { //!                               File                Ctx                CodeVal                                       File Ctx  CodeVal
-					{ "DECODE"   , {.pattern=cat(pfx,_stem_mrkr(0 ),Infx,_stem_mrkr(1),Infx,_stem_mrkr(2    ),DecodeSfx),.flags=IncPhony,.captures={true,true ,true }} } // star target
-				,	{ "ENCODE"   , {.pattern=cat(pfx,_stem_mrkr(0 ),Infx,_stem_mrkr(1),Infx,_stem_mrkr(2    ),EncodeSfx),.flags=IncPhony,.captures={true,true ,true }} } // .
+				matches  = { //!                             File                Ctx                CodeVal                                       File Ctx  CodeVal
+					{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),Infx,_stem_mrkr(1),Infx,_stem_mrkr(2    ),DecodeSfx),.flags=IncPhony,.captures={true,true ,true }} } // star target
+				,	{ "ENCODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),Infx,_stem_mrkr(1),Infx,_stem_mrkr(2    ),EncodeSfx),.flags=IncPhony,.captures={true,true ,true }} } // .
 				} ;
 				matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
 				//

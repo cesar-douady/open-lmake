@@ -52,60 +52,62 @@ config = pdict(
 		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	#,	sge = pdict(
-	#	,	bin               = '/opt/sge/bin/ls-amd64'     # directory where sge binaries are located
-	#	,	cell              = 'default'                   # cell     used for SGE job submission, by default, SGE automatically determines it
-	#	,	cluster           = 'p6444'                     # cluster used for SGE job submission, by default, SGE automatically determines it
-	#	,	default_prio      = 0                           # default priority to use if none is specified on the lmake command line (this is the default)
-	#	,	n_max_queued_jobs = 10                          # max number of queued jobs for a given set of asked resources
-	#	,	repo_key          = _osp.basename(_os.getcwd()) # prefix used before job name to name slurm jobs (this is the default if not specified)
-	#	,	root              = '/opt/sge'                  # root directory of the SGE installation
-	#	,	cpu_resource      = 'cpu'                       # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu ), not managed if not specified
-	#	,	mem_resource      = 'mem'                       # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB ), not managed if not specified
-	#	,	tmp_resource      = 'tmp'                       # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
+	#	,	domain_name       = socket.getfqdn().split('.',1)[-1]     # the fully qualified domain name under which jobs must contact server
+	#	,	bin               = '/opt/sge/bin/ls-amd64'               # directory where sge binaries are located
+	#	,	cell              = 'default'                             # cell     used for SGE job submission, by default, SGE automatically determines it
+	#	,	cluster           = 'p6444'                               # cluster used for SGE job submission, by default, SGE automatically determines it
+	#	,	default_prio      = 0                                     # default priority to use if none is specified on the lmake command line (this is the default)
+	#	,	n_max_queued_jobs = 10                                    # max number of queued jobs for a given set of asked resources
+	#	,	repo_key          = _osp.basename(_os.getcwd())           # prefix used before job name to name slurm jobs (this is the default if not specified)
+	#	,	root              = '/opt/sge'                            # root directory of the SGE installation
+	#	,	cpu_resource      = 'cpu'                                 # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu ), not managed if not specified
+	#	,	mem_resource      = 'mem'                                 # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB ), not managed if not specified
+	#	,	tmp_resource      = 'tmp'                                 # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
 	#	)
 	#,	slurm = pdict(
-	#	,	config            = '/etc/slurm/slurm.conf'     # config file (this is the default value if not specified)
-	#	,	init_timeout      = 10                          # maximum time allowed for slurm initialization
-	#	,	lib_slurm         = '/usr/lib/slurm.so'         # slurm dynamic lib (this is a typical default value if not specified)
-	#	,	n_max_queued_jobs = 10                          # max number of queued jobs for a given set of asked resources
-	#	,	repo_key          = _osp.basename(_os.getcwd()) # prefix used before job name to name slurm jobs
-	#	,	use_nice          = True                        # if True (default is False), nice value is used to automatically prioritize jobs between repositories
-	#		                                                # requires slurm configuration collaboration
+	#	,	fqdn              = socket.getfqdn()                      # the fully qualified domain name under which jobs must contact server
+	#	,	config            = '/etc/slurm/slurm.conf'               # config file (this is the default value if not specified)
+	#	,	init_timeout      = 10                                    # maximum time allowed for slurm initialization
+	#	,	lib_slurm         = '/usr/lib/slurm.so'                   # slurm dynamic lib (this is a typical default value if not specified)
+	#	,	n_max_queued_jobs = 10                                    # max number of queued jobs for a given set of asked resources
+	#	,	repo_key          = _osp.basename(_os.getcwd())           # prefix used before job name to name slurm jobs
+	#	,	use_nice          = True                                  # if True (default is False), nice value is used to automatically prioritize jobs between repositories
+	#		                                                          # requires slurm configuration collaboration
 	#	)
 	)
-,	caches = pdict(                                         # PER_CACHE : provide an explanation for each cache method
-	#	dir = pdict(                                        # when rule specifies cache = 'dir' , this cache is selected
-	#		tag       = 'dir'                               # specify the caching method, must be one of the supported method
-	#	,	key       = '<repo_root>/<git-sha1>'            # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
-	#	,	dir       = '/cache_dir'                        # the directory in which cached results are stored
-	#	,	file_sync = 'dir'                               # synchronization method used to ensure consistent accesses to the cache, possible values are 'none', 'dir'(default) and 'sync'
-	#	,	perm      = 'group'                             # access permission (on top of umask) to cache. possible values are 'none', 'group' and 'other'
+,	caches = pdict(                                                   # PER_CACHE : provide an explanation for each cache method
+	#	dir = pdict(                                                  # when rule specifies cache = 'dir' , this cache is selected
+	#		tag       = 'dir'                                         # specify the caching method, must be one of the supported method
+	#	,	key       = '<repo_root>/<git-sha1>'                      # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
+	#	,	dir       = '/cache_dir'                                  # the directory in which cached results are stored
+	#	,	file_sync = 'dir'                                         # synchronization method used to ensure consistent accesses to the cache, possible values are 'none', 'dir'(default) and 'sync'
+	#	,	perm      = 'group'                                       # access permission (on top of umask) to cache. possible values are 'none', 'group' and 'other'
 	#	)
 	)
 ,	collect = pdict(
-	#	stems  = pdict(Stem1=r'.*')                         # defines stems as regexprs for use in ignore
-	#,	ignore = pdict(                                     # patterns used to prevent lcollect from removing files
-	#		STATIC = ('file1','file2')                      # several files/patterns can be provided for a single key
-	#	,	STAR   = 'file{Stem1}'                          # mimic Rule.targets attribute (except several patterns can be defined using tuple/list)
+	#	stems  = pdict(Stem1=r'.*')                                   # defines stems as regexprs for use in ignore
+	#,	ignore = pdict(                                               # patterns used to prevent lcollect from removing files
+	#		STATIC = ('file1','file2')                                # several files/patterns can be provided for a single key
+	#	,	STAR   = 'file{Stem1}'                                    # mimic Rule.targets attribute (except several patterns can be defined using tuple/list)
 	#	)
 	)
 ,	colors = pdict(
 		#                 normal video    reverse video
-		hidden_note   = [ [192,192,192] , [ 96, 96, 96] ]   # gray
-	,	hidden_ok     = [ [176,208,176] , [ 80,112, 80] ]   # greenish gray
-	,	note          = [ [  0,  0,255] , [ 64,160,255] ]   # blue
-	,	ok            = [ [  0,128,  0] , [128,255,128] ]   # green
-	,	warning       = [ [155,  0,255] , [255,  0,255] ]   # magenta
-	,	err           = [ [180,  0,  0] , [255, 60, 60] ]   # red
-	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ]   # red
+		hidden_note   = [ [192,192,192] , [ 96, 96, 96] ]             # gray
+	,	hidden_ok     = [ [176,208,176] , [ 80,112, 80] ]             # greenish gray
+	,	note          = [ [  0,  0,255] , [ 64,160,255] ]             # blue
+	,	ok            = [ [  0,128,  0] , [128,255,128] ]             # green
+	,	warning       = [ [155,  0,255] , [255,  0,255] ]             # magenta
+	,	err           = [ [180,  0,  0] , [255, 60, 60] ]             # red
+	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ]             # red
 	)
-,	console = pdict(                                        # tailor output lines
-		date_precision = 0                                  # number of second decimals in the timestamp field (None means no timestamp field)
-	,	has_exec_time  = True                               # if True, output the exec_time field
-	,	history_days   = 7                                  # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
-	,	host_len       = None                               # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
+,	console = pdict(                                                  # tailor output lines
+		date_precision = 0                                            # number of second decimals in the timestamp field (None means no timestamp field)
+	,	has_exec_time  = True                                         # if True, output the exec_time field
+	,	history_days   = 7                                            # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
+	,	host_len       = None                                         # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
 	,	show_eta       = False
-	,	show_ete       = True                               # if True, the title includes the ETA of the lmake command
+	,	show_ete       = True                                         # if True, the title includes the ETA of the lmake command
 	)
 ,	debug = pdict({
 		''  : 'lmake_debug.default (pdb for python, set -x for bash)' # use pdb  as the default debugger

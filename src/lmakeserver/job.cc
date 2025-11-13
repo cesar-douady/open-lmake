@@ -36,15 +36,15 @@ namespace Engine {
 	// JobReqInfo
 	//
 
-	::string& operator+=( ::string& os , JobReqInfo::State const& ris ) {                                                            // START_OF_NO_COV
+	::string& operator+=( ::string& os , JobReqInfo::State const& ris ) {                                                      // START_OF_NO_COV
 		First first ;
-		/**/                                                os <<'('                                                               ;
-		if ( +ris.reason                                  ) os <<first("",",")<<       ris.reason                                  ;
-		if (  ris.missing_dsk                             ) os <<first("",",")<<'D'                                                ;
-		if ( +ris.stamped.err      || +ris.proto.err      ) os <<first("",",")<<"E:"<< ris.stamped.err     <<"->"<<ris.proto.err   ;
-		if (  ris.stamped.modif    ||  ris.proto.modif    ) os <<first("",",")<<"M:"<< ris.stamped.modif   <<"->"<<ris.proto.modif ;
-		return                                              os <<')'                                                               ;
-	}                                                                                                                                // END_OF_NO_COV
+		/**/                                          os <<'('                                                               ;
+		if ( +ris.reason                            ) os <<first("",",")<<       ris.reason                                  ;
+		if (  ris.missing_dsk                       ) os <<first("",",")<<'D'                                                ;
+		if ( +ris.stamped.err   || +ris.proto.err   ) os <<first("",",")<<"E:"<< ris.stamped.err     <<"->"<<ris.proto.err   ;
+		if (  ris.stamped.modif ||  ris.proto.modif ) os <<first("",",")<<"M:"<< ris.stamped.modif   <<"->"<<ris.proto.modif ;
+		return                                        os <<')'                                                               ;
+	}                                                                                                                          // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , JobReqInfo const& ri ) { // START_OF_NO_COV
 		/**/                   os << "JRI(" << ri.req     ;

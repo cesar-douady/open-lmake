@@ -32,6 +32,14 @@ It must account for file date granularity (generally a few ms) and date discrepa
 
 The default value should be safe in usual cases and user should hardly need to modify it.
 
+### `domain_name` : Static ('')
+
+Open-lmake needs to know its own network address so that jobs can connect to it when they start.
+
+By default, jobs connect to the fqdn (Fully Qualified Domain Name), e.g. `my_host.my_network.local`. Fqdn is determined by calling `getaddrinfo` (3) and asking for the canonical name.
+If this does not provide the adequate information, this field allows to specify a domain name, e.g. `my_network.local`, and jobs will connect to `my_host.<domain_name>` where `my_host` is the
+value returned by `gethostname` (2) and `<domain_name>` is the value of this field.
+
 ### `file_sync` : Static (`'dir'` if non-local backends are used, else `None`)
 
 This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.

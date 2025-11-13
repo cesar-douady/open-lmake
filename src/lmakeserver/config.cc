@@ -19,8 +19,9 @@ namespace Engine {
 	::string& operator+=( ::string& os , Config::Backend const& be ) { // START_OF_NO_COV
 		os << "Backend(" ;
 		if (be.configured) {
-			/**/          os <<      be.dct ;
-			if (+be.env ) os <<','<< be.env ;
+			if (+be.domain_name) os <<','<< be.domain_name ;
+			/**/                 os <<      be.dct         ;
+			if (+be.env        ) os <<','<< be.env         ;
 		}
 		return os <<')' ;
 	}                                                                  // END_OF_NO_COV
@@ -63,6 +64,7 @@ namespace Engine {
 			for( auto const& [py_k,py_v] : py_map ) {
 				field = py_k.as_a<Str>() ;
 				switch (field[0]) {
+					case 'd' : if (field=="domain_name") domain_name = *py_v.str() ; continue ;
 					case 'e' :
 						if (field=="environ") {
 							for( auto const& [py_k2,py_v2] : py_v.as_a<Dict>() ) env.emplace_back( py_k2.as_a<Str>() , *py_v2.str() ) ;
@@ -367,11 +369,13 @@ namespace Engine {
 			res <<"\t\t"<< t <<" :\n" ;
 			::vmap_ss descr = bbe->descr() ;
 			size_t    w     = 0            ;
-			for( auto const& [k,v] : be.dct ) w = ::max( w , k.size() ) ;
-			for( auto const& [k,v] : descr  ) w = ::max( w , k.size() ) ;
+			if (+be.domain_name)              w = ::max( w , strlen("domain_name") ) ;
+			for( auto const& [k,v] : be.dct ) w = ::max( w , k.size()            ) ;
+			for( auto const& [k,v] : descr  ) w = ::max( w , k.size()            ) ;
 			//
-			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k,w) <<" : " << v <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k,w) <<" : " << v <<'\n' ;
+			if (+be.domain_name)              res <<"\t\t\t"<< widen("domain_name",w) <<" : " << be.domain_name <<'\n' ;
+			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k            ,w) <<" : " << v              <<'\n' ;
+			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k            ,w) <<" : " << v              <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
 				size_t w2 = ::max<size_t>( be.env , [](auto const& k_v) { return k_v.first.size() ; } ) ;

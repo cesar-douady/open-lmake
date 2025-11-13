@@ -317,26 +317,26 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 
 int main( int argc , char* argv[] ) {
 	Pdate    start_overhead  { New }        ;
-	uint64_t upload_key      = 0            ;                           // key used to identify temporary data uploaded to the cache
+	uint64_t upload_key      = 0            ; // key used to identify temporary data uploaded to the cache
 	::string phy_repo_root_s ;
 	SeqId    trace_id        = 0/*garbage*/ ;
 	//
-	swear_prod(argc==8,argc) ;                                          // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
-	g_service_start = {                   argv[1] , true/*name_ok*/ } ;
-	g_service_mngt  = {                   argv[2]                   } ;
-	g_service_end   = {                   argv[3]                   } ;
-	g_seq_id        = from_string<SeqId >(argv[4])                    ;
-	g_job           = from_string<JobIdx>(argv[5])                    ;
-	phy_repo_root_s =                     argv[6]                     ; // passed early so we can chdir and trace early
-	trace_id        = from_string<SeqId >(argv[7])                    ;
+	swear_prod(argc==8,argc) ;                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	try { g_service_start = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
+	/**/  g_service_mngt  = {                   argv[2]}                 ;
+	/**/  g_service_end   = {                   argv[3]}                 ;
+	/**/  g_seq_id        = from_string<SeqId >(argv[4])                 ;
+	/**/  g_job           = from_string<JobIdx>(argv[5])                 ;
+	/**/  phy_repo_root_s =                     argv[6]                  ;                                                        // passed early so we can chdir and trace early
+	/**/  trace_id        = from_string<SeqId >(argv[7])                 ;
 	//
-	g_repo_root_s = new ::string{phy_repo_root_s} ;                     // no need to search for it
+	g_repo_root_s = new ::string{phy_repo_root_s} ;                                                                               // no need to search for it
 	//
 	g_trace_file = new ::string{cat(phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyErr } ;                // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                       ;                // prepare to return an error, so we can goto End anytime
+	end_report.digest   = { .status=Status::EarlyErr } ;                                                                          // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                       ;                                                                          // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead               ;
 	g_exec_trace        = &end_report.exec_trace       ;
 	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
