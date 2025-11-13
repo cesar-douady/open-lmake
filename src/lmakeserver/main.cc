@@ -197,6 +197,7 @@ static void _reqs_thread_func( ::stop_token stop , Fd in_fd , Fd out_fd ) {
 						struct inotify_event event ;
 						ssize_t              cnt   = ::read( _g_watch_fd , &event , sizeof(event) ) ;
 						SWEAR( cnt==sizeof(event) , cnt ) ;
+						trace("watch",event.mask) ;
 					}
 					{	Lock lock { Req::s_reqs_mutex } ;
 						for( Req r : Req::s_reqs_by_start() ) {

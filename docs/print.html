@@ -802,7 +802,7 @@ In the latter case, such a dir must lie within a source dir and must contain a f
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
-<p>Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
+<p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><code>decode( file , ctx , code )</code></a></h3>
 <p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
 Else an exception is raised.</p>
@@ -812,7 +812,7 @@ In the latter case, such a dir must lie within a source dir and must contain a f
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
-<p>Cf. <a href="experimental_codec.html">encode/decode</a>.</p>
+<p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><code>xxhsum_file(file)</code></a></h3>
 <p>Return a checksum of provided file.</p>
@@ -2654,130 +2654,6 @@ video mode is set to normal, else it is set to reverse.</p>
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="meta-data"><a class="header" href="#meta-data">Meta data</a></h1>
-<p>The <code>LMAKE</code> dir at the root of the repo contains numerous information that may be handy for the user.</p>
-<p>It also contains a <code>lmake</code> dir containing private data for open-lmake's own usage.</p>
-<p><code>LMAKE/environ</code> and <code>LMAKE/manifest</code> can be freely used in jobs and are considered as sources if they are listed in <code>lmake.manifest</code>, which is automatic by default.</p>
-<h3 id="lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><a class="header" href="#lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><code>LMAKE/config_deps</code>, <code>LMAKE/rules_deps</code> and <code>LMAKE/sources_deps</code></a></h3>
-<p>These files contain a list of files that open-lmake has read to process <code>Lmakefile.py</code> when reading each section (config, rules and sources).</p>
-<p>They contain several types of lines, depending on the first char:</p>
-<ul>
-<li><code>#</code>: comment line</li>
-<li><code>*</code>: line contains the open-lmake installation dir</li>
-<li><code>+</code>: line contains an existing file that was read</li>
-<li><code>!</code>: line contains a non-existing file that was accessed</li>
-</ul>
-<p>These contents are then used to determine if each section must be refreshed when a new <code>lmake</code> command is run.</p>
-<h3 id="lmakeauto_tmp"><a class="header" href="#lmakeauto_tmp"><code>LMAKE/auto_tmp</code></a></h3>
-<p>This dir contains the default tmp dirs of jobs.</p>
-<h3 id="lmakeconfig"><a class="header" href="#lmakeconfig"><code>LMAKE/config</code></a></h3>
-<p>This file contains a description of the <code>lmake.config</code> <code>dict</code> as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
-<h3 id="lmakedebug"><a class="header" href="#lmakedebug"><code>LMAKE/debug</code></a></h3>
-<p>This dir contains a sub-dir for each job <code>ldebug</code> was used for.
-These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
-<h3 id="lmakeenviron"><a class="header" href="#lmakeenviron"><code>LMAKE/environ</code></a></h3>
-<p>This file contains the list of environment variables actually used in <code>Lmakefile.py</code> in the form of lines containing <code>&lt;key&gt;=&lt;value&gt;</code>.</p>
-<h3 id="lmakelast_output"><a class="header" href="#lmakelast_output"><code>LMAKE/last_output</code></a></h3>
-<p>This file is a symbolic link to the last transcript.</p>
-<h3 id="lmakelmakefile_tmp"><a class="header" href="#lmakelmakefile_tmp"><code>LMAKE/lmakefile_tmp</code></a></h3>
-<p>This dir contains the tmp dirs used when reading <code>Lmakefile.py</code>.
-When several passes are used, each pass has its own tmp dir.
-These are kept after reading for debugging purpose.</p>
-<h3 id="lmakemanifest"><a class="header" href="#lmakemanifest"><code>LMAKE/manifest</code></a></h3>
-<p>This file contains a description of the sources as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
-<h3 id="lmakematching"><a class="header" href="#lmakematching"><code>LMAKE/matching</code></a></h3>
-<p>This file contains a description of the matching performed by open-lmake when looking for rules to generate a file.
-It is composed of matching entries.</p>
-<p>Each matching entry starts with a header providing a prefix and a suffix.
-Files matching the prefix and suffix are matched against the rules listed underneath.</p>
-<p>The prefix and suffix are given in the form <code>&lt;prefix&gt;*&lt;suffix&gt;' to mimic shell patterns. However, in this case, the </code>*` may match a negative number of characters, i.e. the prefix and the suffix may overlap.</p>
-<p>The listed rules are provided as:</p>
-<ul>
-<li>Its priority: if a rule at given priority match and generate the file, rules of lower priority are not tried.</li>
-<li>Its name.</li>
-<li>The target corresponding to this prefix/suffix pair.</li>
-</ul>
-<h3 id="lmakeoutputsdatetime"><a class="header" href="#lmakeoutputsdatetime"><code>LMAKE/outputs/&lt;date&gt;/&lt;time&gt;</code></a></h3>
-<p>This file contains a transcript of the <code>lmake</code> command that has been run at <code>&lt;time&gt;</code> on <code>&lt;day&gt;</code>.
-Such logs are kept for a number of days given in <code>lmake.config.console.history_days</code>.</p>
-<h3 id="lmakequarantine"><a class="header" href="#lmakequarantine"><code>LMAKE/quarantine</code></a></h3>
-<p>This dir contains all files that have been quarantined.
-A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
-In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.</p>
-<h3 id="lmakerules"><a class="header" href="#lmakerules"><code>LMAKE/rules</code></a></h3>
-<p>This file contains a description of the rules as they have been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
-<h3 id="lmaketargets"><a class="header" href="#lmaketargets"><code>LMAKE/targets</code></a></h3>
-<p>This file contains the targets that have been required by <code>lmake</code> commands in chronological order (with duplicates removed).</p>
-<h3 id="lmaketmp"><a class="header" href="#lmaketmp"><code>LMAKE/tmp</code></a></h3>
-<p>This dir contains a sub-dir for each job which was run while keeping its tmp dir.
-These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
-<h3 id="lmakeversion"><a class="header" href="#lmakeversion"><code>LMAKE/version</code></a></h3>
-<p>This file contains a state-recording version of open-lmake.
-If the recorded version does not match the used version, none of the open-lmake commands can be used.</p>
-<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
-<!-- Copyright (c) 2023-2025 Doliam-->
-<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
-<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="commands"><a class="header" href="#commands">Commands</a></h1>
-<p>Open-lmake is a package containing several commands.</p>
-<p>The full documentation of these commands can also be obtained by running <code>man &lt;command&gt;</code>.</p>
-<h2 id="command-execution"><a class="header" href="#command-execution">command execution</a></h2>
-<p>Most commands (<code>ldebug</code>, <code>lforget</code>, <code>lmake</code>, <code>lmark</code> and <code>lshow</code>) do not execute directly but instead connect to a server, or launch one if none already run.</p>
-<p>The reason is that although several of these commands can run at the same time (including several times the same one, in particular several <code>lmake</code>), they all must run in the same process to
-stay coherent.</p>
-<p>Among these commands, all of them except <code>lmake</code> run mostly instantaneously. So the serverr mostly exist to be able to run any of these commands while one or several instances of <code>lmake</code> are
-already running.</p>
-<p>The (unique) server is created automatically when necessary and dies as soon as no more needed.
-So under normal situations, one does not have to even be aware of the existence of such a server.</p>
-<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/_bin/lmakeserver</code>)
-leads to improved performances by avoiding to relaunch a server for each command.
-In such cases, the server must be run with no argument.</p>
-<p>However, if, under a particular cicumstance, the server must be killed, best is to use signal 1 (SIGHUP) or 2 (SIGINT) as this will force the server to smoothly kill all running jobs.
-Other signals are not managed and will lead to the server dying abruptly, potentially leaving a lot of running jobs.
-This has no semantic impact as these jobs will be considered out-of-date and will rerun, but may incur a waste of resources.</p>
-<h2 id="commands-to-control-build-execution"><a class="header" href="#commands-to-control-build-execution">commands to control build execution</a></h2>
-<p>These commands are meant to be run by the user outside jobs.
-They are:</p>
-<div class="table-wrapper"><table><thead><tr><th>Command</th><th>Short description</th></tr></thead><tbody>
-<tr><td><a href="man/man1/lautodep.html"><code>lautodep</code></a></td><td>run a script in an execution environmeent while recording accesses</td></tr>
-<tr><td><a href="man/man1/lcollect.html"><code>lcollect</code></a></td><td>remove obsolete files and dirs</td></tr>
-<tr><td><a href="man/man1/ldebug.html"><code>ldebug</code></a></td><td>run a job in a debug environement</td></tr>
-<tr><td><a href="man/man1/ldircache_repair.html"><code>ldircache_repair</code></a></td><td>repair a broken repo</td></tr>
-<tr><td><a href="man/man1/lforget.html"><code>lforget</code></a></td><td>forget history of a job</td></tr>
-<tr><td><a href="man/man1/lmake.html"><code>lmake</code></a></td><td>run necessary jobs to ensure a target is up-to-date</td></tr>
-<tr><td><a href="man/man1/lmark.html"><code>lmark</code></a></td><td>mark a job to alter its behavior w.r.t. <code>lmake</code></td></tr>
-<tr><td><a href="man/man1/lrepair.html"><code>lrepair</code></a></td><td>repair a broken repo</td></tr>
-<tr><td><a href="man/man1/lshow.html"><code>lshow</code></a></td><td>show various informations of a job</td></tr>
-<tr><td><a href="man/man1/xxhsum.html"><code>xxhsum</code></a></td><td>compute a checksum on a file</td></tr>
-</tbody></table>
-</div>
-<h2 id="commands-to-interact-with-open-lmake-from-within-jobs"><a class="header" href="#commands-to-interact-with-open-lmake-from-within-jobs">commands to interact with open-lmake from within jobs</a></h2>
-<p>These commands are meant to be run from within a job.
-They are:</p>
-<div class="table-wrapper"><table><thead><tr><th>Command</th><th>Short description</th></tr></thead><tbody>
-<tr><td><a href="man/man1/lcheck_deps.html"><code>lcheck_deps</code></a></td><td>check currently seen deps are all up-to-date and kill job if not the case</td></tr>
-<tr><td><a href="man/man1/ldecode.html"><code>ldecode</code></a></td><td>retrieve value associated with a code</td></tr>
-<tr><td><a href="man/man1/ldepend.html"><code>ldepend</code></a></td><td>generate deps</td></tr>
-<tr><td><a href="man/man1/lencode.html"><code>lencode</code></a></td><td>retrieve/generate a code associated with a value</td></tr>
-<tr><td><a href="man/man1/lrun_cc.html"><code>lrun_cc</code></a></td><td>run a compilation, ensuring include dirs and lib dirs exist</td></tr>
-<tr><td><a href="man/man1/ltarget.html"><code>ltarget</code></a></td><td>generate targets</td></tr>
-</tbody></table>
-</div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
-<!-- Copyright (c) 2023-2025 Doliam-->
-<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
-<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="experimental-features"><a class="header" href="#experimental-features">Experimental features</a></h1>
-<p>The features described herein are experimental as long as they have not been thoroughly used.</p>
-<p>If you plan to use one of those, best is to be in contact with the development team to:</p>
-<ul>
-<li>get dedicated support</li>
-<li>make necessary evolutions so as to fit your needs as they appear</li>
-</ul>
-<p>As a consequence, it is most probable that the specifications will evolve in a non-backward compatible way.</p>
-<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
-<!-- Copyright (c) 2023-2025 Doliam-->
-<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
-<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="cache-1"><a class="header" href="#cache-1">Cache</a></h1>
 <p>Several cache mechanisms will be implemented but for now, ony one exists.</p>
 <h2 id="dircache"><a class="header" href="#dircache">DirCache</a></h2>
@@ -2905,6 +2781,130 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="meta-data"><a class="header" href="#meta-data">Meta data</a></h1>
+<p>The <code>LMAKE</code> dir at the root of the repo contains numerous information that may be handy for the user.</p>
+<p>It also contains a <code>lmake</code> dir containing private data for open-lmake's own usage.</p>
+<p><code>LMAKE/environ</code> and <code>LMAKE/manifest</code> can be freely used in jobs and are considered as sources if they are listed in <code>lmake.manifest</code>, which is automatic by default.</p>
+<h3 id="lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><a class="header" href="#lmakeconfig_deps-lmakerules_deps-and-lmakesources_deps"><code>LMAKE/config_deps</code>, <code>LMAKE/rules_deps</code> and <code>LMAKE/sources_deps</code></a></h3>
+<p>These files contain a list of files that open-lmake has read to process <code>Lmakefile.py</code> when reading each section (config, rules and sources).</p>
+<p>They contain several types of lines, depending on the first char:</p>
+<ul>
+<li><code>#</code>: comment line</li>
+<li><code>*</code>: line contains the open-lmake installation dir</li>
+<li><code>+</code>: line contains an existing file that was read</li>
+<li><code>!</code>: line contains a non-existing file that was accessed</li>
+</ul>
+<p>These contents are then used to determine if each section must be refreshed when a new <code>lmake</code> command is run.</p>
+<h3 id="lmakeauto_tmp"><a class="header" href="#lmakeauto_tmp"><code>LMAKE/auto_tmp</code></a></h3>
+<p>This dir contains the default tmp dirs of jobs.</p>
+<h3 id="lmakeconfig"><a class="header" href="#lmakeconfig"><code>LMAKE/config</code></a></h3>
+<p>This file contains a description of the <code>lmake.config</code> <code>dict</code> as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmakedebug"><a class="header" href="#lmakedebug"><code>LMAKE/debug</code></a></h3>
+<p>This dir contains a sub-dir for each job <code>ldebug</code> was used for.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
+<h3 id="lmakeenviron"><a class="header" href="#lmakeenviron"><code>LMAKE/environ</code></a></h3>
+<p>This file contains the list of environment variables actually used in <code>Lmakefile.py</code> in the form of lines containing <code>&lt;key&gt;=&lt;value&gt;</code>.</p>
+<h3 id="lmakelast_output"><a class="header" href="#lmakelast_output"><code>LMAKE/last_output</code></a></h3>
+<p>This file is a symbolic link to the last transcript.</p>
+<h3 id="lmakelmakefile_tmp"><a class="header" href="#lmakelmakefile_tmp"><code>LMAKE/lmakefile_tmp</code></a></h3>
+<p>This dir contains the tmp dirs used when reading <code>Lmakefile.py</code>.
+When several passes are used, each pass has its own tmp dir.
+These are kept after reading for debugging purpose.</p>
+<h3 id="lmakemanifest"><a class="header" href="#lmakemanifest"><code>LMAKE/manifest</code></a></h3>
+<p>This file contains a description of the sources as it has been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmakematching"><a class="header" href="#lmakematching"><code>LMAKE/matching</code></a></h3>
+<p>This file contains a description of the matching performed by open-lmake when looking for rules to generate a file.
+It is composed of matching entries.</p>
+<p>Each matching entry starts with a header providing a prefix and a suffix.
+Files matching the prefix and suffix are matched against the rules listed underneath.</p>
+<p>The prefix and suffix are given in the form <code>&lt;prefix&gt;*&lt;suffix&gt;' to mimic shell patterns. However, in this case, the </code>*` may match a negative number of characters, i.e. the prefix and the suffix may overlap.</p>
+<p>The listed rules are provided as:</p>
+<ul>
+<li>Its priority: if a rule at given priority match and generate the file, rules of lower priority are not tried.</li>
+<li>Its name.</li>
+<li>The target corresponding to this prefix/suffix pair.</li>
+</ul>
+<h3 id="lmakeoutputsdatetime"><a class="header" href="#lmakeoutputsdatetime"><code>LMAKE/outputs/&lt;date&gt;/&lt;time&gt;</code></a></h3>
+<p>This file contains a transcript of the <code>lmake</code> command that has been run at <code>&lt;time&gt;</code> on <code>&lt;day&gt;</code>.
+Such logs are kept for a number of days given in <code>lmake.config.console.history_days</code>.</p>
+<h3 id="lmakequarantine"><a class="header" href="#lmakequarantine"><code>LMAKE/quarantine</code></a></h3>
+<p>This dir contains all files that have been quarantined.
+A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
+In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.</p>
+<h3 id="lmakerules"><a class="header" href="#lmakerules"><code>LMAKE/rules</code></a></h3>
+<p>This file contains a description of the rules as they have been understood by open-lmake after having processed <code>Lmakefile.py</code>.</p>
+<h3 id="lmaketargets"><a class="header" href="#lmaketargets"><code>LMAKE/targets</code></a></h3>
+<p>This file contains the targets that have been required by <code>lmake</code> commands in chronological order (with duplicates removed).</p>
+<h3 id="lmaketmp"><a class="header" href="#lmaketmp"><code>LMAKE/tmp</code></a></h3>
+<p>This dir contains a sub-dir for each job which was run while keeping its tmp dir.
+These sub-dirs are named after the job id as displayed by <code>lshow -i</code>.</p>
+<h3 id="lmakeversion"><a class="header" href="#lmakeversion"><code>LMAKE/version</code></a></h3>
+<p>This file contains a state-recording version of open-lmake.
+If the recorded version does not match the used version, none of the open-lmake commands can be used.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="commands"><a class="header" href="#commands">Commands</a></h1>
+<p>Open-lmake is a package containing several commands.</p>
+<p>The full documentation of these commands can also be obtained by running <code>man &lt;command&gt;</code>.</p>
+<h2 id="command-execution"><a class="header" href="#command-execution">command execution</a></h2>
+<p>Most commands (<code>ldebug</code>, <code>lforget</code>, <code>lmake</code>, <code>lmark</code> and <code>lshow</code>) do not execute directly but instead connect to a server, or launch one if none already run.</p>
+<p>The reason is that although several of these commands can run at the same time (including several times the same one, in particular several <code>lmake</code>), they all must run in the same process to
+stay coherent.</p>
+<p>Among these commands, all of them except <code>lmake</code> run mostly instantaneously. So the serverr mostly exist to be able to run any of these commands while one or several instances of <code>lmake</code> are
+already running.</p>
+<p>The (unique) server is created automatically when necessary and dies as soon as no more needed.
+So under normal situations, one does not have to even be aware of the existence of such a server.</p>
+<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/_bin/lmakeserver</code>)
+leads to improved performances by avoiding to relaunch a server for each command.
+In such cases, the server must be run with no argument.</p>
+<p>However, if, under a particular cicumstance, the server must be killed, best is to use signal 1 (SIGHUP) or 2 (SIGINT) as this will force the server to smoothly kill all running jobs.
+Other signals are not managed and will lead to the server dying abruptly, potentially leaving a lot of running jobs.
+This has no semantic impact as these jobs will be considered out-of-date and will rerun, but may incur a waste of resources.</p>
+<h2 id="commands-to-control-build-execution"><a class="header" href="#commands-to-control-build-execution">commands to control build execution</a></h2>
+<p>These commands are meant to be run by the user outside jobs.
+They are:</p>
+<div class="table-wrapper"><table><thead><tr><th>Command</th><th>Short description</th></tr></thead><tbody>
+<tr><td><a href="man/man1/lautodep.html"><code>lautodep</code></a></td><td>run a script in an execution environmeent while recording accesses</td></tr>
+<tr><td><a href="man/man1/lcollect.html"><code>lcollect</code></a></td><td>remove obsolete files and dirs</td></tr>
+<tr><td><a href="man/man1/ldebug.html"><code>ldebug</code></a></td><td>run a job in a debug environement</td></tr>
+<tr><td><a href="man/man1/ldircache_repair.html"><code>ldircache_repair</code></a></td><td>repair a broken repo</td></tr>
+<tr><td><a href="man/man1/lforget.html"><code>lforget</code></a></td><td>forget history of a job</td></tr>
+<tr><td><a href="man/man1/lmake.html"><code>lmake</code></a></td><td>run necessary jobs to ensure a target is up-to-date</td></tr>
+<tr><td><a href="man/man1/lmark.html"><code>lmark</code></a></td><td>mark a job to alter its behavior w.r.t. <code>lmake</code></td></tr>
+<tr><td><a href="man/man1/lrepair.html"><code>lrepair</code></a></td><td>repair a broken repo</td></tr>
+<tr><td><a href="man/man1/lshow.html"><code>lshow</code></a></td><td>show various informations of a job</td></tr>
+<tr><td><a href="man/man1/xxhsum.html"><code>xxhsum</code></a></td><td>compute a checksum on a file</td></tr>
+</tbody></table>
+</div>
+<h2 id="commands-to-interact-with-open-lmake-from-within-jobs"><a class="header" href="#commands-to-interact-with-open-lmake-from-within-jobs">commands to interact with open-lmake from within jobs</a></h2>
+<p>These commands are meant to be run from within a job.
+They are:</p>
+<div class="table-wrapper"><table><thead><tr><th>Command</th><th>Short description</th></tr></thead><tbody>
+<tr><td><a href="man/man1/lcheck_deps.html"><code>lcheck_deps</code></a></td><td>check currently seen deps are all up-to-date and kill job if not the case</td></tr>
+<tr><td><a href="man/man1/ldecode.html"><code>ldecode</code></a></td><td>retrieve value associated with a code</td></tr>
+<tr><td><a href="man/man1/ldepend.html"><code>ldepend</code></a></td><td>generate deps</td></tr>
+<tr><td><a href="man/man1/lencode.html"><code>lencode</code></a></td><td>retrieve/generate a code associated with a value</td></tr>
+<tr><td><a href="man/man1/lrun_cc.html"><code>lrun_cc</code></a></td><td>run a compilation, ensuring include dirs and lib dirs exist</td></tr>
+<tr><td><a href="man/man1/ltarget.html"><code>ltarget</code></a></td><td>generate targets</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="experimental-features"><a class="header" href="#experimental-features">Experimental features</a></h1>
+<p>The features described herein are experimental as long as they have not been thoroughly used.</p>
+<p>If you plan to use one of those, best is to be in contact with the development team to:</p>
+<ul>
+<li>get dedicated support</li>
+<li>make necessary evolutions so as to fit your needs as they appear</li>
+</ul>
+<p>As a consequence, it is most probable that the specifications will evolve in a non-backward compatible way.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->

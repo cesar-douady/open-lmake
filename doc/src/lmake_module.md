@@ -297,7 +297,7 @@ In the latter case, such a dir must lie within a source dir and must contain a f
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
 - `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
 
-Cf. [encode/decode](experimental_codec.html).
+Cf. [encode/decode](codec.html).
 
 ### `decode( file , ctx , code )`
 
@@ -310,7 +310,7 @@ In the latter case, such a dir must lie within a source dir and must contain a f
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
 - `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
 
-Cf. [encode/decode](experimental_codec.html).
+Cf. [encode/decode](codec.html).
 
 Associations are usually created using `encode` but not necessarily (they can be created by hand).
 

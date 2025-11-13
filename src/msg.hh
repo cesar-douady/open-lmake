@@ -54,6 +54,7 @@ private :
 		//
 		::optional<T> res      ;
 		bool          can_read = fetch!=No ;
+ssize_t cnt = 0 ;
 		auto advance = [&](Len sz) {
 			Len pos = _buf.size() ;
 			Len end = _start+sz   ;
@@ -61,7 +62,8 @@ private :
 			else if (!can_read) return false ;
 			//
 			_buf.resize( end + (fetch==Yes?ChunkSz:0) ) ;                                       // if fetch==Maybe, read only necessary bytes
-			ssize_t cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
+//			ssize_t cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
+cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
 			if (cnt<=0) {
 				if (cnt<0) {
 					switch (errno) {
@@ -91,7 +93,8 @@ private :
 			}
 			if (_len==0) {                                                                      // acquire message length
 				_len = decode_int<Len>(&_buf[_start]) ;
-				if (!_len) FAIL( fd,_start,_buf.size(), mk_printable(_buf) ) ;                 // no empty messages
+if (!_len) FAIL(fd,fetch,can_read,cnt,_start,_buf.size(),mk_printable(_buf)) ;                     // no empty messages
+				SWEAR( _len , fetch,can_read,_start,_buf.size() ) ;
 				_start += sizeof(Len) ;
 			}
 		}
@@ -100,7 +103,7 @@ private :
 		//    vvvvvvvvvvvvvvvvvv
 		res = deserialize<T>(bv) ;                                                              // make res optional to avoid moving when return
 		//    ^^^^^^^^^^^^^^^^^^
-		SWEAR( _buf.size()==_start+_len+bv.size() , _len , _buf.size()-_start-bv.size() ) ;
+		SWEAR( _buf.size()==_start+_len+bv.size() , _len , _buf.size()-_start-bv.size() ) ;     // check lengths consistency
 		_start += _len ;
 		_len    = 0    ;
 		if ( fetch==Maybe || _start>=ChunkSz ) {                                                // suppress old messages, but only move data once in a while

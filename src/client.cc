@@ -194,7 +194,7 @@ static void _out_thread_func(ReqRpcReply const& rrr) {
 }
 
 Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb ) {
-	Trace trace("out_proc") ;
+	Trace trace("_out_proc") ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
 	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
@@ -246,6 +246,6 @@ Return :
 	cb(false/*start*/) ;
 	g_server_fds.out.close() ;                                                                                                    // ensure server stops living because of us
 	if (sync) waitpid( server_pid , nullptr , 0 ) ;
-	trace("done") ;
+	trace("done",rc) ;
 	return rc ;
 }

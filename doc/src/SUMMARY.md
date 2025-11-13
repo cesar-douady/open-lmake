@@ -29,13 +29,15 @@
 	- [ETA](eta.md)
 	- [Video mode](video_mode.md)
 
+- [Cache](cache.md)
+
+- [Codec](codec.md)
+
 - [The LMAKE directory](meta_data.md)
 
 - [Commands](commands.md)
 
 - [Experimental features](experimental.md)
-	- [Cache](experimental_cache.md)
-	- [Codec](experimental_codec.md)
 	- [Subrepos](experimental_subrepos.md)
 
 [Glossary](glossary.md)

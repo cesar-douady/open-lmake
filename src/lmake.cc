@@ -90,8 +90,8 @@ int main( int argc , char* argv[] ) {
 	for( ::string const& a : env_args     ) args.push_back(a.c_str()) ;
 	for( int             i : iota(1,argc) ) args.push_back(argv[i]  ) ;
 	Trace trace("main",::span<char*>(argv,argc)) ;
-	/**/  trace("main",env_args                ) ;
-	/**/  trace("main",args                    ) ;
+	/**/  trace(       env_args                ) ;
+	/**/  trace(       args                    ) ;
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
 	//
@@ -110,5 +110,6 @@ int main( int argc , char* argv[] ) {
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Rc rc = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;
 	//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	trace("done",rc) ;
 	exit(rc) ;
 }
