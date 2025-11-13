@@ -54,18 +54,17 @@ private :
 		//
 		::optional<T> res      ;
 		bool          can_read = fetch!=No ;
-ssize_t cnt = 0 ;
+		//
 		auto advance = [&](Len sz) {
-			Len pos = _buf.size() ;
-			Len end = _start+sz   ;
-			if      (pos>=end ) return true  ;
-			else if (!can_read) return false ;
+			Len end = _msg_start+sz ;
+			if      (_buf_sz>=end) return true  ;
+			else if (!can_read   ) return false ;
 			//
-			_buf.resize( end + (fetch==Yes?ChunkSz:0) ) ;                                       // if fetch==Maybe, read only necessary bytes
-//			ssize_t cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
-cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
+			Len new_sz = end + (fetch==Yes?ChunkSz:0) ;                                         // if fetch==Maybe, read only necessary bytes
+			if (_buf.size()<new_sz) _buf.resize(new_sz) ;                                       // ensure logical size fits within physical one
+			ssize_t cnt = ::read( fd , &_buf[_buf_sz] , new_sz-_buf_sz ) ;
 			if (cnt<=0) {
-				if (cnt<0) {
+				if (cnt<0)
 					switch (errno) {
 						#if EWOULDBLOCK!=EAGAIN
 							case EWOULDBLOCK :
@@ -75,46 +74,44 @@ cnt = ::read( fd , &_buf[pos] , _buf.size()-pos ) ;
 						case ECONNRESET : break                                               ; // if peer dies abruptly, we get ECONNRESET, but this is equivalent to eof
 						default         : throw cat("cannot receive over ",fd," : ",StrErr()) ;
 					}
-				}
-				_buf.resize(pos) ;
 				res = T() ;                                                                     // return empty on eof, including if not at a message boundary
 				return false ;
 			}
-			_buf.resize(pos+cnt) ;
-			can_read = false ;                                                                  // when used with epoll, we are only sure of a single non-blocking read
-			return _buf.size()>=end ;
+			_buf_sz  += cnt   ;
+			can_read  = false ;                                                                 // when used with epoll, we are only sure of a single non-blocking read
+			return _buf_sz>=end ;
 		} ;
-		if ( key || _len==0 ) {
+		if (_msg_len==0) {
 			if ( !advance( (key?sizeof(Key):0) + sizeof(Len) ) ) return res ;                   // waiting header
 			if (key) {                                                                          // check key
-				Key rk = decode_int<Key>(&_buf[_start]) ; if (rk!=key) return T() ;             // this connection is not for us, pretend it was closed immediately
+				Key rk = decode_int<Key>(&_buf[_msg_start]) ; if (rk!=key) return T() ;         // this connection is not for us, pretend it was closed immediately
 				key = {} ;                                                                      // key has been checked, dont process it again
-				_start += sizeof(Key) ;
+				_msg_start += sizeof(Key) ;
 			}
-			if (_len==0) {                                                                      // acquire message length
-				_len = decode_int<Len>(&_buf[_start]) ;
-if (!_len) FAIL(fd,fetch,can_read,cnt,_start,_buf.size(),mk_printable(_buf)) ;                     // no empty messages
-				SWEAR( _len , fetch,can_read,_start,_buf.size() ) ;
-				_start += sizeof(Len) ;
-			}
+			_msg_len    = decode_int<Len>(&_buf[_msg_start]) ; SWEAR( _msg_len , fetch,can_read,_msg_start,_buf_sz ) ;
+			_msg_start += sizeof(Len)                        ;
+		} else {
+			SWEAR( !key , key,_msg_len ) ;                                                      // cannot receive key while expecting a message
 		}
-		if (!advance(_len)) return res ;                                                        // waiting data
-		::string_view bv = substr_view(_buf,_start) ;
+		if (!advance(_msg_len)) return res ;                                                    // waiting data
+		::string_view bv = substr_view(_buf,_msg_start,_msg_len) ;
 		//    vvvvvvvvvvvvvvvvvv
 		res = deserialize<T>(bv) ;                                                              // make res optional to avoid moving when return
 		//    ^^^^^^^^^^^^^^^^^^
-		SWEAR( _buf.size()==_start+_len+bv.size() , _len , _buf.size()-_start-bv.size() ) ;     // check lengths consistency
-		_start += _len ;
-		_len    = 0    ;
-		if ( fetch==Maybe || _start>=ChunkSz ) {                                                // suppress old messages, but only move data once in a while
-			_buf.erase(0,_start) ;
-			_start = 0 ;
+		SWEAR( !bv , _msg_start,_msg_len,bv.size() ) ;                                          // check lengths consistency
+		_msg_start += _msg_len ;
+		_msg_len    = 0        ;
+		if (_buf_sz-_msg_start <= _msg_start ) {                                                // suppress old messages, but only move data once in a while and ensure no overlap for memcpy
+			_buf_sz -= _msg_start ;
+			::memcpy( &_buf[0] , &_buf[_msg_start] , _buf_sz ) ;
+			_msg_start = 0 ;
 		}
 		return res ;
 	}
 	// data
-	Len _start = 0 ;                                                                            // start of next message to return
-	Len _len   = 0 ;                                                                            // if 0, message len is not yet processed
+	Len _msg_start = 0 ;                                                                        // start of next message to return
+	Len _msg_len   = 0 ;                                                                        // if 0, message len is not yet processed
+	Len _buf_sz    = 0 ;                                                                        // logical buf size
 } ;
 
 struct OMsgBuf : MsgBuf {
