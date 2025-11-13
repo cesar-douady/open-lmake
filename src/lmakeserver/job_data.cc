@@ -66,14 +66,14 @@ namespace Codec {
 		return res ;
 	}
 
-	static void _update_old_decode_tab( ::string const& file_name , ::umap_s/*ctx*/<::umap_s/*code*/<Crc>>&/*inout*/ old_decode_tab ) {
-		Trace trace("_update_old_decode_tab",file_name,old_decode_tab.size()) ;
-		for( ::string const& line : AcFd(CodecFile::s_new_codes_file(file_name),{.err_ok=true}).read_lines(false/*partial_ok*/) ) {
+	static void _update_old_decode_tab( ::string const& file_name , ::string const& new_codes_file_name , ::umap_s/*ctx*/<::umap_s/*code*/<Crc>>&/*inout*/ old_decode_tab ) {
+		Trace trace("_update_old_decode_tab",file_name,new_codes_file_name,old_decode_tab.size()) ;
+		for( ::string const& line : AcFd(new_codes_file_name,{.err_ok=true}).read_lines(false/*partial_ok*/) ) {
 			Codec::Entry entry ;
 			try                     { entry = {line} ; }
 			catch (::string const&) { continue ;       }
 			bool inserted = old_decode_tab[entry.ctx].try_emplace( ::move(entry.code) , Crc(New,entry.val) ).second ;
-			SWEAR( inserted , file_name,line ) ;                                                                      // there must be no internal conlict
+			SWEAR( inserted , file_name,line ) ;                                                                      // there must be no internal conflict
 		}
 		trace("done",old_decode_tab.size()) ;
 	}
@@ -125,8 +125,8 @@ namespace Codec {
 		return res ;
 	}
 
-	static void _update_encode_tab( ::string const& file_name , ::map_s/*ctx*/<::map_ss/*val->code*/>&/*inout*/ encode_tab , Bool3&/*inout*/ has_new_codes ) {
-		_do_file( CodecFile::s_new_codes_file(file_name) , true/*do_new_codes*/ , /*inout*/encode_tab , /*inout*/has_new_codes ) ;
+	static void _update_encode_tab( ::string const& new_codes_file_name , ::map_s/*ctx*/<::map_ss/*val->code*/>&/*inout*/ encode_tab , Bool3&/*inout*/ has_new_codes ) {
+		_do_file( new_codes_file_name , true/*do_new_codes*/ , /*inout*/encode_tab , /*inout*/has_new_codes ) ;
 	}
 
 	static ::map_s/*ctx*/<::map_ss/*code->val*/> _mk_decode_tab(::map_s/*ctx*/<::map_ss/*val->code*/> const& encode_tab) {
@@ -834,10 +834,10 @@ namespace Engine {
 		::map_s /*ctx*/<::map_ss/*code->val */> decode_tab     ;
 		::string                                codec_dir_s    = CodecFile::s_dir_s(file_name)                               ;
 		//
-		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                                             // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
+		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                             // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			::string tmp_codec_dir_s = CodecFile::s_dir_s(file_name,CodecDir::Tmp) ;
-			SWEAR( !old_decode_tab , file_name ) ;                                                   // cannot have old codes if not initialized
-			mk_dir_s(tmp_codec_dir_s) ;                                                              // we want a dir to appear initialized, even if empty
+			SWEAR( !old_decode_tab , file_name ) ;                                   // cannot have old codes if not initialized
+			mk_dir_s(tmp_codec_dir_s) ;                                              // we want a dir to appear initialized, even if empty
 			decode_tab = _mk_decode_tab(encode_tab) ;
 			for( auto const& [ctx,d_entry] : decode_tab ) {
 				manifest << mk_printable(ctx) <<'\n' ;
@@ -848,12 +848,16 @@ namespace Engine {
 					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 				}
 			}
-			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                  // global move
+			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                  // global move
 		} else {
-			CodecLock lock = CodecLock( file_name , {.nfs_guard=&nfs_guard} ) ;                      // if we cannot lock, jobs do not access db, so no need to lock
-			_update_old_decode_tab( file_name , /*inout*/old_decode_tab                          ) ;
-			_update_encode_tab    ( file_name , /*inout*/encode_tab     , /*inout*/has_new_codes ) ;
+			::string  new_codes_file_name = CodecFile::s_new_codes_file(file_name)           ;
+			CodecLock lock                = CodecLock( file_name , {.nfs_guard=&nfs_guard} ) ;                             // if we cannot lock, jobs do not access db, so no need to lock
+			//
+			_update_old_decode_tab( file_name , new_codes_file_name , /*inout*/old_decode_tab                          ) ;
+			_update_encode_tab    (             new_codes_file_name , /*inout*/encode_tab     , /*inout*/has_new_codes ) ;
+			unlnk( new_codes_file_name , {.nfs_guard=&nfs_guard} ) ;
 			decode_tab = _mk_decode_tab(encode_tab) ;
+			//
 			for( auto const& [ctx,d_entry] : decode_tab ) {
 				::umap_s<Crc>&       old_d_entry = old_decode_tab[ctx] ;
 				::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
@@ -887,8 +891,7 @@ namespace Engine {
 			case Maybe : req->audit_job( Color::Note , New , "reformat" , rule() , file_name ) ; break ;
 			case Yes   : req->audit_job( Color::Note , New , "update"   , rule() , file_name ) ; break ;
 		}
-		AcFd ( _manifest_file             (file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( manifest ) ;
-		unlnk( CodecFile::s_new_codes_file(file_name) , {.nfs_guard=&nfs_guard}                )                   ;
+		AcFd ( _manifest_file(file_name) , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( manifest ) ;
 		status = Status::Ok ;
 	}
 

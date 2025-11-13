@@ -394,7 +394,7 @@ namespace Backdoor {
 		Fd           rfd            = Record::s_repo_root_fd()                               ;
 		NfsGuard     nfs_guard      { file_sync }                                            ;
 		::string     new_codes_file = Codec::CodecFile::s_new_codes_file(real)               ;
-		AccessDigest digest         { .accesses=Access::Reg }                                ; // get default dflags
+		AccessDigest digest         { .accesses=Access::Reg }                                ; // get default flags
 		::string     res            ;
 		try {                                                                                  // first try with share lock (light weight in case no update is necessary)
 			res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;                        // if node exists, it contains the reply
