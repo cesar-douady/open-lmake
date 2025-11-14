@@ -554,8 +554,8 @@ namespace Engine {
 		VarIdx               stdout_idx = NoVar         ;                          // index of target used as stdout
 		VarIdx               stdin_idx  = NoVar         ;                          // index of dep used as stdin
 		bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
+		DynDepsAttrs         deps_attrs ;                                          // in match crc, evaluated at job creation time
 		// following is only if plain rules
-		DynDepsAttrs              deps_attrs             ;                         // in match crc, evaluated at job creation time
 		Dyn<SubmitRsrcsAttrs    > submit_rsrcs_attrs     ;                         // in rsrcs crc, evaluated at submit time
 		Dyn<SubmitAncillaryAttrs> submit_ancillary_attrs ;                         // in no    crc, evaluated at submit time
 		Dyn<StartCmdAttrs       > start_cmd_attrs        ;                         // in cmd   crc, evaluated before execution
@@ -913,23 +913,19 @@ namespace Engine {
 
 	// START_OF_VERSIONING
 	template<IsStream S> void RuleData::serdes(S& s) {
-		::serdes(s,special         ) ;
-		::serdes(s,user_prio       ) ;
-		::serdes(s,prio            ) ;
-		::serdes(s,name            ) ;
-		::serdes(s,stems           ) ;
-		::serdes(s,sub_repo_s      ) ;
-		::serdes(s,job_name        ) ;
-		::serdes(s,matches         ) ;
-		::serdes(s,matches_iotas   ) ;
-		::serdes(s,stdout_idx      ) ;
-		::serdes(s,stdin_idx       ) ;
-		::serdes(s,allow_ext       ) ;
-		::serdes(s,stem_n_marks    ) ;
-		::serdes(s,crc             ) ;
-		::serdes(s,n_static_stems  ) ;
+		::serdes(s,special   ) ;
+		::serdes(s,user_prio ) ;
+		::serdes(s,prio      ) ;
+		::serdes(s,name      ) ;
+		::serdes(s,stems     ) ;
+		::serdes(s,sub_repo_s) ;
+		::serdes(s,job_name  ) ;
+		::serdes(s,matches   ) ;
+		::serdes(s,stdout_idx) ;
+		::serdes(s,stdin_idx ) ;
+		::serdes(s,allow_ext ) ;
+		::serdes(s,deps_attrs) ;
 		if (special==Special::Plain) {
-			::serdes(s,deps_attrs            ) ;
 			::serdes(s,submit_rsrcs_attrs    ) ;
 			::serdes(s,submit_ancillary_attrs) ;
 			::serdes(s,start_cmd_attrs       ) ;
@@ -941,10 +937,16 @@ namespace Engine {
 			::serdes(s,n_losts               ) ;
 			::serdes(s,n_runs                ) ;
 			::serdes(s,n_submits             ) ;
+			// stats
 			::serdes(s,cost_per_token        ) ;
 			::serdes(s,exec_time             ) ;
 			::serdes(s,stats_weight          ) ;
 		}
+		// derived
+		::serdes(s,stem_n_marks  ) ;
+		::serdes(s,crc           ) ;
+		::serdes(s,n_static_stems) ;
+		::serdes(s,matches_iotas ) ;
 	}
 	inline Disk::FileNameIdx RuleData::job_sfx_len() const {
 		return

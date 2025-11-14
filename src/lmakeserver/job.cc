@@ -92,7 +92,7 @@ namespace Engine {
 	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) {
 		Trace trace("Job",match,req,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
-		Rule rule = match.rule    ;
+		Rule rule = match.rule ;
 		if ( ::pair_s<VarIdx> msg=match.reject_msg() ; +msg.first ) {
 			trace("not_accepted") ;
 			::pair_s<RuleData::MatchEntry> const& k_me = rule->matches[msg.second] ;
@@ -117,8 +117,7 @@ namespace Engine {
 		::vector<Dep>       deps ; deps.reserve(dep_specs_holes.size()) ;
 		::umap<Node,VarIdx> dis  ; dis .reserve(dep_specs_holes.size()) ;
 		for( auto const& k_ds : dep_specs_holes ) {
-			DepSpec const& ds = k_ds.second ;
-			if (!ds.txt) continue ;                                                                                                           // filter out holes
+			DepSpec const& ds = k_ds.second                                                     ; if (!ds.txt) { trace("hole") ; continue ; } // filter out holes
 			Node           d  { New , ds.txt }                                                  ;
 			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -141,7 +140,7 @@ namespace Engine {
 		//          args for store         args for JobData
 		self = Job( match.full_name(),Dflt , match,deps   ) ;                       // initially, static deps are deemed read, then actual accesses will be considered
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		trace("found",self,self->deps) ;
+		trace("found",self,deps.size(),self->deps) ;
 	}
 
 	::string Job::ancillary_file(AncillaryTag tag) const {

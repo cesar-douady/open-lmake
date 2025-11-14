@@ -60,7 +60,7 @@ enum class CacheHitInfo : uint8_t {
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<CacheHitInfo,const char*,N<CacheHitInfo>> CacheHitInfoStrs = {{
-	{ CacheHitInfo::Hit         , ""                                         }
+	{ CacheHitInfo::Hit         , "hit"                                      }
 ,	{ CacheHitInfo::Match       , "deps are uncertain"                       }
 ,	{ CacheHitInfo::BadDeps     , "deps do not match"                        }
 ,	{ CacheHitInfo::NoRule      , "rule not found or with different command" }

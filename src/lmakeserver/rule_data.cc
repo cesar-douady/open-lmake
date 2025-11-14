@@ -103,9 +103,9 @@ namespace Engine {
 				using namespace Codec ;
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 				stems = {
-					{ "File"    , ".*"     }                                                                                                                             // static
-				,	{ "Ctx"     , "[^\t]*" }                                                                                                                             // star
-				,	{ "CodeVal" , "[^\t]*" }                                                                                                                             // .
+					{ "File"    , ".*"     }                                                                                                                           // static
+				,	{ "Ctx"     , "[^\t]*" }                                                                                                                           // star
+				,	{ "CodeVal" , "[^\t]*" }                                                                                                                           // .
 				} ;
 				n_static_stems = 1 ;
 				//
@@ -121,7 +121,7 @@ namespace Engine {
 					{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
 				} ;
 			} break ;
-		DF}                                                                                                                                                              // NO_COV
+		DF}                                                                                                                                                            // NO_COV
 		for( auto const& [_,v] : stems ) stem_n_marks.push_back(Re::RegExpr(v,true/*cache*/).n_marks()) ;
 		_set_crcs({}) ;                                                                                   // rules is not necessary for special rules
 	}
@@ -813,33 +813,30 @@ namespace Engine {
 		h += special ;                                                                                                             // in addition to distinguishing special from other, ...
 		h += stems   ;                                                                                                             // ... this guarantees that shared rules have different crc's
 		h += targets ;
-		if (!is_plain()) {
-			h += allow_ext ;                               // only exists for special rules
-		} else {
-			h += job_name ;
-			deps_attrs.update_hash( /*inout*/h , rules ) ; // no deps for source & anti
-		}
+		deps_attrs.update_hash( /*inout*/h , rules ) ; // no deps for source & anti
+		if (is_plain()) h += job_name  ;
+		else            h += allow_ext ;               // only exists for special rules
 		Crc match_crc = h.digest() ;
 		//
-		if (!is_plain()) {
+		if (!is_plain()) {                             // no cmd nor resources for special rules
 			crc = {match_crc} ;
-		} else {
-			h += g_config->lnk_support  ;                  // this has an influence on generated deps, hence is part of cmd def
-			h += sub_repo_s             ;
-			h += Node::s_src_dirs_crc() ;                  // src_dirs influences deps recording
-			h += matches                ;                  // these define names and influence cmd execution, all is not necessary but simpler to code
-			h += force                  ;
-			h += is_python              ;
-			start_cmd_attrs.update_hash( /*inout*/h , rules ) ;
-			cmd            .update_hash( /*inout*/h , rules ) ;
-			Crc cmd_crc = h.digest() ;
-			//
-			submit_rsrcs_attrs.update_hash( /*inout*/h , rules ) ;
-			start_rsrcs_attrs .update_hash( /*inout*/h , rules ) ;
-			Crc rsrcs_crc = h.digest() ;
-			//
-			crc = { match_crc , cmd_crc , rsrcs_crc } ;
+			return ;
 		}
+		h += g_config->lnk_support  ;                  // this has an influence on generated deps, hence is part of cmd def
+		h += sub_repo_s             ;
+		h += Node::s_src_dirs_crc() ;                  // src_dirs influences deps recording
+		h += matches                ;                  // these define names and influence cmd execution, all is not necessary but simpler to code
+		h += force                  ;
+		h += is_python              ;
+		start_cmd_attrs.update_hash( /*inout*/h , rules ) ;
+		cmd            .update_hash( /*inout*/h , rules ) ;
+		Crc cmd_crc = h.digest() ;
+		//
+		submit_rsrcs_attrs.update_hash( /*inout*/h , rules ) ;
+		start_rsrcs_attrs .update_hash( /*inout*/h , rules ) ;
+		Crc rsrcs_crc = h.digest() ;
+		//
+		crc = { match_crc , cmd_crc , rsrcs_crc } ;
 		// END_OF_VERSIONING
 	}
 

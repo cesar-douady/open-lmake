@@ -300,6 +300,8 @@ namespace Engine {
 	}
 
 	void JobData::_reset_targets(Rule::RuleMatch const& match) {
+		SWEAR( match.rule->special>=Special::HasMatches , idx(),match,match.rule,match.rule->special ) ;
+		//
 		Rule             r     = rule()                       ;
 		::vector<Target> ts    ;                                ts.reserve(r->matches_iotas[false/*star*/][+MatchKind::Target].size()) ; // there are usually no duplicates
 		::vector_s       sts   = match.targets(false/*star*/) ;
@@ -826,7 +828,12 @@ namespace Engine {
 		Trace trace("_submit_codec",job,req) ;
 		//
 		file->set_buildable() ;
-		throw_unless( file->is_src_anti() && file->crc.is_reg() , "codec file must be a regular source" ) ;
+		if (!( file->is_src_anti() && file->crc.is_reg() )) {
+			req->audit_job ( Color::Err  , New , "failed" , rule() , file_name                            ) ;
+			req->audit_info( Color::Note , "must be a regular source to be used as codec file" , 1/*lvl*/ ) ;
+			status = Status::Err ;
+			return ;
+		}
 		//
 		Bool3                                   has_new_codes  ;
 		::umap_s/*ctx*/<::umap_s/*code*/<Crc> > old_decode_tab = _prepare_old_decode_tab( file_name                        ) ;

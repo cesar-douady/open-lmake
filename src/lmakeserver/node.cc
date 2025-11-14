@@ -361,7 +361,8 @@ namespace Engine {
 					//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					Buildable b = _gather_prio_job_tgts( name_ , req , known_rejected , lvl ) ;
 					//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					SWEAR( b==Buildable::Yes , self,b ) ;
+					if (b==Buildable::No) buildable = Buildable::No ;                                // in case codec file is not available
+					else                  SWEAR( b==Buildable::Yes , idx(),b ) ;
 					goto Return ;
 				}
 			}
@@ -775,7 +776,7 @@ namespace Engine {
 		//
 		Trace trace( "set_crc_date" , STR(modified) , idx() , crc ,"->", crc_ , sig ,"->", sd ) ;
 		//
-		if (crc_!=crc) { crc = {} ; sig = sd ; crc = crc_ ; }               // defensive programming : ensure crc and date are never incoherent
+		if (crc_!=crc) { crc = {} ; sig = sd ; crc = crc_ ; }                // defensive programming : ensure crc and date are never incoherent
 		else                        sig = sd ;
 		for( Req r : reqs() ) {
 			ReqInfo& ri = req_info(r) ;

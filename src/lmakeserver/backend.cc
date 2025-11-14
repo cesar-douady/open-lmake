@@ -16,7 +16,7 @@ namespace Backends {
 	void send_reply( Job job , JobMngtRpcReply&& jmrr ) {
 		if (!jmrr.proc) return ;
 		//
-		Trace trace("send_reply",job) ;
+		Trace trace("send_reply",job,jmrr) ;
 		TraceLock                  lock { Backend::_s_mutex , BeChnl , "send_reply" } ;
 		auto                       it   = Backend::_s_start_tab.find(job)             ; if (it==Backend::_s_start_tab.end()) return ; // job is dead without waiting for reply, curious but possible
 		Backend::StartEntry const& e    = it->second                                  ; if (jmrr.seq_id!=e.conn.seq_id     ) return ; // .

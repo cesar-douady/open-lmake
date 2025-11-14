@@ -319,18 +319,14 @@ namespace Engine {
 		// static data
 	private :
 		static Mutex<MutexLvl::TargetDir> _s_target_dirs_mutex ;
-		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ;                                                                  // dirs created for job execution that must not be deleted
-		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ;                                                                  // uphill hierarchy of _s_target_dirs
+		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ; // dirs created for job execution that must not be deleted
+		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ; // uphill hierarchy of _s_target_dirs
 		// cxtors & casts
 	public :
 		JobData() = delete ;
-		JobData( JobName n                           ) : JobDataBase{n}                                      {}
-		JobData( JobName n , Special sp , Deps ds={} ) : JobDataBase{n} , deps{ds} , rule_crc{Rule(sp)->crc} {}                   // special Job, all deps
-		//
-		JobData( JobName n , Rule::RuleMatch const& m , Deps sds ) : JobDataBase{n} , deps{sds} , rule_crc{m.rule->crc} {         // plain Job, static targets and deps
-			SWEAR( m.rule->special>=Special::HasMatches , idx(),m,m.rule,m.rule->special ) ;
-			_reset_targets(m) ;
-		}
+		JobData( JobName n                                       ) : JobDataBase{n}                                       {                     }
+		JobData( JobName n , Special sp , Deps ds={}             ) : JobDataBase{n} , deps{ds } , rule_crc{Rule(sp)->crc} {                     } // special Job, all deps
+		JobData( JobName n , Rule::RuleMatch const& m , Deps sds ) : JobDataBase{n} , deps{sds} , rule_crc{m.rule->crc  } { _reset_targets(m) ; } // plain Job, static targets and deps
 		//
 		JobData           (JobData&& jd) ;
 		~JobData          (            ) ;
