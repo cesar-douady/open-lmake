@@ -107,3 +107,5 @@ else :
 
 		os.system(f'mkdir bck2{z_lvl} ; mv LMAKE CACHE *auto1* mkdir* bck2{z_lvl}')
 
+	ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 ) # check no crash with no cache
+

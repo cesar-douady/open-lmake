@@ -992,15 +992,17 @@ namespace Engine {
 			if (it==g_config->caches.end()) cache_hit_info = CacheHitInfo::BadCache ;
 			else {
 				cache_idx = it->second.first ;
-				if (!cache_idx                      ) cache_hit_info = CacheHitInfo::BadCache   ;
-				if (!has_download(req->cache_method)) cache_hit_info = CacheHitInfo::NoDownload ;
+				if      (!cache_idx                      ) cache_hit_info = CacheHitInfo::BadCache   ;
+				else if (!has_download(req->cache_method)) cache_hit_info = CacheHitInfo::NoDownload ;
 				else {
 					::vmap_s<DepDigest> dns ;
 					for( Dep const& d : deps ) {
 						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                                                                    // provide node actual crc as this is the hit criteria
 						dns.emplace_back(d->name(),dd) ;
 					}
-					Cache*                   cache       = Cache::s_tab[cache_idx] ; SWEAR( cache , submit_ancillary_attrs.cache,cache_idx ) ; // cache_idx is set to 0 when cache is not ready
+					/**/                                     SWEAR( cache_idx<Cache::s_tab.size() , cache_idx,Cache::s_tab.size()          ) ;
+					Cache* cache = Cache::s_tab[cache_idx] ; SWEAR( cache                         , submit_ancillary_attrs.cache,cache_idx ) ; // cache_idx is set to 0 when cache is not ready
+					//
 					::optional<Cache::Match> cache_match ;
 					::string                 job_name    = unique_name()           ;
 					try {
