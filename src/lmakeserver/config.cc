@@ -132,11 +132,9 @@ namespace Engine {
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
-				caches.resize(1) ;                                                                             // idx 0 is reserved to mean no cache
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
 					fields[1] = py_key.as_a<Str>() ;
-					cache_idxs[fields[1]] = caches.size() ;
-					caches.emplace_back(py_val.as_a<Dict>()) ;
+					bool inserted = caches.try_emplace( fields[1] , caches.size()+1 , py_val.as_a<Dict>() ).second ; SWEAR( inserted , fields[1],caches ) ; // idx 0 is reserved to mean no cache
 				}
 				fields.pop_back() ;
 			}
@@ -329,16 +327,16 @@ namespace Engine {
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
-			for( auto const& [k,idx] : cache_idxs )
-				if (!idx) {
+			for( auto const& [k,idx_cache] : caches )
+				if (!idx_cache.first) {
 					res <<"\t\t"<<k<<"(unavailable)\n" ;
 				} else {
-					Cache const& cache = caches[idx] ;
+					Cache const& cache = idx_cache.second ;
 					::string avail ;
 					::map_ss descr = mk_map(cache.dct) ;
 					size_t   w     = ::max<size_t>( descr , [](auto const& k_v) { return k_v.first.size() ; } , 3/*tag*/ ) ;
-					if ( Caches::Cache* c = Caches::Cache::s_tab[idx] ) for( auto const& [k,v] : c->descr() ) { descr[k] = v ; w = ::max(w,k.size()) ; }
-					else                                                avail = "(unvailable)" ;
+					if ( Caches::Cache* c = Caches::Cache::s_tab[idx_cache.first] ) for( auto const& [k,v] : c->descr() ) { descr[k] = v ; w = ::max(w,k.size()) ; }
+					else                                                            avail = "(unvailable)" ;
 					res <<"\t\t"<<k<<avail<<" :\n" ;
 					/**/                             res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
 					for( auto const& [k,v] : descr ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
@@ -432,7 +430,7 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
 		Trace trace("Config::open",STR(dyn),STR(first_time)) ;
-		SWEAR(+key) ;                                               // ensure no init problem
+		SWEAR(+key) ;                                                                      // ensure no init problem
 		::string std_dir_s = cat(PrivateAdminDirS,"local_admin/") ;
 		if (!user_local_admin_dir_s) {
 			local_admin_dir_s = ::move(std_dir_s) ;
@@ -450,12 +448,13 @@ namespace Engine {
 		//
 		if (dyn) return ;
 		//
-		for( auto& [k,idx] : cache_idxs ) {
-			Cache const& cache = caches[idx] ;
+		for( auto& [k,idx_cache] : caches ) {
+			trace("config",k,idx_cache.first) ;
 			try {
-				Caches::Cache::s_config(idx,cache.tag,cache.dct) ;
+				Caches::Cache::s_config( idx_cache.first , idx_cache.second.tag , idx_cache.second.dct ) ;
 			} catch (::string const& e) {
-				idx = 0 ;
+				trace("no_config",e) ;
+				idx_cache.first = 0 ;                                                                  // dont use this cache
 				Fd::Stderr.write(cat("ignore (cannot configure) cache ",k," : ",e,'\n')) ;
 			}
 		}

@@ -31,7 +31,9 @@
 
 // XXX? : implement timeout when locking cache (cache v1 is a proof of concept anyway)
 
-#include "py.hh" // /!\ must be included first as Python.h must be included first
+#ifndef DIR_CACHE_LIGHT // the major purpose of light implementation is to avoid loading python
+	#include "py.hh"    // /!\ must be included first as Python.h must be included first
+#endif
 
 #include "app.hh"
 #include "msg.hh"
@@ -42,8 +44,10 @@
 
 using namespace Disk ;
 using namespace Hash ;
-using namespace Py   ;
 using namespace Time ;
+#ifndef DIR_CACHE_LIGHT  // the major purpose of light implementation is to avoid loading python
+	using namespace Py ;
+#endif
 
 namespace Caches {
 
@@ -77,41 +81,45 @@ namespace Caches {
 		SWEAR( head.sz     ==total_sz+delta_sz , head.sz,total_sz,delta_sz ) ;
 	}                                                                          // END_OF_NO_COV
 
-	void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
-		Trace trace("DirCache::config",dct.size(),STR(may_init)) ;
-		auto acquire_dct = [&]( ::vmap_ss const& d , uint8_t pass ) {
-			for( auto const& [key,val] : d )
-				try {
-					switch (key[0]) {
-						case 'd' : if ( key=="dir"       && pass==0 ) dir_s     = with_slash           (val) ; break ; // dir is necessary to access cache
-						case 'f' : if ( key=="file_sync" && pass>=1 ) file_sync = mk_enum<FileSync>    (val) ; break ;
-						case 'k' : if ( key=="key"       && pass==2 ) key_crc   = Crc(New              ,val) ; break ; // key cannot be shared as it identifies repo
-						case 'p' : if ( key=="perm"      && pass>=1 ) perm_ext  = mk_enum<PermExt >    (val) ; break ;
-						case 's' : if ( key=="size"      && pass==1 ) max_sz    = from_string_with_unit(val) ; break ; // size must be shared as it cannot depend on repo
-					DN}
-				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
-		} ;
-		acquire_dct( dct , 0/*pass*/ ) ; throw_unless( +dir_s , "dir must be specified for dir_cache") ;
-		_compile() ;
-		::string  config_file = admin_dir_s+"config.py" ;      ;
-		AcFd      config_fd   { config_file , {.err_ok=true} } ;
-		if (+config_fd) { Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
-		/**/                        acquire_dct( dct                       , 2/*.   */ ) ;
-		//
-		if (!max_sz) { // XXX> : remove when compatibility with v25.07 is no more required
-			::string sz_file = admin_dir_s+"size" ;
-			if (FileInfo(sz_file).exists()) {
-				Fd::Stderr.write(cat(sz_file," is deprecated, use size=<value> entry in ",config_file,'\n')) ;
-				try                       { max_sz = from_string_with_unit(strip(AcFd(sz_file).read())) ; }
-				catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;                   }
+	#ifdef DIR_CACHE_LIGHT                                                                 // avoid loading python, in exchange no config is necessary (used for job_exec)
+		void DirCache::config( ::vmap_ss const& /*dct*/ , bool /*may_init*/ ) { FAIL() ; }
+	#else
+		void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
+			Trace trace("DirCache::config",dct.size(),STR(may_init)) ;
+			auto acquire_dct = [&]( ::vmap_ss const& d , uint8_t pass ) {
+				for( auto const& [key,val] : d )
+					try {
+						switch (key[0]) {
+							case 'd' : if ( key=="dir"       && pass==0 ) dir_s     = with_slash           (val) ; break ; // dir is necessary to access cache
+							case 'f' : if ( key=="file_sync" && pass>=1 ) file_sync = mk_enum<FileSync>    (val) ; break ;
+							case 'k' : if ( key=="key"       && pass==2 ) key_crc   = Crc(New              ,val) ; break ; // key cannot be shared as it identifies repo
+							case 'p' : if ( key=="perm"      && pass>=1 ) perm_ext  = mk_enum<PermExt >    (val) ; break ;
+							case 's' : if ( key=="size"      && pass==1 ) max_sz    = from_string_with_unit(val) ; break ; // size must be shared as it cannot depend on repo
+						DN}
+					} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
+			} ;
+			acquire_dct( dct , 0/*pass*/ ) ; throw_unless( +dir_s , "dir must be specified for dir_cache") ;
+			_compile() ;
+			::string  config_file = admin_dir_s+"config.py" ;      ;
+			AcFd      config_fd   { config_file , {.err_ok=true} } ;
+			if (+config_fd) { Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
+			/**/                        acquire_dct( dct                       , 2/*.   */ ) ;
+			//
+			if (!max_sz) {                                                                                                 // XXX> : remove when compatibility with v25.07 is no more required
+				::string sz_file = admin_dir_s+"size" ;
+				if (FileInfo(sz_file).exists()) {
+					Fd::Stderr.write(cat(sz_file," is deprecated, use size=<value> entry in ",config_file,'\n')) ;
+					try                       { max_sz = from_string_with_unit(strip(AcFd(sz_file).read())) ; }
+					catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;                   }
+				}
 			}
+			throw_unless( max_sz , "size must be specified for dir_cache ",no_slash(dir_s)," as size=<value> in ",config_file ) ;
+			//
+			try                     { chk_version( may_init , admin_dir_s , perm_ext) ;         }
+			catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
+			//
 		}
-		throw_unless( max_sz , "size must be specified for dir_cache ",no_slash(dir_s)," as size=<value> in ",config_file ) ;
-		//
-		try                     { chk_version( may_init , admin_dir_s , perm_ext) ;         }
-		catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
-		//
-	}
+	#endif
 
 	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuard* nfs_guard ) const {
 		return deserialize<Sz>(AcFd(_reserved_file(upload_key,"sz"),{.nfs_guard=nfs_guard}).read()) ;
@@ -610,7 +618,7 @@ namespace Caches {
 				// store meta-data and data
 				// START_OF_VERSIONING
 				AcFd(File(dfd,"info"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(job_info_str) ;
-				AcFd(File(dfd,"deps"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ;       // store deps in a compact format so that matching is fast
+				AcFd(File(dfd,"deps"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext}).write(deps_str    ) ; // store deps in a compact format so that matching is fast
 				rename( _reserved_file(upload_key,"data")/*src*/ , File(dfd,"data")/*dst*/ , {.nfs_guard=&nfs_guard} ) ;
 				// END_OF_VERSIONING
 				unlnk( _reserved_file(upload_key,"sz") , {.abs_ok=true,.nfs_guard=&nfs_guard} ) ;

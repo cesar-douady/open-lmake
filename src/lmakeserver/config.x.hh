@@ -94,19 +94,18 @@ namespace Engine {
 		// data
 		// /!\ default values must stay in sync with _lib/lmake/config.src.py
 		// START_OF_VERSIONING
-		Time::Delay       ddate_prec     { 0.01 } ; // precision of dates on disk
-		Time::Delay       heartbeat      { 10   } ; // min time between successive heartbeat probes for any given job
-		Time::Delay       heartbeat_tick { 0.01 } ; // min time between successive heartbeat probes
-		DepDepth          max_dep_depth  = 100    ; // max dep of the whole flow used to detect infinite recursion
-		Time::Delay       network_delay  { 1    } ;
-		size_t            path_max       = 200    ; // if -1 <=> unlimited
-		::vector_s        sub_repos_s    ;
-		::string          system_tag     ;
-		TraceConfig       trace          ;
-		::vector<Cache>   caches         ;
-		::map_s<CacheIdx> cache_idxs     ;
-		::string          rules_action   ;          // action to perform to read independently of config
-		::string          srcs_action    ;          // .
+		Time::Delay                     ddate_prec     { 0.01 } ; // precision of dates on disk
+		Time::Delay                     heartbeat      { 10   } ; // min time between successive heartbeat probes for any given job
+		Time::Delay                     heartbeat_tick { 0.01 } ; // min time between successive heartbeat probes
+		DepDepth                        max_dep_depth  = 100    ; // max dep of the whole flow used to detect infinite recursion
+		Time::Delay                     network_delay  { 1    } ;
+		size_t                          path_max       = 200    ; // if -1 <=> unlimited
+		::vector_s                      sub_repos_s    ;
+		::string                        system_tag     ;
+		TraceConfig                     trace          ;
+		::map_s<::pair<CacheIdx,Cache>> caches         ;
+		::string                        rules_action   ;          // action to perform to read independently of config
+		::string                        srcs_action    ;          // .
 		// END_OF_VERSIONING
 	} ;
 

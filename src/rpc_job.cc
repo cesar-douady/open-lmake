@@ -602,12 +602,11 @@ namespace Caches {
 	}
 
 	void Cache::s_config( CacheIdx idx , Tag tag , ::vmap_ss const& dct ) {
-		Cache*& cache = grow(s_tab,idx) ; SWEAR(!cache) ;
-		if (+tag) {
-			Cache* c = s_new(tag) ;
-			c->config( dct , true/*may_init*/ ) ;
-			cache = c ;                           // only record cache once we are sure config is ok
-		}
+		/**/                    throw_unless( +tag , "no cache"      ) ;
+		Cache* c = s_new(tag) ; throw_unless( c    , "no cache ",tag ) ;
+		//
+		c->config( dct , true/*may_init*/ ) ;
+		grow(s_tab,idx) = c ;                           // only record cache once we are sure config is ok
 	}
 
 	JobInfo Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard* repo_nfs_guard ) {

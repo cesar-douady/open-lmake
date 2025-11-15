@@ -489,12 +489,22 @@ src/lmakeserver/backends/slurm_api-%.cc : ext/slurm/%/META
 # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
 SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
-RPC_JOB_OBJS := \
-	src/py.o      \
-	src/re.o      \
-	src/rpc_job.o \
-	src/caches/dir_cache.o
-RPC_JOB_SAN_OBJS := $(RPC_JOB_OBJS:%.o=%$(SAN).o)
+SERVER_COMMON_SAN_OBJS := \
+	$(LMAKE_BASIC_SAN_OBJS)  \
+	src/app$(SAN).o          \
+	src/py$(SAN).o           \
+	src/re$(SAN).o           \
+	src/rpc_job$(SAN).o      \
+	src/rpc_job_exec$(SAN).o \
+	src/trace$(SAN).o        \
+	src/autodep/env$(SAN).o  \
+	src/caches/dir_cache$(SAN).o
+
+BACKEND_SAN_OBJS := \
+	src/lmakeserver/backends/local$(SAN).o   \
+	src/lmakeserver/backends/slurm$(SAN).o   \
+	$(patsubst %.cc,%$(SAN).o,$(SLURM_SRCS)) \
+	src/lmakeserver/backends/sge$(SAN).o
 
 CLIENT_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)   \
@@ -504,22 +514,22 @@ CLIENT_SAN_OBJS := \
 	src/trace$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)           \
-	$(RPC_JOB_SAN_OBJS)               \
-	src/app$(SAN).o                   \
+	$(SERVER_COMMON_SAN_OBJS)         \
+	src/non_portable$(SAN).o          \
 	src/rpc_client$(SAN).o            \
-	src/rpc_job_exec$(SAN).o          \
-	src/trace$(SAN).o                 \
 	src/autodep/backdoor$(SAN).o      \
-	src/autodep/env$(SAN).o           \
+	src/autodep/gather$(SAN).o        \
 	src/autodep/ld_server$(SAN).o     \
+	src/autodep/ptrace$(SAN).o        \
 	src/autodep/record$(SAN).o        \
 	src/autodep/syscall_tab$(SAN).o   \
 	src/lmakeserver/backend$(SAN).o   \
+	src/lmakeserver/cmd$(SAN).o       \
 	src/lmakeserver/global$(SAN).o    \
 	src/lmakeserver/config$(SAN).o    \
 	src/lmakeserver/job$(SAN).o       \
 	src/lmakeserver/job_data$(SAN).o  \
+	src/lmakeserver/makefiles$(SAN).o \
 	src/lmakeserver/node$(SAN).o      \
 	src/lmakeserver/req$(SAN).o       \
 	src/lmakeserver/rule$(SAN).o      \
@@ -527,36 +537,13 @@ SERVER_SAN_OBJS := \
 	src/lmakeserver/store$(SAN).o
 
 _bin/lmakeserver : \
-	$(SERVER_SAN_OBJS)                       \
-	src/non_portable$(SAN).o                 \
-	src/autodep/gather$(SAN).o               \
-	src/autodep/ptrace$(SAN).o               \
-	src/lmakeserver/cmd$(SAN).o              \
-	src/lmakeserver/makefiles$(SAN).o        \
-	src/lmakeserver/backends/local$(SAN).o   \
-	src/lmakeserver/backends/slurm$(SAN).o   \
-	$(patsubst %.cc,%$(SAN).o,$(SLURM_SRCS)) \
-	src/lmakeserver/backends/sge$(SAN).o     \
+	$(SERVER_SAN_OBJS)  \
+	$(BACKEND_SAN_OBJS) \
 	src/lmakeserver/main$(SAN).o
 
-bin/lrepair : \
-	$(SERVER_SAN_OBJS)                     \
-	src/non_portable$(SAN).o               \
-	src/autodep/gather$(SAN).o             \
-	src/autodep/ptrace$(SAN).o             \
-	src/lmakeserver/makefiles$(SAN).o      \
-	src/lmakeserver/backends/local$(SAN).o \
-	src/lmakeserver/backends/slurm$(SAN).o \
-	src/lmakeserver/backends/sge$(SAN).o   \
-	src/lrepair$(SAN).o
-
-_bin/ldump : \
-	$(SERVER_SAN_OBJS) \
-	src/ldump$(SAN).o
-
-_bin/lkpi : \
-	$(SERVER_SAN_OBJS) \
-	src/lkpi$(SAN).o
+bin/lrepair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lrepair$(SAN).o # lrepair must be aware of existing backends
+_bin/ldump  : $(SERVER_SAN_OBJS)                     src/ldump$(SAN).o
+_bin/lkpi   : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
 
 LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi
 _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
@@ -565,14 +552,7 @@ _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/ldircache_repair : \
-	$(LMAKE_BASIC_SAN_OBJS)  \
-	$(RPC_JOB_SAN_OBJS)      \
-	src/app$(SAN).o          \
-	src/rpc_job_exec$(SAN).o \
-	src/trace$(SAN).o        \
-	src/autodep/env$(SAN).o  \
-	src/ldircache_repair$(SAN).o
+bin/ldircache_repair : $(SERVER_COMMON_SAN_OBJS) src/ldircache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
@@ -600,14 +580,7 @@ bin/ldebug :
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/ldump_job
-_bin/ldump_job : \
-	$(LMAKE_BASIC_SAN_OBJS)  \
-	$(RPC_JOB_SAN_OBJS)      \
-	src/app$(SAN).o          \
-	src/rpc_job_exec$(SAN).o \
-	src/trace$(SAN).o        \
-	src/autodep/env$(SAN).o  \
-	src/ldump_job$(SAN).o
+_bin/ldump_job : $(SERVER_COMMON_SAN_OBJS) src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
@@ -661,13 +634,15 @@ REMOTE_OBJS  := \
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
 #	$(AUTODEP_SAN_OBJS)        \
-#	$(RPC_JOB_SAN_OBJS)        \
 #	src/app$(SAN).o            \
 #	src/non_portable$(SAN).o   \
+#	src/re$(SAN).o             \
+#	src/rpc_job$(SAN).o        \
 #	src/trace$(SAN).o          \
 #	src/autodep/gather$(SAN).o \
 #	src/autodep/ptrace$(SAN).o \
-#	src/autodep/record$(SAN).o
+#	src/autodep/record$(SAN).o \
+#	src/caches/dir_cache$(SAN).o
 
 #_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
 #bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/py$(SAN).o src/autodep/lautodep$(SAN).o
@@ -681,13 +656,15 @@ REMOTE_OBJS  := \
 
 JOB_EXEC_OBJS := \
 	$(AUTODEP_OBJS)      \
-	$(RPC_JOB_OBJS)      \
 	src/app.o            \
 	src/non_portable.o   \
+	src/re.o             \
+	src/rpc_job.o        \
 	src/trace.o          \
 	src/autodep/gather.o \
 	src/autodep/ptrace.o \
-	src/autodep/record.o
+	src/autodep/record.o \
+	src/caches/dir_cache_light.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
 bin/lautodep  : $(JOB_EXEC_OBJS) src/py.o src/autodep/lautodep.o

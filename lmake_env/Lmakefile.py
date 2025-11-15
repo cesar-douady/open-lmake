@@ -435,13 +435,17 @@ class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 
 class LinkJobExecExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }
-	deps    = { 'MAIN'   : 'src/job_exec.o' }
+	deps    = {
+		'DIR_CACHE'       : None
+	,	'DIR_CACHE_LIGHT' : 'src/caches/dir_cache_light.o'
+	,	'MAIN'            : 'src/job_exec.o'
+	}
 
 class LinkLmakeserverExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmakeserver' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
-	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'RPC_JOB'    : 'src/rpc_job.o' # lrepair must be aware of existing backends
 	,	'DIR_CACHE'  : 'src/caches/dir_cache.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'BE'         : 'src/lmakeserver/backend.o'

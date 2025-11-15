@@ -73,6 +73,7 @@ namespace Caches {
 			::serdes(s,dir_s    ) ;
 			::serdes(s,max_sz   ) ;
 			::serdes(s,file_sync) ;
+			::serdes(s,perm_ext ) ;
 			if (IsIStream<S>) _compile() ;
 		}
 		void _compile() {
@@ -82,14 +83,15 @@ namespace Caches {
 		}
 		// data
 	public :
-		Hash::Crc key_crc        = Hash::Crc::None ;
-		::string  dir_s          ;
+		Hash::Crc key_crc   = Hash::Crc::None ;
+		::string  dir_s     ;
+		Sz        max_sz    = 0               ;
+		FileSync  file_sync = FileSync::Dflt  ;
+		PermExt   perm_ext  = {}              ;
+		// derived
 		::string  admin_dir_s    ;
 		::string  reserved_dir_s ;
 		::string  lock_file      ;
-		Sz        max_sz         = 0               ;
-		FileSync  file_sync      = FileSync::Dflt  ;
-		PermExt   perm_ext       = {}              ;
 	} ;
 
 }

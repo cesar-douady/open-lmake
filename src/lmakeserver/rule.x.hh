@@ -229,7 +229,7 @@ namespace Engine {
 		// services
 		void update( Py::Dict const& py_dct ) {
 			Attrs::acquire_from_dct( cache , py_dct , "cache" ) ;
-			throw_unless( !cache || g_config->cache_idxs.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
+			throw_unless( !cache || g_config->caches.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING
