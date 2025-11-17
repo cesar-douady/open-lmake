@@ -60,7 +60,7 @@ namespace Disk {
 	using DiskSz      = uint64_t                 ;
 	using FileNameIdx = Uint<n_bits(PATH_MAX+1)> ; // file names are limited to PATH_MAX
 
-	static constexpr DiskSz DiskBufSz = 1<<16 ; // buffer size to use when reading or writing disk
+	static constexpr DiskSz DiskBufSz = 1<<17 ; // buffer size to use when reading or writing disk, mimic cp on ubuntu24.04
 
 	//
 	// path name library

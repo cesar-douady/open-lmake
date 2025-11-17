@@ -416,7 +416,7 @@ namespace Caches {
 	private :
 		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {        // flush if not enough room
 			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ; // enough room
-			if (_pos) {
+			if (_pos) {                                        // if returning false (not enugh room), at least ensure nothing is left in buffer so that direct write is possible
 				AcFd::write({_buf,_pos}) ;
 				total_sz += _pos ;
 				_pos      = 0    ;
@@ -606,20 +606,28 @@ namespace Caches {
 		Cache* c = s_new(tag) ; throw_unless( c    , "no cache ",tag ) ;
 		//
 		c->config( dct , true/*may_init*/ ) ;
-		grow(s_tab,idx) = c ;                           // only record cache once we are sure config is ok
+		grow(s_tab,idx) = c ;                 // only record cache once we are sure config is ok
 	}
 
-	JobInfo Cache::download( ::string const& job , ::string const& key , bool no_incremental , NfsGuard* repo_nfs_guard ) {
-		Trace trace("Cache::download",key) ;
+	Cache::DownloadDigest Cache::download( ::string const& job , ::vmap_s<DepDigest> const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
+		Trace trace(CacheChnl,"match_download",job) ;
+		::pair<DownloadDigest,AcFd> digest_fd   = sub_download( job , deps ) ;
+		DownloadDigest&             res         = digest_fd.first            ;
+		AcFd          &             download_fd = digest_fd.second           ;
+		trace("hit_info",res.hit_info) ;
+		switch (res.hit_info) {
+			case CacheHitInfo::Hit   : pre_download() ;                          break      ;
+			case CacheHitInfo::Match :                                           return res ;
+			default                  : SWEAR(res.hit_info>=CacheHitInfo::Miss) ; return res ;
+		}
+		// hit case : download
+		Zlvl                    zlvl     = res.job_info.start.start.zlvl ;
+		JobEndRpcReq          & end      = res.job_info.end              ;
+		JobDigest<>           & digest   = end.digest                    ; throw_if( digest.incremental && incremental , "cached job was incremental" ) ;
+		::vmap_s<TargetDigest>& targets  = digest.targets                ;
+		NodeIdx                 n_copied = 0                             ;
 		//
-		::pair<JobInfo,AcFd>    info_fd  = sub_download( job , key ) ;
-		JobInfo               & job_info = info_fd.first             ;
-		Zlvl                    zlvl     = job_info.start.start.zlvl ;
-		JobEndRpcReq          & end      = job_info.end              ;
-		JobDigest<>           & digest   = end.digest                ; throw_if( digest.incremental && no_incremental , "cached job was incremental" ) ;
-		::vmap_s<TargetDigest>& targets  = digest.targets            ;
-		NodeIdx                 n_copied = 0                         ;
-		//
+		trace("download",targets.size(),zlvl) ;
 		try {
 			#if !HAS_ZLIB
 				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;
@@ -628,7 +636,7 @@ namespace Caches {
 				throw_if( zlvl.tag==ZlvlTag::Zstd , "cannot uncompress without zstd" ) ;
 			#endif
 			//
-			InflateFd data_fd { ::move(info_fd.second) , zlvl }                              ;
+			InflateFd data_fd { ::move(download_fd) , zlvl }                                 ;
 			Hdr       hdr     = IMsgBuf().receive<Hdr>( data_fd , true/*once*/ , {}/*key*/ ) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
@@ -656,16 +664,17 @@ namespace Caches {
 			end.end_date = New ;                                                                          // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
-			return job_info ;
+			return res ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
 			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                 // clean up partial job
+			trace("throw") ;
 			throw ;
 		}
 	}
 
 	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) {
-		Trace trace("DirCache::upload",targets.size(),zlvl) ;
+		Trace trace(CacheChnl,"DirCache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
 		Sz  tgts_sz  = 0 ;
@@ -674,10 +683,12 @@ namespace Caches {
 			tgts_sz += fi.sz ;
 			hdr.target_szs.push_back(fi.sz) ;
 		}
+		trace("size",tgts_sz) ;
 		//
 		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
 		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)              ;
 		//
+		trace("max_size",z_max_sz) ;
 		try {
 			DeflateFd data_fd { ::move(key_fd.second) , zlvl } ;
 			OMsgBuf(hdr).send( data_fd , {}/*key*/ ) ;
@@ -706,9 +717,10 @@ namespace Caches {
 			ChkSig :                                                                 // ensure cache entry is reliable by checking file *after* copy
 				throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;
 			}
+			trace("flush") ;
 			data_fd.flush() ;                                                        // update data_fd.sz
 		} catch (::string const& e) {
-			dismiss(key_fd.first) ;
+			sub_dismiss(key_fd.first) ;
 			trace("failed") ;
 			throw ;
 		}
@@ -717,11 +729,12 @@ namespace Caches {
 	}
 
 	void Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		Trace trace("Cache::commit",upload_key,job) ;
+		Trace trace(CacheChnl,"Cache::commit",upload_key,job) ;
 		//
 		if (!( +job_info.start && +job_info.end )) { // we need a full report to cache job
 			trace("no_ancillary_file") ;
-			dismiss(upload_key) ;
+			sub_dismiss(upload_key) ;
+			trace("throw1") ;
 			throw "no ancillary file"s ;
 		}
 		//
@@ -730,12 +743,15 @@ namespace Caches {
 		for( auto const& [dn,dd] : job_info.end.digest.deps )
 			if (!dd.is_crc) {
 				trace("not_a_crc_dep",dn,dd) ;
-				dismiss(upload_key) ;
+				sub_dismiss(upload_key) ;
+				trace("throw2") ;
 				throw "not a crc dep"s ;
 			}
 		job_info.cache_cleanup() ;                   // defensive programming : remove useless/meaningless info
 		//
+		trace("commit") ;
 		sub_commit( upload_key , job , ::move(job_info) ) ;
+		trace("done") ;
 	}
 
 }
@@ -761,13 +777,13 @@ namespace Caches {
 	return                os <<')'                                   ;
 }                                                                      // END_OF_NO_COV
 
-	static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",StrErr()) ; }
-	static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",StrErr()) ; }
+static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",StrErr()) ; }
+static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",StrErr()) ; }
 
-	static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
-		Trace trace("_mount_bind",dst,src) ;
-		throw_unless( ::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src," onto ",dst," : ",StrErr() ) ;
-	}
+static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
+	Trace trace("_mount_bind",dst,src) ;
+	throw_unless( ::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src," onto ",dst," : ",StrErr() ) ;
+}
 
 void JobSpace::chk() const {
 	throw_unless( !chroot_dir_s || (chroot_dir_s.front()=='/'&&chroot_dir_s.back()=='/'                       ) , "bad chroot_dir" ) ;

@@ -178,6 +178,11 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <li>If too high, there is a small impact on performance as open-lmake will consider out of date data that are actually up to date.</li>
 </ul>
 <p>The default value should be safe in usual cases and user should hardly need to modify it.</p>
+<h3 id="domain_name--static-"><a class="header" href="#domain_name--static-"><code>domain_name</code> : Static ('')</a></h3>
+<p>Open-lmake needs to know its own network address so that jobs can connect to it when they start.</p>
+<p>By default, jobs connect to the fqdn (Fully Qualified Domain Name), e.g. <code>my_host.my_network.local</code>. Fqdn is determined by calling <code>getaddrinfo</code> (3) and asking for the canonical name.
+If this does not provide the adequate information, this field allows to specify a domain name, e.g. <code>my_network.local</code>, and jobs will connect to <code>my_host.&lt;domain_name&gt;</code> where <code>my_host</code> is the
+value returned by <code>gethostname</code> (2) and <code>&lt;domain_name&gt;</code> is the value of this field.</p>
 <h3 id="file_sync--static-dir-if-non-local-backends-are-used-else-none"><a class="header" href="#file_sync--static-dir-if-non-local-backends-are-used-else-none"><code>file_sync</code> : Static (<code>'dir'</code> if non-local backends are used, else <code>None</code>)</a></h3>
 <p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
 <p>Possible values are:</p>

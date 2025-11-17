@@ -16,6 +16,8 @@ extern StaticUniqPtr<::string> g_trace_file ;
 enum class Channel : uint8_t {
 	Default
 ,	Backend
+,	Cache
+,	Codec
 } ;
 using Channels = BitMap<Channel> ;
 static constexpr Channels DfltChannels = ~Channels() ;

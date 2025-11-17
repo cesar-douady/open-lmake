@@ -50,23 +50,22 @@ namespace Caches {
 		void      serdes( ::string     & os                       ) override { _serdes(os) ;                               } // serialize  , cannot be a template as it is a virtual method
 		void      serdes( ::string_view& is                       ) override { _serdes(is) ;                               } // deserialize, .
 		//
-		::optional<Match>                   sub_match   ( ::string const& job , ::vmap_s<DepDigest> const&          ) const override ;
-		::pair<JobInfo,AcFd>                sub_download( ::string const& job , ::string const& match_key           )       override ;
-		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 )       override ;
-		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& )       override ;
-		void                                sub_dismiss ( uint64_t upload_key                                       )       override ;
+		::pair<DownloadDigest,AcFd>         sub_download( ::string const& job , ::vmap_s<DepDigest> const&          ) override ;
+		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 ) override ;
+		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
+		void                                sub_dismiss ( uint64_t upload_key                                       ) override ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
-		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                              ) const ;
-		::string _lru_file     (                         ::string const& entry_s                              ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
-		::string _reserved_file( uint64_t upload_key   , ::string const& sfx                                  ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
-		Sz       _reserved_sz  ( uint64_t upload_key                                              , NfsGuard* ) const ;
-		Sz       _lru_remove   (                         ::string const& entry_s                  , NfsGuard* )       ;
-		void     _lru_mk_newest(                         ::string const& entry_s , Sz             , NfsGuard* )       ;
-		void     _mk_room      ( Sz old_sz , Sz new_sz                                , FileLock& , NfsGuard* )       ;
-		void     _dismiss      ( uint64_t upload_key                             , Sz , FileLock& , NfsGuard* )       ;
-		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const&     , FileLock&             ) const ;
+		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                                                ) const ;
+		::string _lru_file     (                         ::string const& entry_s                                                ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
+		::string _reserved_file( uint64_t upload_key   , ::string const& sfx                                                    ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
+		Sz       _reserved_sz  ( uint64_t upload_key                                                                , NfsGuard* ) const ;
+		Sz       _lru_remove   (                         ::string const& entry_s                                    , NfsGuard* )       ;
+		void     _lru_mk_newest(                         ::string const& entry_s , Sz                               , NfsGuard* )       ;
+		void     _mk_room      ( Sz old_sz , Sz new_sz                                                  , FileLock& , NfsGuard* )       ;
+		void     _dismiss      ( uint64_t upload_key                             , Sz                   , FileLock& , NfsGuard* )       ;
+		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const&     , bool for_commit , FileLock& , NfsGuard* ) const ;
 		//
 		template<IsStream S> void _serdes(S& s) {
 			::serdes(s,key_crc  ) ;

@@ -951,7 +951,7 @@ namespace Engine {
 		Req             req   = ri.req ;
 		Job             job   = idx()  ;
 		Rule::RuleMatch match { job }  ;
-		Trace trace("_submit_plain",job,ri,pressure) ;
+		Trace trace(Channel::Cache,"_submit_plain",job,ri,pressure) ;
 		SWEAR( !ri.waiting() , ri ) ;
 		SWEAR( !ri.running() , ri ) ;
 		for( Req rr : running_reqs() ) if (rr!=req) {
@@ -1003,67 +1003,62 @@ namespace Engine {
 					/**/                                     SWEAR( cache_idx<Cache::s_tab.size() , cache_idx,Cache::s_tab.size()          ) ;
 					Cache* cache = Cache::s_tab[cache_idx] ; SWEAR( cache                         , submit_ancillary_attrs.cache,cache_idx ) ; // cache_idx is set to 0 when cache is not ready
 					//
-					::optional<Cache::Match> cache_match ;
-					::string                 job_name    = unique_name()           ;
+					Cache::DownloadDigest cache_digest ;
+					JobInfo&              job_info     = cache_digest.job_info ;
+					::string              job_name     = unique_name()         ;
+					NfsGuard              nfs_guard    { g_config->file_sync } ;
+					::string              fa_msg       ;
+					auto pre_download = [&]() {
+						::vmap_s<FileAction> actions ; for( auto [t,a] : pre_actions(match,true/*no_incremental*/) ) actions.emplace_back( t->name() , a ) ;
+						fa_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &nfs_guard ) ;
+					} ;
 					try {
-						cache_match = cache->match( job_name , dns ) ;
-						if (!cache_match) FAIL("delayed cache not yet implemented") ;
+						cache_digest = cache->download( job_name , dns , !req->options.flags[ReqFlag::NoIncremental] , pre_download , &nfs_guard ) ;
 					} catch (::string const& e) {
-						trace("cache_match_throw",e) ;
-						req->audit_job ( Color::Warning , "bad_cache_match" , job , true/*at_end*/ ) ;
-						req->audit_info( Color::Note , e , 1/*lvl*/                                ) ;
+						trace("cache_download_throw",e) ;
+						cache_hit_info = CacheHitInfo::BadDownload ;
+						req->audit_job ( Color::Warning , "bad_cache_download" , job , true/*at_end*/ ) ;
+						req->audit_info( Color::Note    , e , 1/*lvl*/                                ) ;
 					}
-					cache_hit_info = cache_match->hit_info ;
+					cache_hit_info = cache_digest.hit_info ;
 					trace("hit",cache_hit_info) ;
 					switch (cache_hit_info) {
-						case CacheHitInfo::Hit :
-							try {
-								NfsGuard nfs_guard { g_config->file_sync } ;
-								//
-								::vmap<Node,FileAction> fas     = pre_actions( match , true/*no_incremental*/ ) ;
-								::vmap_s<FileAction>    actions ;                                                 for( auto [t,a] : fas ) actions.emplace_back( t->name() , a ) ;
-								//
-								::string dfa_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &nfs_guard ) ;
-								//
-								if (+dfa_msg) {
-									req->audit_job ( Color::Note , "wash"  , job      ) ;
-									req->audit_info( Color::Note , dfa_msg , 1/*lvl*/ ) ;
-									trace("hit_msg",dfa_msg,ri) ;
-								}
-								//
-								JobExec je       { job , New }                                                                                              ; // job starts and ends, no host
-								JobInfo job_info = cache->download( job_name , cache_match->key , req->options.flags[ReqFlag::NoIncremental] , &nfs_guard ) ;
-								job_info.start.pre_start.job       = +job      ;                                                                              // repo dependent
-								job_info.start.submit_attrs.reason = ri.reason ;                                                                              // context dependent
-								job_info.end  .end_date            = New       ;                                                                              // execution dependnt
-								//
-								JobDigest<Node> digest = job_info.end.digest ;                                                  // gather info before being moved
-								Job::s_record_thread.emplace(job,::move(job_info.start)) ;
-								Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
-								//
-								if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
-								//
-								ri.step(Step::Hit,job) ;
-								je.end_analyze(/*inout*/digest) ;
-								req->stats.add(JobReport::Hit) ;
-								req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
-								goto ReportHit ;
-							} catch (::string const&e) {                                                                        // if we cant download result, it is like a miss
-								trace("cache_hit_throw",e) ;
-								cache_hit_info = CacheHitInfo::BadDownload ;
-								req->audit_job ( Color::Warning , "bad_cache_hit" , job , true/*at_end*/ ) ;
-								req->audit_info( Color::Note    , e , 1/*lvl*/                           ) ;
+						case CacheHitInfo::Hit : {
+							//
+							if (+fa_msg) {
+								req->audit_job ( Color::Note , "wash" , job      ) ;
+								req->audit_info( Color::Note , fa_msg , 1/*lvl*/ ) ;
+								trace("hit_msg",fa_msg,ri) ;
 							}
-						break ;
+							//
+							job_info.start.pre_start.job       = +job      ;                                                                              // repo dependent
+							job_info.start.submit_attrs.reason = ri.reason ;                                                                              // context dependent
+							job_info.end  .end_date            = New       ;                                                                              // execution dependnt
+							//
+							JobDigest<Node> digest = job_info.end.digest ;                                                  // gather info before being moved
+							Job::s_record_thread.emplace(job,::move(job_info.start)) ;
+							Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
+							//
+							ri.step(Step::Hit,job) ;
+							JobExec je { job , New } ; // job starts and ends, no host
+							if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
+							je.end_analyze(/*inout*/digest) ;
+							req->stats.add(JobReport::Hit) ;
+							req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
+							::vector<Dep> ds ; ds.reserve(digest.deps.size()) ; for( auto& [d,dd] : digest.deps ) ds.emplace_back( d , dd ) ;
+							deps.assign(ds) ;
+							goto ReportHit ;
+						}
 						case CacheHitInfo::Match : {
 							status = Status::CacheMatch ;
 							req->audit_job( Color::Note , "hit_rerun" , job ) ;
-						ReportHit :
-							::vector<Dep> ds ; ds.reserve(cache_match->deps.size()) ; for( auto& [dn,dd] : cache_match->deps ) ds.emplace_back( Node(New,dn) , dd ) ;
+							::vector<Dep> ds ; ds.reserve(job_info.end.digest.deps.size()) ; for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 							deps.assign(ds) ;
+						}
+						ReportHit :
 							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
 							return ;                                                                                            // ... so we have to ensure ri.iter is still a legal iterator
-						} break ;
+						break ;
 					DN}                                                                                                         // NO_COV
 				}
 			}

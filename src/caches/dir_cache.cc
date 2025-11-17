@@ -85,7 +85,7 @@ namespace Caches {
 		void DirCache::config( ::vmap_ss const& /*dct*/ , bool /*may_init*/ ) { FAIL() ; }
 	#else
 		void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
-			Trace trace("DirCache::config",dct.size(),STR(may_init)) ;
+			Trace trace(CacheChnl,"DirCache::config",dct.size(),STR(may_init)) ;
 			auto acquire_dct = [&]( ::vmap_ss const& d , uint8_t pass ) {
 				for( auto const& [key,val] : d )
 					try {
@@ -293,7 +293,7 @@ namespace Caches {
 	}
 
 	void DirCache::_mk_room( Sz old_sz , Sz new_sz , FileLock& lock , NfsGuard* nfs_guard ) {
-		Trace trace("DirCache::_mk_room",max_sz,old_sz,new_sz) ;
+		Trace trace(CacheChnl,"DirCache::_mk_room",max_sz,old_sz,new_sz) ;
 		if (new_sz>max_sz) {
 			trace("too_large1") ;
 			throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz) ;
@@ -410,50 +410,49 @@ namespace Caches {
 		return xxh.digest().hex() ;
 	}
 
-	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , FileLock& lock ) const {
-		Trace trace("DirCache::_sub_match",job) ;
+	Cache::Match DirCache::_sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps , bool for_commit , FileLock& lock , NfsGuard* nfs_guard ) const {
+		Trace trace(CacheChnl,"DirCache::_sub_match",job) ;
 		//
-		NfsGuard nfs_guard { file_sync }                                                                   ;
-		::string abs_jn_s  = dir_s+job+'/'                                                                 ;
-		AcFd     dfd       { abs_jn_s , {.flags=O_RDONLY|O_DIRECTORY,.err_ok=true,.nfs_guard=&nfs_guard} } ; if (!dfd) return {.hit_info=CacheHitInfo::NoRule} ;
+		::string abs_jn_s  = dir_s+job+'/'                                                                ;
+		AcFd     dfd       { abs_jn_s , {.flags=O_RDONLY|O_DIRECTORY,.err_ok=true,.nfs_guard=nfs_guard} } ; if (!dfd) return {.hit_info=CacheHitInfo::NoRule} ;
 		//
 		::vector_s/*lazy*/                      repos         ;
 		::string                                matching_key  ;
 		::optional<::vmap_s<DepDigest>>         matching_deps ;
-		::optional<::umap_s<DepDigest>>/*lazy*/ repo_dep_map  ;                               // map used when not in order
-		bool                                    truncated     = false ;                       // if true <= matching_deps has been truncated because of multi-match
-		bool                                    found_rule    = false ;                       // used only when miss
+		::optional<::umap_s<DepDigest>>/*lazy*/ repo_dep_map  ;                        // map used when not in order
+		bool                                    truncated     = false                ; // if true <= matching_deps has been truncated because of multi-match
+		CacheHitInfo                            miss          = CacheHitInfo::NoRule ; // used only when miss
 		::string                                hint_key      ;
 		//
-		for( ssize_t candidate=-1 ;; candidate++ ) {                                          // candidate==-1 means try deps_hint
+		for( ssize_t candidate=-1 ;; candidate++ ) {                                   // candidate==-1 means try deps_hint
 			::string key ;
 			switch (candidate) {
 				case -1 :
-					key = read_lnk( {dfd,"deps_hint-"+_mk_crc(repo_deps)} ) ;                 // may point to the right entry (hint only as link is not updated when entry is modified)
+					key = read_lnk( {dfd,"deps_hint-"+_mk_crc(repo_deps)} ) ;          // may point to the right entry (hint only as link is not updated when entry is modified)
 					if (!key) continue ;
-					SWEAR( key.starts_with("key-") && key.find('/')==Npos , key ) ;           // fast check
+					SWEAR( key.starts_with("key-") && key.find('/')==Npos , key ) ;    // fast check
 					hint_key = key ;
 				break ;
 				case 0 :
-					repos = lst_dir_s(dfd) ;                                                  // solve lazy
+					repos = lst_dir_s(dfd) ;                                           // solve lazy
 				[[fallthrough]] ;
 				default :
-					if (candidate>=ssize_t(repos.size())) goto Epilog ;                       // seen all candidates
+					if (candidate>=ssize_t(repos.size())) goto Epilog ;                // seen all candidates
 					key = ::move(repos[candidate]) ;
-					if (!key.starts_with("key-")) continue ;                                  // not an entry
-					if (key==hint_key           ) continue ;                                  // already processed
+					if (!key.starts_with("key-")) continue ;                           // not an entry
+					if (key==hint_key           ) continue ;                           // already processed
 			}
-			bool                in_order   = true                 ;                           // first try in order match, then revert to name based match
-			size_t              idx        = 0                    ;                           // index in repo_deps used when in order, maintain count when not in order
+			bool                in_order   = true                 ;                    // first try in order match, then revert to name based match
+			size_t              idx        = 0                    ;                    // index in repo_deps used when in order, maintain count when not in order
 			bool                hit        = true                 ;
-			size_t              dvg        = 0                    ;                           // first index in cache_deps not found in repo_deps/repo_dep_map
+			size_t              dvg        = 0                    ;                    // first index in cache_deps not found in repo_deps/repo_dep_map
 			::string            deps_file  = abs_jn_s+key+"/deps" ;
-			AcFd                fd         ;                        try { fd = AcFd(deps_file,{.nfs_guard=&nfs_guard}) ; } catch (::string const& e) { trace("no_deps" ,deps_file,e) ; continue ; }
-			::vmap_s<DepDigest> cache_deps ;                        try { deserialize(fd.read(),cache_deps) ;            } catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ; }
+			AcFd                fd         ;                        try { fd = AcFd(deps_file,{.nfs_guard=nfs_guard}) ; } catch (::string const& e) { trace("no_deps" ,deps_file,e) ; continue ; }
+			::vmap_s<DepDigest> cache_deps ;                        try { deserialize(fd.read(),cache_deps) ;           } catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ; }
 			//
-			found_rule = true ;
+			miss = CacheHitInfo::BadDeps ;
 			//
-			lock.keep_alive() ;                                                               // locks have limited liveness and must be refreshed regularly
+			lock.keep_alive() ;                                                        // locks have limited liveness and must be refreshed regularly
 			//
 			for( auto& [dn,dd] : cache_deps ) {
 				DepDigest const* repo_dd  ;
@@ -463,47 +462,49 @@ namespace Caches {
 						goto FoundDep ;
 					}
 					in_order = false ;
-					if (!repo_dep_map) repo_dep_map.emplace(mk_umap(repo_deps)) ;             // solve lazy
+					if (!repo_dep_map) repo_dep_map.emplace(mk_umap(repo_deps)) ;      // solve lazy
 				}
 				if ( auto it = repo_dep_map->find(dn) ; it!=repo_dep_map->end() ) {
 					repo_dd = &it->second ;
 					goto FoundDep ;
 				}
-				hit = false ;                                                                 // this entry is not found, no more a hit, but search must continue
+				hit = false ;                                                          // this entry is not found, no more a hit, but search must continue
 				continue ;
 			FoundDep :
 				if (!dd.crc().match(repo_dd->crc(),dd.accesses)) {
 					trace("miss",dn,dd.accesses,dd.crc(),repo_dd->crc()) ;
 					goto Miss ;
 				}
-				/**/     idx++ ;                                                              // count entries even when not in order for early break
+				/**/     idx++ ;                                                       // count entries even when not in order for early break
 				if (hit) dvg++ ;
 			}
-			if (hit) return { .hit_info=CacheHitInfo::Hit , .key=::move(key) , .deps=::move(cache_deps) } ;
+			if      (hit       ) return { .hit_info=CacheHitInfo::Hit , .key=::move(key) , .deps=::move(cache_deps) } ;
+			else if (for_commit) continue                                                                             ; // deps are not necessary for commit
 			//
-			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {                                  // stop recording deps at the first unmatched critical dep
+			for( NodeIdx i : iota(dvg,cache_deps.size()) ) {                                                        // stop recording deps at the first unmatched critical dep
 				if (!cache_deps[i].second.dflags[Dflag::Critical]) continue ;
 				//
-				if (in_order)   SWEAR( idx>=repo_deps.size() , idx,repo_deps ) ;              // if still in_order, in order entries must have been exhausted, nothing to check
-				else          { if (repo_dep_map->contains(cache_deps[i].first)) continue ; } // if dep was known, it was ok
+				if (in_order)   SWEAR( idx>=repo_deps.size() , idx,repo_deps ) ;                                    // if still in_order, in order entries must have been exhausted, nothing to check
+				else          { if (repo_dep_map->contains(cache_deps[i].first)) continue ; }                       // if dep was known, it was ok
 				//
 				cache_deps.resize(i+1) ;
 				break ;
 			}
-			if (+matching_deps) {                                                             // if several entries match, only keep deps that are needed for all of them ...
-				::uset_s names = mk_key_uset(cache_deps) ;                                    // ... so as to prevent making useless deps at the risk of loss of parallelism
+			if (+matching_deps) {                                                                                   // if several entries match, only keep deps that are needed for all of them ...
+				::uset_s names = mk_key_uset(cache_deps) ;                                                          // ... so as to prevent making useless deps at the risk of loss of parallelism
 				truncated |= ::erase_if(
 					*matching_deps
 				,	[&](auto const& n_dd) { return !names.contains(n_dd.first) ; }
 				) ;
 			} else {
-				matching_key  = ::move(key       ) ;                                          // any key is ok, first is least expensive
+				matching_key  = ::move(key       ) ;                                                                // any key is ok, first is least expensive
 				matching_deps = ::move(cache_deps) ;
-				for( auto& [_,dd] : *matching_deps ) dd.del_crc() ;                           // defensive programming : dont keep useless crc as job will rerun anyway
+				for( auto& [_,dd] : *matching_deps ) dd.del_crc() ;                                                 // defensive programming : dont keep useless crc as job will rerun anyway
 			}
 		Miss : ;
 		}
 	Epilog :
+		if (for_commit    ) return {.hit_info=CacheHitInfo::Miss} ;                                                 // for commit, we only need to know it did not hit
 		if (+matching_deps) {
 			bool has_new_deps =                                                                                     // avoid loop by guaranteeing new deps when we return hit=Maybe
 				!truncated                                                                                          // if not truncated, new deps are guaranteed, no need to search
@@ -515,40 +516,40 @@ namespace Caches {
 		} else {
 			trace("no_matching") ;
 		}
-		return { .hit_info=found_rule?CacheHitInfo::BadDeps:CacheHitInfo::NoRule } ;
+		return { .hit_info=miss } ;
 	}
 
-	::optional<Cache::Match> DirCache::sub_match( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) const {
-		Trace trace("DirCache::sub_match",job) ;
-		FileLock          lock { file_sync , lock_file , {.perm_ext=perm_ext} } ;
-		::optional<Match> res  = _sub_match( job , repo_deps , lock )           ;
+	::pair<Cache::DownloadDigest,AcFd> DirCache::sub_download( ::string const& job , ::vmap_s<DepDigest> const& repo_deps ) {
+		Trace trace(CacheChnl,"DirCache::sub_download",job) ;
+		//
+		::pair<DownloadDigest,AcFd> res ;
+		//
+		NfsGuard nfs_guard { file_sync                                    }                          ;
+		FileLock lock      { file_sync , lock_file , {.perm_ext=perm_ext} }                          ; trace("locked"             ) ;
+		Match    m         = _sub_match( job , repo_deps , false/*for_commit*/ , lock , &nfs_guard ) ; trace("hit_info",m.hit_info) ;
+		//
+		res.first.hit_info = m.hit_info ;
+		switch (m.hit_info) {
+			case CacheHitInfo::Hit   : break ;
+			case CacheHitInfo::Match : res.first.job_info.end.digest.deps = ::move(m.deps) ; return res ;
+			default                  :                                                       return res ;
+		}
+		// hit case : download
+		::string job_key_s = cat(job,'/',m.key,'/')                ;
+		Sz       sz        = _lru_remove( job_key_s , &nfs_guard ) ; throw_if( !sz , "no entry ",job_key_s ) ;
+		_lru_mk_newest( job_key_s , sz , &nfs_guard ) ;
+		res.first.job_info = deserialize<JobInfo>(AcFd(cat(dir_s,job_key_s,"info"),{.nfs_guard=&nfs_guard}).read()) ;
+		res.second         =                      AcFd(cat(dir_s,job_key_s,"data"),{.nfs_guard=&nfs_guard})         ;
 		trace("done") ;
 		return res ;
 	}
 
-	::pair<JobInfo,AcFd> DirCache::sub_download( ::string const& job , ::string const& key ) {                         // key is returned by sub_match()
-		Trace trace("DirCache::sub_download",key) ;
-		::string job_key_s = cat(job,'/',key,'/')                                                    ;
-		NfsGuard nfs_guard { file_sync }                                                             ;
-		AcFd     dfd       { dir_s+job_key_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&nfs_guard} } ;
-		AcFd     info_fd   ;
-		AcFd     data_fd   ;
-		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext} } ;                                           // because we manipulate LRU, we need exclusive
-			Sz       sz   = _lru_remove( job_key_s , &nfs_guard )          ; throw_if( !sz , "no entry ",job_key_s ) ;
-			_lru_mk_newest( job_key_s , sz , &nfs_guard ) ;
-			info_fd = AcFd(File(dfd,"info")) ;
-			data_fd = AcFd(File(dfd,"data")) ;
-		}
-		trace("done") ;
-		return { deserialize<JobInfo>(info_fd.read()) , ::move(data_fd) } ;
-	}
-
 	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz reserve_sz) {
-		Trace trace("DirCache::sub_upload",reserve_sz) ;
+		Trace trace(CacheChnl,"DirCache::sub_upload",reserve_sz) ;
 		//
 		NfsGuard nfs_guard  { file_sync }        ;
-		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ; // reserve 0 for no upload_key
-		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ;          // lock for minimal time
+		uint64_t upload_key = random<uint64_t>() ; if (!upload_key) upload_key = 1 ;          // reserve 0 for no upload_key
+		{	FileLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ; trace("locked") ; // lock for minimal time
 			_mk_room( 0 , reserve_sz , lock , &nfs_guard ) ;
 		}
 		AcFd         (_reserved_file(upload_key,"sz"  ),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444                   ,.nfs_guard=&nfs_guard}).write(serialize(reserve_sz)) ; // private
@@ -558,17 +559,17 @@ namespace Caches {
 	}
 
 	void DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		Trace trace("DirCache::sub_commit",upload_key,job) ;
+		Trace trace(CacheChnl,"DirCache::sub_commit",upload_key,job) ;
 		// START_OF_VERSIONING
 		::string deps_str = serialize(job_info.end.digest.deps) ;
 		// END_OF_VERSIONING
-		NfsGuard nfs_guard     { file_sync }                                                  ;
-		::string jn_s          = job+'/'                                                      ;
-		::string abs_jn_s      = dir_s + jn_s                                                 ;
-		::string abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                             // deps_hint are hint only, hence no versioning problem
-		FileLock lock          { file_sync , lock_file , {.perm_ext=perm_ext} }               ;                             // lock as late as possible
-		Match    match         = _sub_match( job , job_info.end.digest.deps , lock )          ;
-		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                          ;
+		NfsGuard nfs_guard     { file_sync }                                                                           ;
+		::string jn_s          = job+'/'                                                                               ;
+		::string abs_jn_s      = dir_s + jn_s                                                                          ;
+		::string abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps))                          ;                   // deps_hint are hint only, hence no versioning problem
+		FileLock lock          { file_sync , lock_file , {.perm_ext=perm_ext} }                                        ; trace("locked") ; // lock as late as possible
+		Match    match         = _sub_match( job , job_info.end.digest.deps , true/*for_commit*/ , lock , &nfs_guard ) ;
+		Sz       old_sz        = _reserved_sz(upload_key,&nfs_guard)                              ;
 		if (match.hit_info==CacheHitInfo::Hit) {                                                                            // dont populate if a matching entry appeared while the job was running
 			trace("hit",match.key) ;
 			auto                                       cache_job_info = deserialize<JobInfo>(AcFd(cat(dir_s,jn_s,match.key,"/info"),{.nfs_guard=&nfs_guard}).read()) ;
@@ -596,9 +597,11 @@ namespace Caches {
 				else                                   msg << widen(different_content,w)<<" : "<<key<<'\n' ;
 			}
 			_dismiss( upload_key , old_sz , lock , &nfs_guard ) ;                                                           // finally, we did not populate
+			trace("throw_if",w,msg) ;
 			throw_if( w , msg ) ;
 		} else {
 			match.key = cat( "key-" , key_crc.hex() ) ; match.key += FileInfo(cat(abs_jn_s,match.key,"-first/lru")).exists() ? "-last" : "-first" ;
+			trace("key",match.key) ;
 			//
 			::string jnid_s     = cat(jn_s,match.key,'/') ;
 			::string abs_jnid_s = dir_s + jnid_s          ;
@@ -628,6 +631,7 @@ namespace Caches {
 				trace("failed",e) ;
 				if (!unlnked) unlnk_inside_s(dfd) ;                                                                         // clean up in case of partial execution
 				_dismiss( upload_key , made_room?new_sz:old_sz , lock , &nfs_guard ) ;                                      // finally, we did not populate the entry
+				trace("throw") ;
 				throw ;
 			}
 		}
@@ -637,9 +641,10 @@ namespace Caches {
 	}
 
 	void DirCache::sub_dismiss(uint64_t upload_key) {
-		Trace trace("DirCache::sub_dismiss",upload_key) ;
+		Trace trace(CacheChnl,"DirCache::sub_dismiss",upload_key) ;
 		NfsGuard nfs_guard { file_sync                                    } ;
-		FileLock lock      { file_sync , lock_file , {.perm_ext=perm_ext} } ;              // lock as late as possible
+		FileLock lock      { file_sync , lock_file , {.perm_ext=perm_ext} } ; // lock as late as possible
+		trace("locked") ;
 		_dismiss( upload_key , _reserved_sz(upload_key,&nfs_guard) , lock , &nfs_guard ) ;
 		trace("done") ;
 	}
