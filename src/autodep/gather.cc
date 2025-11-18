@@ -690,11 +690,11 @@ Status Gather::_exec_child() {
 					::optional<JobMngtRpcReply> received = sse.buf.receive_step<JobMngtRpcReply>(fd,Yes/*fetch*/,sse.key) ; if (!received) { trace(kind,fd,"...") ; break ; } // partial message
 					JobMngtRpcReply&            jmrr     = *received                                                      ;
 					trace(kind,fd,"received",_n_server_req_pending,jmrr,jmrr.seq_id) ;
-					Fd rfd = jmrr.fd ;                                                                                             // capture before move
-					if (jmrr.seq_id!=seq_id) goto ServerNextEvent ;                                                                // message is not for us
+					Fd rfd = jmrr.fd ;                                                                                                 // capture before move
+					if (jmrr.seq_id!=seq_id) goto ServerNextEvent ;                                                                    // message is not for us
 					switch (jmrr.proc) {
-						case JobMngtProc::None      :                                                                              // eof or message is not for us
-						case JobMngtProc::Heartbeat : goto ServerNextEvent ;                                                       // just receiving the message is enough, nothing to do
+						case JobMngtProc::None      :                                                                                  // eof or message is not for us
+						case JobMngtProc::Heartbeat : goto ServerNextEvent ;                                                           // just receiving the message is enough, nothing to do
 						case JobMngtProc::Kill      :
 							_exec_trace( Comment::Kill , CommentExt::Reply ) ;
 							set_status(Status::Killed)                       ;
@@ -703,36 +703,40 @@ Status Gather::_exec_child() {
 						case JobMngtProc::DepDirect  :
 						case JobMngtProc::DepVerbose : {
 							_n_server_req_pending-- ;
-							JobSlaveEntry& jse     = job_slaves.at(rfd)                 ;
-							bool           verbose = jmrr.proc==JobMngtProc::DepVerbose ;
-							Pdate          now     { New }                              ;
-							//
-							if (verbose) {
-								for( VerboseInfo& vi : jmrr.verbose_infos ) {
-									::string ok_str  ;
-									::string crc_str ;
-									if (!jse.jerr.digest.flags.dflags[Dflag::IgnoreError]) vi.ok  = Maybe                                         ;
-									else                                                   ok_str = vi.ok==Yes ? "ok" : vi.ok==No ? "error" : "-" ;
-									if ( !(jse.jerr.digest.accesses&DataAccesses) ) {
-										vi.crc = {} ;
-									} else {
-										if      ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish regular from no file
-										else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish link    from no file
-										crc_str = ::string(vi.crc) ;
-									}
-									_exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
-								}
+							if ( auto sit=job_slaves.find(rfd) ; sit==job_slaves.end() ) {
+								rfd = {} ;                                                                                             // job is dead, ignore server reply
 							} else {
-								NfsGuard nfs_guard { autodep_env.file_sync } ;
-								for( auto const& [f,_] : jse.jerr.files )
-									_access_info(::copy(nfs_guard.access(f).file)).second.no_hot(now) ;                    // dep has been built and we are guarded : it cannot be hot from now on
-								_exec_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
+								JobSlaveEntry& jse     = sit->second                        ;
+								bool           verbose = jmrr.proc==JobMngtProc::DepVerbose ;
+								Pdate          now     { New }                              ;
+								//
+								if (verbose) {
+									for( VerboseInfo& vi : jmrr.verbose_infos ) {
+										::string ok_str  ;
+										::string crc_str ;
+										if (!jse.jerr.digest.flags.dflags[Dflag::IgnoreError]) vi.ok  = Maybe                                         ;
+										else                                                   ok_str = vi.ok==Yes ? "ok" : vi.ok==No ? "error" : "-" ;
+										if ( !(jse.jerr.digest.accesses&DataAccesses) ) {
+											vi.crc = {} ;
+										} else {
+											if      ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish regular from no file
+											else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish link    from no file
+											crc_str = ::string(vi.crc) ;
+										}
+										_exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
+									}
+								} else {
+									NfsGuard nfs_guard { autodep_env.file_sync } ;
+									for( auto const& [f,_] : jse.jerr.files )
+										_access_info(::copy(nfs_guard.access(f).file)).second.no_hot(now) ;                    // dep has been built and we are guarded : it cannot be hot from now on
+									_exec_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
+								}
+								for( auto& [f,_] : jse.jerr.files ) {
+									FileInfo fi { f } ;
+									new_access( rfd , now , ::move(f) , jse.jerr.digest , fi , Yes/*late*/ , jse.jerr.comment , jse.jerr.comment_exts ) ;
+								}
+								jse.jerr = {} ;
 							}
-							for( auto& [f,_] : jse.jerr.files ) {
-								FileInfo fi { f } ;
-								new_access( rfd , now , ::move(f) , jse.jerr.digest , fi , Yes/*late*/ , jse.jerr.comment , jse.jerr.comment_exts ) ;
-							}
-							jse.jerr = {} ;
 						} break ;
 						case JobMngtProc::ChkDeps    :
 						case JobMngtProc::ChkTargets : {
@@ -744,7 +748,7 @@ Status Gather::_exec_child() {
 									ces |= CommentExt::Killed ;
 									set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
 									kill() ;
-									rfd = {} ;                                                                             // dont reply to ensure job waits if sync
+									rfd = {} ;                                                                                 // dont reply to ensure job waits if sync
 								break ;
 								case No :
 									ces |= CommentExt::Err ;
@@ -769,19 +773,21 @@ Status Gather::_exec_child() {
 								//^^^^^^^^^^^^^^^^^^^
 							}
 						} break ;
-					DF}                                                                                                    // NO_COV
+					DF}                                                                                                        // NO_COV
 					if (+rfd) {
+						// for ChkDeps and DepDirect, jmrr.ok may be Maybe if job is now useless (due to ^C) and check was not performed
+						// in that case, dont reply and job will be killed
 						JobExecRpcReply jerr ;
 						switch (jmrr.proc) {
-							case JobMngtProc::None       :                                                                                                          break ;
-							case JobMngtProc::ChkDeps    : SWEAR(jmrr.ok!=Maybe) ; jerr = { .proc=Proc::ChkDeps    , .ok=jmrr.ok                                } ; break ;
-							case JobMngtProc::DepDirect  : SWEAR(jmrr.ok!=Maybe) ; jerr = { .proc=Proc::DepDirect  , .ok=jmrr.ok                                } ; break ;
-							case JobMngtProc::DepVerbose :                         jerr = { .proc=Proc::DepVerbose , .verbose_infos=::move(jmrr.verbose_infos ) } ; break ;
-						DF}                                                                                                                                                 // NO_COV
+							case JobMngtProc::None       :                                                                                                      break ;
+							case JobMngtProc::ChkDeps    : if (jmrr.ok!=Maybe) jerr = { .proc=Proc::ChkDeps    , .ok=jmrr.ok                                } ; break ; // cf above
+							case JobMngtProc::DepDirect  : if (jmrr.ok!=Maybe) jerr = { .proc=Proc::DepDirect  , .ok=jmrr.ok                                } ; break ; // .
+							case JobMngtProc::DepVerbose :                     jerr = { .proc=Proc::DepVerbose , .verbose_infos=::move(jmrr.verbose_infos ) } ; break ;
+						DF}                                                                                                                                             // NO_COV
 						trace("reply",jerr) ;
-						//vvvvvvvvvvvvvvvvvvvvvvvv
-						sync( rfd , ::move(jerr) ) ;
-						//^^^^^^^^^^^^^^^^^^^^^^^^
+						//         vvvvvvvvvvvvvvvvvvvvvvvvvv
+						if (+jerr) sync( rfd , ::move(jerr) ) ;
+						//         ^^^^^^^^^^^^^^^^^^^^^^^^^^
 					}
 				ServerNextEvent :
 					epoll.close(false/*write*/,fd) ;

@@ -878,8 +878,8 @@ namespace Engine {
 					bool e_is_clean = eit==old_e_entry.end() ; //!                                                                    fresh
 					if (  d_is_clean || dit->second!=crc  ) _create( {false/*encode*/,file_name,ctx,code} , val  , d_is_clean , job , false , &lock ) ;
 					if (  e_is_clean || eit->second!=code ) _create( {                file_name,ctx,crc } , code , e_is_clean , job , false , &lock ) ;
-					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                         ;
-					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                         ;
+					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                    ;
+					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                    ;
 					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 				}
 				for( auto const& [code,_] : old_d_entry ) { lock.keep_alive() ; _erase( {false/*encode*/,file_name,ctx,code} , &lock ) ; } // lock have limited liveness, keep it alive regularly
@@ -887,7 +887,9 @@ namespace Engine {
 			}
 		}
 		if (has_new_codes==No) {                                                                                                           // codes are strictly increasing and hence no code conflict
-			deps.assign({Dep( file , Access::Reg , FileInfo(file_name) , false/*err*/ )}) ;
+			Dep dep { file , Access::Reg , FileInfo(file_name) , false/*err*/ } ;
+			dep.acquire_crc()  ;
+			deps.assign({dep}) ;
 		} else {
 			Crc file_crc = _refresh_codec_file( file_name , decode_tab ) ;
 			file->set_crc_date( file_crc , FileSig(file_name) ) ;

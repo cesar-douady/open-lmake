@@ -553,9 +553,7 @@ namespace Engine {
 					dep.acquire_crc() ;
 					if (!dep.is_crc) {
 						auto it = old_srcs.find(dep) ;
-						if (it!=old_srcs.end()) {
-							if (dep.sig()==it->second.first) dep.set_crc(it->second.second,false/*err*/) ;
-						}
+						if ( it!=old_srcs.end() && dep.sig()==it->second.first ) dep.set_crc(it->second.second,false/*err*/) ;
 					}
 					if (dep.is_crc) {                                                                       // if a dep has become a crc, update digest so that ancillary file reflects it
 						dd.set_crc_sig(dep) ;
