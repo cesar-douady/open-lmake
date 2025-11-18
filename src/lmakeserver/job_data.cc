@@ -823,7 +823,6 @@ namespace Engine {
 		Node     file       ;                                 for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,job) ;
 		::string file_name  = file->name()                  ;
 		::string manifest   ;
-		NfsGuard nfs_guard  { Engine::g_config->file_sync } ;
 		//
 		Trace trace("_submit_codec",job,req) ;
 		//
@@ -841,28 +840,29 @@ namespace Engine {
 		::map_s /*ctx*/<::map_ss/*code->val */> decode_tab     ;
 		::string                                codec_dir_s    = CodecFile::s_dir_s(file_name)                               ;
 		//
-		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                                       // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
+		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                                                  // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			::string tmp_codec_dir_s = CodecFile::s_dir_s(file_name,CodecDir::Tmp) ;
-			SWEAR( !old_decode_tab , file_name ) ;                                             // cannot have old codes if not initialized
-			mk_dir_s(tmp_codec_dir_s) ;                                                        // we want a dir to appear initialized, even if empty
+			SWEAR( !old_decode_tab , file_name ) ;                                                        // cannot have old codes if not initialized
+			mk_dir_s(tmp_codec_dir_s) ;                                                                   // we want a dir to appear initialized, even if empty
 			decode_tab = _mk_decode_tab(encode_tab) ;
 			for( auto const& [ctx,d_entry] : decode_tab ) {
 				manifest << mk_printable(ctx) <<'\n' ;
 				for( auto const& [code,val] : d_entry ) {
-					Crc crc { New , val } ; //!                          is_clean      fresh
-					_create( {false/*encode*/,file_name,ctx,code} , val  , true , job , true , &nfs_guard ) ;
-					_create( {                file_name,ctx,crc } , code , true , job , true , &nfs_guard ) ;
+					NfsGuard nfs_guard  { Engine::g_config->file_sync } ;
+					Crc      crc        { New , val                   } ;
+					_create( {false/*encode*/,file_name,ctx,code} , val  , true/*is_clean*/ , job , true/*fresh*/ , &nfs_guard ) ;
+					_create( {                file_name,ctx,crc } , code , true/*.       */ , job , true/*.    */ , &nfs_guard ) ;
 					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 				}
 			}
-			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                            // global move
+			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                       // global move
 		} else {
-			::string  new_codes_file_name = CodecFile::s_new_codes_file(file_name)           ;
-			CodecLock lock                = CodecLock( file_name , {.nfs_guard=&nfs_guard} ) ; // if we cannot lock, jobs do not access db, so no need to lock
+			::string       new_codes_file_name = CodecFile::s_new_codes_file(file_name)                 ;
+			CodecGuardLock lock                { file_name , {.file_sync=Engine::g_config->file_sync} } ; // if we cannot lock, jobs do not access db, so no need to lock
 			//
 			_update_old_decode_tab( file_name , new_codes_file_name , /*inout*/old_decode_tab                          ) ;
 			_update_encode_tab    (             new_codes_file_name , /*inout*/encode_tab     , /*inout*/has_new_codes ) ;
-			unlnk( new_codes_file_name , {.nfs_guard=&nfs_guard} ) ;
+			unlnk( new_codes_file_name , {.nfs_guard=&lock} ) ;
 			decode_tab = _mk_decode_tab(encode_tab) ;
 			//
 			for( auto const& [ctx,d_entry] : decode_tab ) {
@@ -870,23 +870,23 @@ namespace Engine {
 				::umap<Crc,::string> old_e_entry ;                       for( auto const& [code,val_crc] : old_d_entry ) old_e_entry.try_emplace(val_crc,code) ;
 				manifest << mk_printable(ctx) <<'\n' ;
 				for( auto const& [code,val] : d_entry ) {
-					lock.keep_alive() ;                                                                                                         // lock have limited liveness, keep it alive regularly
+					lock.keep_alive() ;                                                                                                    // lock have limited liveness, keep it alive regularly
 					Crc  crc        { New , val }            ;
 					auto dit        = old_d_entry.find(code) ;
 					auto eit        = old_e_entry.find(crc ) ;
 					bool d_is_clean = dit==old_d_entry.end() ;
 					bool e_is_clean = eit==old_e_entry.end() ; //!                                                                    fresh
-					if (  d_is_clean || dit->second!=crc  ) _create( {false/*encode*/,file_name,ctx,code} , val  , d_is_clean , job , false , &nfs_guard ) ;
-					if (  e_is_clean || eit->second!=code ) _create( {                file_name,ctx,crc } , code , e_is_clean , job , false , &nfs_guard ) ;
+					if (  d_is_clean || dit->second!=crc  ) _create( {false/*encode*/,file_name,ctx,code} , val  , d_is_clean , job , false , &lock ) ;
+					if (  e_is_clean || eit->second!=code ) _create( {                file_name,ctx,crc } , code , e_is_clean , job , false , &lock ) ;
 					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                         ;
 					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                         ;
 					manifest <<'\t'<< mk_printable(code) <<'\t'<< crc.hex() <<'\n' ;
 				}
-				for( auto const& [code,_] : old_d_entry ) { lock.keep_alive() ; _erase( {false/*encode*/,file_name,ctx,code} , &nfs_guard ) ; } // lock have limited liveness, keep it alive regularly
-				for( auto const& [crc ,_] : old_e_entry ) { lock.keep_alive() ; _erase( {                file_name,ctx,crc } , &nfs_guard ) ; } // .
+				for( auto const& [code,_] : old_d_entry ) { lock.keep_alive() ; _erase( {false/*encode*/,file_name,ctx,code} , &lock ) ; } // lock have limited liveness, keep it alive regularly
+				for( auto const& [crc ,_] : old_e_entry ) { lock.keep_alive() ; _erase( {                file_name,ctx,crc } , &lock ) ; } // .
 			}
 		}
-		if (has_new_codes==No) {                                                            // codes are strictly increasing and hence no code conflict
+		if (has_new_codes==No) {                                                                                                           // codes are strictly increasing and hence no code conflict
 			deps.assign({Dep( file , Access::Reg , FileInfo(file_name) , false/*err*/ )}) ;
 		} else {
 			Crc file_crc = _refresh_codec_file( file_name , decode_tab ) ;
@@ -1031,16 +1031,16 @@ namespace Engine {
 								trace("hit_msg",fa_msg,ri) ;
 							}
 							//
-							job_info.start.pre_start.job       = +job      ;                                                                              // repo dependent
-							job_info.start.submit_attrs.reason = ri.reason ;                                                                              // context dependent
-							job_info.end  .end_date            = New       ;                                                                              // execution dependnt
+							job_info.start.pre_start.job       = +job      ;                                                    // repo dependent
+							job_info.start.submit_attrs.reason = ri.reason ;                                                    // context dependent
+							job_info.end  .end_date            = New       ;                                                    // execution dependnt
 							//
-							JobDigest<Node> digest = job_info.end.digest ;                                                  // gather info before being moved
+							JobDigest<Node> digest = job_info.end.digest ;                                                      // gather info before being moved
 							Job::s_record_thread.emplace(job,::move(job_info.start)) ;
 							Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
 							//
 							ri.step(Step::Hit,job) ;
-							JobExec je { job , New } ; // job starts and ends, no host
+							JobExec je { job , New } ;                                                                          // job starts and ends, no host
 							if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
 							je.end_analyze(/*inout*/digest) ;
 							req->stats.add(JobReport::Hit) ;

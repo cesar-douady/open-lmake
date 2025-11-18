@@ -392,38 +392,36 @@ namespace Backdoor {
 		Crc          crc            { New , val }                                            ;
 		::string     node           = Codec::CodecFile( real , ctx , crc ).name()            ;
 		Fd           rfd            = Record::s_repo_root_fd()                               ;
-		NfsGuard     nfs_guard      { file_sync }                                            ;
 		::string     new_codes_file = Codec::CodecFile::s_new_codes_file(real)               ;
 		AccessDigest digest         { .accesses=Access::Reg }                                ;      // get default flags
 		::string     res            ;
 		try {
 			try {                                                                                   // first try with share lock (light weight in case no update is necessary)
-				res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;                         // if node exists, it contains the reply
+				res = AcFd( {rfd,node} , {.nfs_guard=&::ref(NfsGuard(file_sync))} ).read() ;        // if node exists, it contains the reply
 			} catch (::string const&) {                                                             // if node does not exist, create a code
 				if (!is_dir) throw_if( _retry_codec(r,{rfd,real},node)==Maybe , "no codec file" ) ; // cannot encode without a codec file
-				::string         crc_str = crc.hex()                              ;
-				Codec::CodecLock lock    { {rfd,real} , {.nfs_guard=&nfs_guard} } ;                 // must hold the lock as we probably need to create a code
+				::string              crc_str = crc.hex()                             ;
+				Codec::CodecGuardLock lock    { {rfd,real} , {.file_sync=file_sync} } ;             // must hold the lock as we probably need to create a code
 				try {
-					res = AcFd( {rfd,node} , {.nfs_guard=&nfs_guard} ).read() ;                     // repeat test with lock
+					res = AcFd( {rfd,node} , {.nfs_guard=&lock} ).read() ;                          // repeat test with lock
 				} catch (::string const&) {
 					for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
 						::string decode_node = Codec::CodecFile( false/*encode*/ , real , ctx , code ).name() ;
-						if (FileInfo({rfd,decode_node},{.nfs_guard=&nfs_guard}).exists()) continue ;
+						if (FileInfo({rfd,decode_node},{.nfs_guard=&lock}).exists()) continue ;
 						// must write to new_codes_file first to allow replay in case of crash
 						::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
-						::string tmp_node        = node       +tmp_sfx                   ;                      // nodes must be always correct when they exist as there is no read lock
-						::string tmp_decode_node = decode_node+tmp_sfx                   ;                      // .
-						AcFd( {rfd,new_codes_file } , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ).write(Codec::Entry(ctx,code,val).line(true/*with_nl*/)) ;
-						AcFd( {rfd,tmp_node       } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ).write(code                                            ) ;
-						AcFd( {rfd,tmp_decode_node} , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} ).write(val                                             ) ;
-						rename( {rfd,tmp_node       /*src*/} , {rfd,node       /*dst*/} , {.nfs_guard=&nfs_guard} ) ;
-						rename( {rfd,tmp_decode_node/*.  */} , {rfd,decode_node/*.  */} , {.nfs_guard=&nfs_guard} ) ;
+						::string tmp_node        = node       +tmp_sfx                   ; // nodes must be always correct when they exist as there is no read lock
+						::string tmp_decode_node = decode_node+tmp_sfx                   ;                                                                                                         // .
+						AcFd( {rfd,new_codes_file } , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&lock} ).write(Codec::Entry(ctx,code,val).line(true/*with_nl*/)) ;
+						AcFd( {rfd,tmp_node       } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&lock} ).write(code                                            ) ;
+						AcFd( {rfd,tmp_decode_node} , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&lock} ).write(val                                             ) ;
+						rename( {rfd,tmp_node       /*src*/} , {rfd,node       /*dst*/} , {.nfs_guard=&lock} ) ;
+						rename( {rfd,tmp_decode_node/*.  */} , {rfd,decode_node/*.  */} , {.nfs_guard=&lock} ) ;
 						//
 						res                        = code                     ;
 						digest.flags.extra_dflags |= ExtraDflag::CreateEncode ;
 						break ;
 					}
-					nfs_guard.flush() ;                                                                         // flush before lock is released
 					throw_unless( digest.flags.extra_dflags[ExtraDflag::CreateEncode] , "no code available" ) ;
 				}
 			}

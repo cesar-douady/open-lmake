@@ -610,7 +610,7 @@ namespace Caches {
 	}
 
 	Cache::DownloadDigest Cache::download( ::string const& job , ::vmap_s<DepDigest> const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
-		Trace trace(CacheChnl,"match_download",job) ;
+		Trace trace(CacheChnl,"download",job) ;
 		::pair<DownloadDigest,AcFd> digest_fd   = sub_download( job , deps ) ;
 		DownloadDigest&             res         = digest_fd.first            ;
 		AcFd          &             download_fd = digest_fd.second           ;

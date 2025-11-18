@@ -133,54 +133,49 @@ namespace Codec {
 		try { unlnk_inside_s(CodecFile::s_pfx_s(CodecDir::Lock)) ; } catch (::string const&) {} // if dir does not exist, nothing to do
 	}
 
-	CodecLock::CodecLock( FileRef file_ , Action action ) :
-		FileLock {
-			action.nfs_guard ? action.nfs_guard->file_sync() : FileSync::None
-		,	{ file_.at , CodecFile::s_lock_file(file_.file) }
-		,	{ .err_ok=action.err_ok                         }
-		}
-	{	if (!self) return ;                                                                                                                                  // nothing to lock
+	CodecGuardLock::CodecGuardLock( FileRef file_ , Action action ) : NfsGuardLock{ action.file_sync , {file_.at,CodecFile::s_lock_file(file_.file)} , {.err_ok=action.err_ok} } {
+		if (!self) return ;                                                                                                                                                        // nothing to lock
 		file = file_ ;
 		//
-		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                                ;
-		::string new_codes_sz_file = new_codes_file+"_sz"                                                                                                  ;
-		DiskSz   actual_sz         = FileInfo({file.at,new_codes_file   }, {                                             .nfs_guard=action.nfs_guard} ).sz ;
-		AcFd     known_sz_fd       {          {file.at,new_codes_sz_file}, {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=action.nfs_guard} }    ;
-		::string known_sz_str      = known_sz_fd.read(sizeof(DiskSz))                                                                                      ;
-		if (+known_sz_str) {                                                                                                                                 // empty means nothing to replay
+		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                    ;
+		::string new_codes_sz_file = new_codes_file+"_sz"                                                                                      ;
+		DiskSz   actual_sz         = FileInfo({file.at,new_codes_file   }, {                                             .nfs_guard=this} ).sz ;
+		AcFd     known_sz_fd       {          {file.at,new_codes_sz_file}, {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=this} }    ;
+		::string known_sz_str      = known_sz_fd.read(sizeof(DiskSz))                                                                          ;
+		if (+known_sz_str) {                                                                                                                      // empty means nothing to replay
 			/**/                                                        SWEAR( known_sz_str.size()==sizeof(DiskSz) , file,known_sz_str.size() ) ;
 			DiskSz known_sz = decode_int<DiskSz>(known_sz_str.data()) ; SWEAR( known_sz           <=actual_sz      , file,known_sz,actual_sz  ) ;
 			//
 			if (actual_sz>known_sz) {
 				AcFd     new_codes_fd { {file.at,new_codes_file}} ; ::lseek( new_codes_fd , known_sz , SEEK_SET ) ;
-				::string line         = new_codes_fd.read()  ;                                                                 // no more than a single action can be on going
-				if (line.back()=='\n') {                                                                                       // action is valid, replay it
+				::string line         = new_codes_fd.read()  ;                                                      // no more than a single action can be on going
+				if (line.back()=='\n') {                                                                            // action is valid, replay it
 					line.pop_back() ; //!      encode
 					Entry e      { line                                                     } ;
 					File  dn     { file.at , CodecFile(false,file.file,e.ctx,e.code).name() } ;
 					File  en     { file.at , CodecFile(true ,file.file,e.ctx,e.val ).name() } ;
-					File  dn_tmp { file.at , dn.file+".tmp"                                 } ;                                // ensure nodes are always correct if they exist
-					File  en_tmp { file.at , en.file+".tmp"                                 } ;                                // .
-					AcFd( dn_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=action.nfs_guard} ).write( e.code ) ; // .
-					AcFd( en_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=action.nfs_guard} ).write( e.val  ) ; // .
+					File  dn_tmp { file.at , dn.file+".tmp"                                 } ;                     // ensure nodes are always correct if they exist
+					File  en_tmp { file.at , en.file+".tmp"                                 } ;                     // .
+					AcFd( dn_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=this} ).write( e.code ) ;  // .
+					AcFd( en_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=this} ).write( e.val  ) ;  // .
 					//      src     dst
-					rename( dn_tmp , dn , {.nfs_guard=action.nfs_guard} ) ;
-					rename( en_tmp , en , {.nfs_guard=action.nfs_guard} ) ;
-				} else {                                                                         // action is invalid, forget it as no file has been created and info is incomplete
+					rename( dn_tmp , dn , {.nfs_guard=this} ) ;
+					rename( en_tmp , en , {.nfs_guard=this} ) ;
+				} else {                                                                                            // action is invalid, forget it as no file has been created and info is incomplete
 					int rc = ::ftruncate( new_codes_fd , known_sz ) ; SWEAR( rc==0 , file,rc ) ;
 					actual_sz = known_sz ;
-					if (action.nfs_guard) action.nfs_guard->change({file.at,new_codes_file}) ;
+					change({file.at,new_codes_file}) ;
 				}
 			}
 			::lseek( known_sz_fd , 0 , SEEK_SET ) ;
 		} else {
 			known_sz_str.resize(sizeof(DiskSz)) ;
 		}
-		encode_int<DiskSz>( known_sz_str.data() , actual_sz ) ;                                  // record new_codes_file size for next locker to replay in case of crash before closing cleanly
+		encode_int<DiskSz>( known_sz_str.data() , actual_sz ) ; // record new_codes_file size for next locker to replay in case of crash before closing cleanly
 		known_sz_fd.write(known_sz_str)                       ;
 	}
 
-	CodecLock::~CodecLock() {
+	CodecGuardLock::~CodecGuardLock() {
 		if (!self) return ;
 		unlnk( {file.at,CodecFile::s_new_codes_file(file.file)+"_sz"} , {.abs_ok=is_dir_name(file.file)} ) ;
 	}

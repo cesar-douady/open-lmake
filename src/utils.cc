@@ -217,7 +217,7 @@ void NfsGuardDir::flush() {
 }
 
 //
-// FileLock
+// NfsGuardLock
 //
 
 static constexpr Delay FileLockFileTimeout { 10 } ; // a file based lock that is that old is ignored (fd based lcoks are spontaneously released when process dies)
@@ -330,16 +330,16 @@ template _FileLockFile<_LockerSymlink>::_FileLockFile( FileRef , Action ) ; // .
 template _FileLockFile<_LockerLink   >::_FileLockFile( FileRef , Action ) ; // .
 template _FileLockFile<_LockerMkdir  >::_FileLockFile( FileRef , Action ) ; // .
 
-FileLock::FileLock( FileSync fs , FileRef file , Action a ) {
+NfsGuardLock::NfsGuardLock( FileSync fs , FileRef file , Action a ) : NfsGuard{fs} {
 	switch (fs) {                                             // PER_FILE_SYNC : add entry here
 		// XXX/ : _LockerFcntl has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
 		// XXX/ : _LockerFlock has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
 		// XXX/ : _LockerMkdir has been observed as not working with rocky9/NFSv4
 		// for each FileSync mechanism, we can choose any of the variant alternative (cf struct FileLock in utils.hh)
 		// /!\ monostate fakes locks, for experimental purpose only
-		case FileSync::None : emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
-		case FileSync::Dir  : emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
-		case FileSync::Sync : emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
+		case FileSync::None : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
+		case FileSync::Dir  : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
+		case FileSync::Sync : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
 	DF}
 }
 

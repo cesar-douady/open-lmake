@@ -8,6 +8,8 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
+	lmake.config.trace.channels = ('cache',)
+
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'

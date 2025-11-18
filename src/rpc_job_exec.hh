@@ -224,14 +224,14 @@ namespace Codec {
 	// this lock ensures correct operation even in case of crash
 	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
 	struct _LockAction {
-		bool      err_ok    = false   ;
-		NfsGuard* nfs_guard = nullptr ;
+		bool     err_ok    = false          ;
+		FileSync file_sync = FileSync::Dflt ;
 	} ;
-	struct CodecLock : FileLock {
+	struct CodecGuardLock : NfsGuardLock {
 		using Action = _LockAction ;
 		// ctxors & casts
-		CodecLock ( FileRef , Action={} ) ;
-		~CodecLock(                     ) ;
+		CodecGuardLock ( FileRef , Action={} ) ;
+		~CodecGuardLock(                     ) ;
 		// data
 		File file ;
 	} ;

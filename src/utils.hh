@@ -761,7 +761,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 } ;
 
 //
-// FileLock
+// NfsGuardLock
 //
 
 // several methods are implemented :
@@ -774,7 +774,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 //   - using mkdir
 // dont know yet which are faster and which actually work even under heavy loads
 
-struct _FileLockAction {
+struct _NfsGuardLockAction {
 	bool    err_ok   = false ; // ok if the lock cannot be created
 	bool    mk_dir   = true  ; // create dir chain as needed
 	PermExt perm_ext = {}    ; // used for fd based to ensure lock file can be adequately accessed
@@ -784,7 +784,7 @@ struct _FileLockAction {
 // fd based locks
 //
 struct _LockerFd {
-	using Action = _FileLockAction ;
+	using Action = _NfsGuardLockAction ;
 	// cxtors & casts
 	_LockerFd( FileRef f , Action a={} ) : fd{ f , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
 	// accesses
@@ -822,8 +822,8 @@ enum class _FileLockFileTrial {
 } ;
 //
 struct _LockerFile {
-	using Action = _FileLockAction    ;
-	using Trial  = _FileLockFileTrial ;
+	using Action = _NfsGuardLockAction ;
+	using Trial  = _FileLockFileTrial  ;
 	// cxtors & casts
 	_LockerFile(FileRef) ;
 	// accesses
@@ -857,9 +857,9 @@ template<class Locker> struct _FileLockFile : Locker {
 //
 // actual class to be used
 //
-struct FileLock :
+using _FileLock =
 	::variant<
-		::monostate                                     // /!\ fake locks, for experimental purpose only
+		::monostate                                                              // /!\ fake locks, for experimental purpose only
 	,	_FileLockFd  <_LockerFcntl  >
 	,	_FileLockFd  <_LockerFlock  >
 	,	_FileLockFile<_LockerExcl   >
@@ -867,29 +867,31 @@ struct FileLock :
 	,	_FileLockFile<_LockerLink   >
 	,	_FileLockFile<_LockerMkdir  >
 	>
+;
+struct NfsGuardLock : _FileLock , NfsGuard                                       // NfsGuard must follow _FileLock so that it is flushed before lock is released upon destruction
 {
-	using Action = _FileLockAction ;
-	FileLock( FileSync , FileRef , Action ={} ) ;
+	using Action = _NfsGuardLockAction ;
+	NfsGuardLock( FileSync , FileRef , Action={} ) ;
 	bool operator+() const {
-		switch (index()) {                              // PER_FILE_SYNC : add entry here
-			case 0 : return true          ;             // pretend lock is taken
-			case 1 : return +get<1>(self) ;
-			case 2 : return +get<2>(self) ;
-			case 3 : return +get<3>(self) ;
-			case 4 : return +get<4>(self) ;
-			case 5 : return +get<5>(self) ;
-			case 6 : return +get<6>(self) ;
+		switch (_FileLock::index()) {                                            // PER_FILE_SYNC : add entry here
+			case 0 : return true                                         ;       // pretend lock is taken
+			case 1 : return +get<1>(static_cast<_FileLock const&>(self)) ;
+			case 2 : return +get<2>(static_cast<_FileLock const&>(self)) ;
+			case 3 : return +get<3>(static_cast<_FileLock const&>(self)) ;
+			case 4 : return +get<4>(static_cast<_FileLock const&>(self)) ;
+			case 5 : return +get<5>(static_cast<_FileLock const&>(self)) ;
+			case 6 : return +get<6>(static_cast<_FileLock const&>(self)) ;
 		DF}
 	}
 	void keep_alive() {
-		switch (index()) {                              // PER_FILE_SYNC : add entry here
-			case 0 : return                           ;
-			case 1 : return get<1>(self).keep_alive() ;
-			case 2 : return get<2>(self).keep_alive() ;
-			case 3 : return get<3>(self).keep_alive() ;
-			case 4 : return get<4>(self).keep_alive() ;
-			case 5 : return get<5>(self).keep_alive() ;
-			case 6 : return get<6>(self).keep_alive() ;
+		switch (_FileLock::index()) {                                            // PER_FILE_SYNC : add entry here
+			case 0 : return                                                    ;
+			case 1 : return get<1>(static_cast<_FileLock&>(self)).keep_alive() ;
+			case 2 : return get<2>(static_cast<_FileLock&>(self)).keep_alive() ;
+			case 3 : return get<3>(static_cast<_FileLock&>(self)).keep_alive() ;
+			case 4 : return get<4>(static_cast<_FileLock&>(self)).keep_alive() ;
+			case 5 : return get<5>(static_cast<_FileLock&>(self)).keep_alive() ;
+			case 6 : return get<6>(static_cast<_FileLock&>(self)).keep_alive() ;
 		DF}
 	}
 } ;

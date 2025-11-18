@@ -78,17 +78,17 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		//
 		// cxtors & casts
 	public :
-		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels.load()[channel]}                            {}
-		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _active{s_channels.load()[channel]} , _first{true} , _tag{tag} {
+		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _chnl{channel}                            {}
+		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _chnl{channel} , _first{true} , _tag{tag} {
 			self(args...) ;
 			_first = false ;
 		}
 		/**/                  Trace(                                     ) : Trace{Channel::Default            } {}
 		template<class... Ts> Trace( const char* tag , Ts const&... args ) : Trace{Channel::Default,tag,args...} {}
 		// services
-		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                           }
-		template<class... Ts> void operator()(Ts const&... args) { if ( _s_has_trace && _active && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
-		template<class... Ts> void protect   (Ts const&... args) { if ( _s_has_trace && _active && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
+		/**/                  void hide      (bool h=true      ) { _t_hide = h ;                                                                                            }
+		template<class... Ts> void operator()(Ts const&... args) { if ( _s_has_trace && s_channels.load()[_chnl] && !_sav_hide.saved ) _record<false/*protect*/>(args...) ; }
+		template<class... Ts> void protect   (Ts const&... args) { if ( _s_has_trace && s_channels.load()[_chnl] && !_sav_hide.saved ) _record<true /*protect*/>(args...) ; }
 	private :
 		template<bool P,class... Ts> void _record(Ts const&...     ) ;
 		template<bool P,class    T > void _output(T const&        x) { *_t_buf <<                    x  ; }
@@ -99,8 +99,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		// data
 		SaveInc<int > _sav_lvl  ;
 		Save   <bool> _sav_hide ;
-		bool          _active   = true  ;
-		bool          _first    = false ;
+		Channel       _chnl     = Channel::Default ;
+		bool          _first    = false            ;
 		::string      _tag      ;
 	} ;
 

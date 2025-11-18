@@ -57,15 +57,15 @@ namespace Caches {
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
-		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                                                ) const ;
-		::string _lru_file     (                         ::string const& entry_s                                                ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
-		::string _reserved_file( uint64_t upload_key   , ::string const& sfx                                                    ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
-		Sz       _reserved_sz  ( uint64_t upload_key                                                                , NfsGuard* ) const ;
-		Sz       _lru_remove   (                         ::string const& entry_s                                    , NfsGuard* )       ;
-		void     _lru_mk_newest(                         ::string const& entry_s , Sz                               , NfsGuard* )       ;
-		void     _mk_room      ( Sz old_sz , Sz new_sz                                                  , FileLock& , NfsGuard* )       ;
-		void     _dismiss      ( uint64_t upload_key                             , Sz                   , FileLock& , NfsGuard* )       ;
-		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const&     , bool for_commit , FileLock& , NfsGuard* ) const ;
+		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                                    ) const ;
+		::string _lru_file     (                         ::string const& entry_s                                    ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
+		::string _reserved_file( uint64_t upload_key   , ::string const& sfx                                        ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
+		Sz       _reserved_sz  ( uint64_t upload_key                                                , NfsGuardLock& ) const ;
+		Sz       _lru_remove   (                         ::string const& entry_s                    , NfsGuardLock& )       ;
+		void     _lru_mk_newest(                         ::string const& entry_s , Sz               , NfsGuardLock& )       ;
+		void     _mk_room      ( Sz old_sz , Sz new_sz                                              , NfsGuardLock& )       ;
+		void     _dismiss      ( uint64_t upload_key                             , Sz               , NfsGuardLock& )       ;
+		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const& , bool for_commit , NfsGuardLock& ) const ;
 		//
 		template<IsStream S> void _serdes(S& s) {
 			::serdes(s,key_crc  ) ;
