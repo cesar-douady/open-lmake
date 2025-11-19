@@ -36,12 +36,15 @@ inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { // START_OF_NO_
 
 struct IMsgBuf : MsgBuf {
 	// services
-	template<class T> T receive( SockFd&&         fd , bool once                   ) { return receive<T>( fd , once , fd.key ) ; }
-	template<class T> T receive( SockFd&/*inout*/ fd , bool once                   ) { return receive<T>( fd , once , fd.key ) ; }
-	template<class T> T receive( Fd               fd , bool once , Key&&         k ) { return receive<T>( fd , once , k      ) ; }
-	template<class T> T receive( Fd               fd , bool once , Key&/*inout*/ k ) {
-		for(;;)
-			if ( ::optional<T> x = receive_step<T>( fd , Maybe|!once , k ) ; +x ) return ::move(*x) ;
+	template<class T> T receive( SockFd&&         fd , Bool3 once                   ) { return receive<T>( fd , once , fd.key ) ; } // Maybe means read a single entry but ok to read more
+	template<class T> T receive( SockFd&/*inout*/ fd , Bool3 once                   ) { return receive<T>( fd , once , fd.key ) ; } // .
+	template<class T> T receive( Fd               fd , Bool3 once , Key&&         k ) { return receive<T>( fd , once , k      ) ; } // .
+	template<class T> T receive( Fd               fd , Bool3 once , Key&/*inout*/ k ) {                                             // .
+		switch (once) {
+			case No    : for(;;) if ( ::optional<T> x=receive_step<T>(fd,Yes            ,k) ; +x ) return ::move(*x) ;
+			case Maybe : for(;;) if ( ::optional<T> x=receive_step<T>(fd,Maybe|!_msg_len,k) ; +x ) return ::move(*x) ;              // no need to read past message
+			case Yes   : for(;;) if ( ::optional<T> x=receive_step<T>(fd,Maybe          ,k) ; +x ) return ::move(*x) ;
+		DF}
 	}
 	template<class T> ::optional<T> receive_step( SockFd&&         fd , Bool3 fetch                   ) { return _receive_step<T>( fd , fetch , fd.key ) ; } // Maybe means read only necessary bytes
 	template<class T> ::optional<T> receive_step( SockFd&/*inout*/ fd , Bool3 fetch                   ) { return _receive_step<T>( fd , fetch , fd.key ) ; } // .

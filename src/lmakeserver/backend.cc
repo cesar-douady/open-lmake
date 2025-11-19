@@ -327,12 +327,12 @@ namespace Backends {
 				trace("double_start",job,entry.conn.seq_id,seq_id) ;
 				return ;
 			}
-			entry.started               = Maybe                      ;
-			tag                         =        entry.tag           ;
-			submit_attrs                = ::move(entry.submit_attrs) ;
-			rsrcs                       = ::move(entry.rsrcs       ) ;
-			reqs                        =        entry.reqs          ;
-			tie(jis.eta,reply.keep_tmp) =        entry.req_info()    ;
+			entry.started                 = Maybe                      ;
+			tag                           =        entry.tag           ;
+			submit_attrs                  = ::move(entry.submit_attrs) ;
+			rsrcs                         = ::move(entry.rsrcs       ) ;
+			reqs                          =        entry.reqs          ;
+			::tie(jis.eta,reply.keep_tmp) =        entry.req_info()    ;
 		}
 		// set server address for this backend at which it can be contacted by jobs
 		// first job is given fqdn, then then the address as soon as it is known

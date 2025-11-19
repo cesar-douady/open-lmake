@@ -262,14 +262,14 @@ namespace Caches {
 				case ZlvlTag::Zlib :
 					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
 					#if HAS_ZLIB
-						static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;                                                     // compressBound manages ulong and we need a Sz
+						static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;                                                 // compressBound manages ulong and we need a Sz
 						return ::compressBound(sz) ;
 					#endif
 				break ;
 				case ZlvlTag::Zstd :
 					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
 					#if HAS_ZSTD
-						static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ;                                                    // ZSTD_compressBound manages size_t and we need a Sz
+						static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ;                                                // ZSTD_compressBound manages size_t and we need a Sz
 						return ::ZSTD_compressBound(sz) ;
 					#endif
 				break ;
@@ -353,9 +353,9 @@ namespace Caches {
 						#endif
 					} break ;
 				DF}
-			} else {                                                                                                          // no compression
-				if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos     += s.size() ; } // small data : put in _buf
-				else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; total_sz += s.size() ; } // large data : send directly
+			} else {                                                                                                      // no compression
+				if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos += s.size() ; } // small data : put in _buf
+				else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; z_sz += s.size() ; } // large data : send directly
 			}
 		}
 		void send_from( Fd fd_ , size_t sz ) {
@@ -369,8 +369,8 @@ namespace Caches {
 					sz -= cnt ;
 				}
 			} else {
-				if (_flush(sz)) {                size_t c=fd_.read_to({_buf+_pos,sz})               ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos    +=c  ; } // small : put in _buf
-				else            { SWEAR(!_pos) ; size_t c=::sendfile(self,fd_,nullptr/*offset*/,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; total_sz+=sz ; } // large : send directly
+				if (_flush(sz)) {                size_t c=fd_.read_to({_buf+_pos,sz})               ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos+=c  ; } // small : put in _buf
+				else            { SWEAR(!_pos) ; size_t c=::sendfile(self,fd_,nullptr/*offset*/,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; z_sz+=sz ; } // large : send directly
 			}
 		}
 		void flush() {
@@ -418,15 +418,15 @@ namespace Caches {
 			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ; // enough room
 			if (_pos) {                                        // if returning false (not enugh room), at least ensure nothing is left in buffer so that direct write is possible
 				AcFd::write({_buf,_pos}) ;
-				total_sz += _pos ;
-				_pos      = 0    ;
+				z_sz += _pos ;
+				_pos  = 0    ;
 			}
 			return room<=DiskBufSz ;
 		}
 		// data
 	public :
-		Disk::DiskSz total_sz = 0 ;
-		Zlvl         zlvl     ;
+		Disk::DiskSz z_sz = 0 ;                                // total compressed size
+		Zlvl         zlvl ;
 	private :
 		char   _buf[DiskBufSz] ;
 		size_t _pos            = 0     ;
@@ -609,7 +609,7 @@ namespace Caches {
 		grow(s_tab,idx) = c ;                 // only record cache once we are sure config is ok
 	}
 
-	Cache::DownloadDigest Cache::download( ::string const& job , ::vmap_s<DepDigest> const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
+	Cache::DownloadDigest Cache::download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
 		Trace trace(CacheChnl,"download",job) ;
 		::pair<DownloadDigest,AcFd> digest_fd   = sub_download( job , deps ) ;
 		DownloadDigest&             res         = digest_fd.first            ;
@@ -636,8 +636,8 @@ namespace Caches {
 				throw_if( zlvl.tag==ZlvlTag::Zstd , "cannot uncompress without zstd" ) ;
 			#endif
 			//
-			InflateFd data_fd { ::move(download_fd) , zlvl }                                 ;
-			Hdr       hdr     = IMsgBuf().receive<Hdr>( data_fd , true/*once*/ , {}/*key*/ ) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
+			InflateFd data_fd { ::move(download_fd) , zlvl }                                ;
+			Hdr       hdr     = IMsgBuf().receive<Hdr>( data_fd , Yes/*once*/ , {}/*key*/ ) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
 				auto&           entry = targets[ti]            ;
@@ -673,7 +673,7 @@ namespace Caches {
 		}
 	}
 
-	uint64_t/*upload_key*/ Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) {
+	::pair<uint64_t/*upload_key*/,Cache::Sz/*compressed*/> Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) {
 		Trace trace(CacheChnl,"DirCache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
@@ -717,15 +717,14 @@ namespace Caches {
 			ChkSig :                                                                 // ensure cache entry is reliable by checking file *after* copy
 				throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;
 			}
-			trace("flush") ;
 			data_fd.flush() ;                                                        // update data_fd.sz
+			trace("done",z_max_sz,data_fd.z_sz) ;
+			return { key_fd.first , data_fd.z_sz==tgts_sz?0:data_fd.z_sz } ;         // dont report compressed size of no compression
 		} catch (::string const& e) {
 			sub_dismiss(key_fd.first) ;
 			trace("failed") ;
 			throw ;
 		}
-		trace("done",tgts_sz,z_max_sz) ;
-		return key_fd.first ;
 	}
 
 	void Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {

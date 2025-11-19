@@ -227,7 +227,7 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	try {
 		for(;;) {
 			received = false ;
-			ReqRpcReply rrr = buf.receive<ReqRpcReply>( g_server_fds.in , true/*once*/ , {}/*key*/ ) ;
+			ReqRpcReply rrr = buf.receive<ReqRpcReply>( g_server_fds.in , No/*once*/ , {}/*key*/ ) ;
 			received = true ;
 			switch (rrr.proc) {
 				case ReqRpcReplyProc::None   : trace("done"          ) ;                                            goto Return ;

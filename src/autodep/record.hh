@@ -129,8 +129,8 @@ private :
 	void            _static_report (JobExecRpcReq&& jerr) const ;
 	Sent            _do_send_report(pid_t               )       ;
 	JobExecRpcReply _get_reply     (                    )       {
-		if (s_static_report) return {}                                                                                        ;
-		else                 return IMsgBuf().receive<JobExecRpcReply>( report_fd(false/*fast*/) , true/*once*/ , {}/*key*/ ) ;
+		if (s_static_report) return {}                                                                                       ;
+		else                 return IMsgBuf().receive<JobExecRpcReply>( report_fd(false/*fast*/) , Yes/*once*/ , {}/*key*/ ) ;
 	}
 public :
 	Sent send_report() {                                                            // XXX/ : reports must be bufferized as doing several back-to-back writes may incur severe perf penalty (seen ~40ms)

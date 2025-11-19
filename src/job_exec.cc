@@ -46,10 +46,10 @@ JobStartRpcReply get_start_info() {
 		ClientSockFd fd { g_service_start } ;
 		g_service_mngt.addr = g_service_end.addr = fd.addr(true/*peer*/) ;      // server address is only passed to g_service_start
 		fd.set_timeout(Delay(100)) ;                                            // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections @ 10 jobs/s
-		throw_unless(+fd) ; //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		found_server = Maybe ; /**/  OMsgBuf( JobStartRpcReq({g_seq_id,g_job},service) ).send                     ( fd                            ) ;
-		found_server = Yes   ; res = IMsgBuf(                                          ).receive<JobStartRpcReply>( fd , true/*once*/ , {}/*key*/ ) ;
-	} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		throw_unless(+fd) ; //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		found_server = Maybe ; /**/  OMsgBuf( JobStartRpcReq({g_seq_id,g_job},service) ).send                     ( fd                          ) ;
+		found_server = Yes   ; res = IMsgBuf(                                          ).receive<JobStartRpcReply>( fd , No/*once*/ , {}/*key*/ ) ; // read without limit as there is a single message
+	} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("no_start_info",STR(found_server),e) ;
 		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
@@ -554,7 +554,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			try {
-				upload_key = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.zlvl ) ;
+				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.zlvl ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;

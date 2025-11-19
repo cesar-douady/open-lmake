@@ -668,14 +668,10 @@ struct Zlvl {
 namespace Caches {
 
 	struct Cache {
-		using Sz  = Disk::DiskSz ;
-		using Tag = CacheTag     ;
+		using Sz  = Disk::DiskSz        ;
+		using Tag = CacheTag            ;
+		using MDD = ::vmap_s<DepDigest> ;
 		static constexpr Channel CacheChnl = Channel::Cache ;
-		struct Match {
-			CacheHitInfo        hit_info = CacheHitInfo::NoCache ;
-			::string            key      = {}                    ;                                     // if hit_info==Hit   : an id to easily retrieve matched results when calling download
-			::vmap_s<DepDigest> deps     = {}                    ;                                     // if hit_info==Match : deps that need to be done before answering hit/miss
-		} ;
 		struct DownloadDigest ;
 		struct Hdr {
 			// START_OF_VERSIONING
@@ -689,8 +685,8 @@ namespace Caches {
 		static ::vector<Cache*> s_tab ;
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
-		DownloadDigest         download( ::string const& job , ::vmap_s<DepDigest> const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* ) ;
-		uint64_t/*upload_key*/ upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl={}                                         ) ;
+		DownloadDigest                                  download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* ) ;
+		::pair<uint64_t/*upload_key*/,Sz/*compressed*/> upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl={}                         ) ;
 		//
 		void commit ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) ;
 		void dismiss( uint64_t upload_key                                       ) { Trace trace(CacheChnl,"Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
@@ -702,7 +698,7 @@ namespace Caches {
 		virtual void      serdes( ::string     &                             ) {}                     // serialize
 		virtual void      serdes( ::string_view&                             ) {}                     // deserialize
 		//
-		virtual ::pair<DownloadDigest        ,AcFd> sub_download( ::string const& /*job*/ , ::vmap_s<DepDigest> const&          ) ;
+		virtual ::pair<DownloadDigest        ,AcFd> sub_download( ::string const& /*job*/ , MDD const&                          ) ;
 		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {} ; }
 		virtual void                                sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) {             }
 		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       ) {             }
@@ -936,7 +932,7 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes( s , dyn_env                       ) ;
 		::serdes( s , exec_trace                    ) ;
 		::serdes( s , total_sz                      ) ;
-		::serdes( s , compressed_sz                 ) ;
+		::serdes( s , total_z_sz                    ) ;
 		::serdes( s , end_date                      ) ;
 		::serdes( s , stats                         ) ;
 		::serdes( s , msg_stderr                    ) ;
@@ -952,7 +948,7 @@ struct JobEndRpcReq : JobRpcReq {
 	::vmap_ss                dyn_env       ; // env variables computed in job_exec
 	::vector<ExecTraceEntry> exec_trace    ;
 	Disk::DiskSz             total_sz      = 0 ;
-	Disk::DiskSz             compressed_sz = 0 ;
+	Disk::DiskSz             total_z_sz    = 0 ;
 	Time::Pdate              end_date      ;
 	JobStats                 stats         ;
 	MsgStderr                msg_stderr    ;

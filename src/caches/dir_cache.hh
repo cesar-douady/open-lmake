@@ -9,8 +9,7 @@
 #include "time.hh"
 
 enum class CacheRepairTag : uint8_t {
-	Data
-,	Deps
+	SzData
 ,	Info
 ,	Lru
 } ;
@@ -27,8 +26,8 @@ namespace Caches {
 			// accesses
 			bool operator==(Lru const&) const = default ;
 			// data
-			::string     newer_s     = DirCache::HeadS ;                                                                     // newer
-			::string     older_s     = DirCache::HeadS ;                                                                     // older
+			::string     newer_s     = DirCache::HeadS ;                                                                     // newer        , or oldest       for head
+			::string     older_s     = DirCache::HeadS ;                                                                     // older        , or newest       for head
 			DirCache::Sz sz          = 0               ;                                                                     // size of entry, or overall size for head
 			Time::Pdate  last_access = {}              ;
 		} ;
@@ -50,22 +49,22 @@ namespace Caches {
 		void      serdes( ::string     & os                       ) override { _serdes(os) ;                               } // serialize  , cannot be a template as it is a virtual method
 		void      serdes( ::string_view& is                       ) override { _serdes(is) ;                               } // deserialize, .
 		//
-		::pair<DownloadDigest,AcFd>         sub_download( ::string const& job , ::vmap_s<DepDigest> const&          ) override ;
+		::pair<DownloadDigest,AcFd>         sub_download( ::string const& job , MDD const&                          ) override ;
 		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 ) override ;
 		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
 		void                                sub_dismiss ( uint64_t upload_key                                       ) override ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
-		void     _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                                    ) const ;
-		::string _lru_file     (                         ::string const& entry_s                                    ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
-		::string _reserved_file( uint64_t upload_key   , ::string const& sfx                                        ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
-		Sz       _reserved_sz  ( uint64_t upload_key                                                , NfsGuardLock& ) const ;
-		Sz       _lru_remove   (                         ::string const& entry_s                    , NfsGuardLock& )       ;
-		void     _lru_mk_newest(                         ::string const& entry_s , Sz               , NfsGuardLock& )       ;
-		void     _mk_room      ( Sz old_sz , Sz new_sz                                              , NfsGuardLock& )       ;
-		void     _dismiss      ( uint64_t upload_key                             , Sz               , NfsGuardLock& )       ;
-		Match    _sub_match    ( ::string const& job , ::vmap_s<DepDigest> const& , bool for_commit , NfsGuardLock& ) const ;
+		void                            _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                      ) const ;
+		::string                        _lru_file     (                         ::string const& entry_s                      ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
+		::string                        _reserved_file( uint64_t upload_key   , ::string const& sfx                          ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
+		Sz                              _reserved_sz  ( uint64_t upload_key                                  , NfsGuardLock& ) const ;
+		Sz                              _lru_remove   (                         ::string const& entry_s      , NfsGuardLock& )       ;
+		void                            _lru_mk_newest(                         ::string const& entry_s , Sz , NfsGuardLock& )       ;
+		void                            _mk_room      ( Sz old_sz , Sz new_sz                                , NfsGuardLock& )       ;
+		void                            _dismiss      ( uint64_t upload_key                             , Sz , NfsGuardLock& )       ;
+		::pair_s/*key*/<DownloadDigest> _sub_match    ( ::string const& job , MDD const& , bool for_commit   , NfsGuardLock& ) const ;
 		//
 		template<IsStream S> void _serdes(S& s) {
 			::serdes(s,key_crc  ) ;
