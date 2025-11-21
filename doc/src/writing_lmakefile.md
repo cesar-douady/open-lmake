@@ -34,7 +34,14 @@ lmake.config.path_max = 500 # default is 400
 
 ## The sources
 
-The sources are determined by setting the variable `lmake.manifest`.
+The sources are determined by setting the variable `lmake.manifest` and/or `lmake.extra_manifest`.
+Both are concatenated to make the actual list of sources.
+
+The helper functions defined in [lib/lmake/sources.py](../../lib/lmake/sources.py) can be used to define these variables.
+By default :
+
+- If `lmake.manifest` is not set or is empty, it is set to `lmake.sources.auto_sources()`.
+- If `lmake.extra_manifest` is not set, it is empty.
 
 Sources are files that are deemed as intrinsic.
 They cannot be derived using rules as explained in the following section.
@@ -52,8 +59,6 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 	- If outside, they can be relative or absolute.
 
 In both cases, names must be canonical, i.e. contain no empty component nor `.`, nor `..` except initially for relative names outside repo.
-
-The helper functions defined in [lib/lmake/sources.py](../../lib/lmake/sources.py) can be used and if nothing is said, `auto_sources()` is called.
 
 ## The rules
 

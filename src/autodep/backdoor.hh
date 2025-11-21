@@ -70,7 +70,7 @@ namespace Backdoor {
 						Lock lock { Record::s_mutex } ;
 						return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                               // no autodep available, directly process args
 					}
-				DF}
+				DF}                                                                                                    // NO_COV
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
 			auto reply = deserialize<Expected<_Reply<T>>>(buf) ;

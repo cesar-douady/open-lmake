@@ -151,6 +151,8 @@ using std::vector                                 ;
 using std::all_of        ;
 using std::any_of        ;
 using std::binary_search ;
+using std::count         ;
+using std::count_if      ;
 using std::lower_bound   ;
 using std::max           ;
 using std::min           ;
@@ -231,19 +233,21 @@ template<class T> requires requires(T const& x) { !+x ; } constexpr bool operato
 #define CMP       ::function<bool(VT const&,VT const&)>
 #define PRED      ::function<bool(VT const&          )>
 #define FUNC      ::function<void(VT      &          )>
-#define DFLT_PRED [](T const& t)->bool { return +t ; }
+#define DFLT_PRED [](VT const& v)->bool { return +v ; }
 
-template<class T>          void              sort         ( T      & x ,               CMP  cmp            ) {         ::sort         ( x.begin() , x.end() ,     cmp  ) ; }
-template<class T>          void              stable_sort  ( T      & x ,               CMP  cmp            ) {         ::stable_sort  ( x.begin() , x.end() ,     cmp  ) ; }
-template<class T>          bool              binary_search( T const& x , VT const& v , CMP  cmp            ) { return  ::binary_search( x.begin() , x.end() , v , cmp  ) ; }
-template<class T> typename T::const_iterator lower_bound  ( T const& x , VT const& v , CMP  cmp            ) { return  ::lower_bound  ( x.begin() , x.end() , v , cmp  ) ; }
-template<class T>          void              sort         ( T      & x                                     ) {         ::sort         ( x.begin() , x.end()            ) ; }
-template<class T>          void              stable_sort  ( T      & x                                     ) {         ::stable_sort  ( x.begin() , x.end()            ) ; }
-template<class T>          bool              binary_search( T const& x , VT const& v                       ) { return  ::binary_search( x.begin() , x.end() , v        ) ; }
-template<class T> typename T::const_iterator lower_bound  ( T const& x , VT const& v                       ) { return  ::lower_bound  ( x.begin() , x.end() , v        ) ; }
 template<class T>          bool              all_of       ( T const& x ,               PRED pred=DFLT_PRED ) { return  ::all_of       ( x.begin() , x.end() ,     pred ) ; }
 template<class T>          bool              any_of       ( T const& x ,               PRED pred=DFLT_PRED ) { return  ::any_of       ( x.begin() , x.end() ,     pred ) ; }
+template<class T>          bool              binary_search( T const& x , VT const& v , CMP  cmp            ) { return  ::binary_search( x.begin() , x.end() , v , cmp  ) ; }
+template<class T>          bool              binary_search( T const& x , VT const& v                       ) { return  ::binary_search( x.begin() , x.end() , v        ) ; }
+template<class T>          ptrdiff_t         count        ( T const& x , VT const& v                       ) { return  ::count        ( x.begin() , x.end() , v        ) ; }
+template<class T>          ptrdiff_t         count_if     ( T const& x ,               PRED pred=DFLT_PRED ) { return  ::count_if     ( x.begin() , x.end() ,     pred ) ; }
+template<class T> typename T::const_iterator lower_bound  ( T const& x , VT const& v , CMP  cmp            ) { return  ::lower_bound  ( x.begin() , x.end() , v , cmp  ) ; }
+template<class T> typename T::const_iterator lower_bound  ( T const& x , VT const& v                       ) { return  ::lower_bound  ( x.begin() , x.end() , v        ) ; }
 template<class T>          bool              none_of      ( T const& x ,               PRED pred=DFLT_PRED ) { return  ::none_of      ( x.begin() , x.end() ,     pred ) ; }
+template<class T>          void              sort         ( T      & x ,               CMP  cmp            ) {         ::sort         ( x.begin() , x.end() ,     cmp  ) ; }
+template<class T>          void              sort         ( T      & x                                     ) {         ::sort         ( x.begin() , x.end()            ) ; }
+template<class T>          void              stable_sort  ( T      & x ,               CMP  cmp            ) {         ::stable_sort  ( x.begin() , x.end() ,     cmp  ) ; }
+template<class T>          void              stable_sort  ( T      & x                                     ) {         ::stable_sort  ( x.begin() , x.end()            ) ; }
 
 template<class V,class T> V  max( T const& x , ::function<V(VT const&)> val , V  dflt={} ) { for( auto const& v : x ) dflt = ::max(dflt,val(v)) ; return ::move(dflt) ; }
 template<class V,class T> V  min( T const& x , ::function<V(VT const&)> val , V  dflt={} ) { for( auto const& v : x ) dflt = ::min(dflt,val(v)) ; return ::move(dflt) ; }

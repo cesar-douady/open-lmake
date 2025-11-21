@@ -182,7 +182,14 @@ A typical <code>Lmakefile.py</code> will then contain lines such as:</p>
 </code></pre>
 <p><a href="../../lib/lmake/config_.py">lib/lmake/config_.py</a> can be used as a handy helper as it contains all the fields with a short comment.</p>
 <h2 id="the-sources"><a class="header" href="#the-sources">The sources</a></h2>
-<p>The sources are determined by setting the variable <code>lmake.manifest</code>.</p>
+<p>The sources are determined by setting the variable <code>lmake.manifest</code> and/or <code>lmake.extra_manifest</code>.
+Both are concatenated to make the actual list of sources.</p>
+<p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used to define these variables.
+By default :</p>
+<ul>
+<li>If <code>lmake.manifest</code> is not set or is empty, it is set to <code>lmake.sources.auto_sources()</code>.</li>
+<li>If <code>lmake.extra_manifest</code> is not set, it is empty.</li>
+</ul>
 <p>Sources are files that are deemed as intrinsic.
 They cannot be derived using rules as explained in the following section.</p>
 <p>Also, if a file cannot be derived and is not a source, it is deemed unbuildable, even if it actually exists.
@@ -200,7 +207,6 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 </li>
 </ul>
 <p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repo.</p>
-<p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used and if nothing is said, <code>auto_sources()</code> is called.</p>
 <h2 id="the-rules"><a class="header" href="#the-rules">The rules</a></h2>
 <p>Rules are described as python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
 <p>Such classes are either defined directly in <code>Lmakefile.py</code> or you can define a callable or a sub-module called <code>rules</code> that does the same thing when called/imported.

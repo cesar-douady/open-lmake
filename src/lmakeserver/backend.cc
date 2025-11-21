@@ -322,7 +322,7 @@ namespace Backends {
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=seq_id) { trace("bad_seq_id1" ,job,entry.conn.seq_id,seq_id) ; return ; }
 			//
 			if (entry.started!=No) {
-				Lock lock{Req::s_reqs_mutex} ;                                                                                      // taking Req::s_reqs_mutex is compulsory to derefence req
+				Lock lock{Req::s_reqs_mutex} ;                                                                                           // taking Req::s_reqs_mutex is compulsory to derefence req
 				for( Req r : entry.reqs ) r->audit_job( Color::Warning , "double_start" , job , SockFd::s_addr(fd,true/*peer*/) ) ;
 				trace("double_start",job,entry.conn.seq_id,seq_id) ;
 				return ;
@@ -346,20 +346,20 @@ namespace Backends {
 		StartAncillaryAttrs        start_ancillary_attrs ;
 		MsgStderr                  start_msg_err         ;
 		Rule::RuleMatch            match                 = job->rule_match()              ;
-		::vmap_s<DepDigest>&       deps                  = submit_attrs.deps              ;                                         // these are the deps for dynamic attriute evaluation
+		::vmap_s<DepDigest>&       deps                  = submit_attrs.deps              ;                                              // these are the deps for dynamic attriute evaluation
 		size_t                     n_submit_deps         = deps.size()                    ;
 		int                        step                  = 0                              ;
-		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                                         // this cannot fail as it was already run to construct job
+		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                                              // this cannot fail as it was already run to construct job
 		//
 		bool no_incremental ;
-		{	Lock lock{Req::s_reqs_mutex} ;                                                                                          // taking Req::s_reqs_mutex is compulsory to derefence req
+		{	Lock lock{Req::s_reqs_mutex} ;                                                                                               // taking Req::s_reqs_mutex is compulsory to derefence req
 			no_incremental = ::any_of( reqs , [&](Req r) { return r->options.flags[ReqFlag::NoIncremental] ; } ) ;
 		}
 		try {
 			try {
-				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                                      ) ; step = 1 ;
-				start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps                                                      ) ; step = 2 ;
-				cmd               = rd.cmd              .eval(/*inout*/start_rsrcs_attrs.use_script,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
+				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                           ) ; step = 1 ;
+				start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps                                           ) ; step = 2 ;
+				cmd               = rd.cmd              .eval(/*inout*/start_rsrcs_attrs,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
 				//
 				pre_actions = job->pre_actions( match , no_incremental , true/*mark_target_dirs*/ ) ; step = 4 ;
 				for( auto const& [t,a] : pre_actions )
@@ -371,12 +371,12 @@ namespace Backends {
 		} catch (MsgStderr const& e) {
 			start_msg_err.msg    <<set_nl<< e.msg    ;
 			start_msg_err.stderr <<set_nl<< e.stderr ;
-			switch (step) {
-				case 0 : start_msg_err.msg <<set_nl<< rd.start_cmd_attrs  .s_exc_msg(false/*using_static*/) ; break ;
-				case 1 : start_msg_err.msg <<set_nl<< rd.cmd              .s_exc_msg(false/*using_static*/) ; break ;
-				case 2 : start_msg_err.msg <<set_nl<< rd.start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ; break ;
-				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                                 ; break ;
-			DF}                                                                                                                                     // NO_COV
+			switch (step) { //!                                                     using_static
+				case 0 : start_msg_err.msg <<set_nl<< rd.start_cmd_attrs  .s_exc_msg(false     ) ; break ;
+				case 1 : start_msg_err.msg <<set_nl<< rd.cmd              .s_exc_msg(false     ) ; break ;
+				case 2 : start_msg_err.msg <<set_nl<< rd.start_rsrcs_attrs.s_exc_msg(false     ) ; break ;
+				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                      ; break ;
+			DF}                                                                                                                          // NO_COV
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
@@ -393,16 +393,17 @@ namespace Backends {
 				}
 				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
-					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                                       // if zlib is not available, dont compress
+					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                            // if zlib is not available, dont compress
 				#endif
 				//
 				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
 			[[fallthrough]] ;
 			case 3 :
 			case 2 :
-				reply.method     = start_rsrcs_attrs.method     ;
-				reply.timeout    = start_rsrcs_attrs.timeout    ;
-				reply.use_script = start_rsrcs_attrs.use_script ;
+				reply.lmake_root_s = start_rsrcs_attrs.lmake_root_s ;
+				reply.method       = start_rsrcs_attrs.method       ;
+				reply.timeout      = start_rsrcs_attrs.timeout      ;
+				reply.use_script   = start_rsrcs_attrs.use_script   ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;
@@ -445,7 +446,7 @@ namespace Backends {
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
-		DF}                                                                                                                                         // NO_COV
+		DF}                                                                                                                              // NO_COV
 		//
 		/**/                 reply.deps                 = _mk_digest_deps(::move(dep_specs  )) ;
 		/**/                 jis.stems                  =                 ::move(match.stems)  ;
@@ -851,7 +852,7 @@ namespace Backends {
 		SeqId seq_id = (*Engine::g_seq_id)++ ;
 		//
 		_s_mutex.swear_locked() ;
-		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ;        // ensure entry is created
+		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ;                 // ensure entry is created
 		StartEntry& entry       = it_inserted.first->second     ;
 		entry.submit_attrs = ::move(submit_attrs) ;
 		entry.conn.seq_id  =        seq_id        ;
@@ -863,9 +864,9 @@ namespace Backends {
 		::string const& server_host = tag==Tag::Local || +s_tab[+tag]->addr_str ? s_tab[+tag]->addr_str : fqdn_ ; // local backend always has an empty addr_str field
 		::vector_s cmd_line {
 			_s_job_exec
-		,	_s_job_start_thread.fd.service_str(server_host) // server address is only passed as start service as others use the same
-		,	_s_job_mngt_thread .fd.service_str({}         ) // .
-		,	_s_job_end_thread  .fd.service_str({}         ) // .
+		,	_s_job_start_thread.fd.service_str(server_host)                                                       // server address is only passed as start service as others use the same
+		,	_s_job_mngt_thread .fd.service_str({}         )                                                       // .
+		,	_s_job_end_thread  .fd.service_str({}         )                                                       // .
 		,	::to_string(seq_id)
 		,	::to_string(+job  )
 		,	*g_repo_root_s

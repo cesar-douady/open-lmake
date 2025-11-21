@@ -62,6 +62,9 @@ Mimic setting the rule attribute B(autodep)=I(key).
 Item(B(-o) I(file),B(--out)=I(file))
 Write access info (deps and targets) to I(file).
 
+Item(B(-r) I(abs_dir),B(--lmake-root)=I(abs_dir))
+Mimic setting the rule attribute B(lmake_root)=I(abs_dir).
+
 Item(B(-s) I(list),B(--source-dirs)=I(list))
 I(list) must be provided as a  tuple or list of str using the python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B(source_dirs)=I(list).

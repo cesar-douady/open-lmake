@@ -424,7 +424,7 @@ namespace Engine {
 		/**/                         res << ",\tkey            = " << mk_py_str(         key                    ) << '\n' ;
 		/**/                         res << ",\tjob            = " <<                    +job                     << '\n' ;
 		/**/                         res << ",\tlink_support   = " << mk_py_str(snake   (ade.lnk_support       )) << '\n' ;
-		/**/                         res << ",\tlmake_root     = " << mk_py_str(no_slash(*g_lmake_root_s       )) << '\n' ;
+		if (+jsrr.lmake_root_s     ) res << ",\tlmake_root     = " << mk_py_str(no_slash(jsrr.lmake_root_s     )) << '\n' ;
 		if (+job_space.lmake_view_s) res << ",\tlmake_view     = " << mk_py_str(no_slash(job_space.lmake_view_s)) << '\n' ;
 		/**/                         res << ",\tname           = " << mk_py_str(         job->name()            ) << '\n' ;
 		if (ade.readdir_ok         ) res << ",\treaddir_ok     = " << mk_py_str(         ade.readdir_ok         ) << '\n' ;
@@ -442,7 +442,7 @@ namespace Engine {
 		::map_ss                                    env_map = mk_map(env.first) ;
 		job_space.update_env(
 			/*inout*/env_map
-		,	         *g_lmake_root_s
+		,	         jsrr.lmake_root_s | *g_lmake_root_s
 		,	         *g_repo_root_s
 		,	         tmp_dir_s
 		,	         ade.sub_repo_s
@@ -910,6 +910,7 @@ namespace Engine {
 								}
 								//
 								if (+start.job_space.chroot_dir_s) push_entry( "chroot_dir" , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.lmake_root_s          ) push_entry( "lmake_root" , no_slash(start.lmake_root_s          ) ) ;
 								if (+start.job_space.lmake_view_s) push_entry( "lmake_view" , no_slash(start.job_space.lmake_view_s) ) ;
 								if (+start.job_space.repo_view_s ) push_entry( "repo_view"  , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s  ) push_entry( "tmp_view"   , no_slash(start.job_space.tmp_view_s  ) ) ;

@@ -544,8 +544,14 @@ namespace Engine {
 		return ::move(dep_specs) ;
 	}
 
-	::string DynCmd::eval( bool&/*inout*/ use_script , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& start_cmd_attrs ) const {
-		Rule     r   = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+	StartCmdAttrs DynStartCmdAttrs::eval( Rule::RuleMatch const& m , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
+		StartCmdAttrs res = Base::eval(m,rsrcs,deps) ;
+		::erase_if( res.job_space.views , [](::pair_s<JobSpace::ViewDescr> const& v_d) { return !v_d.second ; } ) ; // empty views may appear dynamically and mean no view
+		return res ;
+	}
+
+	::string DynCmd::eval( StartRsrcsAttrs&/*inout*/ sra , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& sca ) const {
+		Rule     r   = match.rule ;                                                     // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		::string res ;
 		// if script is large (roughly >64k), force use_script to ensure reasonable debug experience and no Linux resources overrun (max 2M for script+env if not use_script)
 		if (!r->is_python) {
@@ -557,13 +563,14 @@ namespace Engine {
 				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
 				Attrs::acquire( res , &py_obj->as_a<Str>() ) ;
 			}
-			if (res.size()>1<<16) use_script = true ;
+			if (res.size()>1<<16) sra.use_script = true ;
 		} else {
-			if ( entry().glbs_str.size() + entry().code_str.size() > 1<<16 ) use_script = true ;
-			if ( use_script                                                ) res << "import sys ; sys.path[0] = '' ; del sys\n#\n" ; // ensure sys.path is the same as if run with -c, ...
-			res << "lmake_root = " << mk_py_str(no_slash(start_cmd_attrs.job_space.lmake_view_s|*g_lmake_root_s)) <<'\n' ;           // ... del sys to ensure total transparency
-			res << "repo_root  = " << mk_py_str(no_slash(start_cmd_attrs.job_space.repo_view_s |*g_repo_root_s )) <<'\n' ;
-			res << '#'                                                                                            <<'\n' ;
+			if ( entry().glbs_str.size() + entry().code_str.size() > 1<<16 ) sra.use_script = true ;
+			//
+			if (sra.use_script) res << "import sys ; sys.path[0] = '' ; del sys\n#"                                                        <<'\n' ; // ensure sys.path is as if run with -c, ...
+			/**/                res << "lmake_root = " << mk_py_str(no_slash(sca.job_space.lmake_view_s|sra.lmake_root_s|*g_lmake_root_s)) <<'\n' ; // ... del sys to ensure total transparency
+			/**/                res << "repo_root  = " << mk_py_str(no_slash(sca.job_space.repo_view_s |*g_repo_root_s                  )) <<'\n' ;
+			/**/                res << '#'                                                                                                 <<'\n' ;
 			eval_ctx( match , rsrcs
 			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) {
 					res += r->gen_py_line( match , vc , i , key , val ) ;

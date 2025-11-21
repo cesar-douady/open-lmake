@@ -724,7 +724,7 @@ struct JobSpace {
 		bool is_dyn = false ;                // only used in rule attributes
 	} ;
 	// accesses
-	bool operator+() const { return +chroot_dir_s || +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; }
+	bool operator+() const { return +chroot_dir_s || +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; } // true if namespace needed
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , chroot_dir_s                        ) ;
@@ -732,21 +732,21 @@ struct JobSpace {
 		::serdes( s , views                               ) ;
 	}
 	void update_env(
-		::map_ss        &/*inout*/ env
-	,	::string   const&          phy_lmake_root_s
-	,	::string   const&          phy_repo_root_s
-	,	::string   const&          phy_tmp_dir_s
-	,	::string   const&          sub_repo_s
-	,	SeqId                                       = 0
-	,	SmallId                                     = 0
+		::map_ss      &/*inout*/ env
+	,	::string const&          phy_lmake_root_s
+	,	::string const&          phy_repo_root_s
+	,	::string const&          phy_tmp_dir_s
+	,	::string const&          sub_repo_s
+	,	SeqId  =0
+	,	SmallId=0
 	) const ;
 	bool/*entered*/ enter(
 		::vmap_s<MountAction>&/*out*/ report
-	,	::string             &/*out*/ top_repo_root_s
+	,	::string             &/*out*/ repo_root_s
 	,	::string   const&             phy_lmake_root_s
 	,	::string   const&             phy_repo_root_s
 	,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
-	,	::string   const&             cwd_s
+	,	::string   const&             sub_repo_s
 	,	::string   const&             work_dir_s
 	,	::vector_s const&             src_dirs_s={}
 	) ;
@@ -757,8 +757,8 @@ struct JobSpace {
 	void mk_canon(::string const& phy_repo_root_s) ;
 	void chk     (                               ) const ;
 private :
-	bool           _is_lcl_tmp( ::string const&                                                              ) const ;
-	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>& report , ::string const& dst , ::string const& src={} ) const ;
+	bool           _is_lcl_tmp( ::string const&                                                                       ) const ;
+	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>&/*inout*/ report , ::string const& dst , ::string const& src={} ) const ;
 	// data
 public :
 	// START_OF_VERSIONING
@@ -812,31 +812,32 @@ struct JobStartRpcReply {                                                       
 	bool operator+() const { return +interpreter ; }                               // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , autodep_env                     ) ;
-		::serdes( s , cache_idx                       ) ;
-		::serdes( s , cmd                             ) ;
-		::serdes( s , ddate_prec                      ) ;
-		::serdes( s , deps                            ) ;
-		::serdes( s , env                             ) ;
-		::serdes( s , interpreter                     ) ;
-		::serdes( s , job_space                       ) ;
-		::serdes( s , keep_tmp                        ) ;
-		::serdes( s , key                             ) ;
-		::serdes( s , kill_sigs                       ) ;
-		::serdes( s , live_out                        ) ;
-		::serdes( s , method                          ) ;
-		::serdes( s , network_delay                   ) ;
-		::serdes( s , nice                            ) ;
-		::serdes( s , os_info        , os_info_file   ) ;
-		::serdes( s , pre_actions                     ) ;
-		::serdes( s , rule                            ) ;
-		::serdes( s , small_id                        ) ;
-		::serdes( s , star_matches   , static_matches ) ;
-		::serdes( s , stderr_ok                       ) ;
-		::serdes( s , stdin          , stdout         ) ;
-		::serdes( s , timeout                         ) ;
-		::serdes( s , use_script                      ) ;
-		::serdes( s , zlvl                            ) ;
+		::serdes( s , autodep_env                    ) ;
+		::serdes( s , cache_idx                      ) ;
+		::serdes( s , cmd                            ) ;
+		::serdes( s , ddate_prec                     ) ;
+		::serdes( s , deps                           ) ;
+		::serdes( s , env                            ) ;
+		::serdes( s , interpreter                    ) ;
+		::serdes( s , job_space                      ) ;
+		::serdes( s , keep_tmp                       ) ;
+		::serdes( s , key                            ) ;
+		::serdes( s , kill_sigs                      ) ;
+		::serdes( s , live_out                       ) ;
+		::serdes( s , lmake_root_s                   ) ;
+		::serdes( s , method                         ) ;
+		::serdes( s , network_delay                  ) ;
+		::serdes( s , nice                           ) ;
+		::serdes( s , os_info       , os_info_file   ) ;
+		::serdes( s , pre_actions                    ) ;
+		::serdes( s , rule                           ) ;
+		::serdes( s , small_id                       ) ;
+		::serdes( s , star_matches  , static_matches ) ;
+		::serdes( s , stderr_ok                      ) ;
+		::serdes( s , stdin         , stdout         ) ;
+		::serdes( s , timeout                        ) ;
+		::serdes( s , use_script                     ) ;
+		::serdes( s , zlvl                           ) ;
 		//
 		CacheTag tag ;
 		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
@@ -848,8 +849,7 @@ struct JobStartRpcReply {                                                       
 	,	::map_ss             &/*out*/ cmd_env
 	,	::vmap_ss            &/*out*/ dyn_env
 	,	pid_t                &/*out*/ first_pid
-	,	::string             &/*out*/ top_repo_dir_s
-	,	::string        const&        phy_lmake_root_s
+	,	::string             &/*out*/ repo_dir_s
 	,	::string        const&        phy_repo_root_s
 	,	::string        const&        phy_tmp_dir_s
 	,	SeqId
@@ -872,6 +872,7 @@ struct JobStartRpcReply {                                                       
 	::string                                key            ;                       // key used to uniquely identify repo
 	::vector<uint8_t>                       kill_sigs      ;
 	bool                                    live_out       = false               ;
+	::string                                lmake_root_s   ;
 	AutodepMethod                           method         = AutodepMethod::Dflt ;
 	Time::Delay                             network_delay  ;
 	uint8_t                                 nice           = 0                   ;

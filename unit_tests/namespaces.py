@@ -5,6 +5,8 @@
 
 import lmake
 
+tmp_views = (None,'tmp','tmp2/sub')
+
 if __name__!='__main__' :
 
 	from lmake.rules import Rule
@@ -16,7 +18,7 @@ if __name__!='__main__' :
 
 	for lmake_view in (None,'lmake') :
 		for repo_view in (None,'repo') :
-			for tmp_view in (None,'tmp','new_tmp') :
+			for tmp_view in tmp_views :
 				class Dut(Rule) :
 					name      = f'dut {lmake_view} {repo_view} {tmp_view}'
 					target    = f'dut.{lmake_view}.{repo_view}.{tmp_view}'
@@ -64,5 +66,5 @@ else :
 
 	print('lower\nupper',file=open('tmp_map_ref','w'))
 
-	ut.lmake( *(f'dut.{l}.{r}.{t}' for l in (None,'lmake') for r in (None,'repo') for t in (None,'tmp','new_tmp') ) ,         done=12 )
-	ut.lmake( 'tmp_map_test'                                                                                        , new=1 , done=2  )
+	ut.lmake( *(f'dut.{l}.{r}.{t}' for l in (None,'lmake') for r in (None,'repo') for t in tmp_views ) ,         done=12 )
+	ut.lmake( 'tmp_map_test'                                                                           , new=1 , done=2  )

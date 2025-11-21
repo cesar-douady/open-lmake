@@ -52,7 +52,7 @@ namespace Backdoor {
 			case No    : return cat("disable autodep"  ,reason) ;
 			case Yes   : return cat("enable autodep"   ,reason) ;
 			case Maybe : return cat("get autodep state",reason) ;
-		DF}
+		DF}                                                       // NO_COV
 	}
 
 	//
@@ -286,7 +286,7 @@ namespace Backdoor {
 			case No    : res << " deps"                  ; break ;
 			case Yes   : res << " targets"               ; break ;
 			case Maybe : res << " both deps and targets" ; break ;
-		DF}
+		DF}                                                        // NO_COV
 		/**/          res << reason                           ;
 		if (+dir    ) res <<" in "                << *dir     ;
 		if (+regexpr) res <<" satisfying regexpr "<< *regexpr ;

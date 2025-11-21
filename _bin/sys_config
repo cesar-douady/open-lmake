@@ -21,13 +21,13 @@ echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when a
 
 ok() {
 	if "$@" >/dev/null ; then echo 1
-	else                    echo 0
+	else                      echo 0
 	fi
 }
 
 ko() {
 	if "$@" >/dev/null ; then echo 0
-	else                    echo 1
+	else                      echo 1
 	fi
 }
 
@@ -148,6 +148,38 @@ elif [ "$PY3_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
 fi
 
 #
+# HAS_32 (HAS_32+LD_SO_LIB+LD_SO_LIB32)
+#
+if type -p strace >/dev/null ; then
+	show_lib() {
+		strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
+	}
+	cc -m64 -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
+	cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
+	if [ "$LD_SO_LIB" = "$LD_SO_LIB_32" ] ; then
+		echo "cannot distinguish 32 and b64 bits exe" >>$ERR_FILE
+		exit 1
+	elif [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" ] ; then
+		HAS_32=1
+	elif [ "$LD_SO_LIB" ] ; then
+		HAS_32=0
+		echo "no 32 bits support" >>$SUM_FILE
+	else
+		echo "unsupported 32 bits system" >>$ERR_FILE
+		exit 1
+	fi
+else
+	if cc -m64 -o ld_so_lib -xc++ - <<< 'int main(){}' ; then
+		HAS_32=0
+		LD_SO_LIB=lib64 # this seems to work on all known 64 bits systems
+		echo "strace not available, assuming \$LIB=$LD_SO_LIB for LD_PRELOAD" >>$SUM_FILE
+	else
+		echo "unsupported 32 bits system" >>$ERR_FILE
+		exit 1
+	fi
+fi
+
+#
 # ADDR2LINE (ADDR2LINE)
 #
 case $CXX_FLAVOR in
@@ -187,11 +219,11 @@ fi
 # LD_AUDIT (HAS_LD_AUDIT)
 #
 case $ID/$VERSION_ID in
-	ubuntu/20.04      ) HAS_LD_AUDIT=0 ;;                   # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
-	centos/7          ) HAS_LD_AUDIT=0 ;;                   # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
-	opensuse-leap/15.5) HAS_LD_AUDIT=0 ;;                   # Suse    fix : version 15.5 "almost" supports LD_AUDIT, but it is missing calls to a few libc entries such as fstatat
-	sled/15.5         ) HAS_LD_AUDIT=0 ;;                   # may experience the same problem as with opensuse
-	sles/15.5         ) HAS_LD_AUDIT=0 ;;                   # .
+	ubuntu/20.04      ) HAS_LD_AUDIT=0 ;;                # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
+	centos/7          ) HAS_LD_AUDIT=0 ;;                # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
+	opensuse-leap/15.5) HAS_LD_AUDIT=0 ;;                # Suse    fix : version 15.5 "almost" supports LD_AUDIT, but it is missing calls to a few libc entries such as fstatat
+	sled/15.5         ) HAS_LD_AUDIT=0 ;;                # may experience the same problem as with opensuse
+	sles/15.5         ) HAS_LD_AUDIT=0 ;;                # .
 	*                 )
 		cat <<-"EOF" >audited.c
 			#include <stdio.h>
@@ -215,7 +247,7 @@ esac
 show_std_library_path() {
 	strace -E LD_PRELOAD='magic1234.so' -E LD_LIBRARY_PATH= $1 2>&1 | awk '/\/magic1234.so/ {sub(/[^"]*"/,"") ; sub(/\/magic1234.so.*/,"") ; printf("%s%s",sep,$0) ; sep=":" }'
 }
-cc      -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
+cc -m64 -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
 cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32=$(show_std_library_path ./std_library_path_32)
 #
 LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
@@ -223,23 +255,6 @@ LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
 if [ $HAS_32 = 1 ] ; then
 	LINK_LIB_PATH_32=$(find_cc_ld_library_path -m32 $CXX)
 	LINK_LIB_PATH_32=${LINK_LIB_PATH_32//:/ }
-fi
-
-#
-# LD_SO (HAS_32+LD_SO_LIB+LD_SO_LIB32)
-#
-show_lib() {
-	strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
-}
-cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
-cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
-if [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" -a "$LD_SO_LIB" != "$LD_SO_LIB_32" ] ; then
-	HAS_32=1                                                                     # we have both 32 and 64 bits, use the ld.so $LIB feature
-else
-	[ "$LD_SO_LIB_32" ] || echo no 32 bits support >>$SUM_FILE                   # else we are running on a 32 bits system
-	HAS_32=0                                                                     # ensure we do not the ld.so $LIB feature
-	LD_SO_LIB=lib                                                                # if auto-detect failed, dont support 32-bits and take a standard value for LD_SO_LIB
-	LD_SO_LIB_32=                                                                # .
 fi
 
 #

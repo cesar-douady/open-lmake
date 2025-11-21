@@ -51,6 +51,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "key           : " << jsrr.key                    <<'\n' ;
 	g_out << "kill_sigs     : " << jsrr.kill_sigs              <<'\n' ;
 	g_out << "live_out      : " << jsrr.live_out               <<'\n' ;
+	g_out << "lmake_root_s  : " << jsrr.lmake_root_s           <<'\n' ;
 	g_out << "lmake_view_s  : " << jsrr.job_space.lmake_view_s <<'\n' ;
 	g_out << "method        : " << jsrr.method                 <<'\n' ;
 	g_out << "readdir_ok    : " << jsrr.autodep_env.readdir_ok <<'\n' ;

@@ -285,10 +285,11 @@ namespace Engine {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void update( Py::Dict const& py_dct ) {
 			dyn_env = false ;                                                                      // update solves dynamic val
-			Attrs::acquire_env     ( env        , py_dct , "env"                               ) ;
-			Attrs::acquire_from_dct( method     , py_dct , "autodep"                           ) ;
-			Attrs::acquire_from_dct( timeout    , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( use_script , py_dct , "use_script"                        ) ;
+			Attrs::acquire_from_dct( method       , py_dct , "autodep"                           ) ;
+			Attrs::acquire_from_dct( use_script   , py_dct , "use_script"                        ) ;
+			Attrs::acquire_from_dct( timeout      , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( lmake_root_s , py_dct , "lmake_root"                        ) ; if (+lmake_root_s) lmake_root_s = with_slash(lmake_root_s) ;
+			Attrs::acquire_env     ( env          , py_dct , "env"                               ) ;
 			::sort(env) ;                                                                          // stabilize rsrcs crc
 		}
 		void mk_dyn(::uset_s const& dyn_keys) {
@@ -296,11 +297,12 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING
-		AutodepMethod method     = AutodepMethod::Dflt ;
-		Time::Delay   timeout    ;                                                                 // if 0 <=> no timeout, maximum time allocated to job execution in s
-		bool          use_script = false               ;
-		bool          dyn_env    = false               ;
-		::vmap_ss     env        ;
+		bool          dyn_env      = false               ;
+		AutodepMethod method       = AutodepMethod::Dflt ;
+		bool          use_script   = false               ;
+		Time::Delay   timeout      ;                                                                 // if 0 <=> no timeout, maximum time allocated to job execution in s
+		::string      lmake_root_s ;
+		::vmap_ss     env          ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -421,10 +423,10 @@ namespace Engine {
 			// END_OF_VERSIONING
 		}
 		// RuleMatch is lazy evaluated from Job (when there is one)
-		T eval( Job   , Rule::RuleMatch      &   , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const ;
-		T eval(         Rule::RuleMatch const& m , ::vmap_ss const& rsrcs={} , ::vmap_s<DepDigest>* deps=nullptr ) const { return eval( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ; }
-		T eval( Job j , Rule::RuleMatch      & m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( j  ,                              m  , {}    , deps ) ; }
-		T eval(         Rule::RuleMatch const& m ,                             ::vmap_s<DepDigest>* deps         ) const { return eval( {} , const_cast<Rule::RuleMatch&>(m) , {}    , deps ) ; }
+		T eval( Job   , Rule::RuleMatch      &   , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>*     =nullptr ) const ;
+		T eval(         Rule::RuleMatch const& m , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps=nullptr ) const { return eval( {} , const_cast<Rule::RuleMatch&>(m) , rsrcs , deps ) ; }
+		T eval( Job j , Rule::RuleMatch      & m ,                          ::vmap_s<DepDigest>* deps=nullptr ) const { return eval( j  ,                              m  , {}    , deps ) ; }
+		T eval(         Rule::RuleMatch const& m ,                          ::vmap_s<DepDigest>* deps=nullptr ) const { return eval( {} , const_cast<Rule::RuleMatch&>(m) , {}    , deps ) ; }
 		//
 		void eval_ctx( Job , Rule::RuleMatch      &/*lazy*/ , ::vmap_ss const& rsrcs , EvalCtxFuncStr const&     , EvalCtxFuncDct const&     ) const ;
 		void eval_ctx(       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs , EvalCtxFuncStr const& cbs , EvalCtxFuncDct const& cbd ) const {
@@ -448,6 +450,14 @@ namespace Engine {
 		/**/            ::vmap_s<DepSpec>  dep_specs(Rule::RuleMatch const& m) const ;
 	} ;
 
+	struct DynStartCmdAttrs : Dyn<StartCmdAttrs> {
+		using Base = Dyn<StartCmdAttrs> ;
+		// cxtors & casts
+		using Base::Base ;
+		// services
+		StartCmdAttrs eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* =nullptr ) const ;
+	} ;
+
 	struct DynCmd : Dyn<Cmd> {
 		using Base = Dyn<Cmd> ;
 		// cxtors & casts
@@ -456,7 +466,7 @@ namespace Engine {
 		bool has_entry() const = delete ; // always true for Cmd's, should not ask
 		// services
 		// use_script is set to true if result is too large and used to generate cmd
-		::string eval( bool&/*inout*/ use_script , Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& ) const ;
+		::string eval( StartRsrcsAttrs&/*inout*/ , Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& ) const ;
 	} ;
 
 	struct TargetPattern {
@@ -558,7 +568,7 @@ namespace Engine {
 		// following is only if plain rules
 		Dyn<SubmitRsrcsAttrs    > submit_rsrcs_attrs     ;                         // in rsrcs crc, evaluated at submit time
 		Dyn<SubmitAncillaryAttrs> submit_ancillary_attrs ;                         // in no    crc, evaluated at submit time
-		Dyn<StartCmdAttrs       > start_cmd_attrs        ;                         // in cmd   crc, evaluated before execution
+		DynStartCmdAttrs          start_cmd_attrs        ;                         // in cmd   crc, evaluated before execution
 		Dyn<StartRsrcsAttrs     > start_rsrcs_attrs      ;                         // in rsrcs crc, evaluated before execution
 		Dyn<StartAncillaryAttrs > start_ancillary_attrs  ;                         // in no    crc, evaluated before execution
 		DynCmd                    cmd                    ;                         // in cmd   crc, evaluated before execution

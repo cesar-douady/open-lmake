@@ -127,7 +127,7 @@ namespace Re {
 						else                     _infxs.push_back(pattern[i].first) ;
 						pat << escape(pattern[i].first) ;
 					break ;
-				DF}
+				DF}                                  // NO_COV
 			if (cache) _code = s_cache.insert(pat) ;
 			else       _code = _s_compile    (pat) ;
 		}

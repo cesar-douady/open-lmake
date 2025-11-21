@@ -175,6 +175,7 @@ namespace Engine::Makefiles {
 		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                            ;
 		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
 		gather.env                     = &_g_env                                                                                                                   ;
+		gather.lmake_root_s            = *g_lmake_root_s                                                                                                           ;
 		gather.child_stdin             = Child::NoneFd                                                                                                             ;
 		gather.child_stdout            = Child::PipeFd                                                                                                             ;
 		gather.child_stderr            = Child::JoinFd                                                                                                             ;

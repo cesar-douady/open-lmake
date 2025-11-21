@@ -32,6 +32,7 @@ class Job :
 	auto_mkdir  = False
 	chroot_dir  = None
 	cwd         = None
+	lmake_root  = None
 	lmake_view  = None
 	readdir_ok  = False
 	repo_view   = None
@@ -136,12 +137,13 @@ class Job :
 		if True             :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
 		if True             :          res =         res+f' -k'
 		if True             :          res =         res+f' -l{                  self.link_support           }'
+		if self.lmake_root  : simple , res = False , res+f' -r{mk_shell_str(     self.lmake_root            )}'
+		if self.lmake_view  : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'
 		if True             :          res =         res+f' -m{                  self.autodep_method         }'
 		if True             :          res =         res+f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
+		if self.repo_view   : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
 		if self.source_dirs : simple , res = False , res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'
 		if self.tmp_dir     :          res =         res+f' -t{mk_shell_str(     self.tmp_dir               )}'
-		if self.lmake_view  : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'
-		if self.repo_view   : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
 		if self.tmp_view    : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
 		if self.views       : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'
 		if True             :          res =         res+ ' -- \\\n'

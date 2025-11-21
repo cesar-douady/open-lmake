@@ -58,6 +58,407 @@ The restrictions are the following:
 
 ## Attributes
 
+### `auto_mkdir`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a true value, executing a `chdir` syscall (e.g. executing `cd` in bash) will create the target dir if it does not exist.
+
+This is useful for scripts in situations such as:
+
+- The script does `chdir a`.
+- Then try to read file `b` from there.
+- What is expected is to have a dep on `a/b` which may not exist initially but will be created by some other job.
+- However, if dir `a` does not exist, the `chdir` call fails and the file which is open for reading is `b` instead of `a/b`.
+- As a consequence, no dep is set for `a/b` and the problem will not be resolved by a further re-execution.
+- Setting this attribute to true creates dir `a` on the fly when `chdir` is called so that it succeeds and the correct dep is set.
+
+### `autodep`
+
+| Inheritance | Type    | Default                                       | Dynamic | Example    |
+|-------------|---------|-----------------------------------------------|---------|------------|
+| python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
+
+This attribute specifies the method used by [autodep](autodep.html) to discover hidden deps.
+
+### `backend`
+
+| Inheritance | Type    | Default | Dynamic | Example   |
+|-------------|---------|---------|---------|-----------|
+| python      | `f-str` | -       | Full    | `'slurm'` |
+
+This attribute specifies the [backend](backends.html) to use to launch jobs.
+
+### `cache`
+
+| Inheritance | Type    | Default | Dynamic | Example |
+|-------------|---------|---------|---------|---------|
+| python      | `f-str` | -       | Simple  |         |
+
+This attribute specifies the cache to use for jobs executed by this rule.
+
+When a job is executed, its results are stored in the cache.
+If space is needed (all caches are constrained in size), any other entry can be replaced.
+The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
+
+### `cmd`
+
+| Inheritance | Type     | Default     | Dynamic | Example                                                            |
+|-------------|----------|-------------|---------|--------------------------------------------------------------------|
+| Combined    | `f-str`  | -           | Full    | `'gcc -c -o {OBJ} {SRC}'`                                          |
+| Combined    | function | -           | Full    | `def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))` |
+
+#### if it is a function
+
+In that case, this attribute is called to run the job (cf. [job execution](job_execution.html)).
+Combined inheritance is a special case for `cmd`.
+
+If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
+The first (i.e. the most basic) one must have no non-defaulted arguments and will be called with no argument.
+The other ones may have arguments, all but the first having default values.
+In that case, such `function`'s are called with the result of the previous one as unique argument.
+Else, if a `function` has no argument, the result of the previous function is dropped.
+
+Because jobs are executed remotely using the interpreter mentioned in the `python` attribute
+and to avoid depending on the whole `Lmakefile.py` (which would force to rerun all jobs as soon as any rule is modified),
+these functions and their context are serialized to be transported by value.
+The serialization process may improve over time but as of today, the following applies:
+
+- Basic objects are transported as is : `None`, `...`, `bool`, `int`, `float`, `complex`, `str`, `bytes`.
+- `list`, `tuple`, `set` and `dict` are transported by transporting their content. Note that reconvergences (and a fortiori loops) are not handled.
+- functions are transported as their source accompanied with their context : global accessed variables and default values for arguments.
+- Imported objects (functions and `class`'es and generally all objects with a `__qualname__` attribute) are transported as an `import` statement.
+- Builtin objects are transported spontaneously, without requiring any generated code.
+
+Also, care has been taken to hide this transport by value in backtrace and during debug sessions, so that functions appear to be executed where they were originally defined.
+
+Values are captured according to the normal python semantic, i.e. once the `Lmakefile` module is fully imported.
+Care must be taken for variables whose values change during the `import` process.
+This typically concerns loop indices.
+To capture these at definition time and not at the end, such values must be saved somewhere.
+There are mostly 2 practical possibilities:
+
+- Declare an argument with a default value. Such default value is saved when the function is defined.
+- Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.
+
+#### if it is a `f-str`
+
+In that case, this attribute is executed as a shell command to run the job (cf. [job execution](job_execution.html)).
+Combined inheritance is a special case for `cmd`.
+
+While walking the MRO, if for a base class `cmd` is defined as a function and it has a `shell` attribute, the value of this attribute is used instead.
+The purpose is that it is impossible to combine `str`'s and functions because they use different paradigms.
+As a consequence, a base class may want to have 2 implementations, one for subclasses that use python `cmd` and another for subclasses that use shell `cmd`.
+For such a base class, the solution is to define `cmd` as a function and set its `shell` attribute to the `str` version.
+
+If several definitions exist along the MRO, They must all be `str`'s and they are run successively in reverse MRO in the same process.
+So, it is possible for a first definition to define an environment variable that is used in a subsequent one.
+
+As for other attributes that may be dynamic, `cmd` is interpreted as an f-string.
+
+### `chroot_dir`
+
+| Inheritance | Type    | Default | Dynamic | Example          |
+|-------------|---------|---------|---------|------------------|
+| python      | `f-str` | `None`  | Full    | `'/ubuntu22.04'` |
+
+This attribute defines a dir in which jobs will `chroot` into before execution begins.
+It must be an absoluted path.
+
+Note that unless the `repo_view` is set, the repo must be visible under its original name in this chroot environment.
+
+If `None`, `''` or `'/'`, no `chroot` is performed unless required to manage the `tmp_view` and `repo_view` attributes (in which case it is transparent).
+However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
+
+This attribute is typically used to execute the job in a different environment, such as a different OS distribution or release, leveraging a `docker` image.
+
+### `compression`
+
+| Inheritance | Type                                          | Default | Dynamic | Example |
+|-------------|-----------------------------------------------|---------|---------|---------|
+| python      | `None` or `str` or `int` or `tuple` or `list` | None    | Full    | `1`     |
+
+This attribute specifies the compression used when caching.
+
+- if `None`       , no compression occurs.
+- If it is a `str`, it specifies the method and can be `'zstd'` or `'zlib'`, and the level defaults to 1.
+- If it is a `int`, it specifies the compression level: from `0` which means no compression to `9` which means best (and slowest) compression.
+  The method defaults to `'zstd'` if supported, else to `'zlib'`.
+  Note that `1` seems to be a good compromize.
+- If a `tuple` or a `list`, it specifies both a method and a level (in that order).
+
+When downloading from cache, the method and level used at upload time is honored.
+If the compression method is not supported, no download occurs.
+
+### `dep`
+
+| Inheritance | Type                       | Default | Dynamic | Example |
+|-------------|----------------------------|---------|---------|---------|
+| python      | `str` or `list` or `tuple` | -       | Simple  |         |
+
+This attribute defines an unnamed static dep.
+
+During execution, `cmd` stdin will be redirected to this dep, else it is `/dev/null`.
+
+### `deps`
+
+| Inheritance | Type   | Default | Dynamic | Example                  |
+|-------------|--------|---------|---------|--------------------------|
+| Combined    | `dict` | `{}`    | Simple  | `{ 'SRC' : '{File}.c' }` |
+
+This attribute defines the static deps.
+It is a `dict` which associates python identifiers to files computed from the available environment.
+
+They are f-strings, i.e. their value follow the python f-string syntax and semantic
+but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf. [rule selection](rule_selection.html)).
+Hence they lack the initial `f` in front of the string.
+
+Alternatively, values can also be `list` or `tuple` whose first item is as described above, followed by flags.
+
+The flags may be any combination of the following flags, optionally preceded by - to turn it off.
+Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
+
+| CamelCase     | snake\_case    | Default | Description                                                                                                                     |
+|---------------|----------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
+| `Essential`   | `essential`    | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                             |
+| `Critical`    | `critical`     | No      | This dep is [critical](critical_deps.html).                                                                                     |
+| `IgnoreError` | `ignore_error` | No      | This dep may be in error, job will be launched anyway.                                                                          |
+| `ReaddirOk`   | `readdir_ok`   | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                                              |
+| `Required`    | `required`     | No      | This dep is deemed to be read, even if not actually read by the job.                                                            |
+| `NoStar`      | `no_star`      | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                                       |
+| `Top`         | `top`          | No      | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html ). |
+
+Flag order and dep order are not significative.
+
+Usage notes:
+
+- The  `critical` flag is typically used for deps that contain a list of deps, for example for a test suite.
+In that case, if the list changes, speculatively building the old deps is probably not the best strategy.
+- The `ignore_error` flag is also typically use for test suites to generate a colored report.
+- The `-no_star` flag is used to avoid repetition, as it is generally possible to mention all the flags that must apply to a target,
+possibly duplicating flags mentioned in other matching entries (`side_deps` and `side_targets`).
+- The `top` flag is used in case of sub-repo, which is an experimental feature.
+
+### `environ`
+
+| Inheritance | Type   | Default | Dynamic | Example                                   |
+|-------------|--------|---------|---------|-------------------------------------------|
+| Combined    | `dict` | ...     | Full    | `{ 'MY_TOOL_ROOT' : '/install/my_tool' }` |
+
+This attribute defines environment variables set during job execution.
+
+The content of this attribute is managed as part of the job command, meaning that jobs are rerun upon modification.
+This is the normal behavior, other means to define environment are there to manage special situations.
+
+The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
+Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
+
+Except the exception below, the value must be a `f-str`.
+
+If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
+This is typically used to access some environment variables set by `slurm`.
+
+If a value contains one of the following strings, they are replaced by their corresponding definitions:
+
+| Key                       | Replacement                                                   | Comment                                                                                    |
+|---------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| `$LMAKE_ROOT`             | The root dir of the open-lmake package                        | Dont store in targets as this may require cleaning repo if open-lmake installation changes |
+| `$PHYSICAL_REPO_ROOT`     | The physical dir of the subrepo                               | Dont store in targets as this may interact with cached results                             |
+| `$PHYSICAL_TMPDIR`        | The physical dir of the tmp dir                               | Dont store in targets as this may interact with cached results                             |
+| `$PHYSICAL_TOP_REPO_ROOT` | The physical dir of the top-level repo                        | Dont store in targets as this may interact with cached results                             |
+| `$REPO_ROOT`              | The absolute dir of the subrepo as seen by job                |                                                                                            |
+| `$SEQUENCE_ID`            | A unique value for each job execution (at least 1)            | This value must be semantically considered as a random value                               |
+| `$SMALL_ID`               | A unique value among simultaneously running jobs (at least 1) | This value must be semantically considered as a random value                               |
+| `$TMPDIR`                 | The absolute dir of the tmp dir, as seen by the job           |                                                                                            |
+| `$TOP_REPO_ROOT`          | The absolute dir of the top-level repo, as seen by the job    |                                                                                            |
+
+By default the following environment variables are defined :
+
+| Variable      | Defined in   | Value                                              | comment                                                   |
+|---------------|--------------|----------------------------------------------------|-----------------------------------------------------------|
+| `$HOME`       | Rule         | `$TOP_REPO_ROOT`                                   | See above, isolates tools startup from user specific data |
+| `$HOME`       | HomelessRule | `$TMPDIR`                                          | See above, pretend tools are used for the first time      |
+| `$PATH`       | Rule         | The standard path with `$LMAKE_ROOT/bin:` in front |                                                           |
+| `$PYTHONPATH` | PyRule       | `$LMAKE_ROOT/lib`                                  |                                                           |
+
+### `environ_ancillary`
+
+| Inheritance | Type   | Default | Dynamic | Example                 |
+|-------------|--------|---------|---------|-------------------------|
+| Combined    | `dict` | `{}`    | Full    | `{ 'DISPLAY' : ':10' }` |
+
+This attribute defines environment variables set during job execution.
+
+The content of this attribute is not managed, meaning that jobs are not rerun upon modification.
+
+The values undertake the same substitutions as for the `environ` attribute described above.
+
+The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
+Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
+
+Except the exception below, the value must be a `f-str`.
+
+If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
+This is typically used to access some environment variables set by `slurm`.
+
+By default the following environment variables are defined :
+
+| Variable | Defined in | Value               | comment |
+|----------|------------|---------------------|---------|
+| `$UID`   | Rule       | the user id         |         |
+| `$USER`  | Rule       | the user login name |         |
+
+### `environ_resources`
+
+| Inheritance | Type   | Default | Dynamic | Example                           |
+|-------------|--------|---------|---------|-----------------------------------|
+| Combined    | `dict` | `{}`    | Full    | `{ 'MY_TOOL_LICENCE' : '12345' }` |
+
+This attribute defines environment variables set during job execution.
+
+The content of this attribute is managed as resources, meaning that jobs in error are rerun upon modification, but not jobs that were successfully built.
+
+The values undertake the same substitutions as for the `environ` attribute described above.
+
+The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
+Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
+
+Except the exception below, the value must be a `f-str`.
+
+If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
+This is typically used to access some environment variables set by `slurm`.
+
+### `force`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
+It is rarely necessary.
+
+### `job_name`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `str` | ...     | No      |         |
+
+Default is the first target of the most derived `class` in the inheritance hierarchy (i.e. the MRO) having a matching target.
+
+This attribute may exceptionally be used for cosmetic purpose.
+Its syntax is the same as target name (i.e. a target with no option).
+
+When open-lmake needs to include a job in a report, it will use this attribute.
+If it contains star stems, they will be replaced by `*`'s in the report.
+
+If defined, this attribute must have the same set of static stems (i.e. stems that do not contain `*`) as any matching target.
+
+### `keep_tmp`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute is set to a true value, the temporary dir is kept after job execution.
+It can be retreived with `lshow -i`.
+
+Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
+When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.
+
+### `kill_sigs`
+
+| Inheritance | Type              | Default             | Dynamic | Example |
+|-------------|-------------------|---------------------|---------|---------|
+| python      | `list` or `tuple` | `(signal.SIGKILL,)` | Full    |         |
+
+This attribute provides a list of signals to send the job when @lmake decides to kill it.
+
+A job is killed when:
+
+- `^C` is hit if it is not necessary for another running `lmake` command that has not received a `^C`.
+- When timeout is reached.
+- When `check_deps` is called and some deps are out-of-date.
+
+The signals listed in this list are sent in turn, once every second.
+Longer interval can be obtained by inserting `0`'s. `0` signals are not sent and anyway, these would have no impact if they were.
+
+If the list is exhausted and the job is still alive, a more agressive method is used.
+The process group of the job, as well as the process group of any process connected to a stream we are waiting for, are sent `SIGKILL` signals instead of just the process group of the job.
+The streams we are waiting for are `stderr`, and `stdout` unless the `target` attribute is used (as opposed to the `targets` attribute)
+in which case `stdout` is redirected to the the target and is not waited for.
+
+Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.
+
+### `lmake_root`
+
+| Inheritance | Type    | Default | Dynamic | Example             |
+|-------------|---------|---------|---------|---------------------|
+| python      | `f-str` | `None`  | Full    | `'/installs/lmake'` |
+
+This attribute defines the open-lmake installation directory the job will use.
+It must be an absoluted path.
+If used in conjunction with `chroot_dir`, the directory is searched in the chroot dir first, then, if not found, in the native root.
+
+If `None` or `''` the current installation is used.
+
+This attribute is typically used in conjunction with `chroot_dir` to indicate the installation dir of a suitable open-lmake.
+
+### `lmake_view`
+
+| Inheritance | Type    | Default | Dynamic | Example    |
+|-------------|---------|---------|---------|------------|
+| python      | `f-str` | `None`  | Full    | `'/lmake'` |
+
+This attribute defines a dir in which jobs will see the top-level dir of open-lmake installation.
+This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)).
+
+It must be an absolute path not lying in the temporary dir.
+
+If `None` or `''`, no bind mount is performed.
+
+### `max_retries_on_lost`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `1`     | No      |         |
+
+This attribute provides the number of allowed retries before giving up when a job is lost.
+For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called `job_exec`) was manually killed.
+
+In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
+
+### `max_runs`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `0`     | No      |         |
+
+The goal is to protect against potential loss of performances if reruns are too frequent.
+Unlimited if `0`.
+Contrarily to the `max_submits` attribute, cache accesses are not counted when counting runs.
+
+### `max_stderr_len`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `100`   | Full    | `1`     |
+
+This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
+The whole content of stderr stays accessible with the `lshow -e` command.
+
+### `max_submits`
+
+| Inheritance | Type  | Default | Dynamic | Example |
+|-------------|-------|---------|---------|---------|
+| python      | `int` | `10`    | No      |         |
+
+The goal is to protect agains potential infinite loop cases.
+The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
+Unlimited if `0`.
+Contrarily to the `max_runs` attribute, cache accesses are counted when counting submits.
+
 ### `name`
 
 | Inheritance | Type  | Default        | Dynamic | Example |
@@ -79,14 +480,29 @@ for ext in ('c','cc'):
 		cmd     = 'gcc -c -o {OBJ} {SRC}'
 ```
 
-### `virtual`
+### `os_info`
 
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| None        | `bool` | `False` | No      | `True`  |
+| Inheritance | Type    | Default                                  | Dynamic | Example                   |
+|-------------|---------|------------------------------------------|---------|---------------------------|
+| python      | `f-str` | re.escape(`<ID>/<VERSION_ID>/<machine>`) | Full    | `r'ubuntu/22\.04/x86_64'` |
 
-When this attribute is true, this `class` is not a rule even if it has the required target & cmd attributes.
-In that case, it is only used as a base class to define other rules.
+This attribute specifies a regexpr characterizing if the OS environment in which jobs execute are acceptable.
+When a job starts, the same information is computed on the executing host and the value must match this regexpr.
+
+In the default value above, `<ID>` and `<VERSION_ID>` are taken from the corresponding lines in `/etc/os-release` and `<machine>` is `os.uname().machine`.
+
+If `None` or `''` no check is performed.
+
+This attribute is typically used jobs are executed in various OS environment, for example when using the `chroot_dir` attribute or when jobs are dispatched using slurm or SGE.
+
+### `os_info_file`
+
+| Inheritance | Type    | Default | Dynamic | Example        |
+|-------------|---------|---------|---------|----------------|
+| python      | `f-str` | `''`    | Full    | `'/my_os_tag'` |
+
+This attribute specifies a file from which to get OS information for use with the `os_info` attribute above.
+When specified, the content of this file is used instead of `<ID>/<VERSION_ID>/<machine>` as described above.
 
 ### `prio`
 
@@ -99,6 +515,124 @@ Default value is 0 if inheriting from `lmake.Rule`, else `+inf`.
 This attribute is used to order matching priority.
 Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf. [rule selection](rule_selection.html)).
 
+### `python`
+
+| Inheritance | Type              | Default       | Dynamic | Example            |
+|-------------|-------------------|---------------|---------|--------------------|
+| python      | `list` or `tuple` | system python | Full    | `venv/bin/python3` |
+
+This attribute defines the interpreter used to run the `cmd` if it is a function.
+
+Items must be `f-str`.
+
+At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
+In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
+
+Open-lmake uses python3.6+ to read `Lmakefile.py`, but that being done, any interpreter can be used to execute `cmd`.
+In particular, python2.7 and all revisions of python3 are fully supported.
+
+If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
+
+### `readdir_ok`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, reading a local dir that is not `ignore`d nor `incremental` is considered an error as the list of files in a dir cannot be made stable,
+i.e. independent of the history (the repo is not constantly maintained without spurious files, nor with all buildable files existing).
+
+If it is true, such reading is allowed and it is the user responsibility to ensure that spurious or missing files have no impact on output, once all deps are up-to-date.
+
+### `repo_view`
+
+| Inheritance | Type    | Default | Dynamic | Example   |
+|-------------|---------|---------|---------|-----------|
+| python      | `f-str` | `None`  | Full    | `'/repo'` |
+
+This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
+This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)).
+
+It must be an absolute path not lying in the temporary dir.
+
+If `None` or `''`, no bind mount is performed.
+
+This attribute is typically used when using tools that handle absolute paths.
+This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.
+
+### `resources`
+
+| Inheritance | Type   | Default | Dynamic | Example                   |
+|-------------|--------|---------|---------|---------------------------|
+| Combined    | `dict` | `{}`    | Full    | `{ 'MY_RESOURCE' : '1' }` |
+
+This attribute specifies the resources required by a job to run successfully.
+These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...
+
+Values must `f-str`.
+
+The syntax is the same as for `deps`.
+
+After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf. [local backend](config.html) for the local backend).
+
+### `shell`
+
+| Inheritance | Type              | Default     | Dynamic | Example              |
+|-------------|-------------------|-------------|---------|----------------------|
+| python      | `list` or `tuple` | `/bin/bash` | Full    | `('/bin/bash','-e')` |
+
+This attribute defines the interpreter used to run the `cmd` if it is a `str`.
+
+Items must be `f-str`.
+
+At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
+In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
+
+If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
+
+### `side_deps`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| Combined    | `dict` | `{}`    | No      |         |
+
+This attribute is used to define flags to deps when they are acquired during job execution.
+It does not declare any dep by itself.
+Syntactically, it follows the `side_targets` attribute except that:
+
+- Specified flags are dep flags only where `side_targets` accept both target flags an dep flags.
+- The flag `Ignore` or `ignore` only applies to reads to prevent such accessed files from becoming a dep where for `side_targets`, this flag prevents files from being deps or targets.
+- `.` may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the `readdir_ok` flag.
+
+### `side_targets`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| Combined    | `dict` | `{}`    | No      |         |
+
+This attribute is identical to `targets` except that:
+
+- Targets listed here do not trigger job execution, i.e. they do not participate to the [rule selection](rule_selection.html) process.
+- It not compulsory to use all static stems as this constraint is only necessary to fully define a job when selected by the rule selection process.
+
+### `start_delay`
+
+| Inheritance | Type    | Default    | Dynamic | Example |
+|-------------|---------|------------|---------|---------|
+| python      | `float` | `3`        | Full    |         |
+
+When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
+The consequence is only cosmetic, it has no other impact.
+
+### `stderr_ok`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
+If it is true, writing to stderr is allowed and does not produce an error. The `lmake` output will exhibit a warning, though.
+
 ### `stems`
 
 | Inheritance | Type   | Default | Dynamic | Example          |
@@ -109,21 +643,18 @@ Stems are regular expressions that represent the variable parts of targets which
 
 Each entry <key>:<value> define a stem named <key> whose associated regular expression is <value>.
 
-### `job_name`
+### `target`
 
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `str` | ...     | No      |         |
+| Inheritance | Type                       | Default | Dynamic | Example |
+|-------------|----------------------------|---------|---------|---------|
+| python      | `str` or `list` or `tuple` | -       | No      |         |
 
-Default is the first target of the most derived `class` in the inheritance hierarchy (i.e. the MRO) having a matching target.
+This attribute defines an unnamed target.
+Its syntax is the same as any target entry except that it may not be `incremental`. Also, such a target may not be a `star` target.
 
-This attribute may exceptionally be used for cosmetic purpose.
-Its syntax is the same as target name (i.e. a target with no option).
+During execution, `cmd` stdout will be redirected to this (necessarily unique since it cannot be a `star`) target.
 
-When open-lmake needs to include a job in a report, it will use this attribute.
-If it contains star stems, they will be replaced by `*`'s in the report.
-
-If defined, this attribute must have the same set of static stems (i.e. stems that do not contain *) as any matching target.
+The `top` flag cannot be used and the pattern is always rooted to the sub-repo if the rule is defined in such a sub-repo.
 
 ### `targets`
 
@@ -200,151 +731,13 @@ It could be for example the target `ALL`, so that `lmake ALL` rebuilds everythin
 possibly duplicating flags mentioned in other matching entries (`side_deps` and `side_targets`).
 - The `top` flag is used in case of sub-repo, which is an experimental feature.
 
+### `timeout`
 
-### `target`
+| Inheritance | Type    | Default    | Dynamic | Example |
+|-------------|---------|------------|---------|---------|
+| python      | `float` | no timeout | Full    |         |
 
-| Inheritance | Type                       | Default | Dynamic | Example |
-|-------------|----------------------------|---------|---------|---------|
-| python      | `str` or `list` or `tuple` | -       | No      |         |
-
-This attribute defines an unnamed target.
-Its syntax is the same as any target entry except that it may not be `incremental`. Also, such a target may not be a `star` target.
-
-During execution, `cmd` stdout will be redirected to this (necessarily unique since it cannot be a `star`) target.
-
-The `top` flag cannot be used and the pattern is always rooted to the sub-repo if the rule is defined in such a sub-repo.
-
-### `side_targets`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| Combined    | `dict` | `{}`    | No      |         |
-
-This attribute is identical to `targets` except that:
-
-- Targets listed here do not trigger job execution, i.e. they do not participate to the [rule selection](rule_selection.html) process.
-- It not compulsory to use all static stems as this constraint is only necessary to fully define a job when selected by the rule selection process.
-
-### `deps`
-
-| Inheritance | Type   | Default | Dynamic | Example                  |
-|-------------|--------|---------|---------|--------------------------|
-| Combined    | `dict` | `{}`    | Simple  | `{ 'SRC' : '{File}.c' }` |
-
-This attribute defines the static deps.
-It is a `dict` which associates python identifiers to files computed from the available environment.
-
-They are f-strings, i.e. their value follow the python f-string syntax and semantic
-but they are interpreted when open-lmake tries to match the rule (the rule only matches if static deps are buildable, cf. [rule selection](rule_selection.html)).
-Hence they lack the initial `f` in front of the string.
-
-Alternatively, values can also be `list` or `tuple` whose first item is as described above, followed by flags.
-
-The flags may be any combination of the following flags, optionally preceded by - to turn it off.
-Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
-
-| CamelCase     | snake\_case    | Default | Description                                                                                                                     |
-|---------------|----------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
-| `Essential`   | `essential`    | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                             |
-| `Critical`    | `critical`     | No      | This dep is [critical](critical_deps.html).                                                                                     |
-| `IgnoreError` | `ignore_error` | No      | This dep may be in error, job will be launched anyway.                                                                          |
-| `ReaddirOk`   | `readdir_ok`   | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                                              |
-| `Required`    | `required`     | No      | This dep is deemed to be read, even if not actually read by the job.                                                            |
-| `NoStar`      | `no_star`      | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                                       |
-| `Top`         | `top`          | No      | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html ). |
-
-Flag order and dep order are not significative.
-
-Usage notes:
-
-- The  `critical` flag is typically used for deps that contain a list of deps, for example for a test suite.
-In that case, if the list changes, speculatively building the old deps is probably not the best strategy.
-- The `ignore_error` flag is also typically use for test suites to generate a colored report.
-- The `-no_star` flag is used to avoid repetition, as it is generally possible to mention all the flags that must apply to a target,
-possibly duplicating flags mentioned in other matching entries (`side_deps` and `side_targets`).
-- The `top` flag is used in case of sub-repo, which is an experimental feature.
-
-### `dep`
-
-| Inheritance | Type                       | Default | Dynamic | Example |
-|-------------|----------------------------|---------|---------|---------|
-| python      | `str` or `list` or `tuple` | -       | Simple  |         |
-
-This attribute defines an unnamed static dep.
-
-During execution, `cmd` stdin will be redirected to this dep, else it is `/dev/null`.
-
-### `side_deps`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| Combined    | `dict` | `{}`    | No      |         |
-
-This attribute is used to define flags to deps when they are acquired during job execution.
-It does not declare any dep by itself.
-Syntactically, it follows the `side_targets` attribute except that:
-
-- Specified flags are dep flags only where `side_targets` accept both target flags an dep flags.
-- The flag `Ignore` or `ignore` only applies to reads to prevent such accessed files from becoming a dep where for `side_targets`, this flag prevents files from being deps or targets.
-- `.` may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the `readdir_ok` flag.
-
-### `chroot_dir`
-
-| Inheritance | Type    | Default | Dynamic | Example          |
-|-------------|---------|---------|---------|------------------|
-| python      | `f-str` | `None`  | Full    | `'/ubuntu22.04'` |
-
-This attribute defines a dir in which jobs will `chroot` into before execution begins.
-It must be an absoluted path.
-
-Note that unless the `repo_view` is set, the repo must be visible under its original name in this chroot environment.
-
-If `None`, `''` or `'/'`, no `chroot` is performed unless required to manage the `tmp_view` and `repo_view` attributes (in which case it is transparent).
-However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
-
-This attribute is typically used to execute the job in a different environment, such as a different OS distribution or release, leveraging a `docker` image.
-
-### `os_info`
-
-| Inheritance | Type    | Default                                  | Dynamic | Example                   |
-|-------------|---------|------------------------------------------|---------|---------------------------|
-| python      | `f-str` | re.escape(`<ID>/<VERSION_ID>/<machine>`) | Full    | `r'ubuntu/22\.04/x86_64'` |
-
-This attribute specifies a regexpr characterizing if the OS environment in which jobs execute are acceptable.
-When a job starts, the same information is computed on the executing host and the value must match this regexpr.
-
-In the default value above, `<ID>` and `<VERSION_ID>` are taken from the corresponding lines in `/etc/os-release` and `<machine>` is `os.uname().machine`.
-
-If `None` or `''` no check is performed.
-
-This attribute is typically used jobs are executed in various OS environment, for example when using the `chroot_dir` attribute or when jobs are dispatched using slurm or SGE.
-
-### `os_info_file`
-
-| Inheritance | Type    | Default | Dynamic | Example        |
-|-------------|---------|---------|---------|----------------|
-| python      | `f-str` | `''`    | Full    | `'/my_os_tag'` |
-
-This attribute specifies a file from which to get OS information for use with the `os_info` attribute above.
-When specified, the content of this file is used instead of `<ID>/<VERSION_ID>/<machine>` as described above.
-
-### `repo_view`
-
-| Inheritance | Type    | Default | Dynamic | Example   |
-|-------------|---------|---------|---------|-----------|
-| python      | `f-str` | `None`  | Full    | `'/repo'` |
-
-This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)).
-
-It must be an absolute path not lying in the temporary dir.
-
-If `None` or `''`, no bind mount is performed.
-
-As of now, this attribute must be a top level dir, i.e. `'/a'` is ok, but `'/a/b'` is not.
-
-This attribute is typically used when using tools that handle absolute paths.
-This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.
+When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
 
 ### `tmp_view`
 
@@ -357,7 +750,21 @@ This attribute defines the name which the temporary dir available for job execut
 If `None`, `''` or not specified, this dir is not mounted.
 Else, it must be an absolute path.
 
-As of now, this attribute must be a top level dir, i.e. `'/a'` is ok, but `'/a/b'` is not.
+### `use_script`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+This attribute commands an implementation detail.
+
+If false, jobs are run by launching the interpreter followed by `-c` and the command text.
+
+If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.
+
+If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.
+
+This attribute is typically use with interpreters that do not implement the `-c` option.
 
 ### `views`
 
@@ -380,396 +787,11 @@ Physical description may be :
   Dirs are recognized when they end with `/`.
   Such `copy_up` items are provided relative to the root of the view.
 
-### `environ`
-
-| Inheritance | Type   | Default | Dynamic | Example                                   |
-|-------------|--------|---------|---------|-------------------------------------------|
-| Combined    | `dict` | ...     | Full    | `{ 'MY_TOOL_ROOT' : '/install/my_tool' }` |
-
-This attribute defines environment variables set during job execution.
-
-The content of this attribute is managed as part of the job command, meaning that jobs are rerun upon modification.
-This is the normal behavior, other means to define environment are there to manage special situations.
-
-The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
-Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
-
-Except the exception below, the value must be a `f-str`.
-
-If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
-This is typically used to access some environment variables set by `slurm`.
-
-If a value contains one of the following strings, they are replaced by their corresponding definitions:
-
-| Key                       | Replacement                                                   | Comment                                                                                    |
-|---------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| `$LMAKE_ROOT`             | The root dir of the open-lmake package                        | Dont store in targets as this may require cleaning repo if open-lmake installation changes |
-| `$PHYSICAL_REPO_ROOT`     | The physical dir of the subrepo                               | Dont store in targets as this may interact with cached results                             |
-| `$PHYSICAL_TMPDIR`        | The physical dir of the tmp dir                               | Dont store in targets as this may interact with cached results                             |
-| `$PHYSICAL_TOP_REPO_ROOT` | The physical dir of the top-level repo                        | Dont store in targets as this may interact with cached results                             |
-| `$REPO_ROOT`              | The absolute dir of the subrepo as seen by job                |                                                                                            |
-| `$SEQUENCE_ID`            | A unique value for each job execution (at least 1)            | This value must be semantically considered as a random value                               |
-| `$SMALL_ID`               | A unique value among simultaneously running jobs (at least 1) | This value must be semantically considered as a random value                               |
-| `$TMPDIR`                 | The absolute dir of the tmp dir, as seen by the job           |                                                                                            |
-| `$TOP_REPO_ROOT`          | The absolute dir of the top-level repo, as seen by the job    |                                                                                            |
-
-By default the following environment variables are defined :
-
-| Variable      | Defined in   | Value                                              | comment                                                   |
-|---------------|--------------|----------------------------------------------------|-----------------------------------------------------------|
-| `$HOME`       | Rule         | `$TOP_REPO_ROOT`                                   | See above, isolates tools startup from user specific data |
-| `$HOME`       | HomelessRule | `$TMPDIR`                                          | See above, pretend tools are used for the first time      |
-| `$PATH`       | Rule         | The standard path with `$LMAKE_ROOT/bin:` in front |                                                           |
-| `$PYTHONPATH` | PyRule       | `$LMAKE_ROOT/lib`                                  |                                                           |
-
-### `environ_resources`
-
-| Inheritance | Type   | Default | Dynamic | Example                           |
-|-------------|--------|---------|---------|-----------------------------------|
-| Combined    | `dict` | `{}`    | Full    | `{ 'MY_TOOL_LICENCE' : '12345' }` |
-
-This attribute defines environment variables set during job execution.
-
-The content of this attribute is managed as resources, meaning that jobs in error are rerun upon modification, but not jobs that were successfully built.
-
-The values undertake the same substitutions as for the `environ` attribute described above.
-
-The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
-Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
-
-Except the exception below, the value must be a `f-str`.
-
-If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
-This is typically used to access some environment variables set by `slurm`.
-
-### `environ_ancillary`
-
-| Inheritance | Type   | Default | Dynamic | Example                 |
-|-------------|--------|---------|---------|-------------------------|
-| Combined    | `dict` | `{}`    | Full    | `{ 'DISPLAY' : ':10' }` |
-
-This attribute defines environment variables set during job execution.
-
-The content of this attribute is not managed, meaning that jobs are not rerun upon modification.
-
-The values undertake the same substitutions as for the `environ` attribute described above.
-
-The environment in which the open-lmake command is run is ignored so as to favor reproducibility, unless explicitly transported by using value from `lmake.user_environ`.
-Hence, it is quite simple to copy some variables from the user environment although this practice is discouraged and should be used with much care.
-
-Except the exception below, the value must be a `f-str`.
-
-If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
-This is typically used to access some environment variables set by `slurm`.
-
-By default the following environment variables are defined :
-
-| Variable | Defined in | Value               | comment |
-|----------|------------|---------------------|---------|
-| `$UID`   | Rule       | the user id         |         |
-| `$USER`  | Rule       | the user login name |         |
-
-### `python`
-
-| Inheritance | Type              | Default       | Dynamic | Example            |
-|-------------|-------------------|---------------|---------|--------------------|
-| python      | `list` or `tuple` | system python | Full    | `venv/bin/python3` |
-
-This attribute defines the interpreter used to run the `cmd` if it is a function.
-
-Items must be `f-str`.
-
-At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
-In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
-
-Open-lmake uses python3.6+ to read `Lmakefile.py`, but that being done, any interpreter can be used to execute `cmd`.
-In particular, python2.7 and all revisions of python3 are fully supported.
-
-If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
-
-### `shell`
-
-| Inheritance | Type              | Default     | Dynamic | Example              |
-|-------------|-------------------|-------------|---------|----------------------|
-| python      | `list` or `tuple` | `/bin/bash` | Full    | `('/bin/bash','-e')` |
-
-This attribute defines the interpreter used to run the `cmd` if it is a `str`.
-
-Items must be `f-str`.
-
-At the end of the supplied executable and arguments, `'-c'` and the actual script is appended, unless the `use_script` attribut is set.
-In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
-
-If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
-
-### `cmd`
-
-| Inheritance | Type     | Default     | Dynamic | Example                                                            |
-|-------------|----------|-------------|---------|--------------------------------------------------------------------|
-| Combined    | `f-str`  | -           | Full    | `'gcc -c -o {OBJ} {SRC}'`                                          |
-| Combined    | function | -           | Full    | `def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))` |
-
-#### if it is a function
-
-In that case, this attribute is called to run the job (cf. [job execution](job_execution.html)).
-Combined inheritance is a special case for `cmd`.
-
-If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
-The first (i.e. the most basic) one must have no non-defaulted arguments and will be called with no argument.
-The other ones may have arguments, all but the first having default values.
-In that case, such `function`'s are called with the result of the previous one as unique argument.
-Else, if a `function` has no argument, the result of the previous function is dropped.
-
-Because jobs are executed remotely using the interpreter mentioned in the `python` attribute
-and to avoid depending on the whole `Lmakefile.py` (which would force to rerun all jobs as soon as any rule is modified),
-these functions and their context are serialized to be transported by value.
-The serialization process may improve over time but as of today, the following applies:
-
-- Basic objects are transported as is : `None`, `...`, `bool`, `int`, `float`, `complex`, `str`, `bytes`.
-- `list`, `tuple`, `set` and `dict` are transported by transporting their content. Note that reconvergences (and a fortiori loops) are not handled.
-- functions are transported as their source accompanied with their context : global accessed variables and default values for arguments.
-- Imported objects (functions and `class`'es and generally all objects with a `__qualname__` attribute) are transported as an `import` statement.
-- Builtin objects are transported spontaneously, without requiring any generated code.
-
-Also, care has been taken to hide this transport by value in backtrace and during debug sessions, so that functions appear to be executed where they were originally defined.
-
-Values are captured according to the normal python semantic, i.e. once the `Lmakefile` module is fully imported.
-Care must be taken for variables whose values change during the `import` process.
-This typically concerns loop indices.
-To capture these at definition time and not at the end, such values must be saved somewhere.
-There are mostly 2 practical possibilities:
-
-- Declare an argument with a default value. Such default value is saved when the function is defined.
-- Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.
-
-#### if it is a `f-str`
-
-In that case, this attribute is executed as a shell command to run the job (cf. [job execution](job_execution.html)).
-Combined inheritance is a special case for `cmd`.
-
-While walking the MRO, if for a base class `cmd` is defined as a function and it has a `shell` attribute, the value of this attribute is used instead.
-The purpose is that it is impossible to combine `str`'s and functions because they use different paradigms.
-As a consequence, a base class may want to have 2 implementations, one for subclasses that use python `cmd` and another for subclasses that use shell `cmd`.
-For such a base class, the solution is to define `cmd` as a function and set its `shell` attribute to the `str` version.
-
-If several definitions exist along the MRO, They must all be `str`'s and they are run successively in reverse MRO in the same process.
-So, it is possible for a first definition to define an environment variable that is used in a subsequent one.
-
-As for other attributes that may be dynamic, `cmd` is interpreted as an f-string.
-
-### `auto_mkdir`
+### `virtual`
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
+| None        | `bool` | `False` | No      | `True`  |
 
-When this attribute has a true value, executing a `chdir` syscall (e.g. executing `cd` in bash) will create the target dir if it does not exist.
-
-This is useful for scripts in situations such as:
-
-- The script does `chdir a`.
-- Then try to read file `b` from there.
-- What is expected is to have a dep on `a/b` which may not exist initially but will be created by some other job.
-- However, if dir `a` does not exist, the `chdir` call fails and the file which is open for reading is `b` instead of `a/b`.
-- As a consequence, no dep is set for `a/b` and the problem will not be resolved by a further re-execution.
-- Setting this attribute to true creates dir `a` on the fly when `chdir` is called so that it succeeds and the correct dep is set.
-
-### `autodep`
-
-| Inheritance | Type    | Default                                       | Dynamic | Example    |
-|-------------|---------|-----------------------------------------------|---------|------------|
-| python      | `f-str` | `'ld_audit'` if supported else `'ld_preload'` | Full    | `'ptrace'` |
-
-This attribute specifies the method used by [autodep](autodep.html) to discover hidden deps.
-
-### `backend`
-
-| Inheritance | Type    | Default | Dynamic | Example   |
-|-------------|---------|---------|---------|-----------|
-| python      | `f-str` | -       | Full    | `'slurm'` |
-
-This attribute specifies the [backend](backends.html) to use to launch jobs.
-
-### `cache`
-
-| Inheritance | Type    | Default | Dynamic | Example |
-|-------------|---------|---------|---------|---------|
-| python      | `f-str` | -       | Simple  |         |
-
-This attribute specifies the cache to use for jobs executed by this rule.
-
-When a job is executed, its results are stored in the cache.
-If space is needed (all caches are constrained in size), any other entry can be replaced.
-The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
-
-### `compression`
-
-| Inheritance | Type                                          | Default | Dynamic | Example |
-|-------------|-----------------------------------------------|---------|---------|---------|
-| python      | `None` or `str` or `int` or `tuple` or `list` | None    | Full    | `1`     |
-
-This attribute specifies the compression used when caching.
-
-- if `None`       , no compression occurs.
-- If it is a `str`, it specifies the method and can be `'zstd'` or `'zlib'`, and the level defaults to 1.
-- If it is a `int`, it specifies the compression level: from `0` which means no compression to `9` which means best (and slowest) compression.
-  The method defaults to `'zstd'` if supported, else to `'zlib'`.
-  Note that `1` seems to be a good compromize.
-- If a `tuple` or a `list`, it specifies both a method and a level (in that order).
-
-When downloading from cache, the method and level used at upload time is honored.
-If the compression method is not supported, no download occurs.
-
-### `force`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
-It is rarely necessary.
-
-### `keep_tmp`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-When this attribute is set to a true value, the temporary dir is kept after job execution.
-It can be retreived with `lshow -i`.
-
-Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
-When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.
-
-### `kill_sigs`
-
-| Inheritance | Type              | Default             | Dynamic | Example |
-|-------------|-------------------|---------------------|---------|---------|
-| python      | `list` or `tuple` | `(signal.SIGKILL,)` | Full    |         |
-
-This attribute provides a list of signals to send the job when @lmake decides to kill it.
-
-A job is killed when:
-
-- `^C` is hit if it is not necessary for another running `lmake` command that has not received a `^C`.
-- When timeout is reached.
-- When `check_deps` is called and some deps are out-of-date.
-
-The signals listed in this list are sent in turn, once every second.
-Longer interval can be obtained by inserting `0`'s. `0` signals are not sent and anyway, these would have no impact if they were.
-
-If the list is exhausted and the job is still alive, a more agressive method is used.
-The process group of the job, as well as the process group of any process connected to a stream we are waiting for, are sent `SIGKILL` signals instead of just the process group of the job.
-The streams we are waiting for are `stderr`, and `stdout` unless the `target` attribute is used (as opposed to the `targets` attribute)
-in which case `stdout` is redirected to the the target and is not waited for.
-
-Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.
-
-### `max_retries_on_lost`
-
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `1`     | No      |         |
-
-This attribute provides the number of allowed retries before giving up when a job is lost.
-For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called `job_exec`) was manually killed.
-
-In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
-
-### `max_stderr_len`
-
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `100`   | Full    | `1`     |
-
-This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
-The whole content of stderr stays accessible with the `lshow -e` command.
-
-### `max_runs`
-
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `0`     | No      |         |
-
-The goal is to protect against potential loss of performances if reruns are too frequent.
-Unlimited if `0`.
-Contrarily to the `max_submits` attribute, cache accesses are not counted when counting runs.
-
-### `max_submits`
-
-| Inheritance | Type  | Default | Dynamic | Example |
-|-------------|-------|---------|---------|---------|
-| python      | `int` | `10`    | No      |         |
-
-The goal is to protect agains potential infinite loop cases.
-The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
-Unlimited if `0`.
-Contrarily to the `max_runs` attribute, cache accesses are counted when counting submits.
-
-### `readdir_ok`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-When this attribute has a false value, reading a local dir that is not `ignore`d nor `incremental` is considered an error as the list of files in a dir cannot be made stable,
-i.e. independent of the history (the repo is not constantly maintained without spurious files, nor with all buildable files existing).
-
-If it is true, such reading is allowed and it is the user responsibility to ensure that spurious or missing files have no impact on output, once all deps are up-to-date.
-
-### `resources`
-
-| Inheritance | Type   | Default | Dynamic | Example                   |
-|-------------|--------|---------|---------|---------------------------|
-| Combined    | `dict` | `{}`    | Full    | `{ 'MY_RESOURCE' : '1' }` |
-
-This attribute specifies the resources required by a job to run successfully.
-These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...
-
-Values must `f-str`.
-
-The syntax is the same as for `deps`.
-
-After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf. [local backend](config.html) for the local backend).
-
-### `start_delay`
-
-| Inheritance | Type    | Default    | Dynamic | Example |
-|-------------|---------|------------|---------|---------|
-| python      | `float` | `3`        | Full    |         |
-
-When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
-The consequence is only cosmetic, it has no other impact.
-
-### `stderr_ok`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
-If it is true, writing to stderr is allowed and does not produce an error. The `lmake` output will exhibit a warning, though.
-
-### `timeout`
-
-| Inheritance | Type    | Default    | Dynamic | Example |
-|-------------|---------|------------|---------|---------|
-| python      | `float` | no timeout | Full    |         |
-
-When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
-
-### `use_script`
-
-| Inheritance | Type   | Default | Dynamic | Example |
-|-------------|--------|---------|---------|---------|
-| python      | `bool` | `False` | Full    | `True`  |
-
-This attribute commands an implementation detail.
-
-If false, jobs are run by launching the interpreter followed by `-c` and the command text.
-
-If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.
-
-If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.
-
-This attribute is typically use with interpreters that do not implement the `-c` option.
+When this attribute is true, this `class` is not a rule even if it has the required target & cmd attributes.
+In that case, it is only used as a base class to define other rules.

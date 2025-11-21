@@ -24,6 +24,7 @@ enum class CmdFlag : uint8_t {
 ,	Env
 ,	KeepTmp
 ,	LinkSupport
+,	LmakeRoot
 ,	LmakeView
 ,	Out
 ,	ReaddirOk
@@ -102,12 +103,13 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
+	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                      } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
+	,	{ CmdFlag::LmakeRoot     , { .short_name='r' , .has_arg=true  , .doc="open-lmake installation dir to use"                                                                        } }
+	,	{ CmdFlag::RepoView      , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
 	,	{ CmdFlag::TmpDir        , { .short_name='t' , .has_arg=true  , .doc="physical tmp dir"                                                                                          } }
-	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                      } }
-	,	{ CmdFlag::RepoView      , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
 	,	{ CmdFlag::TmpView       , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                          } }
 	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}" } }
 	}} ;
@@ -120,10 +122,12 @@ int main( int argc , char* argv[] ) {
 	Gather           gather      ;
 	//
 	try {
-		::string tmp_dir = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
+		::string tmp_dir      = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
+		::string lmake_root_s = *g_lmake_root_s                                                                            ;
 		// is_abs_s considers empty as relative, which is ok even without terminating /
 		throw_if( !cmd_line.args                                                                            , "no exe to launch"                                                       ) ;
 		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs_s(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::LmakeRoot] && !is_abs_s(cmd_line.flag_args[+CmdFlag::LmakeRoot]) , "lmake root must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeRoot] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::LmakeView] && !is_abs_s(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs_s(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
 		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs_s(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
@@ -134,6 +138,8 @@ int main( int argc , char* argv[] ) {
 		/**/                                        jsrr.key                =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) job_space.chroot_dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.lmake_root_s       = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
+		else                                        jsrr.lmake_root_s       =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
@@ -146,14 +152,12 @@ int main( int argc , char* argv[] ) {
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
-		::string top_repo_root_s ;
 		jsrr.enter(
 			/*out*/::ref(::vmap_s<MountAction>())
 		,	/*out*/cmd_env
 		,	/*out*/::ref(::vmap_ss())/*dyn_env*/
 		,	/*out*/gather.first_pid
-		,	/*out*/top_repo_root_s
-		,	       *g_lmake_root_s
+		,	/*out*/::ref(::string())/*repo_root_s*/
 		,	       *g_repo_root_s
 		,	       with_slash(tmp_dir)
 		,	       0/*small_id*/
@@ -168,6 +172,7 @@ int main( int argc , char* argv[] ) {
 		gather.autodep_env.views = job_space.flat_phys() ;
 		gather.cmd_line          = cmd_line.args         ;
 		gather.env               = &cmd_env              ;
+		gather.lmake_root_s      = jsrr.lmake_root_s     ;
 		gather.method            = jsrr.method           ;
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;

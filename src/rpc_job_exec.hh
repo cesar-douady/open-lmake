@@ -105,7 +105,7 @@ struct JobExecRpcReq {
 			case Proc::Trace         : ::serdes( s ,                     date ) ; break ;
 			case Proc::Access        : ::serdes( s , digest       , id , date ) ; break ;
 			case Proc::AccessPattern : ::serdes( s , digest       ,      date ) ; break ;
-		DF}
+		DF}                                                                                                                                                // NO_COV
 	}
 	JobExecRpcReply mimic_server() && ;
 	// data

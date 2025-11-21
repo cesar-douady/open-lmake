@@ -321,7 +321,7 @@ template<class Locker> _FileLockFile<Locker>::_FileLockFile( FileRef f , Action 
 			case Trial::NoDir  : dir_guard(spec)                           ;                                        break  ;
 			case Trial::Retry  : ::min( now-start , Delay(1) ).sleep_for() ;                                        break  ; // ensure logarithmic trials, but try at least every second
 			case Trial::Fail   : throw_if( !a.err_ok , "cannot create lock (",StrErr(),") ",spec ) ; spec.at = {} ; return ; // if err_ok, object is built empty
-		DF}
+		DF}                                                                                                                  // NO_COV
 	}
 }
 
@@ -331,7 +331,7 @@ template _FileLockFile<_LockerLink   >::_FileLockFile( FileRef , Action ) ; // .
 template _FileLockFile<_LockerMkdir  >::_FileLockFile( FileRef , Action ) ; // .
 
 NfsGuardLock::NfsGuardLock( FileSync fs , FileRef file , Action a ) : NfsGuard{fs} {
-	switch (fs) {                                             // PER_FILE_SYNC : add entry here
+	switch (fs) {                                                                             // PER_FILE_SYNC : add entry here
 		// XXX/ : _LockerFcntl has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
 		// XXX/ : _LockerFlock has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
 		// XXX/ : _LockerMkdir has been observed as not working with rocky9/NFSv4
@@ -340,7 +340,7 @@ NfsGuardLock::NfsGuardLock( FileSync fs , FileRef file , Action a ) : NfsGuard{f
 		case FileSync::None : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
 		case FileSync::Dir  : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
 		case FileSync::Sync : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
-	DF}
+	DF}                                                                                       // NO_COV
 }
 
 //

@@ -54,6 +54,7 @@ JobStartRpcReply get_start_info() {
 		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
 	}
+	if ( +g_lmake_root_s && !res.lmake_root_s ) res.lmake_root_s = *g_lmake_root_s ;
 	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
@@ -397,17 +398,16 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
-		::map_ss              cmd_env         ;
-		::vmap_s<MountAction> enter_actions   ;
-		::string              top_repo_root_s ;
+		::map_ss              cmd_env       ;
+		::vmap_s<MountAction> enter_actions ;
+		::string              repo_root_s   ;
 		try {
 			bool entered = g_start_info.enter(
 				/*out*/enter_actions
 			,	/*out*/cmd_env
 			,	/*out*/end_report.dyn_env
 			,	/*out*/g_gather.first_pid
-			,	/*out*/top_repo_root_s
-			,	       *g_lmake_root_s
+			,	/*out*/repo_root_s
 			,	       phy_repo_root_s
 			,	       end_report.phy_tmp_dir_s
 			,	       g_seq_id
@@ -418,12 +418,12 @@ int main( int argc , char* argv[] ) {
 				::string os_info    = get_os_info( real_path , g_start_info.os_info_file ) ;
 				if (!os_info_re.match(os_info)) {
 					trace("os_info_mismatch",g_start_info.os_info) ;
-					/**/                            end_report.msg_stderr.msg << "unexpected os_info (" << os_info <<')'                                                                         ;
-					if (+g_start_info.os_info_file) end_report.msg_stderr.msg << " from file "          <<                                                      g_start_info.os_info_file        ;
-					/**/                            end_report.msg_stderr.msg << " does not match expected regexpr from " << g_start_info.rule <<".os_info ("<< g_start_info.os_info <<')'<<'\n' ;
-					/**/                            end_report.msg_stderr.msg << "  consider :"                                                                                           <<'\n' ;
-					/**/                            end_report.msg_stderr.msg << "  - "<< (+g_start_info.os_info     ?"fix":"set") <<' '<< g_start_info.rule <<".os_info"                 <<'\n' ;
-					/**/                            end_report.msg_stderr.msg << "  - "<< (+g_start_info.os_info_file?"fix":"set") <<' '<< g_start_info.rule <<".os_info_file"                   ;
+					/**/                            end_report.msg_stderr.msg << "unexpected os_info ("<<os_info<<')'                                                                        ;
+					if (+g_start_info.os_info_file) end_report.msg_stderr.msg << " from file "         <<                                                   g_start_info.os_info_file        ;
+					/**/                            end_report.msg_stderr.msg << " does not match expected regexpr from "<<g_start_info.rule<<".os_info ("<<g_start_info.os_info<<')' <<'\n' ;
+					/**/                            end_report.msg_stderr.msg << "  consider :"                                                                                       <<'\n' ;
+					/**/                            end_report.msg_stderr.msg << "  - set "<<g_start_info.rule<<".os_info = r"<<mk_py_str(escape(os_info))                            <<'\n' ;
+					/**/                            end_report.msg_stderr.msg << "  - set "<<g_start_info.rule<<".os_info_file"                                                              ;
 					goto End ;
 				}
 				trace("os_info_match",g_start_info.os_info) ;
@@ -445,7 +445,7 @@ int main( int argc , char* argv[] ) {
 			}
 			g_start_info.job_space.update_env(
 				/*inout*/cmd_env
-			,	         *g_lmake_root_s
+			,	         g_start_info.lmake_root_s
 			,	         phy_repo_root_s
 			,	         end_report.phy_tmp_dir_s
 			,	         g_start_info.autodep_env.sub_repo_s
@@ -457,9 +457,9 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_mail        = mail()                                                                      ; // user@host on which fast_report_pipe works
-		g_start_info.autodep_env.fast_report_pipe = cat(top_repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ; // fast_report_pipe is a pipe and only works locally
-		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                          ;
+		g_start_info.autodep_env.fast_mail        = mail()                                                                  ; // user@host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ; // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                      ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
 		g_gather.addr             =        g_server_fd.addr(false/*peer*/) ;
@@ -471,6 +471,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.job              =        g_job                           ;
 		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs        ) ;
 		g_gather.live_out         =        g_start_info.live_out           ;
+		g_gather.lmake_root_s     =        g_start_info.lmake_root_s       ;
 		g_gather.method           =        g_start_info.method             ;
 		g_gather.network_delay    =        g_start_info.network_delay      ;
 		g_gather.nice             =        g_start_info.nice               ;

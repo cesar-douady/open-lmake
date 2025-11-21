@@ -711,7 +711,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case FileSync::None :                break ;
 			case FileSync::Dir  : emplace<1>() ; break ;
 			case FileSync::Sync : emplace<2>() ; break ;
-		DF}
+		DF}                                                       // NO_COV
 	}
 	// accesses
 	FileSync file_sync() const {
@@ -719,7 +719,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 : return FileSync::None ;
 			case 1 : return FileSync::Dir  ;
 			case 2 : return FileSync::Sync ;
-		DF}
+		DF}                                                       // NO_COV
 	}
 	// services
 	FileRef access(FileRef path) {                                // return file, must be called before any access to file or its inode if not sure it was produced locally
@@ -727,7 +727,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                               break ;
 			case 1 : ::get<1>(self).access(path) ; break ;
 			case 2 : ::get<2>(self).access(path) ; break ;
-		DF}
+		DF}                                                       // NO_COV
 		return path ;
 	}
 	FileRef access_dir_s(FileRef dir_s) {                         // return file, must be called before any access to file or its inode if not sure it was produced locally
@@ -735,7 +735,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                                      break ;
 			case 1 : ::get<1>(self).access_dir_s(dir_s) ; break ;
 			case 2 : ::get<2>(self).access_dir_s(dir_s) ; break ;
-		DF}
+		DF}                                                       // NO_COV
 		return dir_s ;
 	}
 	FileRef change(FileRef path) {                                // return file, must be called before any write access to file or its inode if not sure it is going to be read only locally
@@ -743,7 +743,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                               break ;
 			case 1 : ::get<1>(self).change(path) ; break ;
 			case 2 : ::get<2>(self).change(path) ; break ;
-		DF}
+		DF}                                                       // NO_COV
 		return path ;
 	}
 	FileRef update(FileRef path) {
@@ -756,7 +756,7 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                          break ;
 			case 1 : ::get<1>(self).flush() ; break ;
 			case 2 : ::get<2>(self).flush() ; break ;
-		DF}
+		DF}                                                       // NO_COV
 	}
 } ;
 
@@ -874,25 +874,25 @@ struct NfsGuardLock : _FileLock , NfsGuard                                      
 	NfsGuardLock( FileSync , FileRef , Action={} ) ;
 	bool operator+() const {
 		switch (_FileLock::index()) {                                            // PER_FILE_SYNC : add entry here
-			case 0 : return true                                         ;       // pretend lock is taken
+			case 0 : return true                                         ;       // NO_COV, pretend lock is taken
 			case 1 : return +get<1>(static_cast<_FileLock const&>(self)) ;
 			case 2 : return +get<2>(static_cast<_FileLock const&>(self)) ;
 			case 3 : return +get<3>(static_cast<_FileLock const&>(self)) ;
 			case 4 : return +get<4>(static_cast<_FileLock const&>(self)) ;
 			case 5 : return +get<5>(static_cast<_FileLock const&>(self)) ;
 			case 6 : return +get<6>(static_cast<_FileLock const&>(self)) ;
-		DF}
+		DF}                                                                      // NO_COV
 	}
 	void keep_alive() {
 		switch (_FileLock::index()) {                                            // PER_FILE_SYNC : add entry here
-			case 0 : return                                                    ;
+			case 0 : return                                                    ; // NO_COV
 			case 1 : return get<1>(static_cast<_FileLock&>(self)).keep_alive() ;
 			case 2 : return get<2>(static_cast<_FileLock&>(self)).keep_alive() ;
 			case 3 : return get<3>(static_cast<_FileLock&>(self)).keep_alive() ;
 			case 4 : return get<4>(static_cast<_FileLock&>(self)).keep_alive() ;
 			case 5 : return get<5>(static_cast<_FileLock&>(self)).keep_alive() ;
 			case 6 : return get<6>(static_cast<_FileLock&>(self)).keep_alive() ;
-		DF}
+		DF}                                                                      // NO_COV
 	}
 } ;
 

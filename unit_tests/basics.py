@@ -8,9 +8,9 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	lmake.manifest = (
-		'Lmakefile.py'
-	,	'hello'
+	lmake.manifest       = ('Lmakefile.py',)
+	lmake.extra_manifest = (
+		'hello'
 	,	'world'
 	)
 

@@ -90,7 +90,7 @@ namespace Disk {
 	}
 
 	::string _mk_lcl( ::string const& path , ::string const& dir_s , bool path_is_dir ) {
-		SWEAR( is_dir_name(dir_s)            ,        dir_s ) ;
+		/**/             SWEAR( is_dir_name(dir_s)              ,        dir_s ) ;
 		if (path_is_dir) SWEAR( is_abs_s(path)==is_abs_s(dir_s) , path , dir_s ) ;
 		else             SWEAR( is_abs  (path)==is_abs_s(dir_s) , path , dir_s ) ;
 		size_t last_slash1 = 0 ;
@@ -107,16 +107,16 @@ namespace Disk {
 	::string _mk_glb( ::string const& path , ::string const& dir_s , bool path_is_dir ) {
 		if (path_is_dir) { if (is_abs_s(path)) return path ; }
 		else             { if (is_abs  (path)) return path ; }
-		::string_view d_sv = dir_s ;
-		::string_view f_v  = path  ;
-		for(; f_v.starts_with("../") ; f_v.remove_prefix(3) ) {
-			if (!d_sv) break ;
-			d_sv.remove_suffix(1) ;                                                       // suppress ending /
-			size_t last_slash = d_sv.rfind('/') ;
-			if (last_slash==Npos) { SWEAR(+d_sv) ; d_sv = {}                          ; }
-			else                  {                d_sv = d_sv.substr(0,last_slash+1) ; } // keep new ending /
+		::string_view d_s = dir_s ;
+		::string_view p   = path  ;
+		for(; p.starts_with("../") ; p.remove_prefix(3) ) {
+			if (!d_s) break ;
+			d_s.remove_suffix(1) ;                                                     // suppress ending /
+			size_t last_slash = d_s.rfind('/') ;
+			if (last_slash==Npos) { SWEAR(+d_s) ; d_s = {}                         ; }
+			else                  {               d_s = d_s.substr(0,last_slash+1) ; } // keep new ending /
 		}
-		return ::string(d_sv)+f_v ;
+		return cat(d_s,p) ;
 	}
 
 	::string mk_file( ::string const& f , FileDisplay fd , Bool3 exists ) {
@@ -427,7 +427,7 @@ namespace Disk {
 				h    += fi.sz                         ;
 				_val |= +h.digest() << NBits<FileTag> ;
 			} break ;
-		DF}
+		DF}                                                                                                // NO_COV
 	}
 	// END_OF_VERSIONING
 

@@ -76,6 +76,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* improve versions
+	- use small ids through a manually handled association small id <-> computed crc
+	- provide versions for cache, repo, and job exec
+	- check job exec versions when using a different lmake for job exec
 * check files are conformant to config.link_support
 	- each time it is mostly free (objective of this config is improved perf)
 * forbid accesses to files :
@@ -117,6 +121,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* provide an attribute to manage cases where repo is not seen in the same dir on remote hosts
+	- as a function that takes the executing host as argument
+* provide a wrapper to launch job_exec
+	- launch wrapper job_exec ... instead of job_exec
+	- wrapper is a vector_s, it could have arguments
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

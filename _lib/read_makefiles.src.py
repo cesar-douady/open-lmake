@@ -119,7 +119,7 @@ if '.sources.' in actions :
 	if not lmake.manifest :
 		print('lmake.manifest is empty',file=sys.stderr)
 		exit(1)
-	srcs = list(lmake.manifest)
+	srcs = list(lmake.manifest) + list(lmake.extra_manifest)
 
 rules = []
 if '.rules.' in actions :

@@ -44,8 +44,9 @@ def _maybe_lcl(file) :
 #
 
 from .config_ import config
-manifest = []
-_rules   = []
+manifest       = []
+extra_manifest = []
+_rules         = []
 
 #
 #

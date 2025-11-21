@@ -7,13 +7,14 @@
 
 ## Acronyms
 
-| Acronym | Definition                | Comment                                                                                                                    |
-|---------|---------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| CAD     | Computer Aided Design     |                                                                                                                            |
-| ETA     | Estimated Time of Arrival | (from aeronautic jargon) This is the date at which a given event is estimated to occur                                     |
-| ETE     | Estimated Time Enroute    | (from aeronautic jargon) This is the remaining time necessary to complete a task                                           |
-| LRU     | Least Recently Used       | A classical cache replacement policy where the entry that was least recently used is discarded when a new one is allocated |
-| MRO     | Method Research Order     | The inheritance chain from the current class to its most basic base, usually `object`                                      |
+| Acronym | Definition                  | Comment                                                                                                                    |
+|---------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| CAD     | Computer Aided Design       |                                                                                                                            |
+| ETA     | Estimated Time of Arrival   | (from aeronautic jargon) This is the date at which a given event is estimated to occur                                     |
+| ETE     | Estimated Time Enroute      | (from aeronautic jargon) This is the remaining time necessary to complete a task                                           |
+| fqdn    | Fully Qualified Domain Name | Despite its name, this is actually a fully qualified host name such as `my_host.my_organization.top_level`                 |
+| LRU     | Least Recently Used         | A classical cache replacement policy where the entry that was least recently used is discarded when a new one is allocated |
+| MRO     | Method Research Order       | The inheritance chain from the current class to its most basic base, usually `object`                                      |
 
 ## Abbreviations
 

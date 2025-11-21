@@ -360,14 +360,14 @@ Fd Gather::_spawn_child() {
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                    // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.nice       = nice                                  ;
 	_child.stdin_fd   = child_stdin                           ;
 	_child.stdout_fd  = child_stdout                          ;
 	_child.stderr_fd  = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
-	if (is_ptrace) {                                                                               // PER_AUTODEP_METHOD : handle case
+	if (is_ptrace) {                                            // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
@@ -375,42 +375,38 @@ Fd Gather::_spawn_child() {
 		child_fd  = pipe.read .detach() ;
 		report_fd = pipe.write.detach() ;
 	} else {
-		if (method>=AutodepMethod::Ld) {                                                           // PER_AUTODEP_METHOD : handle case
+		if (method>=AutodepMethod::Ld) {                                                                                                                          // PER_AUTODEP_METHOD : handle case
 			::string env_var ;
-			switch (method) {                                                                      // PER_AUTODEP_METHOD : handle case
-				#if HAS_32
-					#define DOLLAR_LIB "$LIB"                                                      // 32 bits is supported, use ld.so automatic detection feature
-				#else
-					#define DOLLAR_LIB "lib"                                                       // 32 bits is not supported, use standard name
-				#endif
+			switch (method) {                                                                                                                                     // PER_AUTODEP_METHOD : handle case
 				#if HAS_LD_AUDIT
-					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_audit.so"            ; break ;
+					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_audit.so"            ; break ;
 				#endif
-					case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_preload.so"          ; break ;
-					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = *g_lmake_root_s + "_d" DOLLAR_LIB "/ld_preload_jemalloc.so" ; break ;
-				#undef DOLLAR_LIB
-			DF}                                                                                    // NO_COV
+				#if 1                                                                                                                                             // LD_PRELOAD is always available
+					case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_preload.so"          ; break ;
+					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_preload_jemalloc.so" ; break ;
+				#endif
+			DF}                                                                                                                                                   // NO_COV
 			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
 		}
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 	}
-	start_date      = New                    ;                                                     // record job start time as late as possible
+	start_date      = New                    ;                                      // record job start time as late as possible
 	_child.cmd_line = cmd_line               ;
 	_child.env      = env                    ;
 	_child.add_env  = &_add_env              ;
 	_child.cwd_s    = autodep_env.sub_repo_s ;
 	if (is_ptrace) {
 		::latch ready{1} ;
-		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ;                // /!\ _child must be spawned from tracing thread
-		ready.wait() ;                                                                             // wait until _child.pid is available
+		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ; // /!\ _child must be spawned from tracing thread
+		ready.wait() ;                                                              // wait until _child.pid is available
 	} else {
 		//vvvvvvvvvvvv
 		_child.spawn() ;
 		//^^^^^^^^^^^^
 	}
 	trace("child_pid",_child.pid) ;
-	return child_fd ;                                                                              // child_fd is only used with ptrace
+	return child_fd ;                                                               // child_fd is only used with ptrace
 }
 
 Status Gather::exec_child() {
@@ -582,7 +578,7 @@ Status Gather::_exec_child() {
 							_exec_trace( jerr.date , Comment::List , ces ) ;
 							sync( fd , ::move(reply) ) ;
 						} break ;
-					DF}
+					DF}                                          // NO_COV
 					delayed_jerrs.erase(it) ;
 				}
 			} else if (_wait[Kind::ChildStart]) {                // handle case where we are killed before starting : create child when we have processed waiting connections from server

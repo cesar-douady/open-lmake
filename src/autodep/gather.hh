@@ -193,6 +193,7 @@ public :
 	JobIdx                                    job              = 0                   ;
 	::vector<uint8_t>                         kill_sigs        ;                       // signals used to kill job
 	bool                                      live_out         = false               ;
+	::string                                  lmake_root_s     ;                       // contains error messages not from job
 	AutodepMethod                             method           = AutodepMethod::Dflt ;
 	::string                                  msg              ;                       // contains error messages not from job
 	Time::Delay                               network_delay    = Time::Delay(1)      ; // 1s is reasonable when nothing is said

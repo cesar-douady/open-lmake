@@ -262,18 +262,18 @@ namespace Caches {
 				case ZlvlTag::Zlib :
 					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
 					#if HAS_ZLIB
-						static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;                                                 // compressBound manages ulong and we need a Sz
+						static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;  // compressBound manages ulong and we need a Sz
 						return ::compressBound(sz) ;
 					#endif
 				break ;
 				case ZlvlTag::Zstd :
 					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
 					#if HAS_ZSTD
-						static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ;                                                // ZSTD_compressBound manages size_t and we need a Sz
+						static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ; // ZSTD_compressBound manages size_t and we need a Sz
 						return ::ZSTD_compressBound(sz) ;
 					#endif
 				break ;
-			DF}
+			DF}                                                            // NO_COV
 			FAIL() ;
 		}
 		// cxtors & casts
@@ -299,7 +299,7 @@ namespace Caches {
 						::ZSTD_CCtx_setParameter( _zstd_state , ZSTD_c_compressionLevel , zlvl.lvl ) ;
 					#endif
 				break ;
-			DF}
+			DF}                                                            // NO_COV
 		}
 		~DeflateFd() {
 			flush() ;
@@ -317,7 +317,7 @@ namespace Caches {
 						::ZSTD_freeCCtx(_zstd_state) ;
 					#endif
 				break ;
-			DF}
+			DF}                                                            // NO_COV
 		}
 		// services
 		void write(::string const& s) {
@@ -352,10 +352,10 @@ namespace Caches {
 							}
 						#endif
 					} break ;
-				DF}
-			} else {                                                                                                      // no compression
-				if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos += s.size() ; } // small data : put in _buf
-				else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; z_sz += s.size() ; } // large data : send directly
+				DF}                                                                                                                                                        // NO_COV
+			} else {                                                                                                                                                       // no compression
+				if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos += s.size() ; }                                                  // small data : put in _buf
+				else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; z_sz += s.size() ; }                                                  // large data : send directly
 			}
 		}
 		void send_from( Fd fd_ , size_t sz ) {
@@ -409,7 +409,7 @@ namespace Caches {
 							}
 						#endif
 					} break ;
-				DF}
+				DF}                                                                                                                                                        // NO_COV
 			}
 			_flush() ;
 		}
@@ -461,7 +461,7 @@ namespace Caches {
 						_zstd_state = ::ZSTD_createDCtx() ; SWEAR(_zstd_state,self) ;
 					#endif
 				break ;
-			DF}
+			DF}                                                                                                                      // NO_COV
 		}
 		~InflateFd() {
 			if (!zlvl) return ;
@@ -478,7 +478,7 @@ namespace Caches {
 						size_t rc = ::ZSTD_freeDCtx(_zstd_state) ; SWEAR( !::ZSTD_isError(rc) , rc,self ) ;
 					#endif
 				} break ;
-			DF}
+			DF}                                                                                                                      // NO_COV
 		}
 		// services
 		::string read(size_t sz) {
@@ -522,7 +522,7 @@ namespace Caches {
 							}
 						#endif
 					} break ;
-				DF}
+				DF}                                                                                                                  // NO_COV
 			else {
 				size_t cnt = ::min( sz , _len ) ;
 				if (cnt) {                                                                                                           // gather available data from _buf
@@ -768,8 +768,8 @@ namespace Caches {
 ::string& operator+=( ::string& os , JobSpace const& js ) {            // START_OF_NO_COV
 	First first ;
 	/**/                  os <<"JobSpace("                           ;
-	if (+js.chroot_dir_s) os <<first("",",")<<"C:"<< js.chroot_dir_s ;
-	if (+js.lmake_view_s) os <<first("",",")<<"R:"<< js.lmake_view_s ;
+	if (+js.chroot_dir_s) os <<first("",",")<<"c:"<< js.chroot_dir_s ;
+	if (+js.lmake_view_s) os <<first("",",")<<"L:"<< js.lmake_view_s ;
 	if (+js.repo_view_s ) os <<first("",",")<<"R:"<< js.repo_view_s  ;
 	if (+js.tmp_view_s  ) os <<first("",",")<<"T:"<< js.tmp_view_s   ;
 	if (+js.views       ) os <<first("",",")<<"V:"<< js.views        ;
@@ -779,45 +779,44 @@ namespace Caches {
 static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",StrErr()) ; }
 static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",StrErr()) ; }
 
+static void _mount_tmp( ::string const& dst_s , size_t sz ) { // src must be dir
+	Trace trace("_mount_tmp",dst_s) ;
+	throw_unless( ::mount( "" , dst_s.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",no_slash(dst_s)," of size ",sz," : ",StrErr() ) ;
+}
+
 static void _mount_bind( ::string const& dst , ::string const& src ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
 	throw_unless( ::mount( src.c_str() , dst.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src," onto ",dst," : ",StrErr() ) ;
 }
 
-void JobSpace::chk() const {
-	throw_unless( !chroot_dir_s || (chroot_dir_s.front()=='/'&&chroot_dir_s.back()=='/'                       ) , "bad chroot_dir" ) ;
-	throw_unless( !lmake_view_s || (lmake_view_s.front()=='/'&&lmake_view_s.back()=='/'                       ) , "bad lmake_view" ) ;
-	throw_unless( !repo_view_s  || (repo_view_s .front()=='/'&&repo_view_s .back()=='/'&&is_canon(repo_view_s)) , "bad repo_view"  ) ;
-	throw_unless( !tmp_view_s   || (tmp_view_s  .front()=='/'&&tmp_view_s  .back()=='/'&&is_canon(tmp_view_s )) , "bad tmp_view"   ) ;
-	for( auto const& [view,phys] : views ) {
-		/**/                                     throw_unless( is_canon(view) , "bad views"        ) ;
-		for( ::string const& p  : phys.phys    ) throw_unless( is_canon(p )   , "bad view phys"    ) ;
-		for( ::string const& cu : phys.copy_up ) throw_unless( is_canon(cu)   , "bad view copy_up" ) ;
-	}
-}
-
-static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s ) {
-	SWEAR( +srcs_s                               ) ;
-	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ;                                     // use bind mount in that case
+static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s , ::string const& cwd_s={} ) {
+	SWEAR( +work_s                               ) ;
+	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ; // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
-	for( size_t i : iota(1,srcs_s.size()) )
-		if (srcs_s[i].find(':')!=Npos)
-			throw cat("cannot overlay mount ",dst_s," to ",srcs_s,"with embedded ':'") ; // NO_COV defensive programming
+	/**/                                    if (work_s   .find(',')!=Npos) throw cat("cannot overlay mount ",dst_s," to ",srcs_s," using ",work_s,"with embedded ','") ;
+	for( size_t i : iota(0,srcs_s.size()) ) if (srcs_s[i].find(',')!=Npos) throw cat("cannot overlay mount ",dst_s," to ",srcs_s," using ",work_s,"with embedded ','") ;
+	for( size_t i : iota(1,srcs_s.size()) ) if (srcs_s[i].find(':')!=Npos) throw cat("cannot overlay mount ",dst_s," to ",srcs_s," using ",work_s,"with embedded ':'") ;
 	mk_dir_s(work_s) ;
 	//
-	::string                                data  = "userxattr"                      ;
-	/**/                                    data += ",upperdir="+no_slash(srcs_s[0]) ;
-	/**/                                    data += ",lowerdir="+no_slash(srcs_s[1]) ;
-	for( size_t i : iota(2,srcs_s.size()) ) data += ':'         +no_slash(srcs_s[i]) ;
-	/**/                                    data += ",workdir=" +no_slash(work_s   ) ;
-	throw_unless( ::mount( nullptr ,  dst_s.c_str() , "overlay" , 0 , data.c_str() )==0 , "cannot overlay mount ",dst_s," to ",data," : ",StrErr()) ;
+	First    first ;
+	::string data  ;
+	/**/                                  data  = "userxattr" ;
+	for( ::string const& src_s : srcs_s ) data << first(",upperdir=",",lowerdir=",":")<<no_slash(mk_glb_s(src_s ,cwd_s)) ;
+	/**/                                  data << ",workdir="                         <<no_slash(mk_glb_s(work_s,cwd_s)) ;
+	//
+	::string dst = no_slash(dst_s) ;
+	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	throw_unless( ::mount( "overlay" , dst.c_str() , "overlay" , 0 , data.c_str() )==0 , "cannot overlay mount ",dst," to ",data," : ",StrErr()) ;
+	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 }
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	AcFd    fd  { file , {.flags=O_WRONLY|O_TRUNC,.err_ok=false} } ;
-	ssize_t cnt = ::write( fd , data.c_str() , data.size() )       ;
+	AcFd fd { file , {.flags=O_WRONLY|O_TRUNC,.err_ok=false} } ;
+	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
+	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	throw_unless( cnt>=0                   , "cannot write atomically ",data.size()," bytes to ",file," : ",StrErr()                  ) ;
 	throw_unless( size_t(cnt)>=data.size() , "cannot write atomically ",data.size()," bytes to ",file," : only ",cnt," bytes written" ) ;
 }
@@ -828,7 +827,7 @@ bool JobSpace::_is_lcl_tmp(::string const& f) const {
 	/**/             return false                     ;
 } ;
 
-bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& dst , ::string const& src ) const {
+bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>&/*inout*/ deps , ::string const& dst , ::string const& src ) const {
 	if (!_is_lcl_tmp(dst)) return false/*dst_ok*/ ;
 	bool dst_ok = true ;
 	if (is_dir_name(dst)) {
@@ -847,19 +846,30 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>& deps , ::string const& 
 	return dst_ok ;
 }
 
-template<bool IsFile,class... A> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , A const&... args ) {
+void JobSpace::chk() const {
+	if (+chroot_dir_s) throw_unless( chroot_dir_s.front()=='/' && chroot_dir_s.back()=='/'                          , "bad chroot_dir" ) ;
+	if (+lmake_view_s) throw_unless( lmake_view_s.front()=='/' && lmake_view_s.back()=='/'                          , "bad lmake_view" ) ;
+	if (+repo_view_s ) throw_unless( repo_view_s .front()=='/' && repo_view_s .back()=='/' && is_canon(repo_view_s) , "bad repo_view"  ) ;
+	if (+tmp_view_s  ) throw_unless( tmp_view_s  .front()=='/' && tmp_view_s  .back()=='/' && is_canon(tmp_view_s ) , "bad tmp_view"   ) ;
+	for( auto const& [view,phys] : views ) {
+		/**/                                     throw_unless( is_canon(view) , "bad views"        ) ;
+		for( ::string const& p  : phys.phys    ) throw_unless( is_canon(p )   , "bad view phys"    ) ;
+		for( ::string const& cu : phys.copy_up ) throw_unless( is_canon(cu)   , "bad view copy_up" ) ;
+	}
+}
+
+template<bool IsFile,class T> static bool/*match*/ _handle( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , T const& val ) {
 	size_t len   = ::strlen(key)    ;
 	bool   brace = v[d+1/*$*/]=='{' ;
-	size_t start = d+1/*$*/+brace   ;
-	if ( ::string_view(&v[start],len)!=key    ) return false/*match*/ ;
-	if (  brace && v[start+len]!='}'          ) return false/*match*/ ;
-	if ( !brace && is_word_char(v[start+len]) ) return false/*match*/ ;
-	::string pfx =
-		IsFile ? v.substr(0,d) + no_slash(cat(args...))
-		:        v.substr(0,d) +          cat(args...)
-	;
-	d = pfx.size()                                                    ;
-	v = cat( ::move(pfx) , ::string_view(v).substr(start+len+brace) ) ;
+	size_t start = d+1/*$*/+brace   ; //!              match
+	if ( substr_view(v,start,len)!=key        ) return false ;
+	if (  brace && v[start+len]!='}'          ) return false ;
+	if ( !brace && is_word_char(v[start+len]) ) return false ;
+	::string pfx = v.substr(0,d) ;
+	if constexpr (IsFile) pfx += no_slash(val) ;
+	else                  pfx +=          val  ;
+	d = pfx.size()                                   ;
+	v = ::move(pfx) + substr_view(v,start+len+brace) ;
 	return true/*match*/ ;
 }
 void JobSpace::update_env(
@@ -893,10 +903,10 @@ void JobSpace::update_env(
 				//                                 IsFile inout inout
 				case 'L' :                  _handle<true >( v  , d  , "LMAKE_ROOT"             , lmake_root_s               )   ; break ;
 				case 'P' :                  _handle<true >( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s           )
-				||                          _handle<true >( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s ,sub_repo_s)
+				||                          _handle<true >( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s +sub_repo_s)
 				||         ( has_tmp_dir && _handle<true >( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s              ) )
 				||                          _handle<true >( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s            )   ; break ;
-				case 'R' :                  _handle<true >( v  , d  , "REPO_ROOT"              , repo_root_s     ,sub_repo_s)   ; break ;
+				case 'R' :                  _handle<true >( v  , d  , "REPO_ROOT"              , repo_root_s     +sub_repo_s)   ; break ;
 				case 'S' :                  _handle<false>( v  , d  , "SEQUENCE_ID"            , seq_id                     )
 				||                          _handle<false>( v  , d  , "SMALL_ID"               , small_id                   )   ; break ;
 				case 'T' : ( has_tmp_dir && _handle<true >( v  , d  , "TMPDIR"                 , tmp_dir_s                  ) )
@@ -908,179 +918,164 @@ void JobSpace::update_env(
 
 bool JobSpace::enter(
 	::vmap_s<MountAction>&/*out*/ report
-,	::string             &/*out*/ top_repo_root_s
+,	::string             &/*out*/ repo_root_s
 ,	::string   const&             phy_lmake_root_s
 ,	::string   const&             phy_repo_root_s
 ,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
-,	::string   const&             cwd_s
+,	::string   const&             sub_repo_s
 ,	::string   const&             work_dir_s
 ,	::vector_s const&             src_dirs_s
 ) {
-	Trace trace("JobSpace::enter",self,phy_repo_root_s,phy_tmp_dir_s,cwd_s,work_dir_s,src_dirs_s) ;
+	Trace trace("JobSpace::enter",self,phy_repo_root_s,phy_tmp_dir_s,work_dir_s,sub_repo_s,src_dirs_s) ;
 	//
+	repo_root_s = repo_view_s | phy_repo_root_s ;
 	if (!self) {
-		top_repo_root_s = phy_repo_root_s ;
-		trace("not_done",top_repo_root_s) ;
+		if (+sub_repo_s) _chdir(sub_repo_s) ;
+		trace("not_done",repo_root_s) ;
 		return false/*entered*/ ;
 	}
 	//
+	SWEAR( +phy_lmake_root_s ) ;
+	SWEAR( +phy_repo_root_s  ) ;
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
-	::string const& tmp_dir_s = tmp_view_s | phy_tmp_dir_s ;
-	SWEAR( !work_dir_s.starts_with(tmp_dir_s) , tmp_dir_s,work_dir_s ) ;              // else we have to detect if some view descr has size>1 in addition to view lying in tmp
-	if (!keep_tmp) {
-		bool mount_in_tmp = false ;
-		for( auto const& [view,descr] : views )
-			if ( +descr && view.starts_with(tmp_dir_s) ) {                            // empty descr does not represent a view
-				mount_in_tmp = true ;
-				break ;
-			}
-		//
-		if (mount_in_tmp) {
-			// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
-			// but umount is privileged, so what we do instead is forking
-			// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
-			// in child, we carry the whole job
-			if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                          // in parent
-				int wstatus ;
-				if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
-				unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                // unlkink when child is done
-				if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;    // all the cleanup stuff is done by the child, so we want to do nothing here
-				else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
-				else                           ::_exit(255                     ) ;
-			}
-		} else {
-			_tmp_dir_s = tmp_dir_s ;                                                  // unlink upon exit
+	//
+	::string chroot_dir      = chroot_dir_s                                                             ; if (+chroot_dir) chroot_dir.pop_back() ; // dont use no_slash to properly manage the '/' case
+	bool     lmake_in_chroot = +chroot_dir && FileInfo(chroot_dir+phy_lmake_root_s).tag()==FileTag::Dir ;                                          // if lmake is available in chroot dir, use it
+	size_t   repo_depth      = ::count( repo_root_s , '/' ) - 1                                         ;                                          // account for initial and terminal /
+	//
+	::string const& lmake_root_s = lmake_view_s | phy_lmake_root_s ;
+	::string const& tmp_dir_s    = tmp_view_s   | phy_tmp_dir_s    ;
+	//
+	bool clean_mount_in_tmp = !keep_tmp && ::any_of( views , [&](::pair_s<ViewDescr> const& v_d) { return v_d.first.starts_with(tmp_dir_s) ; } ) ;
+	//
+	for( auto const& src_dir_s : src_dirs_s )
+		if( !is_abs_s(src_dir_s) && uphill_lvl_s(src_dir_s)>repo_depth )
+			throw cat("too many .. to access source dir ",no_slash(src_dir_s)," from repo root ",no_slash(repo_root_s)) ;
+	//
+	if (+tmp_dir_s) SWEAR( !work_dir_s.starts_with(tmp_dir_s) , tmp_dir_s,work_dir_s ) ; // else we have to detect if some view descr has size>1 in addition to view lying in tmp
+	if (clean_mount_in_tmp) {
+		// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
+		// but umount is privileged, so what we do instead is forking
+		// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
+		// in child, we carry the whole job
+		if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                                 // in parent
+			int wstatus ;
+			if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
+			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                       // unlink when child is done
+			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;           // except the unlink above, all the cleanup is done by the child, so nothing to do here
+			else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
+			else                           ::_exit(255                     ) ;
 		}
 	}
+	// minimize calls to FileInfo
+	bool must_creat_lmake = +chroot_dir ? (+tmp_view_s?FileInfo(chroot_dir+lmake_root_s).tag()!=FileTag::Dir:!lmake_in_chroot) : +lmake_view_s && FileInfo(lmake_root_s).tag()!=FileTag::Dir ;
+	bool must_creat_repo  = +chroot_dir ?              FileInfo(chroot_dir+repo_root_s ).tag()!=FileTag::Dir                   : +repo_view_s  && FileInfo(repo_root_s ).tag()!=FileTag::Dir ;
+	bool must_creat_tmp   = +chroot_dir ? +tmp_dir_s&& FileInfo(chroot_dir+tmp_dir_s   ).tag()!=FileTag::Dir                   : +tmp_view_s   && FileInfo(tmp_dir_s   ).tag()!=FileTag::Dir ;
 	//
-	int uid = ::getuid() ;                                                            // must be done before unshare that invents a new user
-	int gid = ::getgid() ;                                                            // .
+	int uid = ::getuid() ;                                              // must be done before unshare that invents a new user
+	int gid = ::getgid() ;                                              // .
 	//
+	trace(lmake_root_s,repo_root_s,tmp_dir_s) ;
+	//
+	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
-	//
-	size_t   uphill_lvl = 0 ;
-	::string highest_s  ;
-	for( ::string const& d_s : src_dirs_s ) if (!is_abs_s(d_s))
-		if ( size_t ul=uphill_lvl_s(d_s) ; ul>uphill_lvl ) {
-			uphill_lvl = ul  ;
-			highest_s  = d_s ;
-		}
-	//
-	::string phy_super_repo_root_s ;                                                  // dir englobing all relative source dirs
-	::string super_repo_view_s     ;                                                  // .
-	::string top_repo_view_s       ;
-	if (+repo_view_s) {
-		if (!( repo_view_s.ends_with(cwd_s) && repo_view_s.size()>cwd_s.size()+1 ))   // ensure repo_view_s has at least one more level than cwd_s
-			throw cat(
-				"cannot map local repository dir to ",no_slash(repo_view_s)," appearing as ",no_slash(cwd_s)," in top-level repository, "
-			,	"consider setting <rule>.repo_view=",mk_py_str("/repo/"+no_slash(cwd_s))
-			) ;
-		phy_super_repo_root_s = phy_repo_root_s ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) phy_super_repo_root_s = dir_name_s(phy_super_repo_root_s) ;
-		super_repo_view_s     = repo_view_s     ; for( [[maybe_unused]] size_t _ : iota(uphill_lvl) ) super_repo_view_s     = dir_name_s(super_repo_view_s    ) ;
-		SWEAR( phy_super_repo_root_s!="/" , phy_repo_root_s,uphill_lvl ) ;            // this should have been checked earlier
-		if (!super_repo_view_s)
-			throw cat(
-				"cannot map repository dir to ",no_slash(repo_view_s)," with relative source dir ",no_slash(highest_s)
-			,	", "
-			,	"consider setting <rule>.repo_view=",mk_py_str("/repo/"+no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s))
-			) ;
-		if (substr_view(repo_view_s,super_repo_view_s.size())!=substr_view(phy_repo_root_s,phy_super_repo_root_s.size()))
-			throw cat(
-				"last ",uphill_lvl," components do not match between physical root dir and root view"
-			,	", "
-			,	"consider setting <rule>.repo_view=",mk_py_str(cat("/repo/",no_slash(phy_repo_root_s.substr(phy_super_repo_root_s.size())+cwd_s)))
-			) ;
-		top_repo_view_s = repo_view_s.substr(0,repo_view_s.size()-cwd_s.size()) ;
-	}
-	// XXX! : handle cases where dir is not top level
-	if ( +lmake_view_s      && lmake_view_s     .rfind('/',lmake_view_s     .size()-2)!=0 ) throw cat("non top-level lmake_view ",no_slash(lmake_view_s     )," not yet implemented") ;
-	if ( +super_repo_view_s && super_repo_view_s.rfind('/',super_repo_view_s.size()-2)!=0 ) throw cat("non top-level repo_view " ,no_slash(super_repo_view_s)," not yet implemented") ;
-	if ( +tmp_view_s        && tmp_view_s       .rfind('/',tmp_view_s       .size()-2)!=0 ) throw cat("non top-level tmp_view "  ,no_slash(tmp_view_s       )," not yet implemented") ;
-	//
-	::string chroot_dir        = chroot_dir_s                                                                     ; if (+chroot_dir) chroot_dir.pop_back() ; // cannot use no_slash to properly ...
-	bool     must_create_lmake = +lmake_view_s      && FileInfo(chroot_dir+lmake_view_s     ).tag()!=FileTag::Dir ;                                          // ... manage the '/' case
-	bool     must_create_repo  = +super_repo_view_s && FileInfo(chroot_dir+super_repo_view_s).tag()!=FileTag::Dir ;
-	bool     must_create_tmp   = +tmp_view_s        && FileInfo(chroot_dir+tmp_view_s       ).tag()!=FileTag::Dir ;
-	//
-	if (must_create_tmp) SWEAR(+phy_tmp_dir_s) ;
-	trace("create",STR(must_create_lmake),STR(must_create_repo),STR(must_create_tmp)) ;
-	//
-	if ( must_create_repo || must_create_tmp || +views )
-		try { unlnk_inside_s(work_dir_s) ; } catch (::string const&) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
-	if ( must_create_lmake || must_create_repo || must_create_tmp ) {   // we cannot mount directly in chroot_dir
-		if (!work_dir_s)
-			throw cat(                                                  // START_OF_NO_COV defensive programming
-				"need a work dir to"
-			,		must_create_lmake ? " create lmake view"
-				:	must_create_repo  ? " create repo view"
-				:	must_create_tmp   ? " create tmp view"
-				:	                    " ???"
-			) ;                                                         // END_OF_NO_COV
-		::vector_s top_lvls    = lst_dir_s(chroot_dir_s|"/") ;
-		::string   work_root   = work_dir_s+"root"           ;
-		::string   work_root_s = work_root+'/'               ;
-		mk_dir_empty_s(work_root_s) ;
-		trace("top_lvls",work_root_s,top_lvls) ;
-		for( ::string const& f : top_lvls ) {
-			::string src_f     = (chroot_dir_s|"/"s) + f ;
-			::string private_f = work_root_s         + f ;
-			switch (FileInfo(src_f).tag()) {                                                                                                                           // exclude weird files
-				case FileTag::Reg   :
-				case FileTag::Empty :
-				case FileTag::Exe   : AcFd    (           private_f,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true}) ; _mount_bind(private_f,src_f) ; break ; // create file
-				case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                                        ) ; _mount_bind(private_f,src_f) ; break ; // create dir
-				case FileTag::Lnk   : sym_lnk (           private_f,read_lnk(src_f)                                         ) ;                                break ; // copy symlink
-			DN}
-		}
-		if (must_create_lmake) mk_dir_s(work_root+lmake_view_s     ) ;
-		if (must_create_repo ) mk_dir_s(work_root+super_repo_view_s) ;
-		if (must_create_tmp  ) mk_dir_s(work_root+tmp_view_s       ) ;
-		chroot_dir = ::move(work_root) ;
-	}
+	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                                       // necessary to be allowed to write the gid_map (if desirable)
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ; // necessary to be allowed to write the gid_map (if desirable)
 	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;
 	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;
 	//
-	top_repo_root_s = top_repo_view_s | phy_repo_root_s ;
-	if (+lmake_view_s) _mount_bind( chroot_dir+lmake_view_s      , phy_lmake_root_s      ) ;
-	if (+repo_view_s ) _mount_bind( chroot_dir+super_repo_view_s , phy_super_repo_root_s ) ;
-	if (+tmp_view_s  ) _mount_bind( chroot_dir+tmp_view_s        , phy_tmp_dir_s         ) ;
+	bool must_bind_lmake = +lmake_view_s || (+chroot_dir&&!lmake_in_chroot) ;
+	bool must_bind_repo  = +repo_view_s  ||  +chroot_dir                    ;
+	bool must_bind_tmp   = +tmp_view_s   ||  +chroot_dir                    ;
 	//
-	if      (+chroot_dir ) _chroot(chroot_dir)     ;
-	if      (+repo_view_s) _chdir(repo_view_s    ) ;
-	else if (+chroot_dir ) _chdir(phy_repo_root_s) ;
+	if ( must_creat_lmake || must_creat_repo || must_creat_tmp ) {
+		SWEAR(+work_dir_s) ;
+		try { unlnk_inside_s(work_dir_s) ; } catch (::string const&) {} // if we need a work dir, we must clean it first as it is not cleaned upon exit (ignore errors as dir may not exist)
+		::string root_s  = work_dir_s+"root/"  ;
+		::string upper_s = work_dir_s+"upper/" ;
+		::string work_s  = work_dir_s+"work/"  ;
+		::string root    = no_slash(root_s )   ;
+		::string upper   = no_slash(upper_s)   ;
+		mk_dir_s(root_s) ;
+		if (+chroot_dir) {
+			mk_dir_s(upper_s) ;
+			_mount_overlay( root_s , {upper_s,chroot_dir_s} , work_s , phy_repo_root_s ) ;
+		} else {                                                                           // mount replies ENOENT when trying to map /, so map all opt level dirs
+			::vector_s top_lvls = lst_dir_s("/"s) ;
+			trace("top_lvls",top_lvls) ;
+			for( ::string const& f : top_lvls ) {
+				::string src_f     = "/"   + f    ;
+				::string src_f_s   = src_f + "/"  ;
+				::string private_f = root + src_f ;
+				if (
+					( must_bind_lmake && !must_creat_lmake && src_f_s==lmake_root_s )
+				||	( must_bind_repo  && !must_creat_repo  && src_f_s==repo_root_s  )
+				||	( must_bind_tmp   && !must_creat_tmp   && src_f_s==tmp_dir_s    )
+				) {
+					mk_dir_s(with_slash(private_f)) ;
+					continue ;                                                                                                    // these will be mounted below
+				}
+				switch (FileInfo(src_f).tag()) {
+					case FileTag::Reg   :
+					case FileTag::Empty :
+					case FileTag::Exe   : AcFd    (           private_f,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666}) ; break    ;
+					case FileTag::Dir   : mk_dir_s(with_slash(private_f)                                           ) ; break    ;
+					case FileTag::Lnk   : sym_lnk (           private_f,read_lnk(src_f)                            ) ; continue ; // copy symlink        (no mount)
+					default             :                                                                              continue ; // exclude weird files (no mount)
+				}
+				_mount_bind(private_f,src_f) ;
+			}
+		}
+		if (must_creat_lmake) { trace("mkdir",lmake_root_s) ; mk_dir_s(root+lmake_root_s) ; }
+		if (must_creat_repo ) { trace("mkdir",repo_root_s ) ; mk_dir_s(root+repo_root_s ) ; }
+		if (must_creat_tmp  ) { trace("mkdir",tmp_dir_s   ) ; mk_dir_s(root+tmp_dir_s   ) ; }
+		chroot_dir = root ;
+	}
+	if (must_bind_lmake) _mount_bind( chroot_dir+lmake_root_s , lmake_in_chroot?chroot_dir+phy_lmake_root_s:phy_lmake_root_s ) ;
+	if (must_bind_repo ) _mount_bind( chroot_dir+repo_root_s  ,                                             phy_repo_root_s  ) ;
+	if (must_bind_tmp  ) _mount_bind( chroot_dir+tmp_dir_s    ,                                             phy_tmp_dir_s    ) ;
 	//
+	if (+chroot_dir) {
+		_mount_bind( chroot_dir+"/dev" , "/dev" ) ;
+		_mount_bind( chroot_dir+"/sys" , "/sys" ) ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		_chroot(with_slash(chroot_dir)) ;                                                                                         // chroot_dir_s may be obsolete because of overlay, so use chroot_dir
+	} //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if ( +repo_view_s || +chroot_dir || +sub_repo_s ) _chdir (repo_root_s+sub_repo_s) ;
+	//                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	size_t work_idx = 0 ;
 	for( auto const& [view,descr] : views ) {
 		throw_unless( +view , "cannot map a view to the entire repo" ) ;
-		if (!descr) continue ;                                                                                                // empty descr does not represent a view
 		//
-		::string   abs_view = mk_glb(view,top_repo_root_s) ;
-		::vector_s abs_phys ;                                abs_phys.reserve(descr.phys.size()) ; for( ::string const& phy : descr.phys ) abs_phys.push_back(mk_glb_s(phy,top_repo_root_s)) ;
-		//
-		/**/                                    _create(report,view) ;
-		for( ::string const& phy : descr.phys ) _create(report,phy ) ;
+		/**/                                    _create( /*inout*/report , view ) ;
+		for( ::string const& phy : descr.phys ) _create( /*.    */report , phy  ) ;
 		if (is_dir_name(view))
 			for( ::string const& cu : descr.copy_up ) {
 				::string dst = descr.phys[0]+cu ;
 				if (is_dir_name(cu))
-					_create(report,dst) ;
+					_create( /*inout*/report , dst ) ;
 				else
 					for( size_t i : iota(1,descr.phys.size()) )
-						if (_create(report,dst,descr.phys[i]+cu)) break ;
+						if ( _create( /*inout*/ report , dst , descr.phys[i]+cu ) ) break ;
 			}
-		if (+_tmp_dir_s) swear_prod( !abs_view.starts_with(_tmp_dir_s) , _tmp_dir_s,abs_view ) ;                              // ensure we do not clean up mounted dir upon exit
+		if (+_tmp_dir_s) swear_prod( !view.starts_with(_tmp_dir_s) , _tmp_dir_s,view ) ;                                                  // ensure we do not clean up mounted dir upon exit
+		//
 		if (descr.phys.size()==1) {
-			_mount_bind( abs_view , abs_phys[0] ) ;
+			_mount_bind( view , descr.phys[0] ) ;
 		} else {
-			::string const& upper  = descr.phys[0]                                                                          ;
-			::string        work_s = is_lcl(upper) ? cat(work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ; // if not in the repo, it must be in tmp
-			mk_dir_s(work_s) ;
-			_mount_overlay( abs_view , abs_phys , mk_glb_s(work_s,top_repo_root_s) ) ;
+			::string const& upper  = descr.phys[0]                                                                                      ;
+			::string        work_s = is_lcl(upper) ? cat(repo_root_s,work_dir_s,"work_",work_idx++,'/') : cat(no_slash(upper),".work/") ; // if not in the repo, it must be in tmp
+			//
+			mk_dir_s(work_s)                                                      ;
+			_mount_overlay( view , descr.phys , work_s , repo_root_s+sub_repo_s ) ;
 		}
 	}
-	trace("done",report,top_repo_root_s) ;
+	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
+	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ; // if we have mounted something in tmp, we cant clean it before unmount
+	// /run must be mounted tmp as job could use /run/users/uid and the space for this uid is not the native space, so without mounting /run, these directories could clash with other usages
+	_mount_tmp( "/run/" , 100<<20 ) ;                 // 100M is more than enough for /run (anyway, this memory is not consumed as long there is no data)
+	trace("done",repo_root_s,report) ;
 	return true/*entered*/ ;
 }
 
@@ -1245,9 +1240,10 @@ void JobEndRpcReq::chk(bool for_cache) const {
 	/**/                      os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable PassMrkr value
 	/**/                      os <<','  << jsrr.interpreter            ;
 	/**/                      os <<','  << jsrr.kill_sigs              ;
-	if (jsrr.live_out       ) os <<','  << "live_out"                  ;
-	if (jsrr.nice           ) os <<','  << "nice:"<<jsrr.nice          ;
-	if (jsrr.stderr_ok      ) os <<','  << "stderr_ok"                 ;
+	if ( jsrr.live_out      ) os <<','  << "live_out"                  ;
+	if (+jsrr.lmake_root_s  ) os <<','  << jsrr.lmake_root_s           ;
+	if ( jsrr.nice          ) os <<','  << "nice:"<<jsrr.nice          ;
+	if ( jsrr.stderr_ok     ) os <<','  << "stderr_ok"                 ;
 	/**/                      os <<','  << jsrr.method                 ;
 	if (+jsrr.network_delay ) os <<','  << jsrr.network_delay          ;
 	if (+jsrr.pre_actions   ) os <<','  << jsrr.pre_actions            ;
@@ -1265,16 +1261,15 @@ void JobEndRpcReq::chk(bool for_cache) const {
 
 bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>&/*out*/ actions
-	,	::map_ss             &/*out*/ cmd_env
-	,	::vmap_ss            &/*out*/ dyn_env
-	,	pid_t                &/*out*/ first_pid
-	,	::string             &/*out*/ top_repo_root_s
-	,	::string        const&        phy_lmake_root_s
+	,	::map_ss             &/*.  */ cmd_env
+	,	::vmap_ss            &/*.  */ dyn_env
+	,	pid_t                &/*.  */ first_pid
+	,	::string             &/*.  */ repo_root_s
 	,	::string        const&        phy_repo_root_s
 	,	::string        const&        phy_tmp_dir_s
 	,	SeqId                         seq_id
 ) {
-	Trace trace("JobStartRpcReply::enter",phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
+	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
 	//
 	for( auto& [k,v] : env )
 		if      (v!=PassMrkr)                                                         cmd_env[k] = ::move(v ) ;
@@ -1283,22 +1278,21 @@ bool/*entered*/ JobStartRpcReply::enter(
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
 	if (+phy_tmp_dir_s) {
-		_tmp_dir_s = autodep_env.tmp_dir_s ;                                             // for use in exit (autodep.tmp_dir_s may be moved)
+		_tmp_dir_s = autodep_env.tmp_dir_s ;                                                                      // for use in exit (autodep.tmp_dir_s may be moved)
 		try                       { mk_dir_empty_s( phy_tmp_dir_s , {.abs_ok=true} ) ; }
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
 	} else {
 		if (+job_space.tmp_view_s) throw cat("cannot map tmp dir ",job_space.tmp_view_s," to nowhere") ;
 	}
 	//
-	::string phy_work_dir_s = cat(PrivateAdminDirS,"work/",small_id,'/')                                                                                                                ;
 	bool entered = job_space.enter(
 		/*out*/actions
-	,	/*out*/top_repo_root_s
-	,	       phy_lmake_root_s
+	,	/*.  */repo_root_s
+	,	       lmake_root_s
 	,	       phy_repo_root_s
-	,	       phy_tmp_dir_s          , keep_tmp
+	,	       phy_tmp_dir_s                              , keep_tmp
 	,	       autodep_env.sub_repo_s
-	,	       phy_work_dir_s
+	,	       cat(PrivateAdminDirS,"work/",small_id,'/')                          // work_dir_s
 	,	       autodep_env.src_dirs_s
 	) ;
 	if (entered) {
@@ -1310,12 +1304,12 @@ bool/*entered*/ JobStartRpcReply::enter(
 		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
 		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
 		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-		static constexpr uint32_t FirstPid = 300                                 ;       // apparently, pid's wrap around back to 300
-		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;       // number of available pid's
-		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;       // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
-		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;         // DeltaPid on 64 bits to avoid rare overflow in multiplication
+		static constexpr uint32_t FirstPid = 300                                 ; // apparently, pid's wrap around back to 300
+		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ; // number of available pid's
+		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ; // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;   // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
-	trace("done",actions,cmd_env,dyn_env,first_pid,top_repo_root_s) ;
+	trace("done",actions,cmd_env,dyn_env,first_pid,repo_root_s) ;
 	return entered ;
 }
 
@@ -1324,7 +1318,7 @@ void JobStartRpcReply::exit() {
 }
 
 void JobStartRpcReply::cache_cleanup() {
-	autodep_env.fast_report_pipe = {}      ; // .
+	autodep_env.fast_report_pipe = {}      ; // execution dependent
 	cache                        = nullptr ; // no recursive info
 	cache_idx                    = {}      ; // .
 	key                          = {}      ; // .
@@ -1336,14 +1330,14 @@ void JobStartRpcReply::cache_cleanup() {
 void JobStartRpcReply::chk(bool for_cache) const {
 	autodep_env.chk(for_cache) ;
 	job_space  .chk(         ) ;
-	/**/                                      throw_unless( method<All<AutodepMethod>      , "bad autoded_method" ) ;
-	/**/                                      throw_unless( network_delay>=Delay()         , "bad networkd_delay" ) ;
-	for( auto const& [f,_] : pre_actions    ) throw_unless( is_canon(f)                    , "bad file_action"    ) ;
-	for( auto const& [t,_] : static_matches ) throw_unless( is_canon(t)                    , "bad target"         ) ;
-	//                                                                     ext_ok empty_ok
-	/**/                                      throw_unless( is_canon(stdin ,true ,true   ) , "bad stdin"          ) ;
-	/**/                                      throw_unless( is_canon(stdout,false,true   ) , "bad stdout"         ) ;
-	/**/                                      throw_unless( timeout>=Delay()               , "bad timeout"        ) ;
+	if (+lmake_root_s)                        throw_unless( lmake_root_s.front()=='/' && lmake_root_s.back()=='/' , "bad lmake_root"     ) ;
+	/**/                                      throw_unless( method<All<AutodepMethod>                             , "bad autoded_method" ) ;
+	/**/                                      throw_unless( network_delay>=Delay()                                , "bad networkd_delay" ) ;
+	for( auto const& [f,_] : pre_actions    ) throw_unless( is_canon(f)                                           , "bad file_action"    ) ;
+	for( auto const& [t,_] : static_matches ) throw_unless( is_canon(t)                                           , "bad target"         ) ;
+	/**/                                      throw_unless( is_canon(stdin ,true /*ext_ok*/,true/*empty_ok*/)     , "bad stdin"          ) ;
+	/**/                                      throw_unless( is_canon(stdout,false/*.     */,true/*.       */)     , "bad stdout"         ) ;
+	/**/                                      throw_unless( timeout>=Delay()                                      , "bad timeout"        ) ;
 	if (for_cache) {
 		throw_unless( !cache             , "bad cache"       ) ;
 		throw_unless( !cache_idx         , "bad cache_idx"   ) ;
