@@ -717,36 +717,36 @@ namespace Engine {
 		}
 		//
 		// first simple static attrs
-		{	if ( user_prio!=0                                      ) entries.emplace_back( "prio"                , cat        (user_prio                                         ) ) ;
-			/**/                                                     entries.emplace_back( "job_name"            ,             job_name_                                           ) ;
-			if (+sub_repo_s                                        ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                        ) ) ;
+		{	if ( user_prio!=0                                       ) entries.emplace_back( "prio"                , cat        (user_prio                                         ) ) ;
+			/**/                                                      entries.emplace_back( "job_name"            ,             job_name_                                           ) ;
+			if (+sub_repo_s                                         ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                        ) ) ;
 		}
 		if (is_plain()) {
-			if ( start_cmd_attrs      .spec.auto_mkdir             ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs       .spec.auto_mkdir             ) ) ;
-			/**/                                                     entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs     .spec.method                 ) ) ;
-			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs    .spec.backend                ) ) ;
-			if (+submit_ancillary_attrs .spec.cache                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache                  ) ;
-			if (+start_cmd_attrs      .spec.job_space.chroot_dir_s ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs       .spec.job_space.chroot_dir_s ) ) ;
-			if (+start_ancillary_attrs.spec.zlvl                   ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;
-			if ( force                                             ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
-			if (+interpreter                                       ) entries.emplace_back( "interpreter"         ,             interpreter                                          ) ;
-			if ( start_ancillary_attrs.spec.keep_tmp               ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs .spec.keep_tmp               ) ) ;
-			if (+start_ancillary_attrs.spec.kill_sigs              ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                            ) ;
-			if (+start_rsrcs_attrs    .spec.lmake_root_s           ) entries.emplace_back( "lmake_root"          , no_slash   (start_rsrcs_attrs     .spec.lmake_root_s           ) ) ;
-			if (+start_cmd_attrs      .spec.job_space.lmake_view_s ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs       .spec.job_space.lmake_view_s ) ) ;
-			if ( n_losts                                           ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                            ) ) ;
-			if ( start_ancillary_attrs.spec.max_stderr_len         ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs .spec.max_stderr_len         ) ) ;
-			if ( n_runs                                            ) entries.emplace_back( "max_runs"            , ::to_string(n_runs                                             ) ) ;
-			if ( n_submits                                         ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                          ) ) ;
-			if (+start_cmd_attrs      .spec.os_info                ) entries.emplace_back( "os_info"             ,             start_cmd_attrs       .spec.os_info                  ) ;
-			if (+start_cmd_attrs      .spec.os_info_file           ) entries.emplace_back( "os_info_file"        ,             start_cmd_attrs       .spec.os_info_file             ) ;
-			if ( start_cmd_attrs      .spec.readdir_ok             ) entries.emplace_back( "readdir_ok"          , cat        (start_cmd_attrs       .spec.readdir_ok             ) ) ;
-			if (+start_cmd_attrs      .spec.job_space.repo_view_s  ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs       .spec.job_space.repo_view_s  ) ) ;
-			if (+start_ancillary_attrs.spec.start_delay            ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs .spec.start_delay.short_str()  ) ;
-			if ( start_cmd_attrs      .spec.stderr_ok              ) entries.emplace_back( "stderr_ok"           , cat        (start_cmd_attrs       .spec.stderr_ok              ) ) ;
-			if (+start_rsrcs_attrs    .spec.timeout                ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs     .spec.timeout.short_str()      ) ;
-			if (+start_cmd_attrs      .spec.job_space.tmp_view_s   ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs       .spec.job_space.tmp_view_s   ) ) ;
-			if ( start_rsrcs_attrs    .spec.use_script             ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs     .spec.use_script             ) ) ;
+			if ( start_cmd_attrs      .spec.auto_mkdir              ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs       .spec.auto_mkdir             ) ) ;
+			/**/                                                      entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs     .spec.method                 ) ) ;
+			if ( submit_rsrcs_attrs.spec.backend!=BackendTag::Local ) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs    .spec.backend                ) ) ;
+			if (+submit_ancillary_attrs .spec.cache                 ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache                  ) ;
+			if (+start_rsrcs_attrs      .spec.chroot_dir_s          ) entries.emplace_back( "chroot_dir"          , no_slash   (start_rsrcs_attrs     .spec.chroot_dir_s           ) ) ;
+			if (+start_ancillary_attrs  .spec.zlvl                  ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;
+			if ( force                                              ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
+			if (+interpreter                                        ) entries.emplace_back( "interpreter"         ,             interpreter                                          ) ;
+			if ( start_ancillary_attrs  .spec.keep_tmp              ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs .spec.keep_tmp               ) ) ;
+			if (+start_ancillary_attrs  .spec.kill_sigs             ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                            ) ;
+			if (+start_rsrcs_attrs      .spec.lmake_root_s          ) entries.emplace_back( "lmake_root"          , no_slash   (start_rsrcs_attrs     .spec.lmake_root_s           ) ) ;
+			if (+start_cmd_attrs        .spec.job_space.lmake_view_s) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs       .spec.job_space.lmake_view_s ) ) ;
+			if ( n_losts                                            ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                            ) ) ;
+			if ( start_ancillary_attrs  .spec.max_stderr_len        ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs .spec.max_stderr_len         ) ) ;
+			if ( n_runs                                             ) entries.emplace_back( "max_runs"            , ::to_string(n_runs                                             ) ) ;
+			if ( n_submits                                          ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                          ) ) ;
+			if (+start_cmd_attrs        .spec.os_info               ) entries.emplace_back( "os_info"             ,             start_cmd_attrs       .spec.os_info                  ) ;
+			if (+start_cmd_attrs        .spec.os_info_file          ) entries.emplace_back( "os_info_file"        ,             start_cmd_attrs       .spec.os_info_file             ) ;
+			if ( start_cmd_attrs        .spec.readdir_ok            ) entries.emplace_back( "readdir_ok"          , cat        (start_cmd_attrs       .spec.readdir_ok             ) ) ;
+			if (+start_cmd_attrs        .spec.job_space.repo_view_s ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs       .spec.job_space.repo_view_s  ) ) ;
+			if (+start_ancillary_attrs  .spec.start_delay           ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs .spec.start_delay.short_str()  ) ;
+			if ( start_cmd_attrs        .spec.stderr_ok             ) entries.emplace_back( "stderr_ok"           , cat        (start_cmd_attrs       .spec.stderr_ok              ) ) ;
+			if (+start_rsrcs_attrs      .spec.timeout               ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs     .spec.timeout.short_str()      ) ;
+			if (+start_cmd_attrs        .spec.job_space.tmp_view_s  ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs       .spec.job_space.tmp_view_s   ) ) ;
+			if ( start_rsrcs_attrs      .spec.use_script            ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs     .spec.use_script             ) ) ;
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		// checksums

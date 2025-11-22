@@ -80,6 +80,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- use small ids through a manually handled association small id <-> computed crc
 	- provide versions for cache, repo, and job exec
 	- check job exec versions when using a different lmake for job exec
+* unify classes Gather and JobStartRpcReply
+* share most fields between StartCmdAttrs and JobSpace
 * check files are conformant to config.link_support
 	- each time it is mostly free (objective of this config is improved perf)
 * forbid accesses to files :
@@ -202,6 +204,9 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* when cache matches (and does not hit)
+	- return deps corresponding to most recently used
+	- instead of intersection of all matching (which may generate lack of //)
 * dont upload to cache if a dep never matches
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps

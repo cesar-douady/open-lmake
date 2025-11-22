@@ -36,16 +36,16 @@ SockFd::Service           g_service_end   ;
 JobStartRpcReply          g_start_info    ;
 
 JobStartRpcReply get_start_info() {
-	g_server_fd = { 0/*backlog*/ } ; // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
+	g_server_fd = { 0/*backlog*/ } ;                                       // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	Bool3            found_server = No                    ;                     // for trace only
+	Bool3            found_server = No                    ;                // for trace only
 	SockFd::Service  service      = g_server_fd.service() ;
 	JobStartRpcReply res          ;
 	Trace trace("get_start_info",g_service_start,service) ;
 	try {
 		ClientSockFd fd { g_service_start } ;
-		g_service_mngt.addr = g_service_end.addr = fd.addr(true/*peer*/) ;      // server address is only passed to g_service_start
-		fd.set_timeout(Delay(100)) ;                                            // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections @ 10 jobs/s
+		g_service_mngt.addr = g_service_end.addr = fd.addr(true/*peer*/) ; // server address is only passed to g_service_start
+		fd.set_timeout(Delay(100)) ;                                       // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections @ 10 jobs/s
 		throw_unless(+fd) ; //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		found_server = Maybe ; /**/  OMsgBuf( JobStartRpcReq({g_seq_id,g_job},service) ).send                     ( fd                          ) ;
 		found_server = Yes   ; res = IMsgBuf(                                          ).receive<JobStartRpcReply>( fd , No/*once*/ , {}/*key*/ ) ; // read without limit as there is a single message
@@ -318,46 +318,46 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 
 int main( int argc , char* argv[] ) {
 	Pdate    start_overhead  { New }        ;
-	uint64_t upload_key      = 0            ; // key used to identify temporary data uploaded to the cache
+	uint64_t upload_key      = 0            ;                              // key used to identify temporary data uploaded to the cache
 	::string phy_repo_root_s ;
 	SeqId    trace_id        = 0/*garbage*/ ;
 	//
-	swear_prod(argc==8,argc) ;                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	swear_prod(argc==8,argc) ;                                             // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
 	try { g_service_start = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
 	/**/  g_service_mngt  = {                   argv[2]}                 ;
 	/**/  g_service_end   = {                   argv[3]}                 ;
 	/**/  g_seq_id        = from_string<SeqId >(argv[4])                 ;
 	/**/  g_job           = from_string<JobIdx>(argv[5])                 ;
-	/**/  phy_repo_root_s =                     argv[6]                  ;                                                        // passed early so we can chdir and trace early
+	/**/  phy_repo_root_s =                     argv[6]                  ; // passed early so we can chdir and trace early
 	/**/  trace_id        = from_string<SeqId >(argv[7])                 ;
 	//
-	g_repo_root_s = new ::string{phy_repo_root_s} ;                                                                               // no need to search for it
+	g_repo_root_s = new ::string{phy_repo_root_s} ;                        // no need to search for it
 	//
 	g_trace_file = new ::string{cat(phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyErr } ;                                                                          // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                       ;                                                                          // prepare to return an error, so we can goto End anytime
+	end_report.digest   = { .status=Status::EarlyErr } ;                   // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                       ;                   // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead               ;
 	g_exec_trace        = &end_report.exec_trace       ;
 	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
-	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                                                    // START_OF_NO_COV defensive programming
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                           // if !g_start_info, server ask us to give up
+	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                                                // START_OF_NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                       // if !g_start_info, server ask us to give up
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(phy_repo_root_s) ;
 		goto End ;
-	}                                                                                                                             // END_OF_NO_COV
-	Trace::s_sz = 10<<20 ;                                                                                                        // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                                                       // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                                          // dont cd, but check we are in a repo
+	}                                                                                                                         // END_OF_NO_COV
+	Trace::s_sz = 10<<20 ;                                                                                                    // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                                   // necessary to capture it using signalfd
+	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                                      // dont cd, but check we are in a repo
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                           // if !g_start_info, server ask us to give up
-		try                       { g_start_info.job_space.mk_canon(phy_repo_root_s) ; }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;        }                                          // NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                       // if !g_start_info, server ask us to give up
+		try                       { g_start_info.mk_canon(phy_repo_root_s) ;    }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                                             // NO_COV defensive programming
 		//
 		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
 		//
@@ -367,19 +367,19 @@ int main( int argc , char* argv[] ) {
 		//
 		try {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
-		} catch (::string const& e) {                                                                                             // START_OF_NO_COV defensive programming
+		} catch (::string const& e) {                                                                                         // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
-		}                                                                                                                         // END_OF_NO_COV
+		}                                                                                                                     // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                                                    // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                                                                // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {

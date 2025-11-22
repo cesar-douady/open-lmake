@@ -525,7 +525,6 @@ class Handle :
 		else                    : interpreter = 'shell'
 		self._init()
 		self._handle_val('auto_mkdir'                        )
-		self._handle_val('chroot_dir'                        )
 		self._handle_val('env'        ,rep_key='environ'     )
 		self._handle_val('interpreter',rep_key=interpreter   )
 		self._handle_val('ignore_stat'                       )
@@ -543,6 +542,7 @@ class Handle :
 	def handle_start_rsrcs(self) :
 		self._init()
 		self._handle_val('autodep'                               )
+		self._handle_val('chroot_dir'                            )
 		self._handle_val('env'       ,rep_key='environ_resources')
 		self._handle_val('lmake_root'                            )
 		self._handle_val('timeout'                               )

@@ -51,7 +51,7 @@ using namespace Time ;
 
 namespace Caches {
 
-	static DirCache::Sz _entry_sz( ::string const& entry_s , ::string const& sz_data_file , size_t info_sz ) {
+	static DirCache::Sz _entry_sz( ::string const& entry_s , FileRef sz_data_file , size_t info_sz ) {
 		SWEAR( entry_s.back()=='/' , entry_s ) ;
 		return
 			FileInfo(sz_data_file).sz
@@ -60,14 +60,14 @@ namespace Caches {
 		;
 	}
 
-	void DirCache::chk(ssize_t delta_sz) const {                               // START_OF_NO_COV debug only
-		AcFd     head_fd          { _lru_file(HeadS) , {.err_ok=true} } ;
-		Lru      head             ;                                       if (+head_fd) deserialize(head_fd.read(),head) ;
+	void DirCache::chk(ssize_t delta_sz) const {                                    // START_OF_NO_COV debug only
+		AcFd     head_fd          { {root_fd,_lru_file(HeadS)} , {.err_ok=true} } ;
+		Lru      head             ;                                                 if (+head_fd) deserialize(head_fd.read(),head) ;
 		::uset_s seen             ;
 		::string expected_newer_s = HeadS                               ;
 		Sz       total_sz         = 0                                   ;
 		for( ::string entry_s=head.older_s ; entry_s!=HeadS ;) {
-			auto here = deserialize<Lru>(AcFd(_lru_file(entry_s)).read()) ;
+			auto here = deserialize<Lru>(AcFd({root_fd,_lru_file(entry_s)}).read()) ;
 			//
 			bool inserted = seen.insert(entry_s).second ;
 			SWEAR( inserted                       , entry_s ) ;
@@ -78,7 +78,7 @@ namespace Caches {
 		}
 		SWEAR( head.newer_s==expected_newer_s  , HeadS                     ) ;
 		SWEAR( head.sz     ==total_sz+delta_sz , head.sz,total_sz,delta_sz ) ;
-	}                                                                          // END_OF_NO_COV
+	}                                                                               // END_OF_NO_COV
 
 	#ifdef DIR_CACHE_LIGHT                                                                 // avoid loading python, in exchange no config is necessary (used for job_exec)
 		void DirCache::config( ::vmap_ss const& /*dct*/ , bool /*may_init*/ ) { FAIL() ; }
@@ -99,56 +99,54 @@ namespace Caches {
 			} ;
 			acquire_dct( dct , 0/*pass*/ ) ; throw_unless( +dir_s , "dir must be specified for dir_cache") ;
 			_compile() ;
-			::string  config_file = admin_dir_s+"config.py" ;      ;
-			AcFd      config_fd   { config_file , {.err_ok=true} } ;
+			::string  config_file = ADMIN_DIR_S "config.py"                  ;
+			AcFd      config_fd   { {root_fd,config_file} , {.err_ok=true} } ;
 			if (+config_fd) { Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
 			/**/                        acquire_dct( dct                       , 2/*.   */ ) ;
 			//
 			if (!max_sz) {                                                                                                 // XXX> : remove when compatibility with v25.07 is no more required
-				::string sz_file = admin_dir_s+"size" ;
+				::string sz_file = ADMIN_DIR_S "size" ;
 				if (FileInfo(sz_file).exists()) {
-					Fd::Stderr.write(cat(sz_file," is deprecated, use size=<value> entry in ",config_file,'\n')) ;
-					try                       { max_sz = from_string_with_unit(strip(AcFd(sz_file).read())) ; }
-					catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;                   }
+					Fd::Stderr.write(cat(sz_file," is deprecated, use size=<value> entry in ",dir_s,config_file,'\n')) ;
+					try                       { max_sz = from_string_with_unit(strip(AcFd({root_fd,sz_file}).read())) ; }
+					catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;                             }
 				}
 			}
 			throw_unless( max_sz , "size must be specified for dir_cache ",no_slash(dir_s)," as size=<value> in ",config_file ) ;
 			//
-			try                     { chk_version( may_init , admin_dir_s , perm_ext) ;         }
+			try                     { chk_version( may_init , dir_s+AdminDirS , perm_ext) ;     }
 			catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
 			//
 		}
 	#endif
 
 	DirCache::Sz DirCache::_reserved_sz( uint64_t upload_key , NfsGuardLock& lock ) const {
-		AcFd fd { _reserved_file(upload_key,"sz_data") , {.nfs_guard=&lock} } ;
+		AcFd fd { {root_fd,_reserved_file(upload_key)} , {.nfs_guard=&lock} } ;
 		return decode_int<Sz>(fd.read(sizeof(Sz)).data()) ;
 	}
 
-	template<class T> T _full_deserialize( size_t&/*out*/ sz , ::string const& file ) {
-		::string      data = AcFd(file).read()             ;
-		::string_view view { data }                        ;
-		T             res  = deserialize<T>(/*inout*/view) ;
-		throw_unless( !view , "superfluous data" ) ;
-		sz = data.size() ;
-		return res ;
-	}
 	void DirCache::_qualify_entry( RepairEntry&/*inout*/ entry , ::string const& entry_s ) const {
 		try {
 			if (entry.tags!=~RepairTags()) throw "incomplete"s ;
 			//
-			::string df_s     = dir_s + entry_s                                               ;
-			AcFd     info_fd  { df_s+"info" }                                                 ;
-			IMsgBuf  info_buf ;
-			auto     deps     = info_buf.receive<MDD    >( info_fd , No/*once*/ , {}/*key*/ ) ;                                              // deps are stored in front to ease matching
-			auto     job_info = info_buf.receive<JobInfo>( info_fd , No/*once*/ , {}/*key*/ ) ;
-			Sz       info_sz  = ::lseek(info_fd,0,SEEK_CUR)                                   ;
-			Sz       entry_sz = _entry_sz( entry_s , df_s+"sz_data" , info_sz )               ;
+			AcFd    info_fd  { {root_fd,entry_s+"info"} }                                    ;
+			IMsgBuf info_buf ;
+			auto    deps     = info_buf.receive<MDD    >( info_fd , No/*once*/ , {}/*key*/ ) ;                                               // deps are stored in front to ease matching
+			auto    job_info = info_buf.receive<JobInfo>( info_fd , No/*once*/ , {}/*key*/ ) ;
+			Sz      info_sz  = ::lseek(info_fd,0,SEEK_CUR)                                   ;
+			Sz      entry_sz = _entry_sz( entry_s , {root_fd,entry_s+"sz_data"} , info_sz )  ;
 			//
 			throw_unless( FileInfo(info_fd).sz==info_sz , "inconsistent job_info" ) ;
 			//
-			try                     { entry.old_lru = _full_deserialize<Lru>( ::ref(size_t()) , df_s+"lru" ) ; }                             // lru file size is already estimated
-			catch (::string const&) { entry.old_lru = {}                                                     ; }                             // avoid partial info
+			try {
+				::string      data = AcFd({root_fd,entry_s+"lru"}).read() ;
+				::string_view view { data }                               ;
+				deserialize( /*inout*/view , entry.old_lru ) ;
+				throw_unless( !view , "superfluous data" ) ;
+			}
+			catch (::string const&) {
+				entry.old_lru = {} ;                                                                                                         // avoid partial info
+			}
 			//
 			// check coherence
 			//
@@ -156,7 +154,7 @@ namespace Caches {
 			// XXX : check coherence between rule_crc_cmd,stems and f
 			job_info.chk(true/*for_cache*/) ;
 			Sz   expected_z_sz = job_info.end.total_z_sz ? job_info.end.total_z_sz : job_info.end.total_sz ;                                 // if not compressed, compressed size is not reported
-			AcFd data_fd       { df_s+"sz_data" }                                                          ; data_fd.read(sizeof(Sz)) ;      // skip initial max_z_sz
+			AcFd data_fd       { {root_fd,entry_s+"sz_data"} }                                             ; data_fd.read(sizeof(Sz)) ;      // skip initial max_z_sz
 			Hdr  hdr           = IMsgBuf().receive<Hdr>( data_fd , Yes/*once*/ , {}/*key*/ )               ;
 			Sz   actual_z_sz   = FileInfo(data_fd).sz - ::lseek(data_fd,0,SEEK_CUR)                        ;                                 // lseek is used to tell current offset
 			throw_unless( hdr.target_szs.size()==job_info.end.digest.targets.size() , "inconsistent number of targets" ) ;
@@ -190,7 +188,7 @@ namespace Caches {
 			}
 		} ;
 		//
-		for( auto const& [af,t] : walk(dir_s) ) {
+		for( auto const& [af,t] : walk(File(root_fd,".")) ) {
 			if (!af) continue ;
 			::string f = af.substr(1) ;                                                                                                      // suppress leading /
 			switch (t) {
@@ -217,7 +215,7 @@ namespace Caches {
 				break ;
 				case FileTag::Lnk :
 					if ( Re::Match m=hint_re.match(f) ; +m )
-						if ( ::string k=read_lnk(dir_s+f) ; +key_re.match(k)) {
+						if ( ::string k=read_lnk({root_fd,f}) ; +key_re.match(k)) {
 							hints.try_emplace(f,dir_name_s(f)+k+'/') ;
 							continue ;
 						}
@@ -243,18 +241,16 @@ namespace Caches {
 		//
 		SWEAR_PROD(+dir_s) ;                                                                                                                 // avoid unlinking random files
 		for( ::string const& f : to_unlnk ) {
-			::string df = dir_s+f ;
-			Fd::Stdout.write(cat("rm ",df,'\n')) ;
-			if (!dry_run) unlnk( df , {.abs_ok=true} ) ;
+			Fd::Stdout.write(cat("rm ",f,'\n')) ;
+			if (!dry_run) unlnk( {root_fd,f} ) ;
 		}
 		//
 		::vector_s to_rmdir ;
 		for( auto const& [d_s,k] : dirs_s ) { if (!k) to_rmdir.push_back(d_s) ; }
 		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;                                            // sort to ensure subdirs are rmdir'ed before their parent
 		for( ::string const& d_s : to_rmdir ) {
-			::string dd = no_slash(dir_s+d_s) ;
-			Fd::Stdout.write(cat("rmdir ",dd,'\n')) ;
-			if (!dry_run) ::rmdir(dd.c_str()) ;
+			Fd::Stdout.write(cat("rmdir ",no_slash(d_s),'\n')) ;
+			if (!dry_run) ::unlinkat( root_fd , d_s.c_str() , AT_REMOVEDIR ) ;
 		}
 		//
 		::vmap_s<RepairEntry> to_mk_lru ;
@@ -278,13 +274,13 @@ namespace Caches {
 			total_sz += new_lru.sz ;
 			if (new_lru!=old_lru) {
 				Fd::Stdout.write(cat("rebuild lru (",widen(to_short_string_with_unit(new_lru.sz),w),"B, last accessed ",new_lru.last_access.str(),") to ",lru_file,'\n')) ;
-				if (!dry_run) AcFd( lru_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write( serialize(new_lru) ) ;
+				if (!dry_run) AcFd( {root_fd,lru_file} , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write( serialize(new_lru) ) ;
 			}
 		}
 		::string head_lru_file = _lru_file(HeadS) ;
 		Lru      old_head_lru  ;
-		try                     { old_head_lru = deserialize<Lru>(AcFd(head_lru_file).read()) ; }
-		catch (::string const&) { old_head_lru = {} ;                                           }                                            // ensure no partial info
+		try                     { old_head_lru = deserialize<Lru>(AcFd({root_fd,head_lru_file}).read()) ; }
+		catch (::string const&) { old_head_lru = {} ;                                                     }                                  // ensure no partial info
 		Lru new_head_lru {
 			.newer_s = +to_mk_lru ? to_mk_lru.back ().first : HeadS
 		,	.older_s = +to_mk_lru ? to_mk_lru.front().first : HeadS
@@ -292,7 +288,7 @@ namespace Caches {
 		} ;
 		if (new_head_lru!=old_head_lru) {
 			Fd::Stdout.write(cat("rebuild head lru (total ",to_short_string_with_unit(new_head_lru.sz),"B) to ",head_lru_file,'\n')) ;
-			if (!dry_run) AcFd(head_lru_file,{.flags=O_WRONLY|O_TRUNC}).write(serialize(new_head_lru)) ;
+			if (!dry_run) AcFd({root_fd,head_lru_file},{.flags=O_WRONLY|O_TRUNC}).write(serialize(new_head_lru)) ;
 		}
 		//
 		SWEAR_PROD( lock_file.ends_with("/lock") ) ;
@@ -306,26 +302,26 @@ namespace Caches {
 			throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz) ;
 		}
 		//
-		::string   head_file   = _lru_file(HeadS)                              ;
-		AcFd       head_fd     { head_file , {.err_ok=true,.nfs_guard=&lock} } ;
-		Lru        head        ;                                                 if (+head_fd) deserialize(head_fd.read(),head) ;
-		Sz         old_head_sz = head.sz                                       ;                                                  // for trace only
-		::vector_s to_unlnk    ;                                                                                                  // delay unlink actions until all exceptions are cleared
+		::string   head_file   = _lru_file(HeadS)                                        ;
+		AcFd       head_fd     { {root_fd,head_file} , {.err_ok=true,.nfs_guard=&lock} } ;
+		Lru        head        ;                                                           if (+head_fd) deserialize(head_fd.read(),head) ;
+		Sz         old_head_sz = head.sz                                                 ;                                                  // for trace only
+		::vector_s to_unlnk    ;                                                                                                            // delay unlink actions until all exceptions are cleared
 		//
-		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                                               // total size contains old_sz
+		SWEAR( head.sz>=old_sz , head.sz,old_sz ) ;                                                // total size contains old_sz
 		head.sz -= old_sz ;
 		while (head.sz+new_sz>max_sz) {
-			lock.keep_alive() ;                                                                                                   // locks have limited liveness and must be refreshed regularly
+			lock.keep_alive() ;                                                                    // locks have limited liveness and must be refreshed regularly
 			if (head.newer_s==HeadS) {
 				trace("too_large2",head.sz) ;
 				throw cat("cannot store entry of size ",new_sz," in cache of size ",max_sz," with ",head.sz," bytes already reserved") ;
 			}
-			auto here = deserialize<Lru>(AcFd(_lru_file(head.newer_s),{.nfs_guard=&lock}).read()) ;
+			auto here = deserialize<Lru>(AcFd({root_fd,_lru_file(head.newer_s)},{.nfs_guard=&lock}).read()) ;
 			//
 			trace("evict",head.sz,here.sz,head.newer_s) ;
 			if (+to_unlnk) SWEAR( here.older_s==to_unlnk.back() , here.older_s,to_unlnk.back() ) ;
 			else           SWEAR( here.older_s==HeadS           , here.older_s,HeadS           ) ;
-			/**/           SWEAR( head.sz     >=here.sz         , head.sz     ,here.sz         ) ;                                // total size contains this entry
+			/**/           SWEAR( head.sz     >=here.sz         , head.sz     ,here.sz         ) ; // total size contains this entry
 			//
 			to_unlnk.push_back(::move(head.newer_s)) ;
 			head.sz      -=        here.sz       ;
@@ -336,40 +332,40 @@ namespace Caches {
 		//
 		if (+to_unlnk) {
 			for( ::string const& e : to_unlnk ) {
-				lock.keep_alive() ;                                                                                               // locks have limited liveness and must be refreshed regularly
-				unlnk( dir_s+e , {.dir_ok=true,.abs_ok=true,.nfs_guard=&lock} ) ;
+				lock.keep_alive() ;                                                                // locks have limited liveness and must be refreshed regularly
+				unlnk( {root_fd,e} , {.dir_ok=true,.nfs_guard=&lock} ) ;
 			}
 			if (head.newer_s==HeadS) {
 				head.older_s = HeadS ;
 			} else {
-				::string last_file = _lru_file(head.newer_s)                                     ;
-				auto     last      = deserialize<Lru>(AcFd(last_file,{.nfs_guard=&lock}).read()) ;
+				::string last_file = _lru_file(head.newer_s)                                               ;
+				auto     last      = deserialize<Lru>(AcFd({root_fd,last_file},{.nfs_guard=&lock}).read()) ;
 				last.older_s = HeadS ;
-				AcFd(last_file,{.flags=O_WRONLY|O_TRUNC}).write(serialize(last)) ;
+				AcFd({root_fd,last_file},{.flags=O_WRONLY|O_TRUNC}).write(serialize(last)) ;
 			}
 		}
-		AcFd( head_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&lock} ).write( serialize(head) ) ;
+		AcFd( {root_fd,head_file} , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&lock} ).write( serialize(head) ) ;
 		trace("total_sz",old_head_sz,"->",head.sz) ;
 	}
 
 	DirCache::Sz DirCache::_lru_remove( ::string const& entry_s , NfsGuardLock& lock ) {
 		SWEAR(entry_s!=HeadS) ;
 		//
-		AcFd here_fd { _lru_file(entry_s) , {.err_ok=true,.nfs_guard=&lock} } ; if (!here_fd) return 0 ; // nothing to remove
-		auto here    = deserialize<Lru>(here_fd.read())                       ;
+		AcFd here_fd { {root_fd,_lru_file(entry_s)} , {.err_ok=true,.nfs_guard=&lock} } ; if (!here_fd) return 0 ; // nothing to remove
+		auto here    = deserialize<Lru>(here_fd.read())                                 ;
 		if (here.newer_s==here.older_s) {
-			AcFd newer_older_fd { _lru_file(here.newer_s) , {.flags=O_RDWR,.nfs_guard=&lock} } ;
-			auto newer_older    = deserialize<Lru>(newer_older_fd.read())                      ;
+			AcFd newer_older_fd { {root_fd,_lru_file(here.newer_s)} , {.flags=O_RDWR,.nfs_guard=&lock} } ;
+			auto newer_older    = deserialize<Lru>(newer_older_fd.read())                                ;
 			//
 			newer_older.older_s = here.older_s ;
 			newer_older.newer_s = here.newer_s ;
 			//
 			::lseek(newer_older_fd,0,SEEK_SET) ; newer_older_fd.write(serialize(newer_older)) ;
 		} else {
-			AcFd newer_fd { _lru_file(here.newer_s) , {.flags=O_RDWR,.nfs_guard=&lock} } ;
-			AcFd older_fd { _lru_file(here.older_s) , {.flags=O_RDWR,.nfs_guard=&lock} } ;
-			auto newer    = deserialize<Lru>(newer_fd.read())                            ;
-			auto older    = deserialize<Lru>(older_fd.read())                            ;
+			AcFd newer_fd { {root_fd,_lru_file(here.newer_s)} , {.flags=O_RDWR,.nfs_guard=&lock} } ;
+			AcFd older_fd { {root_fd,_lru_file(here.older_s)} , {.flags=O_RDWR,.nfs_guard=&lock} } ;
+			auto newer    = deserialize<Lru>(newer_fd.read())                                      ;
+			auto older    = deserialize<Lru>(older_fd.read())                                      ;
 			//
 			newer.older_s = here.older_s ;
 			older.newer_s = here.newer_s ;
@@ -383,16 +379,16 @@ namespace Caches {
 	void DirCache::_lru_mk_newest( ::string const& entry_s , Sz sz , NfsGuardLock& lock ) {
 		SWEAR(entry_s!=HeadS) ;
 		//
-		AcFd head_fd { _lru_file(HeadS  ) , {.flags=O_RDWR                                               ,.nfs_guard=&lock} } ;
-		AcFd here_fd { _lru_file(entry_s) , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&lock} } ;
-		auto head    = deserialize<Lru>(head_fd.read())                                                                       ;
-		Lru  here    { .older_s=head.older_s , .sz=sz , .last_access=New }                                                    ;
+		AcFd head_fd { {root_fd,_lru_file(HeadS  )} , {.flags=O_RDWR                                               ,.nfs_guard=&lock} } ;
+		AcFd here_fd { {root_fd,_lru_file(entry_s)} , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&lock} } ;
+		auto head    = deserialize<Lru>(head_fd.read())                                                                                 ;
+		Lru  here    { .older_s=head.older_s , .sz=sz , .last_access=New }                                                              ;
 		if (head.older_s==HeadS) {
 			head.older_s = entry_s ;
 			head.newer_s = entry_s ;
 		} else {
-			AcFd newest_fd { _lru_file(head.older_s) , {.flags=O_RDWR,.nfs_guard=&lock} } ;
-			auto newest    = deserialize<Lru>(newest_fd.read())                           ;
+			AcFd newest_fd { {root_fd,_lru_file(head.older_s)} , {.flags=O_RDWR,.nfs_guard=&lock} } ;
+			auto newest    = deserialize<Lru>(newest_fd.read())                                     ;
 			head  .older_s = entry_s ;
 			newest.newer_s = entry_s ;
 			::lseek(newest_fd,0,SEEK_SET) ; newest_fd.write(serialize(newest)) ;
@@ -403,7 +399,7 @@ namespace Caches {
 
 	void DirCache::_dismiss( uint64_t upload_key , Sz sz , NfsGuardLock& lock ) {
 		_mk_room( sz , 0 , lock ) ;
-		unlnk( _reserved_file(upload_key,"sz_data") , {.abs_ok=true,.nfs_guard=&lock} ) ;
+		unlnk( {root_fd,_reserved_file(upload_key)} , {.nfs_guard=&lock} ) ;
 	}
 
 	static ::string _mk_crc(DirCache::MDD const& deps) {
@@ -419,8 +415,7 @@ namespace Caches {
 	::pair_s/*key*/<DirCache::DownloadDigest> DirCache::_sub_match( ::string const& job , MDD const& repo_deps , bool for_commit , NfsGuardLock& lock ) const {
 		Trace trace(CacheChnl,"DirCache::_sub_match",job) ;
 		//
-		::string abs_jn_s  = dir_s+job+'/'                                                            ;
-		AcFd     dfd       { abs_jn_s , {.flags=O_RDONLY|O_DIRECTORY,.err_ok=true,.nfs_guard=&lock} } ; if (!dfd) return { {}/*key*/ , {.hit_info=CacheHitInfo::NoRule} } ;
+		AcFd     dfd   { {root_fd,job} , {.flags=O_RDONLY|O_DIRECTORY,.err_ok=true,.nfs_guard=&lock} } ; if (!dfd) return { {}/*key*/ , {.hit_info=CacheHitInfo::NoRule} } ;
 		//
 		::vector_s/*lazy*/                      repos         ;
 		::string                                matching_key  ;
@@ -448,14 +443,14 @@ namespace Caches {
 					if (!key.starts_with("key-")) continue ;                                            // not an entry
 					if (key==hint_key           ) continue ;                                            // already processed
 			}
-			bool     in_order   = true                 ;                                                // first try in order match, then revert to name based match
-			size_t   idx        = 0                    ;                                                // index in repo_deps used when in order, maintain count when not in order
-			bool     hit        = true                 ;
-			size_t   dvg        = 0                    ;                                                // first index in cache_deps not found in repo_deps/repo_dep_map
-			::string deps_file  = abs_jn_s+key+"/info" ;
+			bool     in_order   = true                     ;                                            // first try in order match, then revert to name based match
+			size_t   idx        = 0                        ;                                            // index in repo_deps used when in order, maintain count when not in order
+			bool     hit        = true                     ;
+			size_t   dvg        = 0                        ;                                            // first index in cache_deps not found in repo_deps/repo_dep_map
+			::string deps_file  = cat(job,'/',key,"/info") ;
 			IMsgBuf  cache_buf  ;
 			//
-			AcFd fd         ; try { fd         = AcFd(deps_file,{.nfs_guard=&lock})                 ; } catch (::string const& e) { trace("no_deps" ,deps_file,e) ; continue ; }
+			AcFd fd         ; try { fd         = AcFd({root_fd,deps_file},{.nfs_guard=&lock})       ; } catch (::string const& e) { trace("no_deps" ,deps_file,e) ; continue ; }
 			MDD  cache_deps ; try { cache_deps = cache_buf.receive<MDD>(fd,Maybe/*once*/,{}/*key*/) ; } catch (::string const& e) { trace("bad_deps",deps_file,e) ; continue ; }
 			//
 			miss = CacheHitInfo::BadDeps ;
@@ -549,24 +544,24 @@ namespace Caches {
 			::string job_key_s = cat(job,'/',key,'/')            ;
 			Sz       sz        = _lru_remove( job_key_s , lock ) ; throw_if( !sz , "no entry ",job_key_s ) ; trace("step1") ;
 			_lru_mk_newest( job_key_s , sz , lock ) ;                                                        trace("step2") ;
-			res.second = AcFd(cat(dir_s,job_key_s,"sz_data"),{.nfs_guard=&lock}) ; ::lseek( res.second , sizeof(Sz) , SEEK_SET ) ;
+			res.second = AcFd({root_fd,cat(job_key_s,"sz_data")},{.nfs_guard=&lock}) ; ::lseek( res.second , sizeof(Sz) , SEEK_SET ) ;
 			trace("done") ;
 		}
 		return res ;
 	}
 
-	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz reserve_sz) {
-		Trace trace(CacheChnl,"DirCache::sub_upload",reserve_sz) ;
+	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz reserved_sz) {
+		Trace trace(CacheChnl,"DirCache::sub_upload",reserved_sz) ;
 		//
 		{	NfsGuardLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ; trace("locked") ;      // lock for minimal time
-			_mk_room( 0 , reserve_sz , lock ) ;
+			_mk_room( 0 , reserved_sz , lock ) ;
 		}
 		uint64_t upload_key = ::max( random<uint64_t>() , uint64_t(1) ) ;                              // reserve 0 for no upload_key
 		::pair<uint64_t/*upload_key*/,AcFd> res {
 			upload_key
-		,	AcFd( _reserved_file(upload_key,"sz_data") , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ) // will be moved to permanent storage
+		,	AcFd( {root_fd,_reserved_file(upload_key)} , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ) // will be moved to permanent storage
 		} ;
-		::string sz_str ( sizeof(Sz) ,0 ) ; encode_int<Sz>(sz_str.data(),reserve_sz) ;
+		::string sz_str ( sizeof(Sz) ,0 ) ; encode_int<Sz>(sz_str.data(),reserved_sz) ;
 		res.second.write(sz_str) ;
 		trace("done",res) ;
 		return res ;
@@ -578,17 +573,15 @@ namespace Caches {
 		::string deps_str     = serialize(job_info.end.digest.deps) ;
 		::string job_info_str = serialize(job_info                ) ;
 		// END_OF_VERSIONING
-		::string       jn_s          = job+'/'                                                      ;
-		::string       abs_jn_s      = dir_s + jn_s                                                 ;
-		::string       abs_deps_hint = cat(abs_jn_s,"deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                   // deps_hint is hint only, hence no versioning
-		NfsGuardLock   lock          { file_sync , lock_file , {.perm_ext=perm_ext} }               ; trace("locked") ; // lock as late as possible
-		::string       key           ;
-		DownloadDigest digest        ;
-		Sz             old_sz        = _reserved_sz(upload_key,lock)                                ;
+		::string       deps_hint = cat(job,"/deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                   // deps_hint is hint only, hence no versioning
+		NfsGuardLock   lock      { file_sync , lock_file , {.perm_ext=perm_ext} }           ; trace("locked") ; // lock as late as possible
+		::string       key       ;
+		DownloadDigest digest    ;
+		Sz             old_sz    = _reserved_sz(upload_key,lock)                            ;
 		//
 		::tie(key,digest) = _sub_match( job , job_info.end.digest.deps , true/*for_commit*/ , lock ) ;
 		//
-		if (digest.hit_info==CacheHitInfo::Hit) {                                                                       // dont populate if a matching entry appeared while the job was running
+		if (digest.hit_info==CacheHitInfo::Hit) {                                                               // dont populate if a matching entry appeared while the job was running
 			trace("hit",key) ;
 			::umap_s<::pair<Crc/*cache*/,Crc/*repo*/>> diff_targets ;
 			for( auto const& [key,td] : job_info       .end.digest.targets )                    diff_targets.try_emplace( key , Crc::None,td.crc    ) ;
@@ -610,24 +603,23 @@ namespace Caches {
 				else if (cache_repo.second==Crc::None) msg << widen(only_in_cache    ,w)<<" : "<<key<<'\n' ;
 				else                                   msg << widen(different_content,w)<<" : "<<key<<'\n' ;
 			}
-			_dismiss( upload_key , old_sz , lock ) ;                                                                    // finally, we did not populate
+			_dismiss( upload_key , old_sz , lock ) ;                                                            // finally, we did not populate
 			trace("throw_if",w,msg) ;
 			throw_if( w , msg ) ;
 		} else {
-			key = cat( "key-" , key_crc.hex() ) ; key += FileInfo(cat(abs_jn_s,key,"-first/lru")).exists() ? "-last" : "-first" ;
+			key = cat( "key-" , key_crc.hex() ) ; key += FileInfo({root_fd,cat(job,'/',key,"-first/lru")}).exists() ? "-last" : "-first" ;
 			trace("key",key) ;
 			//
-			::string jnid_s     = cat(jn_s,key,'/') ;
-			::string abs_jnid_s = dir_s + jnid_s    ;
-			mk_dir_s( abs_jnid_s , {.perm_ext=perm_ext,.nfs_guard=&lock} ) ;
+			::string jnid_s = cat(job,'/',key,'/') ;
+			mk_dir_s( {root_fd,jnid_s} , {.perm_ext=perm_ext,.nfs_guard=&lock} ) ;
 			//
 			OMsgBuf info_buf ;
-			info_buf.add(job_info.end.digest.deps) ; job_info.end.digest.deps = {} ;                                    // deps are stored upfront to ease matching
+			info_buf.add(job_info.end.digest.deps) ; job_info.end.digest.deps = {} ;                            // deps are stored upfront to ease matching
 			info_buf.add(job_info                ) ;
-			AcFd dfd       { abs_jnid_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&lock} }                                  ;
-			Sz   new_sz    = _entry_sz( jnid_s , lock.access(_reserved_file(upload_key,"sz_data")).file , info_buf.size() ) ;
-			bool made_room = false                                                                                          ;
-			bool unlnked   = false                                                                                          ;
+			AcFd dfd       { {root_fd,jnid_s} , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=&lock} }                       ;
+			Sz   new_sz    = _entry_sz( jnid_s , lock.access({root_fd,_reserved_file(upload_key)}) , info_buf.size() ) ;
+			bool made_room = false                                                                                     ;
+			bool unlnked   = false                                                                                     ;
 			try {
 				trace("upload",key,new_sz) ;
 				old_sz += _lru_remove( jnid_s , lock ) ;
@@ -636,20 +628,20 @@ namespace Caches {
 				// store meta-data and data
 				// START_OF_VERSIONING
 				info_buf.send( AcFd(File(dfd,"info"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&lock}) , {}/*key*/ ) ;
-				rename( _reserved_file(upload_key,"sz_data")/*src*/ , File(dfd,"sz_data")/*dst*/ , {.nfs_guard=&lock} ) ;
+				rename( {root_fd,_reserved_file(upload_key)}/*src*/ , File(dfd,"sz_data")/*dst*/ , {.nfs_guard=&lock} ) ;
 				// END_OF_VERSIONING
 				_lru_mk_newest( jnid_s , new_sz , lock ) ;
 				//
 			} catch (::string const& e) {
 				trace("failed",e) ;
-				if (!unlnked) unlnk_inside_s(dfd) ;                                                                     // clean up in case of partial execution
-				_dismiss( upload_key , made_room?new_sz:old_sz , lock ) ;                                               // finally, we did not populate the entry
+				if (!unlnked) unlnk_inside_s(dfd) ;                                                             // clean up in case of partial execution
+				_dismiss( upload_key , made_room?new_sz:old_sz , lock ) ;                                       // finally, we did not populate the entry
 				trace("throw") ;
 				throw ;
 			}
 		}
-		unlnk  ( abs_deps_hint , {.abs_ok=true,.nfs_guard=&lock} ) ;
-		sym_lnk( abs_deps_hint , key )                             ; // set a symlink from a name derived from deps to improve match speed in case of hit (hint only so target may be updated)
+		unlnk  ( {root_fd,deps_hint} , {.abs_ok=true,.nfs_guard=&lock} ) ;
+		sym_lnk( {root_fd,deps_hint} , key )                             ; // set a symlink from a name derived from deps to improve match speed in case of hit (hint only so target may be updated)
 		trace("done") ;
 	}
 

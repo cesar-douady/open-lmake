@@ -57,8 +57,8 @@ namespace Caches {
 		void chk(ssize_t delta_sz=0) const ;
 	private :
 		void                            _qualify_entry( RepairEntry&/*inout*/ , ::string const& entry_s                      ) const ;
-		::string                        _lru_file     (                         ::string const& entry_s                      ) const { return cat(dir_s,entry_s,"lru"                      ) ; }
-		::string                        _reserved_file( uint64_t upload_key   , ::string const& sfx                          ) const { return cat(reserved_dir_s,to_hex(upload_key),'.',sfx) ; }
+		::string                        _lru_file     (                         ::string const& entry_s                      ) const { return cat(entry_s,"lru"                               ) ; }
+		::string                        _reserved_file( uint64_t upload_key                                                  ) const { return cat(reserved_dir_s,to_hex(upload_key),".sz_data") ; }
 		Sz                              _reserved_sz  ( uint64_t upload_key                                  , NfsGuardLock& ) const ;
 		Sz                              _lru_remove   (                         ::string const& entry_s      , NfsGuardLock& )       ;
 		void                            _lru_mk_newest(                         ::string const& entry_s , Sz , NfsGuardLock& )       ;
@@ -75,9 +75,9 @@ namespace Caches {
 			if (IsIStream<S>) _compile() ;
 		}
 		void _compile() {
-			admin_dir_s    = dir_s       + AdminDirS   ;
-			reserved_dir_s = admin_dir_s + "reserved/" ;
-			lock_file      = admin_dir_s + "lock"      ;
+			root_fd        = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
+			reserved_dir_s = ADMIN_DIR_S "reserved/"                       ;
+			lock_file      = ADMIN_DIR_S "lock"                            ;
 		}
 		// data
 	public :
@@ -87,7 +87,7 @@ namespace Caches {
 		FileSync  file_sync = FileSync::Dflt  ;
 		PermExt   perm_ext  = {}              ;
 		// derived
-		::string  admin_dir_s    ;
+		AcFd      root_fd        ;
 		::string  reserved_dir_s ;
 		::string  lock_file      ;
 	} ;

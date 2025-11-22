@@ -117,7 +117,7 @@ Sent Record::_do_send_report(pid_t pid) {
 	SWEAR(+_buf) ;
 	s_mutex.swear_locked() ;
 	//
-	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF && s_autodep_env().can_fast_report() ;             // several processes share fast report, so only small messages can be sent
+	bool fast = _is_slow!=Yes && _buf.size()<=PIPE_BUF && s_autodep_env().can_fast_report() ; // several processes share fast report, so only small messages can be sent
 	Fd   fd   = report_fd(fast,pid)                                                         ;
 	if (+fd)
 		try                       { _buf.send( fd , _s_report_key[fast] ) ;                                                       }
@@ -391,6 +391,7 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	src { r , ::move(src_) , true  , true     , exchange , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true  , exchange , true     , c , CommentExt::Write }
 {	if (src.real==dst.real) return ;                                                                            // posix says in this case, it is nop
+	SWEAR( +src.real && +dst.real , src,dst ) ;                                                                 // should be absolute to denote repo root
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written

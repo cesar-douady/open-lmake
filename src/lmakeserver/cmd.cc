@@ -81,6 +81,7 @@ namespace Engine {
 		}
 		//
 		for( ::string const& target_dir : ecr.dirs() ) {
+			SWEAR( +target_dir ) ;                                            // ecr.dirs provides . for repo root
 			is_repo_root = target_dir=="." ;
 			//
 			for( auto& [target,tag] : walk( target_dir , TargetTags|FileTag::Dir , target_dir , prune ) ) {
@@ -418,7 +419,7 @@ namespace Engine {
 		//
 		/**/                         res <<  "\tautodep_method = " << mk_py_str(snake   (jsrr.method           )) << '\n' ;
 		if (ade.auto_mkdir         ) res << ",\tauto_mkdir     = " << mk_py_str(         ade.auto_mkdir         ) << '\n' ;
-		if (+job_space.chroot_dir_s) res << ",\tchroot_dir     = " << mk_py_str(no_slash(job_space.chroot_dir_s)) << '\n' ;
+		if (+jsrr.chroot_dir_s     ) res << ",\tchroot_dir     = " << mk_py_str(no_slash(jsrr.chroot_dir_s     )) << '\n' ;
 		/**/                         res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s             )) << '\n' ;
 		/**/                         res << ",\tis_python      = " << mk_py_str(         job->rule()->is_python ) << '\n' ;
 		/**/                         res << ",\tkey            = " << mk_py_str(         key                    ) << '\n' ;
@@ -750,7 +751,7 @@ namespace Engine {
 			case ReqKey::Stdout :
 			case ReqKey::Trace  : {
 				if ( +rule && !rule->is_plain() ) {
-					switch (ro.key) {                // START_OF_NO_COV defensive programming : special jobs are not built and do not reach here
+					switch (ro.key) {               // START_OF_NO_COV defensive programming : special jobs are not built and do not reach here
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
 							MsgStderr msg_stderr = job->special_msg_stderr() ;
@@ -772,7 +773,7 @@ namespace Engine {
 							if (porcelaine) audit( fd , ro ,              "None"                         , true , lvl+1 ) ;
 							else            audit( fd , ro , Color::Err , cat("no ",ro.key," available") , true , lvl+1 ) ;
 						break ;
-					DF}                              // END_OF_NO_COV
+					DF}                             // END_OF_NO_COV
 				} else {
 					//
 					if (pre_start.job) SWEAR( pre_start.job==+job , pre_start.job,+job ) ;
@@ -825,7 +826,7 @@ namespace Engine {
 							} else if ( +end || (+start&&verbose) ) {
 								if ( +start && verbose ) audit( fd , ro , Color::Note , pre_start.msg         , false ,      lvl       ) ;
 								if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg_stderr.msg    , false ,      lvl       ) ;
-								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , bool(lvl),'\t' ) ;      // ensure internal alignment of stderr is maintained
+								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , bool(lvl),'\t' ) ; // ensure internal alignment of stderr is maintained
 							} else {
 								audit( fd , ro , Color::Note , "no info available" , true , lvl ) ;
 							}
@@ -909,7 +910,7 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if (+start.job_space.chroot_dir_s) push_entry( "chroot_dir" , no_slash(start.job_space.chroot_dir_s) ) ;
+								if (+start.chroot_dir_s          ) push_entry( "chroot_dir" , no_slash(start.chroot_dir_s          ) ) ;
 								if (+start.lmake_root_s          ) push_entry( "lmake_root" , no_slash(start.lmake_root_s          ) ) ;
 								if (+start.job_space.lmake_view_s) push_entry( "lmake_view" , no_slash(start.job_space.lmake_view_s) ) ;
 								if (+start.job_space.repo_view_s ) push_entry( "repo_view"  , no_slash(start.job_space.repo_view_s ) ) ;
@@ -1098,7 +1099,7 @@ namespace Engine {
 								}
 							}
 						} break ;
-					DF}                                                                                                                 // NO_COV
+					DF}                                                                                                                                            // NO_COV
 				}
 			} break ;
 			case ReqKey::Bom     : ShowBom    (fd,ro,lvl).show_job(job) ; break ;
@@ -1120,15 +1121,15 @@ namespace Engine {
 					VarIdx          i              = 0                        ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[false/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep)                                                                                 // side deps cannot be targets
-								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                                    // in case of multiple matches, retain first
+							if (mk!=MatchKind::SideDep)                                                                           // side deps cannot be targets
+								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                              // in case of multiple matches, retain first
 							i++ ;
 						}
 					::vector<Pattern> star_patterns = m.star_patterns() ;
 					/**/              i             = 0                 ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[true/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ;       // side deps cannot be targets
+							if (mk!=MatchKind::SideDep) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ; // side deps cannot be targets
 							i++ ;
 						}
 				}

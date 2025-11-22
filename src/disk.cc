@@ -259,6 +259,7 @@ namespace Disk {
 		pfx .pop_back() ;
 	}
 	::vmap_s<FileTag> walk( FileRef path , FileTags file_tags , ::string const& pfx , ::function<bool(::string const&)> prune ) {
+		SWEAR(+path) ;
 		::vmap_s<FileTag> res ;
 		_walk( res , path.at , ::ref(::copy(path.file)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
 		return res ;

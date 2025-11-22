@@ -137,7 +137,7 @@ int main( int argc , char* argv[] ) {
 		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        jsrr.key                =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		if (cmd_line.flags[CmdFlag::ChrootDir    ]) job_space.chroot_dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_dir_s       = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
 		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.lmake_root_s       = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
 		else                                        jsrr.lmake_root_s       =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
@@ -162,6 +162,7 @@ int main( int argc , char* argv[] ) {
 		,	       with_slash(tmp_dir)
 		,	       0/*small_id*/
 		) ;
+		jsrr.mk_canon(*g_repo_root_s) ;
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//

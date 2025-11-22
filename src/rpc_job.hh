@@ -718,16 +718,15 @@ struct JobSpace {
 		}
 		// data
 		// START_OF_VERSIONING
-		::vector_s phys    = {} ;            // (upper,lower...)
-		::vector_s copy_up = {} ;            // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		::vector_s phys    = {} ;                                                              // (upper,lower...)
+		::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
-		bool is_dyn = false ;                // only used in rule attributes
+		bool is_dyn = false ;                                                                  // only used in rule attributes
 	} ;
 	// accesses
-	bool operator+() const { return +chroot_dir_s || +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; } // true if namespace needed
+	bool operator+() const { return +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; } // true if namespace needed
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , chroot_dir_s                        ) ;
 		::serdes( s , lmake_view_s,repo_view_s,tmp_view_s ) ;
 		::serdes( s , views                               ) ;
 	}
@@ -746,15 +745,16 @@ struct JobSpace {
 	,	::string   const&             phy_lmake_root_s
 	,	::string   const&             phy_repo_root_s
 	,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
+	,	::string   const&             chroot_dir_s
 	,	::string   const&             sub_repo_s
 	,	::string   const&             work_dir_s
 	,	::vector_s const&             src_dirs_s={}
 	) ;
 	void exit() ;
 	//
-	::vmap_s<::vector_s> flat_phys() const ; // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys() const ;                                                   // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
-	void mk_canon(::string const& phy_repo_root_s) ;
+	void mk_canon(::string const& phy_repo_root_s)       ;
 	void chk     (                               ) const ;
 private :
 	bool           _is_lcl_tmp( ::string const&                                                                       ) const ;
@@ -762,14 +762,13 @@ private :
 	// data
 public :
 	// START_OF_VERSIONING
-	::string            chroot_dir_s = {} ;  // absolute dir which job chroot's to before execution   (empty if unused)
-	::string            lmake_view_s = {} ;  // absolute dir under which job sees open-lmake root dir (empty if unused)
-	::string            repo_view_s  = {} ;  // absolute dir under which job sees repo root dir       (empty if unused)
-	::string            tmp_view_s   = {} ;  // absolute dir under which job sees tmp dir             (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;  // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
+	::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
+	::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
+	::vmap_s<ViewDescr> views        = {} ;                                                    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                    // to be unlinked upon exit
+	::string _tmp_dir_s ;                                                                      // to be unlinked upon exit
 } ;
 
 struct JobRpcReq {
@@ -814,6 +813,7 @@ struct JobStartRpcReply {                                                       
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , autodep_env                    ) ;
 		::serdes( s , cache_idx                      ) ;
+		::serdes( s , chroot_dir_s                   ) ;
 		::serdes( s , cmd                            ) ;
 		::serdes( s , ddate_prec                     ) ;
 		::serdes( s , deps                           ) ;
@@ -842,14 +842,15 @@ struct JobStartRpcReply {                                                       
 		CacheTag tag ;
 		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
 		else              { tag = cache ? cache->tag() : CacheTag::None ; ::serdes(s,tag)  ;                                               }
-		if (+tag          )                                               cache->serdes(s) ;
+		if (+tag        )                                                 cache->serdes(s) ;
 	}
-	bool/*entered*/ enter(
+	void            mk_canon(::string const& phy_repo_root_s) ;
+	bool/*entered*/ enter   (
 		::vmap_s<MountAction>&/*out*/
-	,	::map_ss             &/*out*/ cmd_env
-	,	::vmap_ss            &/*out*/ dyn_env
-	,	pid_t                &/*out*/ first_pid
-	,	::string             &/*out*/ repo_dir_s
+	,	::map_ss             &/*.  */ cmd_env
+	,	::vmap_ss            &/*.  */ dyn_env
+	,	pid_t                &/*.  */ first_pid
+	,	::string             &/*.  */ repo_dir_s
 	,	::string        const&        phy_repo_root_s
 	,	::string        const&        phy_tmp_dir_s
 	,	SeqId
@@ -862,6 +863,7 @@ struct JobStartRpcReply {                                                       
 	AutodepEnv                              autodep_env    ;
 	Caches::Cache*                          cache          = nullptr             ;
 	CacheIdx                                cache_idx      = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	::string                                chroot_dir_s   ;                       // absolute dir which job chroot's to before execution (empty if unused)
 	::string                                cmd            ;
 	Time::Delay                             ddate_prec     ;
 	::vmap_s<::pair<DepDigest,ExtraDflags>> deps           ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them

@@ -768,7 +768,6 @@ namespace Caches {
 ::string& operator+=( ::string& os , JobSpace const& js ) {            // START_OF_NO_COV
 	First first ;
 	/**/                  os <<"JobSpace("                           ;
-	if (+js.chroot_dir_s) os <<first("",",")<<"c:"<< js.chroot_dir_s ;
 	if (+js.lmake_view_s) os <<first("",",")<<"L:"<< js.lmake_view_s ;
 	if (+js.repo_view_s ) os <<first("",",")<<"R:"<< js.repo_view_s  ;
 	if (+js.tmp_view_s  ) os <<first("",",")<<"T:"<< js.tmp_view_s   ;
@@ -847,7 +846,6 @@ bool/*dst_ok*/ JobSpace::_create( ::vmap_s<MountAction>&/*inout*/ deps , ::strin
 }
 
 void JobSpace::chk() const {
-	if (+chroot_dir_s) throw_unless( chroot_dir_s.front()=='/' && chroot_dir_s.back()=='/'                          , "bad chroot_dir" ) ;
 	if (+lmake_view_s) throw_unless( lmake_view_s.front()=='/' && lmake_view_s.back()=='/'                          , "bad lmake_view" ) ;
 	if (+repo_view_s ) throw_unless( repo_view_s .front()=='/' && repo_view_s .back()=='/' && is_canon(repo_view_s) , "bad repo_view"  ) ;
 	if (+tmp_view_s  ) throw_unless( tmp_view_s  .front()=='/' && tmp_view_s  .back()=='/' && is_canon(tmp_view_s ) , "bad tmp_view"   ) ;
@@ -922,6 +920,7 @@ bool JobSpace::enter(
 ,	::string   const&             phy_lmake_root_s
 ,	::string   const&             phy_repo_root_s
 ,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
+,	::string   const&             chroot_dir_s
 ,	::string   const&             sub_repo_s
 ,	::string   const&             work_dir_s
 ,	::vector_s const&             src_dirs_s
@@ -929,7 +928,7 @@ bool JobSpace::enter(
 	Trace trace("JobSpace::enter",self,phy_repo_root_s,phy_tmp_dir_s,work_dir_s,sub_repo_s,src_dirs_s) ;
 	//
 	repo_root_s = repo_view_s | phy_repo_root_s ;
-	if (!self) {
+	if ( !self && !chroot_dir_s ) {
 		if (+sub_repo_s) _chdir(sub_repo_s) ;
 		trace("not_done",repo_root_s) ;
 		return false/*entered*/ ;
@@ -1092,21 +1091,21 @@ void JobSpace::exit() {
 	return res ;
 }
 
+void _mk_canon( ::string&/*inout*/ dir_s , const char* key , bool root_ok , bool contains_repo_ok , ::string const& phy_repo_root_s ) {
+	bool is_root = dir_s=="/" ;
+	if ( !dir_s || (root_ok&&is_root)                                      ) return ;
+	if ( !is_canon(dir_s)                                                  ) dir_s = Disk::mk_canon(dir_s) ;
+	if ( is_root                                                           ) throw cat(key," cannot be /"                                          ) ;
+	if ( !is_abs_s(dir_s)                                                  ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
+	if ( !contains_repo_ok && phy_repo_root_s.starts_with(dir_s          ) ) throw cat("repository cannot lie within ",key,' ',no_slash(dir_s)     ) ;
+	if (                      dir_s          .starts_with(phy_repo_root_s) ) throw cat(key,' ',no_slash(dir_s)," cannot be local to the repository") ;
+}
+
 void JobSpace::mk_canon(::string const& phy_repo_root_s) {
-	auto do_top = [&]( ::string& dir_s , bool slash_ok , ::string const& key ) {
-		if ( !dir_s                                       ) return ;
-		if ( !is_canon(dir_s)                             ) dir_s = Disk::mk_canon(dir_s) ;
-		if ( slash_ok && dir_s=="/"                       ) return ;
-		if (             dir_s=="/"                       ) throw cat(key," cannot be /"                                          ) ;
-		if ( !is_abs_s(dir_s)                             ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
-		if ( phy_repo_root_s.starts_with(dir_s          ) ) throw cat("repository cannot lie within ",key,' ',no_slash(dir_s)     ) ;
-		if ( dir_s          .starts_with(phy_repo_root_s) ) throw cat(key,' ',no_slash(dir_s)," cannot be local to the repository") ;
-	} ;
-	//                   slash_ok
-	do_top( chroot_dir_s , true  , "chroot dir" ) ;
-	do_top( lmake_view_s , false , "lmake view" ) ;
-	do_top( repo_view_s  , false , "repo view"  ) ;
-	do_top( tmp_view_s   , false , "tmp view"   ) ;
+	//                                      root_ok contains_repo_ok
+	_mk_canon( lmake_view_s , "lmake view" , false , true          , phy_repo_root_s ) ;
+	_mk_canon( repo_view_s  , "repo view"  , false , true          , phy_repo_root_s ) ;
+	_mk_canon( tmp_view_s   , "tmp view"   , false , false         , phy_repo_root_s ) ;                                           // deps would not be reported if recognized as tmp
 	if ( +lmake_view_s && +repo_view_s ) {
 		if (lmake_view_s.starts_with(repo_view_s )) throw cat("lmake view ",no_slash(lmake_view_s)," cannot lie within repo view " ,no_slash(repo_view_s )) ;
  		if (repo_view_s .starts_with(lmake_view_s)) throw cat("repo view " ,no_slash(repo_view_s )," cannot lie within lmake view ",no_slash(lmake_view_s)) ;
@@ -1259,6 +1258,12 @@ void JobEndRpcReq::chk(bool for_cache) const {
 	return                    os <<')'                                 ;
 }                                                                        // END_OF_NO_COV
 
+void JobStartRpcReply::mk_canon(::string const& phy_repo_root_s) {
+	_mk_canon( chroot_dir_s , "chroot_dir" , true /*root_ok*/ , true/*contains_repo_ok*/ , phy_repo_root_s ) ;
+	_mk_canon( lmake_root_s , "lmake_root" , false/*.      */ , true/*.               */ , phy_repo_root_s ) ;
+	job_space.mk_canon(phy_repo_root_s) ;
+}
+
 bool/*entered*/ JobStartRpcReply::enter(
 		::vmap_s<MountAction>&/*out*/ actions
 	,	::map_ss             &/*.  */ cmd_env
@@ -1291,6 +1296,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	       lmake_root_s
 	,	       phy_repo_root_s
 	,	       phy_tmp_dir_s                              , keep_tmp
+	,	       chroot_dir_s
 	,	       autodep_env.sub_repo_s
 	,	       cat(PrivateAdminDirS,"work/",small_id,'/')                          // work_dir_s
 	,	       autodep_env.src_dirs_s
