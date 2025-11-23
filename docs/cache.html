@@ -172,30 +172,39 @@ May be overridden by `Lmakefile.lmake.config.caches.<this cache>.perm if defined
 It can be an <code>int</code> (in bytes) or a <code>str</code> in which case value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
 May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if defined.</li>
 </ul>
-<p>For example <code>LMAKE/config</code> can contain <code>per='group' ; size=1.5T'</code>.</p>
+<p>For example <code>LMAKE/config.py</code> can contain <code>perm='group' ; size=1.5T'</code>.</p>
 <h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
 <p>For all users accessing the cache:</p>
 <ul>
-<li>The root dir of the cache and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
-<li>The <code>LMAKE/size</code> must have read access.</li>
+<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
+<li>The <code>LMAKE/config.py</code> must have read access.</li>
 </ul>
 <p>If the group to use for access permission is not the default group of the users:</p>
 <ul>
-<li>the root of the cache must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
+<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
 <li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
 <li>the operation above may have to be done recursively if the cache dir is already populated</li>
 </ul>
 <p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
-<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>lmake.config.caches.&lt;tag&gt;.perm = 'group'</code> can be set. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
+<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
-<p>Similarly, to allow the cache to be used by any user:</p>
+<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
 <li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>lmake.config.caches.&lt;tag&gt;.perm = 'other'</code> can be set. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
-
+<h3 id="coherence"><a class="header" href="#coherence">Coherence</a></h3>
+<p>Some file systems, such as NFS, lack coherence.
+In that case, precautions must be taken to ensure coherence.</p>
+<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to :</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open/closed before any read and after any write</td></tr>
+<tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
+</tbody></table>
+</div>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">

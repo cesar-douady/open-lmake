@@ -76,8 +76,8 @@ Retry :
 			first = false ;                                                                                                              // ensure we retry at most once
 			goto Retry ;
 		}
-		if (!action.err_ok) throw cat("cannot open (",StrErr(),") : ",file) ;
-		else                return res                                      ;
+		throw_if( !action.err_ok , "cannot open (",StrErr(),") : ",file ) ;
+		return res ;
 	}
 	//
 	if ( creat && +action.perm_ext ) {
@@ -87,7 +87,7 @@ Retry :
 			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; break ;
 		DN}
 		//
-		FileStat st ; if (::fstat(res,&st)!=0) throw cat("cannot stat (",StrErr(),") to extend permissions : ",file) ;
+		FileStat st ; throw_unless( ::fstat(res,&st)==0 , "cannot stat (",StrErr(),") to extend permissions : ",file ) ;
 		//
 		mode_t usr_mod = (st.st_mode>>6)&07 ;
 		mode_t new_mod = st.st_mode         ;
@@ -95,9 +95,7 @@ Retry :
 			case PermExt::Other : new_mod |= usr_mod    ; [[fallthrough]] ;
 			case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
 		DN}
-		if (new_mod!=st.st_mode)
-			if (::fchmod(res,new_mod)!=0)
-				throw cat("cannot chmod (",StrErr(),") to extend permissions : ",file) ;
+		if (new_mod!=st.st_mode) throw_unless( ::fchmod(res,new_mod)==0 , "cannot chmod (",StrErr(),") to extend permissions : ",file ) ;
 	}
 PermOk :
 	return res ;

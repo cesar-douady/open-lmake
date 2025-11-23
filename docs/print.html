@@ -988,11 +988,11 @@ Because it is predefined with all default values, it is simpler to only define f
 A typical <code>Lmakefile.py</code> will then contain lines such as:</p>
 <pre><code class="language-python">lmake.config.path_max = 500 # default is 400
 </code></pre>
-<p><a href="../../lib/lmake/config_.py">lib/lmake/config_.py</a> can be used as a handy helper as it contains all the fields with a short comment.</p>
+<p><a href="lib/lmake/config_.html">lib/lmake/config_.py</a> can be used as a handy helper as it contains all the fields with a short comment.</p>
 <h2 id="the-sources"><a class="header" href="#the-sources">The sources</a></h2>
 <p>The sources are determined by setting the variable <code>lmake.manifest</code> and/or <code>lmake.extra_manifest</code>.
 Both are concatenated to make the actual list of sources.</p>
-<p>The helper functions defined in <a href="../../lib/lmake/sources.py">lib/lmake/sources.py</a> can be used to define these variables.
+<p>The helper functions defined in <a href="lib/lmake/sources.html">lib/lmake/sources.py</a> can be used to define these variables.
 By default :</p>
 <ul>
 <li>If <code>lmake.manifest</code> is not set or is empty, it is set to <code>lmake.sources.auto_sources()</code>.</li>
@@ -1017,6 +1017,7 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 <p>In both cases, names must be canonical, i.e. contain no empty component nor <code>.</code>, nor <code>..</code> except initially for relative names outside repo.</p>
 <h2 id="the-rules"><a class="header" href="#the-rules">The rules</a></h2>
 <p>Rules are described as python <code>class</code>'es inheriting from <code>lmake.Rule</code>, <code>lmake.AntiRule</code> or <code>lmake.SourceRule</code>.</p>
+<p><a href="lib/lmake/rules.html">lib/lmake/rules.py</a> can be used as a handy helper as it contains all the fields with a short comment.</p>
 <p>Such classes are either defined directly in <code>Lmakefile.py</code> or you can define a callable or a sub-module called <code>rules</code> that does the same thing when called/imported.
 For example you can define :</p>
 <pre><code class="language-python">def rules() :
@@ -1234,7 +1235,7 @@ Internally, the granularity is forced to MB.</p>
 <h3 id="caches--static"><a class="header" href="#caches--static"><code>caches</code> : Static</a></h3>
 <p>This attribute is a <code>pdict</code> with one entry for each cache.</p>
 <p>Caches are named with an arbitrary <code>str</code> and are referenced in rules using this name.</p>
-<p>By default, no cache is configured, but an example can be found in <a href="../../lib/lmake/config_.py">lib/lmake/config_.py</a>, commented out.</p>
+<p>By default, no cache is configured, but an example can be found in <a href="lib/lmake/config_.html#:~:text=caches">lib/lmake/config_.py</a>, commented out.</p>
 <h4 id="cachestag--static--"><a class="header" href="#cachestag--static--"><code>caches.*.tag</code> : Static (-)</a></h4>
 <p>This attribute specifies the method used by open-lmake to cache values.
 In the current version, only 2 tags may be used:</p>
@@ -2698,30 +2699,39 @@ May be overridden by `Lmakefile.lmake.config.caches.<this cache>.perm if defined
 It can be an <code>int</code> (in bytes) or a <code>str</code> in which case value may end with a unit suffix in <code>k</code>, <code>M</code>, <code>G</code>, <code>T</code> (powers of 1024).
 May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if defined.</li>
 </ul>
-<p>For example <code>LMAKE/config</code> can contain <code>per='group' ; size=1.5T'</code>.</p>
+<p>For example <code>LMAKE/config.py</code> can contain <code>perm='group' ; size=1.5T'</code>.</p>
 <h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
 <p>For all users accessing the cache:</p>
 <ul>
-<li>The root dir of the cache and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
-<li>The <code>LMAKE/size</code> must have read access.</li>
+<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
+<li>The <code>LMAKE/config.py</code> must have read access.</li>
 </ul>
 <p>If the group to use for access permission is not the default group of the users:</p>
 <ul>
-<li>the root of the cache must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
+<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
 <li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
 <li>the operation above may have to be done recursively if the cache dir is already populated</li>
 </ul>
 <p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
-<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>lmake.config.caches.&lt;tag&gt;.perm = 'group'</code> can be set. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
+<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
-<p>Similarly, to allow the cache to be used by any user:</p>
+<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
 <li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>lmake.config.caches.&lt;tag&gt;.perm = 'other'</code> can be set. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<h3 id="coherence"><a class="header" href="#coherence">Coherence</a></h3>
+<p>Some file systems, such as NFS, lack coherence.
+In that case, precautions must be taken to ensure coherence.</p>
+<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to :</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open/closed before any read and after any write</td></tr>
+<tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
@@ -2761,6 +2771,7 @@ Tools such as <code>git</code> are there to help you in this process, but your s
 <li>communication : ideally, you may want to signal a bug to a colleague by just telling him "build that target, and you see the bug".
 If the target refers to a code, he may need some further steps to create the code/value association, which goes against communication.</li>
 </ul>
+<h1 id="association-table-as-a-source"><a class="header" href="#association-table-as-a-source">association table as a source</a></h1>
 <p>One way to deal with this case is to create a central database, with the following pros and cons:</p>
 <ul>
 <li>robustness    : collisions can easily be dealt with.</li>
@@ -2802,6 +2813,7 @@ However, the file is sorted at every <code>lmake</code> command, making the cont
 In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
 If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.</li>
 </ul>
+<h1 id="association-table-as-a-shared-dir"><a class="header" href="#association-table-as-a-shared-dir">association table as a shared dir</a></h1>
 <p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.
 Such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
@@ -2809,7 +2821,38 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<h2 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h2>
+<p>For all users accessing the association table:</p>
+<ul>
+<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (read-only access is enough to only decode).</li>
+<li>The <code>LMAKE/config.py</code> must have read access.</li>
+</ul>
+<p>If the group to use for access permission is not the default group of the users:</p>
+<ul>
+<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
+<li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
+<li>the operation above may have to be done recursively if the root dir is already populated</li>
+</ul>
+<p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
+<ul>
+<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;root_dir&gt;</code></li>
+<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+</ul>
+<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
+<ul>
+<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
+<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+</ul>
+<h2 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h2>
+<p>Some file systems, such as NFS, lack coherence.
+In that case, precautions must be taken to ensure coherence.</p>
+<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to :</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open/closed before any read and after any write</td></tr>
+<tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->

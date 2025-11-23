@@ -192,6 +192,7 @@ Tools such as <code>git</code> are there to help you in this process, but your s
 <li>communication : ideally, you may want to signal a bug to a colleague by just telling him "build that target, and you see the bug".
 If the target refers to a code, he may need some further steps to create the code/value association, which goes against communication.</li>
 </ul>
+<h1 id="association-table-as-a-source"><a class="header" href="#association-table-as-a-source">association table as a source</a></h1>
 <p>One way to deal with this case is to create a central database, with the following pros and cons:</p>
 <ul>
 <li>robustness    : collisions can easily be dealt with.</li>
@@ -233,6 +234,7 @@ However, the file is sorted at every <code>lmake</code> command, making the cont
 In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
 If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.</li>
 </ul>
+<h1 id="association-table-as-a-shared-dir"><a class="header" href="#association-table-as-a-shared-dir">association table as a shared dir</a></h1>
 <p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.
 Such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
@@ -240,7 +242,38 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
-
+<h2 id="permissions"><a class="header" href="#permissions">Permissions</a></h2>
+<p>For all users accessing the association table:</p>
+<ul>
+<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (read-only access is enough to only decode).</li>
+<li>The <code>LMAKE/config.py</code> must have read access.</li>
+</ul>
+<p>If the group to use for access permission is not the default group of the users:</p>
+<ul>
+<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
+<li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
+<li>the operation above may have to be done recursively if the root dir is already populated</li>
+</ul>
+<p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
+<ul>
+<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;root_dir&gt;</code></li>
+<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+</ul>
+<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
+<ul>
+<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
+<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+</ul>
+<h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
+<p>Some file systems, such as NFS, lack coherence.
+In that case, precautions must be taken to ensure coherence.</p>
+<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to :</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open/closed before any read and after any write</td></tr>
+<tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
+</tbody></table>
+</div>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">

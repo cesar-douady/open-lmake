@@ -987,6 +987,7 @@ bool JobSpace::enter(
 	bool must_bind_lmake = +lmake_view_s || (+chroot_dir&&!lmake_in_chroot) ;
 	bool must_bind_repo  = +repo_view_s  ||  +chroot_dir                    ;
 	bool must_bind_tmp   = +tmp_view_s   ||  +chroot_dir                    ;
+	bool dev_sys_mapped  = false                                            ;
 	//
 	if ( must_creat_lmake || must_creat_repo || must_creat_tmp ) {
 		SWEAR(+work_dir_s) ;
@@ -1025,6 +1026,7 @@ bool JobSpace::enter(
 				}
 				_mount_bind(private_f,src_f) ;
 			}
+			dev_sys_mapped = true ;
 		}
 		if (must_creat_lmake) { trace("mkdir",lmake_root_s) ; mk_dir_s(root+lmake_root_s) ; }
 		if (must_creat_repo ) { trace("mkdir",repo_root_s ) ; mk_dir_s(root+repo_root_s ) ; }
@@ -1036,8 +1038,10 @@ bool JobSpace::enter(
 	if (must_bind_tmp  ) _mount_bind( chroot_dir+tmp_dir_s    ,                                             phy_tmp_dir_s    ) ;
 	//
 	if (+chroot_dir) {
-		_mount_bind( chroot_dir+"/dev" , "/dev" ) ;
-		_mount_bind( chroot_dir+"/sys" , "/sys" ) ;
+		if (!dev_sys_mapped) {
+			_mount_bind( chroot_dir+"/dev" , "/dev" ) ;
+			_mount_bind( chroot_dir+"/sys" , "/sys" ) ;
+		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		_chroot(with_slash(chroot_dir)) ;                                                                                         // chroot_dir_s may be obsolete because of overlay, so use chroot_dir
 	} //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

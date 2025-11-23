@@ -44,6 +44,8 @@ In doing so, you must account for:
 - communication : ideally, you may want to signal a bug to a colleague by just telling him "build that target, and you see the bug".
   If the target refers to a code, he may need some further steps to create the code/value association, which goes against communication.
 
+# association table as a source
+
 One way to deal with this case is to create a central database, with the following pros and cons:
 
 - robustness    : collisions can easily be dealt with.
@@ -86,9 +88,47 @@ This has the following properties:
   In case of collision and when open-lmake must suppress one of 2 codes, externally generated codes are given preference as they believed to be more readable.
   If 2 externally generated codes collide, a numerical suffix is appended or incremented to solve the collision.
 
+# association table as a shared dir
+
 Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.
 Such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
 
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
 - `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
+
+## Permissions
+
+For all users accessing the association table:
+
+- Its root dir and its `LMAKE` dir must have read/write access (read-only access is enough to only decode).
+- The `LMAKE/config.py` must have read access.
+
+If the group to use for access permission is not the default group of the users:
+
+- the root dir must have this group, e.g. with `chgrp -hR <group> <cache_dir>`.
+- its setgid bit must be set, e.g. with `chmod g+s <cache_dir> <cache_dir>/LMAKE` (this allows the group to propagate as sub-dirs are created)
+- the operation above may have to be done recursively if the root dir is already populated
+
+To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
+
+- Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <root_dir>`
+- Altenatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+
+Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
+
+- Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
+- Altenatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+
+## Coherence
+
+Some file systems, such as NFS, lack coherence.
+In that case, precautions must be taken to ensure coherence.
+
+This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to :
+
+| Value     | Recommanded for  | Default | Comment                                                                        |
+|-----------|------------------|---------|--------------------------------------------------------------------------------|
+| `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
+| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open/closed before any read and after any write |
+| `'sync'`  |                  |         | `fsync` is called after any modification                                       |

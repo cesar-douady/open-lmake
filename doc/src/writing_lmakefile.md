@@ -30,14 +30,14 @@ A typical `Lmakefile.py` will then contain lines such as:
 lmake.config.path_max = 500 # default is 400
 ```
 
-[lib/lmake/config_.py](../../lib/lmake/config_.py) can be used as a handy helper as it contains all the fields with a short comment.
+[lib/lmake/config_.py](lib/lmake/config_.html) can be used as a handy helper as it contains all the fields with a short comment.
 
 ## The sources
 
 The sources are determined by setting the variable `lmake.manifest` and/or `lmake.extra_manifest`.
 Both are concatenated to make the actual list of sources.
 
-The helper functions defined in [lib/lmake/sources.py](../../lib/lmake/sources.py) can be used to define these variables.
+The helper functions defined in [lib/lmake/sources.py](lib/lmake/sources.html) can be used to define these variables.
 By default :
 
 - If `lmake.manifest` is not set or is empty, it is set to `lmake.sources.auto_sources()`.
@@ -63,6 +63,8 @@ In both cases, names must be canonical, i.e. contain no empty component nor `.`,
 ## The rules
 
 Rules are described as python `class`'es inheriting from `lmake.Rule`, `lmake.AntiRule` or `lmake.SourceRule`.
+
+[lib/lmake/rules.py](lib/lmake/rules.html) can be used as a handy helper as it contains all the fields with a short comment.
 
 Such classes are either defined directly in `Lmakefile.py` or you can define a callable or a sub-module called `rules` that does the same thing when called/imported.
 For example you can define :

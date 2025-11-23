@@ -123,11 +123,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide an attribute to manage cases where repo is not seen in the same dir on remote hosts
-	- as a function that takes the executing host as argument
-* provide a wrapper to launch job_exec
-	- launch wrapper job_exec ... instead of job_exec
-	- wrapper is a vector_s, it could have arguments
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
@@ -136,6 +131,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? provide a list of forbidden src dirs
 	- like src dirs, but access generates fail
 	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
+? provide an attribute to manage cases where repo is not seen in the same dir on remote hosts
+	- as a function that takes the executing host as argument
+? provide a wrapper to launch job_exec
+	- launch wrapper job_exec ... instead of job_exec
+	- wrapper is a vector_s, it could have arguments
 ? make readdir_ok mandatory to mv a directory
 	- as there is an implicit dir listing underneath
 	- on the other hand, deps are recorded to all of them

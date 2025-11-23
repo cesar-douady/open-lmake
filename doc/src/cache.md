@@ -23,27 +23,40 @@ May be overridden by `Lmakefile.lmake.config.caches.<this cache>.perm if defined
 It can be an `int` (in bytes) or a `str` in which case value may end with a unit suffix in `k`, `M`, `G`, `T` (powers of 1024).
 May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if defined.
 
-For example `LMAKE/config` can contain `per='group' ; size=1.5T'`.
+For example `LMAKE/config.py` can contain `perm='group' ; size=1.5T'`.
 
 ### Permissions
 
 For all users accessing the cache:
 
-- The root dir of the cache and its `LMAKE` dir must have read/write access (including if only download is done to maintain the LRU state).
-- The `LMAKE/size` must have read access.
+- Its root dir and its `LMAKE` dir must have read/write access (including if only download is done to maintain the LRU state).
+- The `LMAKE/config.py` must have read access.
 
 If the group to use for access permission is not the default group of the users:
 
-- the root of the cache must have this group, e.g. with `chgrp -hR <group> <cache_dir>`.
+- the root dir must have this group, e.g. with `chgrp -hR <group> <cache_dir>`.
 - its setgid bit must be set, e.g. with `chmod g+s <cache_dir> <cache_dir>/LMAKE` (this allows the group to propagate as sub-dirs are created)
 - the operation above may have to be done recursively if the cache dir is already populated
 
 To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
 
-- Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-- Altenatively, `lmake.config.caches.<tag>.perm = 'group'` can be set. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
+- Altenatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
-Similarly, to allow the cache to be used by any user:
+Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
 
 - Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Altenatively, `lmake.config.caches.<tag>.perm = 'other'` can be set. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- Altenatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+
+### Coherence
+
+Some file systems, such as NFS, lack coherence.
+In that case, precautions must be taken to ensure coherence.
+
+This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to :
+
+| Value     | Recommanded for  | Default | Comment                                                                        |
+|-----------|------------------|---------|--------------------------------------------------------------------------------|
+| `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
+| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open/closed before any read and after any write |
+| `'sync'`  |                  |         | `fsync` is called after any modification                                       |

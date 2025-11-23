@@ -372,20 +372,21 @@ version.hh : version.hh.stamp ;
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
 # Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
-lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk
+lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk _bin/align_comments
 	@echo customize $< to $@
 	@mkdir -p $(@D)
-	@sed \
-		-e 's!\$$BASH!$(BASH)!'                          \
-		-e 's!\$$GIT!$(GIT)!'                            \
-		-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
-		-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
-		-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
-		-e 's!\$$PYTHON!$(PYTHON)!'                      \
-		-e 's!\$$STD_PATH!$(STD_PATH)!'                  \
-		-e 's!\$$TAG!$(TAG)!'                            \
-		-e 's!\$$VERSION!$(VERSION)!'                    \
-		$< >$@
+	@	sed \
+			-e 's!\$$BASH!$(BASH)!'                          \
+			-e 's!\$$GIT!$(GIT)!'                            \
+			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
+			-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
+			-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
+			-e 's!\$$PYTHON!$(PYTHON)!'                      \
+			-e 's!\$$STD_PATH!$(STD_PATH)!'                  \
+			-e 's!\$$TAG!$(TAG)!'                            \
+			-e 's!\$$VERSION!$(VERSION)!'                    \
+			$<                                               \
+	|	_bin/align_comments 4 200 '#' >$@
 # for other files, just copy
 lib/% : _lib/%
 	@mkdir -p $(@D)
@@ -721,12 +722,9 @@ _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) src/autod
 # Unit tests
 #
 
-UT_BASE := $(filter     unit_tests/base/%,$(SRCS))
-UT_SRCS := $(filter-out unit_tests/base/%,$(SRCS))
-
 UNIT_TESTS : \
-	$(patsubst %.py,%.dir/tok,     $(filter unit_tests/%.py,    $(UT_SRCS))) \
-	$(patsubst %.dir/run,%.dir/tok,$(filter examples/%.dir/run ,$(UT_SRCS)))
+	$(patsubst %.py,%.dir/tok,     $(filter unit_tests/%.py,    $(SRCS))) \
+	$(patsubst %.dir/run,%.dir/tok,$(filter examples/%.dir/run ,$(SRCS)))
 
 TEST_ENV = \
 	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
@@ -838,6 +836,8 @@ DOCKER : $(DOCKER_FILES)
 # doc
 #
 
+DOC_PY := lib/lmake/config_.py lib/lmake/sources.py lib/lmake/rules.py $(filter unit_tests/%.py,$(SRCS)) $(filter examples/%.dir/Lmakefile.py,$(SRCS))
+
 _bin/mdbook :
 	#wget -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-gnu.tar.gz  | tar -xz -C_bin # requires recent libraries >=ubuntu22.04
 	wget  -O- https://github.com/rust-lang/mdBook/releases/download/v0.4.44/mdbook-v0.4.44-x86_64-unknown-linux-musl.tar.gz | tar -xz -C_bin # static libc
@@ -845,22 +845,35 @@ _bin/mdbook :
 man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
 	@echo generate man to $@
 	@mkdir -p $(@D)
-	@m4  doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
+	@m4 doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
+
+docs/%.html : %.py
+	@echo syntax highlight to $@
+	@mkdir -p $(@D)
+	@pygmentize -f html -o $@ -lpy -O style=default,full,tabsize=4 $<
+
+docs/man/man1/%.html : man/man1/%.1
+	@echo format man to $@
+	@mkdir -p $(@D)
+	@mkdir groff.tmp.$$$$ ; ( cd groff.tmp.$$$$ ; groff -Thtml -man ../$< >../$@ ) ; rm -rf groff.tmp.$$$$
+
+docs/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS))
+	echo generate book to $@
+	mkdir -p $(@D)
+	rm -rf doc/book
+	cd doc ; ../_bin/mdbook build
+	cd doc/book ; for f in * ; do rm -rf ../../docs/$$f ; done ; mv * ../../docs
 
 # html doc is under git as _bin/mdbook cannot be downloaded in launchpad.net
 # also this makes the html doc directly available on github
-BOOK : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(MAN_FILES)
-	@echo generate book to $@
-	@rm -rf docs doc/book
-	@cd doc ; ../_bin/mdbook build
-	@mkdir -p doc/book/man/man1
-	@cd doc ; for f in $(patsubst man/man1/%.1,%,$(MAN_FILES)) ; do groff -Thtml -man ../man/man1/$$f.1 > book/man/man1/$$f.html ; done
-	@rm doc/grohtml-*.png
-	@rm -rf docs ; mv doc/book docs
-	@find docs -name '.*.swp' -exec rm {} \;
-	@git ls-files docs | sort > doc/book.ref_manifest
-	@find docs -type f | sort > doc/book.actual_manifest
-	@diff doc/book.ref_manifest doc/book.actual_manifest
+docs.manifest_stamp : docs/index.html $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)
+	echo collate
+	git ls-files docs                                    | sort > docs.ref_manifest
+	find docs -type f '-(' -name '.*.swp' -o -print '-)' | sort > docs.actual_manifest
+	diff docs.ref_manifest docs.actual_manifest
+	>$@
+
+BOOK : docs.manifest_stamp
 
 #
 # packaging

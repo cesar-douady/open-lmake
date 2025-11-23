@@ -205,7 +205,7 @@ This attribute is a `pdict` with one entry for each cache.
 
 Caches are named with an arbitrary `str` and are referenced in rules using this name.
 
-By default, no cache is configured, but an example can be found in [lib/lmake/config_.py](../../lib/lmake/config_.py), commented out.
+By default, no cache is configured, but an example can be found in [lib/lmake/config_.py](lib/lmake/config_.html#:~:text=caches), commented out.
 
 #### `caches.*.tag` : Static (-)
 
