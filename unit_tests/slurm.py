@@ -5,11 +5,15 @@
 
 import lmake
 
+host_len = 12
+
 if __name__!='__main__' :
 
 	import socket
 
 	from lmake.rules import Rule,PyRule
+
+	lmake.config.console.host_len = host_len
 
 	lmake.config.backends.slurm = {
 		'environ' : { 'DUT':'dut' }
@@ -66,6 +70,6 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out of date
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
-	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , host_len=host_len , done=2 , new=2 ) # check targets are out of date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , host_len=host_len , done=0 , new=0 ) # check targets are up to date
+	ut.lmake( 'hello+hello_sh' , 'world+world_py' , host_len=host_len , done=2         ) # check reconvergence

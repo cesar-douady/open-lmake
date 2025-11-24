@@ -108,8 +108,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">local_admin_dir</span>  <span class="o">=</span> <span class="s1">&#39;LMAKE_LOCAL&#39;</span>
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">remote_admin_dir</span> <span class="o">=</span> <span class="s1">&#39;LMAKE_REMOTE&#39;</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">local_admin_dir</span> <span class="o">=</span> <span class="s1">&#39;LMAKE_LOCAL&#39;</span> <span class="c1"># declared within repo for test ease of use, but goal is to make it absolute in a fast local disk</span>
 
     <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
@@ -120,6 +119,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">import</span> <span class="nn">ut</span>
 
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;test&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;test&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">0</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

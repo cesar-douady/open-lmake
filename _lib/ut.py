@@ -15,7 +15,7 @@ from lmake import pdict
 
 class Ut :
 	idx = 0
-	def __init__( self , *args , rc=0 , no_ldump=False , fast_exit=False , **kwds ) :
+	def __init__( self , *args , rc=0 , no_ldump=False , fast_exit=False , host_len=None , **kwds ) :
 		self.__class__.idx += 1
 		self.stdout = f'tok.{self.idx}'
 		kwds.setdefault('start',...)
@@ -23,6 +23,7 @@ class Ut :
 		self.rc        = rc
 		self.no_ldump  = no_ldump
 		self.fast_exit = fast_exit
+		self.host_len  = host_len
 		self.kwds      = kwds
 		#
 		cmd = ('lmake',*args)
@@ -63,7 +64,8 @@ class Ut :
 			if seen_summary :
 				self.summary += l+'\n'
 				continue
-			m = re.fullmatch(r'(\d\d:\d\d:\d\d(\.\d+)? )?(?P<key>\w+) .*',l)
+			if self.host_len : m = re.fullmatch(rf"(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len} (?P<key>\w+) .*",l)
+			else             : m = re.fullmatch(r'(\d\d:\d\d:\d\d(\.\d+)? )?(?P<key>\w+) .*'                     ,l)
 			if not m : continue
 			k = m.group('key')
 			if k in cnt : cnt[k] += 1

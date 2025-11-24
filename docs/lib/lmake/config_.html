@@ -150,7 +150,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="p">,</span>   <span class="n">tmp</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_tmp</span><span class="o">&gt;&gt;</span><span class="mi">20</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;M&#39;</span>                         <span class="c1"># total available temporary disk space in MBytes, defaults to free space in current filesystem</span>
         <span class="p">)</span>
     <span class="c1">#,  sge = pdict(</span>
-    <span class="c1">#   ,   domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1]     # the fully qualified domain name under which jobs must contact server</span>
+    <span class="c1">#   ,   domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1]     # the domain name to host name to form the fqdn under which jobs must contact server</span>
     <span class="c1">#   ,   bin               = &#39;/opt/sge/bin/ls-amd64&#39;               # directory where sge binaries are located</span>
     <span class="c1">#   ,   cell              = &#39;default&#39;                             # cell     used for SGE job submission, by default, SGE automatically determines it</span>
     <span class="c1">#   ,   cluster           = &#39;p6444&#39;                               # cluster used for SGE job submission, by default, SGE automatically determines it</span>
@@ -163,7 +163,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#   ,   tmp_resource      = &#39;tmp&#39;                                 # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified</span>
     <span class="c1">#   )</span>
     <span class="c1">#,  slurm = pdict(</span>
-    <span class="c1">#   ,   fqdn              = socket.getfqdn()                      # the fully qualified domain name under which jobs must contact server</span>
+    <span class="c1">#   ,   domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1]     # the domain name to host name to form the fqdn under which jobs must contact server</span>
     <span class="c1">#   ,   config            = &#39;/etc/slurm/slurm.conf&#39;               # config file (this is the default value if not specified)</span>
     <span class="c1">#   ,   init_timeout      = 10                                    # maximum time allowed for slurm initialization</span>
     <span class="c1">#   ,   lib_slurm         = &#39;/usr/lib/slurm.so&#39;                   # slurm dynamic lib (this is a typical default value if not specified)</span>

@@ -125,10 +125,10 @@ Similarly, to allow all users to have read/write access to all created dirs and 
 Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.
 
-This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to :
+This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to:
 
 | Value     | Recommanded for  | Default | Comment                                                                        |
 |-----------|------------------|---------|--------------------------------------------------------------------------------|
 | `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
-| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open/closed before any read and after any write |
+| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open before any read and closed after any write |
 | `'sync'`  |                  |         | `fsync` is called after any modification                                       |

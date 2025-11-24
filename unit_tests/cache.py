@@ -20,7 +20,7 @@ if __name__!='__main__' :
 
 	from step import z_lvl
 
-	lmake.config.caches.dir = {
+	lmake.config.caches.my_cache = {
 		'tag'  : 'dir'
 	,	'dir'  : lmake.repo_root+'/CACHE'
 	,	'perm' : 'group'
@@ -28,13 +28,13 @@ if __name__!='__main__' :
 
 	class Auto(Rule) :
 		target = r'auto{:\d}'
-		cache  = 'dir'
+		cache  = 'my_cache'
 		cmd    = "echo '#auto'"
 
 	class Hide(Rule) :
 		target    = r'{File:.*}.hide'
 		stderr_ok = True
-		cache     = 'dir'
+		cache     = 'my_cache'
 		cmd       = 'cat {File} || :'
 
 	class Cat(Rule) :
@@ -48,14 +48,14 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		cache       = 'dir'
+		cache       = 'my_cache'
 		compression = z_lvl
 		cmd         = 'cat {FIRST} {SECOND}'
 
 	class MkDir(Rule):
 		target      = 'mkdir.dut'
 		targets     = { 'OUT' : r'mkdir.dir/{*:.*}' }
-		cache       = 'dir'
+		cache       = 'my_cache'
 		compression = z_lvl
 		cmd = '''
 			dir={OUT('v1')}
@@ -85,7 +85,7 @@ else :
 		print('hello\n#auto',file=open('hello+auto1.hide.ref','w'))
 		print('mkdir'       ,file=open('mkdir.dut.ref'       ,'w'))
 
-		# cache dir must be writable by all users having access to the cache
+		# cache my_cache must be writable by all users having access to the cache
 		# use setfacl(1) with adequate rights in the default ACL, e.g. :
 		# os.system('setfacl -m d:g::rw,d:o::r CACHE')
 		os.makedirs('CACHE/LMAKE')

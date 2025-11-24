@@ -267,10 +267,10 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>
-<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to :</p>
+<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open/closed before any read and after any write</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
 </tbody></table>
 </div>

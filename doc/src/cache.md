@@ -9,21 +9,51 @@ Several cache mechanisms will be implemented but for now, ony one exists.
 
 ## DirCache
 
-This cache is based on a shared dir and requires no running daemon.
+This cache is based on a shared dir and requires no daemon.
 
-It must be initialized with a file `LMAKE/config.py` containing definitions for :
+It must be initialized with a file `LMAKE/config.py` defining some variables:
 
-- `file_sync` (optional) as the method to use to ensure consistent access to the file system containing the cache.
-It may be `'none'`, `'dir'` (Default) or `'sync'` (cf. [file_sync](config.html)).
-May be overridden by `Lmakefile.lmake.config.caches.<this cache>.file_sync if defined.
-- `perm` (optional) as the permissions to use when creating files in the cache, overriding current umask.
-It may be `'none'` (default), `'group'` (share cache within user group) or `'other'` (shared cache with everybody)
-May be overridden by `Lmakefile.lmake.config.caches.<this cache>.perm if defined.
-- `size` (required) as the overall size the cache is allowed to occupy.
-It can be an `int` (in bytes) or a `str` in which case value may end with a unit suffix in `k`, `M`, `G`, `T` (powers of 1024).
-May not be overridden by `Lmakefile.lmake.config.caches.<this cache>.size if defined.
+| Variable    | Default      | Overridable | Possible values                                                     | Comment                                                                             |
+|-------------|--------------|-------------|---------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| `file_sync` | 'dir'        | yes         | `'none'`, `'dir'`, `'sync'`                                         | the method used to ensure consistent access to the file system containing the cache |
+| `perm`      | 'none'       | yes         | `'none'`, `'group'`, `'other'`                                      | the permissions to use when creating files in the cache, overriding current umask   |
+| `size`      | \<required\> | no          | any `int` or a `str` composed of a number followed by a unit suffix | the overall size the cache is allowed to occupy                                     |
 
-For example `LMAKE/config.py` can contain `perm='group' ; size=1.5T'`.
+Overridable variables may be overidden by setting the corresponding attribute in `lmake.config.caches.<this cache>.<attribute>` in `Lmakefile.py`.
+
+Unit suffixes can be `k`, `M`, `G` or `T` (powers of 1024).
+
+For example `LMAKE/config.py` can contain:
+```
+perm = 'group'
+size = '1.5T'
+```
+
+### configuration
+
+In `Lmakefile.py`, `lmake.config.caches.<this_cache>` may be set to access a DirCache with the following attributes:
+
+| Attribute   |           | Possible values                     | Description                                                                         |
+|-------------|-----------|-------------------------------------|-------------------------------------------------------------------------------------|
+| `dir`       | required  | a `str` containing an absolute path | the root dir of the cache                                                           |
+| `file_sync` |           | `'none'`, `'dir'`, `'sync'`         | the method used to ensure consistent access to the file system containing the cache |
+| `key`       | see below | a `str`                             | an identifier to avoid cache pollution                                              |
+| `perm`      |           | `'none'`, `'group'`, `'other'`      | the permissions to use when creating files in the cache, overriding current umask   |
+
+If the same attribute is defined in `LMAKE/config.py` and in the configuration of a repo, the repo overrides the value in `LMAKE/config.py`.
+
+By default, the key is made after the absolute root of the repo and the current git sha1 if repo is controlled by git.
+No more than 2 entries can be stored for any job with a given key, the first time and the last time the key is used.
+
+To avoid cache pollution when a repo evolves rapidly (which is typical during active development), the number of stored states must be limited as the cache is typically useless locally.
+However, when a repo is pushed, best is that the cache retains the jobs corresponding to what is pushed so that other users can download the results.
+Such jobs may have run before or after the commit, hence they are:
+
+- the last job of the previous commit sha1
+- or the first job of the current commit sha1
+
+By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.
+
 
 ### Permissions
 
@@ -53,10 +83,10 @@ Similarly, to allow all users to have read/write access to all created dirs and 
 Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.
 
-This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to :
+This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to:
 
 | Value     | Recommanded for  | Default | Comment                                                                        |
 |-----------|------------------|---------|--------------------------------------------------------------------------------|
 | `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
-| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open/closed before any read and after any write |
+| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open before any read and closed after any write |
 | `'sync'`  |                  |         | `fsync` is called after any modification                                       |

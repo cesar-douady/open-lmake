@@ -10,8 +10,7 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	lmake.config.local_admin_dir  = 'LMAKE_LOCAL'
-	lmake.config.remote_admin_dir = 'LMAKE_REMOTE'
+	lmake.config.local_admin_dir = 'LMAKE_LOCAL' # declared within repo for test ease of use, but goal is to make it absolute in a fast local disk
 
 	class Test(Rule) :
 		target = 'test'
@@ -22,3 +21,4 @@ else :
 	import ut
 
 	ut.lmake( 'test' , done=1 )
+	ut.lmake( 'test' , done=0 )

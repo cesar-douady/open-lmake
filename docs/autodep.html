@@ -224,7 +224,7 @@ Of course, reading a file that has been written doe not make it a dep any more.<
 <p><code>job_exec</code> has several responsibilities, among which :</p>
 <ul>
 <li>Prepare the user environment for the user code (environment variables, cwd, namespace if necessary, etc.).</li>
-<li>Receive the accesses made by the user code (through a socket) and record them.</li>
+<li>Receive the accesses made by the user code (through a pipe if possible, else a socket) and record them.</li>
 <li>Determine what is a dep, what is a target etc.</li>
 <li>Report a job digest to the server (the central process managing the dep DAG).</li>
 </ul>
@@ -235,7 +235,7 @@ It is the one of the previous run, which had different file contents.
 For example, a <code>.c</code> may have changed, including a <code>#include</code> directive.
 In case there are 2 deps <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
 <p>Most of the time, this is harmless, but sometimes, it may happen that <code>d2</code> is not necessary any more (because old <code>d1</code> content had <code>#include "d2"</code> and new one does not).
-In that case, this job must be rerun with the new content od <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dep.</p>
+In that case, this job must be rerun with the new content of <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dep.</p>
 <p>This may only occurs if <code>d2</code> was accessed <strong>after</strong> <code>d1</code> was accessed. If <code>d2</code> was accessed before <code>d1</code>, it is safe to say the job cannot run because <code>d2</code> is in error: it will never disappear.</p>
 
                     </main>

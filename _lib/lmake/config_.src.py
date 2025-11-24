@@ -52,7 +52,7 @@ config = pdict(
 		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	#,	sge = pdict(
-	#	,	domain_name       = socket.getfqdn().split('.',1)[-1]     # the fully qualified domain name under which jobs must contact server
+	#	,	domain_name       = socket.getfqdn().split('.',1)[-1]     # the domain name to host name to form the fqdn under which jobs must contact server
 	#	,	bin               = '/opt/sge/bin/ls-amd64'               # directory where sge binaries are located
 	#	,	cell              = 'default'                             # cell     used for SGE job submission, by default, SGE automatically determines it
 	#	,	cluster           = 'p6444'                               # cluster used for SGE job submission, by default, SGE automatically determines it
@@ -65,7 +65,7 @@ config = pdict(
 	#	,	tmp_resource      = 'tmp'                                 # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
 	#	)
 	#,	slurm = pdict(
-	#	,	fqdn              = socket.getfqdn()                      # the fully qualified domain name under which jobs must contact server
+	#	,	domain_name       = socket.getfqdn().split('.',1)[-1]     # the domain name to host name to form the fqdn under which jobs must contact server
 	#	,	config            = '/etc/slurm/slurm.conf'               # config file (this is the default value if not specified)
 	#	,	init_timeout      = 10                                    # maximum time allowed for slurm initialization
 	#	,	lib_slurm         = '/usr/lib/slurm.so'                   # slurm dynamic lib (this is a typical default value if not specified)

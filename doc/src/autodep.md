@@ -101,7 +101,7 @@ When a job is run, a wrapper (called `job_exec`) is launched that launches the u
 `job_exec` has several responsibilities, among which :
 
 - Prepare the user environment for the user code (environment variables, cwd, namespace if necessary, etc.).
-- Receive the accesses made by the user code (through a socket) and record them.
+- Receive the accesses made by the user code (through a pipe if possible, else a socket) and record them.
 - Determine what is a dep, what is a target etc.
 - Report a job digest to the server (the central process managing the dep DAG).
 
@@ -115,6 +115,6 @@ For example, a `.c` may have changed, including a `#include` directive.
 In case there are 2 deps `d1` and `d2`, and `d1` was just discovered, it may be out-of date and the job ran with a bad content for `d1`.
 
 Most of the time, this is harmless, but sometimes, it may happen that `d2` is not necessary any more (because old `d1` content had `#include "d2"` and new one does not).
-In that case, this job must be rerun with the new content od `d1`, even if `d2` is in error, as `d2` might disappaer as de dep.
+In that case, this job must be rerun with the new content of `d1`, even if `d2` is in error, as `d2` might disappaer as de dep.
 
 This may only occurs if `d2` was accessed **after** `d1` was accessed. If `d2` was accessed before `d1`, it is safe to say the job cannot run because `d2` is in error: it will never disappear.
