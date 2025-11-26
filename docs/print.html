@@ -238,6 +238,7 @@ One way to obtain this information is by running the command <code>uname -a</cod
 <li>tests using test scenari</li>
 <li>test suites containing list of test scenari</li>
 </ul>
+<p>This flow is implemented <a href="examples/cc.dir/Lmakefile.html">here</a>.</p>
 <p>We will implement such a simple flow with a full decoupling of the flow (as described in <code>Lmakefile.py</code>) and project data (as described by the other source files).
 In this flow, we will assume that:</p>
 <ul>
@@ -1625,7 +1626,7 @@ If used in conjunction with <code>chroot_dir</code>, the directory is searched i
 </tbody></table>
 </div>
 <p>This attribute defines a dir in which jobs will see the top-level dir of open-lmake installation.
-This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>).</p>
+This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>) before any chroot if asked to do so.</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <h3 id="max_retries_on_lost"><a class="header" href="#max_retries_on_lost"><code>max_retries_on_lost</code></a></h3>
@@ -1727,7 +1728,7 @@ i.e. independent of the history (the repo is not constantly maintained without s
 </tbody></table>
 </div>
 <p>This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>).</p>
+This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>) before any chroot if asked to do so.</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <p>This attribute is typically used when using tools that handle absolute paths.
@@ -1901,14 +1902,16 @@ Else, it must be an absolute path.</p>
 </tbody></table>
 </div>
 <p>This attribute defines a mapping from logical views to physical dirs.</p>
-<p>Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a <code>/</code> or not.
-Files must be mapped to files and dirs to dirs.</p>
-<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf. <a href="namespaces.html">namespaces</a>).</p>
+<p>Accesses to logical views are mapped to their corresponding physical location before any chroot if asked to do so.
+Views and physical locations must be dirs.</p>
+<p>Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. <a href="namespaces.html">namespaces</a>).</p>
+<p>Dirs in the repo or tmp are created as needed.
+External dirs must pre-exist.</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
 <li>a <code>dict</code> with keys <code>upper</code> (a <code>str</code>) and <code>lower</code> (a single <code>str</code> or a list of <code>str</code>) in which case an overlay mount is performed.
-Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of dirs to create in upper or files to copy from lower to upper.
+Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of dirs to create in <code>upper</code> or files to copy from <code>lower</code> to <code>upper</code>.
 Dirs are recognized when they end with <code>/</code>.
 Such <code>copy_up</code> items are provided relative to the root of the view.</li>
 </ul>
@@ -1972,20 +1975,24 @@ In that case, the read occurs before the write.</li>
 <h3 id="reading-a-dir"><a class="header" href="#reading-a-dir">Reading a dir</a></h3>
 <p>A dir <code>foo</code> is read when files it contains are listed, which occur when:</p>
 <ul>
-<li>A system call that reads dir <code>foo</code>, e.g. <code>getdents</code>.</li>
-<li>A libc call that reads dir <code>foo</code>, e.g. <code>readdir</code> or <code>glob</code> (in which its pattern argument requires reading <code>foo</code>).</li>
+<li>A system call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man2/getdents.2.html">getdents(2)</a>.</li>
+<li>A libc call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir(3)</a> or <a href="https://man7.org/linux/man-pages/man3/glob.3.html">glob(3)</a>
+(in which its pattern argument requires reading <code>foo</code>).</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that neither <code>lmake.target('foo',incremental=True)</code> was called nor <code>ltarget -i foo</code> executed.</li>
-<li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>Ignore</code> or <code>Incremental</code> flags set.</li>
+<li>Also under the condition that <code>foo</code> does not match a <code>targets</code> or <code>side_targets</code> entry with the <code>ignore</code> or <code>incremental</code> flags set.</li>
 <li>Also under the condition that <code>foo</code> lies in the repo (i.e. under the dir containing <code>Lmakefile.py</code> but not in its <code>LMAKE/lmake</code> sub-dir) or is the repo root dir.</li>
 </ul>
-<p>Although dirs do not exist for open-lmake, reading dir <code>foo</code> is an error unless the <code>ReaddirOk</code> attribute was set on the rule or the <code>ReaddirOk</code> flag is set, which can be done by:</p>
+<p>Although dirs do not exist for open-lmake, reading dir <code>foo</code> is an error unless:</p>
 <ul>
-<li>Passing the <code>ReaddirOk</code> flag in the <code>targets</code>, <code>side_targets</code> or <code>side_deps</code> entry.</li>
-<li>Calling <code>lmake.depend('foo',readdir_ok=True)</code> or executing <code>ldepend -D foo</code>.</li>
+<li><a href="unit_tests/wine.html#:~:text=readdir%5Fok%20%3D%20True">Set the <code>readdir_ok</code> flag as a rule attribute</a>.</li>
+<li><a href="unit_tests/mandelbrot.html#:~:text=side%5Fdeps%20%3D%20%7B%20%27DIR%27%20%3A%20%28%20%27mandelbrot%2F%7B%2A%3A%2E%2A%7D%27%20%2C%20%27readdir%5Fok%27%20%29%20%7D">Passing the <code>readdir_ok</code> flag</a>
+in the <code>targets</code>, <code>side_targets</code> or <code>side_deps</code> entry.</li>
+<li><a href="unit_tests/pyc.html#:~:text=lmake%2Edepend%28%27%2E%27%2Creaddir%5Fok%3DTrue%29%20%23%20this%20rule%20is%20a%20Rule%2C%20not%20a%20PyRule%2C%20on%20purpose%20%28so%20pyc%20files%20are%20not%20handled%29%2C%20so%20we%20must%20explicitly%20allow%20reading%20%27%2E%27">Calling <code>lmake.depend('foo',readdir_ok=True)</code></a>
+or executing <code>ldepend -D foo</code>.</li>
 <li>Calling <code>lmake.target('foo',readdir_ok=True)</code> or executing <code>ltarget -D foo</code>.</li>
 </ul>
-<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>ReaddirOk</code> flag on dirs mentioned in <code>sys.path</code> when executing python3.
+<p>Note that the <code>lmake.PyRule</code> base class sets the the <code>readdir_ok</code> flag on dirs mentioned in <code>sys.path</code> when executing import in python3.
 This is because python3 optimizes imports by pre-reading these dirs.</p>
 <p>Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
 files may or may not have been already built, or previously built files that are now non-buildable may still exist.</p>
@@ -2039,8 +2046,8 @@ In case a target is also a dep, it is automatically flagged as <code>incremental
 <p>Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
 This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.</p>
-<p>In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
-In that case, open-lmake quarantines the file under the <code>LMAKE/quarantine</code> dir with its original name.
+<p>In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a valuable user-generated content.
+In that case, open-lmake quarantines the file under the <a href="meta_data.html#:~:text=LMAKE%2Fquarantine">LMAKE/quarantine</a> dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
 There are cases where open-lmake cannot anticipate such an overwrite.</p>
 <h2 id="tmp-dir"><a class="header" href="#tmp-dir">tmp dir</a></h2>
@@ -2066,9 +2073,9 @@ There are cases where open-lmake cannot anticipate such an overwrite.</p>
 <p>When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
 They must remain untouched:</p>
 <ul>
-<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
-<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
-<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
+<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FAUDIT">autodep</a>   when the <code>autodep</code> attribute is set to <code>'ld_audit'</code>.</li>
+<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FPRELOAD">autodep</a> when the <code>autodep</code> attribute is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code>.</li>
+<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases even when the <code>autodep</code> attribute is set to <code>'none'</code>.</li>
 <li><code>$TMPDIR</code>            : The name of a dir which is empty at the start of the job.
 If the temporary dir is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this dir is cleaned up at the end of the job execution.</li>
 </ul>
@@ -2080,10 +2087,10 @@ If the temporary dir is not kept through the use of the <code>keep_tmp</code> at
 <li>All written files are allowed (either appear as target, side target or are dynamically allowed by a call to <code>ltarget</code> or <code>lmake.target</code>)</li>
 <li>Nothing is written to stderr, or the <code>stderr_ok</code> attribute is set.</li>
 </ul>
-<h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str">if cmd is a <code>str</code></a></h2>
+<h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str"><a href="unit_tests/basics.html#:~:text=class%20CatSh%28Cat%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fsh%27%20cmd%20%3D%20%27cat%20%7BFIRST%7D%20%7BSECOND%7D%27">if cmd is a <code>str</code></a></a></h2>
 <p>Because this attribute undergo dynamic evaluation as described in the <code>cmd</code> rule attribute, there is not further specificities.</p>
 <p>The job execution is successful (but see above) if the interpreter return code is 0.</p>
-<h2 id="if-it-is-a-function-1"><a class="header" href="#if-it-is-a-function-1">if it is a function</a></h2>
+<h2 id="if-cmd-is-a-function"><a class="header" href="#if-cmd-is-a-function"><a href="unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fpy%27%20def%20cmd%28%29%20%3A%20for%20fn%20in%20%28FIRST%2CSECOND%29%20%3A%20with%20open%28fn%29%20as%20f%20%3A%20print%28f%2Eread%28%29%2Cend%3D%27%27%29">if cmd is a function</a></a></h2>
 <p>In that case, this attribute is called to run the job.</p>
 <p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
 Values may come from (by order of preference):</p>
@@ -2145,11 +2152,13 @@ This means that <code>/</code> is an ordinary character.</p>
 <p>However, because dirs do exist on disk, it is impossible for <code>a</code> and <code>a/b</code> to exist simultaneously (i.e. exist as regular or symbolic link).
 As a consequence, there is an implicit rule (Uphill) that prevents <code>a/b</code> from being buildable if <code>a</code> is buildable.</p>
 <p>Also, because dirs cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
-Such constructs are strongly discouraged:</p>
+Such constructs are strongly discouraged (prefer and explicit list, possibly based on <code>git ls-files</code> which is stable):</p>
 <ul>
 <li>use of <code>glob.glob</code> in python</li>
 <li>use of wildcard in bash</li>
 </ul>
+<p>As a consequence, such calls to <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir(3)</a> is forbidden unless <a href="rules.html#:~:text=repo%2E-,readdir%5Fok,date">explicitly allowed</a>
+in which case the user takes the responsibility of its stability.</p>
 <h2 id="jobs"><a class="header" href="#jobs">Jobs</a></h2>
 <p>Jobs are identified by their rule and stems (excluding star-stems).</p>
 <p>They have a list of targets and a list of deps.</p>
@@ -2562,7 +2571,7 @@ In that case, this job must be rerun with the new content of <code>d1</code>, ev
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="critical-deps"><a class="header" href="#critical-deps">Critical deps</a></h1>
+<h1 id="critical-deps"><a class="header" href="#critical-deps"><a href="unit_tests/critical.html">Critical deps</a></a></h1>
 <p>The question of critical deps is a performance only question.
 Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.</p>
 <p>During dep analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>

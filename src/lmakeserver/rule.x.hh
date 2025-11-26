@@ -255,7 +255,8 @@ namespace Engine {
 			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"   ) ; if (+job_space.lmake_view_s) job_space.lmake_view_s = with_slash(job_space.lmake_view_s) ;
 			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
 			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ;
+			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ; for( auto& [view_s,_] : job_space.views ) view_s = with_slash(::move(view_s)) ;
+			//
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
 		}

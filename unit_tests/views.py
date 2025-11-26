@@ -12,18 +12,13 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'phy_dir/dep'
-	,	'phy_dep'
 	,	'ref'
 	)
 
 	class Dut(Rule) :
-		views = {
-			'log_dir/' : 'phy_dir/'
-		,	'log_dep'  : 'phy_dep'
-		}
-		target       = 'dut'
-		side_targets = { 'LOG' : ( 'log_dep' , 'Incremental' ) }
-		cmd          = 'cat log_dep log_dir/dep'
+		views  = { 'log_dir/' : 'phy_dir/' }
+		target = 'dut'
+		cmd    = 'cat log_dir/dep'
 
 	class Test(Rule) :
 		target = 'test'
@@ -40,25 +35,23 @@ else :
 
 	import ut
 
-	print('good\ngood',file=open('ref','w'))
+	print('good',file=open('ref','w'))
 
 	os.makedirs('phy_dir',exist_ok=True)
 
 	print('bad',file=open('phy_dir/dep','w'))
-	print('bad',file=open('phy_dep'    ,'w'))
-	ut.lmake( 'test' , new=3 , done=1 , failed=1 , rc=1 )     # check deps are mapped from log to phy
+	ut.lmake( 'test' , new=2 , done=1 , failed=1 , rc=1 ) # check deps are mapped from log to phy
 	#
 	print('good',file=open('phy_dir/dep','w'))
-	ut.lmake( 'test' , changed=1 , done=1 , failed=1 , rc=1 ) # check deps are correctly recorded through dir views
+	ut.lmake( 'test' , changed=1 , done=2 )               # check deps are correctly recorded through dir views
 	#
-	print('good',file=open('phy_dep','w'))
-	ut.lmake( 'test' , changed=1 , done=2 )                   # check deps are correctly recorded through file views
+	ut.lmake( 'test' )
 
 	x = sp.check_output(('ldebug','-t','dut'),universal_newlines=True)
 	assert open('ref').read()==x
 
 	x = sp.check_output(('lshow','-i','dut'),universal_newlines=True)
-	assert 'views' in x and 'log_dep' in x and 'phy_dep' in x and 'log_dir/' in x and 'phy_dir/' in x
+	assert 'views' in x and 'log_dir' in x and 'phy_dir' in x
 
 	px = eval(sp.check_output(('lshow','-ip','-J','dut'),universal_newlines=True))
-	assert px['views'] == { 'log_dep':'phy_dep' , 'log_dir/':'phy_dir/' }
+	assert px['views'] == {'log_dir':'phy_dir'}

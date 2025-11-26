@@ -17,7 +17,7 @@ using namespace Disk ;
 	if ( ade.auto_mkdir      ) os <<",auto_mkdir"                              ;
 	if ( ade.readdir_ok      ) os <<",readdir_ok"                              ;
 	if (+ade.sub_repo_s      ) os <<','<< ade.sub_repo_s                       ;
-	if (+ade.views           ) os <<','<< ade.views                            ;
+	if (+ade.views_s         ) os <<','<< ade.views_s                          ;
 	return                     os <<')'                                        ;
 }                                                                                // END_OF_NO_COV
 
@@ -43,10 +43,10 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (env[pos++]!=':') goto Fail ;
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
-			case 'd' : enable        = false            ; break ;
-			case 'D' : readdir_ok    = true             ; break ;
-			case 'i' : ignore_stat   = true             ; break ;
-			case 'm' : auto_mkdir    = true             ; break ;
+			case 'd' : enable      = false ; break ;
+			case 'D' : readdir_ok  = true  ; break ;
+			case 'i' : ignore_stat = true  ; break ;
+			case 'm' : auto_mkdir  = true  ; break ;
 			case 'l' :
 				pos++ ;
 				switch (env[pos]) {
@@ -72,7 +72,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
 	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } sub_repo_s  = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
 	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s  = parse_printable<::vector_s>          (env,pos,false ) ;
-	{ if (env[pos++]!=':') goto Fail ; }                                      views       = parse_printable<::vmap_s<::vector_s>>(env,pos,false ) ;
+	{ if (env[pos++]!=':') goto Fail ; }                                      views_s     = parse_printable<::vmap_s<::vector_s>>(env,pos,false ) ;
 	{ if (env[pos  ]!=0  ) goto Fail ; }
 	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dir_name(src_dir_s)) goto Fail ;
 	return ;
@@ -106,7 +106,7 @@ AutodepEnv::operator ::string() const {
 	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s       )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(sub_repo_s        )<<'"' ;
 	res <<':'<<      mk_printable     (src_dirs_s ,false )      ;
-	res <<':'<<      mk_printable     (views      ,false )      ;
+	res <<':'<<      mk_printable     (views_s    ,false )      ;
 	return res ;
 }
 
@@ -114,9 +114,9 @@ void AutodepEnv::chk(bool for_cache) const {
 	RealPathEnv::chk(for_cache) ;
 	throw_unless( !sub_repo_s || sub_repo_s.back()=='/'                , "bad sub_repo" ) ;
 	throw_unless( is_canon(sub_repo_s,false/*ext_ok*/,true/*empy_ok*/) , "bad sub_repo" ) ;
-	for( auto const& [view,phys] : views ) {
-		/**/                            throw_unless( is_canon(view) , "bad view" ) ;
-		for( ::string const& p : phys ) throw_unless( is_canon(p) , "bad view phys" ) ;
+	for( auto const& [view_s,phys_s] : views_s ) {
+		/**/                                throw_unless( is_dir_name(view_s) && is_canon(view_s) , "bad view"      ) ;
+		for( ::string const& p_s : phys_s ) throw_unless( is_dir_name(p_s   ) && is_canon(p_s   ) , "bad view phys" ) ;
 	}
 	if (for_cache) {
 		throw_unless( !fast_report_pipe , "bad report info" ) ;

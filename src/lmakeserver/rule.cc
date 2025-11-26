@@ -410,8 +410,8 @@ namespace Engine {
 					throw_unless( !is_abs(cu) , "copy up item must be relative : ",cu ) ;
 				}
 			} else throw "unexpected view description which is not a str nor a dict"s ;
-			/**/                       dst.phys.push_back(::move(upper)) ;
-			for( ::string& l : lower ) dst.phys.push_back(::move(l    )) ;
+			/**/                       dst.phys_s.push_back(with_slash(::move(upper))) ;
+			for( ::string& l : lower ) dst.phys_s.push_back(with_slash(::move(l    ))) ;
 			/**/                       dst.copy_up = ::move(copy_up) ;
 			return true/*updated*/ ;
 		}

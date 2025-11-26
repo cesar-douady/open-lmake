@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sun Nov 23 18:40:08 2025 -->
+<!-- CreationDate: Mon Nov 24 12:53:53 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -23,6 +23,11 @@
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
+<a href="#NOTES">NOTES</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
 
 <hr>
 
@@ -74,7 +79,193 @@ within repo or a dir (ending with <b>/&rsquo;&rsquo;</b>)
 that lies within a source dir.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Associations are
-usually created using</p>
+usually created using <b>lencode</b> or <b>lmake.encode</b>
+but not necessarily (they can be created by hand).</p>
+
+<p style="margin-left:9%; margin-top: 1em">Usage and use
+cases are more extensively documented the full
+<i>open-lmake</i> documentation.</p>
+
+<h2>EXAMPLES
+<a name="EXAMPLES"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">touch
+my_codec_file</p>
+
+<p style="margin-left:9%; margin-top: 1em">git add
+my_codec_file</p>
+
+<p style="margin-left:9%; margin-top: 1em">lencode
+my_codec_file my_context 3 &lt;&lt;EOF</p>
+
+<p style="margin-left:9%; margin-top: 1em">first line</p>
+
+<p style="margin-left:9%; margin-top: 1em">second line</p>
+
+<p style="margin-left:9%; margin-top: 1em">EOF</p>
+
+<p style="margin-left:9%; margin-top: 1em">==&gt;</p>
+
+<p style="margin-left:9%; margin-top: 1em">3ab</p>
+
+<p style="margin-left:9%; margin-top: 1em">ldecode
+my_codec_file my_context 3ab</p>
+
+<p style="margin-left:9%; margin-top: 1em">==&gt;</p>
+
+<p style="margin-left:9%; margin-top: 1em">first line</p>
+
+<p style="margin-left:9%; margin-top: 1em">second line</p>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lencode</b>
+exits with a status of zero if the code could be decoded.
+Else it exits with a non-zero status:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>1</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>the code was not found with given file and context</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>2</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>internal error, should not occur</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>11</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>bad usage : command line options and arguments coul not
+be parsed</p></td></tr>
+</table>
+
+<h2>NOTES
+<a name="NOTES"></a>
+</h2>
+
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p style="margin-top: 1em">(1)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p style="margin-top: 1em">The same functionality is
+provided with the <b>lmake.encode</b> python function.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(2)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p><b>lencode</b> and <b>ldecode</b>(1) are useful tools
+when the flow implies file names whose names are
+impractical. This is a way to transform long file names into
+much shorter ones by keeping an association file to retrieve
+long info from short codes.</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(3)</p></td>
+<td width="5%"></td>
+<td width="82%">
+
+
+<p>Using this functionality may imply <b>git</b>(1)
+conflicts on the association file when several users
+independently create associations in their repos. This is
+fully dealt with and the only thing left to the user is to
+accept the resolution of the conflict <b>without any
+action</b>.</p> </td></tr>
+</table>
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
+<b>lcheck_deps</b>(1), <b>lcollect</b>(1), <b>ldebug</b>(1),
+<b>ldecode</b>(1), <b>ldepend</b>(1),
+<b>ldircache_repair</b>(1), <b>lforget</b>(1),
+<b>lmake</b>(1), <b>lmark</b>(1), <b>lrepair</b>(1),
+<b>lrun_cc</b>(1), <b>lshow</b>(1), <b>ltarget</b>(1),
+<b>xxhsum</b>(1)</p>
+
+<p style="margin-left:9%; margin-top: 1em">The python
+module <b>lmake</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The full
+<i>open-lmake</i> documentation in
+<i>&lt;open-lmake-installation-dir&gt;/docs/index.html</i>.</p>
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em">Copyright &copy;
+2023-2025, Doliam. This file is part of
+<i>open-lmake</i>.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as
+published by the Free Software Foundation, version 3 of the
+License.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><i>open-lmake</i>
+is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.</p>
+
+<p style="margin-left:9%; margin-top: 1em">You should have
+received a copy of the GNU General Public License along with
+this program. If not, see
+<i>http://www.gnu.org/licenses/</i>.</p>
 <hr>
 </body>
 </html>

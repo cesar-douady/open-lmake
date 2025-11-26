@@ -386,8 +386,8 @@ Fd Gather::_spawn_child() {
 					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_preload_jemalloc.so" ; break ;
 				#endif
 			DF}                                                                                                                                                   // NO_COV
-			if (env) { if (env->contains(env_var)) _add_env[env_var] += ':' + env->at(env_var) ; }
-			else     { if (has_env      (env_var)) _add_env[env_var] += ':' + get_env(env_var) ; }
+			if (env) { if (env->contains(env_var                  )) _add_env[env_var] += ':' + env->at(env_var) ; }
+			else     { if (has_env      (env_var,false/*empty_ok*/)) _add_env[env_var] += ':' + get_env(env_var) ; }
 		}
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 	}

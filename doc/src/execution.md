@@ -66,20 +66,24 @@ Reading file `foo` means :
 
 A dir `foo` is read when files it contains are listed, which occur when:
 
-- A system call that reads dir `foo`, e.g. `getdents`.
-- A libc call that reads dir `foo`, e.g. `readdir` or `glob` (in which its pattern argument requires reading `foo`).
+- A system call that reads dir `foo`, e.g. [getdents(2)](https://man7.org/linux/man-pages/man2/getdents.2.html).
+- A libc call that reads dir `foo`, e.g. [readdir(3)](https://man7.org/linux/man-pages/man3/readdir.3.html) or [glob(3)](https://man7.org/linux/man-pages/man3/glob.3.html)
+  (in which its pattern argument requires reading `foo`).
 - Under the condition that these actions are not preceded by a call to `lmake.target('foo',ignore=True)` or the execution of `ltarget -I foo`.
 - Also under the condition that neither `lmake.target('foo',incremental=True)` was called nor `ltarget -i foo` executed.
-- Also under the condition that `foo` does not match a `targets` or `side_targets` entry with the `Ignore` or `Incremental` flags set.
+- Also under the condition that `foo` does not match a `targets` or `side_targets` entry with the `ignore` or `incremental` flags set.
 - Also under the condition that `foo` lies in the repo (i.e. under the dir containing `Lmakefile.py` but not in its `LMAKE/lmake` sub-dir) or is the repo root dir.
 
-Although dirs do not exist for open-lmake, reading dir `foo` is an error unless the `ReaddirOk` attribute was set on the rule or the `ReaddirOk` flag is set, which can be done by:
+Although dirs do not exist for open-lmake, reading dir `foo` is an error unless:
 
-- Passing the `ReaddirOk` flag in the `targets`, `side_targets` or `side_deps` entry.
-- Calling `lmake.depend('foo',readdir_ok=True)` or executing `ldepend -D foo`.
+- [Set the `readdir_ok` flag as a rule attribute](unit_tests/wine.html#:~:text=readdir%5Fok%20%3D%20True).
+- [Passing the `readdir_ok` flag](unit_tests/mandelbrot.html#:~:text=side%5Fdeps%20%3D%20%7B%20%27DIR%27%20%3A%20%28%20%27mandelbrot%2F%7B%2A%3A%2E%2A%7D%27%20%2C%20%27readdir%5Fok%27%20%29%20%7D)
+  in the `targets`, `side_targets` or `side_deps` entry.
+- [Calling `lmake.depend('foo',readdir_ok=True)`](unit_tests/pyc.html#:~:text=lmake%2Edepend%28%27%2E%27%2Creaddir%5Fok%3DTrue%29%20%23%20this%20rule%20is%20a%20Rule%2C%20not%20a%20PyRule%2C%20on%20purpose%20%28so%20pyc%20files%20are%20not%20handled%29%2C%20so%20we%20must%20explicitly%20allow%20reading%20%27%2E%27)
+  or executing `ldepend -D foo`.
 - Calling `lmake.target('foo',readdir_ok=True)` or executing `ltarget -D foo`.
 
-Note that the `lmake.PyRule` base class sets the the `ReaddirOk` flag on dirs mentioned in `sys.path` when executing python3.
+Note that the `lmake.PyRule` base class sets the the `readdir_ok` flag on dirs mentioned in `sys.path` when executing import in python3.
 This is because python3 optimizes imports by pre-reading these dirs.
 
 Such restrictions ensure the reliability of job execution as the content of a dir is mostly unpredictable as it depends on the past history:
@@ -154,8 +158,8 @@ Open-lmake tries to minimize the execution of jobs, but may sometimes miss a poi
 This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.
 
-In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a user-generated content.
-In that case, open-lmake quarantines the file under the `LMAKE/quarantine` dir with its original name.
+In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a valuable user-generated content.
+In that case, open-lmake quarantines the file under the [LMAKE/quarantine](meta_data.html#:~:text=LMAKE%2Fquarantine) dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
 There are cases where open-lmake cannot anticipate such an overwrite.
 

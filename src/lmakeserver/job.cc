@@ -181,6 +181,7 @@ namespace Engine {
 		// then search recorded info
 		if (!found[JobInfoKind::Start]) res.fill_from( ancillary_file() , need&~found ) ; // else, recorded info is obsolete
 		trace("after",res.dep_crcs.size()) ;
+		if (!res.start.start.phy_lmake_root_s) res.start.start.phy_lmake_root_s = *g_lmake_root_s ;
 		return res ;
 	}
 

@@ -412,7 +412,7 @@ This attribute is typically used in conjunction with `chroot_dir` to indicate th
 | python      | `f-str` | `None`  | Full    | `'/lmake'` |
 
 This attribute defines a dir in which jobs will see the top-level dir of open-lmake installation.
-This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)).
+This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)) before any chroot if asked to do so.
 
 It must be an absolute path not lying in the temporary dir.
 
@@ -551,7 +551,7 @@ If it is true, such reading is allowed and it is the user responsibility to ensu
 | python      | `f-str` | `None`  | Full    | `'/repo'` |
 
 This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)).
+This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)) before any chroot if asked to do so.
 
 It must be an absolute path not lying in the temporary dir.
 
@@ -774,16 +774,19 @@ This attribute is typically use with interpreters that do not implement the `-c`
 
 This attribute defines a mapping from logical views to physical dirs.
 
-Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a `/` or not.
-Files must be mapped to files and dirs to dirs.
+Accesses to logical views are mapped to their corresponding physical location before any chroot if asked to do so.
+Views and physical locations must be dirs.
 
-Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf. [namespaces](namespaces.html)).
+Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. [namespaces](namespaces.html)).
+
+Dirs in the repo or tmp are created as needed.
+External dirs must pre-exist.
 
 Physical description may be :
 
 - a `f-str` in which case a bind mount is performed.
 - a `dict` with keys `upper` (a `str`) and `lower` (a single `str` or a list of `str`) in which case an overlay mount is performed.
-  Key `copy_up` (a single `str` or a list of `str`) may also be used to provide a list of dirs to create in upper or files to copy from lower to upper.
+  Key `copy_up` (a single `str` or a list of `str`) may also be used to provide a list of dirs to create in `upper` or files to copy from `lower` to `upper`.
   Dirs are recognized when they end with `/`.
   Such `copy_up` items are provided relative to the root of the view.
 

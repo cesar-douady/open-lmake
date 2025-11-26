@@ -54,7 +54,7 @@ JobStartRpcReply get_start_info() {
 		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
 	}
-	if ( +g_lmake_root_s && !res.lmake_root_s ) res.lmake_root_s = *g_lmake_root_s ;
+	if ( +g_lmake_root_s && !res.phy_lmake_root_s ) res.phy_lmake_root_s = *g_lmake_root_s ;
 	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
@@ -242,7 +242,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 }
 
 ::string g_to_unlnk ;                                                             // XXX/ : suppress when CentOS7 bug is fixed
-::vector_s cmd_line(::map_ss const& cmd_env) {
+::vector_s cmd_line( ::map_ss const& cmd_env , ::string const& repo_root_s ) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
 	::vector_s res = ::move(g_start_info.interpreter) ;                           // avoid copying as interpreter is used only here
 	if (g_start_info.use_script) {
@@ -251,7 +251,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_start_info.cmd ) ;
 		res.reserve(res.size()+1) ;
-		res.push_back(mk_glb(cmd_file,*g_repo_root_s)) ;                          // provide absolute script so as to support cwd
+		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                             // provide absolute script so as to support cwd
 		g_to_unlnk = ::move(cmd_file) ;
 	} else {
 		// large commands are forced use_script=true in server
@@ -331,8 +331,6 @@ int main( int argc , char* argv[] ) {
 	/**/  phy_repo_root_s =                     argv[6]                  ; // passed early so we can chdir and trace early
 	/**/  trace_id        = from_string<SeqId >(argv[7])                 ;
 	//
-	g_repo_root_s = new ::string{phy_repo_root_s} ;                        // no need to search for it
-	//
 	g_trace_file = new ::string{cat(phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
@@ -342,24 +340,23 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace        = &end_report.exec_trace       ;
 	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
-	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                                                // START_OF_NO_COV defensive programming
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                       // if !g_start_info, server ask us to give up
+	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                               // START_OF_NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                      // if !g_start_info, server ask us to give up
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(phy_repo_root_s) ;
 		goto End ;
-	}                                                                                                                         // END_OF_NO_COV
-	Trace::s_sz = 10<<20 ;                                                                                                    // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                                                   // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                                      // dont cd, but check we are in a repo
+	}                                                                                                        // END_OF_NO_COV
+	g_exec_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
+	Trace::s_sz = 10<<20 ;                                                                                   // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                  // necessary to capture it using signalfd
+	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                     // dont cd, but check we are in a repo
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                       // if !g_start_info, server ask us to give up
-		try                       { g_start_info.mk_canon(phy_repo_root_s) ;    }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                                             // NO_COV defensive programming
-		//
-		if (+g_start_info.job_space.repo_view_s) g_repo_root_s = new ::string{g_start_info.job_space.repo_view_s} ;
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                      // if !g_start_info, server ask us to give up
+		try                       { g_start_info.mk_canon( phy_repo_root_s ) ;  }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                            // NO_COV defensive programming
 		//
 		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;
 		bool       incremental  = false/*garbage*/                     ;
@@ -367,19 +364,19 @@ int main( int argc , char* argv[] ) {
 		//
 		try {
 			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
-		} catch (::string const& e) {                                                                                         // START_OF_NO_COV defensive programming
+		} catch (::string const& e) {                                                                        // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
-		}                                                                                                                     // END_OF_NO_COV
+		}                                                                                                    // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                                                // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                                               // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
@@ -387,8 +384,9 @@ int main( int argc , char* argv[] ) {
 					// as with small id, by the time the (bad) old tmp dir is referenced by a new job, it may be in use by another job
 					// such a situation cannot occur with seq id
 					if      (it==g_start_info.env.end()         ) {}
+					else if (!it->second                        ) {}
 					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					else if (has_env("TMPDIR")                  ) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
+					else if (has_env("TMPDIR",false/*empty_ok*/)) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
 					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"auto_tmp/"             <<g_seq_id<<'/' ;
 					else if (!is_abs_s(end_report.phy_tmp_dir_s)) {
 						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
@@ -398,19 +396,20 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
-		::map_ss              cmd_env       ;
-		::vmap_s<MountAction> enter_actions ;
-		::string              repo_root_s   ;
+		::map_ss   cmd_env        ;
+		::vector_s enter_accesses ;
+		::string   repo_root_s    ;
 		try {
 			bool entered = g_start_info.enter(
-				/*out*/enter_actions
-			,	/*out*/cmd_env
-			,	/*out*/end_report.dyn_env
-			,	/*out*/g_gather.first_pid
-			,	/*out*/repo_root_s
-			,	       phy_repo_root_s
-			,	       end_report.phy_tmp_dir_s
-			,	       g_seq_id
+				/*out*/  enter_accesses
+			,	/*.  */  cmd_env
+			,	/*.  */  end_report.dyn_env
+			,	/*.  */  g_gather.first_pid
+			,	/*.  */  repo_root_s
+			,	/*inout*/*g_exec_trace
+			,	         phy_repo_root_s
+			,	         end_report.phy_tmp_dir_s
+			,	         g_seq_id
 			) ;
 			RealPath real_path { g_start_info.autodep_env } ;
 			if (+g_start_info.os_info) {
@@ -429,37 +428,28 @@ int main( int argc , char* argv[] ) {
 				trace("os_info_match",g_start_info.os_info) ;
 			}
 			if (entered) {
-				for( auto& [f,a] : enter_actions ) {
-					RealPath::SolveReport sr = real_path.solve(f,true/*no_follow*/) ;
-					for( ::string& l : sr.lnks ) //!                                                                                         late
-						/**/                            g_gather.new_access(washed,::move(l      ),{.accesses=Access::Lnk },FileInfo(l      ),    Comment::mount,CommentExt::Lnk  ) ;
-					if (sr.file_loc<=FileLoc::Dep) {
-						if      (a==MountAction::Read ) g_gather.new_access(washed,::move(sr.real),{.accesses=DataAccesses},FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
-						else if (sr.file_accessed==Yes) g_gather.new_access(washed,::move(sr.real),{.accesses=Access::Lnk },FileInfo(sr.real),    Comment::mount,CommentExt::Read ) ;
+				for( ::string& d_s : enter_accesses ) {
+					RealPath::SolveReport sr = real_path.solve(no_slash(d_s),true/*no_follow*/) ;
+					for( ::string& l : sr.lnks ) {
+						FileInfo fi { l } ;                                                                                                  // capture before l is moved
+						g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Lnk ) ;
 					}
-					if (sr.file_loc<=FileLoc::Repo) {
-						if      (a==MountAction::Write) g_gather.new_access(washed,::move(sr.real),{.write=Yes            },FileInfo(       ),Yes,Comment::mount,CommentExt::Write) ;
+					if ( sr.file_loc<=FileLoc::Dep && sr.file_accessed==Yes ) {
+						FileInfo fi { sr.real } ;                                                                                            // capture before l is moved
+						g_gather.new_access( washed , ::move(sr.real) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Read ) ;
 					}
 				}
 				g_exec_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 			}
-			g_start_info.job_space.update_env(
-				/*inout*/cmd_env
-			,	         g_start_info.lmake_root_s
-			,	         phy_repo_root_s
-			,	         end_report.phy_tmp_dir_s
-			,	         g_start_info.autodep_env.sub_repo_s
-			,	         g_seq_id
-			,	         g_start_info.small_id
-			) ;
+			g_start_info.update_env( /*inout*/cmd_env , phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 			//
 		} catch (::string const& e) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_mail        = mail()                                                                  ; // user@host on which fast_report_pipe works
-		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ; // fast_report_pipe is a pipe and only works locally
-		g_start_info.autodep_env.views            = g_start_info.job_space.flat_phys()                                      ;
+		g_start_info.autodep_env.fast_mail        = mail()                                                                  ;                // user@host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;                // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                                    ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
 		g_gather.addr             =        g_server_fd.addr(false/*peer*/) ;
@@ -471,7 +461,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.job              =        g_job                           ;
 		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs        ) ;
 		g_gather.live_out         =        g_start_info.live_out           ;
-		g_gather.lmake_root_s     =        g_start_info.lmake_root_s       ;
+		g_gather.lmake_root_s     =        g_start_info.phy_lmake_root_s   ;
 		g_gather.method           =        g_start_info.method             ;
 		g_gather.network_delay    =        g_start_info.network_delay      ;
 		g_gather.nice             =        g_start_info.nice               ;
@@ -533,7 +523,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;  // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
-		g_gather.cmd_line = cmd_line(cmd_env) ;
+		g_gather.cmd_line = cmd_line( cmd_env , repo_root_s ) ;
 		Status status ;
 		try { //!    vvvvvvvvvvvvvvvvvvvvv
 			status = g_gather.exec_child() ;

@@ -360,8 +360,8 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	::vector_s const& sfxs     = has_sfxs ? sfxs_ : s_std_sfxs  ;
 	::string          tail     = name.substr(name.rfind('.')+1) ;
 	::string          cwd_s_   ;
-	for( ::string const& dir : path ) {
-		::string dir_s  = with_slash(dir)                               ;
+	for( ::string& dir : path ) {
+		::string dir_s  = with_slash(::move(dir))                       ;
 		bool     is_lcl = dir_s.starts_with(_g_autodep_env.repo_root_s) ;
 		if (!is_abs_s(dir_s)) {                                           // fast path : dont compute cwd unless required
 			if (!cwd_s_) cwd_s_ = cwd_s() ;

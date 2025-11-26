@@ -21,7 +21,7 @@ If generated, the code is generated after a checksum computed on the passed valu
 .LP
 I(association_file) (symbolic links are followed) may be either a source file within repo or a dir (ending with B('/')) that lies within a source dir.
 .LP
-Associations are usually created using `encode` but not necessarily (they can be created by hand).
+Associations are usually created using B(lencode) or B(lmake.encode) but not necessarily (they can be created by hand).
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
 

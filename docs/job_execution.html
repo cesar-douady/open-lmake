@@ -161,9 +161,9 @@
 <p>When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
 They must remain untouched:</p>
 <ul>
-<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_audit'</code></li>
-<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html">autodep</a> when it is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></li>
-<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases</li>
+<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FAUDIT">autodep</a>   when the <code>autodep</code> attribute is set to <code>'ld_audit'</code>.</li>
+<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FPRELOAD">autodep</a> when the <code>autodep</code> attribute is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code>.</li>
+<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases even when the <code>autodep</code> attribute is set to <code>'none'</code>.</li>
 <li><code>$TMPDIR</code>            : The name of a dir which is empty at the start of the job.
 If the temporary dir is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this dir is cleaned up at the end of the job execution.</li>
 </ul>
@@ -175,10 +175,10 @@ If the temporary dir is not kept through the use of the <code>keep_tmp</code> at
 <li>All written files are allowed (either appear as target, side target or are dynamically allowed by a call to <code>ltarget</code> or <code>lmake.target</code>)</li>
 <li>Nothing is written to stderr, or the <code>stderr_ok</code> attribute is set.</li>
 </ul>
-<h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str">if cmd is a <code>str</code></a></h2>
+<h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str"><a href="unit_tests/basics.html#:~:text=class%20CatSh%28Cat%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fsh%27%20cmd%20%3D%20%27cat%20%7BFIRST%7D%20%7BSECOND%7D%27">if cmd is a <code>str</code></a></a></h2>
 <p>Because this attribute undergo dynamic evaluation as described in the <code>cmd</code> rule attribute, there is not further specificities.</p>
 <p>The job execution is successful (but see above) if the interpreter return code is 0.</p>
-<h2 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h2>
+<h2 id="if-cmd-is-a-function"><a class="header" href="#if-cmd-is-a-function"><a href="unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fpy%27%20def%20cmd%28%29%20%3A%20for%20fn%20in%20%28FIRST%2CSECOND%29%20%3A%20with%20open%28fn%29%20as%20f%20%3A%20print%28f%2Eread%28%29%2Cend%3D%27%27%29">if cmd is a function</a></a></h2>
 <p>In that case, this attribute is called to run the job.</p>
 <p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
 Values may come from (by order of preference):</p>

@@ -144,7 +144,7 @@ namespace Engine {
 			field = "sub_repo_s" ; if (dct.contains(field)) sub_repo_s = dct[field].as_a<Str  >() ;
 			field = "prio"       ; if (dct.contains(field)) user_prio  = dct[field].as_a<Float>() ;
 			if (+sub_repo_s) {
-				sub_repo_s = with_slash(sub_repo_s) ;
+				sub_repo_s = with_slash(::move(sub_repo_s)) ;
 				if (sub_repo_s.front()=='/') {
 					if (sub_repo_s.starts_with(*g_repo_root_s)) sub_repo_s.erase(0,g_repo_root_s->size()) ;
 					else                                        throw "cwd must be relative to repo root dir"s ;
@@ -539,15 +539,16 @@ namespace Engine {
 			res <<'\t'<< k ;
 			if (v.is_dyn) { res << " <dynamic>\n" ; continue ; }
 			res << " :" ;
-			SWEAR(+v.phys) ;
-			if (v.phys.size()==1) {
+			SWEAR(+v.phys_s) ;
+			if (v.phys_s.size()==1) {
 				SWEAR(!v.copy_up) ;
-				res <<' '<< v.phys[0] ;
+				res <<' '<< no_slash(v.phys_s[0]) ;
 			} else {
+				::vector_s phys ; for( ::string const& p_s : v.phys_s ) phys.push_back(no_slash(p_s)) ;
 				size_t w = +v.copy_up ? 7 : 5 ;
-				/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<< v.phys[0]                          ;
-				/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(&v.phys[1],v.phys.size()-1) ;
-				if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                          ;
+				/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<<         phys[0]                ;
+				/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(&phys[1],phys.size()-1) ;
+				if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                      ;
 			}
 			res <<'\n' ;
 		}

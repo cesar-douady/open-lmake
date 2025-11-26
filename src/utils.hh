@@ -140,7 +140,7 @@ struct StrErr {
 //
 
 inline ::string_view substr_view( ::string const& s , size_t start , size_t len=Npos ) {
-	SWEAR(start<=s.size()) ;
+	SWEAR( start<=s.size() , start,s.size(),s ) ;
 	return { s.data()+start , ::min(len,s.size()-start) } ;
 }
 
@@ -516,7 +516,7 @@ private :
 //
 
 inline ::string with_slash(::string&& path) {
-	if (!path           ) return "/"          ;
+	if (!path           ) return {}           ;
 	if (path=="."       ) return {}           ;
 	if (path.back()!='/') path += '/'         ;
 	/**/                  return ::move(path) ;
@@ -527,7 +527,7 @@ inline ::string no_slash(::string&& path) {
 	/**/                                      return ::move(path) ;
 }
 inline ::string with_slash(::string const& path) {
-	if (!path           ) return "/"      ;
+	if (!path           ) return {}       ;
 	if (path=="."       ) return {}       ;
 	if (path.back()!='/') return path+'/' ;
 	/**/                  return path     ;
@@ -900,8 +900,9 @@ struct NfsGuardLock : _FileLock , NfsGuard                                      
 // miscellaneous
 //
 
-inline bool has_env(::string const& name) {
-	return ::getenv(name.c_str()) ;
+inline bool has_env( ::string const& name , bool empty_ok=true ) {
+	const char* v = ::getenv(name.c_str()) ;
+	return v && (empty_ok||*v) ;
 }
 inline ::string get_env( ::string const& name , ::string const& dflt={} ) {
 	if ( const char* c_path = ::getenv(name.c_str()) ) return c_path ;

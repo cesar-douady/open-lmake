@@ -10,9 +10,9 @@ Job are executed by calling the provided interpreter (generally python or bash).
 When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the `environ` attribute (and the like).
 They must remain untouched:
 
-- `$LD_AUDIT`          : A variable necessary for [autodep](autodep.html) when it is set to `'ld_audit'`
-- `$LD_PRELOAD`        : A variable necessary for [autodep](autodep.html) when it is set to `'ld_preload'` or `'ld_preload_jemalloc'`
-- `$LMAKE_AUTODEP_ENV` : A variable necessary for [autodep](autodep.html) in all cases
+- `$LD_AUDIT`          : A variable necessary for [autodep](autodep.html#:~:text=%24LD%5FAUDIT)   when the `autodep` attribute is set to `'ld_audit'`.
+- `$LD_PRELOAD`        : A variable necessary for [autodep](autodep.html#:~:text=%24LD%5FPRELOAD) when the `autodep` attribute is set to `'ld_preload'` or `'ld_preload_jemalloc'`.
+- `$LMAKE_AUTODEP_ENV` : A variable necessary for [autodep](autodep.html) in all cases even when the `autodep` attribute is set to `'none'`.
 - `$TMPDIR`            : The name of a dir which is empty at the start of the job.
   If the temporary dir is not kept through the use of the `keep_tmp` attribute or the `-t` option, this dir is cleaned up at the end of the job execution.
 
@@ -25,13 +25,13 @@ The job is reported ok if all of the following conditions are met:
 - All written files are allowed (either appear as target, side target or are dynamically allowed by a call to `ltarget` or `lmake.target`)
 - Nothing is written to stderr, or the `stderr_ok` attribute is set.
 
-## if cmd is a `str`
+## [if cmd is a `str`](unit_tests/basics.html#:~:text=class%20CatSh%28Cat%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fsh%27%20cmd%20%3D%20%27cat%20%7BFIRST%7D%20%7BSECOND%7D%27)
 
 Because this attribute undergo dynamic evaluation as described in the `cmd` rule attribute, there is not further specificities.
 
 The job execution is successful (but see above) if the interpreter return code is 0.
 
-## if it is a function
+## [if cmd is a function](unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fpy%27%20def%20cmd%28%29%20%3A%20for%20fn%20in%20%28FIRST%2CSECOND%29%20%3A%20with%20open%28fn%29%20as%20f%20%3A%20print%28f%2Eread%28%29%2Cend%3D%27%27%29)
 
 In that case, this attribute is called to run the job.
 

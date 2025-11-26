@@ -14,7 +14,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:fast_mail:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
+	// env format : server:port:fast_mail:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views_s
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
@@ -31,7 +31,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,fast_report_pipe               ) ;
 		::serdes(s,service                        ) ;
 		::serdes(s,sub_repo_s                     ) ;
-		::serdes(s,views                          ) ;
+		::serdes(s,views_s                        ) ;
 	}
 	Fd           repo_root_fd   (                    ) const ;
 	bool         can_fast_report(                    ) const ;
@@ -46,7 +46,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	::string             fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
 	SockFd::Service      service          ;
 	::string             sub_repo_s       ;         // relative to repo_root_s
-	::vmap_s<::vector_s> views            ;
+	::vmap_s<::vector_s> views_s          ;
 	// not transported
 	::string fast_mail ;                            // host on which fast_report_pipe can be used
 } ;

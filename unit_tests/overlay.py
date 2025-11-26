@@ -20,14 +20,14 @@ if __name__!='__main__' :
 	)
 
 	class Dut(Rule) :
-		views   = { 'read_write/' : {'upper':'write/','lower':'read/'} } # mount read_write as write on top of read
+		views   = { 'read_write' : {'upper':'write','lower':'read'} } # mount read_write as write on top of read
 		targets = { 'DUT' : 'write/dut' }
 		deps    = { 'SRC' : 'read/src'  }
 		cmd     = 'cd read_write ; cp src dut'                           # a typical cmd that work in a dir rather than having inputs and outputs
 
 	class Dut2(PyRule) :
 		tmp_view = '/tmp'
-		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':'/usr/include/','copy_up':'sys/'} } # create an overlay over a read-only dir
+		views    = { '/tmp/merged' : {'upper':'/tmp/upper','lower':'/usr/include','copy_up':'sys/'} } # create an overlay over a read-only dir
 		target   = 'write/dut2'
 		def cmd():
 			import stat
@@ -37,7 +37,7 @@ if __name__!='__main__' :
 
 	class Dut3(PyRule) :
 		tmp_view = '/tmp'
-		views    = { '/tmp/merged/' : {'upper':'/tmp/upper/','lower':lmake.repo_root+'/'} }
+		views    = { '/tmp/merged' : {'upper':'/tmp/upper','lower':'.'} }
 		target   = 'dut3'
 		def cmd() :
 			print(open('/tmp/merged/read/src').read(),end='')

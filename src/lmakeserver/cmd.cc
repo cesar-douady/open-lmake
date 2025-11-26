@@ -425,7 +425,7 @@ namespace Engine {
 		/**/                         res << ",\tkey            = " << mk_py_str(         key                    ) << '\n' ;
 		/**/                         res << ",\tjob            = " <<                    +job                     << '\n' ;
 		/**/                         res << ",\tlink_support   = " << mk_py_str(snake   (ade.lnk_support       )) << '\n' ;
-		if (+jsrr.lmake_root_s     ) res << ",\tlmake_root     = " << mk_py_str(no_slash(jsrr.lmake_root_s     )) << '\n' ;
+		if (+jsrr.phy_lmake_root_s ) res << ",\tlmake_root     = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s )) << '\n' ;
 		if (+job_space.lmake_view_s) res << ",\tlmake_view     = " << mk_py_str(no_slash(job_space.lmake_view_s)) << '\n' ;
 		/**/                         res << ",\tname           = " << mk_py_str(         job->name()            ) << '\n' ;
 		if (ade.readdir_ok         ) res << ",\treaddir_ok     = " << mk_py_str(         ade.readdir_ok         ) << '\n' ;
@@ -441,13 +441,9 @@ namespace Engine {
 		//
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env     = _mk_env(job_info) ;
 		::map_ss                                    env_map = mk_map(env.first) ;
-		job_space.update_env(
-			/*inout*/env_map
-		,	         jsrr.lmake_root_s | *g_lmake_root_s
-		,	         *g_repo_root_s
-		,	         tmp_dir_s
-		,	         ade.sub_repo_s
-		) ;
+		//
+		jsrr.update_env( /*inout*/env_map , *g_repo_root_s , tmp_dir_s ) ;
+		//
 		if (+env_map) {
 			res << ",\tenv = {" ;
 			First first ;
@@ -491,25 +487,25 @@ namespace Engine {
 		}
 		{	res << ",\tviews = {" ;
 			First first1 ;
-			for( auto const& [view,descr] : job_space.views ) {
-				SWEAR(+descr.phys) ;
-				res << first1("\n\t\t",",\t") << mk_py_str(view) << " : " ;
-				if (+descr.phys.size()==1) {                                   // bind case
+			for( auto const& [view_s,descr] : job_space.views ) {
+				SWEAR(+descr.phys_s) ;
+				res << first1("\n\t\t",",\t") << mk_py_str(no_slash(view_s)) << " : " ;
+				if (+descr.phys_s.size()==1) {                                   // bind case
 					SWEAR(!descr.copy_up) ;
-					res << mk_py_str(descr.phys[0]) ;
+					res << mk_py_str(no_slash(descr.phys_s[0])) ;
 				} else {                                                       // overlay case
 					res << '{' ;
-					{	res <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(descr.phys[0]) <<"\n\t\t" ;
+					{	res <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(no_slash(descr.phys_s[0])) <<"\n\t\t" ;
 					}
 					{	res <<",\t"<< mk_py_str("lower") <<" : (" ;
 						First first2 ;
-						for( size_t i : iota(1,descr.phys.size()) ) res << first2("",",") << mk_py_str(descr.phys[i]) ;
+						for( size_t i : iota(1,descr.phys_s.size()) ) res << first2("",",") << mk_py_str(no_slash(descr.phys_s[i])) ;
 						res << first2("",",","") << ")\n\t\t" ;
 					}
 					if (+descr.copy_up) {
 						res <<",\t"<< mk_py_str("copy_up") <<" : (" ;
 						First first2 ;
-						for( ::string const& p : descr.copy_up ) res << first2("",",") << mk_py_str(p) ;
+						for( ::string const& cu : descr.copy_up ) res << first2("",",") << mk_py_str(cu) ;
 						res << first2("",",","") << ")\n\t\t" ;
 					}
 					res << "}" ;
@@ -911,7 +907,7 @@ namespace Engine {
 								}
 								//
 								if (+start.chroot_dir_s          ) push_entry( "chroot_dir" , no_slash(start.chroot_dir_s          ) ) ;
-								if (+start.lmake_root_s          ) push_entry( "lmake_root" , no_slash(start.lmake_root_s          ) ) ;
+								if (+start.phy_lmake_root_s      ) push_entry( "lmake_root" , no_slash(start.phy_lmake_root_s      ) ) ;
 								if (+start.job_space.lmake_view_s) push_entry( "lmake_view" , no_slash(start.job_space.lmake_view_s) ) ;
 								if (+start.job_space.repo_view_s ) push_entry( "repo_view"  , no_slash(start.job_space.repo_view_s ) ) ;
 								if (+start.job_space.tmp_view_s  ) push_entry( "tmp_view"   , no_slash(start.job_space.tmp_view_s  ) ) ;
@@ -1002,17 +998,17 @@ namespace Engine {
 								} ;
 								size_t   w     = ::max<size_t>( tab , [&](auto const& k_e) { return mk_py_str(k_e.first).size() ; } ) ;
 								::map_ss views ;
-								for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
+								for( auto const& [v_s,vd] : start.job_space.views ) if (+vd) {
 									::string vd_str ;
-									if (vd.phys.size()==1) {
-										vd_str << mk_py_str(vd.phys[0]) ;
+									if (vd.phys_s.size()==1) {
+										vd_str << mk_py_str(no_slash(vd.phys_s[0])) ;
 									} else {
 										vd_str <<"{ " ;
-										{	vd_str << mk_py_str("upper") <<':'<< mk_py_str(vd.phys[0]) ; }
+										{	vd_str << mk_py_str("upper") <<':'<< mk_py_str(no_slash(vd.phys_s[0])) ; }
 										{	vd_str <<" , "<< mk_py_str("lower") <<':' ;
 											First first ;
 											vd_str <<'(' ;
-											for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << mk_py_str(vd.phys[i]) ;
+											for( size_t i : iota(1,vd.phys_s.size()) ) vd_str << first("",",") << mk_py_str(no_slash(vd.phys_s[i])) ;
 											vd_str << first("",",","") <<')' ;
 										}
 										if (+vd.copy_up) {
@@ -1024,7 +1020,7 @@ namespace Engine {
 										}
 										vd_str <<" }" ;
 									}
-									views[v] = vd_str ;
+									views[no_slash(v_s)] = vd_str ;
 								}
 								char sep = '{' ;
 								for( auto const& [k,e] : tab ) {
@@ -1046,13 +1042,13 @@ namespace Engine {
 									audit( fd , ro , "views :" , true/*as_is*/ , lvl ) ;
 									for( auto const& [v,vd] : start.job_space.views ) if (+vd) {
 										::string vd_str ;
-										if (vd.phys.size()==1) {
-											vd_str << vd.phys[0] ;
+										if (vd.phys_s.size()==1) {
+											vd_str << no_slash(vd.phys_s[0]) ;
 										} else {
-											{	vd_str <<        "upper:" << vd.phys[0] ; }
-											{	vd_str <<" , "<< "lower:"               ;
+											{	vd_str <<        "upper:" << no_slash(vd.phys_s[0]) ; }
+											{	vd_str <<" , "<< "lower:"                           ;
 												First first ;
-												for( size_t i : iota(1,vd.phys.size()) ) vd_str << first("",",") << vd.phys[i] ;
+												for( size_t i : iota(1,vd.phys_s.size()) ) vd_str << first("",",") << no_slash(vd.phys_s[i]) ;
 											}
 											if (+vd.copy_up) {
 												vd_str <<" , "<< "copy_up" <<':' ;

@@ -12,6 +12,8 @@ To introduce the basic concepts of open-lmake, we will consider a case including
 - tests using test scenari
 - test suites containing list of test scenari
 
+This flow is implemented [here](examples/cc.dir/Lmakefile.html).
+
 We will implement such a simple flow with a full decoupling of the flow (as described in `Lmakefile.py`) and project data (as described by the other source files).
 In this flow, we will assume that:
 

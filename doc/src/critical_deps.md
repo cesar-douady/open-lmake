@@ -3,7 +3,7 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 
-# Critical deps
+# [Critical deps](unit_tests/critical.html)
 
 The question of critical deps is a performance only question.
 Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.

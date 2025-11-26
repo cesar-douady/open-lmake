@@ -178,6 +178,7 @@ enum class Comment : uint8_t {
 ,	canonicalize_file_name
 ,	chdir
 ,	chmod
+,	chroot
 ,	creat                  , creat64
 ,	dlmopen
 ,	dlopen
@@ -188,7 +189,6 @@ enum class Comment : uint8_t {
 ,	                                           faccessat         , faccessat2
 ,	fchdir
 ,	                                           fchmodat
-,	chroot
 ,	fopen                  , fopen64
 ,	freopen                , freopen64
 ,	                                           fstatat           , fstatat64
@@ -276,8 +276,9 @@ enum class Comment : uint8_t {
 
 // START_OF_VERSIONING
 enum class CommentExt : uint8_t {
-	Err
+	Bind
 ,	Direct
+,	Err
 ,	File
 ,	Last
 ,	LdLibraryPath
@@ -285,10 +286,12 @@ enum class CommentExt : uint8_t {
 ,	Lnk
 ,	NoFollow
 ,	Orig
+,	Overlay
 ,	RunPath
 ,	Read
 ,	Reply
 ,	Stat
+,	Tmp
 ,	Unlnk
 ,	Verbose
 ,	Write

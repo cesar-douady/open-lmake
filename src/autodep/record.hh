@@ -214,14 +214,14 @@ public :
 			SolveReport sr = r._real_path.solve( { at , file?(::string_view(file)):(::string_view()) } , no_follow ) ;
 			//
 			auto handle_dep = [&]( FileLoc fl , ::string&& file_ , Accesses a , bool store , CommentExt exts ) {
-				if ( ::vmap_s<::vector_s> const& views = s_autodep_env().views ; +views ) {
+				if ( ::vmap_s<::vector_s> const& views_s = s_autodep_env().views_s ; +views_s ) {
 					Fd repo_root_fd = s_repo_root_fd() ;
-					for( auto const& [view,phys] : s_autodep_env().views ) {
-						if (!phys                                                                         ) continue ; // empty phys do not represent a view
-						if (!( file_.starts_with(view) && (is_dir_name(view)||file_.size()==view.size()) )) continue ;
-						for( size_t i : iota(phys.size()) ) {
-							bool     last  = i==phys.size()-1                                                 ;
-							::string f     = phys[i] + substr_view(file_,view.size())                         ;
+					for( auto const& [view_s,phys_s] : s_autodep_env().views_s ) {
+						if (!phys_s                   ) continue ; // empty phys do not represent a view
+						if (!file_.starts_with(view_s)) continue ;
+						for( size_t i : iota(phys_s.size()) ) {
+							bool     last  = i==phys_s.size()-1                                               ;
+							::string f     = phys_s[i] + substr_view(file_,view_s.size())                     ;
 							FileInfo fi    = !last||+a ? FileInfo({repo_root_fd,f}) : FileInfo(FileTag::None) ;
 							bool     found = fi.exists() || !read                                             ;        // if not reading, assume file_ is found in upper
 							fl = r._real_path.file_loc(f) ;                                                            // use f before ::move

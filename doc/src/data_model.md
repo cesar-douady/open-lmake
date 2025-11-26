@@ -58,10 +58,13 @@ However, because dirs do exist on disk, it is impossible for `a` and `a/b` to ex
 As a consequence, there is an implicit rule (Uphill) that prevents `a/b` from being buildable if `a` is buildable.
 
 Also, because dirs cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
-Such constructs are strongly discouraged:
+Such constructs are strongly discouraged (prefer and explicit list, possibly based on `git ls-files` which is stable):
 
 - use of `glob.glob` in python
 - use of wildcard in bash
+
+As a consequence, such calls to [readdir(3)](https://man7.org/linux/man-pages/man3/readdir.3.html) is forbidden unless [explicitly allowed](rules.html#:~:text=repo%2E-,readdir%5Fok,date)
+in which case the user takes the responsibility of its stability.
 
 ## Jobs
 

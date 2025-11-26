@@ -256,7 +256,7 @@ namespace Backdoor {
 		::optional_s    abs_dir_s   ;
 		if (+dir) {
 			Record::Solve<false/*Send*/> sr { r , ::copy(*dir) , true/*no_follow*/ , false/*read*/ , false/*create*/ , Comment::List } ;
-			abs_dir_s = mk_glb_s( with_slash(sr.real) , repo_root_s ) ;
+			abs_dir_s = mk_glb_s( with_slash(::move(sr.real)) , repo_root_s ) ;
 		}
 		//
 		::vector_s          res       ;
@@ -305,7 +305,7 @@ namespace Backdoor {
 		// report dir as used as prefix when listing dir
 		::string const&              repo_root_s = Record::s_autodep_env().repo_root_s                                                     ;
 		Record::Solve<false/*Send*/> sr          { r , ::move(dir) , true/*no_follow*/ , false/*read*/ , false/*create*/ , Comment::List } ;
-		::string                     dir_s       = with_slash(sr.real)                                                                     ;
+		::string                     dir_s       = with_slash(::move(sr.real))                                                             ;
 		::string                     abs_dir_s   = mk_glb_s( dir_s , repo_root_s )                                                         ;
 		::string                     abs_cwd_s   = cwd_s()                                                                                 ;
 		//

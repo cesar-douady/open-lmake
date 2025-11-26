@@ -247,11 +247,13 @@ namespace Backends {
 			::vmap_ss        res    ;
 			bool             single = false             ;
 			for( auto&& [k,v] : rsrcs ) {
-				auto it = capa.find(k) ;
-				if (it==capa.end() ) { single = true ; continue ; }                                        // unrecognized resource : fall back to single job by reserving the full capacity
-				size_t v1 = from_string_rsrc(k,v) ;
-				if (v1>it->second) { v1 = it->second ; single = true ; }
-				res.emplace_back( ::move(k) , to_string_rsrc(k,v1) ) ;                                     // recognized resource : allow local execution by limiting resource to capacity
+				auto   it = capa.find(k) ;
+				size_t v1 = 0 ; try { v1=from_string_rsrc(k,v) ; } catch (::string const&) {}              // ignore non-numeric resource
+				if (v1) {                                                                                  // ignore resource if 0 is asked or not numeric
+					if (it==capa.end()) { single = true ; continue ;        }                              // unrecognized resource : fall back to single job by reserving the full capacity
+					if (v1>it->second ) { v1 = it->second ; single = true ; }
+					res.emplace_back( ::move(k) , to_string_rsrc(k,v1) ) ;                                 // recognized resource : allow local execution by limiting resource to capacity
+				}
 			}
 			if (single) res.emplace_back( "<single>" , "1" ) ;
 			return res ;

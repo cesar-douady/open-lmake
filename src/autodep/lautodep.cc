@@ -42,14 +42,14 @@ static ::vmap_s<JobSpace::ViewDescr> _mk_views(::string const& views) {
 	if (+views) {
 		Ptr<> py_views = py_eval(views) ;                         // hold objet in a Ptr
 		for( auto const& [py_k,py_v] : py_views->as_a<Dict>() ) {
-			JobSpace::ViewDescr& descr = res.emplace_back( ::string(py_k.as_a<Str>()) , JobSpace::ViewDescr() ).second ;
+			JobSpace::ViewDescr& descr = res.emplace_back( with_slash(::string(py_k.as_a<Str>())) , JobSpace::ViewDescr() ).second ;
 			if (py_v.is_a<Str>()) {
-				descr.phys.emplace_back(py_v.as_a<Str>()) ;
+				descr.phys_s.emplace_back(with_slash(py_v.as_a<Str>())) ;
 			} else if (py_v.is_a<Dict>()) {
 				Dict& py_dct = py_v.as_a<Dict>() ;
-				descr.phys.emplace_back(py_dct.get_item("upper").as_a<Str>()) ;
+				descr.phys_s.emplace_back(with_slash(py_dct.get_item("upper").as_a<Str>())) ;
 				for( Object const& py_l  : py_dct.get_item("lower").as_a<Sequence>() )
-					descr.phys.emplace_back(py_l.as_a<Str>()) ;
+					descr.phys_s.emplace_back(with_slash(py_l.as_a<Str>())) ;
 				if (py_dct.contains("copy_up"))
 					for( Object const& py_cu : py_dct.get_item("copy_up").as_a<Sequence>() )
 						descr.copy_up.emplace_back(py_cu.as_a<Str>()) ;
@@ -138,43 +138,42 @@ int main( int argc , char* argv[] ) {
 		/**/                                        jsrr.key                =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_dir_s       = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
-		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.lmake_root_s       = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
-		else                                        jsrr.lmake_root_s       =                        *g_lmake_root_s                              ;
+		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s   = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
+		else                                        jsrr.phy_lmake_root_s   =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
 		/**/                                        autodep_env.auto_mkdir  =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
 		if (cmd_line.flags[CmdFlag::Cwd          ]) autodep_env.sub_repo_s  = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
 		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
-		/**/                                        autodep_env.views       = job_space.flat_phys()                                               ;
+		/**/                                        autodep_env.views_s     = job_space.flat_phys_s()                                             ;
 		//
 		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::Env       ]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		jsrr.enter(
-			/*out*/::ref(::vmap_s<MountAction>())
-		,	/*out*/cmd_env
-		,	/*out*/::ref(::vmap_ss())/*dyn_env*/
-		,	/*out*/gather.first_pid
-		,	/*out*/::ref(::string())/*repo_root_s*/
-		,	       *g_repo_root_s
-		,	       with_slash(tmp_dir)
-		,	       0/*small_id*/
+			/*out*/  ::ref(::vector_s())
+		,	/*.  */  cmd_env
+		,	/*.  */  ::ref(::vmap_ss               ())/*dyn_env*/
+		,	/*.  */  gather.first_pid
+		,	/*.  */  ::ref(::string                ())/*repo_root_s*/
+		,	/*inout*/::ref(::vector<ExecTraceEntry>())
+		,	         *g_repo_root_s
+		,	         with_slash(tmp_dir)
+		,	         0/*small_id*/
 		) ;
-		jsrr.mk_canon(*g_repo_root_s) ;
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Status status ;
 	try {
 		BlockedSig blocked{{SIGINT}} ;
-		gather.autodep_env       = ::move(autodep_env)   ;
-		gather.autodep_env.views = job_space.flat_phys() ;
-		gather.cmd_line          = cmd_line.args         ;
-		gather.env               = &cmd_env              ;
-		gather.lmake_root_s      = jsrr.lmake_root_s     ;
-		gather.method            = jsrr.method           ;
+		gather.autodep_env  = ::move(autodep_env)   ;
+		gather.cmd_line     = cmd_line.args         ;
+		gather.env          = &cmd_env              ;
+		gather.lmake_root_s = jsrr.phy_lmake_root_s ;
+		gather.method       = jsrr.method           ;
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;
 		//       ^^^^^^^^^^^^^^^^^^^

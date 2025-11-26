@@ -195,11 +195,13 @@ This means that <code>/</code> is an ordinary character.</p>
 <p>However, because dirs do exist on disk, it is impossible for <code>a</code> and <code>a/b</code> to exist simultaneously (i.e. exist as regular or symbolic link).
 As a consequence, there is an implicit rule (Uphill) that prevents <code>a/b</code> from being buildable if <code>a</code> is buildable.</p>
 <p>Also, because dirs cannot be made up-to-date, scripts reading dirs can hardly be made reliable and repeatable.
-Such constructs are strongly discouraged:</p>
+Such constructs are strongly discouraged (prefer and explicit list, possibly based on <code>git ls-files</code> which is stable):</p>
 <ul>
 <li>use of <code>glob.glob</code> in python</li>
 <li>use of wildcard in bash</li>
 </ul>
+<p>As a consequence, such calls to <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir(3)</a> is forbidden unless <a href="rules.html#:~:text=repo%2E-,readdir%5Fok,date">explicitly allowed</a>
+in which case the user takes the responsibility of its stability.</p>
 <h2 id="jobs"><a class="header" href="#jobs">Jobs</a></h2>
 <p>Jobs are identified by their rule and stems (excluding star-stems).</p>
 <p>They have a list of targets and a list of deps.</p>

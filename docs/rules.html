@@ -495,7 +495,7 @@ If used in conjunction with <code>chroot_dir</code>, the directory is searched i
 </tbody></table>
 </div>
 <p>This attribute defines a dir in which jobs will see the top-level dir of open-lmake installation.
-This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>).</p>
+This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>) before any chroot if asked to do so.</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <h3 id="max_retries_on_lost"><a class="header" href="#max_retries_on_lost"><code>max_retries_on_lost</code></a></h3>
@@ -597,7 +597,7 @@ i.e. independent of the history (the repo is not constantly maintained without s
 </tbody></table>
 </div>
 <p>This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
-This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>).</p>
+This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>) before any chroot if asked to do so.</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <p>This attribute is typically used when using tools that handle absolute paths.
@@ -771,14 +771,16 @@ Else, it must be an absolute path.</p>
 </tbody></table>
 </div>
 <p>This attribute defines a mapping from logical views to physical dirs.</p>
-<p>Accesses to logical views are mapped to their corresponding physical location. Views and physical locations may be dirs or files depending on whether they end with a <code>/</code> or not.
-Files must be mapped to files and dirs to dirs.</p>
-<p>Both logical views and physical locations may be inside or outside the repo, but it is not possible to map an external view to a local location (cf. <a href="namespaces.html">namespaces</a>).</p>
+<p>Accesses to logical views are mapped to their corresponding physical location before any chroot if asked to do so.
+Views and physical locations must be dirs.</p>
+<p>Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. <a href="namespaces.html">namespaces</a>).</p>
+<p>Dirs in the repo or tmp are created as needed.
+External dirs must pre-exist.</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
 <li>a <code>dict</code> with keys <code>upper</code> (a <code>str</code>) and <code>lower</code> (a single <code>str</code> or a list of <code>str</code>) in which case an overlay mount is performed.
-Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of dirs to create in upper or files to copy from lower to upper.
+Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of dirs to create in <code>upper</code> or files to copy from <code>lower</code> to <code>upper</code>.
 Dirs are recognized when they end with <code>/</code>.
 Such <code>copy_up</code> items are provided relative to the root of the view.</li>
 </ul>

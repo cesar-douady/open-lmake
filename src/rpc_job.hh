@@ -706,19 +706,43 @@ namespace Caches {
 
 }
 
+struct ExecTraceEntry {
+	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
+	// cxtor & casts
+	// mimic aggregate cxtors as clang would not accept emplace_back if not explicitely provided
+	ExecTraceEntry() = default ;
+	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
+	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
+	// services
+	template<IsStream S> void serdes(S& s) {
+		::serdes( s , date                   ) ;
+		::serdes( s , comment , comment_exts ) ;
+		::serdes( s , file                   ) ;
+	}
+	::string step() const {
+		if (+comment_exts) return cat(comment,comment_exts) ;
+		else               return cat(comment             ) ;
+	}
+	// data
+	Time::Pdate date         ;
+	Comment     comment      = Comment::None ;
+	CommentExts comment_exts = {}            ;
+	::string    file         = {}            ;
+} ;
+
 struct JobSpace {
 	friend ::string& operator+=( ::string& , JobSpace const& ) ;
 	struct ViewDescr {
 		friend ::string& operator+=( ::string& , ViewDescr const& ) ;
 		// accesses
-		bool operator+() const { return +phys ; }
+		bool operator+() const { return +phys_s ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
-			::serdes( s , phys,copy_up ) ;
+			::serdes( s , phys_s,copy_up ) ;
 		}
 		// data
 		// START_OF_VERSIONING
-		::vector_s phys    = {} ;                                                              // (upper,lower...)
+		::vector_s phys_s  = {} ;                                                              // (upper,lower...)
 		::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
 		bool is_dyn = false ;                                                                  // only used in rule attributes
@@ -730,45 +754,34 @@ struct JobSpace {
 		::serdes( s , lmake_view_s,repo_view_s,tmp_view_s ) ;
 		::serdes( s , views                               ) ;
 	}
-	void update_env(
-		::map_ss      &/*inout*/ env
-	,	::string const&          phy_lmake_root_s
-	,	::string const&          phy_repo_root_s
-	,	::string const&          phy_tmp_dir_s
-	,	::string const&          sub_repo_s
-	,	SeqId  =0
-	,	SmallId=0
-	) const ;
 	bool/*entered*/ enter(
-		::vmap_s<MountAction>&/*out*/ report
-	,	::string             &/*out*/ repo_root_s
-	,	::string   const&             phy_lmake_root_s
-	,	::string   const&             phy_repo_root_s
-	,	::string   const&             phy_tmp_dir_s    , bool keep_tmp
-	,	::string   const&             chroot_dir_s
-	,	::string   const&             sub_repo_s
-	,	::string   const&             work_dir_s
-	,	::vector_s const&             src_dirs_s={}
+		::vector_s&              /*out*/   accesses
+	,	::string  &              /*.  */   repo_root_s
+	,	::vector<ExecTraceEntry>&/*inout*/
+	,	SmallId
+	,	::string   const&                  phy_lmake_root_s
+	,	::string   const&                  phy_repo_root_s
+	,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
+	,	::string   const&                  chroot_dir_s
+	,	::string   const&                  sub_repo_s
+	,	::vector_s const&                  src_dirs_s={}
 	) ;
 	void exit() ;
 	//
-	::vmap_s<::vector_s> flat_phys() const ;                                                   // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys_s() const ;                                                   // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
-	void mk_canon(::string const& phy_repo_root_s)       ;
-	void chk     (                               ) const ;
-private :
-	bool           _is_lcl_tmp( ::string const&                                                                       ) const ;
-	bool/*dst_ok*/ _create    ( ::vmap_s<MountAction>&/*inout*/ report , ::string const& dst , ::string const& src={} ) const ;
+	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s )       ;
+	void chk     (                                                              ) const ;
 	// data
-public :
 	// START_OF_VERSIONING
 	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
 	::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
 	::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;                                                    // map logical views to physical locations ( file->(file,) or dir->(upper,lower...) )
+	::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when not _is_canon, relative to repo_root when _is_canon
 	// END_OF_VERSIONING
 private :
 	::string _tmp_dir_s ;                                                                      // to be unlinked upon exit
+	bool     _is_canon  = false ;
 } ;
 
 struct JobRpcReq {
@@ -803,12 +816,12 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobStartRpcReply {                                                          // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct JobStartRpcReply {                                                           // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// accesses
-	bool operator+() const { return +interpreter ; }                               // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
+	bool operator+() const { return +interpreter ; }                                // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , autodep_env                    ) ;
@@ -824,11 +837,11 @@ struct JobStartRpcReply {                                                       
 		::serdes( s , key                            ) ;
 		::serdes( s , kill_sigs                      ) ;
 		::serdes( s , live_out                       ) ;
-		::serdes( s , lmake_root_s                   ) ;
 		::serdes( s , method                         ) ;
 		::serdes( s , network_delay                  ) ;
 		::serdes( s , nice                           ) ;
 		::serdes( s , os_info       , os_info_file   ) ;
+		::serdes( s , phy_lmake_root_s               ) ;
 		::serdes( s , pre_actions                    ) ;
 		::serdes( s , rule                           ) ;
 		::serdes( s , small_id                       ) ;
@@ -844,81 +857,65 @@ struct JobStartRpcReply {                                                       
 		else              { tag = cache ? cache->tag() : CacheTag::None ; ::serdes(s,tag)  ;                                               }
 		if (+tag        )                                                 cache->serdes(s) ;
 	}
-	void            mk_canon(::string const& phy_repo_root_s) ;
+	void            mk_canon( ::string const& phy_repo_root_s ) ;
 	bool/*entered*/ enter   (
-		::vmap_s<MountAction>&/*out*/
-	,	::map_ss             &/*.  */ cmd_env
-	,	::vmap_ss            &/*.  */ dyn_env
-	,	pid_t                &/*.  */ first_pid
-	,	::string             &/*.  */ repo_dir_s
-	,	::string        const&        phy_repo_root_s
-	,	::string        const&        phy_tmp_dir_s
+		::vector_s&              /*out*/   accesses
+	,	::map_ss  &              /*.  */   cmd_env
+	,	::vmap_ss &              /*.  */   dyn_env
+	,	pid_t     &              /*.  */   first_pid
+	,	::string  &              /*.  */   repo_dir_s
+	,	::vector<ExecTraceEntry>&/*inout*/
+	,	::string const&                    phy_repo_root_s
+	,	::string const&                    phy_tmp_dir_s
 	,	SeqId
 	) ;
+	void update_env(
+		::map_ss      &/*inout*/ env
+	,	::string const&          phy_repo_root_s
+	,	::string const&          phy_tmp_dir_s
+	,	SeqId=0
+	) const ;
 	void exit() ;
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
-	AutodepEnv                              autodep_env    ;
-	Caches::Cache*                          cache          = nullptr             ;
-	CacheIdx                                cache_idx      = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
-	::string                                chroot_dir_s   ;                       // absolute dir which job chroot's to before execution (empty if unused)
-	::string                                cmd            ;
-	Time::Delay                             ddate_prec     ;
-	::vmap_s<::pair<DepDigest,ExtraDflags>> deps           ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
-	::vmap_ss                               env            ;
-	::vector_s                              interpreter    ;                       // actual interpreter used to execute cmd
-	JobSpace                                job_space      ;
-	bool                                    keep_tmp       = false               ;
-	::string                                key            ;                       // key used to uniquely identify repo
-	::vector<uint8_t>                       kill_sigs      ;
-	bool                                    live_out       = false               ;
-	::string                                lmake_root_s   ;
-	AutodepMethod                           method         = AutodepMethod::Dflt ;
-	Time::Delay                             network_delay  ;
-	uint8_t                                 nice           = 0                   ;
-	::string                                os_info        ;                       // a regexpr of acceptable OS's
-	::string                                os_info_file   ;                       // a system file containing OS info, defaults to ID/VERSION_ID/architecture (from /etc/os-release and uname -m)
-	::vmap_s<FileAction>                    pre_actions    ;
-	::string                                rule           ;                       // rule name
-	SmallId                                 small_id       = 0                   ;
-	::vmap<Re::Pattern,MatchFlags>          star_matches   ;                       // maps regexprs to flags
-	::vmap_s<MatchFlags>                    static_matches ;                       // maps individual files to flags
-	bool                                    stderr_ok      = false               ;
-	::string                                stdin          ;
-	::string                                stdout         ;
-	Time::Delay                             timeout        ;
-	bool                                    use_script     = false               ;
-	Zlvl                                    zlvl           {}                    ;
+	AutodepEnv                              autodep_env     ;
+	Caches::Cache*                          cache           = nullptr             ;
+	CacheIdx                                cache_idx       = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	::string                                chroot_dir_s    ;                       // absolute dir which job chroot's to before execution (empty if unused)
+	::string                                cmd             ;
+	Time::Delay                             ddate_prec      ;
+	::vmap_s<::pair<DepDigest,ExtraDflags>> deps            ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+	::vmap_ss                               env             ;
+	::vector_s                              interpreter     ;                       // actual interpreter used to execute cmd
+	JobSpace                                job_space       ;
+	bool                                    keep_tmp        = false               ;
+	::string                                key             ;                       // key used to uniquely identify repo
+	::vector<uint8_t>                       kill_sigs       ;
+	bool                                    live_out        = false               ;
+	AutodepMethod                           method          = AutodepMethod::Dflt ;
+	Time::Delay                             network_delay   ;
+	uint8_t                                 nice            = 0                   ;
+	::string                                os_info         ;                       // a regexpr of acceptable OS's
+	::string                                os_info_file    ;                       // a system file containing OS info, defaults to ID/VERSION_ID/architecture (from /etc/os-release and uname -m)
+	::string                                phy_lmake_root_s ;
+	::vmap_s<FileAction>                    pre_actions     ;
+	::string                                rule            ;                       // rule name
+	SmallId                                 small_id        = 0                   ;
+	::vmap<Re::Pattern,MatchFlags>          star_matches    ;                       // maps regexprs to flags
+	::vmap_s<MatchFlags>                    static_matches  ;                       // maps individual files to flags
+	bool                                    stderr_ok       = false               ;
+	::string                                stdin           ;
+	::string                                stdout          ;
+	Time::Delay                             timeout         ;
+	bool                                    use_script      = false               ;
+	Zlvl                                    zlvl            {}                    ;
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                                          // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                                           // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
-struct ExecTraceEntry {
-	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
-	// cxtor & casts
-	// mimic aggregate cxtors as clang would not accept emplace_back if not explicitely provided
-	ExecTraceEntry() = default ;
-	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
-	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
-	// services
-	template<IsStream S> void serdes(S& s) {
-		::serdes( s , date                   ) ;
-		::serdes( s , comment , comment_exts ) ;
-		::serdes( s , file                   ) ;
-	}
-	::string step() const {
-		if (+comment_exts) return cat(comment,comment_exts) ;
-		else               return cat(comment             ) ;
-	}
-	// data
-	Time::Pdate date         ;
-	Comment     comment      = Comment::None ;
-	CommentExts comment_exts = {}            ;
-	::string    file         = {}            ;
-} ;
 struct JobEndRpcReq : JobRpcReq {
 	using P   = JobRpcProc          ;
 	using SI  = SeqId               ;

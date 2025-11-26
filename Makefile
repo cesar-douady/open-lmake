@@ -845,7 +845,9 @@ _bin/mdbook :
 man/man1/%.1 : doc/man/man1/%.1.m doc/man/utils.mh doc/man/man1/common.1.m
 	@echo generate man to $@
 	@mkdir -p $(@D)
-	@m4 doc/man/utils.mh doc/man/man1/common.1.m $< | sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' >$@
+	@m4 doc/man/utils.mh doc/man/man1/common.1.m $< >$@.tmp      # ensure m4 errors are visible (so cannot directly use | sed)
+	@sed -e 's:^[\t ]*::' -e 's:-:\\-:g' -e '/^$$/ d' $@.tmp >$@
+	@rm $@.tmp
 
 docs/%.html : %.py
 	@echo syntax highlight to $@

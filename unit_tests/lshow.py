@@ -190,6 +190,7 @@ else :
 		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk','static_match') }
 		assert y==(
 			( 'start_overhead'    , ''               )
+		,	( 'chdir'             , os.getcwd()      )
 		,	( 'start_info(reply)' , ''               )
 		,	( 'washed'            , ''               )
 		,	( 'stdout'            , 'hello+world_sh' )
