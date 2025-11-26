@@ -578,39 +578,82 @@ In particular, it was not possible to write it solely on top of Posix.</p>
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="the-lmake-module"><a class="header" href="#the-lmake-module">The <code>lmake</code> module</a></h1>
 <h2 id="for-use-in-lmakefilepy"><a class="header" href="#for-use-in-lmakefilepy">For use in <code>Lmakefile.py</code></a></h2>
-<h3 id="backends"><a class="header" href="#backends"><code>backends</code></a></h3>
-<p>The <code>tuple</code> of implemented backends.
-<code>'local'</code> is always present.</p>
-<h3 id="autodeps"><a class="header" href="#autodeps"><code>autodeps</code></a></h3>
+<h3 id="autodeps"><a class="header" href="#autodeps"><a href="unit_tests/valgrind.html#:~:text=if%20%27ptrace%27%20not%20in%20lmake%2Eautodeps%20%3A"><code>autodeps</code></a></a></h3>
 <p>The <code>tuple</code> of implemented autodep methods.
 <code>'ld_preload'</code> is always present.</p>
+<h3 id="backends"><a class="header" href="#backends"><a href="unit_tests/wide.html#:~:text=if%20%27slurm%27%20in%20lmake%2Ebackends%20and%20osp%2Eexists%28%27%2Fetc%2Fslurm%2Fslurm%2Econf%27%29%20%3A"><code>backends</code></a></a></h3>
+<p>The <code>tuple</code> of implemented backends.
+<code>'local'</code> is always present.</p>
+<h3 id="check_version-major--minor0-"><a class="header" href="#check_version-major--minor0-"><code>check_version( major , minor=0 )</code></a></h3>
+<p>This function is used to check that the expected version is compatible with the actual version.</p>
+<p>This function must be called right after having imported the <code>lmake</code> module as in the future, it may adapt itself to the required version when this function is called.
+For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.</p>
 <h3 id="repo_root"><a class="header" href="#repo_root"><code>repo_root</code></a></h3>
 <p>The root dir of the (sub)-repo.</p>
 <h3 id="top_repo_root"><a class="header" href="#top_repo_root"><code>top_repo_root</code></a></h3>
 <p>The root dir of the top-level repo.</p>
+<h3 id="user_environ"><a class="header" href="#user_environ"><a href="unit_tests/wine.html#:~:text=environ%5Fresources%20%3D%20%7B%20%27DISPLAY%27%20%3A%20lmake%2Euser%5Fenviron%5B%27DISPLAY%27%5D%20%7D%20%23%20use%20current%20display"><code>user_environ</code></a></a></h3>
+<p>When reading <code>Lmakefile.py</code>, the environment is reset to a standard environment and this variable holds a copy of <code>os.environ</code> before it was reset.</p>
+<p>This ensures that the environment cannot be used unless explicitly asked.</p>
+<p>Variable values actually used in <code>Lmakefile.py</code> are considered as deps for this process and it is rerun if the actual environment is modified in subsequent <code>lmake</code> commands.</p>
 <h3 id="version"><a class="header" href="#version"><code>version</code></a></h3>
 <p>This variable holds the native version of open-lmake.
 It is a tuple formed with a <code>str</code> (the major version) and a <code>int</code> (the minor version).</p>
 <p>Upon new releases of open-lmake, the major version is a tag of the form YY.MM providing the year and month of publication if it is not backward compatible.
 Else the minor version is increased if the interface is modified (i.e. new features are supported).
 Hence, the check is that major versions must match equal and the actual minor version must be at least the expected minor version.</p>
-<h3 id="user_environ"><a class="header" href="#user_environ"><code>user_environ</code></a></h3>
-<p>When reading <code>Lmakefile.py</code>, the environment is reset to a standard environment and this variable holds a copy of <code>os.environ</code> before it was reset.</p>
-<p>This ensures that the environment cannot be used unless explicitly asked.</p>
-<p>Variable values actually used in <code>Lmakefile.py</code> are considered as deps for this process and it is rerun if the actual environment is modified in subsequent <code>lmake</code> commands.</p>
 <h3 id="class-pdict"><a class="header" href="#class-pdict"><code>class pdict</code></a></h3>
 <p>This class is a dict in which attribute accesses are mapped to item accesses.
 It is very practical to handle configurations.</p>
-<h3 id="check_version-major--minor0-"><a class="header" href="#check_version-major--minor0-"><code>check_version( major , minor=0 )</code></a></h3>
-<p>This function is used to check that the expected version is compatible with the actual version.</p>
-<p>This function must be called right after having imported the <code>lmake</code> module as in the future, it may adapt itself to the required version when this function is called.
-For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.</p>
 <h2 id="for-use-in-cmd"><a class="header" href="#for-use-in-cmd">For use in <code>cmd()</code></a></h2>
-<h3 id="run_cc-cmd_line--marker--stdinnone-"><a class="header" href="#run_cc-cmd_line--marker--stdinnone-"><code>run_cc( *cmd_line , marker='...' , stdin=None )</code></a></h3>
-<p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
-<p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
-<p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
-<h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></h3>
+<h3 id="class-autodep"><a class="header" href="#class-autodep"><code>class Autodep</code></a></h3>
+<p>A context manager that encapsulates <code>set_autodep</code>.</p>
+<pre><code class="language-python">with Autodep(active) :
+	&lt;some code&gt;
+</code></pre>
+<p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
+<h3 id="check_depsdelay0syncfalse"><a class="header" href="#check_depsdelay0syncfalse"><a href="unit_tests/codec.html#:~:text=lmake%2Echeck%5Fdeps%28%29"><code>check_deps(delay=0,sync=False)</code></a></a></h3>
+<p>Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
+Job will be killed in case condition above is not met.</p>
+<p>This means that rerun reasons are checked.
+This can be usefully called before heavy computation so that such heavy computation is run only once.</p>
+<p>If not null, the previous check is delayed by <code>delay</code> seconds. unless <code>sync</code>, function returns immediately, though (cf. note (2).</p>
+<p>If <code>sync</code>, wait for server reply. Return value is <code>True</code> if all deps are ok (no error), <code>False</code> otherwise.
+This is necessary, even without checking return value, to ensure that after this call,
+the dirs of previous deps actually exist if such deps are not read (e.g. when using <code>lmake.depend</code> without <code>read=True</code>).</p>
+<p><strong>CAVEAT</strong></p>
+<p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
+and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
+it may be that said process does not see the signal.
+This is due to a race condition in I(python) when said process is just starting.</p>
+<p>This may be annoying if said process was supposed to do some clean up or if it is very long.
+The solution in this case is to pass <code>sync=True</code>.
+This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as <code>check_deps</code> will still be running when the signal fires up.</p>
+<p>Notes:</p>
+<ul>
+<li>(1):
+The same functionality is provided with the <code>lcheck_deps</code> executable.</li>
+<li>(2):
+The <code>delay</code> argument is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
+Because there is no way to insert a call to <code>check_deps</code> after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
+If <code>delay</code> is long enough for all files to be read but substantially smaller than the compilation time,
+time can be save by avoiding full compilation with bad inputs when deps are being discovered.</li>
+</ul>
+<h3 id="cp_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#cp_target_tree-from_dir--to_dir--regexprnone-"><a href="unit_tests/target_tree.html#:~:text=lmake%2Ecp%5Ftarget%5Ftree%28%27dut%27%2C%27dut2%27%2Cregexpr%3D%27dut%2Fa%2E%27%29"><code>cp_target_tree( from_dir , to_dir , regexpr=None )</code></a></a></h3>
+<p>Copy generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.</p>
+<p>Links are copied as is, without effort to make them point to the same place.</p>
+<h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><a href="unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29"><code>decode( file , ctx , code )</code></a></a></h3>
+<p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
+Else an exception is raised.</p>
+<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
+In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
+<p>Cf. <a href="codec.html">encode/decode</a>.</p>
+<p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
+<h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></a></h3>
 <p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
 <p>If <code>follow_symlinks</code>, <code>deps</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
 <p>Each dep is associated with an access pattern.
@@ -697,7 +740,70 @@ In that case, using the <code>direct</code> flag reduces the number of reruns, w
 In that case, it is most probably wise to use the <code>critical</code> flag simultaneously.</p>
 </li>
 </ul>
-<h3 id="target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a class="header" href="#target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><code>target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )</code></a></h3>
+<h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><a href="unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29"><code>encode( file , ctx , val , min_length=1 )</code></a></a></h3>
+<p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
+Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
+<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
+In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<ul>
+<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
+</ul>
+<p>Cf. <a href="codec.html">encode/decode</a>.</p>
+<h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
+<p>Returns whether autodep is currently active or not.</p>
+<p>By default, autodep is active.</p>
+<h3 id="list_deps-dirnone--regexprnone-"><a class="header" href="#list_deps-dirnone--regexprnone-"><a href="unit_tests/list.html#:~:text=lmake%2Elist%5Fdeps%20%28regexpr%3D%27%5Bhw%5D%2E%2A%27%29"><code>list_deps( dir=None , regexpr=None )</code></a></a></h3>
+<p>Returns a <code>tuple</code> of currently accessed deps.</p>
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
+And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
+<p>If the cwd lies outside the repo, listed files are absolute.
+Else they are relative unless a dep is in an absolute source dir.</p>
+<p>The order of the listed deps is the chronological order.</p>
+<h3 id="list_rootdir"><a class="header" href="#list_rootdir"><code>list_root(dir)</code></a></h3>
+<p>Returns a <code>dir</code> as used as prefix in <code>list_deps</code> and <code>list_targets</code>.
+This is useful to filter their results.</p>
+<h3 id="list_targets-dirnone--regexprnone-"><a class="header" href="#list_targets-dirnone--regexprnone-"><a href="unit_tests/list.html#:~:text=lmake%2Elist%5Ftargets%28%29"><code>list_targets( dir=None , regexpr=None )</code></a></a></h3>
+<p>Returns a <code>tuple</code> of currently generated targets.</p>
+<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
+And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
+<p>If the cwd lies outside the repo, listed files are absolute.
+Else they are relative.</p>
+<p>The order of the listed targets is the chronological order.</p>
+<h3 id="mv_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#mv_target_tree-from_dir--to_dir--regexprnone-"><a href="unit_tests/target_tree.html#:~:text=lmake%2Emv%5Ftarget%5Ftree%28%27dut2%27%2C%27dut%27%29"><code>mv_target_tree( from_dir , to_dir , regexpr=None )</code></a></a></h3>
+<p>Move generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.
+Enclosing dirs becoming empty are removed as well if they are <code>from_dir</code> or below it.</p>
+<p>Links are copied as is, without effort to make them point to the same place.</p>
+<h3 id="report_importmodule_namenonepathnonemodule_suffixesnone"><a class="header" href="#report_importmodule_namenonepathnonemodule_suffixesnone"><code>report_import(module_name=None,path=None,module_suffixes=None)</code></a></h3>
+<p>Does necessary reporting when a module has been imported.</p>
+<p><code>module_name</code> is the name of the imported module.
+This function only handles the last level import, so it must be called at each level in case the module lies in a package.</p>
+<p>If not provided or empty, only does the reporting due to the path, but assumes no module is accessed.</p>
+<p>The way such reporting is done is by reporting a dep for each local dir in the path, for each module suffix, until the module is found, locally or externally.</p>
+<p><code>path</code> is the path which the imported module is searched in.</p>
+<p>If not provided or empty, it defaults to the current value of <code>sys.path</code>.</p>
+<p>Unless used with python2, this function allows <code>readdir</code> accesses to local dirs in the path as python does such a <code>readdir</code>.</p>
+<p><code>module_suffixes</code> is the list of suffixes to try that may provide a module, e.g. <code>('.py','/__init__.py')</code>.</p>
+<p>If not provided, the default is:</p>
+<ul>
+<li>for python2: <code>('.so','.py','/__init__.so','/__init__.py')</code></li>
+<li>for python3: <code>( i+s for s in importlib.machinery.all_suffixes() for i in ('','/__init__'))</code></li>
+</ul>
+<p>Note:</p>
+<ul>
+<li>It may be wise to specify only the suffixes actually used locally to reduce the number of deps.</li>
+<li>External modules are searched with the standard suffixes, even if <code>module_suffixes</code> is provided as there is no reason for the external modules to adhere to local conventions.</li>
+</ul>
+<h3 id="rm_target_tree-dir--regexprnone-"><a class="header" href="#rm_target_tree-dir--regexprnone-"><a href="unit_tests/target_tree.html#:~:text=lmake%2Erm%5Ftarget%5Ftree%28%27dut%27%2C%27dut%2Fa%2E%27%29"><code>rm_target_tree( dir , regexpr=None )</code></a></a></h3>
+<p>Remove generated targets that are inside <code>dir</code> and match <code>regexpr</code>.
+Enclosing dirs becoming empty are removed as well if they are <code>dir</code> or below it.</p>
+<h3 id="run_cc-cmd_line--marker--stdinnone-"><a class="header" href="#run_cc-cmd_line--marker--stdinnone-"><a href="examples/cc.dir/Lmakefile.html#:~:text=lmake%2Erun%5Fcc%28%20%27gcc%27%20%2C%20%27%2DMMD%27%20%2C%20%27%2DMF%27%20%2C%20tf%20%2C%20flags%20%2C%20%27%2Dc%27%20%2C%20%27%2Do%27%20%2C%20OBJ%20%2C%20SRC%20%29"><code>run_cc( *cmd_line , marker='...' , stdin=None )</code></a></a></h3>
+<p>This functions ensures that all dirs listed in arguments such as <code>-I</code> or <code>-L</code> exist reliably.</p>
+<p><code>marker</code> is the name of a marker file which is created in include dirs to guarantee there existence.</p>
+<p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
+<h3 id="set_autodepactive"><a class="header" href="#set_autodepactive"><code>set_autodep(active)</code></a></h3>
+<p>Set the state of autodep.</p>
+<h3 id="target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a class="header" href="#target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a href="unit_tests/target.html#:~:text=lmake%2Etarget%28%27side%2Epy%27%2Cwrite%3DTrue%2Csource%5Fok%3DTrue%29"><code>target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )</code></a></a></h3>
 <p>Declare <code>targets</code> as targets and alter associated flags.
 Note that the <code>allow</code> argument default value is <code>True</code>.</p>
 <p>If <code>follow_symlinks</code>, <code>targets</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
@@ -729,93 +835,14 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <li>(1):
 The same functionality is provided with the <code>ltarget</code> executable.</li>
 </ul>
-<h3 id="check_depsdelay0syncfalse"><a class="header" href="#check_depsdelay0syncfalse"><code>check_deps(delay=0,sync=False)</code></a></h3>
-<p>Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
-Job will be killed in case condition above is not met.</p>
-<p>This means that rerun reasons are checked.
-This can be usefully called before heavy computation so that such heavy computation is run only once.</p>
-<p>If not null, the previous check is delayed by <code>delay</code> seconds. unless <code>sync</code>, function returns immediately, though (cf. note (2).</p>
-<p>If <code>sync</code>, wait for server reply. Return value is <code>True</code> if all deps are ok (no error), <code>False</code> otherwise.
-This is necessary, even without checking return value, to ensure that after this call,
-the dirs of previous deps actually exist if such deps are not read (e.g. when using <code>lmake.depend</code> without <code>read=True</code>).</p>
-<p><strong>CAVEAT</strong></p>
-<p>If used in conjonction with the <code>kill_sigs</code> attribute with a handler to manage the listed signal(s) (typically by calling <code>signal.signal(...)</code> and without <code>sync=True</code>,
-and if a process is launched shortly after (typically by calling <code>subprocess.run</code> or <code>os.system</code>),
-it may be that said process does not see the signal.
-This is due to a race condition in I(python) when said process is just starting.</p>
-<p>This may be annoying if said process was supposed to do some clean up or if it is very long.
-The solution in this case is to pass <code>sync=True</code>.
-This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as <code>check_deps</code> will still be running when the signal fires up.</p>
-<p>Notes:</p>
-<ul>
-<li>(1):
-The same functionality is provided with the <code>lcheck_deps</code> executable.</li>
-<li>(2):
-The <code>delay</code> argument is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
-Because there is no way to insert a call to <code>check_deps</code> after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
-If <code>delay</code> is long enough for all files to be read but substantially smaller than the compilation time,
-time can be save by avoiding full compilation with bad inputs when deps are being discovered.</li>
-</ul>
-<h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
-<p>Returns whether autodep is currently active or not.</p>
-<p>By default, autodep is active.</p>
-<h3 id="set_autodepactive"><a class="header" href="#set_autodepactive"><code>set_autodep(active)</code></a></h3>
-<p>Set the state of autodep.</p>
-<h3 id="class-autodep"><a class="header" href="#class-autodep"><code>class Autodep</code></a></h3>
-<p>A context manager that encapsulates <code>set_autodep</code>.</p>
-<pre><code class="language-python">with Autodep(active) :
-	&lt;some code&gt;
-</code></pre>
-<p>executes <code>&lt;some code&gt;</code> with autodep active set as instructed.</p>
-<h3 id="list_deps-dirnone--regexprnone-"><a class="header" href="#list_deps-dirnone--regexprnone-"><code>list_deps( dir=None , regexpr=None )</code></a></h3>
-<p>Returns a <code>tuple</code> of currently accessed deps.</p>
-<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
-And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
-<p>If the cwd lies outside the repo, listed files are absolute.
-Else they are relative unless a dep is in an absolute source dir.</p>
-<p>The order of the listed deps is the chronological order.</p>
-<h3 id="list_targets-dirnone--regexprnone-"><a class="header" href="#list_targets-dirnone--regexprnone-"><code>list_targets( dir=None , regexpr=None )</code></a></h3>
-<p>Returns a <code>tuple</code> of currently generated targets.</p>
-<p>If <code>dir</code> is not <code>None</code>, oonly deps lying in the <code>dir</code> dir are listed.
-And if <code>regexpr</code> is not <code>None</code>, only if the to-be-reported file (as explained below) matches <code>regexpr</code>.</p>
-<p>If the cwd lies outside the repo, listed files are absolute.
-Else they are relative.</p>
-<p>The order of the listed targets is the chronological order.</p>
-<h3 id="list_rootdir"><a class="header" href="#list_rootdir"><code>list_root(dir)</code></a></h3>
-<p>Returns a <code>dir</code> as used as prefix in <code>list_deps</code> and <code>list_targets</code>.
-This is useful to filter their results.</p>
-<h3 id="rm_target_tree-dir--regexprnone-"><a class="header" href="#rm_target_tree-dir--regexprnone-"><code>rm_target_tree( dir , regexpr=None )</code></a></h3>
-<p>Remove generated targets that are inside <code>dir</code> and match <code>regexpr</code>.
-Enclosing dirs becoming empty are removed as well if they are <code>dir</code> or below it.</p>
-<h3 id="cp_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#cp_target_tree-from_dir--to_dir--regexprnone-"><code>cp_target_tree( from_dir , to_dir , regexpr=None )</code></a></h3>
-<p>Copy generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.</p>
-<p>Links are copied as is, without effort to make them point to the same place.</p>
-<h3 id="mv_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#mv_target_tree-from_dir--to_dir--regexprnone-"><code>mv_target_tree( from_dir , to_dir , regexpr=None )</code></a></h3>
-<p>Move generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.
-Enclosing dirs becoming empty are removed as well if they are <code>from_dir</code> or below it.</p>
-<p>Links are copied as is, without effort to make them point to the same place.</p>
-<h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><code>encode( file , ctx , val , min_length=1 )</code></a></h3>
-<p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
-Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
-<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
-In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
-<ul>
-<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
-</ul>
-<p>Cf. <a href="codec.html">encode/decode</a>.</p>
-<h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><code>decode( file , ctx , code )</code></a></h3>
-<p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
-Else an exception is raised.</p>
-<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
-In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
-<ul>
-<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
-</ul>
-<p>Cf. <a href="codec.html">encode/decode</a>.</p>
-<p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
-<h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><code>xxhsum_file(file)</code></a></h3>
+<h3 id="xxhsum-text--is_linkfalse-"><a class="header" href="#xxhsum-text--is_linkfalse-"><code>xxhsum( text , is_link=False )</code></a></h3>
+<p>Return a checksum of provided text.</p>
+<p>It is a 16-digit hex value with no suffix.</p>
+<p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
+<p>Note : this checksum is not the same as the checksum of a file with same content.</p>
+<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
+<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
+<h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><a href="unit_tests/xxh.html#:~:text=crc%5Fpy%20%3D%20lmake%2Exxhsum%5Ffile%28%27Lmakefile%2Epy%27%29"><code>xxhsum_file(file)</code></a></a></h3>
 <p>Return a checksum of provided file.</p>
 <p>The checksum is :</p>
 <ul>
@@ -825,34 +852,7 @@ In the latter case, such a dir must lie within a source dir and must contain a f
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
 </ul>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
-<h3 id="xxhsum-text--is_linkfalse-"><a class="header" href="#xxhsum-text--is_linkfalse-"><code>xxhsum( text , is_link=False )</code></a></h3>
-<p>Return a checksum of provided text.</p>
-<p>It is a 16-digit hex value with no suffix.</p>
-<p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
-<p>Note : this checksum is not the same as the checksum of a file with same content.</p>
-<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
-<h3 id="report_importmodule_namenonepathnonemodule_suffixesnone"><a class="header" href="#report_importmodule_namenonepathnonemodule_suffixesnone"><code>report_import(module_name=None,path=None,module_suffixes=None)</code></a></h3>
-<p>Does necessary reporting when a module has been imported.</p>
-<p><code>module_name</code> is the name of the imported module.
-This function only handles the last level import, so it must be called at each level in case the module lies in a package.</p>
-<p>If not provided or empty, only does the reporting due to the path, but assumes no module is accessed.</p>
-<p>The way such reporting is done is by reporting a dep for each local dir in the path, for each module suffix, until the module is found, locally or externally.</p>
-<p><code>path</code> is the path which the imported module is searched in.</p>
-<p>If not provided or empty, it defaults to the current value of <code>sys.path</code>.</p>
-<p>Unless used with python2, this function allows <code>readdir</code> accesses to local dirs in the path as python does such a <code>readdir</code>.</p>
-<p><code>module_suffixes</code> is the list of suffixes to try that may provide a module, e.g. <code>('.py','/__init__.py')</code>.</p>
-<p>If not provided, the default is:</p>
-<ul>
-<li>for python2: <code>('.so','.py','/__init__.so','/__init__.py')</code></li>
-<li>for python3: <code>( i+s for s in importlib.machinery.all_suffixes() for i in ('','/__init__'))</code></li>
-</ul>
-<p>Note:</p>
-<ul>
-<li>It may be wise to specify only the suffixes actually used locally to reduce the number of deps.</li>
-<li>External modules are searched with the standard suffixes, even if <code>module_suffixes</code> is provided as there is no reason for the external modules to adhere to local conventions.</li>
-</ul>
+<p>Cf. <a href="man/man1/xxhsum.html">xxhsum(1)</a> for a description of the algorithm.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -876,7 +876,7 @@ Arguments are passed as pertinent.</p>
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="the-lmakerules-module"><a class="header" href="#the-lmakerules-module">The <code>lmake.rules</code> module</a></h1>
 <h2 id="base-rules"><a class="header" href="#base-rules">Base rules</a></h2>
-<h3 id="class-rule"><a class="header" href="#class-rule"><code>class Rule</code></a></h3>
+<h3 id="class-rule"><a class="header" href="#class-rule"><a href="unit_tests/admin.html#:~:text=class%20Test%28Rule%29%20%3A"><code>class Rule</code></a></a></h3>
 <p>Base class for plain rules.</p>
 <p>A class becomes a rule when:</p>
 <ul>
@@ -884,7 +884,7 @@ Arguments are passed as pertinent.</p>
 <li>it has a <code>target</code> or <code>targets</code> attribute</li>
 <li>it has a <code>cmd</code> attribute</li>
 </ul>
-<h3 id="class-antirule"><a class="header" href="#class-antirule"><code>class AntiRule</code></a></h3>
+<h3 id="class-antirule"><a class="header" href="#class-antirule"><a href="unit_tests/rust.html#:~:text=class%20AntiRustRust%28AntiRule%29%20%3A%20target%20%3D%20r%27%7B%3A%2E%2A%7D%2Ers%2Ers"><code>class AntiRule</code></a></a></h3>
 <p>Base class for anti-rules.</p>
 <p>A class becomes an anti-rule when:</p>
 <ul>
@@ -894,7 +894,7 @@ Arguments are passed as pertinent.</p>
 <p>An anti-rule has no cmd nor deps.</p>
 <p>It applies to a file as soon as it matches one of the targets.
 In that case, the file is deemed unbuildable.</p>
-<h3 id="class-sourcerule"><a class="header" href="#class-sourcerule"><code>class SourceRule</code></a></h3>
+<h3 id="class-sourcerule"><a class="header" href="#class-sourcerule"><a href="unit_tests/generic_sources.html#:~:text=class%20XSrc%28SourceRule%29%20%3A%20target%20%3D%20r%27%7BFile%3A%2E%2A%7D%2Esrc"><code>class SourceRule</code></a></a></h3>
 <p>Base class for source-rules.</p>
 <p>A class becomes a source-rule when:</p>
 <ul>
@@ -906,30 +906,31 @@ In that case, the file is deemed unbuildable.</p>
 In that case, the file is deemed to be a source.</p>
 <p>If such a file is required and does not exist, it is an error condition.</p>
 <h2 id="helper-rules"><a class="header" href="#helper-rules">Helper rules</a></h2>
-<h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><code>class Py2Rule(Rule)</code>, <code>class Py3Rule(Rule)</code> and <code>class PyRule(Rule)</code></a></h3>
+<h3 id="class-dirtyrulerule"><a class="header" href="#class-dirtyrulerule"><code>class DirtyRule(Rule)</code></a></h3>
+<p>This class may be used to ignore all writes that are not an official target.</p>
+<p>By itself, it is a dangerous class and must be used with care.
+It is meant to be a practical way to do trials without having to work out all the details, but in a finalized workflow, it is better to avoid the usage of this class.</p>
+<h3 id="class-homelessrulerule"><a class="header" href="#class-homelessrulerule"><a href="unit_tests/home.html#:~:text=class%20Homeless1%28HomelessRule%29%20%3A%20target%20%3D%20%27homeless1%27%20cmd%20%3D%20%27%5B%20%24HOME%20%3D%20%24TMPDIR%20%5D%27"><code>class HomelessRule(Rule)</code></a></a></h3>
+<p>This class sets <code>$HOME</code> to <code>$TMPDIR</code>.
+This is a way to ensure that various tools behave the same way as if they were run for the first time.
+By default <code>$HOME</code> points to the root of the repo, which permits to put various init code there.</p>
+<h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a href="unit_tests/python2.html#:~:text=class%20Cat%28Py2Rule%29%20%3A"><code>class Py2Rule(Rule)</code></a>, <code>class Py3Rule(Rule)</code> and <a href="unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A"><code>class PyRule(Rule)</code></a></a></h3>
 <p>These classes may be used as base class for rules that execute python code doing imports.</p>
 <p>It manages <code>.pyc</code> files.
 Also, it provides deps to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
 <p>If <code>cmd</code> is not a function, and python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
-<p>Py2Rule is used for python2, Py3Rule is used for python3. PyRule is an alias for Py3Rule.</p>
-<h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><code>class RustRule(Rule)</code></a></h3>
+<p>Py2Rule is used for python2, Py3Rule is used for python3.
+PyRule is an alias for Py3Rule.</p>
+<h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><a href="unit_tests/rust.html#:~:text=class%20RunRust%28RustRule%29%20%3A"><code>class RustRule(Rule)</code></a></a></h3>
 <p>This class may be used as a base class to execute executable written in rust.</p>
 <p>Rust uses a special link mechanism which defeats the default <code>ld_audit</code> autodep mechanism.
 This base class merely sets the autodep method to <code>ld_preload</code> which works around this problem.</p>
-<h3 id="class-homelessrulerule"><a class="header" href="#class-homelessrulerule"><code>class HomelessRule(Rule)</code></a></h3>
-<p>This class sets <code>$HOME</code> to <code>$TMPDIR</code>.
-This is a way to ensure that various tools behave the same way as if they were run for the first time.
-By default <code>$HOME</code> points to the root of the repo, which permits to put various init code there.</p>
-<h3 id="class-tracerulerule"><a class="header" href="#class-tracerulerule"><code>class TraceRule(Rule)</code></a></h3>
+<h3 id="class-tracerulerule"><a class="header" href="#class-tracerulerule"><a href="unit_tests/trace_exec.html#:~:text=class%20Dut%28TraceRule%29%20%3A"><code>class TraceRule(Rule)</code></a></a></h3>
 <p>This class sets the <code>-x</code> flag for shell rules and manage so that traces are sent to stdout rather than stderr.</p>
 <p>This allow to suppress the common idiom:</p>
 <pre><code class="language-bash">echo complicated_command
 complicated_command
 </code></pre>
-<h3 id="class-dirtyrulerule"><a class="header" href="#class-dirtyrulerule"><code>class DirtyRule(Rule)</code></a></h3>
-<p>This class may be used to ignore all writes that are not an official target.</p>
-<p>By itself, it is a dangerous class and must be used with care.
-It is meant to be a practical way to do trials without having to work out all the details, but in a finalized workflow, it is better to avoid the usage of this class.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -1350,7 +1351,7 @@ This means:</p>
 </li>
 </ul>
 <h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
-<h3 id="auto_mkdir"><a class="header" href="#auto_mkdir"><code>auto_mkdir</code></a></h3>
+<h3 id="auto_mkdir"><a class="header" href="#auto_mkdir"><a href="unit_tests/chdir.html#:~:text=auto%5Fmkdir%20%3D%20step%3D%3D2"><code>auto_mkdir</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
@@ -1365,19 +1366,19 @@ This means:</p>
 <li>As a consequence, no dep is set for <code>a/b</code> and the problem will not be resolved by a further re-execution.</li>
 <li>Setting this attribute to true creates dir <code>a</code> on the fly when <code>chdir</code> is called so that it succeeds and the correct dep is set.</li>
 </ul>
-<h3 id="autodep"><a class="header" href="#autodep"><code>autodep</code></a></h3>
+<h3 id="autodep"><a class="header" href="#autodep"><a href="unit_tests/ptrace.html#:~:text=autodep%20%3D%20%27ptrace"><code>autodep</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>'ld_audit'</code> if supported else <code>'ld_preload'</code></td><td>Full</td><td><code>'ptrace'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden deps.</p>
-<h3 id="backend"><a class="header" href="#backend"><code>backend</code></a></h3>
+<h3 id="backend"><a class="header" href="#backend"><a href="unit_tests/slurm.html#:~:text=backend%20%3D%20%27slurm"><code>backend</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the <a href="backends.html">backend</a> to use to launch jobs.</p>
-<h3 id="cache"><a class="header" href="#cache"><code>cache</code></a></h3>
+<h3 id="cache"><a class="header" href="#cache"><a href="unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache"><code>cache</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
@@ -1386,13 +1387,13 @@ This means:</p>
 <p>When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.</p>
-<h3 id="cmd"><a class="header" href="#cmd"><code>cmd</code></a></h3>
+<h3 id="cmd"><a class="header" href="#cmd"><a href="unit_tests/basics.html#:~:text=class%20CatSh,f%2Eread%28%29%2Cend%3D%27%27%29"><code>cmd</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'gcc -c -o {OBJ} {SRC}'</code></td></tr>
 <tr><td>Combined</td><td>function</td><td>-</td><td>Full</td><td><code>def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))</code></td></tr>
 </tbody></table>
 </div>
-<h4 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function">if it is a function</a></h4>
+<h4 id="if-it-is-a-function"><a class="header" href="#if-it-is-a-function"><a href="unit_tests/basics.html#:~:text=def%20cmd%28%29%20%3A">if it is a function</a></a></h4>
 <p>In that case, this attribute is called to run the job (cf. <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>If several definitions exist along the MRO, They must all be functions and they are called successively in reverse MRO.
@@ -1421,7 +1422,7 @@ There are mostly 2 practical possibilities:</p>
 <li>Declare an argument with a default value. Such default value is saved when the function is defined.</li>
 <li>Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.</li>
 </ul>
-<h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str">if it is a <code>f-str</code></a></h4>
+<h4 id="if-it-is-a-f-str"><a class="header" href="#if-it-is-a-f-str"><a href="unit_tests/basics.html#:~:text=%27cat%20%7BFIRST%7D%20%7BSECOND%7D%27">if it is a <code>f-str</code></a></a></h4>
 <p>In that case, this attribute is executed as a shell command to run the job (cf. <a href="job_execution.html">job execution</a>).
 Combined inheritance is a special case for <code>cmd</code>.</p>
 <p>While walking the MRO, if for a base class <code>cmd</code> is defined as a function and it has a <code>shell</code> attribute, the value of this attribute is used instead.
@@ -1431,7 +1432,7 @@ For such a base class, the solution is to define <code>cmd</code> as a function 
 <p>If several definitions exist along the MRO, They must all be <code>str</code>'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.</p>
 <p>As for other attributes that may be dynamic, <code>cmd</code> is interpreted as an f-string.</p>
-<h3 id="chroot_dir"><a class="header" href="#chroot_dir"><code>chroot_dir</code></a></h3>
+<h3 id="chroot_dir"><a class="header" href="#chroot_dir"><a href="unit_tests/chroot.html#:~:text=chroot%5Fdir%20%3D%20%27%7Bimage%5Froot%28Os%29%7D%27"><code>chroot_dir</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/ubuntu22.04'</code></td></tr>
 </tbody></table>
@@ -1442,7 +1443,7 @@ It must be an absoluted path.</p>
 <p>If <code>None</code>, <code>''</code> or <code>'/'</code>, no <code>chroot</code> is performed unless required to manage the <code>tmp_view</code> and <code>repo_view</code> attributes (in which case it is transparent).
 However, if <code>'/'</code>, <a href="namespaces.html">namespaces</a> are used nonetheless.</p>
 <p>This attribute is typically used to execute the job in a different environment, such as a different OS distribution or release, leveraging a <code>docker</code> image.</p>
-<h3 id="compression"><a class="header" href="#compression"><code>compression</code></a></h3>
+<h3 id="compression"><a class="header" href="#compression"><a href="unit_tests/cache.html#:~:text=compression%20%3D%20z%5Flvl,-cmd%20%3D%20%27%27%27%20dir"><code>compression</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>None</code> or <code>str</code> or <code>int</code> or <code>tuple</code> or <code>list</code></td><td>None</td><td>Full</td><td><code>1</code></td></tr>
 </tbody></table>
@@ -1458,14 +1459,14 @@ Note that <code>1</code> seems to be a good compromize.</li>
 </ul>
 <p>When downloading from cache, the method and level used at upload time is honored.
 If the compression method is not supported, no download occurs.</p>
-<h3 id="dep"><a class="header" href="#dep"><code>dep</code></a></h3>
+<h3 id="dep"><a class="header" href="#dep"><a href="unit_tests/back_ref.html#:~:text=dep%20%3D%20%27single1%2Bdep%2Bdouble%2Bsingle2%2Bdouble%2Bdep"><code>dep</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines an unnamed static dep.</p>
 <p>During execution, <code>cmd</code> stdin will be redirected to this dep, else it is <code>/dev/null</code>.</p>
-<h3 id="deps"><a class="header" href="#deps"><code>deps</code></a></h3>
+<h3 id="deps"><a class="header" href="#deps"><a href="unit_tests/chain.html#:~:text=deps%20%3D%20%7B%20%27FIRST%27%20%3A%20%27%7BFile1%7D%27%20%2C%20%27SECOND%27%20%3A%20%27%7BFile2%7D%27%20%7D"><code>deps</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Simple</td><td><code>{ 'SRC' : '{File}.c' }</code></td></tr>
 </tbody></table>
@@ -1498,7 +1499,7 @@ In that case, if the list changes, speculatively building the old deps is probab
 possibly duplicating flags mentioned in other matching entries (<code>side_deps</code> and <code>side_targets</code>).</li>
 <li>The <code>top</code> flag is used in case of sub-repo, which is an experimental feature.</li>
 </ul>
-<h3 id="environ"><a class="header" href="#environ"><code>environ</code></a></h3>
+<h3 id="environ"><a class="header" href="#environ"><a href="unit_tests/env.html#:~:text=environ%20%3D%20%7B%20%27FROM%5FBACKEND%27%20%3A%20%2E%2E%2E%20%2C%20%27FROM%5FRULE%27%20%3A%20%27from%5Frule%27%20%7D"><code>environ</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td>...</td><td>Full</td><td><code>{ 'MY_TOOL_ROOT' : '/install/my_tool' }</code></td></tr>
 </tbody></table>
@@ -1532,7 +1533,7 @@ This is typically used to access some environment variables set by <code>slurm</
 <tr><td><code>$PYTHONPATH</code></td><td>PyRule</td><td><code>$LMAKE_ROOT/lib</code></td><td></td></tr>
 </tbody></table>
 </div>
-<h3 id="environ_ancillary"><a class="header" href="#environ_ancillary"><code>environ_ancillary</code></a></h3>
+<h3 id="environ_ancillary"><a class="header" href="#environ_ancillary"><a href="unit_tests/dyn.html#:~:text=environ%5Fancillary%20%3D%20%7B%20%27VAR%5FANCILLARY%27%20%3A%20file%5Ffunc%20%7D"><code>environ_ancillary</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'DISPLAY' : ':10' }</code></td></tr>
 </tbody></table>
@@ -1551,7 +1552,7 @@ This is typically used to access some environment variables set by <code>slurm</
 <tr><td><code>$USER</code></td><td>Rule</td><td>the user login name</td><td></td></tr>
 </tbody></table>
 </div>
-<h3 id="environ_resources"><a class="header" href="#environ_resources"><code>environ_resources</code></a></h3>
+<h3 id="environ_resources"><a class="header" href="#environ_resources"><a href="unit_tests/dyn.html#:~:text=environ%5Fresources%20%3D%20%7B%20%27VAR%5FRESOURCES%27%20%3A%20file%5Ffunc%20%7D"><code>environ_resources</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_TOOL_LICENCE' : '12345' }</code></td></tr>
 </tbody></table>
@@ -1564,7 +1565,7 @@ Hence, it is quite simple to copy some variables from the user environment altho
 <p>Except the exception below, the value must be a <code>f-str</code>.</p>
 <p>If resulting value is <code>...</code> (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
-<h3 id="force"><a class="header" href="#force"><code>force</code></a></h3>
+<h3 id="force"><a class="header" href="#force"><a href="unit_tests/dyn.html#:~:text=force%20%3D%20True"><code>force</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
@@ -1591,7 +1592,7 @@ If it contains star stems, they will be replaced by <code>*</code>'s in the repo
 It can be retreived with <code>lshow -i</code>.</p>
 <p>Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.</p>
-<h3 id="kill_sigs"><a class="header" href="#kill_sigs"><code>kill_sigs</code></a></h3>
+<h3 id="kill_sigs"><a class="header" href="#kill_sigs"><a href="unit_tests/kill.html#:~:text=kill%5Fsigs%20%3D%20%282%2C%29%20%23%20SIGKILL%20%289%29%20is%20automatically%20added%20when%20list%20is%20exhausted"><code>kill_sigs</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>(signal.SIGKILL,)</code></td><td>Full</td><td></td></tr>
 </tbody></table>
@@ -1610,7 +1611,7 @@ The process group of the job, as well as the process group of any process connec
 The streams we are waiting for are <code>stderr</code>, and <code>stdout</code> unless the <code>target</code> attribute is used (as opposed to the <code>targets</code> attribute)
 in which case <code>stdout</code> is redirected to the the target and is not waited for.</p>
 <p>Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.</p>
-<h3 id="lmake_root"><a class="header" href="#lmake_root"><code>lmake_root</code></a></h3>
+<h3 id="lmake_root"><a class="header" href="#lmake_root"><a href="unit_tests/chroot.html#:~:text=lmake%5Froot%20%3D%20%27%7Blmake%5Finstall%5Froot%28Os%29%7D%27"><code>lmake_root</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/installs/lmake'</code></td></tr>
 </tbody></table>
@@ -1620,7 +1621,7 @@ It must be an absoluted path.
 If used in conjunction with <code>chroot_dir</code>, the directory is searched in the chroot dir first, then, if not found, in the native root.</p>
 <p>If <code>None</code> or <code>''</code> the current installation is used.</p>
 <p>This attribute is typically used in conjunction with <code>chroot_dir</code> to indicate the installation dir of a suitable open-lmake.</p>
-<h3 id="lmake_view"><a class="header" href="#lmake_view"><code>lmake_view</code></a></h3>
+<h3 id="lmake_view"><a class="header" href="#lmake_view"><a href="unit_tests/namespaces.html#:~:text=lmake%5Fview%20%3D%20%27%2F%27%2Blmake%5Fview"><code>lmake_view</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/lmake'</code></td></tr>
 </tbody></table>
@@ -1637,7 +1638,7 @@ This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">n
 <p>This attribute provides the number of allowed retries before giving up when a job is lost.
 For example, a job may be lost because of a remote host being misconfigured, or because the job management process (called <code>job_exec</code>) was manually killed.</p>
 <p>In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.</p>
-<h3 id="max_runs"><a class="header" href="#max_runs"><code>max_runs</code></a></h3>
+<h3 id="max_runs"><a class="header" href="#max_runs"><a href="unit_tests/stress_codec.html#:~:text=max%5Fruns%20%3D%202"><code>max_runs</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>int</code></td><td><code>0</code></td><td>No</td><td></td></tr>
 </tbody></table>
@@ -1645,14 +1646,14 @@ For example, a job may be lost because of a remote host being misconfigured, or 
 <p>The goal is to protect against potential loss of performances if reruns are too frequent.
 Unlimited if <code>0</code>.
 Contrarily to the <code>max_submits</code> attribute, cache accesses are not counted when counting runs.</p>
-<h3 id="max_stderr_len"><a class="header" href="#max_stderr_len"><code>max_stderr_len</code></a></h3>
+<h3 id="max_stderr_len"><a class="header" href="#max_stderr_len"><a href="unit_tests/dyn.html#:~:text=def%20max%5Fstderr%5Flen%28%29%20%3A%20if%20step%3D%3D1%20%3A%20raise%20RuntimeError%20return%20File"><code>max_stderr_len</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>int</code></td><td><code>100</code></td><td>Full</td><td><code>1</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute defines the maximum number of lines of stderr that will be displayed in the output of <code>lmake</code>.
 The whole content of stderr stays accessible with the <code>lshow -e</code> command.</p>
-<h3 id="max_submits"><a class="header" href="#max_submits"><code>max_submits</code></a></h3>
+<h3 id="max_submits"><a class="header" href="#max_submits"><a href="unit_tests/misc6.html#:~:text=max%5Fsubmits%20%3D%201"><code>max_submits</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>int</code></td><td><code>10</code></td><td>No</td><td></td></tr>
 </tbody></table>
@@ -1661,7 +1662,7 @@ The whole content of stderr stays accessible with the <code>lshow -e</code> comm
 The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
 Unlimited if <code>0</code>.
 Contrarily to the <code>max_runs</code> attribute, cache accesses are counted when counting submits.</p>
-<h3 id="name"><a class="header" href="#name"><code>name</code></a></h3>
+<h3 id="name"><a class="header" href="#name"><a href="unit_tests/name.html#:~:text=name%20%3D%20f%27expand%7Bstep%7D%27"><code>name</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>None</td><td><code>str</code></td><td><code>cls.__name__</code></td><td>No</td><td></td></tr>
 </tbody></table>
@@ -1677,7 +1678,7 @@ Usually, the default value is fine, but you may need to set a name, for example:
 		deps    = { 'SRC' : f'{{File}}.{ext}' }
 		cmd     = 'gcc -c -o {OBJ} {SRC}'
 </code></pre>
-<h3 id="os_info"><a class="header" href="#os_info"><code>os_info</code></a></h3>
+<h3 id="os_info"><a class="header" href="#os_info"><a href="unit_tests/os_info.html#:~:text=os%5Finfo%20%3D%20%27go%2Bd%5Cn%27"><code>os_info</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td>re.escape(<code>&lt;ID&gt;/&lt;VERSION_ID&gt;/&lt;machine&gt;</code>)</td><td>Full</td><td><code>r'ubuntu/22\.04/x86_64'</code></td></tr>
 </tbody></table>
@@ -1687,14 +1688,14 @@ When a job starts, the same information is computed on the executing host and th
 <p>In the default value above, <code>&lt;ID&gt;</code> and <code>&lt;VERSION_ID&gt;</code> are taken from the corresponding lines in <code>/etc/os-release</code> and <code>&lt;machine&gt;</code> is <code>os.uname().machine</code>.</p>
 <p>If <code>None</code> or <code>''</code> no check is performed.</p>
 <p>This attribute is typically used jobs are executed in various OS environment, for example when using the <code>chroot_dir</code> attribute or when jobs are dispatched using slurm or SGE.</p>
-<h3 id="os_info_file"><a class="header" href="#os_info_file"><code>os_info_file</code></a></h3>
+<h3 id="os_info_file"><a class="header" href="#os_info_file"><a href="unit_tests/os_info.html#:~:text=os%5Finfo%5Ffile%20%3D%20os%2Egetcwd%28%29%2B%27%2FLMAKE%2Flmake%2Fos%5Finfo"><code>os_info_file</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>''</code></td><td>Full</td><td><code>'/my_os_tag'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies a file from which to get OS information for use with the <code>os_info</code> attribute above.
 When specified, the content of this file is used instead of <code>&lt;ID&gt;/&lt;VERSION_ID&gt;/&lt;machine&gt;</code> as described above.</p>
-<h3 id="prio"><a class="header" href="#prio"><code>prio</code></a></h3>
+<h3 id="prio"><a class="header" href="#prio"><a href="unit_tests/hide.html#:~:text=prio%20%3D%201"><code>prio</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>float</code></td><td><code>0</code> or <code>+inf</code></td><td>No</td><td><code>1</code></td></tr>
 </tbody></table>
@@ -1702,7 +1703,7 @@ When specified, the content of this file is used instead of <code>&lt;ID&gt;/&lt
 <p>Default value is 0 if inheriting from <code>lmake.Rule</code>, else <code>+inf</code>.</p>
 <p>This attribute is used to order matching priority.
 Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf. <a href="rule_selection.html">rule selection</a>).</p>
-<h3 id="python"><a class="header" href="#python"><code>python</code></a></h3>
+<h3 id="python"><a class="header" href="#python"><a href="unit_tests/python2.html#:~:text=python%20%3D%20%28lmake%2Euser%5Fenviron%5B%27PYTHON2%27%5D%2C%29"><code>python</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td>system python</td><td>Full</td><td><code>venv/bin/python3</code></td></tr>
 </tbody></table>
@@ -1714,7 +1715,7 @@ In the latter case, a file that contains the script is created and its name is p
 <p>Open-lmake uses python3.6+ to read <code>Lmakefile.py</code>, but that being done, any interpreter can be used to execute <code>cmd</code>.
 In particular, python2.7 and all revisions of python3 are fully supported.</p>
 <p>If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.</p>
-<h3 id="readdir_ok"><a class="header" href="#readdir_ok"><code>readdir_ok</code></a></h3>
+<h3 id="readdir_ok"><a class="header" href="#readdir_ok"><a href="unit_tests/wine.html#:~:text=readdir%5Fok%20%3D%20True"><code>readdir_ok</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
@@ -1722,7 +1723,7 @@ In particular, python2.7 and all revisions of python3 are fully supported.</p>
 <p>When this attribute has a false value, reading a local dir that is not <code>ignore</code>d nor <code>incremental</code> is considered an error as the list of files in a dir cannot be made stable,
 i.e. independent of the history (the repo is not constantly maintained without spurious files, nor with all buildable files existing).</p>
 <p>If it is true, such reading is allowed and it is the user responsibility to ensure that spurious or missing files have no impact on output, once all deps are up-to-date.</p>
-<h3 id="repo_view"><a class="header" href="#repo_view"><code>repo_view</code></a></h3>
+<h3 id="repo_view"><a class="header" href="#repo_view"><a href="unit_tests/namespaces.html#:~:text=repo%5Fview%20%3D%20%27%2F%27%2Brepo%5Fview"><code>repo_view</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/repo'</code></td></tr>
 </tbody></table>
@@ -1733,7 +1734,7 @@ This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">n
 <p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
 <p>This attribute is typically used when using tools that handle absolute paths.
 This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.</p>
-<h3 id="resources"><a class="header" href="#resources"><code>resources</code></a></h3>
+<h3 id="resources"><a class="header" href="#resources"><a href="unit_tests/resources.html#:~:text=resources%20%3D%20%7B%20%27gnat%27%3A%20%271%27%20%7D"><code>resources</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_RESOURCE' : '1' }</code></td></tr>
 </tbody></table>
@@ -1743,7 +1744,7 @@ These may be cpu availability, memory, commercial tool licenses, access to dedic
 <p>Values must <code>f-str</code>.</p>
 <p>The syntax is the same as for <code>deps</code>.</p>
 <p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf. <a href="config.html">local backend</a> for the local backend).</p>
-<h3 id="shell"><a class="header" href="#shell"><code>shell</code></a></h3>
+<h3 id="shell"><a class="header" href="#shell"><a href="unit_tests/misc19.html#:~:text=shell%20%3D%20Rule%2Eshell%20%2B%20%28%27%2De%27%2C%29"><code>shell</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>/bin/bash</code></td><td>Full</td><td><code>('/bin/bash','-e')</code></td></tr>
 </tbody></table>
@@ -1753,7 +1754,7 @@ These may be cpu availability, memory, commercial tool licenses, access to dedic
 <p>At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding <code>-c</code>.</p>
 <p>If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.</p>
-<h3 id="side_deps"><a class="header" href="#side_deps"><code>side_deps</code></a></h3>
+<h3 id="side_deps"><a class="header" href="#side_deps"><a href="unit_tests/ignore.html#:~:text=side%5Fdeps%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Fdep%27%2C%27ignore%27%29%20%7D"><code>side_deps</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td></td></tr>
 </tbody></table>
@@ -1766,7 +1767,7 @@ Syntactically, it follows the <code>side_targets</code> attribute except that:</
 <li>The flag <code>Ignore</code> or <code>ignore</code> only applies to reads to prevent such accessed files from becoming a dep where for <code>side_targets</code>, this flag prevents files from being deps or targets.</li>
 <li><code>.</code> may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the <code>readdir_ok</code> flag.</li>
 </ul>
-<h3 id="side_targets"><a class="header" href="#side_targets"><code>side_targets</code></a></h3>
+<h3 id="side_targets"><a class="header" href="#side_targets"><a href="unit_tests/ignore.html#:~:text=side%5Ftargets%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Ftarget%27%2C%27ignore%27%29%20%7D"><code>side_targets</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td></td></tr>
 </tbody></table>
@@ -1776,28 +1777,28 @@ Syntactically, it follows the <code>side_targets</code> attribute except that:</
 <li>Targets listed here do not trigger job execution, i.e. they do not participate to the <a href="rule_selection.html">rule selection</a> process.</li>
 <li>It not compulsory to use all static stems as this constraint is only necessary to fully define a job when selected by the rule selection process.</li>
 </ul>
-<h3 id="start_delay"><a class="header" href="#start_delay"><code>start_delay</code></a></h3>
+<h3 id="start_delay"><a class="header" href="#start_delay"><a href="unit_tests/misc10.html#:~:text=start%5Fdelay%20%3D%200"><code>start_delay</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>float</code></td><td><code>3</code></td><td>Full</td><td></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
 The consequence is only cosmetic, it has no other impact.</p>
-<h3 id="stderr_ok"><a class="header" href="#stderr_ok"><code>stderr_ok</code></a></h3>
+<h3 id="stderr_ok"><a class="header" href="#stderr_ok"><a href="unit_tests/misc1.html#:~:text=stderr%5Fok%20%3D%20True"><code>stderr_ok</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
 If it is true, writing to stderr is allowed and does not produce an error. The <code>lmake</code> output will exhibit a warning, though.</p>
-<h3 id="stems"><a class="header" href="#stems"><code>stems</code></a></h3>
+<h3 id="stems"><a class="header" href="#stems"><a href="unit_tests/basics.html#:~:text=stems%20%3D%20%7B%20%27File1%27%20%3A%20r%27%2E%2A%27%20%2C%20%27File2%27%20%3A%20r%27%2E%2A%27%20%7D"><code>stems</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td><code>{'File':r'.*'}</code></td></tr>
 </tbody></table>
 </div>
 <p>Stems are regular expressions that represent the variable parts of targets which rules match.</p>
 <p>Each entry <key>:<value> define a stem named <key> whose associated regular expression is <value>.</p>
-<h3 id="target"><a class="header" href="#target"><code>target</code></a></h3>
+<h3 id="target"><a class="header" href="#target"><a href="unit_tests/basics.html#:~:text=target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fsh"><code>target</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>No</td><td></td></tr>
 </tbody></table>
@@ -1806,7 +1807,7 @@ If it is true, writing to stderr is allowed and does not produce an error. The <
 Its syntax is the same as any target entry except that it may not be <code>incremental</code>. Also, such a target may not be a <code>star</code> target.</p>
 <p>During execution, <code>cmd</code> stdout will be redirected to this (necessarily unique since it cannot be a <code>star</code>) target.</p>
 <p>The <code>top</code> flag cannot be used and the pattern is always rooted to the sub-repo if the rule is defined in such a sub-repo.</p>
-<h3 id="targets"><a class="header" href="#targets"><code>targets</code></a></h3>
+<h3 id="targets"><a class="header" href="#targets"><a href="unit_tests/misc14.html#:~:text=targets%20%3D%20%7B%20%27DUT%27%20%3A%20r%27dut%5Fsh%7BN%2A%3A%5Cd%7D%27%20%7D"><code>targets</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td><code>{ 'OBJ' : '{File}.o' }</code></td></tr>
 </tbody></table>
@@ -1872,13 +1873,13 @@ It could be for example the target <code>ALL</code>, so that <code>lmake ALL</co
 possibly duplicating flags mentioned in other matching entries (<code>side_deps</code> and <code>side_targets</code>).</li>
 <li>The <code>top</code> flag is used in case of sub-repo, which is an experimental feature.</li>
 </ul>
-<h3 id="timeout"><a class="header" href="#timeout"><code>timeout</code></a></h3>
+<h3 id="timeout"><a class="header" href="#timeout"><a href="unit_tests/wine.html#:~:text=timeout%20%3D%20120"><code>timeout</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>float</code></td><td>no timeout</td><td>Full</td><td></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.</p>
-<h3 id="tmp_view"><a class="header" href="#tmp_view"><code>tmp_view</code></a></h3>
+<h3 id="tmp_view"><a class="header" href="#tmp_view"><a href="unit_tests/overlay.html#:~:text=tmp%5Fview%20%3D%20%27%2Ftmp"><code>tmp_view</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'/tmp'</code></td></tr>
 </tbody></table>
@@ -1886,7 +1887,7 @@ possibly duplicating flags mentioned in other matching entries (<code>side_deps<
 <p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted.
 Else, it must be an absolute path.</p>
-<h3 id="use_script"><a class="header" href="#use_script"><code>use_script</code></a></h3>
+<h3 id="use_script"><a class="header" href="#use_script"><a href="unit_tests/use_script.html#:~:text=use%5Fscript%20%3D%20True"><code>use_script</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
@@ -1896,7 +1897,7 @@ Else, it must be an absolute path.</p>
 <p>If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.</p>
 <p>If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.</p>
 <p>This attribute is typically use with interpreters that do not implement the <code>-c</code> option.</p>
-<h3 id="views"><a class="header" href="#views"><code>views</code></a></h3>
+<h3 id="views"><a class="header" href="#views"><a href="unit_tests/overlay.html#:~:text=views%20%3D%20%7B%20%27read%5Fwrite%27%20%3A%20%7B%27upper%27%3A%27write%27%2C%27lower%27%3A%27read%27%7D%20%7D%20%23%20mount%20read%5Fwrite%20as%20write%20on%20top%20of%20read"><code>views</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td></td></tr>
 </tbody></table>
@@ -2982,7 +2983,7 @@ They are:</p>
 <!-- Copyright (c) 2023-2025 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="sub-repos"><a class="header" href="#sub-repos">Sub-repos</a></h1>
+<h1 id="sub-repos"><a class="header" href="#sub-repos"><a href="unit_tests/sub_repos.html">Sub-repos</a></a></h1>
 <p>Sub-repos are repos that contain repos, i.e. some <code>Lmakefile.py</code> are present in sub-dirs.</p>
 <p>In that situation, it is reasonable to assume that the <code>Lmakefile.py</code> are made to handle building files underneath it.</p>
 <p>To support this situation, open-lmake allow you to simply mention such sub-repos, so that:</p>

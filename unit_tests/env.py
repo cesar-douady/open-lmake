@@ -8,15 +8,19 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	lmake.config.backends.local.environ = { 'DUT':'dut' }
+	lmake.config.backends.local.environ = { 'FROM_BACKEND':'from_backend' }
 
 	lmake.manifest = ('Lmakefile.py',)
 
 	class Dut(Rule) :
 		target  = 'dut.ok'
-		environ = { 'DUT':... }
+		environ = {
+			'FROM_BACKEND' : ...
+		,	'FROM_RULE'    : 'from_rule'
+		}
 		cmd = '''
-			[ "$DUT" = dut ] || echo bad '$DUT :' "$DUT != dut" >&2
+			[ "$FROM_BACKEND" = from_backend ] || echo bad '$FROM_BACKEND' : $FROM_BACKEND != from_backend >&2
+			[ "$FROM_RULE"    = from_rule    ] || echo bad '$FROM_RULE'    : $FROM_RULE    != from_rule    >&2
 		'''
 
 else :

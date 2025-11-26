@@ -3,7 +3,7 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 
-# Sub-repos
+# [Sub-repos](unit_tests/sub_repos.html)
 
 Sub-repos are repos that contain repos, i.e. some `Lmakefile.py` are present in sub-dirs.
 

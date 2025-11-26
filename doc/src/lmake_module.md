@@ -7,15 +7,22 @@
 
 ## For use in `Lmakefile.py`
 
-### `backends`
+### [`autodeps`](unit_tests/valgrind.html#:~:text=if%20%27ptrace%27%20not%20in%20lmake%2Eautodeps%20%3A)
+
+The `tuple` of implemented autodep methods.
+`'ld_preload'` is always present.
+
+### [`backends`](unit_tests/wide.html#:~:text=if%20%27slurm%27%20in%20lmake%2Ebackends%20and%20osp%2Eexists%28%27%2Fetc%2Fslurm%2Fslurm%2Econf%27%29%20%3A)
 
 The `tuple` of implemented backends.
 `'local'` is always present.
 
-### `autodeps`
+### `check_version( major , minor=0 )`
 
-The `tuple` of implemented autodep methods.
-`'ld_preload'` is always present.
+This function is used to check that the expected version is compatible with the actual version.
+
+This function must be called right after having imported the `lmake` module as in the future, it may adapt itself to the required version when this function is called.
+For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.
 
 ### `repo_root`
 
@@ -24,6 +31,14 @@ The root dir of the (sub)-repo.
 ### `top_repo_root`
 
 The root dir of the top-level repo.
+
+### [`user_environ`](unit_tests/wine.html#:~:text=environ%5Fresources%20%3D%20%7B%20%27DISPLAY%27%20%3A%20lmake%2Euser%5Fenviron%5B%27DISPLAY%27%5D%20%7D%20%23%20use%20current%20display)
+
+When reading `Lmakefile.py`, the environment is reset to a standard environment and this variable holds a copy of `os.environ` before it was reset.
+
+This ensures that the environment cannot be used unless explicitly asked.
+
+Variable values actually used in `Lmakefile.py` are considered as deps for this process and it is rerun if the actual environment is modified in subsequent `lmake` commands.
 
 ### `version`
 
@@ -34,37 +49,81 @@ Upon new releases of open-lmake, the major version is a tag of the form YY.MM pr
 Else the minor version is increased if the interface is modified (i.e. new features are supported).
 Hence, the check is that major versions must match equal and the actual minor version must be at least the expected minor version.
 
-### `user_environ`
-
-When reading `Lmakefile.py`, the environment is reset to a standard environment and this variable holds a copy of `os.environ` before it was reset.
-
-This ensures that the environment cannot be used unless explicitly asked.
-
-Variable values actually used in `Lmakefile.py` are considered as deps for this process and it is rerun if the actual environment is modified in subsequent `lmake` commands.
-
 ### `class pdict`
 
 This class is a dict in which attribute accesses are mapped to item accesses.
 It is very practical to handle configurations.
 
-### `check_version( major , minor=0 )`
-
-This function is used to check that the expected version is compatible with the actual version.
-
-This function must be called right after having imported the `lmake` module as in the future, it may adapt itself to the required version when this function is called.
-For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.
-
 ## For use in `cmd()`
 
-### `run_cc( *cmd_line , marker='...' , stdin=None )`
+### `class Autodep`
 
-This functions ensures that all dirs listed in arguments such as `-I` or `-L` exist reliably.
+A context manager that encapsulates `set_autodep`.
 
-`marker` is the name of a marker file which is created in include dirs to guarantee there existence.
+```python
+with Autodep(active) :
+	<some code>
+```
 
-`stdin` is the text ot send as the stdin of `cmd_line`.
+executes `<some code>` with autodep active set as instructed.
 
-### `depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )`
+### [`check_deps(delay=0,sync=False)`](unit_tests/codec.html#:~:text=lmake%2Echeck%5Fdeps%28%29)
+
+Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
+Job will be killed in case condition above is not met.
+
+This means that rerun reasons are checked.
+This can be usefully called before heavy computation so that such heavy computation is run only once.
+
+If not null, the previous check is delayed by `delay` seconds. unless `sync`, function returns immediately, though (cf. note (2).
+
+If `sync`, wait for server reply. Return value is `True` if all deps are ok (no error), `False` otherwise.
+This is necessary, even without checking return value, to ensure that after this call,
+the dirs of previous deps actually exist if such deps are not read (e.g. when using `lmake.depend` without `read=True`).
+
+**CAVEAT**
+
+If used in conjonction with the `kill_sigs` attribute with a handler to manage the listed signal(s) (typically by calling `signal.signal(...)` and without `sync=True`,
+and if a process is launched shortly after (typically by calling `subprocess.run` or `os.system`),
+it may be that said process does not see the signal.
+This is due to a race condition in I(python) when said process is just starting.
+
+This may be annoying if said process was supposed to do some clean up or if it is very long.
+The solution in this case is to pass `sync=True`.
+This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as `check_deps` will still be running when the signal fires up.
+
+Notes:
+
+- (1):
+	The same functionality is provided with the `lcheck_deps` executable.
+- (2):
+	The `delay` argument is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
+	Because there is no way to insert a call to `check_deps` after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
+	If `delay` is long enough for all files to be read but substantially smaller than the compilation time,
+	time can be save by avoiding full compilation with bad inputs when deps are being discovered.
+
+### [`cp_target_tree( from_dir , to_dir , regexpr=None )`](unit_tests/target_tree.html#:~:text=lmake%2Ecp%5Ftarget%5Ftree%28%27dut%27%2C%27dut2%27%2Cregexpr%3D%27dut%2Fa%2E%27%29)
+
+Copy generated targets that are inside `from_dir` and match `regexpr` to `to_dir`.
+
+Links are copied as is, without effort to make them point to the same place.
+
+### [`decode( file , ctx , code )`](unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29)
+
+If a val is associated to `code` within file `file` and context `ctx`, return it.
+Else an exception is raised.
+
+`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
+In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+
+- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
+
+Cf. [encode/decode](codec.html).
+
+Associations are usually created using `encode` but not necessarily (they can be created by hand).
+
+### [`depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )`](unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29)
 
 Declare `deps` as parallel deps (i.e. no order exist between them).
 
@@ -145,7 +204,108 @@ Notes:
 	In that case, using the `direct` flag reduces the number of reruns, which can occur for each step otherwise.
 	In that case, it is most probably wise to use the `critical` flag simultaneously.
 
-### `target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )`
+### [`encode( file , ctx , val , min_length=1 )`](unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29)
+
+If a code is associated to `val` within file `file` and context `ctx`, return it.
+Else a code is created, of length at least `min_length`, is associated to `val` and is return.
+
+`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
+In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+
+- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
+
+Cf. [encode/decode](codec.html).
+
+### `get_autodep()`
+
+Returns whether autodep is currently active or not.
+
+By default, autodep is active.
+
+### [`list_deps( dir=None , regexpr=None )`](unit_tests/list.html#:~:text=lmake%2Elist%5Fdeps%20%28regexpr%3D%27%5Bhw%5D%2E%2A%27%29)
+
+Returns a `tuple` of currently accessed deps.
+
+If `dir` is not `None`, oonly deps lying in the `dir` dir are listed.
+And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
+
+If the cwd lies outside the repo, listed files are absolute.
+Else they are relative unless a dep is in an absolute source dir.
+
+The order of the listed deps is the chronological order.
+
+### `list_root(dir)`
+
+Returns a `dir` as used as prefix in `list_deps` and `list_targets`.
+This is useful to filter their results.
+
+### [`list_targets( dir=None , regexpr=None )`](unit_tests/list.html#:~:text=lmake%2Elist%5Ftargets%28%29)
+
+Returns a `tuple` of currently generated targets.
+
+If `dir` is not `None`, oonly deps lying in the `dir` dir are listed.
+And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
+
+If the cwd lies outside the repo, listed files are absolute.
+Else they are relative.
+
+The order of the listed targets is the chronological order.
+
+### [`mv_target_tree( from_dir , to_dir , regexpr=None )`](unit_tests/target_tree.html#:~:text=lmake%2Emv%5Ftarget%5Ftree%28%27dut2%27%2C%27dut%27%29)
+
+Move generated targets that are inside `from_dir` and match `regexpr` to `to_dir`.
+Enclosing dirs becoming empty are removed as well if they are `from_dir` or below it.
+
+Links are copied as is, without effort to make them point to the same place.
+
+### `report_import(module_name=None,path=None,module_suffixes=None)`
+
+Does necessary reporting when a module has been imported.
+
+`module_name` is the name of the imported module.
+This function only handles the last level import, so it must be called at each level in case the module lies in a package.
+
+If not provided or empty, only does the reporting due to the path, but assumes no module is accessed.
+
+The way such reporting is done is by reporting a dep for each local dir in the path, for each module suffix, until the module is found, locally or externally.
+
+`path` is the path which the imported module is searched in.
+
+If not provided or empty, it defaults to the current value of `sys.path`.
+
+Unless used with python2, this function allows `readdir` accesses to local dirs in the path as python does such a `readdir`.
+
+`module_suffixes` is the list of suffixes to try that may provide a module, e.g. `('.py','/__init__.py')`.
+
+If not provided, the default is:
+
+- for python2: `('.so','.py','/__init__.so','/__init__.py')`
+- for python3: `( i+s for s in importlib.machinery.all_suffixes() for i in ('','/__init__'))`
+
+Note:
+
+- It may be wise to specify only the suffixes actually used locally to reduce the number of deps.
+- External modules are searched with the standard suffixes, even if `module_suffixes` is provided as there is no reason for the external modules to adhere to local conventions.
+
+### [`rm_target_tree( dir , regexpr=None )`](unit_tests/target_tree.html#:~:text=lmake%2Erm%5Ftarget%5Ftree%28%27dut%27%2C%27dut%2Fa%2E%27%29)
+
+Remove generated targets that are inside `dir` and match `regexpr`.
+Enclosing dirs becoming empty are removed as well if they are `dir` or below it.
+
+### [`run_cc( *cmd_line , marker='...' , stdin=None )`](examples/cc.dir/Lmakefile.html#:~:text=lmake%2Erun%5Fcc%28%20%27gcc%27%20%2C%20%27%2DMMD%27%20%2C%20%27%2DMF%27%20%2C%20tf%20%2C%20flags%20%2C%20%27%2Dc%27%20%2C%20%27%2Do%27%20%2C%20OBJ%20%2C%20SRC%20%29)
+
+This functions ensures that all dirs listed in arguments such as `-I` or `-L` exist reliably.
+
+`marker` is the name of a marker file which is created in include dirs to guarantee there existence.
+
+`stdin` is the text ot send as the stdin of `cmd_line`.
+
+### `set_autodep(active)`
+
+Set the state of autodep.
+
+### [`target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )`](unit_tests/target.html#:~:text=lmake%2Etarget%28%27side%2Epy%27%2Cwrite%3DTrue%2Csource%5Fok%3DTrue%29)
 
 Declare `targets` as targets and alter associated flags.
 Note that the `allow` argument default value is `True`.
@@ -182,153 +342,6 @@ Notes:
 - (1):
 	The same functionality is provided with the `ltarget` executable.
 
-### `check_deps(delay=0,sync=False)`
-
-Ensure that all previously seen deps are up-to-date and written targets are note pre-existing (only pertinent for star-targets).
-Job will be killed in case condition above is not met.
-
-This means that rerun reasons are checked.
-This can be usefully called before heavy computation so that such heavy computation is run only once.
-
-If not null, the previous check is delayed by `delay` seconds. unless `sync`, function returns immediately, though (cf. note (2).
-
-If `sync`, wait for server reply. Return value is `True` if all deps are ok (no error), `False` otherwise.
-This is necessary, even without checking return value, to ensure that after this call,
-the dirs of previous deps actually exist if such deps are not read (e.g. when using `lmake.depend` without `read=True`).
-
-**CAVEAT**
-
-If used in conjonction with the `kill_sigs` attribute with a handler to manage the listed signal(s) (typically by calling `signal.signal(...)` and without `sync=True`,
-and if a process is launched shortly after (typically by calling `subprocess.run` or `os.system`),
-it may be that said process does not see the signal.
-This is due to a race condition in I(python) when said process is just starting.
-
-This may be annoying if said process was supposed to do some clean up or if it is very long.
-The solution in this case is to pass `sync=True`.
-This has a small cost in the general case where deps are actually up-to-date, but provides a reliable way to kill the job as `check_deps` will still be running when the signal fires up.
-
-Notes:
-
-- (1):
-	The same functionality is provided with the `lcheck_deps` executable.
-- (2):
-	The `delay` argument is useful in situations such as compilation where all input files are read upfront before spending time doing the actual job.
-	Because there is no way to insert a call to `check_deps` after having read the files but before carrying out compilation, an alternative consists in executing it with a delay upfront.
-	If `delay` is long enough for all files to be read but substantially smaller than the compilation time,
-	time can be save by avoiding full compilation with bad inputs when deps are being discovered.
-
-
-### `get_autodep()`
-
-Returns whether autodep is currently active or not.
-
-By default, autodep is active.
-
-### `set_autodep(active)`
-
-Set the state of autodep.
-
-### `class Autodep`
-
-A context manager that encapsulates `set_autodep`.
-
-```python
-with Autodep(active) :
-	<some code>
-```
-
-executes `<some code>` with autodep active set as instructed.
-
-### `list_deps( dir=None , regexpr=None )`
-
-Returns a `tuple` of currently accessed deps.
-
-If `dir` is not `None`, oonly deps lying in the `dir` dir are listed.
-And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
-
-If the cwd lies outside the repo, listed files are absolute.
-Else they are relative unless a dep is in an absolute source dir.
-
-The order of the listed deps is the chronological order.
-
-### `list_targets( dir=None , regexpr=None )`
-
-Returns a `tuple` of currently generated targets.
-
-If `dir` is not `None`, oonly deps lying in the `dir` dir are listed.
-And if `regexpr` is not `None`, only if the to-be-reported file (as explained below) matches `regexpr`.
-
-If the cwd lies outside the repo, listed files are absolute.
-Else they are relative.
-
-The order of the listed targets is the chronological order.
-
-### `list_root(dir)`
-
-Returns a `dir` as used as prefix in `list_deps` and `list_targets`.
-This is useful to filter their results.
-
-### `rm_target_tree( dir , regexpr=None )`
-
-Remove generated targets that are inside `dir` and match `regexpr`.
-Enclosing dirs becoming empty are removed as well if they are `dir` or below it.
-
-### `cp_target_tree( from_dir , to_dir , regexpr=None )`
-
-Copy generated targets that are inside `from_dir` and match `regexpr` to `to_dir`.
-
-Links are copied as is, without effort to make them point to the same place.
-
-### `mv_target_tree( from_dir , to_dir , regexpr=None )`
-
-Move generated targets that are inside `from_dir` and match `regexpr` to `to_dir`.
-Enclosing dirs becoming empty are removed as well if they are `from_dir` or below it.
-
-Links are copied as is, without effort to make them point to the same place.
-
-### `encode( file , ctx , val , min_length=1 )`
-
-If a code is associated to `val` within file `file` and context `ctx`, return it.
-Else a code is created, of length at least `min_length`, is associated to `val` and is return.
-
-`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
-In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
-
-- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
-- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
-
-Cf. [encode/decode](codec.html).
-
-### `decode( file , ctx , code )`
-
-If a val is associated to `code` within file `file` and context `ctx`, return it.
-Else an exception is raised.
-
-`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
-In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
-
-- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
-- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
-
-Cf. [encode/decode](codec.html).
-
-Associations are usually created using `encode` but not necessarily (they can be created by hand).
-
-### `xxhsum_file(file)`
-
-Return a checksum of provided file.
-
-The checksum is :
-
-- none                                         if file does not exist, is a dir or a special file
-- empty-R                                      if file is empty
-- xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty
-- xxxxxxxxxxxxxxxx-L                           if file is a symbolic link
-
-Note : this checksum is **not** crypto-robust.
-
-Cf. *xxhsum(1)* for a description of the algorithm.
-
 ### `xxhsum( text , is_link=False )`
 
 Return a checksum of provided text.
@@ -343,31 +356,17 @@ Note : this checksum is **not** crypto-robust.
 
 Cf. *xxhsum(1)* for a description of the algorithm.
 
-### `report_import(module_name=None,path=None,module_suffixes=None)`
+### [`xxhsum_file(file)`](unit_tests/xxh.html#:~:text=crc%5Fpy%20%3D%20lmake%2Exxhsum%5Ffile%28%27Lmakefile%2Epy%27%29)
 
-Does necessary reporting when a module has been imported.
+Return a checksum of provided file.
 
-`module_name` is the name of the imported module.
-This function only handles the last level import, so it must be called at each level in case the module lies in a package.
+The checksum is :
 
-If not provided or empty, only does the reporting due to the path, but assumes no module is accessed.
+- none                                         if file does not exist, is a dir or a special file
+- empty-R                                      if file is empty
+- xxxxxxxxxxxxxxxx-R (where x is a hexa digit) if file is regular and non-empty
+- xxxxxxxxxxxxxxxx-L                           if file is a symbolic link
 
-The way such reporting is done is by reporting a dep for each local dir in the path, for each module suffix, until the module is found, locally or externally.
+Note : this checksum is **not** crypto-robust.
 
-`path` is the path which the imported module is searched in.
-
-If not provided or empty, it defaults to the current value of `sys.path`.
-
-Unless used with python2, this function allows `readdir` accesses to local dirs in the path as python does such a `readdir`.
-
-`module_suffixes` is the list of suffixes to try that may provide a module, e.g. `('.py','/__init__.py')`.
-
-If not provided, the default is:
-
-- for python2: `('.so','.py','/__init__.so','/__init__.py')`
-- for python3: `( i+s for s in importlib.machinery.all_suffixes() for i in ('','/__init__'))`
-
-Note:
-
-- It may be wise to specify only the suffixes actually used locally to reduce the number of deps.
-- External modules are searched with the standard suffixes, even if `module_suffixes` is provided as there is no reason for the external modules to adhere to local conventions.
+Cf. [xxhsum(1)](man/man1/xxhsum.html) for a description of the algorithm.

@@ -58,7 +58,7 @@ The restrictions are the following:
 
 ## Attributes
 
-### `auto_mkdir`
+### [`auto_mkdir`](unit_tests/chdir.html#:~:text=auto%5Fmkdir%20%3D%20step%3D%3D2)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -75,7 +75,7 @@ This is useful for scripts in situations such as:
 - As a consequence, no dep is set for `a/b` and the problem will not be resolved by a further re-execution.
 - Setting this attribute to true creates dir `a` on the fly when `chdir` is called so that it succeeds and the correct dep is set.
 
-### `autodep`
+### [`autodep`](unit_tests/ptrace.html#:~:text=autodep%20%3D%20%27ptrace)
 
 | Inheritance | Type    | Default                                       | Dynamic | Example    |
 |-------------|---------|-----------------------------------------------|---------|------------|
@@ -83,7 +83,7 @@ This is useful for scripts in situations such as:
 
 This attribute specifies the method used by [autodep](autodep.html) to discover hidden deps.
 
-### `backend`
+### [`backend`](unit_tests/slurm.html#:~:text=backend%20%3D%20%27slurm)
 
 | Inheritance | Type    | Default | Dynamic | Example   |
 |-------------|---------|---------|---------|-----------|
@@ -91,7 +91,7 @@ This attribute specifies the method used by [autodep](autodep.html) to discover 
 
 This attribute specifies the [backend](backends.html) to use to launch jobs.
 
-### `cache`
+### [`cache`](unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache)
 
 | Inheritance | Type    | Default | Dynamic | Example |
 |-------------|---------|---------|---------|---------|
@@ -103,14 +103,14 @@ When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
 
-### `cmd`
+### [`cmd`](unit_tests/basics.html#:~:text=class%20CatSh,f%2Eread%28%29%2Cend%3D%27%27%29)
 
 | Inheritance | Type     | Default     | Dynamic | Example                                                            |
 |-------------|----------|-------------|---------|--------------------------------------------------------------------|
 | Combined    | `f-str`  | -           | Full    | `'gcc -c -o {OBJ} {SRC}'`                                          |
 | Combined    | function | -           | Full    | `def cmd() : subprocess.run(('gcc','-c','-o',OBJ,SRC,check=True))` |
 
-#### if it is a function
+#### [if it is a function](unit_tests/basics.html#:~:text=def%20cmd%28%29%20%3A)
 
 In that case, this attribute is called to run the job (cf. [job execution](job_execution.html)).
 Combined inheritance is a special case for `cmd`.
@@ -143,7 +143,7 @@ There are mostly 2 practical possibilities:
 - Declare an argument with a default value. Such default value is saved when the function is defined.
 - Define a class attribute. Class attributes are saved when its definition ends, which is before a loop index.
 
-#### if it is a `f-str`
+#### [if it is a `f-str`](unit_tests/basics.html#:~:text=%27cat%20%7BFIRST%7D%20%7BSECOND%7D%27)
 
 In that case, this attribute is executed as a shell command to run the job (cf. [job execution](job_execution.html)).
 Combined inheritance is a special case for `cmd`.
@@ -158,7 +158,7 @@ So, it is possible for a first definition to define an environment variable that
 
 As for other attributes that may be dynamic, `cmd` is interpreted as an f-string.
 
-### `chroot_dir`
+### [`chroot_dir`](unit_tests/chroot.html#:~:text=chroot%5Fdir%20%3D%20%27%7Bimage%5Froot%28Os%29%7D%27)
 
 | Inheritance | Type    | Default | Dynamic | Example          |
 |-------------|---------|---------|---------|------------------|
@@ -174,7 +174,7 @@ However, if `'/'`, [namespaces](namespaces.html) are used nonetheless.
 
 This attribute is typically used to execute the job in a different environment, such as a different OS distribution or release, leveraging a `docker` image.
 
-### `compression`
+### [`compression`](unit_tests/cache.html#:~:text=compression%20%3D%20z%5Flvl,-cmd%20%3D%20%27%27%27%20dir)
 
 | Inheritance | Type                                          | Default | Dynamic | Example |
 |-------------|-----------------------------------------------|---------|---------|---------|
@@ -192,7 +192,7 @@ This attribute specifies the compression used when caching.
 When downloading from cache, the method and level used at upload time is honored.
 If the compression method is not supported, no download occurs.
 
-### `dep`
+### [`dep`](unit_tests/back_ref.html#:~:text=dep%20%3D%20%27single1%2Bdep%2Bdouble%2Bsingle2%2Bdouble%2Bdep)
 
 | Inheritance | Type                       | Default | Dynamic | Example |
 |-------------|----------------------------|---------|---------|---------|
@@ -202,7 +202,7 @@ This attribute defines an unnamed static dep.
 
 During execution, `cmd` stdin will be redirected to this dep, else it is `/dev/null`.
 
-### `deps`
+### [`deps`](unit_tests/chain.html#:~:text=deps%20%3D%20%7B%20%27FIRST%27%20%3A%20%27%7BFile1%7D%27%20%2C%20%27SECOND%27%20%3A%20%27%7BFile2%7D%27%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                  |
 |-------------|--------|---------|---------|--------------------------|
@@ -241,7 +241,7 @@ In that case, if the list changes, speculatively building the old deps is probab
 possibly duplicating flags mentioned in other matching entries (`side_deps` and `side_targets`).
 - The `top` flag is used in case of sub-repo, which is an experimental feature.
 
-### `environ`
+### [`environ`](unit_tests/env.html#:~:text=environ%20%3D%20%7B%20%27FROM%5FBACKEND%27%20%3A%20%2E%2E%2E%20%2C%20%27FROM%5FRULE%27%20%3A%20%27from%5Frule%27%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                                   |
 |-------------|--------|---------|---------|-------------------------------------------|
@@ -283,7 +283,7 @@ By default the following environment variables are defined :
 | `$PATH`       | Rule         | The standard path with `$LMAKE_ROOT/bin:` in front |                                                           |
 | `$PYTHONPATH` | PyRule       | `$LMAKE_ROOT/lib`                                  |                                                           |
 
-### `environ_ancillary`
+### [`environ_ancillary`](unit_tests/dyn.html#:~:text=environ%5Fancillary%20%3D%20%7B%20%27VAR%5FANCILLARY%27%20%3A%20file%5Ffunc%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                 |
 |-------------|--------|---------|---------|-------------------------|
@@ -310,7 +310,7 @@ By default the following environment variables are defined :
 | `$UID`   | Rule       | the user id         |         |
 | `$USER`  | Rule       | the user login name |         |
 
-### `environ_resources`
+### [`environ_resources`](unit_tests/dyn.html#:~:text=environ%5Fresources%20%3D%20%7B%20%27VAR%5FRESOURCES%27%20%3A%20file%5Ffunc%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                           |
 |-------------|--------|---------|---------|-----------------------------------|
@@ -330,7 +330,7 @@ Except the exception below, the value must be a `f-str`.
 If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
 
-### `force`
+### [`force`](unit_tests/dyn.html#:~:text=force%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -367,7 +367,7 @@ It can be retreived with `lshow -i`.
 Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.
 
-### `kill_sigs`
+### [`kill_sigs`](unit_tests/kill.html#:~:text=kill%5Fsigs%20%3D%20%282%2C%29%20%23%20SIGKILL%20%289%29%20is%20automatically%20added%20when%20list%20is%20exhausted)
 
 | Inheritance | Type              | Default             | Dynamic | Example |
 |-------------|-------------------|---------------------|---------|---------|
@@ -391,7 +391,7 @@ in which case `stdout` is redirected to the the target and is not waited for.
 
 Note: some backends, such as slurm, may have other means to manage timeouts. Both mechanisms will be usable.
 
-### `lmake_root`
+### [`lmake_root`](unit_tests/chroot.html#:~:text=lmake%5Froot%20%3D%20%27%7Blmake%5Finstall%5Froot%28Os%29%7D%27)
 
 | Inheritance | Type    | Default | Dynamic | Example             |
 |-------------|---------|---------|---------|---------------------|
@@ -405,7 +405,7 @@ If `None` or `''` the current installation is used.
 
 This attribute is typically used in conjunction with `chroot_dir` to indicate the installation dir of a suitable open-lmake.
 
-### `lmake_view`
+### [`lmake_view`](unit_tests/namespaces.html#:~:text=lmake%5Fview%20%3D%20%27%2F%27%2Blmake%5Fview)
 
 | Inheritance | Type    | Default | Dynamic | Example    |
 |-------------|---------|---------|---------|------------|
@@ -429,7 +429,7 @@ For example, a job may be lost because of a remote host being misconfigured, or 
 
 In that case, the job is retried, but a maximum number of retry attemps are allowed, after which the job is considered in error.
 
-### `max_runs`
+### [`max_runs`](unit_tests/stress_codec.html#:~:text=max%5Fruns%20%3D%202)
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
@@ -439,7 +439,7 @@ The goal is to protect against potential loss of performances if reruns are too 
 Unlimited if `0`.
 Contrarily to the `max_submits` attribute, cache accesses are not counted when counting runs.
 
-### `max_stderr_len`
+### [`max_stderr_len`](unit_tests/dyn.html#:~:text=def%20max%5Fstderr%5Flen%28%29%20%3A%20if%20step%3D%3D1%20%3A%20raise%20RuntimeError%20return%20File)
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
@@ -448,7 +448,7 @@ Contrarily to the `max_submits` attribute, cache accesses are not counted when c
 This attribute defines the maximum number of lines of stderr that will be displayed in the output of `lmake`.
 The whole content of stderr stays accessible with the `lshow -e` command.
 
-### `max_submits`
+### [`max_submits`](unit_tests/misc6.html#:~:text=max%5Fsubmits%20%3D%201)
 
 | Inheritance | Type  | Default | Dynamic | Example |
 |-------------|-------|---------|---------|---------|
@@ -459,7 +459,7 @@ The default value should be both comfortable (avoid hitting it in normal situati
 Unlimited if `0`.
 Contrarily to the `max_runs` attribute, cache accesses are counted when counting submits.
 
-### `name`
+### [`name`](unit_tests/name.html#:~:text=name%20%3D%20f%27expand%7Bstep%7D%27)
 
 | Inheritance | Type  | Default        | Dynamic | Example |
 |-------------|-------|----------------|---------|---------|
@@ -480,7 +480,7 @@ for ext in ('c','cc'):
 		cmd     = 'gcc -c -o {OBJ} {SRC}'
 ```
 
-### `os_info`
+### [`os_info`](unit_tests/os_info.html#:~:text=os%5Finfo%20%3D%20%27go%2Bd%5Cn%27)
 
 | Inheritance | Type    | Default                                  | Dynamic | Example                   |
 |-------------|---------|------------------------------------------|---------|---------------------------|
@@ -495,7 +495,7 @@ If `None` or `''` no check is performed.
 
 This attribute is typically used jobs are executed in various OS environment, for example when using the `chroot_dir` attribute or when jobs are dispatched using slurm or SGE.
 
-### `os_info_file`
+### [`os_info_file`](unit_tests/os_info.html#:~:text=os%5Finfo%5Ffile%20%3D%20os%2Egetcwd%28%29%2B%27%2FLMAKE%2Flmake%2Fos%5Finfo)
 
 | Inheritance | Type    | Default | Dynamic | Example        |
 |-------------|---------|---------|---------|----------------|
@@ -504,7 +504,7 @@ This attribute is typically used jobs are executed in various OS environment, fo
 This attribute specifies a file from which to get OS information for use with the `os_info` attribute above.
 When specified, the content of this file is used instead of `<ID>/<VERSION_ID>/<machine>` as described above.
 
-### `prio`
+### [`prio`](unit_tests/hide.html#:~:text=prio%20%3D%201)
 
 | Inheritance | Type    | Default       | Dynamic | Example |
 |-------------|---------|---------------|---------|---------|
@@ -515,7 +515,7 @@ Default value is 0 if inheriting from `lmake.Rule`, else `+inf`.
 This attribute is used to order matching priority.
 Rules with higher priorities are tried first and if none of them are applicable, rules with lower priorities are then tried (cf. [rule selection](rule_selection.html)).
 
-### `python`
+### [`python`](unit_tests/python2.html#:~:text=python%20%3D%20%28lmake%2Euser%5Fenviron%5B%27PYTHON2%27%5D%2C%29)
 
 | Inheritance | Type              | Default       | Dynamic | Example            |
 |-------------|-------------------|---------------|---------|--------------------|
@@ -533,7 +533,7 @@ In particular, python2.7 and all revisions of python3 are fully supported.
 
 If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
 
-### `readdir_ok`
+### [`readdir_ok`](unit_tests/wine.html#:~:text=readdir%5Fok%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -544,7 +544,7 @@ i.e. independent of the history (the repo is not constantly maintained without s
 
 If it is true, such reading is allowed and it is the user responsibility to ensure that spurious or missing files have no impact on output, once all deps are up-to-date.
 
-### `repo_view`
+### [`repo_view`](unit_tests/namespaces.html#:~:text=repo%5Fview%20%3D%20%27%2F%27%2Brepo%5Fview)
 
 | Inheritance | Type    | Default | Dynamic | Example   |
 |-------------|---------|---------|---------|-----------|
@@ -560,7 +560,7 @@ If `None` or `''`, no bind mount is performed.
 This attribute is typically used when using tools that handle absolute paths.
 This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.
 
-### `resources`
+### [`resources`](unit_tests/resources.html#:~:text=resources%20%3D%20%7B%20%27gnat%27%3A%20%271%27%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                   |
 |-------------|--------|---------|---------|---------------------------|
@@ -575,7 +575,7 @@ The syntax is the same as for `deps`.
 
 After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf. [local backend](config.html) for the local backend).
 
-### `shell`
+### [`shell`](unit_tests/misc19.html#:~:text=shell%20%3D%20Rule%2Eshell%20%2B%20%28%27%2De%27%2C%29)
 
 | Inheritance | Type              | Default     | Dynamic | Example              |
 |-------------|-------------------|-------------|---------|----------------------|
@@ -590,7 +590,7 @@ In the latter case, a file that contains the script is created and its name is p
 
 If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
 
-### `side_deps`
+### [`side_deps`](unit_tests/ignore.html#:~:text=side%5Fdeps%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Fdep%27%2C%27ignore%27%29%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -604,7 +604,7 @@ Syntactically, it follows the `side_targets` attribute except that:
 - The flag `Ignore` or `ignore` only applies to reads to prevent such accessed files from becoming a dep where for `side_targets`, this flag prevents files from being deps or targets.
 - `.` may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the `readdir_ok` flag.
 
-### `side_targets`
+### [`side_targets`](unit_tests/ignore.html#:~:text=side%5Ftargets%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Ftarget%27%2C%27ignore%27%29%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -615,7 +615,7 @@ This attribute is identical to `targets` except that:
 - Targets listed here do not trigger job execution, i.e. they do not participate to the [rule selection](rule_selection.html) process.
 - It not compulsory to use all static stems as this constraint is only necessary to fully define a job when selected by the rule selection process.
 
-### `start_delay`
+### [`start_delay`](unit_tests/misc10.html#:~:text=start%5Fdelay%20%3D%200)
 
 | Inheritance | Type    | Default    | Dynamic | Example |
 |-------------|---------|------------|---------|---------|
@@ -624,7 +624,7 @@ This attribute is identical to `targets` except that:
 When this attribute is set to a non-zero value, start lines are only output for jobs that last longer than that many seconds.
 The consequence is only cosmetic, it has no other impact.
 
-### `stderr_ok`
+### [`stderr_ok`](unit_tests/misc1.html#:~:text=stderr%5Fok%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -633,7 +633,7 @@ The consequence is only cosmetic, it has no other impact.
 When this attribute has a false value, the simple fact that a job generates a non-empty stderr is an error.
 If it is true, writing to stderr is allowed and does not produce an error. The `lmake` output will exhibit a warning, though.
 
-### `stems`
+### [`stems`](unit_tests/basics.html#:~:text=stems%20%3D%20%7B%20%27File1%27%20%3A%20r%27%2E%2A%27%20%2C%20%27File2%27%20%3A%20r%27%2E%2A%27%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example          |
 |-------------|--------|---------|---------|------------------|
@@ -643,7 +643,7 @@ Stems are regular expressions that represent the variable parts of targets which
 
 Each entry <key>:<value> define a stem named <key> whose associated regular expression is <value>.
 
-### `target`
+### [`target`](unit_tests/basics.html#:~:text=target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fsh)
 
 | Inheritance | Type                       | Default | Dynamic | Example |
 |-------------|----------------------------|---------|---------|---------|
@@ -656,7 +656,7 @@ During execution, `cmd` stdout will be redirected to this (necessarily unique si
 
 The `top` flag cannot be used and the pattern is always rooted to the sub-repo if the rule is defined in such a sub-repo.
 
-### `targets`
+### [`targets`](unit_tests/misc14.html#:~:text=targets%20%3D%20%7B%20%27DUT%27%20%3A%20r%27dut%5Fsh%7BN%2A%3A%5Cd%7D%27%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                  |
 |-------------|--------|---------|---------|--------------------------|
@@ -731,7 +731,7 @@ It could be for example the target `ALL`, so that `lmake ALL` rebuilds everythin
 possibly duplicating flags mentioned in other matching entries (`side_deps` and `side_targets`).
 - The `top` flag is used in case of sub-repo, which is an experimental feature.
 
-### `timeout`
+### [`timeout`](unit_tests/wine.html#:~:text=timeout%20%3D%20120)
 
 | Inheritance | Type    | Default    | Dynamic | Example |
 |-------------|---------|------------|---------|---------|
@@ -739,7 +739,7 @@ possibly duplicating flags mentioned in other matching entries (`side_deps` and 
 
 When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
 
-### `tmp_view`
+### [`tmp_view`](unit_tests/overlay.html#:~:text=tmp%5Fview%20%3D%20%27%2Ftmp)
 
 | Inheritance | Type    | Default | Dynamic | Example  |
 |-------------|---------|---------|---------|----------|
@@ -750,7 +750,7 @@ This attribute defines the name which the temporary dir available for job execut
 If `None`, `''` or not specified, this dir is not mounted.
 Else, it must be an absolute path.
 
-### `use_script`
+### [`use_script`](unit_tests/use_script.html#:~:text=use%5Fscript%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -766,7 +766,7 @@ If the size of the command text is too large to fit in the command line, this at
 
 This attribute is typically use with interpreters that do not implement the `-c` option.
 
-### `views`
+### [`views`](unit_tests/overlay.html#:~:text=views%20%3D%20%7B%20%27read%5Fwrite%27%20%3A%20%7B%27upper%27%3A%27write%27%2C%27lower%27%3A%27read%27%7D%20%7D%20%23%20mount%20read%5Fwrite%20as%20write%20on%20top%20of%20read)
 
 | Inheritance | Type   | Default | Dynamic | Example  |
 |-------------|--------|---------|---------|----------|

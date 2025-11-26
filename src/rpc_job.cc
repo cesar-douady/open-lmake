@@ -821,7 +821,7 @@ Bad :
 
 static void _atomic_write( ::string const& file , ::string const& data ) {
 	Trace trace("_atomic_write",file,data) ;
-	AcFd fd { file , {.flags=O_WRONLY|O_TRUNC,.err_ok=false} } ;
+	AcFd fd { file , {.flags=O_WRONLY,.err_ok=false} } ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	ssize_t cnt = ::write( fd , data.c_str() , data.size() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -918,18 +918,33 @@ bool JobSpace::enter(
 	bool bind_repo  =                 +repo_view_s  || +chroot_dir   ; creat |= bind_repo  && !FileInfo(chroot_dir+repo_root_s ).tag() ;
 	bool bind_tmp   = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir ) ; creat |= bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ;
 	//
-	int uid = ::getuid() ;                                                                            // must be done before unshare that invents a new user
-	int gid = ::getgid() ;                                                                            // .
+	int             uid    = ::geteuid() ;                                                            // must be done before unshare that invents a new user
+	int             gid    = ::getegid() ;                                                            // .
+//	::vector<gid_t> gids   ( 100 )       ; {                                                          // 100 is pretty comfortable, overflow is managed below
+//		if ( int n_gids=::getgroups(100,gids.data()) ; n_gids>=0 ) {
+//			gids.resize(n_gids) ;
+//		} else {                                                                                      // manage overflow
+//			n_gids = ::getgroups( 0 , nullptr/*gids*/ ) ;
+//			gids.resize(n_gids) ;
+//			if ( ::getgroups( n_gids , gids.data() )<0 ) gids.clear() ;                               // if we cannot get the groups, dont map them
+//		}
+//		trace("gids",gids) ;
+//	}
 	//
-	trace("create",STR(creat),lmake_root_s,repo_root_s,tmp_dir_s) ;
-	//
+	trace("create",STR(creat),lmake_root_s,repo_root_s,tmp_dir_s,uid,gid) ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                               // necessary to be allowed to write the gid_map (if desirable)
-	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;
-	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;
+	{	// mapping uid/gid is necessary to manage overlayfs
+		::string uid_map_str ;          uid_map_str << uid<<' '<<uid<<" 1\n" ;
+		::string gid_map_str ;          gid_map_str << gid<<' '<<gid<<" 1\n" ;
+//		for( int i : gids ) if (i!=gid) gid_map_str << i  <<' '<<i  <<" 1\n" ;
+		_atomic_write( "/proc/self/setgroups" , "deny"      ) ;                                       // necessary to be allowed to write the gid_map (if desirable)
+		_atomic_write( "/proc/self/uid_map"   , uid_map_str ) ;                                       // for each line, format is "id_in_namespace id_in_host size_of_range"
+		_atomic_write( "/proc/self/gid_map"   , gid_map_str ) ;
+//		int rc = ::setgroups( gids.size() , gids.data() ) ;
+//		if (rc!=0) trace("no_setgroups",StrErr()) ;                                                   // if we cannot set groups, ignore and continue without supplementary groups
+	}
 	//
 	bool dev_sys_mapped = false ;
 	//

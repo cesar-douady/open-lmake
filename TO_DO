@@ -280,7 +280,6 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* add pointers to UT in doc
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 
