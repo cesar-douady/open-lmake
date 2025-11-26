@@ -768,10 +768,10 @@ struct JobSpace {
 	) ;
 	void exit() ;
 	//
-	::vmap_s<::vector_s> flat_phys_s() const ;                                                   // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys_s() const ;                                                 // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
-	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s )       ;
-	void chk     (                                                              ) const ;
+	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s , bool has_chroot )       ;
+	void chk     (                                                                                ) const ;
 	// data
 	// START_OF_VERSIONING
 	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
