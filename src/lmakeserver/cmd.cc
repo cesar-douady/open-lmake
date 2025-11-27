@@ -395,6 +395,32 @@ namespace Engine {
 		return set_keep ;
 	}
 
+	static ::string _mk_py_str( JobSpace::ViewDescr const& descr , int lvl=-1 ) {
+		SWEAR(+descr) ;
+		::string nl  = lvl<0 ? " "s : '\n' + ::string(lvl,'\t') ;
+		char     tab = lvl<0 ? ' '  : '\t'                      ;
+		::string res ;
+		if (descr.phys_s.size()==1) {                                                                 // bind case
+			SWEAR(!descr.copy_up) ;
+			res << mk_py_str(no_slash(descr.phys_s[0])) ;
+		} else {                                                                                      // overlay case
+			res <<'{'<<tab<< mk_py_str("upper") <<" : "<< mk_py_str(no_slash(descr.phys_s[0])) <<nl ;
+			{	First first ;
+				res <<','<<tab<< mk_py_str("lower") <<" : (" ;
+				for( ::string const& l_s : ::span(&descr.phys_s[1],descr.phys_s.size()-1) ) res << first("",",") << mk_py_str(no_slash(l_s)) ;
+				res << first("",",","") << ')'<<nl ;
+			}
+			if (+descr.copy_up) {
+				First first ;
+				res <<','<<tab<< mk_py_str("copy_up") <<" : (" ;
+				for( ::string const& cu : descr.copy_up ) res << first("",",") << mk_py_str(cu) ;
+				res << first("",",","") << ')'<<nl ;
+			}
+			res << '}' ;
+		}
+		return res ;
+	}
+
 	static ::string _mk_gen_script_line( Job job , ReqOptions const& ro , JobInfo&& job_info , ::string const& dbg_dir_s , ::string const& key ) {
 		JobStartRpcReply& jsrr      = job_info.start.start ;
 		AutodepEnv      & ade       = jsrr.autodep_env     ;
@@ -487,31 +513,7 @@ namespace Engine {
 		}
 		{	res << ",\tviews = {" ;
 			First first1 ;
-			for( auto const& [view_s,descr] : job_space.views ) {
-				SWEAR(+descr.phys_s) ;
-				res << first1("\n\t\t",",\t") << mk_py_str(no_slash(view_s)) << " : " ;
-				if (+descr.phys_s.size()==1) {                                   // bind case
-					SWEAR(!descr.copy_up) ;
-					res << mk_py_str(no_slash(descr.phys_s[0])) ;
-				} else {                                                       // overlay case
-					res << '{' ;
-					{	res <<"\n\t\t\t"<< mk_py_str("upper") <<" : "<< mk_py_str(no_slash(descr.phys_s[0])) <<"\n\t\t" ;
-					}
-					{	res <<",\t"<< mk_py_str("lower") <<" : (" ;
-						First first2 ;
-						for( size_t i : iota(1,descr.phys_s.size()) ) res << first2("",",") << mk_py_str(no_slash(descr.phys_s[i])) ;
-						res << first2("",",","") << ")\n\t\t" ;
-					}
-					if (+descr.copy_up) {
-						res <<",\t"<< mk_py_str("copy_up") <<" : (" ;
-						First first2 ;
-						for( ::string const& cu : descr.copy_up ) res << first2("",",") << mk_py_str(cu) ;
-						res << first2("",",","") << ")\n\t\t" ;
-					}
-					res << "}" ;
-				}
-				res << "\n\t" ;
-			}
+			for( auto const& [view_s,vd] : job_space.views ) if (+vd) res << first1("\n\t\t",",\t") << mk_py_str(no_slash(view_s)) << " : " << _mk_py_str( vd , 2/*lvl*/ ) << "\n\t" ;
 			res << "}\n" ;
 		}
 		res << ")\n" ;
@@ -998,30 +1000,7 @@ namespace Engine {
 								} ;
 								size_t   w     = ::max<size_t>( tab , [&](auto const& k_e) { return mk_py_str(k_e.first).size() ; } ) ;
 								::map_ss views ;
-								for( auto const& [v_s,vd] : start.job_space.views ) if (+vd) {
-									::string vd_str ;
-									if (vd.phys_s.size()==1) {
-										vd_str << mk_py_str(no_slash(vd.phys_s[0])) ;
-									} else {
-										vd_str <<"{ " ;
-										{	vd_str << mk_py_str("upper") <<':'<< mk_py_str(no_slash(vd.phys_s[0])) ; }
-										{	vd_str <<" , "<< mk_py_str("lower") <<':' ;
-											First first ;
-											vd_str <<'(' ;
-											for( size_t i : iota(1,vd.phys_s.size()) ) vd_str << first("",",") << mk_py_str(no_slash(vd.phys_s[i])) ;
-											vd_str << first("",",","") <<')' ;
-										}
-										if (+vd.copy_up) {
-											vd_str <<" , "<< mk_py_str("copy_up") <<':' ;
-											First first ;
-											vd_str << '(' ;
-											for( ::string const& cu : vd.copy_up ) vd_str << first("",",") << mk_py_str(cu) ;
-											vd_str << first("",",","") <<')' ;
-										}
-										vd_str <<" }" ;
-									}
-									views[no_slash(v_s)] = vd_str ;
-								}
+								for( auto const& [v_s,vd] : start.job_space.views ) if (+vd) views[no_slash(v_s)] = _mk_py_str(vd) ;
 								char sep = '{' ;
 								for( auto const& [k,e] : tab ) {
 									audit( fd , ro , widen(mk_py_str(k),w)+" : "+(e.protect?mk_py_str(e.txt):e.txt) , true/*as_is*/ , lvl+1 , sep ) ;

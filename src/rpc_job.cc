@@ -3,11 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sched.h> // unshare
+#include <linux/capability.h>
+#include <sched.h>            // unshare
+#include <sys/syscall.h>
 
 #include "disk.hh"
 #include "hash.hh"
 #include "msg.hh"
+#include "process.hh"
 #include "time.hh"
 #include "trace.hh"
 #include "caches/dir_cache.hh" // PER_CACHE : add include line for each cache method
@@ -779,12 +782,12 @@ namespace Caches {
 static void _chroot(::string const& dir_s) { Trace trace("_chroot",dir_s) ; if (::chroot(dir_s.c_str())!=0) throw cat("cannot chroot to ",no_slash(dir_s)," : ",StrErr()) ; }
 static void _chdir (::string const& dir_s) { Trace trace("_chdir" ,dir_s) ; if (::chdir (dir_s.c_str())!=0) throw cat("cannot chdir to " ,no_slash(dir_s)," : ",StrErr()) ; }
 
-static void _mount_tmp( ::string const& dst_s , size_t sz , ::vector<ExecTraceEntry>&/*inout*/ exec_trace ) { // src must be dir
-	Trace trace("_mount_tmp",dst_s) ;
-	::string dst = no_slash(dst_s) ;
-	throw_unless( ::mount( "" , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst," of size ",sz," : ",StrErr() ) ;
-	exec_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , dst ) ;
-}
+//static void _mount_tmp( ::string const& dst_s , size_t sz , ::vector<ExecTraceEntry>&/*inout*/ exec_trace ) { // src must be dir
+//	Trace trace("_mount_tmp",dst_s) ;
+//	::string dst = no_slash(dst_s) ;
+//	throw_unless( ::mount( "" , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst," of size ",sz," : ",StrErr() ) ;
+//	exec_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , dst ) ;
+//}
 
 static void _mount_bind( ::string const& dst , ::string const& src , ::vector<ExecTraceEntry>&/*inout*/ exec_trace ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
@@ -855,6 +858,10 @@ template<bool IsFile,class T> static bool/*match*/ _handle( ::string& v/*inout*/
 	return true/*match*/ ;
 }
 // process external views before chroot (quite simple, no overlay) then local views after chroot (may be complex with overlay)
+static int _sync_newgidmap(void*) {
+	Fd::Stdin.read() ;
+	return 0 ;
+}
 bool JobSpace::enter(
 	::vector_s&              /*out*/   report
 ,	::string  &              /*.  */   repo_root_s
@@ -918,40 +925,66 @@ bool JobSpace::enter(
 	bool bind_repo  =                 +repo_view_s  || +chroot_dir   ; creat |= bind_repo  && !FileInfo(chroot_dir+repo_root_s ).tag() ;
 	bool bind_tmp   = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir ) ; creat |= bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ;
 	//
-	int             uid    = ::geteuid() ;                                                            // must be done before unshare that invents a new user
-	int             gid    = ::getegid() ;                                                            // .
-//	::vector<gid_t> gids   ( 100 )       ; {                                                          // 100 is pretty comfortable, overflow is managed below
-//		if ( int n_gids=::getgroups(100,gids.data()) ; n_gids>=0 ) {
-//			gids.resize(n_gids) ;
-//		} else {                                                                                      // manage overflow
-//			n_gids = ::getgroups( 0 , nullptr/*gids*/ ) ;
-//			gids.resize(n_gids) ;
-//			if ( ::getgroups( n_gids , gids.data() )<0 ) gids.clear() ;                               // if we cannot get the groups, dont map them
-//		}
-//		trace("gids",gids) ;
-//	}
+	// gid maping is very complex.
+	// What is simple is to map our gid. What much more complex is to map all ancillary groups obtained with getgroups().
+	// The reason is that writing to /proc/self/gid_map is allowed for non-privileged user only for a single group.
+	// If multiple groups are to be mapped, one has to go through the newgidmap utility, which must be called before unshare().
+	// This requires :
+	// - newgidmap to be installed through the package uidmap Debian based, the shadow-utils one for red-hat based and the shadow one for Suse
+	// - /etc/login.defs (or network equivalent) to set the GRANT_AUX_GROUP_SUBIDS
+	// - /etc/subgid to contain a line for the user allowing mapping for the mapped range (min gid to max gid
+	static constexpr bool HasNewgidmap = NEWGIDMAP[0] ;
+	uid_t uid        = ::geteuid()  ;                                                                 // must be done before unshare that invents a new user
+	gid_t gid        = ::getegid()  ;                                                                 // .
+	gid_t min_gid    = gid          ;                                                                 // .
+	gid_t max_gid    = gid          ;                                                                 // .
+	bool  gid_map_ok = HasNewgidmap ;                                                                 // assumes it will go through if available
+	Child newgidmap  ;
+	if (gid_map_ok) {
+		::vector<gid_t> gids ( 100 ) ;                                                                // 100 is pretty comfortable, overflow is managed below
+		if ( int n_gids=::getgroups(100,gids.data()) ; n_gids>=0 ) {
+			gids.resize(n_gids) ;
+		} else {                                                                                      // manage overflow
+			n_gids = ::getgroups( 0 , nullptr/*gids*/ ) ;
+			gids.resize(n_gids) ;
+			if ( ::getgroups( n_gids , gids.data() )<0 ) gids.clear() ;                               // if we cannot get the groups, dont map them
+		}
+		min_gid = ::min( gids , min_gid ) ;
+		max_gid = ::max( gids , max_gid ) ;
+		trace("gids",gid,min_gid,max_gid,gids) ;
+		if (min_gid==max_gid) {                                                                       // fast path : no need for heavy processing if we can write to gid_map ourselves
+			gid_map_ok = false ;
+		} else {
+			newgidmap.cmd_line = { NEWGIDMAP , cat(::getpid()) , cat(min_gid) , cat(min_gid) , cat(max_gid-min_gid+1) } ;
+			newgidmap.stdin_fd = Child::PipeFd                                                                          ;
+			newgidmap.pre_exec = _sync_newgidmap                                                                        ; // newgidmap must be launched in parent namespace but executed only ...
+			newgidmap.spawn() ;                                                                                           // ... after unshare() is called, so synchronize through stdin
+		}
+	}
 	//
-	trace("create",STR(creat),lmake_root_s,repo_root_s,tmp_dir_s,uid,gid) ;
+	trace("create",STR(creat),uid,lmake_root_s,repo_root_s,tmp_dir_s) ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	{	// mapping uid/gid is necessary to manage overlayfs
-		::string uid_map_str ;          uid_map_str << uid<<' '<<uid<<" 1\n" ;
-		::string gid_map_str ;          gid_map_str << gid<<' '<<gid<<" 1\n" ;
-//		for( int i : gids ) if (i!=gid) gid_map_str << i  <<' '<<i  <<" 1\n" ;
-		_atomic_write( "/proc/self/setgroups" , "deny"      ) ;                                       // necessary to be allowed to write the gid_map (if desirable)
-		_atomic_write( "/proc/self/uid_map"   , uid_map_str ) ;                                       // for each line, format is "id_in_namespace id_in_host size_of_range"
-		_atomic_write( "/proc/self/gid_map"   , gid_map_str ) ;
-//		int rc = ::setgroups( gids.size() , gids.data() ) ;
-//		if (rc!=0) trace("no_setgroups",StrErr()) ;                                                   // if we cannot set groups, ignore and continue without supplementary groups
+	// mapping uid/gid is necessary to manage overlayfs
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                          // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
+	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                          // for each line, format is "id_in_namespace id_in_host size_of_range"
+	if (gid_map_ok) {
+		newgidmap.stdin.close() ;                                                                // synchronize with newgidmap once unshared has been called
+		gid_map_ok = newgidmap.wait_ok() ;
 	}
+	if (!gid_map_ok) _atomic_write( "/proc/self/gid_map" , cat(gid,' ',gid," 1\n") ) ;           // only map gid if sufficient or f newgidmap did not do the job
+	if      (!HasNewgidmap   ) exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExt::NotConfigured , cat(                                                gid," only") ) ;
+	else if (min_gid!=max_gid) exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExts()             , cat(                                                gid        ) ) ;
+	else if (!gid_map_ok     ) exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExt::Err           , cat(min_gid," to ",max_gid," failed, fall back to ",gid," only") ) ;
+	else                       exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExts()             , cat(min_gid," to ",max_gid                                     ) ) ;
 	//
 	bool dev_sys_mapped = false ;
 	//
 	if (creat) {
-		::string work_dir_s = cat("/run/user/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ;      // use /run as this is certain that it can be used as upper
-		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}                // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
-		::string root   = work_dir_s+"root" ;                                                         // ... (ignore errors as dir may not exist)
+		::string work_dir_s = cat("/run/user/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ; // use /run as this is certain that it can be used as upper
+		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}           // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
+		::string root   = work_dir_s+"root" ;                                                    // ... (ignore errors as dir may not exist)
 		::string root_s = with_slash(root)  ;
 		mk_dir_s(root_s) ;
 		if (+chroot_dir) {
@@ -1063,7 +1096,7 @@ bool JobSpace::enter(
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		_chroot(with_slash(chroot_dir)) ;              // chroot_dir_s may be obsolete because of overlay, so use chroot_dir
+		_chroot(with_slash(chroot_dir)) ;                                                                     // chroot_dir_s may be obsolete because of overlay, so use chroot_dir
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		exec_trace.emplace_back( New/*date*/ , Comment::chroot , CommentExts() , chroot_dir ) ;
 	}
@@ -1075,14 +1108,7 @@ bool JobSpace::enter(
 		exec_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
 	}
 	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
-	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;  // if we have mounted something in tmp, we cant clean it before unmount
-	try {
-		// /run must be mounted tmp as job could use /run/users/uid and the space for this uid is not the native space, so without mounting /run, these directories could clash with other usages
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		_mount_tmp( "/run/" , 100<<20 , exec_trace ) ; // 100M is more than enough for /run (anyway, this memory is not consumed as long as there is no data)
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		mk_dir_s(cat("/run/user/",uid,'/')) ;
-	} catch (::string const&) {}                       // if /run does not exist, then it is a system that deliberately decided this would not be available to the user
+	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;                                                         // if we have mounted something in tmp, we cant clean it before unmount
 	trace("done",repo_root_s,report) ;
 	return true/*entered*/ ;
 }

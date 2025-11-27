@@ -15,20 +15,21 @@ RUN zypper install -y gcc-c++ make
 # compulsory
 RUN zypper install -y gcc13-c++
 RUN zypper install -y git
+RUN zypper install -y groff m4
 RUN zypper install -y python3-devel
 RUN zypper install -y wget
-RUN zypper install -y m4 groff
 
 # necesary for unit tests
+RUN zypper install -y gzip
 RUN zypper install -y hostname
 RUN zypper install -y tar
-RUN zypper install -y gzip
 
 # optional
-RUN zypper install -y gdb
 RUN zypper install -y clang
+RUN zypper install -y gdb
 RUN zypper install -y pcre2-devel
 RUN zypper install -y libseccomp-devel
+RUN zypper install -y shadow
 RUN zypper install -y slurm-devel
 RUN zypper install -y strace
 RUN zypper install -y sudo

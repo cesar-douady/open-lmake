@@ -249,6 +249,7 @@ enum class Comment : uint8_t {
 ,	EndJob             , EndOverhead
 ,	EnteredNamespace
 ,	Hot
+,	KeepGid
 ,	Kill
 ,	List
 ,	LostServer
@@ -285,6 +286,7 @@ enum class CommentExt : uint8_t {
 ,	Killed
 ,	Lnk
 ,	NoFollow
+,	NotConfigured
 ,	Orig
 ,	Overlay
 ,	RunPath

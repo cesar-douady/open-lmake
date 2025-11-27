@@ -300,6 +300,12 @@ EOF
 HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available in lib
 
 #
+# NEWGIDMAP
+#
+NEWGIDMAP=$( type -p newgidmap || : )
+[ "$NEWGIDMAP" ] || echo "newgidmap not available" >>$SUM_FILE
+
+#
 # OBJCOPY
 #
 case $CXX_FLAVOR in
@@ -524,6 +530,7 @@ cat >$H_FILE <<-EOF
 	#define LIBC_MAP_STAT               $LIBC_MAP_STAT
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
+	#define NEWGIDMAP                   "$NEWGIDMAP"
 	#define OS_ID                       "$OS_ID"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"

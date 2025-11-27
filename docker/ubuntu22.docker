@@ -11,29 +11,30 @@ FROM ubuntu:22.04
 # and this may change from time to time. it has been seen that it was necessary to replace archive.ubuntu.com by fr.archive.ubuntu.com with a line such as :
 #RUN sed s://archive.ubuntu.com/://fr.archive.ubuntu.com/: -i.bak /etc/apt/sources.list
 
-RUN apt-get update --fix-missing       # 2 : in case of failure, try to increment this number to force docker to reexecute the update line
+RUN apt-get update --fix-missing       # 3 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
 
 # compulsory
 RUN apt-get install -y git
+RUN apt-get install -y groff m4
 RUN apt-get install -y python3-dev
 RUN apt-get install -y wget
-RUN apt-get install -y m4 groff
 # optional
+RUN apt-get install -y clang
 RUN apt-get install -y gdb
 RUN apt-get install -y g++-13
-RUN apt-get install -y clang
 RUN apt-get install -y libpcre2-dev
 RUN apt-get install -y libseccomp-dev
 RUN apt-get install -y libslurm-dev
 RUN apt-get install -y python2
 RUN apt-get install -y python3-numba python3-venv
 RUN apt-get install -y strace
+RUN apt-get install -y uidmap
 
 # necessary to build and install debian package
 RUN apt-get install -y dh-make devscripts debhelper equivs apparmor dh-apparmor
-RUN apt-get install -y libzstd-dev
 RUN apt-get install -y ed
+RUN apt-get install -y libzstd-dev
 RUN apt-get install -y sudo
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy

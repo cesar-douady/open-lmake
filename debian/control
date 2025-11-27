@@ -11,20 +11,21 @@ Build-Depends:
  debhelper-compat (= 13),
  dh-apparmor,
  ed,
- wget,
- m4,
  groff,
+ m4,
  python3,
  python3-dev,
  strace,
+ wget,
 # not strictly necessary but recommended
  git,
- libseccomp-dev,
  libpcre2-dev,
  libpcre2-8-0,
+ libseccomp-dev,
+ libzstd-dev,
+ uidmap,
  zlib1g,
- zlib1g-dev,
- libzstd-dev
+ zlib1g-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/cesar-douady/open-lmake
 
@@ -37,11 +38,12 @@ Depends:
  python3-dev,
 # necessary if mentioned at build time, suppress if suppressed at build time
  git,
- libseccomp-dev,
  libpcre2-8-0,
+ libseccomp-dev,
+ libzstd-dev,
+ uidmap,
  zlib1g,
- zlib1g-dev,
- libzstd-dev
+ zlib1g-dev
 Recommends:
  libslurm37 | libslurm38 | libslurm39 | libslurm40 | libslurm40t64 | libslurm41t64 | libslurm42t64 | libslurm43t64
 Description: pythonic workflow management system

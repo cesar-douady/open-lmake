@@ -272,6 +272,27 @@ In this latter case, the job will rerun if such dep-target is actually modified.
 <p>Targets are normally erased before the start of the job execution, unless they are sources or flagged as <code>incremental</code>.
 In case a target is also a dep, it is automatically flagged as <code>incremental</code>, whether it is an error or not.</p>
 <p>If a job is run when a not <code>incremental</code> and not source target exists, it is deemed unreliable and is rerun.</p>
+<h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
+<p>If the job does not require the creation of a namespace (required when there <code>chroot_dir</code> or any view is asked), the job is executed normally.
+When a namespace is required, open-lmake tries to keep all groups which the user belongs to.
+This is not always possible (as open-lmake contains no suid executables). If not possible, only the gid of the user is kept.</p>
+<p>To keep all groups, it is necessary to have:</p>
+<ul>
+<li>access to newgidmap executable, which may be obtained from the uidmap package (Debian based distro), the shadow-utils one (RedHat based) or the shadow one (Suse).</li>
+<li><code>GRANT_AUX_GROUP_SUBIDS</code> set in <code>/etc/login.defs</code> or networkd equivalent</li>
+<li>an adequate line allowing necessary gid mapping for the user in <code>/etc/subgid</code></li>
+</ul>
+<p>To check if configuration is ok, do the following:</p>
+<ul>
+<li>in a terminal, run `unshare -U bash -c 'echo $$ ; cat'</li>
+<li>in a second terminal, run <code>newgidmap &lt;pid&gt; &lt;min_gid&gt; &lt;min_gid&gt; &lt;gid_count&gt;</code>
+where <code>&lt;pid&gt;</code> is the pid printed in the first terminal,
+<code>&lt;min_gid&gt;</code> is the lowest group id which you belong to
+and <code>&lt;gid_count&gt;</code> is <code>&lt;max_gid&gt;-&lt;min_gid&gt;+1</code> where <code>&lt;max_gid&gt;</code> is the highest group id which you belong to</li>
+<li>repeat command above and verify you get an error to ensure it was not a false positive</li>
+<li>ensure call to newgidmap is configured in by checking macro NEWGIDMAP is not empty in file <code>sys_config.h</code> in the compilation tree</li>
+</ul>
+<p>Then for each job, <code>lshow -u</code> provides a trace entry when gid have been kept.</p>
 <h3 id="best-effort"><a class="header" href="#best-effort">Best effort</a></h3>
 <p>Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
 This may include erasing a file that has no associated production rule.
