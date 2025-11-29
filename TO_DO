@@ -28,6 +28,8 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* if a target was a dir, it is not unlinked
+* suppress backend configuration for commands other than lmake.
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -280,6 +282,7 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
+* add links to examples for dep/target flags
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 

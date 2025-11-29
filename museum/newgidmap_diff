@@ -1,0 +1,160 @@
+diff --git a/_bin/sys_config b/_bin/sys_config
+index 2864db96..e051a123 100755
+--- a/_bin/sys_config
++++ b/_bin/sys_config
+@@ -299,12 +299,6 @@ cat <<"EOF" >memfd.c
+ EOF
+ HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available in lib
+ 
+-#
+-# NEWGIDMAP
+-#
+-NEWGIDMAP=$( type -p newgidmap || : )
+-[ "$NEWGIDMAP" ] || echo "newgidmap not available" >>$SUM_FILE
+-
+ #
+ # OBJCOPY
+ #
+@@ -530,7 +524,6 @@ cat >$H_FILE <<-EOF
+ 	#define LIBC_MAP_STAT               $LIBC_MAP_STAT
+ 	#define MAX_PID                     $MAX_PID
+ 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
+-	#define NEWGIDMAP                   "$NEWGIDMAP"
+ 	#define OS_ID                       "$OS_ID"
+ 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
+ 	#define PYTHON                      "$PYTHON"
+diff --git a/doc/src/execution.md b/doc/src/execution.md
+index d3df4fdc..656eab65 100644
+--- a/doc/src/execution.md
++++ b/doc/src/execution.md
+@@ -152,30 +152,6 @@ In case a target is also a dep, it is automatically flagged as `incremental`, wh
+ 
+ If a job is run when a not `incremental` and not source target exists, it is deemed unreliable and is rerun.
+ 
+-### Permissions
+-
+-If the job does not require the creation of a namespace (required when there `chroot_dir` or any view is asked), the job is executed normally.
+-When a namespace is required, open-lmake tries to keep all groups which the user belongs to.
+-This is not always possible (as open-lmake contains no suid executables). If not possible, only the gid of the user is kept.
+-
+-To keep all groups, it is necessary to have:
+-
+-- access to newgidmap executable, which may be obtained from the uidmap package (Debian based distro), the shadow-utils one (RedHat based) or the shadow one (Suse).
+-- `GRANT_AUX_GROUP_SUBIDS` set in `/etc/login.defs` or networkd equivalent
+-- an adequate line allowing necessary gid mapping for the user in `/etc/subgid`
+-
+-To check if configuration is ok, do the following:
+-
+-- in a terminal, run `unshare -U bash -c 'echo $$ ; cat'
+-- in a second terminal, run `newgidmap <pid> <min_gid> <min_gid> <gid_count>`
+-where `<pid>` is the pid printed in the first terminal,
+-`<min_gid>` is the lowest group id which you belong to
+-and `<gid_count>` is `<max_gid>-<min_gid>+1` where `<max_gid>` is the highest group id which you belong to
+-- repeat command above and verify you get an error to ensure it was not a false positive
+-- ensure call to newgidmap is configured in by checking macro NEWGIDMAP is not empty in file `sys_config.h` in the compilation tree
+-
+-Then for each job, `lshow -u` provides a trace entry when gid have been kept.
+-
+ ### Best effort
+ 
+ Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
+diff --git a/src/rpc_job.cc b/src/rpc_job.cc
+index 5ceac4b4..2472fb0e 100644
+--- a/src/rpc_job.cc
++++ b/src/rpc_job.cc
+@@ -857,11 +857,6 @@ template<bool IsFile,class T> static bool/*match*/ _handle( ::string& v/*inout*/
+ 	v = ::move(pfx) + substr_view(v,start+len+brace) ;
+ 	return true/*match*/ ;
+ }
+-// process external views before chroot (quite simple, no overlay) then local views after chroot (may be complex with overlay)
+-static int _sync_newgidmap(void*) {
+-	Fd::Stdin.read() ;
+-	return 0 ;
+-}
+ bool JobSpace::enter(
+ 	::vector_s&              /*out*/   report
+ ,	::string  &              /*.  */   repo_root_s
+@@ -925,59 +922,17 @@ bool JobSpace::enter(
+ 	bool bind_repo  =                 +repo_view_s  || +chroot_dir   ; creat |= bind_repo  && !FileInfo(chroot_dir+repo_root_s ).tag() ;
+ 	bool bind_tmp   = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir ) ; creat |= bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ;
+ 	//
+-	// gid maping is very complex.
+-	// What is simple is to map our gid. What much more complex is to map all ancillary groups obtained with getgroups().
+-	// The reason is that writing to /proc/self/gid_map is allowed for non-privileged user only for a single group.
+-	// If multiple groups are to be mapped, one has to go through the newgidmap utility, which must be called before unshare().
+-	// This requires :
+-	// - newgidmap to be installed through the package uidmap Debian based, the shadow-utils one for red-hat based and the shadow one for Suse
+-	// - /etc/login.defs (or network equivalent) to set the GRANT_AUX_GROUP_SUBIDS
+-	// - /etc/subgid to contain a line for the user allowing mapping for the mapped range (min gid to max gid
+-	static constexpr bool HasNewgidmap = NEWGIDMAP[0] ;
+-	uid_t uid        = ::geteuid()  ;                                                                 // must be done before unshare that invents a new user
+-	gid_t gid        = ::getegid()  ;                                                                 // .
+-	gid_t min_gid    = gid          ;                                                                 // .
+-	gid_t max_gid    = gid          ;                                                                 // .
+-	bool  gid_map_ok = HasNewgidmap ;                                                                 // assumes it will go through if available
+-	Child newgidmap  ;
+-	if (gid_map_ok) {
+-		::vector<gid_t> gids ( 100 ) ;                                                                // 100 is pretty comfortable, overflow is managed below
+-		if ( int n_gids=::getgroups(100,gids.data()) ; n_gids>=0 ) {
+-			gids.resize(n_gids) ;
+-		} else {                                                                                      // manage overflow
+-			n_gids = ::getgroups( 0 , nullptr/*gids*/ ) ;
+-			gids.resize(n_gids) ;
+-			if ( ::getgroups( n_gids , gids.data() )<0 ) gids.clear() ;                               // if we cannot get the groups, dont map them
+-		}
+-		min_gid = ::min( gids , min_gid ) ;
+-		max_gid = ::max( gids , max_gid ) ;
+-		trace("gids",gid,min_gid,max_gid,gids) ;
+-		if (min_gid==max_gid) {                                                                       // fast path : no need for heavy processing if we can write to gid_map ourselves
+-			gid_map_ok = false ;
+-		} else {
+-			newgidmap.cmd_line = { NEWGIDMAP , cat(::getpid()) , cat(min_gid) , cat(min_gid) , cat(max_gid-min_gid+1) } ;
+-			newgidmap.stdin_fd = Child::PipeFd                                                                          ;
+-			newgidmap.pre_exec = _sync_newgidmap                                                                        ; // newgidmap must be launched in parent namespace but executed only ...
+-			newgidmap.spawn() ;                                                                                           // ... after unshare() is called, so synchronize through stdin
+-		}
+-	}
++	uid_t uid = ::geteuid() ;                                                                    // must be done before unshare that invents a new user
++	gid_t gid = ::getegid() ;                                                                    // .
+ 	//
+-	trace("create",STR(creat),uid,lmake_root_s,repo_root_s,tmp_dir_s) ;
++	trace("creat",STR(creat),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s) ;
+ 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+ 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
+ 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 	// mapping uid/gid is necessary to manage overlayfs
+ 	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                          // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
+ 	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                          // for each line, format is "id_in_namespace id_in_host size_of_range"
+-	if (gid_map_ok) {
+-		newgidmap.stdin.close() ;                                                                // synchronize with newgidmap once unshared has been called
+-		gid_map_ok = newgidmap.wait_ok() ;
+-	}
+-	if (!gid_map_ok) _atomic_write( "/proc/self/gid_map" , cat(gid,' ',gid," 1\n") ) ;           // only map gid if sufficient or f newgidmap did not do the job
+-	if      (!HasNewgidmap   ) exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExt::NotConfigured , cat(                                                gid," only") ) ;
+-	else if (min_gid!=max_gid) exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExts()             , cat(                                                gid        ) ) ;
+-	else if (!gid_map_ok     ) exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExt::Err           , cat(min_gid," to ",max_gid," failed, fall back to ",gid," only") ) ;
+-	else                       exec_trace.emplace_back( New/*date*/ , Comment::KeepGid , CommentExts()             , cat(min_gid," to ",max_gid                                     ) ) ;
++	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                          // .
+ 	//
+ 	bool dev_sys_mapped = false ;
+ 	//
+diff --git a/src/rpc_job_common.hh b/src/rpc_job_common.hh
+index 74a928df..606ef702 100644
+--- a/src/rpc_job_common.hh
++++ b/src/rpc_job_common.hh
+@@ -249,7 +249,6 @@ enum class Comment : uint8_t {
+ ,	EndJob             , EndOverhead
+ ,	EnteredNamespace
+ ,	Hot
+-,	KeepGid
+ ,	Kill
+ ,	List
+ ,	LostServer
+@@ -286,7 +285,6 @@ enum class CommentExt : uint8_t {
+ ,	Killed
+ ,	Lnk
+ ,	NoFollow
+-,	NotConfigured
+ ,	Orig
+ ,	Overlay
+ ,	RunPath

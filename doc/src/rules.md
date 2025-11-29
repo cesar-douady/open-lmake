@@ -416,7 +416,8 @@ This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)) before 
 
 It must be an absolute path not lying in the temporary dir.
 
-If `None` or `''`, no bind mount is performed.
+If `None`, `''` or not specified, this dir is not mounted, else, it must be an absolute path.
+If it already exists, it must be a (preferably empty) dir, else it must be a top-level name (e.g `/a` but not `/a/b`).
 
 ### `max_retries_on_lost`
 
@@ -555,7 +556,8 @@ This is done by using `mount -rbind` (cf. [namespaces](namespaces.html)) before 
 
 It must be an absolute path not lying in the temporary dir.
 
-If `None` or `''`, no bind mount is performed.
+If `None`, `''` or not specified, this dir is not mounted, else, it must be an absolute path.
+If it already exists, it must be a (preferably empty) dir, else it must be a top-level name (e.g `/a` but not `/a/b`).
 
 This attribute is typically used when using tools that handle absolute paths.
 This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.
@@ -747,8 +749,8 @@ When this attribute has a non-zero value, job is killed and a failure is reporte
 
 This attribute defines the name which the temporary dir available for job execution is mounted on (cf. [namespaces](namespaces.html)).
 
-If `None`, `''` or not specified, this dir is not mounted.
-Else, it must be an absolute path.
+If `None`, `''` or not specified, this dir is not mounted, else, it must be an absolute path.
+If view already exists, it must be (preferably empty) dir, else it must be a top-level name (e.g `/a` but not `/a/b`).
 
 ### [`use_script`](unit_tests/use_script.html#:~:text=use%5Fscript%20%3D%20True)
 
@@ -780,7 +782,7 @@ Views and physical locations must be dirs.
 Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. [namespaces](namespaces.html)).
 
 Dirs in the repo or tmp are created as needed.
-External dirs must pre-exist.
+External dirs must pre-exist or be top-level names (e.g `/a` but not `/a/b`).
 
 Physical description may be :
 

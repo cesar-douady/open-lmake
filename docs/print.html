@@ -1629,7 +1629,8 @@ If used in conjunction with <code>chroot_dir</code>, the directory is searched i
 <p>This attribute defines a dir in which jobs will see the top-level dir of open-lmake installation.
 This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>) before any chroot if asked to do so.</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
-<p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
+<p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted, else, it must be an absolute path.
+If it already exists, it must be a (preferably empty) dir, else it must be a top-level name (e.g <code>/a</code> but not <code>/a/b</code>).</p>
 <h3 id="max_retries_on_lost"><a class="header" href="#max_retries_on_lost"><code>max_retries_on_lost</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>int</code></td><td><code>1</code></td><td>No</td><td></td></tr>
@@ -1731,7 +1732,8 @@ i.e. independent of the history (the repo is not constantly maintained without s
 <p>This attribute defines a dir in which jobs will see the top-level dir of the repo (the root dir).
 This is done by using <code>mount -rbind</code> (cf. <a href="namespaces.html">namespaces</a>) before any chroot if asked to do so.</p>
 <p>It must be an absolute path not lying in the temporary dir.</p>
-<p>If <code>None</code> or <code>''</code>, no bind mount is performed.</p>
+<p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted, else, it must be an absolute path.
+If it already exists, it must be a (preferably empty) dir, else it must be a top-level name (e.g <code>/a</code> but not <code>/a/b</code>).</p>
 <p>This attribute is typically used when using tools that handle absolute paths.
 This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.</p>
 <h3 id="resources"><a class="header" href="#resources"><a href="unit_tests/resources.html#:~:text=resources%20%3D%20%7B%20%27gnat%27%3A%20%271%27%20%7D"><code>resources</code></a></a></h3>
@@ -1885,8 +1887,8 @@ possibly duplicating flags mentioned in other matching entries (<code>side_deps<
 </tbody></table>
 </div>
 <p>This attribute defines the name which the temporary dir available for job execution is mounted on (cf. <a href="namespaces.html">namespaces</a>).</p>
-<p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted.
-Else, it must be an absolute path.</p>
+<p>If <code>None</code>, <code>''</code> or not specified, this dir is not mounted, else, it must be an absolute path.
+If view already exists, it must be (preferably empty) dir, else it must be a top-level name (e.g <code>/a</code> but not <code>/a/b</code>).</p>
 <h3 id="use_script"><a class="header" href="#use_script"><a href="unit_tests/use_script.html#:~:text=use%5Fscript%20%3D%20True"><code>use_script</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
@@ -1907,7 +1909,7 @@ Else, it must be an absolute path.</p>
 Views and physical locations must be dirs.</p>
 <p>Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>Dirs in the repo or tmp are created as needed.
-External dirs must pre-exist.</p>
+External dirs must pre-exist or be top-level names (e.g <code>/a</code> but not <code>/a/b</code>).</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
@@ -2043,27 +2045,6 @@ In this latter case, the job will rerun if such dep-target is actually modified.
 <p>Targets are normally erased before the start of the job execution, unless they are sources or flagged as <code>incremental</code>.
 In case a target is also a dep, it is automatically flagged as <code>incremental</code>, whether it is an error or not.</p>
 <p>If a job is run when a not <code>incremental</code> and not source target exists, it is deemed unreliable and is rerun.</p>
-<h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
-<p>If the job does not require the creation of a namespace (required when there <code>chroot_dir</code> or any view is asked), the job is executed normally.
-When a namespace is required, open-lmake tries to keep all groups which the user belongs to.
-This is not always possible (as open-lmake contains no suid executables). If not possible, only the gid of the user is kept.</p>
-<p>To keep all groups, it is necessary to have:</p>
-<ul>
-<li>access to newgidmap executable, which may be obtained from the uidmap package (Debian based distro), the shadow-utils one (RedHat based) or the shadow one (Suse).</li>
-<li><code>GRANT_AUX_GROUP_SUBIDS</code> set in <code>/etc/login.defs</code> or networkd equivalent</li>
-<li>an adequate line allowing necessary gid mapping for the user in <code>/etc/subgid</code></li>
-</ul>
-<p>To check if configuration is ok, do the following:</p>
-<ul>
-<li>in a terminal, run `unshare -U bash -c 'echo $$ ; cat'</li>
-<li>in a second terminal, run <code>newgidmap &lt;pid&gt; &lt;min_gid&gt; &lt;min_gid&gt; &lt;gid_count&gt;</code>
-where <code>&lt;pid&gt;</code> is the pid printed in the first terminal,
-<code>&lt;min_gid&gt;</code> is the lowest group id which you belong to
-and <code>&lt;gid_count&gt;</code> is <code>&lt;max_gid&gt;-&lt;min_gid&gt;+1</code> where <code>&lt;max_gid&gt;</code> is the highest group id which you belong to</li>
-<li>repeat command above and verify you get an error to ensure it was not a false positive</li>
-<li>ensure call to newgidmap is configured in by checking macro NEWGIDMAP is not empty in file <code>sys_config.h</code> in the compilation tree</li>
-</ul>
-<p>Then for each job, <code>lshow -u</code> provides a trace entry when gid have been kept.</p>
 <h3 id="best-effort"><a class="header" href="#best-effort">Best effort</a></h3>
 <p>Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
 This may include erasing a file that has no associated production rule.
@@ -2724,7 +2705,7 @@ Such jobs may have run before or after the commit, hence they are:</p>
 <li>or the first job of the current commit sha1</li>
 </ul>
 <p>By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.</p>
-<h3 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h3>
+<h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
 <p>For all users accessing the cache:</p>
 <ul>
 <li>Its root dir and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
@@ -2845,7 +2826,7 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
-<h2 id="permissions-2"><a class="header" href="#permissions-2">Permissions</a></h2>
+<h2 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h2>
 <p>For all users accessing the association table:</p>
 <ul>
 <li>Its root dir and its <code>LMAKE</code> dir must have read/write access (read-only access is enough to only decode).</li>

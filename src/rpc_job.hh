@@ -781,7 +781,8 @@ struct JobSpace {
 	// END_OF_VERSIONING
 private :
 	::string _tmp_dir_s ;                                                                      // to be unlinked upon exit
-	bool     _is_canon  = false ;
+	bool     _is_canon    = false ;
+	bool     _force_creat = false ;                                                            // valid if _is_canon, if true => create a chroot
 } ;
 
 struct JobRpcReq {

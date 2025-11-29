@@ -23,7 +23,6 @@ Build-Depends:
  libpcre2-8-0,
  libseccomp-dev,
  libzstd-dev,
- uidmap,
  zlib1g,
  zlib1g-dev
 Standards-Version: 4.6.2
@@ -41,7 +40,6 @@ Depends:
  libpcre2-8-0,
  libseccomp-dev,
  libzstd-dev,
- uidmap,
  zlib1g,
  zlib1g-dev
 Recommends:

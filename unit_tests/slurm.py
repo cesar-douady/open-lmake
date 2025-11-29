@@ -61,7 +61,7 @@ else :
 	if 'slurm' not in lmake.backends :
 		print('slurm not compiled in',file=open('skipped','w'))
 		exit()
-	if os.system('scontrol ping')!=0 :
+	if os.system('scontrol ping|grep -qw UP')!=0 :
 		print('slurm not available',file=open('skipped','w'))
 		exit()
 

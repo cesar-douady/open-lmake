@@ -92,7 +92,7 @@ config_python() {
 	python=$1
 	ver=$2
 	python=${python:-python$ver}
-	p=$(type -p $python || :)
+	p=$(type -p $python ||:)
 	[ "$p" ] || { msg="$python not found" ; return 1 ; }
 	python=$p
 	llp=$LD_LIBRARY_PATH                                                                                                                   # save LD_LIBARY_PATH
@@ -171,7 +171,7 @@ if type -p strace >/dev/null ; then
 else
 	if cc -m64 -o ld_so_lib -xc++ - <<< 'int main(){}' ; then
 		HAS_32=0
-		LD_SO_LIB=lib64 # this seems to work on all known 64 bits systems
+		LD_SO_LIB=lib64                                                                   # this seems to work on all known 64 bits systems
 		echo "strace not available, assuming \$LIB=$LD_SO_LIB for LD_PRELOAD" >>$SUM_FILE
 	else
 		echo "unsupported 32 bits system" >>$ERR_FILE
@@ -219,12 +219,12 @@ fi
 # LD_AUDIT (HAS_LD_AUDIT)
 #
 case $ID/$VERSION_ID in
-	ubuntu/20.04      ) HAS_LD_AUDIT=0 ;;                # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
-	centos/7          ) HAS_LD_AUDIT=0 ;;                # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
-	opensuse-leap/15.5) HAS_LD_AUDIT=0 ;;                # Suse    fix : version 15.5 "almost" supports LD_AUDIT, but it is missing calls to a few libc entries such as fstatat
-	sled/15.5         ) HAS_LD_AUDIT=0 ;;                # may experience the same problem as with opensuse
-	sles/15.5         ) HAS_LD_AUDIT=0 ;;                # .
-	*                 )
+	ubuntu/20.04         ) HAS_LD_AUDIT=0 ;;             # Ubuntu  fix : Ubuntu 20.04 seems to miss calling auditing code upon ldopen
+	centos/7             ) HAS_LD_AUDIT=0 ;;             # CentOS7 fix : This is what would answer a real centos-7 system, but we may be running in a docker which has a more recent kernel.
+	opensuse-leap/15.[45]) HAS_LD_AUDIT=0 ;;             # Suse    fix : version 15.[45] "almost" supports LD_AUDIT, but it is missing calls to a few libc entries such as fstatat
+	sled/15.[45]         ) HAS_LD_AUDIT=0 ;;             # may experience the same problem as with opensuse
+	sles/15.[45]         ) HAS_LD_AUDIT=0 ;;             # .
+	*                    )
 		cat <<-"EOF" >audited.c
 			#include <stdio.h>
 			int main() { printf("0") ; }
@@ -298,12 +298,6 @@ cat <<"EOF" >memfd.c
 	int main() { memfd_create("trial",0) ; }
 EOF
 HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available in lib
-
-#
-# NEWGIDMAP
-#
-NEWGIDMAP=$( type -p newgidmap || : )
-[ "$NEWGIDMAP" ] || echo "newgidmap not available" >>$SUM_FILE
 
 #
 # OBJCOPY
@@ -530,7 +524,6 @@ cat >$H_FILE <<-EOF
 	#define LIBC_MAP_STAT               $LIBC_MAP_STAT
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
-	#define NEWGIDMAP                   "$NEWGIDMAP"
 	#define OS_ID                       "$OS_ID"
 	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
 	#define PYTHON                      "$PYTHON"

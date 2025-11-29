@@ -126,7 +126,13 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="n">os_candidates</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;centos7&#39;</span><span class="p">,</span><span class="s1">&#39;rocky8&#39;</span><span class="p">,</span><span class="s1">&#39;rocky9&#39;</span><span class="p">,</span><span class="s1">&#39;ubuntu20&#39;</span><span class="p">,</span><span class="s1">&#39;ubunu22&#39;</span><span class="p">,</span><span class="s1">&#39;ubuntu24&#39;</span><span class="p">,</span><span class="s1">&#39;debian12&#39;</span><span class="p">,</span><span class="s1">&#39;suse155&#39;</span><span class="p">,</span><span class="s1">&#39;suse156&#39;</span><span class="p">)</span>
+    <span class="n">os_candidates</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;centos7&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;debian12&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;rocky8&#39;</span>   <span class="p">,</span> <span class="s1">&#39;rocky9&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;suse154&#39;</span>  <span class="p">,</span> <span class="s1">&#39;suse155&#39;</span>  <span class="p">,</span> <span class="s1">&#39;suse156&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;ubuntu20&#39;</span> <span class="p">,</span> <span class="s1">&#39;ubuntu22&#39;</span> <span class="p">,</span> <span class="s1">&#39;ubuntu24&#39;</span>
+    <span class="p">)</span>
     <span class="n">os_known</span>      <span class="o">=</span> <span class="p">[</span> <span class="n">os</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_candidates</span> <span class="k">if</span> <span class="n">osp</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">image_root</span><span class="p">(</span><span class="n">os</span><span class="p">))</span> <span class="ow">and</span> <span class="n">osp</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">lmake_install_root</span><span class="p">(</span><span class="n">os</span><span class="p">))</span> <span class="p">]</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">os_known</span> <span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;no foreign os available&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;skipped&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>

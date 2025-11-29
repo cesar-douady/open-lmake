@@ -7,17 +7,17 @@
 
 FROM debian:12
 
-RUN apt-get update --fix-missing       # 0 : in case of failure, try to increment this number to force docker to reexecute the update line
+RUN apt-get update --fix-missing       # 1 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN apt-get install -y build-essential
 
 # compulsory
 RUN apt-get install -y git
+RUN apt-get install -y groff m4
 RUN apt-get install -y python3-dev
 RUN apt-get install -y wget
-RUN apt-get install -y m4 groff
 # optional
-RUN apt-get install -y gdb
 RUN apt-get install -y clang
+RUN apt-get install -y gdb
 RUN apt-get install -y libpcre2-dev
 RUN apt-get install -y libseccomp-dev
 RUN apt-get install -y libslurm-dev
@@ -26,8 +26,8 @@ RUN apt-get install -y strace
 #
 ## necessary to build and install debian package
 RUN apt-get install -y dh-make devscripts debhelper equivs apparmor dh-apparmor
-RUN apt-get install -y libzstd-dev
 RUN apt-get install -y ed
+RUN apt-get install -y libzstd-dev
 RUN apt-get install -y sudo
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy

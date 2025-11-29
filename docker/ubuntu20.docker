@@ -3,19 +3,19 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# build command : sudo docker build -f docker/ubuntu20.docker -t ubuntu20 docker
+# build command from top level : sudo docker build -f docker/ubuntu20.docker -t ubuntu20 docker
 
 FROM ubuntu:20.04
 
-RUN                                apt-get update --fix-missing                  # 2 : in case of failure, try to increment this number to force docker to reexecute the update line
+RUN                                apt-get update --fix-missing                  # 3 : in case of failure, try to increment this number to force docker to reexecute the update line
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 RUN                                apt-get install -y build-essential
 
 # compulsory
 RUN                                apt-get install -y git
+RUN                                apt-get install -y groff m4
 RUN                                apt-get install -y python3-dev
 RUN                                apt-get install -y wget
-RUN                                apt-get install -y m4 groff
 # optional
 #RUN                               apt-get install -y libpcre2-dev
 RUN                                apt-get install -y libseccomp-dev
@@ -28,8 +28,7 @@ RUN                                apt-get install -y strace
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends g++-11
-RUN apt-get update
-RUN apt-get install -y gdb # practical but not required
+RUN apt-get install -y                         gdb    # practical but not required
 
 RUN     useradd --uid 1001 --home-dir /home/cdy cdy
 USER    1001:1001

@@ -313,7 +313,7 @@ namespace Disk {
 				default :
 					msg = "cannot create dir" ;
 				Bad :
-					throw cat(msg,' ',File(dir_s.at.fd,no_slash(d_s))) ;
+					throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(d_s))) ;
 			}
 		}
 		return pos ;

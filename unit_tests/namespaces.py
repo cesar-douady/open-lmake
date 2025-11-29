@@ -5,7 +5,7 @@
 
 import lmake
 
-tmp_views = (None,'tmp','tmp2/sub')
+tmp_views = (None,'tmp/open-lmake_tu','tmp2')
 
 if __name__!='__main__' :
 
@@ -62,7 +62,11 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+
 	import ut
+
+	os.makedirs('/tmp/open-lmake_tu',exist_ok=True)
 
 	print('lower\nupper',file=open('tmp_map_ref','w'))
 

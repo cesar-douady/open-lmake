@@ -16,16 +16,16 @@ RUN dnf install -y 'dnf-command(config-manager)' && dnf config-manager --set-ena
 # compulsory
 RUN dnf install -y epel-release
 RUN dnf install -y gcc-toolset-11 gcc-toolset-11-gdb
-RUN dnf install -y python3 python3-devel
 RUN dnf install -y git
+RUN dnf install -y groff m4
+RUN dnf install -y python3 python3-devel
 RUN dnf install -y wget
-RUN dnf install -y m4 groff
 # optional
-RUN  dnf install -y libseccomp
-RUN  dnf install -y strace
 #RUN dnf install -y glibc-devel.i686 libgcc.i686 gcc-toolset-12-libstdc++-devel.i686
+RUN  dnf install -y libseccomp
 #RUN dnf install -y pcre2 pcre2-devel
 #RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
+RUN  dnf install -y strace
 
 RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
 USER    1001:1001

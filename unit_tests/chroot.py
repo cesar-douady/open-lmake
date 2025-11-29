@@ -28,7 +28,13 @@ if __name__!='__main__' :
 
 else :
 
-	os_candidates = ('centos7','rocky8','rocky9','ubuntu20','ubunu22','ubuntu24','debian12','suse155','suse156')
+	os_candidates = (
+		'centos7'
+	,	'debian12'
+	,	'rocky8'   , 'rocky9'
+	,	'suse154'  , 'suse155'  , 'suse156'
+	,	'ubuntu20' , 'ubuntu22' , 'ubuntu24'
+	)
 	os_known      = [ os for os in os_candidates if osp.isdir(image_root(os)) and osp.isdir(lmake_install_root(os)) ]
 	if not os_known :
 		print('no foreign os available',file=open('skipped','w'))

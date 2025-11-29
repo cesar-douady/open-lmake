@@ -152,30 +152,6 @@ In case a target is also a dep, it is automatically flagged as `incremental`, wh
 
 If a job is run when a not `incremental` and not source target exists, it is deemed unreliable and is rerun.
 
-### Permissions
-
-If the job does not require the creation of a namespace (required when there `chroot_dir` or any view is asked), the job is executed normally.
-When a namespace is required, open-lmake tries to keep all groups which the user belongs to.
-This is not always possible (as open-lmake contains no suid executables). If not possible, only the gid of the user is kept.
-
-To keep all groups, it is necessary to have:
-
-- access to newgidmap executable, which may be obtained from the uidmap package (Debian based distro), the shadow-utils one (RedHat based) or the shadow one (Suse).
-- `GRANT_AUX_GROUP_SUBIDS` set in `/etc/login.defs` or networkd equivalent
-- an adequate line allowing necessary gid mapping for the user in `/etc/subgid`
-
-To check if configuration is ok, do the following:
-
-- in a terminal, run `unshare -U bash -c 'echo $$ ; cat'
-- in a second terminal, run `newgidmap <pid> <min_gid> <min_gid> <gid_count>`
-where `<pid>` is the pid printed in the first terminal,
-`<min_gid>` is the lowest group id which you belong to
-and `<gid_count>` is `<max_gid>-<min_gid>+1` where `<max_gid>` is the highest group id which you belong to
-- repeat command above and verify you get an error to ensure it was not a false positive
-- ensure call to newgidmap is configured in by checking macro NEWGIDMAP is not empty in file `sys_config.h` in the compilation tree
-
-Then for each job, `lshow -u` provides a trace entry when gid have been kept.
-
 ### Best effort
 
 Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.

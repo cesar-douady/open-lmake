@@ -3,9 +3,9 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-# build command from top level : sudo docker build -f docker/suse156.docker -t suse156 docker
+# build command from top level : sudo docker build -f docker/suse154.docker -t suse154 docker
 
-FROM opensuse/leap:15.6
+FROM opensuse/leap:15.4
 
 RUN zypper refresh # refresh repositories
 RUN zypper update -y # update package list
