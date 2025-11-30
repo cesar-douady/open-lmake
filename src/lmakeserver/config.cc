@@ -79,7 +79,7 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Dict const& py_map) : booted{true} {                                                                               // if config is read from makefiles, it is booted
+	Config::Config(Dict const& py_map) : booted{true} {                                                        // if config is read from makefiles, it is booted
 		key = to_hex(random<uint64_t>()) ;
 		//
 		::vector_s fields = {{}} ;
@@ -102,7 +102,7 @@ namespace Engine {
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_path_max = py_map[fields[0]] ;
-				if (py_path_max==None) path_max = size_t(-1                     ) ;                                                   // deactivate
+				if (py_path_max==None) path_max = size_t(-1                     ) ;                            // deactivate
 				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
 			}
 			fields[0] = "link_support" ;
@@ -113,7 +113,7 @@ namespace Engine {
 				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
 			}
 			fields[0] = "reliable_dirs" ;
-			if (py_map.contains(fields[0])) file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ;                        // XXX> : suppress when backward compatibility is no more required
+			if (py_map.contains(fields[0])) file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ; // XXX> : suppress when backward compatibility is no more required
 			fields[0] = "file_sync" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_file_sync = py_map[fields[0]] ;
@@ -125,10 +125,10 @@ namespace Engine {
 			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                                                 // local backend is always present
 				fields[1] = snake(t) ;
-				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                      // not implemented
-				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
+				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                                            // not implemented
+				if (!py_backends.contains(fields[1])) continue ;                                                                                            // not configured
 				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
 				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
 			}
@@ -463,7 +463,7 @@ namespace Engine {
 				Caches::Cache::s_config( idx_cache.first , idx_cache.second.tag , idx_cache.second.dct ) ;
 			} catch (::string const& e) {
 				trace("no_config",e) ;
-				idx_cache.first = 0 ;                                                                  // dont use this cache
+				idx_cache.first = 0 ;                                                      // dont use this cache
 				Fd::Stderr.write(cat("ignore (cannot configure) cache ",k," : ",e,'\n')) ;
 			}
 		}

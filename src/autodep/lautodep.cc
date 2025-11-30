@@ -153,11 +153,11 @@ int main( int argc , char* argv[] ) {
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
 		jsrr.enter(
-			/*out*/  ::ref(::vector_s())
-		,	/*.  */  cmd_env
-		,	/*.  */  ::ref(::vmap_ss               ())/*dyn_env*/
-		,	/*.  */  gather.first_pid
-		,	/*.  */  ::ref(::string                ())/*repo_root_s*/
+			/*out  */::ref(::vector_s())
+		,	/*.    */cmd_env
+		,	/*.    */::ref(::vmap_ss               ())/*dyn_env*/
+		,	/*.    */gather.first_pid
+		,	/*.    */::ref(::string                ())/*repo_root_s*/
 		,	/*inout*/::ref(::vector<ExecTraceEntry>())
 		,	         *g_repo_root_s
 		,	         with_slash(tmp_dir)
@@ -169,11 +169,11 @@ int main( int argc , char* argv[] ) {
 	Status status ;
 	try {
 		BlockedSig blocked{{SIGINT}} ;
-		gather.autodep_env  = ::move(autodep_env)   ;
-		gather.cmd_line     = cmd_line.args         ;
-		gather.env          = &cmd_env              ;
-		gather.lmake_root_s = jsrr.phy_lmake_root_s ;
-		gather.method       = jsrr.method           ;
+		gather.autodep_env  = ::move(autodep_env)                            ;
+		gather.cmd_line     = cmd_line.args                                  ;
+		gather.env          = &cmd_env                                       ;
+		gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
+		gather.method       = jsrr.method                                    ;
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;
 		//       ^^^^^^^^^^^^^^^^^^^
@@ -185,17 +185,17 @@ int main( int argc , char* argv[] ) {
 	::string files = "targets :\n" ;
 	for( auto const& [target,ai] : gather.accesses )
 		if (ai.first_write()<Pdate::Future) files << target <<'\n' ;
-	files += "deps :\n" ;
+	files << "deps :\n" ;
 	::string prev_dep         ;
 	bool     prev_parallel    = false ;
 	Pdate    prev_first_read  ;
 	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                              // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
-			if      ( !prev_parallel && !parallel ) files += "  "  ;
-			else if ( !prev_parallel &&  parallel ) files += "/ "  ;
-			else if (  prev_parallel &&  parallel ) files += "| "  ;
-			else                                    files += "\\ " ;
+			if      ( !prev_parallel && !parallel ) files << "  "  ;
+			else if ( !prev_parallel &&  parallel ) files << "/ "  ;
+			else if (  prev_parallel &&  parallel ) files << "| "  ;
+			else                                    files << "\\ " ;
 			files << prev_dep << '\n' ;
 		}
 		prev_first_read = first_read ;

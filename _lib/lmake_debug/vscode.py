@@ -85,8 +85,8 @@ class Job (utils.Job) :
 		#
 		# sanity checks
 		#
-#		vscode_exe = shutil.which('code')
 		if not self.is_python : raise ValueError       ('cannot debug shell job with vscode')
+#		vscode_exe = shutil.which('code')
 #		if not vscode_exe     : raise FileNotFoundError('cannot find code'                  )
 		#
 		# install necessary extensions

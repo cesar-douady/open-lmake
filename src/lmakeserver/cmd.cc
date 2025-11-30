@@ -436,7 +436,7 @@ namespace Engine {
 			}
 		Tmp :
 			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
-			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ; // 0 is for small_id which does not exist for debug
+			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ;                 // 0 is for small_id which does not exist for debug
 		}
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
@@ -485,6 +485,12 @@ namespace Engine {
 		{	res << ",\tinterpreter = (" ;
 			First first ;
 			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ;
+			res << first("",",","") << ")\n" ;
+		}
+		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , env_map ) ) {           // jsrr.interpreter is now the entire cmd line
+			res << ",\tsimple_cmd_line = (" ;
+			First first ;
+			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ; // .
 			res << first("",",","") << ")\n" ;
 		}
 		{	First first ;

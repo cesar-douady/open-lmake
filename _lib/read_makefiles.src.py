@@ -70,7 +70,7 @@ if '.config.' in actions :
 	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
 	config = lmake.config
 	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
-	config.extra_manifest = list(lmake.extra_manifest)
+	config.extra_manifest = lmake.extra_manifest
 	srcs_action = ''
 	if   lmake.manifest                              : actions     += 'sources.'
 	elif not is_top                                  : pass

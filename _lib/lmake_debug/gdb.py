@@ -27,7 +27,7 @@ class Job(Job) :
 				call_line += ( '-ex' , 'end'                    )
 				self.stdin  = None                                                                               # gdb handles redirection
 				self.stdout = None                                                                               # .
-		call_line += ( '--args' , *(mk_shell_str(c) for c in self.interpreter) , mk_shell_str(self.cmd_file()) )
+		call_line += ( '--args' , *(mk_shell_str(c) for c in self.cmd_line()) )
 		#
 		self.autodep_method = 'none'
 		preamble,line       = self.starter(*call_line)

@@ -74,10 +74,10 @@ static_assert(chk_enum_tab(CacheHitInfoStrs)) ;
 // START_OF_VERSIONING
 enum class FileActionTag : uint8_t {
 	Src                              // file is src, no action
+,	None                             // same as unlink except expect file not to exist
 ,	Unlink                           // used in ldebug, so it cannot be Unlnk
 ,	UnlinkWarning                    // .
 ,	UnlinkPolluted                   // .
-,	None
 ,	Uniquify
 ,	Mkdir
 ,	Rmdir
@@ -326,7 +326,19 @@ namespace Caches {
 
 }
 
+//
+// quarantine
+//
+
 void quarantine( ::string const& file , NfsGuard* =nullptr ) ;
+
+//
+// mk_simple_cmd_line
+//
+
+// replace call to BASH by direct execution if a single command can be identified
+// cmd_line initially contains interpreter and finally contains the enire cmd line
+bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::map_ss const& cmd_env ) ;
 
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;

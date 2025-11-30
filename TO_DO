@@ -28,8 +28,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* if a target was a dir, it is not unlinked
-* suppress backend configuration for commands other than lmake.
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -82,6 +80,13 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- use small ids through a manually handled association small id <-> computed crc
 	- provide versions for cache, repo, and job exec
 	- check job exec versions when using a different lmake for job exec
+* clean up with_slash/no_slash/ensure_nl etc. to unify slash and nl
+	- provide in place and non-in place for nl and slash
+	- use same vocabulary
+	- use in place func in cat to improve perf and allow use of throw_if/throw_unless
+* clean up FileInfo and FileSig and FileTag
+	- mimic Crc : !x means x has not been computed, not that file does not exist
+	- define equivalent when seen from lmake, == staying strict equality
 * unify classes Gather and JobStartRpcReply
 * share most fields between StartCmdAttrs and JobSpace
 * check files are conformant to config.link_support
@@ -125,6 +130,14 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add flags to chroot_dir
+	- allow /etc/passwd and /etc/group to be overwritten (and /etc/nsswitch.conf checked/overwritten to ensure passwd entry contains files)
+	- 3 flags : nothing, overwrite (user and root), merge (ensure user is present, merge with existing entries)
+	- ordered by decrease perf and increase versatility
+* add ldebug -kE
+	- split -ke into 2 : a comfortable and a strict case
+	- in comfortable (-ke), shell is the one of the user, with -i, HOME is user HOME, ideally is a new window.
+	- in strict (-kE), shell is the one of the job and environment is strictly preserved, ideally in a new window.
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
@@ -206,6 +219,7 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* suppress backend configuration for commands other than lmake.
 * when cache matches (and does not hit)
 	- return deps corresponding to most recently used
 	- instead of intersection of all matching (which may generate lack of //)

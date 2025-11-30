@@ -29,19 +29,20 @@ def no_nl(s) :
 
 class Job :
 
-	auto_mkdir  = False
-	chroot_dir  = None
-	cwd         = None
-	lmake_root  = None
-	lmake_view  = None
-	readdir_ok  = False
-	repo_view   = None
-	source_dirs = None
-	stdin       = None
-	stdout      = None
-	sub_repo    = None
-	tmp_dir     = '/tmp'
-	tmp_view    = None
+	auto_mkdir      = False
+	chroot_dir      = None
+	cwd             = None
+	lmake_root      = None
+	lmake_view      = None
+	readdir_ok      = False
+	repo_view       = None
+	simple_cmd_line = None
+	source_dirs     = None
+	stdin           = None
+	stdout          = None
+	sub_repo        = None
+	tmp_dir         = '/tmp'
+	tmp_view        = None
 
 	def __init__(self,attrs) :
 		self.env      = {}
@@ -50,6 +51,8 @@ class Job :
 		self.env['SEQUENCE_ID'] = str(0)
 		self.env['SMALL_ID'   ] = str(0)
 		self.keep_env           = (*self.keep_env,'DISPLAY','LMAKE_HOME','LMAKE_SHLVL','XAUTHORITY','XDG_RUNTIME_DIR')
+		#
+		assert not ( self.is_python and self.simple_cmd_line ) , "cannot handle simple cmd with python interpreter"
 
 	#
 	# functions for generating cmd file
@@ -212,9 +215,13 @@ class Job :
 	def cmd_file(self) :
 		return self.debug_dir+'/cmd'
 
+	def cmd_line(self) :
+		if self.simple_cmd_line : return self.simple_cmd_line
+		else                    : return ( *self.interpreter , self.cmd_file() )
+
 	def gen_start_line(self,**kwds) :
-		preamble,line = self.starter( *(mk_shell_str(c) for c in self.interpreter) , mk_shell_str(self.cmd_file()) , **kwds )
-		return preamble+line+'\n'                                                                                             # do not use exec to launch lautodep so as to keep stdin & stdout open
+		preamble,line = self.starter( *(mk_shell_str(c) for c in self.cmd_line()) , **kwds )
+		return preamble+line+'\n'                                                            # do not use exec to launch lautodep so as to keep stdin & stdout open
 
 	def gen_lmake_env(self,enter=False,**kwds) :
 		res = ''
@@ -242,7 +249,7 @@ class Job :
 		open(cmd_file,'w').write(cmd)
 
 	def gen_script(self,**kwds) :
-		self.write_cmd(**kwds)
+		if not self.simple_cmd_line : self.write_cmd(**kwds)
 		res  = self.gen_preamble  (**kwds)
 		res += self.gen_start_line(**kwds)
 		return res

@@ -91,179 +91,26 @@ JobStartRpcReply get_start_info() {
 	return res ;
 }
 
-static const ::string StdPath = STD_PATH ;
-static const ::uset_s SpecialWords {
-	":"       , "."         , "{"        , "}"       , "!"
-,	"alias"
-,	"bind"    , "break"     , "builtin"
-,	"caller"  , "case"      , "cd"       , "command" , "continue" , "coproc"
-,	"declare" , "do"        , "done"
-,	"echo"    , "elif"      , "else"     , "enable"  , "esac"     , "eval"    , "exec" , "exit" , "export"
-,	"fi"      , "for"       , "function"
-,	"getopts"
-,	"if"      , "in"
-,	"hash"    , "help"
-,	"let"     , "local"     , "logout"
-,	"mapfile"
-,	"printf"  , "pwd"
-,	"read"    , "readarray" , "readonly" , "return"
-,	"select"  , "shift"     , "source"
-,	"test"    , "then"      , "time"     , "times"   , "type"     , "typeset" , "trap"
-,	"ulimit"  , "umask"     , "unalias"  , "unset"   , "until"
-,	"while"
-} ;
-static const ::vector_s SpecialVars {
-	"BASH_ALIASES"
-,	"BASH_ENV"
-,	"BASHOPTS"
-,	"ENV"
-,	"IFS"
-,	"SHELLOPTS"
-} ;
-enum class State : uint8_t {
-	None
-,	SingleQuote
-,	DoubleQuote
-,	BackSlash
-,	DoubleQuoteBackSlash                                                                                                // after a \ within ""
-} ;
-static bool is_special( char c , int esc_lvl , bool first=false ) {
-	switch (c) {
-		case '$' :
-		case '`' :            return true ;                                                                             // recognized even in ""
-		case '#' :
-		case '&' :
-		case '(' : case ')' :
-		case '*' :
-		case ';' :
-		case '<' : case '>' :
-		case '?' :
-		case '[' : case ']' :
-		case '|' :            return esc_lvl<2          ;                                                               // recognized anywhere if not quoted
-		case '~' :            return esc_lvl<2 && first ;                                                               // recognized as first char of any word
-		case '=' :            return esc_lvl<1          ;                                                               // recognized only in first word
-		default  :            return false ;
-	}
-}
-// replace call to BASH by direct execution if a single command can be identified
-void mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::map_ss const& cmd_env ) {
-	if (cmd_line.size()!=1) goto Complex ;                                                                              // options passed to bash
-	if (cmd_line[0]!=BASH ) goto Complex ;                                                                              // not standard bash
-	//
-	for( ::string const& v : SpecialVars )
-		if (cmd_env.contains(v)) goto Complex ;                                                                         // complex environment
-	{
-		::vector_s simple_cmd_line { {} }        ;
-		State      state           = State::None ;
-		bool       slash_seen      = false       ;
-		bool       word_seen       = false       ;                                                                      // if true <=> a new argument has been detected, maybe empty because of quotes
-		bool       nl_seen         = false       ;
-		bool       cmd_seen        = false       ;
-		//
-		auto special_cmd = [&]() {
-			return simple_cmd_line.size()==1 && !slash_seen && SpecialWords.contains(simple_cmd_line[0]) ;
-		} ;
-		//
-		for( char c : cmd ) {
-			slash_seen |= c=='/' && simple_cmd_line.size()==1 ;                                                         // / are only recorgnized in first word
-			switch (state) {
-				case State::None :
-					if (is_special( c , simple_cmd_line.size()>1/*esc_lvl*/ , !simple_cmd_line.back() )) goto Complex ; // complex syntax
-					switch (c) {
-						case '\n' : nl_seen |= cmd_seen ; [[fallthrough]] ;
-						case ' '  :
-						case '\t' :
-							if (cmd_seen) {
-								if (special_cmd()) goto Complex ;                                                       // need to search in $PATH and may be a reserved word or builtin command
-								if (word_seen) {
-									simple_cmd_line.emplace_back() ;
-									word_seen = false ;
-									cmd_seen  = true  ;
-								}
-							}
-						break ;
-						case '\\' : state = State::BackSlash   ;                                               if (nl_seen) goto Complex ; break ; // multi-line
-						case '\'' : state = State::SingleQuote ;                                               if (nl_seen) goto Complex ; break ; // .
-						case '"'  : state = State::DoubleQuote ;                                               if (nl_seen) goto Complex ; break ; // .
-						default   : simple_cmd_line.back().push_back(c) ; word_seen = true ; cmd_seen = true ; if (nl_seen) goto Complex ; break ; // .
-					}
-				break ;
-				case State::BackSlash :
-					simple_cmd_line.back().push_back(c) ;
-					state     = State::None ;
-					word_seen = true        ;
-				break ;
-				case State::SingleQuote :
-					if (c=='\'') { state = State::None ; word_seen = true ; }
-					else           simple_cmd_line.back().push_back(c) ;
-				break ;
-				case State::DoubleQuote :
-					if (is_special( c , 2/*esc_lvl*/ )) goto Complex ;                                                                             // complex syntax
-					switch (c) {
-						case '\\' : state = State::DoubleQuoteBackSlash ;                    break ;
-						case '"'  : state = State::None                 ; word_seen = true ; break ;
-						default   : simple_cmd_line.back().push_back(c) ;
-					}
-				break ;
-				case State::DoubleQuoteBackSlash :
-					if (!is_special( c , 2/*esc_lvl*/ ))
-						switch (c) {
-							case '\\' :
-							case '\n' :
-							case '"'  :                                          break ;
-							default   : simple_cmd_line.back().push_back('\\') ;
-						}
-					simple_cmd_line.back().push_back(c) ;
-					state = State::DoubleQuote ;
-				break ;
-			}
-		}
-		if (state!=State::None)   goto Complex ;                                                  // syntax error
-		if (!word_seen        ) { SWEAR(!simple_cmd_line.back()) ; simple_cmd_line.pop_back() ; } // suppress empty entry created by space after last word
-		if (!simple_cmd_line  )   goto Complex ;                                                  // no command
-		if (special_cmd()     )   goto Complex ;                                                  // complex syntax
-		if (!slash_seen) {                                                                        // search PATH
-			if (cmd_env.contains("EXECIGNORE")) goto Complex ;                                    // complex environment
-			auto            it       = cmd_env.find("PATH")                     ;
-			::string const& path     = it==cmd_env.end() ? StdPath : it->second ;
-			::vector_s      path_vec = split(path,':')                          ;
-			for( ::string& p : split(path,':') ) {
-				::string candidate = with_slash(::move(p)) + simple_cmd_line[0] ;
-				if (FileInfo(candidate).tag()==FileTag::Exe) {
-					simple_cmd_line[0] = ::move(candidate) ;
-					goto CmdFound ;
-				}
-			}
-			goto Complex ;                                                                        // command not found
-		CmdFound : ;
-		}
-		cmd_line = ::move(simple_cmd_line) ;
-		return ;
-	}
-Complex :
-	cmd_line.reserve(cmd_line.size()+2) ;
-	cmd_line.emplace_back("-c"       )  ;
-	cmd_line.push_back   (::move(cmd))  ;
-}
-
-::string g_to_unlnk ;                                                             // XXX/ : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                                                          // XXX/ : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line( ::map_ss const& cmd_env , ::string const& repo_root_s ) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
-	::vector_s res = ::move(g_start_info.interpreter) ;                           // avoid copying as interpreter is used only here
 	if (g_start_info.use_script) {
 		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ; // correct code
+	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;                              // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_start_info.cmd ) ;
-		res.reserve(res.size()+1) ;
-		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                             // provide absolute script so as to support cwd
-		g_to_unlnk = ::move(cmd_file) ;
+		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ;                        // avoid copying as interpreter is used only here
+		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                                          // provide absolute script so as to support cwd
+		g_to_unlnk = ::move(cmd_file) ;                                                                        // XXX/ : suppress when CentOS7 bug is fixed
+		Trace("cmd_line","use_script",res) ;
+		return res ;
 	} else {
 		// large commands are forced use_script=true in server
-		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;    // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		mk_simple_cmd_line( res , /*inout*/::move(g_start_info.cmd) , cmd_env ) ;
+		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;                                 // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , cmd_env ) ; // interpreter becomes full cmd line
+		Trace("cmd_line",STR(is_simple),g_start_info.interpreter) ;
+		return ::move(g_start_info.interpreter) ;
 	}
-	return res ;
 }
 
 void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
@@ -443,7 +290,6 @@ int main( int argc , char* argv[] ) {
 				g_exec_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 			}
 			g_start_info.update_env( /*inout*/cmd_env , phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
-			//
 		} catch (::string const& e) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;

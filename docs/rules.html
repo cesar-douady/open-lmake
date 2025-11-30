@@ -773,16 +773,16 @@ If view already exists, it must be (preferably empty) dir, else it must be a top
 </tbody></table>
 </div>
 <p>This attribute defines a mapping from logical views to physical dirs.</p>
-<p>Accesses to logical views are mapped to their corresponding physical location before any chroot if asked to do so.
+<p>Accesses to logical views are mapped to their corresponding physical (non-recursively) location before any chroot if asked to do so.
 Views and physical locations must be dirs.</p>
 <p>Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>Dirs in the repo or tmp are created as needed.
-External dirs must pre-exist or be top-level names (e.g <code>/a</code> but not <code>/a/b</code>).</p>
+External views must pre-exist or be top-level names (e.g <code>/a</code> but not <code>/a/b</code>).</p>
 <p>Physical description may be :</p>
 <ul>
 <li>a <code>f-str</code> in which case a bind mount is performed.</li>
-<li>a <code>dict</code> with keys <code>upper</code> (a <code>str</code>) and <code>lower</code> (a single <code>str</code> or a list of <code>str</code>) in which case an overlay mount is performed.
-Key <code>copy_up</code> (a single <code>str</code> or a list of <code>str</code>) may also be used to provide a list of dirs to create in <code>upper</code> or files to copy from <code>lower</code> to <code>upper</code>.
+<li>a <code>dict</code> with keys <code>upper</code> (a <code>f-str</code>) and <code>lower</code> (a single <code>f-str</code> or a list of <code>f-str</code>) in which case an overlay mount is performed.
+Key <code>copy_up</code> (a single <code>f-str</code> or a list of <code>f-str</code>) may also be used to provide a list of dirs to create in <code>upper</code> or files to copy from <code>lower</code> to <code>upper</code>.
 Dirs are recognized when they end with <code>/</code>.
 Such <code>copy_up</code> items are provided relative to the root of the view.</li>
 </ul>
