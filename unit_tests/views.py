@@ -13,6 +13,7 @@ if __name__!='__main__' :
 		'Lmakefile.py'
 	,	'phy_dir/dep'
 	,	'ref'
+	,	'../'
 	)
 
 	class Dut(Rule) :

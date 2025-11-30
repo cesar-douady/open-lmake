@@ -288,16 +288,16 @@ namespace Engine::Persistent {
 	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
 		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
 		if ( !dyn                                         ) _init_config()                  ;
-		else                                                SWEAR( +*g_config , *g_config ) ; // we must update something
+		else                                                SWEAR( +*g_config , *g_config ) ;                                    // we must update something
 		if (                                   +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                diff(*g_config,config) ;
 		//
-		/**/                                                ConfigDiff d = +config ? g_config->diff(config) : ConfigDiff::None ;
+		/**/                                                ConfigDiff d = +config ? g_config->diff(config) : ConfigDiff::None ; // if no config passed, assume no update
 		if (          d>ConfigDiff::Static  && +*g_config ) throw ::pair( "repo must be clean"s  , Rc::CleanRepo  ) ;
 		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw ::pair( "repo must be steady"s , Rc::SteadyRepo ) ;
 		//
-		if (  dyn && !d                                   ) return ;                          // fast path, nothing to update
+		if (  dyn && !d                                   ) return ;                                                             // fast path, nothing to update
 		//
 		/**/                                                Config old_config = *g_config ;
 		if (         +d                                   ) *g_config = ::move(config) ;

@@ -871,12 +871,12 @@ namespace Engine {
 		::vector_s to_del  ;
 		::string   to_eval ;
 		//
-		SWEAR( !Rule::s_last_dyn_date , Rule::s_last_dyn_date ) ;
 		Rule::s_last_dyn_job  = job                             ;
 		Rule::s_last_dyn_msg  = T::Msg                          ;
 		Rule::s_last_dyn_rule = +job ? job->rule() : match.rule ;
 		fence() ;
 		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , New } ;
+		SWEAR( !sav_last_dyn_date.saved , sav_last_dyn_date.saved ) ;
 		//
 		Py::Ptr<Py::Dict> tmp_glbs = entry().glbs ;                        // use a modifyable copy as we restore after use
 		eval_ctx( job , match , rsrcs

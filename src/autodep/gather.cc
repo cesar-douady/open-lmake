@@ -921,8 +921,7 @@ void Gather::reorder(bool at_end) {
 			Accesses        accesses = ai.accesses()    ; if (!accesses                     )                   goto NextDep ;
 			::string const& file     = it->first        ;
 			for( auto last : lasts ) {
-				if (!( last->first.starts_with(file) && last->first[file.size()]=='/' )) continue ;
-				//
+				if (!lies_within(last->first,file)       )   continue ;
 				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
 				else                                     { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
 			}

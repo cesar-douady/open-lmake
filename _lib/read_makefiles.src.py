@@ -70,6 +70,7 @@ if '.config.' in actions :
 	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
 	config = lmake.config
 	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
+	config.extra_manifest = list(lmake.extra_manifest)
 	srcs_action = ''
 	if   lmake.manifest                              : actions     += 'sources.'
 	elif not is_top                                  : pass
@@ -78,11 +79,11 @@ if '.config.' in actions :
 	else                                             : srcs_action  = 'sources_dflt'
 	#
 	rules_action = ''
-	if   lmake._rules                               : actions      += 'rules.'
-	elif not is_top                                 : pass
-	elif callable(getattr(Lmakefile,'rules',None))  : rules_action  = 'rules_callable'
-	elif is_pkg and find_spec('Lmakefile.rules')    : rules_action  = 'rules_import'
-	else                                            : actions      += 'rules.'
+	if   lmake._rules                              : actions      += 'rules.'
+	elif not is_top                                : pass
+	elif callable(getattr(Lmakefile,'rules',None)) : rules_action  = 'rules_callable'
+	elif is_pkg and find_spec('Lmakefile.rules')   : rules_action  = 'rules_import'
+	else                                           : actions      += 'rules.'
 	#
 	if 'system_tag' in config :
 		expr = serialize.get_expr(
@@ -119,7 +120,7 @@ if '.sources.' in actions :
 	if not lmake.manifest :
 		print('lmake.manifest is empty',file=sys.stderr)
 		exit(1)
-	srcs = list(lmake.manifest) + list(lmake.extra_manifest)
+	srcs = list(lmake.manifest)
 
 rules = []
 if '.rules.' in actions :

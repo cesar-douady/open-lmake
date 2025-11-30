@@ -98,8 +98,8 @@ namespace Disk {
 	}
 	inline bool is_dir_name(::string const& path) { return !path || path.back()=='/' ; }
 
-	inline bool is_abs_s(::string const& dir_s) {                return dir_s[0]=='/' ; } // dir_s is (<x>/)*    or /(<x>/)* with <x>=[^/]+, empty dir_s is necessarily relative
-	inline bool is_abs  (::string const& file ) { SWEAR(+file) ; return file [0]=='/' ; } // file  is <x>(/<x>)* or (/<x>)+  with <x>=[^/]+
+	inline bool is_abs_s(::string const& dir_s) { return dir_s[0]=='/' ; }
+	inline bool is_abs  (::string const& file ) { return file [0]=='/' ; }
 	//
 	inline bool   is_lcl_s    (::string const& dir_s) { return !( is_abs_s(dir_s) || dir_s.starts_with("../")               ) ;                               }
 	inline bool   is_lcl      (::string const& file ) { return !( is_abs  (file ) || file .starts_with("../") || file==".." ) ;                               }
@@ -114,6 +114,8 @@ namespace Disk {
 	inline ::string mk_glb  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_glb( file  , ref_dir_s , false   ) ;                                                  }
 	inline ::string mk_rel_s( ::string const& dir_s , ::string const& ref_dir_s ) { if (is_abs_s(dir_s)==is_abs_s(ref_dir_s)) return mk_lcl_s(dir_s,ref_dir_s) ; else return dir_s ; }
 	inline ::string mk_rel  ( ::string const& file  , ::string const& ref_dir_s ) { if (is_abs  (file )==is_abs_s(ref_dir_s)) return mk_lcl  (file ,ref_dir_s) ; else return file  ; }
+
+	bool lies_within( ::string const& file , ::string const& dir_s ) ; // assumes canonic args
 
 	// manage localization to user startup dir
 	// the principle is to add a marker when file is generated, then this marker is recognized and file is localized when display

@@ -774,8 +774,8 @@ namespace Backends {
 				/**/      Rule        last_dyn_rule  = Rule::s_last_dyn_rule ;
 				fence() ; Pdate       last_dyn_date2 = Rule::s_last_dyn_date ; // resample atomic value after associated info
 				if ( last_dyn_date2==last_dyn_date ) {                         // when both dates are equal, we are sure job and msg are associated to it
-					if (+last_dyn_job) Fd::Stderr.write(cat("dead-lock while computing ",last_dyn_msg," for ",last_dyn_job ->name     (),'\n')) ;
-					else               Fd::Stderr.write(cat("dead-lock while computing ",last_dyn_msg," for ",last_dyn_rule->user_name(),'\n')) ;
+					if (+last_dyn_job) Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_job ->name     (),'\n')) ;
+					else               Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_rule->user_name(),'\n')) ;
 				}
 			}
 			//

@@ -345,13 +345,14 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	::vector_s path ; //!                           EmptyIsDot
 	if ( py_path && py_path!=&None ) path = _get_seq<true    >("path"    ,*py_path          ) ;
 	else                             path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
+	for( ::string& d : path ) d = no_slash(::move(d)) ;
 	#if PY_MAJOR_VERSION>2
-		try                       { JobSupport::depend( ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; }
+		try                       { JobSupport::depend( ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; } // python3 reads dirs in path
 		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                   }
 	#endif
 	//
 	// name
-	if (!( py_name && +*py_name )) return ;                               // if no module => no deps
+	if (!( py_name && +*py_name )) return ;                                   // if no module => no deps
 	::string name = *py_name->str() ;
 	//
 	// sfxs
@@ -361,15 +362,15 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	::string          tail     = name.substr(name.rfind('.')+1) ;
 	::string          cwd_s_   ;
 	for( ::string& dir : path ) {
-		::string dir_s  = with_slash(::move(dir))                       ;
-		bool     is_lcl = dir_s.starts_with(_g_autodep_env.repo_root_s) ;
-		if (!is_abs_s(dir_s)) {                                           // fast path : dont compute cwd unless required
+		::string abs_dir_s = with_slash(::move(dir)) ;
+		if (!is_abs_s(abs_dir_s)) {                                           // fast path : dont compute cwd unless required
 			if (!cwd_s_) cwd_s_ = cwd_s() ;
-			dir_s = mk_glb_s(dir_s,cwd_s_) ;
+			abs_dir_s = mk_glb_s(abs_dir_s,cwd_s_) ;
 		}
-		::string base = dir_s+tail ;
-		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs )               // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
-			if (+AcFd(base+sfx,{.err_ok=true})) return ;                  // found module, dont explore path any further
+		bool     is_lcl = abs_dir_s.starts_with(_g_autodep_env.repo_root_s) ;
+		::string base   = abs_dir_s + tail                                  ;
+		for( ::string const& sfx : is_lcl?sfxs:s_std_sfxs )                   // for external modules, use standard suffixes, not user provided suffixes, as these are not subject to local conventions
+			if (+AcFd(base+sfx,{.err_ok=true})) return ;                      // found module, dont explore path any further
 	}
 }
 

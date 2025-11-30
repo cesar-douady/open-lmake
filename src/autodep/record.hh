@@ -218,7 +218,7 @@ public :
 					Fd repo_root_fd = s_repo_root_fd() ;
 					for( auto const& [view_s,phys_s] : s_autodep_env().views_s ) {
 						if (!phys_s                   ) continue ; // empty phys do not represent a view
-						if (!file_.starts_with(view_s)) continue ;
+						if (!lies_within(file_,view_s)) continue ;
 						for( size_t i : iota(phys_s.size()) ) {
 							bool     last  = i==phys_s.size()-1                                               ;
 							::string f     = phys_s[i] + substr_view(file_,view_s.size())                     ;

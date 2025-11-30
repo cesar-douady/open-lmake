@@ -101,6 +101,7 @@ namespace Engine {
 		Time::Delay                     network_delay  { 1    } ;
 		size_t                          path_max       = 200    ; // if -1 <=> unlimited
 		::vector_s                      sub_repos_s    ;
+		::vector_s                      extra_manifest ;
 		::string                        system_tag     ;
 		TraceConfig                     trace          ;
 		::map_s<::pair<CacheIdx,Cache>> caches         ;

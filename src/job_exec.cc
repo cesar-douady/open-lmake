@@ -125,12 +125,12 @@ enum class State : uint8_t {
 ,	SingleQuote
 ,	DoubleQuote
 ,	BackSlash
-,	DoubleQuoteBackSlash                                                                             // after a \ within ""
+,	DoubleQuoteBackSlash                                                                                                // after a \ within ""
 } ;
 static bool is_special( char c , int esc_lvl , bool first=false ) {
 	switch (c) {
 		case '$' :
-		case '`' :            return true ;                                                          // recognized even in ""
+		case '`' :            return true ;                                                                             // recognized even in ""
 		case '#' :
 		case '&' :
 		case '(' : case ')' :
@@ -139,106 +139,111 @@ static bool is_special( char c , int esc_lvl , bool first=false ) {
 		case '<' : case '>' :
 		case '?' :
 		case '[' : case ']' :
-		case '|' :            return esc_lvl<2          ;                                            // recognized anywhere if not quoted
-		case '~' :            return esc_lvl<2 && first ;                                            // recognized as first char of any word
-		case '=' :            return esc_lvl<1          ;                                            // recognized only in first word
+		case '|' :            return esc_lvl<2          ;                                                               // recognized anywhere if not quoted
+		case '~' :            return esc_lvl<2 && first ;                                                               // recognized as first char of any word
+		case '=' :            return esc_lvl<1          ;                                                               // recognized only in first word
 		default  :            return false ;
 	}
 }
 // replace call to BASH by direct execution if a single command can be identified
-bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_ss const& cmd_env ) {
-	if (res.size()!=1) return false/*done*/ ;                                                        // options passed to bash
-	if (res[0]!=BASH ) return false/*done*/ ;                                                        // not standard bash
+void mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::map_ss const& cmd_env ) {
+	if (cmd_line.size()!=1) goto Complex ;                                                                              // options passed to bash
+	if (cmd_line[0]!=BASH ) goto Complex ;                                                                              // not standard bash
 	//
 	for( ::string const& v : SpecialVars )
-		if (cmd_env.contains(v)) return false/*done*/ ;                                              // complex environment
-	//
-	::vector_s v          { {} }        ;
-	State      state      = State::None ;
-	bool       slash_seen = false       ;
-	bool       word_seen  = false       ;                                                            // if true <=> a new argument has been detected, maybe empty because of quotes
-	bool       nl_seen    = false       ;
-	bool       cmd_seen   = false       ;
-	//
-	auto special_cmd = [&]() {
-		return v.size()==1 && !slash_seen && SpecialWords.contains(v[0]) ;
-	} ;
-	//
-	for( char c : cmd ) {
-		slash_seen |= c=='/' && v.size()==1 ;                                                        // / are only recorgnized in first word
-		switch (state) {
-			case State::None :
-				if (is_special( c , v.size()>1/*esc_lvl*/ , !v.back() )) return false/*done*/ ;      // complex syntax
-				switch (c) {
-					case '\n' : nl_seen |= cmd_seen ; [[fallthrough]] ;
-					case ' '  :
-					case '\t' :
-						if (cmd_seen) {
-							if (special_cmd()) return false/*done*/ ;                                // need to search in $PATH and may be a reserved word or builtin command
-							if (word_seen) {
-								v.emplace_back() ;
-								word_seen = false ;
-								cmd_seen  = true  ;
-							}
-						}
-					break ;
-					case '\\' : state = State::BackSlash   ;                                      if (nl_seen) return false/*done*/ ; break ; // multi-line
-					case '\'' : state = State::SingleQuote ;                                      if (nl_seen) return false/*done*/ ; break ; // .
-					case '"'  : state = State::DoubleQuote ;                                      if (nl_seen) return false/*done*/ ; break ; // .
-					default   : v.back().push_back(c)      ; word_seen = true ; cmd_seen = true ; if (nl_seen) return false/*done*/ ; break ; // .
-				}
-			break ;
-			case State::BackSlash :
-				v.back().push_back(c) ;
-				state     = State::None ;
-				word_seen = true        ;
-			break ;
-			case State::SingleQuote :
-				if (c=='\'') { state = State::None ; word_seen = true ; }
-				else           v.back().push_back(c) ;
-			break ;
-			case State::DoubleQuote :
-				if (is_special( c , 2/*esc_lvl*/ )) return false/*done*/ ;                                                                    // complex syntax
-				switch (c) {
-					case '\\' : state = State::DoubleQuoteBackSlash ;                    break ;
-					case '"'  : state = State::None                 ; word_seen = true ; break ;
-					default   : v.back().push_back(c)               ;
-				}
-			break ;
-			case State::DoubleQuoteBackSlash :
-				if (!is_special( c , 2/*esc_lvl*/ ))
+		if (cmd_env.contains(v)) goto Complex ;                                                                         // complex environment
+	{
+		::vector_s simple_cmd_line { {} }        ;
+		State      state           = State::None ;
+		bool       slash_seen      = false       ;
+		bool       word_seen       = false       ;                                                                      // if true <=> a new argument has been detected, maybe empty because of quotes
+		bool       nl_seen         = false       ;
+		bool       cmd_seen        = false       ;
+		//
+		auto special_cmd = [&]() {
+			return simple_cmd_line.size()==1 && !slash_seen && SpecialWords.contains(simple_cmd_line[0]) ;
+		} ;
+		//
+		for( char c : cmd ) {
+			slash_seen |= c=='/' && simple_cmd_line.size()==1 ;                                                         // / are only recorgnized in first word
+			switch (state) {
+				case State::None :
+					if (is_special( c , simple_cmd_line.size()>1/*esc_lvl*/ , !simple_cmd_line.back() )) goto Complex ; // complex syntax
 					switch (c) {
-						case '\\' :
-						case '\n' :
-						case '"'  :                            break ;
-						default   : v.back().push_back('\\') ;
+						case '\n' : nl_seen |= cmd_seen ; [[fallthrough]] ;
+						case ' '  :
+						case '\t' :
+							if (cmd_seen) {
+								if (special_cmd()) goto Complex ;                                                       // need to search in $PATH and may be a reserved word or builtin command
+								if (word_seen) {
+									simple_cmd_line.emplace_back() ;
+									word_seen = false ;
+									cmd_seen  = true  ;
+								}
+							}
+						break ;
+						case '\\' : state = State::BackSlash   ;                                               if (nl_seen) goto Complex ; break ; // multi-line
+						case '\'' : state = State::SingleQuote ;                                               if (nl_seen) goto Complex ; break ; // .
+						case '"'  : state = State::DoubleQuote ;                                               if (nl_seen) goto Complex ; break ; // .
+						default   : simple_cmd_line.back().push_back(c) ; word_seen = true ; cmd_seen = true ; if (nl_seen) goto Complex ; break ; // .
 					}
-				v.back().push_back(c) ;
-				state = State::DoubleQuote ;
-			break ;
-		}
-	}
-	if (state!=State::None)   return false/*done*/ ;                                                                                          // syntax error
-	if (!word_seen        ) { SWEAR(!v.back()) ; v.pop_back() ; }                                                                             // suppress empty entry created by space after last word
-	if (!v                )   return false/*done*/ ;                                                                                          // no command
-	if (special_cmd()     )   return false/*done*/ ;                                                                                          // complex syntax
-	if (!slash_seen) {                                                                                                                        // search PATH
-		if (cmd_env.contains("EXECIGNORE")) return false/*done*/ ;                                                                            // complex environment
-		auto            it       = cmd_env.find("PATH")                     ;
-		::string const& path     = it==cmd_env.end() ? StdPath : it->second ;
-		::vector_s      path_vec = split(path,':')                          ;
-		for( ::string& p : split(path,':') ) {
-			::string candidate = with_slash(::move(p)) + v[0] ;
-			if (FileInfo(candidate).tag()==FileTag::Exe) {
-				v[0] = ::move(candidate) ;
-				goto CmdFound ;
+				break ;
+				case State::BackSlash :
+					simple_cmd_line.back().push_back(c) ;
+					state     = State::None ;
+					word_seen = true        ;
+				break ;
+				case State::SingleQuote :
+					if (c=='\'') { state = State::None ; word_seen = true ; }
+					else           simple_cmd_line.back().push_back(c) ;
+				break ;
+				case State::DoubleQuote :
+					if (is_special( c , 2/*esc_lvl*/ )) goto Complex ;                                                                             // complex syntax
+					switch (c) {
+						case '\\' : state = State::DoubleQuoteBackSlash ;                    break ;
+						case '"'  : state = State::None                 ; word_seen = true ; break ;
+						default   : simple_cmd_line.back().push_back(c) ;
+					}
+				break ;
+				case State::DoubleQuoteBackSlash :
+					if (!is_special( c , 2/*esc_lvl*/ ))
+						switch (c) {
+							case '\\' :
+							case '\n' :
+							case '"'  :                                          break ;
+							default   : simple_cmd_line.back().push_back('\\') ;
+						}
+					simple_cmd_line.back().push_back(c) ;
+					state = State::DoubleQuote ;
+				break ;
 			}
 		}
-		return false/*done*/ ;                                                                                                                // command not found
-	CmdFound : ;
+		if (state!=State::None)   goto Complex ;                                                  // syntax error
+		if (!word_seen        ) { SWEAR(!simple_cmd_line.back()) ; simple_cmd_line.pop_back() ; } // suppress empty entry created by space after last word
+		if (!simple_cmd_line  )   goto Complex ;                                                  // no command
+		if (special_cmd()     )   goto Complex ;                                                  // complex syntax
+		if (!slash_seen) {                                                                        // search PATH
+			if (cmd_env.contains("EXECIGNORE")) goto Complex ;                                    // complex environment
+			auto            it       = cmd_env.find("PATH")                     ;
+			::string const& path     = it==cmd_env.end() ? StdPath : it->second ;
+			::vector_s      path_vec = split(path,':')                          ;
+			for( ::string& p : split(path,':') ) {
+				::string candidate = with_slash(::move(p)) + simple_cmd_line[0] ;
+				if (FileInfo(candidate).tag()==FileTag::Exe) {
+					simple_cmd_line[0] = ::move(candidate) ;
+					goto CmdFound ;
+				}
+			}
+			goto Complex ;                                                                        // command not found
+		CmdFound : ;
+		}
+		cmd_line = ::move(simple_cmd_line) ;
+		return ;
 	}
-	res = ::move(v) ;
-	return true/*done*/ ;
+Complex :
+	cmd_line.reserve(cmd_line.size()+2) ;
+	cmd_line.emplace_back("-c"       )  ;
+	cmd_line.push_back   (::move(cmd))  ;
 }
 
 ::string g_to_unlnk ;                                                             // XXX/ : suppress when CentOS7 bug is fixed
@@ -256,11 +261,7 @@ bool/*done*/ mk_simple( ::vector_s&/*inout*/ res , ::string const& cmd , ::map_s
 	} else {
 		// large commands are forced use_script=true in server
 		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;    // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		if (!mk_simple( res , g_start_info.cmd , cmd_env )) {                     // res is set if simple
-			res.reserve(res.size()+2) ;
-			res.emplace_back("-c"                    ) ;
-			res.push_back   (::move(g_start_info.cmd)) ;
-		}
+		mk_simple_cmd_line( res , /*inout*/::move(g_start_info.cmd) , cmd_env ) ;
 	}
 	return res ;
 }

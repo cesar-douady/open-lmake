@@ -139,8 +139,8 @@ namespace Engine::Makefiles {
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
-			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return (d+'/').starts_with(sd_s_a.first) && !sd_s_a.second ; } ) ) deps_str << mk_rel(d,*g_repo_root_s) ;
-			else                                                                                                                                 deps_str <<        d                 ;
+			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return !sd_s_a.second && lies_within(with_slash(d),sd_s_a.first) ; } ) ) deps_str << mk_rel(d,*g_repo_root_s) ;
+			else                                                                                                                                       deps_str <<        d                 ;
 			deps_str <<'\n' ;
 		}
 		for( auto const& [key,val] : deps.user_env ) {
@@ -309,27 +309,22 @@ namespace Engine::Makefiles {
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
 			/**/                          _g_env["PYTHONPATH"     ] = *g_lmake_root_s+"lib"         ;
 			//                                     mod
-			AcFd( EnvironFile  , {O_RDONLY|O_CREAT,0666} ) ;               // these are sources, they must exist
-			AcFd( ManifestFile , {O_RDONLY|O_CREAT,0666} ) ;               // .
+			AcFd( EnvironFile  , {O_RDONLY|O_CREAT,0666} ) ;                                   // these are sources, they must exist
+			AcFd( ManifestFile , {O_RDONLY|O_CREAT,0666} ) ;                                   // .
 		}
 		//
 		bool/*done*/ config_digest = _refresh_config( /*out*/msg , /*out*/config , /*out*/py_info , /*out*/config_deps , user_env , startup_dir_s ) ;
 		//
-		Bool3 changed_srcs  = No    ;
-		Bool3 changed_rules = No    ;
-		bool  invalidate    = false ;                                      // invalidate because of config
+		Bool3 changed_srcs       = No    ;
+		Bool3 changed_rules      = No    ;
+		bool  invalidate         = false ;                                                     // invalidate because of config
+		bool  changed_extra_srcs = false ;
 		auto diff_config = [&]( Config const& old , Config const& new_ ) {
-			if (!old) {                                                    // no old config means first time, all is new
-				changed_srcs  = Maybe ;                                    // Maybe means new
-				changed_rules = Maybe ;                                    // .
-				invalidate    = true  ;
-				return ;
-			}
-			if (!new_) return ;                                            // no new config means we keep old config, no modification
-			//
-			changed_srcs  |= old.srcs_action !=new_.srcs_action  ;
-			changed_rules |= old.rules_action!=new_.rules_action ;
-			invalidate    |= old.sub_repos_s !=new_.sub_repos_s  ;         // this changes matching exceptions, which means it changes matching
+			if (!new_) return ;                                                                // no new config means we keep old config, no modification
+			changed_srcs       = +old ? No|(old.srcs_action   !=new_.srcs_action   ) : Maybe ; // Maybe means new
+			changed_rules      = +old ? No|(old.rules_action  !=new_.rules_action  ) : Maybe ; // Maybe means new
+			invalidate         =            old.sub_repos_s   !=new_.sub_repos_s             ; // this changes matching exceptions, which means it changes matching
+			changed_extra_srcs =            old.extra_manifest!=new_.extra_manifest          ;
 		} ;
 		//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try                           { Persistent::new_config( ::move(config) , dyn , rescue , diff_config ) ;                      }
@@ -341,13 +336,15 @@ namespace Engine::Makefiles {
 		//
 		Sources       srcs        ;
 		Bool3/*done*/ srcs_digest = _refresh_rules_srcs<Action::Sources>( /*out*/msg , /*out*/srcs , /*out*/srcs_deps , changed_srcs , py_info , user_env , startup_dir_s ) ;   // Maybe means not split
-		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest)                                                                                 ;
-		if (new_srcs) //!                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest) || changed_extra_srcs                                                           ;
+		if (new_srcs) {
+			for( ::string const& s : g_config->extra_manifest ) srcs.push_back(s) ;
+			//                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			try                           { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn , ManifestFile ) ;                     }
 			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string     const& e) { throw         cat("cannot ",dyn?"dynamically ":"","update sources : ",e      )              ; }
 			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update sources : ",e.first) , e.second ) ; }
-		//
+		}
 		Rules         rules        ;
 		Bool3/*done*/ rules_digest = _refresh_rules_srcs<Action::Rules>( /*out*/msg , /*out*/rules , /*out*/rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
 		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                                                ;
@@ -355,14 +352,14 @@ namespace Engine::Makefiles {
 			try                           { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;                                }
 			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string     const& e) { throw         cat("cannot ",dyn?"dynamically ":"","update rules : ",e      )              ; }
-		catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update rules : ",e.first) , e.second ) ; }
+			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update rules : ",e.first) , e.second ) ; }
 		//
 		if (invalidate) Persistent::invalidate_match() ;
 		//
 		if      ( config_digest                 ) _gen_deps    ( Action::Config  , config_deps  , startup_dir_s ) ;
 		else if (                      new_srcs ) _chk_dangling( Action::Config  , false/*new*/ , startup_dir_s ) ; // if sources have changed, some deps may have become dangling
 		if      ( srcs_digest ==Yes             ) _gen_deps    ( Action::Sources , srcs_deps    , startup_dir_s ) ;
-		else if ( srcs_digest ==No  && new_srcs ) FAIL() ;
+		else if ( srcs_digest ==No  && new_srcs ) _chk_dangling( Action::Sources , false/*new*/ , startup_dir_s ) ; // .
 		if      ( rules_digest==Yes             ) _gen_deps    ( Action::Rules   , rules_deps   , startup_dir_s ) ;
 		else if ( rules_digest==No  && new_srcs ) _chk_dangling( Action::Rules   , false/*new*/ , startup_dir_s ) ; // .
 		//

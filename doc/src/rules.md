@@ -776,19 +776,19 @@ This attribute is typically use with interpreters that do not implement the `-c`
 
 This attribute defines a mapping from logical views to physical dirs.
 
-Accesses to logical views are mapped to their corresponding physical location before any chroot if asked to do so.
+Accesses to logical views are mapped to their corresponding physical (non-recursively) location before any chroot if asked to do so.
 Views and physical locations must be dirs.
 
 Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. [namespaces](namespaces.html)).
 
 Dirs in the repo or tmp are created as needed.
-External dirs must pre-exist or be top-level names (e.g `/a` but not `/a/b`).
+External views must pre-exist or be top-level names (e.g `/a` but not `/a/b`).
 
 Physical description may be :
 
 - a `f-str` in which case a bind mount is performed.
-- a `dict` with keys `upper` (a `str`) and `lower` (a single `str` or a list of `str`) in which case an overlay mount is performed.
-  Key `copy_up` (a single `str` or a list of `str`) may also be used to provide a list of dirs to create in `upper` or files to copy from `lower` to `upper`.
+- a `dict` with keys `upper` (a `f-str`) and `lower` (a single `f-str` or a list of `f-str`) in which case an overlay mount is performed.
+  Key `copy_up` (a single `f-str` or a list of `f-str`) may also be used to provide a list of dirs to create in `upper` or files to copy from `lower` to `upper`.
   Dirs are recognized when they end with `/`.
   Such `copy_up` items are provided relative to the root of the view.
 

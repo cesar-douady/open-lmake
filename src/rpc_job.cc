@@ -894,13 +894,6 @@ bool JobSpace::enter(
 	::string const& lmake_root_s = lmake_view_s | phy_lmake_root_s ;
 	::string const& tmp_dir_s    = tmp_view_s   | phy_tmp_dir_s    ;
 	//
-	::vector_s creat_views_s ;
-	for( auto const& [v_s,_] : views ) {
-		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { if (!clean_mount_in_tmp                                   ) clean_mount_in_tmp = !keep_tmp ; }
-		else if ( !is_lcl_s(v_s)                           ) { if (!!FileInfo(mk_glb_s(v_s,chroot_dir+repo_root_s)).tag()) creat_views_s.push_back(v_s) ;   }
-	}
-	creat |= +creat_views_s ;
-	//
 	for( auto const& src_dir_s : src_dirs_s )
 		if( !is_abs_s(src_dir_s) && uphill_lvl_s(src_dir_s)>repo_depth )
 			throw cat("too many .. to access source dir ",no_slash(src_dir_s)," from repo root ",no_slash(repo_root_s)) ;
@@ -920,15 +913,18 @@ bool JobSpace::enter(
 		}
 	}
 	//
-	bool bind_lmake  =                 +lmake_view_s || +chroot_dir           ;
-	bool bind_repo   =                 +repo_view_s  || +chroot_dir           ;
-	bool bind_tmp    = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir )         ;
-	bool creat_lmake = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
-	bool creat_repo  = bind_repo  && !FileInfo(chroot_dir+repo_root_s ).tag() ; creat |= creat_repo  ;
-	bool creat_tmp   = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
-	if ( creat_lmake && !chroot_dir && has_dir(lmake_view_s) ) throw cat("lmake_view must be top level dir or already exist : ",no_slash(lmake_view_s)) ;
-	if ( creat_repo  && !chroot_dir && has_dir(repo_view_s ) ) throw cat("repo_view must be top level dir or already exist : " ,no_slash(repo_view_s )) ;
-	if ( creat_tmp   && !chroot_dir && has_dir(tmp_view_s  ) ) throw cat("tmp_view must be top level dir or already exist : "  ,no_slash(tmp_view_s  )) ;
+	bool       bind_lmake    =                 +lmake_view_s || +chroot_dir           ;
+	bool       bind_repo     =                 +repo_view_s  || +chroot_dir           ;
+	bool       bind_tmp      = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir )         ;
+	bool       creat_lmake   = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
+	bool       creat_repo    = bind_repo  && !FileInfo(chroot_dir+repo_root_s ).tag() ; creat |= creat_repo  ;
+	bool       creat_tmp     = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
+	::vector_s creat_views_s ;
+	for( auto const& [v_s,_] : views ) {
+		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { if (!clean_mount_in_tmp                                  ) clean_mount_in_tmp = !keep_tmp ; }
+		else if ( !is_lcl_s(v_s)                           ) { if (!FileInfo(chroot_dir+mk_glb_s(v_s,repo_root_s)).tag()) creat_views_s.push_back(v_s) ;   }
+	}
+	creat |= +creat_views_s ;
 	//
 	uid_t uid = ::geteuid() ;                                                                                 // must be done before unshare that invents a new user
 	gid_t gid = ::getegid() ;                                                                                 // .
@@ -988,10 +984,15 @@ bool JobSpace::enter(
 				} //!                                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			dev_sys_mapped = true ;
-			if (creat_lmake)                           { trace("mkdir",lmake_root_s) ; mk_dir_s(chroot_dir+lmake_root_s) ; }
-			if (creat_repo )                           { trace("mkdir",repo_root_s ) ; mk_dir_s(chroot_dir+repo_root_s ) ; }
-			if (creat_tmp  )                           { trace("mkdir",tmp_dir_s   ) ; mk_dir_s(chroot_dir+tmp_dir_s   ) ; }
-			for( ::string const& v_s : creat_views_s ) { trace("mkdir",v_s         ) ; mk_dir_s(chroot_dir+v_s         ) ; }
+			auto do_view = [&]( const char* key , ::string const& d_s ) {
+				if (has_dir(d_s)) throw cat(key," must be a top level dir or already exist : ",no_slash(d_s)) ;
+				trace("mkdir",d_s) ;
+				mk_dir_s(chroot_dir+d_s) ;
+			} ;
+			if (creat_lmake)                           do_view( "lmake_view" , lmake_root_s) ;
+			if (creat_repo )                           do_view( "repo_view"  , repo_root_s ) ;
+			if (creat_tmp  )                           do_view( "tmp_view"   , tmp_dir_s   ) ;
+			for( ::string const& v_s : creat_views_s ) do_view( "view"       , v_s         ) ;
 		}
 	} //!           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	if (bind_lmake) _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , exec_trace ) ;

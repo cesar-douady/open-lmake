@@ -53,15 +53,15 @@ RepairDigest repair(::string const& from_dir) {
 			}
 			::sort(targets) ;                                                                              // ease search in targets
 			// find deps
-			::vector_s    src_dirs ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs.push_back(s->name()) ;
-			::vector<Dep> deps     ; deps.reserve(job_info.end.digest.deps.size()) ;
+			::vector_s    src_dirs_s ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs_s.push_back(with_slash(s->name())) ;
+			::vector<Dep> deps       ; deps.reserve(job_info.end.digest.deps.size()) ;
 			job_info.update_digest() ;                                                                     // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
 				if (!dn        ) { trace("empty dep",jd) ; goto NextJob ; }
 				if (!is_lcl(dn)) {
-					for( ::string const& sd : src_dirs ) if (dn.starts_with(sd)) goto KeepDep ;            // this could be optimized by searching the longest match in the name prefix tree
+					for( ::string const& sd_s : src_dirs_s ) if (lies_within(dn,sd_s)) goto KeepDep ;      // this could be optimized by searching the longest match in the name prefix tree
 					trace("non-local dep",jd,dn) ;
-					goto NextJob ;                                                                         // this should never happen as src_dirs are part of cmd definition
+					goto NextJob ;                                                                         // this should never happen as src_dirs_s are part of cmd definition
 				KeepDep : ;
 				}
 				Dep dep { Node(New,dn) , dd } ;

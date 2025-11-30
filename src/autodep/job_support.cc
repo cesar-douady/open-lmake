@@ -45,10 +45,10 @@ namespace JobSupport {
 		}
 		_chk_files(files) ;
 		//
-		if (regexpr) {               Backdoor::call<Backdoor::Regexpr      >( { .files=files , .access_digest=ad                        } )                ; return {{},true/*ok*/} ; }
-		if (verbose)   return {      Backdoor::call<Backdoor::DependVerbose>({{ .files=files , .access_digest=ad , .no_follow=no_follow }}) , true/*ok*/ } ;
-		if (direct )   return { {} , Backdoor::call<Backdoor::DependDirect >({{ .files=files , .access_digest=ad , .no_follow=no_follow }})              } ;
-		/**/                         Backdoor::call<Backdoor::Depend       >({{ .files=files , .access_digest=ad , .no_follow=no_follow }})                ; return {{},true/*ok*/} ;
+		if (regexpr) {               Backdoor::call<Backdoor::Regexpr      >( { .files=::move(files) , .access_digest=ad                        } )                ; return {{},true/*ok*/} ; }
+		if (verbose)   return {      Backdoor::call<Backdoor::DependVerbose>({{ .files=::move(files) , .access_digest=ad , .no_follow=no_follow }}) , true/*ok*/ } ;
+		if (direct )   return { {} , Backdoor::call<Backdoor::DependDirect >({{ .files=::move(files) , .access_digest=ad , .no_follow=no_follow }})              } ;
+		/**/                         Backdoor::call<Backdoor::Depend       >({{ .files=::move(files) , .access_digest=ad , .no_follow=no_follow }})                ; return {{},true/*ok*/} ;
 	}
 
 	void target( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr ) {
@@ -58,8 +58,8 @@ namespace JobSupport {
 			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		_chk_files(files) ;
-		if (regexpr) Backdoor::call<Backdoor::Regexpr>( { .files=files , .access_digest=ad                        } ) ;
-		else         Backdoor::call<Backdoor::Target >({{ .files=files , .access_digest=ad , .no_follow=no_follow }}) ;
+		if (regexpr) Backdoor::call<Backdoor::Regexpr>( { .files=::move(files) , .access_digest=ad                        } ) ;
+		else         Backdoor::call<Backdoor::Target >({{ .files=::move(files) , .access_digest=ad , .no_follow=no_follow }}) ;
 	}
 
 	Bool3 chk_deps( Delay delay , bool sync ) {

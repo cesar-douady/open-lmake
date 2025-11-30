@@ -119,6 +119,15 @@ namespace Disk {
 		return cat(d_s,p) ;
 	}
 
+	bool lies_within( ::string const& file , ::string const& dir_s ) {
+		if ( !dir_s                                               ) return is_lcl(file)                           ;
+		if ( !dir_s.starts_with("../") || !dir_s.ends_with("../") ) return file.starts_with(dir_s)                ; // else dir_s is a series of ../ as it is canonic
+		if ( file[0]=='/'                                         ) return false                                  ; // absolute file does not lie within relative dir_s
+		if ( !file.starts_with(dir_s)                             ) return true                                   ; // must contain at least as many .. to escape from dir_s
+		::string_view sv = substr_view(file,dir_s.size()) ;
+		/**/                                                        return !( sv.starts_with("../") || sv==".." ) ; // check if we have an additional ..
+	}
+
 	::string mk_file( ::string const& f , FileDisplay fd , Bool3 exists ) {
 		::string pfx(2+sizeof(FileNameIdx),FileMrkr) ;
 		pfx[1] = char(fd) ;
@@ -506,7 +515,7 @@ namespace Disk {
 			DN}
 		::string lcl_real = mk_lcl(real,repo_root_s) ;
 		for( ::string const& sd_s : src_dirs_s )
-			if ((is_abs_s(sd_s)?abs_real:lcl_real).starts_with(sd_s)) return FileLoc::SrcDir ;
+			if ( lies_within( is_abs_s(sd_s)?abs_real:lcl_real , sd_s ) ) return FileLoc::SrcDir ;
 		return FileLoc::Ext ;
 	}
 

@@ -85,15 +85,20 @@ namespace Engine {
 		::vector_s fields = {{}} ;
 		try {
 			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
-			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())                  ;
 			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay()        ;
 			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay()        ;
+			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())                  ;
 			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
 			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
 			fields[0] = "nice"                ; if (py_map.contains(fields[0])) nice                   = uint8_t                   (py_map[fields[0]].as_a<Int  >())                  ;
 			fields[0] = "system_tag"          ; if (py_map.contains(fields[0])) system_tag             = ensure_nl                 (py_map[fields[0]].as_a<Str  >())                  ;
 			//
+			fields[0] = "extra_manifest" ;
+			if (py_map.contains(fields[0])) {
+				Sequence const& py_extra_manifest = py_map[fields[0]].as_a<Sequence>() ;
+				for( Object const& py_src : py_extra_manifest ) extra_manifest.push_back(py_src.as_a<Str>()) ;
+			}
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_path_max = py_map[fields[0]] ;
@@ -324,6 +329,10 @@ namespace Engine {
 		if (path_max!=size_t(-1)       ) res << "\tpath_max            : " << size_t(path_max     )      <<'\n' ;
 		else                             res << "\tpath_max            : " <<        "<unlimited>"       <<'\n' ;
 		if (+system_tag                ) res << "\tsystem_tag :\n"         << indent(system_tag,2)              ;
+		if (+extra_manifest) {
+			res << "\textra_manifest :\n" ;
+			for( ::string const& s : extra_manifest ) res <<"\t\t"<< s <<'\n' ;
+		}
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;

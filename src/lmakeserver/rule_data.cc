@@ -145,7 +145,7 @@ namespace Engine {
 			field = "prio"       ; if (dct.contains(field)) user_prio  = dct[field].as_a<Float>() ;
 			if (+sub_repo_s) {
 				sub_repo_s = with_slash(::move(sub_repo_s)) ;
-				if (sub_repo_s.front()=='/') {
+				if (sub_repo_s[0]=='/') {
 					if (sub_repo_s.starts_with(*g_repo_root_s)) sub_repo_s.erase(0,g_repo_root_s->size()) ;
 					else                                        throw "cwd must be relative to repo root dir"s ;
 				}
