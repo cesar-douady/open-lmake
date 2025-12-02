@@ -188,10 +188,10 @@ namespace Engine {
 			::serdes(s,static_cast<ConfigStatic&>(self)) ;
 			::serdes(s,static_cast<ConfigDyn   &>(self)) ;
 			// END_OF_VERSIONING
-			if (IsIStream<S>) booted = true ;     // if config comes from disk, it is booted
+			if (IsIStream<S>) booted = true ;  // if config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
-		void open( bool dyn , bool first_time ) ; // send warnings on first time only
+		void open() ;                          // send warnings on first time only
 		ConfigDiff diff(Config const& other) {
 			if (!(ConfigClean ::operator==(other))) return ConfigDiff::Clean  ;
 			if (!(ConfigStatic::operator==(other))) return ConfigDiff::Static ;
@@ -199,7 +199,7 @@ namespace Engine {
 			else                                    return ConfigDiff::None   ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted            = false ;      // a marker to distinguish clean repository
+		bool     booted            = false ;   // a marker to distinguish clean repository
 		::string local_admin_dir_s ;
 	} ;
 

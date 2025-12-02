@@ -68,22 +68,23 @@ namespace Backends::Local {
 
 		// services
 
-		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) override {
+		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ ) override {
 			// add an implicit resource <single> to manage jobs localized from remote backends
-			Trace trace(BeChnl,"Local::config",STR(dyn),dct) ;
+			Trace trace(BeChnl,"Local::config",dct) ;
+			static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 			//
 			rsrc_keys.reserve(dct.size()+1/*<single>*/) ;
 			bool seen_single = false ;
-			if (dyn) {
+			if (first_time) {
+				SWEAR( !rsrc_keys , rsrc_keys ) ;
+				for( auto const& [k,v] : dct ) { rsrc_idxs[k         ] = rsrc_keys.size() ; rsrc_keys.push_back   (k         ) ; seen_single |= k=="<single>" ; }
+				if (!seen_single)              { rsrc_idxs["<single>"] = rsrc_keys.size() ; rsrc_keys.emplace_back("<single>") ;                                }
+				occupied  = RsrcsData(rsrc_keys.size()) ;
+			} else {                                                                                                // keep currently used resources
 				::set_s old_names = mk_set    (rsrc_keys) ;                                                         // use ordered set for reporting
 				::set_s new_names = mk_key_set(dct      ) ;
 				seen_single = !new_names.insert("<single>").second ;
 				if (new_names!=old_names) throw cat("cannot change resource names from ",old_names," to ",new_names," while lmake is running") ;
-			} else {
-				SWEAR( !rsrc_keys , rsrc_keys ) ;
-				for( auto const& [k,v] : dct ) { rsrc_idxs[k         ] = rsrc_keys.size() ; rsrc_keys.push_back   (k         ) ; seen_single |= k=="<single>" ; }
-				if (!seen_single)              { rsrc_idxs["<single>"] = rsrc_keys.size() ; rsrc_keys.emplace_back("<single>") ;                                }
-				occupied  = RsrcsData(rsrc_keys.size()) ;                                                           // if dyn <=> keep currently used resources
 			}
 			trace(BeChnl,"occupied_rsrcs",'=',occupied) ;
 			//
@@ -95,7 +96,7 @@ namespace Backends::Local {
 			trace("capacity",capacity()) ;
 			_wait_queue.open( 'T' , _s_wait_job ) ; s_record_thread('T',_wait_queue.thread) ;
 			//
-			if ( !dyn && rsrc_idxs.contains("cpu") ) {                                                              // ensure each job can compute CRC on all cpu's in parallel
+			if ( first_time && rsrc_idxs.contains("cpu") ) {                                                        // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {

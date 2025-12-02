@@ -434,11 +434,13 @@ namespace Engine {
 		return res ;
 	}
 
-	void Config::open( bool dyn , bool first_time ) {
+	void Config::open() {
 		// dont trust user to provide a unique directory for each repo, so add a sub-dir that is garanteed unique
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
-		Trace trace("Config::open",STR(dyn),STR(first_time)) ;
+		Trace trace("Config::open") ;
+		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+		//
 		SWEAR(+key) ;                                                                      // ensure no init problem
 		::string std_dir_s = cat(PrivateAdminDirS,"local_admin/") ;
 		if (!user_local_admin_dir_s) {
@@ -454,9 +456,7 @@ namespace Engine {
 		}
 		mk_dir_s( local_admin_dir_s , {.force=true} ) ;
 		//
-		Backends::Backend::s_config( backends , dyn , first_time ) ;
-		//
-		if (dyn) return ;
+		if (!first_time) return ;
 		//
 		for( auto& [k,idx_cache] : caches ) {
 			trace("config",k,idx_cache.first) ;

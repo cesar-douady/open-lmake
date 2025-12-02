@@ -115,8 +115,9 @@ namespace Backends::Sge {
 
 		// services
 
-		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ , bool dyn ) override {
-			Trace trace(BeChnl,"Sge::config",STR(dyn),dct) ;
+		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ ) override {
+			Trace trace(BeChnl,"Sge::config",dct) ;
+			static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 			//
 			repo_key = no_slash(base_name(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
@@ -148,7 +149,7 @@ namespace Backends::Sge {
 				for( ::string const& kv : _sge_env_vec ) _sge_env[i++] = kv.c_str() ;
 				/**/                                     _sge_env[i  ] = nullptr    ;
 			}
-			if (!dyn) {
+			if (first_time) {
 				sge_sense_daemon(self) ;
 				_s_sge_cancel_thread.open('C',sge_cancel) ; s_record_thread('C',_s_sge_cancel_thread.thread) ;
 			}

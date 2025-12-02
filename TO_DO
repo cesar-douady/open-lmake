@@ -76,11 +76,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* protect against using autodep='ld_audit' when executing in a chroot that does not support it
 * improve versions
 	- use small ids through a manually handled association small id <-> computed crc
 	- provide versions for cache, repo, and job exec
 	- check job exec versions when using a different lmake for job exec
+	- protect against using autodep='ld_audit' when executing in a chroot that does not support it
 * clean up FileInfo and FileSig and FileTag
 	- mimic Crc : !x means x has not been computed, not that file does not exist
 	- define equivalent when seen from lmake, == staying strict equality
@@ -129,10 +129,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * add flags to chroot_dir
 	- implement action merge
-* add ldebug -kE
-	- split -ke into 2 : a comfortable and a strict case
-	- in comfortable (-ke), shell is the one of the user, with -i, HOME is user HOME, ideally is a new window.
-	- in strict (-kE), shell is the one of the job and environment is strictly preserved, ideally in a new window.
 * in ldircache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.

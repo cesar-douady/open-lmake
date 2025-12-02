@@ -285,27 +285,29 @@ namespace Engine::Persistent {
 		) invalidate_match() ;                                // we may discover new buildable nodes or vice versa
 	}
 
-	void new_config( Config&& config , bool dyn , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
-		Trace trace("new_config",Pdate(New),STR(dyn),STR(rescue) ) ;
-		if ( !dyn                                         ) _init_config()                  ;
-		else                                                SWEAR( +*g_config , *g_config ) ;                                    // we must update something
-		if (                                   +*g_config ) config.key = g_config->key ;
+	void new_config( Config&& config , bool rescue , ::function<void(Config const& old,Config const& new_)> diff ) {
+		Trace trace("new_config",Pdate(New),STR(rescue) ) ;
+		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 		//
-		/**/                                                diff(*g_config,config) ;
+		if (  first_time                                        ) _init_config()                  ;
+		else                                                      SWEAR( +*g_config , *g_config ) ;                                    // we must update something
+		if (                                         +*g_config ) config.key = g_config->key ;
 		//
-		/**/                                                ConfigDiff d = +config ? g_config->diff(config) : ConfigDiff::None ; // if no config passed, assume no update
-		if (          d>ConfigDiff::Static  && +*g_config ) throw ::pair( "repo must be clean"s  , Rc::CleanRepo  ) ;
-		if (  dyn &&  d>ConfigDiff::Dyn                   ) throw ::pair( "repo must be steady"s , Rc::SteadyRepo ) ;
+		/**/                                                      diff(*g_config,config) ;
 		//
-		if (  dyn && !d                                   ) return ;                                                             // fast path, nothing to update
+		/**/                                                      ConfigDiff d = +config ? g_config->diff(config) : ConfigDiff::None ; // if no config passed, assume no update
+		if (                 d>ConfigDiff::Static && +*g_config ) throw ::pair( "repo must be clean"s  , Rc::CleanRepo  ) ;
+		if ( !first_time &&  d>ConfigDiff::Dyn                  ) throw ::pair( "repo must be steady"s , Rc::SteadyRepo ) ;
 		//
-		/**/                                                Config old_config = *g_config ;
-		if (         +d                                   ) *g_config = ::move(config) ;
-		if (                                   !*g_config ) throw "no config available"s ;
-		/**/                                                g_config->open( dyn , true/*first_time*/ ) ;
-		if (         +d                                   ) _save_config()                             ;
-		if ( !dyn                                         ) _init_srcs_rules(rescue)                   ;
-		if (         +d                                   ) _diff_config(old_config)                   ;
+		if ( !first_time && !d                                  ) return ;                                                             // fast path, nothing to update
+		//
+		/**/                                                      Config old_config = *g_config ;
+		if (                +d                                  ) *g_config = ::move(config) ;
+		if (                                         !*g_config ) throw "no config available"s ;
+		/**/                                                      g_config->open()         ;
+		if (                +d                                  ) _save_config()           ;
+		if (  first_time                                        ) _init_srcs_rules(rescue) ;
+		if (                +d                                  ) _diff_config(old_config) ;
 		trace("done",Pdate(New)) ;
 	}
 
@@ -436,8 +438,9 @@ namespace Engine::Persistent {
 		for( RuleData& rd : rules ) rd.prio = prio_map.at(rd.user_prio) ;
 	}
 
-	bool/*invalidate*/ new_rules( Rules&& new_rules_ , bool dyn ) {
+	bool/*invalidate*/ new_rules(Rules&& new_rules_) {
 		Trace trace("new_rules",new_rules_.size()) ;
+		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 		//
 		throw_unless( new_rules_.size()<NRules , "too many rules (",new_rules_.size(),"), max is ",NRules-1 ) ; // ensure we can use RuleIdx as index
 		//
@@ -481,7 +484,7 @@ namespace Engine::Persistent {
 			}
 		}
 		bool invalidate = n_new_rules || n_old_rules || modified_rule_order ;
-		if (dyn) {                                                                                              // check if compatible with dynamic update
+		if (!first_time) {                                                                                      // check if compatible with dynamic update
 			throw_if( n_new_rules         , "new rules appeared"           ) ;
 			throw_if( n_old_rules         , "old rules disappeared"        ) ;
 			throw_if( n_modified_cmd      , "rule cmd's were modified"     ) ;
@@ -539,8 +542,10 @@ namespace Engine::Persistent {
 		return invalidate ;
 	}
 
-	bool/*invalidate*/ new_srcs( Sources&& src_names , bool dyn , ::string const& manifest ) {
-		NfsGuard             nfs_guard    { dyn ? g_config->file_sync : FileSync::None } ;                              // when dynamic, sources may be modified from jobs
+	bool/*invalidate*/ new_srcs( Sources&& src_names , ::string const& manifest ) {
+		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+		//
+		NfsGuard             nfs_guard    { first_time ? FileSync::None : g_config->file_sync }  ;                      // when dynamic, sources may be modified from jobs
 		::vmap<Node,FileTag> srcs         ; srcs    .reserve(src_names                  .size()) ;
 		::umap<Node,FileTag> old_srcs     ; old_srcs.reserve(Node::s_srcs(false/*dirs*/).size()) ;                      // typically there are no source dirs
 		::umap<Node,FileTag> new_srcs     ; new_srcs.reserve(src_names                  .size()) ;
@@ -610,7 +615,7 @@ namespace Engine::Persistent {
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }
 		//
 		if ( !old_srcs && !new_srcs ) return false/*invalidate*/ ;
-		if (dyn) {
+		if (!first_time) {
 			if (+new_srcs) throw "new source "    +new_srcs.begin()->first->name() ;
 			if (+old_srcs) throw "removed source "+old_srcs.begin()->first->name() ;
 			FAIL() ;                                                                                           // NO_COV

@@ -797,8 +797,10 @@ namespace Backends {
 		trace("done") ;
 	}
 
-	void Backend::s_config( ::array<Config::Backend,N<Tag>> const& cfgs , bool dyn , bool first_time ) {
-		if (!dyn) {                                                                                                                     // if dyn, threads are already running
+	void Backend::s_config(::array<Config::Backend,N<Tag>> const& cfgs) {
+		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+		//
+		if (first_time) {
 			// threads must be stopped while store is still mapped, i.e. before main() returns
 			_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;                          s_record_thread('H',_s_heartbeat_thread             ) ;
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ; s_record_thread('S',_s_job_start_thread      .thread) ;
@@ -806,29 +808,38 @@ namespace Backends {
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ; s_record_thread('E',_s_job_end_thread        .thread) ;
 			_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ; s_record_thread('R',_s_deferred_report_thread.thread) ;
 			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ; s_record_thread('W',_s_deferred_wakeup_thread.thread) ;
+			//
+			_s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		}
-		Trace trace(BeChnl,"s_config",STR(dyn)) ;
-		if (!dyn) _s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
+		Trace trace(BeChnl,"s_config") ;
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                                               // local backend is always available
-			auto                 & be        = s_tab [+t] ; if (!be) { trace("not_implemented",t) ; continue ; }
-			bool                   was_ready = s_ready(t) ;
-			Config::Backend const& cfg       = cfgs[+t]   ;
+		for( Tag t : iota(1,All<Tag>) ) {                                                                               // local backend is always available
+			::string               warning_sentinel = cat(PrivateAdminDirS,"backend_warning_",t) ;
+			auto                 & be               = s_tab [+t]                                 ; if (!be) { trace("not_implemented",t) ; continue ; }
+			bool                   was_ready        = s_ready(t)                                 ;
+			Config::Backend const& cfg              = cfgs[+t]                                   ;
 			if (!cfg.configured) {
-				throw_if( dyn && was_ready , "cannot dynamically suppress backend ",t ) ;
-				be->config_err = "not configured" ;                                                                                     // empty config_err means ready
+				throw_if( !first_time && was_ready , "cannot dynamically suppress backend ",t ) ;
+				be->config_err = "not configured" ;                                                                     // empty config_err means ready
 				trace("not_configured" ,t) ;
 				continue ;
 			}
 			be->fqdn_ = +cfg.domain_name ? cat(host(),'.',cfg.domain_name) : fqdn() ;
 			try {
-				be->config(cfg.dct,cfg.env,dyn) ;
+				be->config(cfg.dct,cfg.env) ;
+				if (FileInfo(warning_sentinel).exists()) {
+					Fd::Stderr.write(cat("Warning : backend ",t," is now used\n")) ;                                    // avoid annoying user with warnings when they are already aware of
+					unlnk(warning_sentinel) ;
+				}
 			} catch (::string const& e) {
-				throw_if( dyn && was_ready , "cannot dynamically suppress backend : ",e ) ;
+				throw_if( !first_time && was_ready , "cannot dynamically suppress backend : ",e ) ;
 				if (+e) {
 					be->config_err = e ;
-					if (first_time) Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",indent(e),add_nl)) ; // avoid annoying user with warnings they are already aware of
+					if (!FileInfo(warning_sentinel).exists()) {
+						Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",indent(e),add_nl)) ; // avoid annoying user with warnings when they are already aware of
+						AcFd( warning_sentinel , {O_WRONLY|O_TRUNC|O_CREAT,0000/*mode*/} ) ;
+					}
 					trace("err",t,e) ;
 				} else {
 					be->config_err = "no backend" ;
@@ -836,11 +847,11 @@ namespace Backends {
 				}
 				continue ;
 			}
-			if ( dyn && !was_ready ) {
-				SWEAR(+be->config_err) ;                                                                                                // empty config_err means ready
+			if ( !first_time && !was_ready ) {
+				SWEAR(+be->config_err) ;                                                                                // empty config_err means ready
 				throw cat("cannot dynamically add backend ",t) ;
 			}
-			be->config_err = {} ;                                                                                                       // empty config_err means ready
+			be->config_err = {} ;                                                                                       // empty config_err means ready
 		}
 		trace(_s_job_exec) ;
 		_s_job_start_thread.wait_started() ;

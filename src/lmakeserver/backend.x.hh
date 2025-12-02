@@ -135,9 +135,9 @@ namespace Backends {
 		static bool            s_ready     (Tag) ;
 		static ::string const& s_config_err(Tag) ;
 		//
-		static void s_config       ( ::array<Config::Backend,N<Tag>> const& cfgs , bool dyn , bool first_time ) ; // send warnings on first time only
-		static void s_record_thread( char thread_key , ::jthread&                                             ) ;
-		static void s_finalize     (                                                                          ) ;
+		static void s_config       ( ::array<Config::Backend,N<Tag>> const& cfgs ) ;                         // send warnings on first time only
+		static void s_record_thread( char thread_key , ::jthread&                ) ;
+		static void s_finalize     (                                             ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
@@ -154,19 +154,19 @@ namespace Backends {
 		//
 		static Pdate s_submitted_eta(Req r) { return _s_workload.submitted_eta(r) ; }
 		// called by job_exec thread
-		static ::string/*msg*/          s_start            ( Tag , Job             ) ;                            // called by job_exec  thread, sub-backend lock must have been takend by caller
-		static ::pair_s<bool/*retry*/>  s_end              ( Tag , Job    , Status ) ;                            // .
-		static ::vector<Job>            s_kill_waiting_jobs( Tag , Req={}          ) ;                            // kill all waiting jobs for this req (all if 0), return killed jobs
-		static void                     s_kill_job         ( Tag , Job             ) ;                            // job must be spawned
-		static void                     s_heartbeat        ( Tag                   ) ;                            // called by heartbeat thread, sub-backend lock must have been takend by caller
-		static ::pair_s<HeartbeatState> s_heartbeat        ( Tag , Job             ) ;                            // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::string/*msg*/          s_start            ( Tag , Job             ) ;                       // called by job_exec  thread, sub-backend lock must have been takend by caller
+		static ::pair_s<bool/*retry*/>  s_end              ( Tag , Job    , Status ) ;                       // .
+		static ::vector<Job>            s_kill_waiting_jobs( Tag , Req={}          ) ;                       // kill all waiting jobs for this req (all if 0), return killed jobs
+		static void                     s_kill_job         ( Tag , Job             ) ;                       // job must be spawned
+		static void                     s_heartbeat        ( Tag                   ) ;                       // called by heartbeat thread, sub-backend lock must have been takend by caller
+		static ::pair_s<HeartbeatState> s_heartbeat        ( Tag , Job             ) ;                       // called by heartbeat thread, sub-backend lock must have been takend by caller
 		//
 	protected :
 		static void s_register( Tag t , Backend& be ) {
 			s_tab[+t] = &be ;
 		}
 	private :
-		static void _s_kill_req              ( Req={}                                                    ) ;      // kill all if req==0
+		static void _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
 		static void _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
 		static void _s_heartbeat_thread_func ( ::stop_token                                              ) ;
 		static void _s_handle_job_start      ( JobStartRpcReq&& , Fd={}                                  ) ;
@@ -201,8 +201,8 @@ namespace Backends {
 		virtual ~Backend() = default ;                                                                 // ensure all fields of sub-backends are correctly destroyed
 		// services
 		// PER_BACKEND : these virtual functions must be implemented by sub-backend, some of them have default implementations that do nothing when meaningful
-		virtual ::vmap_ss descr (                                                                    ) const { return {}   ; }
-		virtual void      config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dyn*/ )       {               }
+		virtual ::vmap_ss descr (                                                     ) const { return {}   ; }
+		virtual void      config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ )       {               }
 		//
 		virtual void          open_req         ( Req , JobIdx /*n_jobs*/ ) {}                          // called before any operation on req , n_jobs is the max number of jobs that can be launched
 		virtual void          new_req_etas     (                         ) {}                          // inform backend that req has a new eta, which may change job priorities

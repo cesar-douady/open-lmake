@@ -222,18 +222,18 @@ namespace Backends {
 		} ;
 
 		// specialization
-		virtual void sub_config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ , bool /*dyn*/ ) {} // NO_COV meant to be overridden
+		virtual void sub_config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ ) {}      // NO_COV meant to be overridden
 		//
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
 		//
-		virtual void       acquire_rsrcs( Rsrcs     const&             ) const = 0 ;                     // acquire asked resources
-		virtual ::string   lacking_rsrc ( RsrcsData const&             ) const { return {} ; }           // true if job with such resources can be spawned eventually
-		virtual bool/*ok*/ fit_now      ( Rsrcs     const&             ) const = 0 ;                     // true if job with such resources can be spawned now
-		virtual void       start_rsrcs  ( Rsrcs     const&             ) const {}                        // handle resources at start of job
-		virtual void       end_rsrcs    ( Rsrcs     const&             ) const {}                        // handle resources at end   of job
-		virtual ::vmap_ss  export_      ( RsrcsData const&             ) const = 0 ;                     // export resources in   a publicly manageable form
-		virtual RsrcsData  import_      ( ::vmap_ss     && , Req , Job ) const = 0 ;                     // import resources from a publicly manageable form
+		virtual void       acquire_rsrcs( Rsrcs     const&             ) const = 0 ;           // acquire asked resources
+		virtual ::string   lacking_rsrc ( RsrcsData const&             ) const { return {} ; } // true if job with such resources can be spawned eventually
+		virtual bool/*ok*/ fit_now      ( Rsrcs     const&             ) const = 0 ;           // true if job with such resources can be spawned now
+		virtual void       start_rsrcs  ( Rsrcs     const&             ) const {}              // handle resources at start of job
+		virtual void       end_rsrcs    ( Rsrcs     const&             ) const {}              // handle resources at end   of job
+		virtual ::vmap_ss  export_      ( RsrcsData const&             ) const = 0 ;           // export resources in   a publicly manageable form
+		virtual RsrcsData  import_      ( ::vmap_ss     && , Req , Job ) const = 0 ;           // import resources from a publicly manageable form
 		//
 		virtual ::string                 start_job           ( Job , SpawnedEntry const&          ) const { return  {}                        ; } // NO_COV overridden
 		virtual ::pair_s<bool/*retry*/>  end_job             ( Job , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; } // NO_COV overridden
@@ -260,9 +260,10 @@ namespace Backends {
 		}                                                                                                  // END_OF_NO_COV
 
 		// services
-		void config( ::vmap_ss const& dct , ::vmap_ss const& env , bool dyn ) override {
-			sub_config(dct,env,dyn) ;
-			if (!dyn) {
+		void config( ::vmap_ss const& dct , ::vmap_ss const& env ) override {
+			static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+			sub_config(dct,env) ;
+			if (first_time) {
 				_launch_queue.open( LaunchThreadKey , [&](::stop_token st) { _launch(st) ; } ) ; s_record_thread(LaunchThreadKey,_launch_queue.thread) ;
 			}
 		}

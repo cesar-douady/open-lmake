@@ -8,6 +8,7 @@
 #pragma once
 
 namespace Engine::Makefiles {
-	void refresh    ( ::string&/*out*/ msg , bool chk, bool refresh                               ) ;
-	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) ; // startup dir for diag purpose only
+	// msg may be updated even if throwing
+	// startup_dir_s is for diagnostic purpose only
+	void refresh( ::string&/*out*/ msg , ::umap_ss const& env , bool chk, bool refresh , ::string const& startup_dir_s ) ;
 }

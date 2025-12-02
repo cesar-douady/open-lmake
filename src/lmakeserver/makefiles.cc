@@ -118,7 +118,7 @@ namespace Engine::Makefiles {
 		trace("ok") ;
 	}
 
-	static void _gen_deps( Action action , Deps const& deps , ::string const& startup_dir_s ) {
+	static void _gen_deps( Action action , Deps const& deps , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		SWEAR(+deps.files) ;                                                                    // there must at least be Lmakefile.py
 		::string              new_deps_file = _deps_file(action,true/*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
@@ -212,6 +212,7 @@ namespace Engine::Makefiles {
 	}
 
 	// msg may be updated even if throwing
+	// startup_dir_s is for diagnostic purpose only
 	static bool/*done*/ _refresh_config( ::string&/*out*/ msg , Config&/*out*/ config , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::umap_ss const& user_env , ::string const& startup_dir_s ) {
 		Trace trace("refresh_config") ;
 		::string reason = _chk_deps( Action::Config , user_env , startup_dir_s ) ; if (!reason) return false/*done*/ ;
@@ -236,7 +237,7 @@ namespace Engine::Makefiles {
 	,	Bool3            changed                                                                                     // Maybe means new, Yes means existence of module/callable changed
 	,	Dict      const* py_info
 	,	::umap_ss const& user_env
-	,	::string  const& startup_dir_s
+	,	::string  const& startup_dir_s                                                                               // startup_dir_s for diagnostic purpose only
 	) {
 		::string const& config_action = A==Action::Rules ? g_config->rules_action : g_config->srcs_action ;
 		Trace trace("_refresh_rules_srcs",A,changed,config_action) ;
@@ -280,13 +281,18 @@ namespace Engine::Makefiles {
 		return Maybe|+reason/*done*/ ;                                                                               // cannot be split without reason
 	}
 
-	void _refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ , bool dyn , ::umap_ss const& user_env , ::string const& startup_dir_s ) { // msg may be updated even if throwing
-		Trace trace("_refresh",STR(rescue),STR(refresh_),STR(dyn),startup_dir_s) ;
+	// msg may be updated even if throwing
+	// startup_dir_s is for diagnostic purpose only
+	static void _refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ , ::umap_ss const& user_env , ::string const& startup_dir_s ) {
+		Trace trace("_refresh",STR(rescue),STR(refresh_),startup_dir_s) ;
+		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+		//
+		const char* dynamically = first_time ? "" : "dynamically " ;
 		if (!refresh_) {
-			SWEAR(!dyn) ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			Persistent::new_config( Config() , dyn , rescue ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			SWEAR(first_time) ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			Persistent::new_config( Config() , rescue ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return ;
 		}
 		Deps               config_deps ;
@@ -295,7 +301,7 @@ namespace Engine::Makefiles {
 		Config             config      ;
 		WithGil<Ptr<Dict>> py_info     ;
 		//
-		if (!dyn) {
+		if (first_time) {
 			{	First first ;
 				_g_user_env_str << "{ " ;
 				for( auto const& [k,v] : user_env )
@@ -309,28 +315,36 @@ namespace Engine::Makefiles {
 			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
 			/**/                          _g_env["PYTHONPATH"     ] = *g_lmake_root_s+"lib"         ;
 			//                                     mod
-			AcFd( EnvironFile  , {O_RDONLY|O_CREAT,0666} ) ;                                   // these are sources, they must exist
-			AcFd( ManifestFile , {O_RDONLY|O_CREAT,0666} ) ;                                   // .
+			AcFd( EnvironFile  , {O_RDONLY|O_CREAT,0666} ) ;                                       // these are sources, they must exist
+			AcFd( ManifestFile , {O_RDONLY|O_CREAT,0666} ) ;                                       // .
 		}
 		//
 		bool/*done*/ config_digest = _refresh_config( /*out*/msg , /*out*/config , /*out*/py_info , /*out*/config_deps , user_env , startup_dir_s ) ;
 		//
 		Bool3 changed_srcs       = No    ;
 		Bool3 changed_rules      = No    ;
-		bool  invalidate         = false ;                                                     // invalidate because of config
+		bool  invalidate         = false ;                                                         // invalidate because of config
 		bool  changed_extra_srcs = false ;
 		auto diff_config = [&]( Config const& old , Config const& new_ ) {
-			if (!new_) return ;                                                                // no new config means we keep old config, no modification
-			changed_srcs       = +old ? No|(old.srcs_action   !=new_.srcs_action   ) : Maybe ; // Maybe means new
-			changed_rules      = +old ? No|(old.rules_action  !=new_.rules_action  ) : Maybe ; // Maybe means new
-			invalidate         =            old.sub_repos_s   !=new_.sub_repos_s             ; // this changes matching exceptions, which means it changes matching
-			changed_extra_srcs =            old.extra_manifest!=new_.extra_manifest          ;
+			if (+new_) {                                                                           // no new config means keep old config, no modification
+				changed_srcs       = +old ? No|(old.srcs_action   !=new_.srcs_action   ) : Maybe ; // Maybe means new
+				changed_rules      = +old ? No|(old.rules_action  !=new_.rules_action  ) : Maybe ; // Maybe means new
+				invalidate         =            old.sub_repos_s   !=new_.sub_repos_s             ; // this changes matching exceptions, which means it changes matching
+				changed_extra_srcs =            old.extra_manifest!=new_.extra_manifest          ;
+			}
+			if (!first_time) {                                                            // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
+				static bool s_bes_done = false ;
+				if ( !s_bes_done || (+new_&&old.backends!=new_.backends) ) {              // no new_ means keep old config, no modification
+					Backends::Backend::s_config( +new_ ? new_.backends : old.backends ) ;
+					s_bes_done = true ;
+				}
+			}
 		} ;
-		//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		try                           { Persistent::new_config( ::move(config) , dyn , rescue , diff_config ) ;                      }
-		//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		catch (::string     const& e) { throw         cat("cannot ",dyn?"dynamically ":"","update config : ",e      )              ; }
-		catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update config : ",e.first) , e.second ) ; }
+		//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                  }
+		//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		catch (::string     const& e) { throw         cat("cannot ",dynamically,"update config : ",e      )              ; }
+		catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update config : ",e.first) , e.second ) ; }
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
@@ -339,20 +353,20 @@ namespace Engine::Makefiles {
 		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest) || changed_extra_srcs                                                           ;
 		if (new_srcs) {
 			for( ::string const& s : g_config->extra_manifest ) srcs.push_back(s) ;
-			//                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                           { invalidate |= Persistent::new_srcs( ::move(srcs) , dyn , ManifestFile ) ;                     }
-			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			catch (::string     const& e) { throw         cat("cannot ",dyn?"dynamically ":"","update sources : ",e      )              ; }
-			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update sources : ",e.first) , e.second ) ; }
+			//                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                           { invalidate |= Persistent::new_srcs( ::move(srcs) , ManifestFile ) ;                 }
+			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			catch (::string     const& e) { throw         cat("cannot ",dynamically,"update sources : ",e      )              ; }
+			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update sources : ",e.first) , e.second ) ; }
 		}
 		Rules         rules        ;
 		Bool3/*done*/ rules_digest = _refresh_rules_srcs<Action::Rules>( /*out*/msg , /*out*/rules , /*out*/rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
 		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                                                ;
-		if (new_rules) //!                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                           { invalidate |= Persistent::new_rules( ::move(rules) , dyn ) ;                                }
-			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			catch (::string     const& e) { throw         cat("cannot ",dyn?"dynamically ":"","update rules : ",e      )              ; }
-			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dyn?"dynamically ":"","update rules : ",e.first) , e.second ) ; }
+		if (new_rules) //!                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                           { invalidate |= Persistent::new_rules( ::move(rules) ) ;                               }
+			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			catch (::string     const& e) { throw         cat("cannot ",dynamically,"update rules : ",e      )              ; }
+			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update rules : ",e.first) , e.second ) ; }
 		//
 		if (invalidate) Persistent::invalidate_match() ;
 		//
@@ -376,25 +390,28 @@ namespace Engine::Makefiles {
 		trace("done") ;
 	}
 
-	void refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ ) {                                                           // msg may be updated even if throwing
+	// msg may be updated even if throwing
+	// startup_dir_s is for diagnostic purpose only
+	void refresh( ::string&/*out*/ msg , ::umap_ss const& env , bool rescue , bool refresh_ , ::string const& startup_dir_s ) {
 		Trace trace("refresh",STR(rescue),STR(refresh_)) ;
-		::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;
-		try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                             // load from persistent cache
-		catch (...) {                                                                                }                             // perf only, dont care of errors (e.g. first time)
+		static bool     s_first_time   = true                                  ; bool first_time = s_first_time ; s_first_time = false ;
+		static ::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;
+		//
+		if (first_time) {
+			try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                         // load from persistent cache
+			catch (...) {                                                                                }                         // perf only, ignore errors (e.g. first time)
+		}
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
 		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                 // dir_s is \1, module is \2, matches both python 2 & 3
 		//
-		_refresh( /*out*/msg , rescue , refresh_ , false/*dyn*/ , mk_environ() , *g_startup_dir_s ) ;
+		_refresh( /*out*/msg , rescue , refresh_ , env , startup_dir_s ) ;
 		//
-		if (!RegExpr::s_cache.steady()) {
+		if ( first_time && !RegExpr::s_cache.steady() ) {
 			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(RegExpr::s_cache) ) ; } // update persistent cache
 			catch (...) {                                                                                                        } // perf only, ignore errors (e.g. read-only)
 		}
 		trace("done",msg) ;
-	}
-	void dyn_refresh( ::string&/*out*/ msg , ::umap_ss const& env , ::string const& startup_dir_s ) {                              // msg may be updated even if throwing
-		_refresh( /*out*/msg , false/*rescue*/  , true/*refresh*/ , true/*dyn*/ , env , startup_dir_s ) ;
 	}
 
 }

@@ -362,7 +362,7 @@ static bool/*interrupted*/ _engine_loop() {
 						}
 						try {
 							try {
-								Makefiles::dyn_refresh( /*out*/msg , ecr.options.user_env , startup_dir_s ) ;
+								Makefiles::refresh( /*out*/msg , ecr.options.user_env , false/*rescue*/  , true/*refresh*/ , startup_dir_s ) ;
 								if (+msg) audit_err( ecr.out_fd , ecr.options , msg ) ;
 								trace("new_req",req) ;
 								req.alloc() ; allocated = true ;
@@ -507,11 +507,11 @@ int main( int argc , char** argv ) {
 	}
 	::string     msg ;
 	::pair_s<Rc> rc  { {} , Rc::Ok } ;
-	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                          { Makefiles::refresh( /*out*/msg , rescue , refresh_ ) ; }
-	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch(::string     const& e) { rc = { e , Rc::BadState } ;                            }
-	catch(::pair_s<Rc> const& e) { rc = e                    ;                            }
+	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                          { Makefiles::refresh( /*out*/msg , mk_environ() , rescue , refresh_ , *g_startup_dir_s ) ; }
+	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                              }
+	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                              }
 	//
 	if (+msg         ) Fd::Stderr.write(with_nl(msg)) ;
 	if (+rc.second   ) exit( rc.second , rc.first )   ;

@@ -354,11 +354,11 @@ namespace Vector {
 
 namespace Engine::Persistent {
 
-	void new_config( Config&& , bool dyn , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
+	void new_config( Config&& , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( Sources&& , bool dyn      , ::string const& manifest ) ;
-	bool/*invalidate*/ new_rules       ( Rules  && , bool dyn                                 ) ;
-	void               invalidate_match( bool force_physical=false                            ) ;
+	bool/*invalidate*/ new_srcs        ( Sources&& , ::string const& manifest ) ;
+	bool/*invalidate*/ new_rules       ( Rules  &&                            ) ;
+	void               invalidate_match( bool force_physical=false            ) ;
 	//
 	void chk() ;
 
