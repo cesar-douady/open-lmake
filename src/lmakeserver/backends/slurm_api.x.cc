@@ -57,7 +57,7 @@ namespace Backends::Slurm::SlurmApi {
 	,	RsrcsData        const& rsrcs
 	,	bool                    verbose
 	) {
-		static ::string wd = no_slash(*g_repo_root_s) ;
+		static ::string repo_root = no_slash(*g_repo_root_s) ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
 		SWEAR(rsrcs.size()> 0) ;
@@ -86,7 +86,7 @@ namespace Backends::Slurm::SlurmApi {
 			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;              //in MB
 			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
 			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
-			/**/                     j.work_dir        = wd.data()                                                     ;
+			/**/                     j.work_dir        = repo_root.data()                                              ;
 			if(+r.excludes         ) j.exc_nodes       = const_cast<char*>(r.excludes .data())                         ;
 			if(+r.features         ) j.features        = const_cast<char*>(r.features .data())                         ;
 			if(+r.licenses         ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;

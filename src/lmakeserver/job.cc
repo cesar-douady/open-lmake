@@ -109,8 +109,8 @@ namespace Engine {
 		} catch (MsgStderr const& msg_err) {
 			trace("no_dep_subst") ;
 			if (+req) {
-				req->audit_job   ( Color::Note , "deps_not_avail" , rule , match.name()                                             ) ;
-				req->audit_stderr( self , {ensure_nl(rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg,msg_err.stderr} ) ;
+				req->audit_job   ( Color::Note , "deps_not_avail" , rule , match.name()                                           ) ;
+				req->audit_stderr( self , {with_nl(rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg,msg_err.stderr} ) ;
 			}
 			return ;
 		}
@@ -591,7 +591,7 @@ namespace Engine {
 			JobInfo ji = job_info() ;
 			if (digest.has_msg_stderr) res.msg_stderr = ji.end.msg_stderr ;
 			if (+res.severe_msg) {
-				ji.end.msg_stderr.msg <<set_nl<< res.severe_msg ;
+				ji.end.msg_stderr.msg <<add_nl<< res.severe_msg ;
 				s_record_thread.emplace(self,::move(ji.start))  ;           // necessary to restart recording, else ji.end would be appended
 				s_record_thread.emplace(self,::move(ji.end  ))  ;
 			}
@@ -638,7 +638,7 @@ namespace Engine {
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
-				/**/         job_msg << end_digest.msg_stderr.msg <<set_nl ;
+				/**/         job_msg << end_digest.msg_stderr.msg <<add_nl ;
 				if (job_err) job_msg << reason_str(job_reason)<<'\n'       ;
 				/**/         job_msg << end_digest.severe_msg              ;
 			} else if (req->options.flags[ReqFlag::Verbose]) {

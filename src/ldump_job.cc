@@ -36,14 +36,15 @@ void print_pre_start(JobStartRpcReq const& jsrr) {
 	g_out << "seq_id : " << jsrr.seq_id <<'\n' ;
 	g_out << "job    : " << jsrr.job    <<'\n' ;
 	//
-	g_out << "backend_msg :\n" ; g_out << ensure_nl(indent(jsrr.msg)) ;
+	g_out << "backend_msg :\n" ; g_out << indent(jsrr.msg) <<add_nl ;
 }
 
 void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "--start--\n" ;
 	//
 	g_out << "auto_mkdir       : " << jsrr.autodep_env.auto_mkdir <<'\n' ;
-	g_out << "chroot_dir_s     : " << jsrr.chroot_dir_s           <<'\n' ;
+	g_out << "chroot_dir_s     : " << jsrr.chroot_info.dir_s      <<'\n' ;
+	g_out << "chroot_action    : " << jsrr.chroot_info.action     <<'\n' ;
 	g_out << "sub_repo_s       : " << jsrr.autodep_env.sub_repo_s <<'\n' ;
 	g_out << "ddate_prec       : " << jsrr.ddate_prec             <<'\n' ;
 	g_out << "interpreter      : " << jsrr.interpreter            <<'\n' ;
@@ -69,7 +70,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )   ;
 	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )   ;
 	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)   ;
-	g_out << "cmd :\n"            ; g_out << ensure_nl(indent(jsrr.cmd)) ;
+	g_out << "cmd :\n"            ; g_out << indent(jsrr.cmd) <<add_nl ;
 }
 
 void print_end(JobEndRpcReq const& jerr) {
@@ -88,11 +89,11 @@ void print_end(JobEndRpcReq const& jerr) {
 	//
 	g_out << "dynamic_env :\n" ; _print_map(jerr.dyn_env) ;
 	//
-	g_out << "digest.targets :\n" ; _print_map(jerr.digest.targets)                              ;
-	g_out << "digest.deps :\n"    ; _print_map(jerr.digest.deps   )                              ;
-	g_out << "msg :\n"            ; g_out << ensure_nl(indent(localize(jerr.msg_stderr.msg   ))) ;
-	g_out << "stderr :\n"         ; g_out << ensure_nl(indent(         jerr.msg_stderr.stderr )) ;
-	g_out << "stdout :\n"         ; g_out << ensure_nl(indent(         jerr.stdout            )) ;
+	g_out << "digest.targets :\n" ; _print_map(jerr.digest.targets)                            ;
+	g_out << "digest.deps :\n"    ; _print_map(jerr.digest.deps   )                            ;
+	g_out << "msg :\n"            ; g_out << indent(localize(jerr.msg_stderr.msg   )) <<add_nl ;
+	g_out << "stderr :\n"         ; g_out << indent(         jerr.msg_stderr.stderr ) <<add_nl ;
+	g_out << "stdout :\n"         ; g_out << indent(         jerr.stdout            ) <<add_nl ;
 }
 
 int main( int argc , char* argv[] ) {

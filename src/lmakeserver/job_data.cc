@@ -982,8 +982,8 @@ namespace Engine {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( job , match , &early_deps ) ; // dont care about dependencies as these attributes have no impact on result
 		} catch (MsgStderr const& msg_err) {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.spec ;
-			req->audit_job   ( Color::Note , "no_dynamic" , job                                                                                                         ) ;
-			req->audit_stderr(                              job , { ensure_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
+			req->audit_job   ( Color::Note , "no_dynamic" , job                                                                                                       ) ;
+			req->audit_stderr(                              job , { with_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 		}
 		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                   // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
 		CacheIdx cache_idx = 0 ;
@@ -1072,8 +1072,8 @@ namespace Engine {
 		try {
 			submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( job , match , &early_deps ) ;
 		} catch (MsgStderr const& msg_err) {
-			req->audit_job   ( Color::Err , "failed" , job                                                                                                      ) ;
-			req->audit_stderr(                         job , { ensure_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
+			req->audit_job   ( Color::Err , "failed" , job                                                                                                    ) ;
+			req->audit_stderr(                         job , { with_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 			run_status = RunStatus::Error ;
 			trace("no_rsrcs",ri) ;
 			return ;

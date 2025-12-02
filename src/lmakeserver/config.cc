@@ -92,7 +92,7 @@ namespace Engine {
 			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())                  ;
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())                  ;
 			fields[0] = "nice"                ; if (py_map.contains(fields[0])) nice                   = uint8_t                   (py_map[fields[0]].as_a<Int  >())                  ;
-			fields[0] = "system_tag"          ; if (py_map.contains(fields[0])) system_tag             = ensure_nl                 (py_map[fields[0]].as_a<Str  >())                  ;
+			fields[0] = "system_tag"          ; if (py_map.contains(fields[0])) system_tag             = with_nl                   (py_map[fields[0]].as_a<Str  >())                  ;
 			//
 			fields[0] = "extra_manifest" ;
 			if (py_map.contains(fields[0])) {
@@ -316,7 +316,7 @@ namespace Engine {
 		res << "clean :\n" ;
 		/**/                         res << "\tlink_support    : " << lnk_support                      <<'\n' ;
 		/**/                         res << "\tkey             : " << key                              <<'\n' ;
-		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << no_slash(user_local_admin_dir_s) <<'\n' ;
+		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << user_local_admin_dir_s<<rm_slash <<'\n' ;
 		//
 		// static
 		//
@@ -353,7 +353,7 @@ namespace Engine {
 		}
 		if (+sub_repos_s) {
 			res << "\tsub_repos :\n" ;
-			for( ::string const& sr : sub_repos_s ) res <<"\t\t"<< no_slash(sr) <<'\n' ;
+			for( ::string const& sr : sub_repos_s ) res <<"\t\t"<< sr<<rm_slash <<'\n' ;
 		}
 		//
 		// dynamic
@@ -445,10 +445,11 @@ namespace Engine {
 			local_admin_dir_s = ::move(std_dir_s) ;
 		} else {
 			local_admin_dir_s = user_local_admin_dir_s+key+"-la/" ;
-			::string lnk_target_s = mk_rel_s( local_admin_dir_s , dir_name_s(std_dir_s) ) ;
-			if (read_lnk(no_slash(std_dir_s))!=no_slash(lnk_target_s)) {
-				unlnk  ( no_slash(std_dir_s) , {.dir_ok=true}         ) ;
-				sym_lnk( no_slash(std_dir_s) , no_slash(lnk_target_s) ) ;
+			::string lnk_target = no_slash(mk_rel_s( local_admin_dir_s , dir_name_s(std_dir_s) )) ;
+			::string std_dir    = no_slash(std_dir_s   )                                          ;
+			if (read_lnk(std_dir)!=lnk_target) {
+				unlnk  ( std_dir , {.dir_ok=true} ) ;
+				sym_lnk( std_dir , lnk_target     ) ;
 			}
 		}
 		mk_dir_s( local_admin_dir_s , {.force=true} ) ;

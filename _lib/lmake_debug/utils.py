@@ -31,6 +31,7 @@ class Job :
 
 	auto_mkdir      = False
 	chroot_dir      = None
+	chroot_user     = None
 	cwd             = None
 	lmake_root      = None
 	lmake_view      = None
@@ -50,7 +51,7 @@ class Job :
 		for k,v in attrs.items() : setattr(self,k,v)
 		self.env['SEQUENCE_ID'] = str(0)
 		self.env['SMALL_ID'   ] = str(0)
-		self.keep_env           = (*self.keep_env,'DISPLAY','LMAKE_HOME','LMAKE_SHLVL','XAUTHORITY','XDG_RUNTIME_DIR')
+		self.keep_env           = (*self.keep_env,'DISPLAY','XAUTHORITY','XDG_RUNTIME_DIR')
 		#
 		assert not ( self.is_python and self.simple_cmd_line ) , "cannot handle simple cmd with python interpreter"
 
@@ -114,14 +115,12 @@ class Job :
 		if res : res = '#\n' + res
 		return res
 
-	def starter(self,*args,enter=False,**kwds) :
+	def starter( self , *args , **kwds ) :
 		autodep = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/lautodep'
 		#
 		preamble = '#\n'
-		if enter : preamble +=  'export LMAKE_HOME="$HOME"\n'                            # use specified value in job, but original one in entered shell
-		if enter : preamble +=  'export LMAKE_SHLVL="${SHLVL:-1}"\n'                     # .
-		if True  : preamble += f'export LMAKE_DEBUG_KEY={mk_shell_str(self.key)}\n'
-		if True  : preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
+		preamble += f'export LMAKE_DEBUG_KEY={mk_shell_str(self.key)}\n'
+		preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
 		#
 		keep_env = list(self.keep_env)
 		if self.env : preamble += '#\n'
@@ -135,6 +134,7 @@ class Job :
 		if True             :          res =         res+mk_shell_str(autodep)
 		if self.auto_mkdir  : simple , res = False , res+ ' -a'
 		if self.chroot_dir  : simple , res = False , res+f' -c{mk_shell_str(     self.chroot_dir            )}'
+		if self.chroot_user :          res =         res+f' -C{mk_shell_str(     self.chroot_user           )}'
 		if self.cwd         : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
 		if self.readdir_ok  :          res =         res+ ' -D'
 		if True             :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
@@ -156,8 +156,8 @@ class Job :
 		if self.stdin  : res += f' <{mk_shell_str(self.stdin )}'
 		if self.stdout : res += f' >{mk_shell_str(self.stdout)}'
 		#
-		if simple : res = '#\n# following line can be suppressed to get lautodep out\n' + res
-		else      : res = '#\n'                                                         + res
+		if simple : preamble += '#\n# following line can be suppressed to get lautodep out\n'
+		else      : preamble += '#\n'
 		#
 		return preamble,res
 
@@ -169,23 +169,12 @@ class Job :
 		'''[1:])                                   # strip initial \n
 		return res
 
-	def gen_shell_cmd( self , trace=False , enter=False , **kwds ) :
+	def gen_shell_cmd( self , trace=False , **kwds ) :
 		res = ''
-		if True            : res += self.gen_shebang()
-		if trace           : res += '#\n'
-		if trace and enter : res += '(\n'
-		if trace           : res += 'set -x\n'
-		if True            : res += add_nl(self.cmd)
-		if trace and enter : res += ')\n'
-		if enter           :
-			res += textwrap.dedent(f'''
-				#
-				export HOME="$LMAKE_HOME"   ; unset LMAKE_HOME
-				export SHLVL="$LMAKE_SHLVL" ; unset LMAKE_SHLVL
-				[ "$LMAKE_DEBUG_STDIN"  ] && exec <"$LMAKE_DEBUG_STDIN"
-				[ "$LMAKE_DEBUG_STDOUT" ] && exec >"$LMAKE_DEBUG_STDOUT"
-				exec {self.interpreter_line()} -i
-			'''[1:])                              # strip initial \n
+		if True  : res += self.gen_shebang()
+		if trace : res += '#\n'
+		if trace : res += 'set -x\n'
+		if True  : res += add_nl(self.cmd)
 		return res
 
 	def gen_py_cmd( self , runner=None , **kwds ) :
@@ -223,22 +212,9 @@ class Job :
 		preamble,line = self.starter( *(mk_shell_str(c) for c in self.cmd_line()) , **kwds )
 		return preamble+line+'\n'                                                            # do not use exec to launch lautodep so as to keep stdin & stdout open
 
-	def gen_lmake_env(self,enter=False,**kwds) :
-		res = ''
-		if enter :
-			def add_env(key,val) :
-				nonlocal res
-				res += f'export {key}={val}\n'
-				self.keep_env.append(key)
-			if self.stdin  : add_env('LMAKE_DEBUG_STDIN' ,'/proc/$$/fd/0')
-			if self.stdout : add_env('LMAKE_DEBUG_STDOUT','/proc/$$/fd/1')
-		if res : res = '#\n'+res
-		return res
-
-	def gen_preamble(self,**kwds) :
-		res  = self.gen_init       (      )
-		res += self.gen_pre_actions(      )
-		res += self.gen_lmake_env  (**kwds)
+	def gen_preamble(self) :
+		res  = self.gen_init       ()
+		res += self.gen_pre_actions()
 		return res
 
 	def write_cmd(self,**kwds) :
@@ -250,6 +226,6 @@ class Job :
 
 	def gen_script(self,**kwds) :
 		if not self.simple_cmd_line : self.write_cmd(**kwds)
-		res  = self.gen_preamble  (**kwds)
+		res  = self.gen_preamble  (      )
 		res += self.gen_start_line(**kwds)
 		return res

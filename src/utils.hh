@@ -211,12 +211,26 @@ template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& p
 template<class T> requires(IsOneOf<T,::vector_s,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&                               , bool empty_ok=true ) ;
 template<class T> requires(IsOneOf<T,::vector_s,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos=::ref(size_t()) , bool empty_ok=true ) ;
 
-inline void     set_nl      (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
-inline void     set_no_nl   (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
-inline ::string ensure_nl   (::string     && txt) { set_nl   (txt) ; return txt ;                    }
-inline ::string ensure_no_nl(::string     && txt) { set_no_nl(txt) ; return txt ;                    }
-inline ::string ensure_nl   (::string const& txt) { return ensure_nl   (::copy(txt)) ;               }
-inline ::string ensure_no_nl(::string const& txt) { return ensure_no_nl(::copy(txt)) ;               }
+inline void     add_nl (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
+inline void     rm_nl  (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
+inline ::string with_nl(::string     && txt) { add_nl(txt) ; return txt ;                       }
+inline ::string no_nl  (::string     && txt) { rm_nl (txt) ; return txt ;                       }
+inline ::string with_nl(::string const& txt) { return with_nl(::copy(txt)) ;                    }
+inline ::string no_nl  (::string const& txt) { return no_nl  (::copy(txt)) ;                    }
+
+inline void add_slash(::string& file) {
+	if      (!file           ) {}
+	else if (file=="."       ) file  = {}  ;
+	else if (file.back()!='/') file += '/' ;
+}
+inline void rm_slash(::string& file) {
+	if      ( !file                              ) file = "."s     ; // XXX/ : gcc-12 would find a false positive warning if using "." instead of "."s
+	else if ( file.back()=='/' && file.size()!=1 ) file.pop_back() ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
+}
+inline ::string with_slash(::string     && txt) { add_slash(txt) ; return txt ;    }
+inline ::string no_slash  (::string     && txt) { rm_slash (txt) ; return txt ;    }
+inline ::string with_slash(::string const& txt) { return with_slash(::copy(txt)) ; }
+inline ::string no_slash  (::string const& txt) { return no_slash  (::copy(txt)) ; }
 
 template<char C='\t',size_t N=1> ::string indent( ::string const& s , size_t i=1 ) {
 	::string res ;                   res.reserve(s.size()+N*(s.size()>>4)) ;         // anticipate lines of size 16, this is a reasonable pessimistic guess (as overflow is expensive)
@@ -514,33 +528,6 @@ private :
 // Fd
 // necessary here in utils.hh, so cannot be put in higher level include such as fd.hh
 //
-
-inline ::string with_slash(::string&& path) {
-	if (!path           ) return {}           ;
-	if (path=="."       ) return {}           ;
-	if (path.back()!='/') path += '/'         ;
-	/**/                  return ::move(path) ;
-}
-inline ::string no_slash(::string&& path) {
-	if ( !path                              ) return "."          ;
-	if ( path.back()=='/' && path.size()!=1 ) path.pop_back()     ;                 // special case '/' as this is the usual convention : no / at the end of dirs, except for /
-	/**/                                      return ::move(path) ;
-}
-inline ::string with_slash(::string const& path) {
-	if (!path           ) return {}       ;
-	if (path=="."       ) return {}       ;
-	if (path.back()!='/') return path+'/' ;
-	/**/                  return path     ;
-}
-inline ::string no_slash(::string const& path) {
-	if ( !path                              ) return "."                          ;
-	if ( path.back()=='/' && path.size()!=1 ) return path.substr(0,path.size()-1) ; // special case '/' as this is the usual convention : no / at the end of dirs, except for /
-	/**/                                      return path                         ;
-}
-inline ::string const& no_empty_s(::string const& dir_s) {
-	if (+dir_s)                                  return dir_s ;
-	else        { static ::string dot_s = "./" ; return dot_s ; }
-}
 
 struct NfsGuard ;
 //
@@ -973,7 +960,7 @@ template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<
 }                                                                                                                             // END_OF_NO_COV
 
 template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
-	Fd::Stderr.write(ensure_nl(cat(args...))) ;
+	Fd::Stderr.write(cat(args...,add_nl)) ;
 	::std::exit(+rc) ;
 }
 

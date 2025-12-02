@@ -76,14 +76,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* protect against using autodep='ld_audit' when executing in a chroot that does not support it
 * improve versions
 	- use small ids through a manually handled association small id <-> computed crc
 	- provide versions for cache, repo, and job exec
 	- check job exec versions when using a different lmake for job exec
-* clean up with_slash/no_slash/ensure_nl etc. to unify slash and nl
-	- provide in place and non-in place for nl and slash
-	- use same vocabulary
-	- use in place func in cat to improve perf and allow use of throw_if/throw_unless
 * clean up FileInfo and FileSig and FileTag
 	- mimic Crc : !x means x has not been computed, not that file does not exist
 	- define equivalent when seen from lmake, == staying strict equality
@@ -131,9 +128,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * add flags to chroot_dir
-	- allow /etc/passwd and /etc/group to be overwritten (and /etc/nsswitch.conf checked/overwritten to ensure passwd entry contains files)
-	- 3 flags : nothing, overwrite (user and root), merge (ensure user is present, merge with existing entries)
-	- ordered by decrease perf and increase versatility
+	- implement action merge
 * add ldebug -kE
 	- split -ke into 2 : a comfortable and a strict case
 	- in comfortable (-ke), shell is the one of the user, with -i, HOME is user HOME, ideally is a new window.
@@ -304,6 +299,7 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
+- test chroot action overwrite
 * test codec errors
 	- including non existent codec files
 * test system_tag

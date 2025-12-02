@@ -237,7 +237,7 @@ namespace Backends::Slurm {
 		JobDead :
 			if ( se.verbose && +info.first ) {     // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
-				if (+stderr) info.first <<set_nl<< stderr ;
+				if (+stderr) info.first <<add_nl<< stderr ;
 			}
 			return { info.first , info.second!=No } ;
 		}
@@ -247,7 +247,7 @@ namespace Backends::Slurm {
 			//
 			if ( se.verbose && +info.first ) {     // /!\ only read stderr when something to say as what appears to be a filesystem bug (seen with ceph) sometimes blocks !
 				::string stderr = read_stderr(j) ;
-				if (+stderr) info.first <<set_nl<< stderr ;
+				if (+stderr) info.first <<add_nl<< stderr ;
 			}
 			if (info.second==Yes) return { info.first , HeartbeatState::Lost } ;
 			else                  return { info.first , HeartbeatState::Err  } ;

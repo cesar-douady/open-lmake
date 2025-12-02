@@ -180,6 +180,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#   auto_mkdir          = False                        # auto mkdir dir in case of chdir</span>
 <span class="c1">#   backend             = &#39;local&#39;                      # may be set anywhere in the inheritance hierarchy if execution must be remote</span>
 <span class="c1">#   chroot_dir          = &#39;/&#39;                          # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)</span>
+<span class="c1">#   chroot_action       = None                         # action to handle user when chroot to chroot_dir, one of : None or &#39;none&#39;, &#39;overwrite&#39;, &#39;merge&#39;</span>
 <span class="c1">#   cache               = None                         # cache used to store results for this rule. None means no caching</span>
 <span class="c1">#   cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions</span>
 <span class="c1">#   compression         = None                         # compression to use when caching :</span>

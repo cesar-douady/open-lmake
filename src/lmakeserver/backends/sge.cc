@@ -122,16 +122,16 @@ namespace Backends::Sge {
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
-						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash               (v)  ; continue ; } break ;
-						case 'c' : if (k=="cell"             ) { sge_cell          =                           v   ; continue ; }
-						/**/       if (k=="cluster"          ) { sge_cluster       =                           v   ; continue ; }
-						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                           v   ; continue ; } break ;
-						case 'd' : if (k=="default_prio"     ) { dflt_prio         = from_string<int16_t >    (v)  ; continue ; } break ;
-						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                           v   ; continue ; } break ;
-						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>    (v)  ; continue ; } break ;
-						case 'r' : if (k=="repo_key"         ) { repo_key          =                           v   ; continue ; }
-						/**/       if (k=="root"             ) { sge_root_s        = with_slash               (v)  ; continue ; } break ;
-						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                           v   ; continue ; } break ;
+						case 'b' : if (k=="bin"              ) { sge_bin_s         = with_slash           (v) ; continue ; } break ;
+						case 'c' : if (k=="cell"             ) { sge_cell          =                       v  ; continue ; }
+						/**/       if (k=="cluster"          ) { sge_cluster       =                       v  ; continue ; }
+						/**/       if (k=="cpu_resource"     ) { cpu_rsrc          =                       v  ; continue ; } break ;
+						case 'd' : if (k=="default_prio"     ) { dflt_prio         = from_string<int16_t >(v) ; continue ; } break ;
+						case 'm' : if (k=="mem_resource"     ) { mem_rsrc          =                       v  ; continue ; } break ;
+						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs = from_string<uint32_t>(v) ; continue ; } break ;
+						case 'r' : if (k=="repo_key"         ) { repo_key          =                       v  ; continue ; }
+						/**/       if (k=="root"             ) { sge_root_s        = with_slash           (v) ; continue ; } break ;
+						case 't' : if (k=="tmp_resource"     ) { tmp_rsrc          =                       v  ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "    ,k+": ",v) ; }
 				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry : ",k       ) ; }
@@ -140,9 +140,9 @@ namespace Backends::Sge {
 			throw_unless( +sge_root_s , "must specify root to configure SGE") ;
 			env = env_ ;
 			_sge_env_vec.clear() ;
-			/**/              _sge_env_vec.push_back("SGE_ROOT="   +no_slash(sge_root_s )) ;
-			if (+sge_cell   ) _sge_env_vec.push_back("SGE_CELL="   +         sge_cell    ) ;
-			if (+sge_cluster) _sge_env_vec.push_back("SGE_CLUSTER="+         sge_cluster ) ;
+			/**/              _sge_env_vec.push_back(cat("SGE_ROOT="   ,sge_root_s,rm_slash)) ;
+			if (+sge_cell   ) _sge_env_vec.push_back(cat("SGE_CELL="   ,sge_cell           )) ;
+			if (+sge_cluster) _sge_env_vec.push_back(cat("SGE_CLUSTER=",sge_cluster        )) ;
 			_sge_env.reset(new const char*[_sge_env_vec.size()+1]) ;
 			{	size_t i = 0 ;
 				for( ::string const& kv : _sge_env_vec ) _sge_env[i++] = kv.c_str() ;

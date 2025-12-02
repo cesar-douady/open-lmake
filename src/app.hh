@@ -104,7 +104,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 	::string exe_name = Disk::base_name(exe_path) ;
 	bool     has_arg  = false                     ; for( Flag e : iota(All<Flag>) ) if (+flags[+e]) has_arg |= flags[+e]->has_arg ;
 	//
-	::string err_msg = ensure_nl(msg) ;
+	::string err_msg = with_nl(msg) ;
 	//
 	/**/             err_msg <<      exe_name                                                                                          ;
 	if (+sub_option) err_msg <<' '<< sub_option                                                                                        ;
@@ -127,8 +127,8 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 			if ( has_dflt_key && !k ) continue ;                                         // default key line is output separately above
 			if ( !keys[+k]          ) continue ;
 			::string option { snake(k) } ; for( char& c : option ) if (c=='_') c = '-' ;
-			if (keys[+k]->short_name) err_msg << '-'<<keys[+k]->short_name<<" or --"<<widen(option,wk)<<" : "<<keys[+k]->doc<<set_nl ;
-			else                      err_msg << ' '<<' '                 <<"    --"<<widen(option,wk)<<" : "<<keys[+k]->doc<<set_nl ;
+			if (keys[+k]->short_name) err_msg << '-'<<keys[+k]->short_name<<" or --"<<widen(option,wk)<<" : "<<keys[+k]->doc<<add_nl ;
+			else                      err_msg << ' '<<' '                 <<"    --"<<widen(option,wk)<<" : "<<keys[+k]->doc<<add_nl ;
 		}
 	}
 	//
@@ -142,7 +142,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 			else                            err_msg << ' '<<' '                  <<"    --"<<widen(flag,wf) ;
 			if      (flags[+f]->has_arg   ) err_msg << " <arg>"                                             ;
 			else if (has_arg              ) err_msg << "      "                                             ;
-			/**/                            err_msg << " : "<<flags[+f]->doc<<set_nl                        ;
+			/**/                            err_msg << " : "<<flags[+f]->doc<<add_nl                        ;
 		}
 	}
 	err_msg << "consider :"                                                   <<'\n' ;

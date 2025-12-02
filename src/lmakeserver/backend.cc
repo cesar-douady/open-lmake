@@ -5,6 +5,9 @@
 
 #include "core.hh" // /!\ must be first to include Python.h first
 
+#include <pwd.h>
+#include <grp.h>
+
 using namespace Caches ;
 using namespace Disk   ;
 using namespace Py     ;
@@ -361,7 +364,7 @@ namespace Backends {
 				start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps                                           ) ; step = 2 ;
 				cmd               = rd.cmd              .eval(/*inout*/start_rsrcs_attrs,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
 				//
-				pre_actions = job->pre_actions( match , no_incremental , true/*mark_target_dirs*/ ) ; step = 4 ;
+				pre_actions = job->pre_actions( match , no_incremental , true/*mark_target_dirs*/ ) ; step = 5 ;
 				for( auto const& [t,a] : pre_actions )
 					switch (a.tag) {
 						case FileActionTag::UnlinkWarning  :
@@ -369,19 +372,19 @@ namespace Backends {
 					DN}
 			} catch (::string const& e) { throw MsgStderr{.stderr=e} ; }
 		} catch (MsgStderr const& e) {
-			start_msg_err.msg    <<set_nl<< e.msg    ;
-			start_msg_err.stderr <<set_nl<< e.stderr ;
+			start_msg_err.msg    <<add_nl<< e.msg    ;
+			start_msg_err.stderr <<add_nl<< e.stderr ;
 			switch (step) { //!                                                     using_static
-				case 0 : start_msg_err.msg <<set_nl<< rd.start_cmd_attrs  .s_exc_msg(false     ) ; break ;
-				case 1 : start_msg_err.msg <<set_nl<< rd.cmd              .s_exc_msg(false     ) ; break ;
-				case 2 : start_msg_err.msg <<set_nl<< rd.start_rsrcs_attrs.s_exc_msg(false     ) ; break ;
-				case 3 : start_msg_err.msg <<set_nl<< "cannot wash targets"                      ; break ;
+				case 0 : start_msg_err.msg <<add_nl<< rd.start_cmd_attrs  .s_exc_msg(false     ) ; break ;
+				case 1 : start_msg_err.msg <<add_nl<< rd.cmd              .s_exc_msg(false     ) ; break ;
+				case 2 : start_msg_err.msg <<add_nl<< rd.start_rsrcs_attrs.s_exc_msg(false     ) ; break ;
+				case 3 : start_msg_err.msg <<add_nl<< "cannot wash targets"                      ; break ;
 			DF}                                                                                                                          // NO_COV
 		}
 		trace("deps",step,deps) ;
 		// record as much info as possible in reply
 		switch (step) {
-			case 4 :
+			case 5 :
 				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
 				try {
 					try                       { start_ancillary_attrs = rd.start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
@@ -389,7 +392,7 @@ namespace Backends {
 				} catch (MsgStderr const& e) {
 					start_msg_err         = e                             ;
 					start_ancillary_attrs = rd.start_ancillary_attrs.spec ;
-					jsrr.msg <<set_nl<< rd.start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
+					jsrr.msg <<add_nl<< rd.start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
 				}
 				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
 				#if HAS_ZSTD
@@ -400,13 +403,22 @@ namespace Backends {
 			[[fallthrough]] ;
 			case 3 :
 			case 2 :
-				reply.chroot_dir_s     = start_rsrcs_attrs.chroot_dir_s ;
-				reply.phy_lmake_root_s = start_rsrcs_attrs.lmake_root_s ;
-				reply.method           = start_rsrcs_attrs.method       ;
-				reply.timeout          = start_rsrcs_attrs.timeout      ;
-				reply.use_script       = start_rsrcs_attrs.use_script   ;
+				reply.chroot_info.dir_s = start_rsrcs_attrs.chroot_dir_s ; if (+reply.chroot_info) reply.chroot_info.action = start_rsrcs_attrs.chroot_action ;
+				reply.phy_lmake_root_s  = start_rsrcs_attrs.lmake_root_s ;
+				reply.method            = start_rsrcs_attrs.method       ;
+				reply.timeout           = start_rsrcs_attrs.timeout      ;
+				reply.use_script        = start_rsrcs_attrs.use_script   ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
+				//
+				if (+reply.chroot_info.action) {
+					static ::string s_user  = []()->const char* { if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) return pw->pw_name ; } ; return "" ; }() ;
+					static ::string s_group = []()->const char* { if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) return gr->gr_name ; } ; return "" ; }() ;
+					if (!s_user ) { start_msg_err.msg <<add_nl<< "cannot find user name for " <<::getuid() ; step = ::min(step,4) ; }
+					if (!s_group) { start_msg_err.msg <<add_nl<< "cannot find group name for "<<::getgid() ; step = ::min(step,4) ; }
+					reply.chroot_info.user  = s_user  ;
+					reply.chroot_info.group = s_group ;
+				}
 			[[fallthrough]] ;
 			case 1 :
 				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;
@@ -489,9 +501,9 @@ namespace Backends {
 				//
 				SWEAR( entry.started==Maybe , job,entry.started,entry.start_date ) ; // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvv
-				jis.pre_start.msg <<set_nl<< s_start(tag,+job) ;
+				jis.pre_start.msg <<add_nl<< s_start(tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^
-				if ( step<4 || !deps_done ) {
+				if ( step<5 || !deps_done ) {
 					Status status = Status::EarlyErr ;
 					if (!deps_done) {
 						status        = Status::EarlyChkDeps ;
@@ -638,8 +650,8 @@ namespace Backends {
 			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if ( !ok && is_lost(digest.status) && is_ok(digest.status)!=No )
 				digest.status = digest.status==Status::EarlyLost ? Status::EarlyLostErr : Status::LateLostErr ;
-			if      (+msg                           ) { jerr.msg_stderr.msg <<set_nl<< msg                      ; digest.has_msg_stderr = true ; }
-			else if (digest.status==Status::LateLost) { jerr.msg_stderr.msg <<set_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
+			if      (+msg                           ) { jerr.msg_stderr.msg <<add_nl<< msg                      ; digest.has_msg_stderr = true ; }
+			else if (digest.status==Status::LateLost) { jerr.msg_stderr.msg <<add_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
 			_s_start_tab_erase(it) ;
 		}
 		trace("digest",digest) ;
@@ -816,7 +828,7 @@ namespace Backends {
 				throw_if( dyn && was_ready , "cannot dynamically suppress backend : ",e ) ;
 				if (+e) {
 					be->config_err = e ;
-					if (first_time) Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",ensure_nl(indent(e)))) ; // avoid annoying user with warnings they are already aware of
+					if (first_time) Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",indent(e),add_nl)) ; // avoid annoying user with warnings they are already aware of
 					trace("err",t,e) ;
 				} else {
 					be->config_err = "no backend" ;

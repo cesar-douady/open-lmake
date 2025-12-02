@@ -130,7 +130,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} catch (::string const& e) {                                      // START_OF_NO_COV defensive programming
 			Lock lock{*msg_mutex} ;
-			*msg <<set_nl<< "while computing checksum for "<<e<<" : "<<e ;
+			*msg <<add_nl<< "while computing checksum for "<<e<<" : "<<e ;
 		}                                                                  // END_OF_NO_COV
 		e.second.sig       = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
@@ -138,7 +138,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,fi,e.first) ;
 		if (!e.second.crc.valid()) {
 			Lock lock{*msg_mutex} ;
-			*msg <<set_nl<< "cannot compute checksum for "<<e.first ;
+			*msg <<add_nl<< "cannot compute checksum for "<<e.first ;
 		}
 	}
 	trace("done",cnt) ;
@@ -190,7 +190,7 @@ int main( int argc , char* argv[] ) {
 	//
 	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                               // START_OF_NO_COV defensive programming
 		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                      // if !g_start_info, server ask us to give up
-		end_report.msg_stderr.msg << "cannot chdir to root : "<<no_slash(phy_repo_root_s) ;
+		end_report.msg_stderr.msg << "cannot chdir to root : "<<phy_repo_root_s<<rm_slash ;
 		goto End ;
 	}                                                                                                        // END_OF_NO_COV
 	g_exec_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
@@ -211,7 +211,7 @@ int main( int argc , char* argv[] ) {
 		::vector_s washed_files ;
 		//
 		try {
-			end_report.msg_stderr.msg += ensure_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
+			end_report.msg_stderr.msg += with_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
 		} catch (::string const& e) {                                                                        // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
@@ -233,9 +233,9 @@ int main( int argc , char* argv[] ) {
 					// such a situation cannot occur with seq id
 					if      (it==g_start_info.env.end()         ) {}
 					else if (!it->second                        ) {}
-					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << with_slash(it->second       )<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					else if (has_env("TMPDIR",false/*empty_ok*/)) end_report.phy_tmp_dir_s << with_slash(get_env("TMPDIR"))<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"auto_tmp/"             <<g_seq_id<<'/' ;
+					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << it->second       <<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
+					else if (has_env("TMPDIR",false/*empty_ok*/)) end_report.phy_tmp_dir_s << get_env("TMPDIR")<<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
+					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"auto_tmp/"            <<g_seq_id<<'/' ;
 					else if (!is_abs_s(end_report.phy_tmp_dir_s)) {
 						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
 						goto End ;
@@ -277,7 +277,7 @@ int main( int argc , char* argv[] ) {
 			}
 			if (entered) {
 				for( ::string& d_s : enter_accesses ) {
-					RealPath::SolveReport sr = real_path.solve(no_slash(d_s),true/*no_follow*/) ;
+					RealPath::SolveReport sr = real_path.solve(no_slash(::move(d_s)),true/*no_follow*/) ;
 					for( ::string& l : sr.lnks ) {
 						FileInfo fi { l } ;                                                                                                  // capture before l is moved
 						g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Lnk ) ;

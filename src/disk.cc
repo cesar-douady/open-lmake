@@ -187,11 +187,14 @@ namespace Disk {
 
 	void unlnk_inside_s( FileRef dir_s , _UnlnkAction action ) {
 		if (!action.abs_ok) SWEAR( is_lcl_s(dir_s.file) , dir_s ) ; // unless certain, prevent accidental non-local unlinks
-		if (action.force) [[maybe_unused]] int _ = ::fchmodat( dir_s.at , no_empty_s(dir_s.file).c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , 0 ) ; // best effort
+		if (action.force) {
+			if (+dir_s.file) [[maybe_unused]] int _ = ::fchmodat( dir_s.at , dir_s.file.c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , AT_SYMLINK_NOFOLLOW ) ; // best effort
+			else             [[maybe_unused]] int _ = ::fchmod  ( dir_s.at ,                      S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH                       ) ; // .
+		}
 		::string e ;
 		action.dir_ok = true ;
 		for( ::string const& f : lst_dir_s(dir_s,dir_s.file,action.nfs_guard) ) {
-			try                        { unlnk({dir_s.at,f},action) ; }                                                                                    // remove all removable files
+			try                        { unlnk({dir_s.at,f},action) ; }                                                                                             // remove all removable files
 			catch (::string const& e2) { e = e2 ;                     }
 		}
 		if (+e) throw e ;
@@ -281,7 +284,7 @@ namespace Disk {
 		const char* msg     = nullptr                   ;
 		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                        // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string const& d_s = to_mk_s.back() ;                                               // parents are after children in to_mk
+			::string& d_s = to_mk_s.back() ;                                                     // parents are after children in to_mk
 			if (action.nfs_guard                    ) action.nfs_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),0777/*mod*/)==0) {
 				if (+action.perm_ext) {
@@ -293,7 +296,7 @@ namespace Disk {
 					//
 					if (action.nfs_guard) action.nfs_guard->access_dir_s({dir_s.at,d_s}) ;
 					FileStat st ;
-					if ( ::fstatat(dir_s.at,d_s.c_str(),&st,0/*flags*/)!=0 ) throw cat("cannot stat (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(d_s))) ;
+					if ( ::fstatat(dir_s.at,d_s.c_str(),&st,0/*flags*/)!=0 ) throw cat("cannot stat (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(::move(d_s)))) ;
 					//
 					mode_t usr_mod = (st.st_mode>>6)&07 ;
 					mode_t new_mod = st.st_mode         ;
@@ -302,7 +305,7 @@ namespace Disk {
 						case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
 					DN}
 					if (new_mod!=st.st_mode)
-						if ( ::fchmodat(dir_s.at,d_s.c_str(),new_mod,0/*flags*/)!=0 ) throw cat("cannot chmod (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(d_s))) ;
+						if ( ::fchmodat(dir_s.at,d_s.c_str(),new_mod,0/*flags*/)!=0 ) throw cat("cannot chmod (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(::move(d_s)))) ;
 				}
 			PermOk :
 				pos++ ;
@@ -316,13 +319,13 @@ namespace Disk {
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;         // retry after parent is created
+					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(::move(d_s))) ; // retry after parent is created
 					else              { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
 					msg = "cannot create dir" ;
 				Bad :
-					throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(d_s))) ;
+					throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(::move(d_s)))) ;
 			}
 		}
 		return pos ;

@@ -106,6 +106,7 @@ Show various info about a job, as it last ran (unless stated otherwise):
 	Bullet B(scheduling)    : the ETA of the lmake command, a B(-), the duration from start-of-job to end-of-lmake command along the longest dep path as estimated at run time (known as the pressure).
 		Jobs are scheduled by giving higher priority to nearer ETA, then to higher pressure.
 	Bullet B(chroot_dir)    : the chroot dir in which job ran.
+	Bullet B(chroot_action) : the chroot action used to run job.
 	Bullet B(lmake_root)    : the open-lmake installation dir used by the job.
 	Bullet B(lmake_view)    : the name under which the lmake installation dir was seen by job.
 	Bullet B(readdir_ok)    : true if C(readdir,3) is allowed on local not B(ignore)d nor B(incremental) dirs.

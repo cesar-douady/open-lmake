@@ -252,10 +252,10 @@ namespace Engine {
 			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"  ) ;
 			Attrs::acquire_from_dct( os_info                , py_dct , "os_info"      ) ;
 			Attrs::acquire_from_dct( os_info_file           , py_dct , "os_info_file" ) ;
-			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"   ) ; if (+job_space.lmake_view_s) job_space.lmake_view_s = with_slash(job_space.lmake_view_s) ;
-			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s ) job_space.repo_view_s  = with_slash(job_space.repo_view_s ) ;
-			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  ) job_space.tmp_view_s   = with_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ; for( auto& [view_s,_] : job_space.views ) view_s = with_slash(::move(view_s)) ;
+			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"   ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  )              add_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"        ) ; for( auto& [view_s,_] : job_space.views ) add_slash(view_s                ) ;
 			//
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
@@ -284,27 +284,29 @@ namespace Engine {
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void update( Py::Dict const& py_dct ) {
-			dyn_env = false ;                                                                      // update solves dynamic val
-			Attrs::acquire_from_dct( method       , py_dct , "autodep"                           ) ;
-			Attrs::acquire_from_dct( use_script   , py_dct , "use_script"                        ) ;
-			Attrs::acquire_from_dct( timeout      , py_dct , "timeout"    , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( chroot_dir_s , py_dct , "chroot_dir"                        ) ; if (+chroot_dir_s) chroot_dir_s = with_slash(chroot_dir_s) ;
-			Attrs::acquire_from_dct( lmake_root_s , py_dct , "lmake_root"                        ) ; if (+lmake_root_s) lmake_root_s = with_slash(lmake_root_s) ;
-			Attrs::acquire_env     ( env          , py_dct , "env"                               ) ;
-			::sort(env) ;                                                                          // stabilize rsrcs crc
+			dyn_env = false ;                                                                            // update solves dynamic val
+			Attrs::acquire_from_dct( method        , py_dct , "autodep"                              ) ;
+			Attrs::acquire_from_dct( use_script    , py_dct , "use_script"                           ) ;
+			Attrs::acquire_from_dct( timeout       , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( chroot_dir_s  , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
+			Attrs::acquire_from_dct( chroot_action , py_dct , "chroot_action"                        ) ;
+			Attrs::acquire_from_dct( lmake_root_s  , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
+			Attrs::acquire_env     ( env           , py_dct , "env"                                  ) ;
+			::sort(env) ;                                                                                // stabilize rsrcs crc
 		}
 		void mk_dyn(::uset_s const& dyn_keys) {
 			if (dyn_keys.contains("env")) dyn_env = true ;
 		}
 		// data
 		// START_OF_VERSIONING
-		bool          dyn_env      = false               ;
-		AutodepMethod method       = AutodepMethod::Dflt ;
-		bool          use_script   = false               ;
-		Time::Delay   timeout      ;                                                                 // if 0 <=> no timeout, maximum time allocated to job execution in s
-		::string      chroot_dir_s ;
-		::string      lmake_root_s ;
-		::vmap_ss     env          ;
+		bool          dyn_env       = false               ;
+		AutodepMethod method        = AutodepMethod::Dflt ;
+		bool          use_script    = false               ;
+		Time::Delay   timeout       ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
+		::string      chroot_dir_s  ;
+		ChrootAction  chroot_action = {}                  ;
+		::string      lmake_root_s  ;
+		::vmap_ss     env           ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -523,7 +525,7 @@ namespace Engine {
 		::span<::pair_ss const> static_stems() const { return ::span<::pair_ss const>(stems).subspan(0,n_static_stems) ; }
 		//
 		::string user_name() const {
-			::string res = name ; if (+sub_repo_s) res <<':'<< no_slash(sub_repo_s) ;
+			::string res = name ; if (+sub_repo_s) res <<':'<< sub_repo_s<<rm_slash ;
 			return mk_printable(res) ;
 		}
 		Disk::FileNameIdx job_sfx_len(                       ) const ;
@@ -718,7 +720,11 @@ namespace Engine {
 
 		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
 			if (!py_src          ) {                 return false/*updated*/ ; }
-			if (*py_src==Py::None) { dst = E::Dflt ; return true /*updated*/ ; }
+			if (*py_src==Py::None) {
+				if constexpr (requires(){E::Dflt;}) dst = E::Dflt ;
+				else                                dst = {}      ;
+				return true /*updated*/ ;
+			}
 			//
 			dst = mk_enum<E>(py_src->as_a<Py::Str>()) ;
 			return true ;

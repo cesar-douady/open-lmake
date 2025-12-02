@@ -5,6 +5,9 @@
 
 #include "py.hh" // /!\ must be first because Python.h must be first
 
+#include <pwd.h>
+#include <grp.h>
+
 #include "app.hh"
 #include "disk.hh"
 #include "time.hh"
@@ -20,6 +23,7 @@ enum class CmdFlag : uint8_t {
 	AutoMkdir
 ,	AutodepMethod
 ,	ChrootDir
+,	ChrootAction
 ,	Cwd
 ,	Env
 ,	KeepTmp
@@ -98,6 +102,7 @@ int main( int argc , char* argv[] ) {
 		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                       } }
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }
+	,	{ CmdFlag::ChrootAction  , { .short_name='C' , .has_arg=true  , .doc="action to handle user when chroot, can be one of None or 'none', 'overwrite', 'merge'"                     } }
 	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                         } }
 	,	{ CmdFlag::ReaddirOk     , { .short_name='D' , .has_arg=false , .doc="allow reading local non-ignored dirs"                                                                      } }
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
@@ -137,7 +142,8 @@ int main( int argc , char* argv[] ) {
 		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        jsrr.key                =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_dir_s       = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_info.dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::ChrootAction ]) jsrr.chroot_info.action = mk_enum<ChrootAction >(cmd_line.flag_args[+CmdFlag::ChrootAction ]) ;
 		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s   = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
 		else                                        jsrr.phy_lmake_root_s   =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
@@ -151,6 +157,11 @@ int main( int argc , char* argv[] ) {
 		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::Env       ]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
+		//
+		if (+jsrr.chroot_info.action) {
+			if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) jsrr.chroot_info.user   = pw->pw_name ; }
+			if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) jsrr.chroot_info.group  = gr->gr_name ; }
+		}
 		//
 		jsrr.enter(
 			/*out  */::ref(::vector_s())

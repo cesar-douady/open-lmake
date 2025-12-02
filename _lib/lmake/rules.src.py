@@ -82,6 +82,7 @@ class Rule(_RuleBase) :
 #	auto_mkdir          = False                        # auto mkdir dir in case of chdir
 #	backend             = 'local'                      # may be set anywhere in the inheritance hierarchy if execution must be remote
 #	chroot_dir          = '/'                          # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)
+#	chroot_action       = None                         # action to handle user when chroot to chroot_dir, one of : None or 'none', 'overwrite', 'merge'
 #	cache               = None                         # cache used to store results for this rule. None means no caching
 #	cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
 #	compression         = None                         # compression to use when caching :

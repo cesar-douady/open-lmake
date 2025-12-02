@@ -69,8 +69,8 @@ namespace Engine {
 							}
 						}
 						if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
-						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",no_slash(sd_s),", consider : ",mk_rel(fstr,*g_repo_root_s)) ;
-						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",no_slash(sd_s),", consider : ",mk_glb(fstr,*g_repo_root_s)) ;
+						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",sd_s,rm_slash,", consider : ",mk_rel(fstr,*g_repo_root_s)) ;
+						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",sd_s,rm_slash,", consider : ",mk_glb(fstr,*g_repo_root_s)) ;
 					}
 					*keep_for_deps = true ;
 					break ;
@@ -551,7 +551,7 @@ namespace Engine {
 	}
 
 	::string DynCmd::eval( StartRsrcsAttrs&/*inout*/ sra , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& sca ) const {
-		Rule     r   = match.rule ;                                                     // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+		Rule     r   = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
 		::string res ;
 		// if script is large (roughly >64k), force use_script to ensure reasonable debug experience and no Linux resources overrun (max 2M for script+env if not use_script)
 		if (!r->is_python) {

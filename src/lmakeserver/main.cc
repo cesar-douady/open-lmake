@@ -64,7 +64,7 @@ static ::pair_s/*msg*/<Rc> _start_server(bool&/*out*/ rescue) { // Maybe means l
 		return { {}/*msg*/ , Rc::BadServer } ;
 	}
 	if (file_mrkr.second) {
-		if (sense_process(file_mrkr.second)) {                       // another server exists on same host
+		if (sense_process(file_mrkr.second)) {                  // another server exists on same host
 			trace("already_existing",file_mrkr) ;
 			return { {}/*msg*/ , Rc::BadServer } ;
 		}
@@ -341,7 +341,7 @@ static bool/*interrupted*/ _engine_loop() {
 						trace(ecr) ;
 						bool ok = true/*garbage*/ ;
 						if ( !ecr.options.flags[ReqFlag::Quiet] && +startup_dir_s )
-							audit( ecr.out_fd , ecr.options , Color::Note , "startup dir : "+no_slash(startup_dir_s) , true/*as_is*/ ) ;
+							audit( ecr.out_fd , ecr.options , Color::Note , cat("startup dir : ",startup_dir_s,rm_slash) , true/*as_is*/ ) ;
 						try                        { ok = g_cmd_tab[+ecr.proc](ecr) ;                                  }
 						catch (::string  const& e) { ok = false ; if (+e) audit(ecr.out_fd,ecr.options,Color::Err,e) ; }
 						try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::Status,ok?Rc::Ok:Rc::Fail) ).send( ecr.out_fd , {}/*key*/ ) ; }
@@ -458,8 +458,8 @@ static bool/*interrupted*/ _engine_loop() {
 int main( int argc , char** argv ) {
 
 	Trace::s_backup_trace = true ;
-	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                                                             // server is always launched at root
-	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside system directory "+no_slash(*g_repo_root_s)) ; // all local files would be seen as simple, defeating autodep
+	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                                                            // server is always launched at root
+	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
 	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
@@ -513,9 +513,9 @@ int main( int argc , char** argv ) {
 	catch(::string     const& e) { rc = { e , Rc::BadState } ;                            }
 	catch(::pair_s<Rc> const& e) { rc = e                    ;                            }
 	//
-	if (+msg         ) Fd::Stderr.write(ensure_nl(msg)) ;
-	if (+rc.second   ) exit( rc.second , rc.first )     ;
-	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)    ;                                // once we have reported we have started, lmake will send us a message to kill us
+	if (+msg         ) Fd::Stderr.write(with_nl(msg)) ;
+	if (+rc.second   ) exit( rc.second , rc.first )   ;
+	if (!_g_is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)  ;                                  // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;

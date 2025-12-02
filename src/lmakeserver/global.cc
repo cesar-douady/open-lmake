@@ -35,19 +35,18 @@ namespace Engine {
 	void _audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& txt , bool as_is , DepDepth lvl , char sep , bool err ) {
 		if (!txt) return ;
 		//
-		::string   report_txt  = color_pfx(ro,c)                              ;
-		if (as_is) report_txt += ensure_no_nl(         txt                  ) ;
-		else       report_txt += ensure_no_nl(localize(txt,ro.startup_dir_s)) ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
-		/**/       report_txt += color_sfx(ro,c)                              ;
-		/**/       report_txt += '\n'                                         ;
+		::string   report_txt  = color_pfx(ro,c)                        ;
+		if (as_is) report_txt <<          txt                   <<rm_nl ;
+		else       report_txt << localize(txt,ro.startup_dir_s) <<rm_nl ; // ensure color suffix is not at start-of-line to avoid indent adding space at end of report
+		/**/       report_txt << color_sfx(ro,c)                <<'\n'  ;
 		//
 		ReqRpcReplyProc proc = err ? ReqRpcReplyProc::Stderr : ReqRpcReplyProc::Stdout ;
 		Lock            lock { _g_audit_mutex }                                        ;
 		try                       { OMsgBuf( ReqRpcReply(proc,_audit_indent(::move(report_txt),lvl,sep)) ).send( out , {}/*key*/ ) ; } // if we lose connection, we cant do much about it
 		catch (::string const& e) { Trace("audit","lost_client",e) ;                                                                 }
 		if (+log)
-			try                       { log.write(_audit_indent(ensure_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }                    // .
-			catch (::string const& e) { Trace("audit","lost_log",e) ;                                             }                    // NO_COV defensive programming
+			try                       { log.write(_audit_indent(with_nl(as_is?txt:localize(txt,{})),lvl,sep)) ; }                      // .
+			catch (::string const& e) { Trace("audit","lost_log",e) ;                                           }                      // NO_COV defensive programming
 	}
 
 	void audit_file( Fd out , ::string&& file ) {

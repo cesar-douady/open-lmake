@@ -16,8 +16,6 @@
 '''
 
 import os
-import os.path as osp
-import pwd
 
 from .utils import Job,mk_shell_str
 
@@ -26,31 +24,10 @@ def gen_script(**kwds) :
 	# we do not want any redirection as we do not execute job
 	job.stdin  = None
 	job.stdout = None
-	# prepare a comfortable interactive environment
-	job.env.pop('HOME' ,None)
-	job.env.pop('SHLVL',None)
-	job.keep_env += ('HOME','SHLVL')
 	#
-	try          : passwd = pwd.getpwuid(os.getuid())
-	except       : passwd = None
-	if passwd    : shell  = passwd.pw_shell
-	else         : shell  = None
-	if not shell : shell  = '/bin/bash'
-	#
-	home = None
-	if job.chroot_dir and passwd :
-		for i in range(100) :
-			home = f"/home_ldebug{i or ''}"
-			if not osp.exists(home) :
-				job.views[home] = passwd.pw_dir
-				break
-		else :
-			assert False,'cannot find a top-level name to mount home dir'
-	#
-	start_preamble,start_line = job.starter(mk_shell_str(shell))
+	start_preamble,start_line = job.starter(*(mk_shell_str(c) for c in job.interpreter))
 	return (
 		job.gen_init()
-	+	( f'export HOME={home}\n' if home else '' )
 	+	start_preamble
 	+	f'exec {start_line}\n' # exec so that SHLVL is incremented once only
 	)

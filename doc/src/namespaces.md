@@ -29,3 +29,11 @@ Namespaces can be used in the following situations :
   In all cases, it can be solved by using the `tmp_view` and copying data back and forth between the repo and the tmp dir.
   Or, more efficient, it can be solved by adequately mapping a logical steady file or dir to a per job physical file or dir (respectively).
 
+
+When entering a `chroot_dir` with [chroot(2)](https://man7.org/linux/man-pages/man2/chroot.2.html), the user and group databases become the one specified in this chroot dir.
+It may not contain entries for the current user, or the network service may not be available in this environment.
+In that case, some actions can be carried out by open-lmake to restore names for the user and its group using the `chroot_action` rule attribute.
+Supported actions are:
+
+- `overwrite`: user name and its associated group name are transported from the native namespace, while losing entries for other users and groups.
+This is light performance wise and can be used without fear for performance.

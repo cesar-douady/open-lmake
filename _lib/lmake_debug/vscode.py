@@ -117,8 +117,7 @@ class Job (utils.Job) :
 		#
 		self.cwd            = ''                       # cwd is handled in vscode config
 		self.autodep_method = 'none'                   # XXX! : fix incompatibilities between lautodep and vscode
-		preamble,line       = self.starter(*call_line)
-		return self.gen_preamble() + preamble + line + '&\n'
+		return self.gen_preamble() + self.gen_start_line(*call_line)
 
 def gen_script(**kwds) :
 	return Job(kwds).gen_script()

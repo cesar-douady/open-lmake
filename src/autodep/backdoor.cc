@@ -347,19 +347,19 @@ namespace Backdoor {
 			throw_unless( sr.file_loc<=FileLoc::Repo , "file ",file,"must be within repo" ) ;
 			if (+sr.accesses) r.report_access( { .comment=Comment::Decode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
 		}
-		::string real      = is_dir ? with_slash(::move(sr.real)) : ::move(sr.real)         ;
-		::string node      = Codec::CodecFile( false/*Encode*/ , real , ctx , code ).name() ;
-		Fd       rfd       = Record::s_repo_root_fd()                                       ;
-		NfsGuard nfs_guard { file_sync }                                                    ;
+		if (is_dir) add_slash(sr.real) ;
+		::string node      = Codec::CodecFile( false/*Encode*/ , sr.real , ctx , code ).name() ;
+		Fd       rfd       = Record::s_repo_root_fd()                                          ;
+		NfsGuard nfs_guard { file_sync }                                                       ;
 		::string res       ;
 		//
 		if (!is_dir) r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{node,{}}} } , true/*force*/ ) ;
 		r.send_report() ;
 	Retry :
 		try {
-			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                         // if node exists, it contains the reply
-		} catch (::string const&) {                                                         // if node does not exist, create a code
-			throw_if( is_dir || _retry_codec(r,{rfd,real},node)!=Yes , "code not found" ) ;
+			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                            // if node exists, it contains the reply
+		} catch (::string const&) {                                                            // if node does not exist, create a code
+			throw_if( is_dir || _retry_codec(r,{rfd,sr.real},node)!=Yes , "code not found" ) ;
 			goto Retry/*BACKWARD*/ ;
 		}
 		return res ;
@@ -388,25 +388,25 @@ namespace Backdoor {
 			throw_unless( sr.file_loc<=FileLoc::Repo , "file ",file,"must be within repo" ) ;
 			if (+sr.accesses) r.report_access( { .comment=Comment::Encode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
 		}
-		::string     real           = is_dir ? with_slash(::move(sr.real)) : ::move(sr.real) ;
-		Crc          crc            { New , val }                                            ;
-		::string     node           = Codec::CodecFile( real , ctx , crc ).name()            ;
-		Fd           rfd            = Record::s_repo_root_fd()                               ;
-		::string     new_codes_file = Codec::CodecFile::s_new_codes_file(real)               ;
-		AccessDigest digest         { .accesses=Access::Reg }                                ;      // get default flags
+		if (is_dir) add_slash(sr.real) ;
+		Crc          crc            { New , val }                                    ;
+		::string     node           = Codec::CodecFile( sr.real , ctx , crc ).name() ;
+		Fd           rfd            = Record::s_repo_root_fd()                       ;
+		::string     new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real)    ;
+		AccessDigest digest         { .accesses=Access::Reg }                        ;                 // get default flags
 		::string     res            ;
 		try {
-			try {                                                                                   // first try with share lock (light weight in case no update is necessary)
-				res = AcFd( {rfd,node} , {.nfs_guard=&::ref(NfsGuard(file_sync))} ).read() ;        // if node exists, it contains the reply
-			} catch (::string const&) {                                                             // if node does not exist, create a code
-				if (!is_dir) throw_if( _retry_codec(r,{rfd,real},node)==Maybe , "no codec file" ) ; // cannot encode without a codec file
+			try {                                                                                      // first try with share lock (light weight in case no update is necessary)
+				res = AcFd( {rfd,node} , {.nfs_guard=&::ref(NfsGuard(file_sync))} ).read() ;           // if node exists, it contains the reply
+			} catch (::string const&) {                                                                // if node does not exist, create a code
+				if (!is_dir) throw_if( _retry_codec(r,{rfd,sr.real},node)==Maybe , "no codec file" ) ; // cannot encode without a codec file
 				::string              crc_str = crc.hex()                             ;
-				Codec::CodecGuardLock lock    { {rfd,real} , {.file_sync=file_sync} } ;             // must hold the lock as we probably need to create a code
+				Codec::CodecGuardLock lock    { {rfd,sr.real} , {.file_sync=file_sync} } ;             // must hold the lock as we probably need to create a code
 				try {
-					res = AcFd( {rfd,node} , {.nfs_guard=&lock} ).read() ;                          // repeat test with lock
+					res = AcFd( {rfd,node} , {.nfs_guard=&lock} ).read() ;                             // repeat test with lock
 				} catch (::string const&) {
 					for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
-						::string decode_node = Codec::CodecFile( false/*encode*/ , real , ctx , code ).name() ;
+						::string decode_node = Codec::CodecFile( false/*encode*/ , sr.real , ctx , code ).name() ;
 						if (FileInfo({rfd,decode_node},{.nfs_guard=&lock}).exists()) continue ;
 						// must write to new_codes_file first to allow replay in case of crash
 						::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;

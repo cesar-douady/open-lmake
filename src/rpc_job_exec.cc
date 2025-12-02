@@ -120,9 +120,9 @@ namespace Codec {
 		val  = parse_printable(line,pos) ; throw_unless( line[pos]==0    , "bad codec line format : ",line ) ;
 	}
 
-	::string Entry::line(bool with_nl) const {
+	::string Entry::line(bool with_nl_) const {
 		::string res = cat('\t',mk_printable(code),'\t',mk_printable(ctx),'\t',mk_printable(val)) ;
-		if (with_nl) res <<'\n' ;
+		if (with_nl_) add_nl(res) ;
 		return res ;
 	}
 

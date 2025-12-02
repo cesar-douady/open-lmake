@@ -345,7 +345,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	::vector_s path ; //!                           EmptyIsDot
 	if ( py_path && py_path!=&None ) path = _get_seq<true    >("path"    ,*py_path          ) ;
 	else                             path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
-	for( ::string& d : path ) d = no_slash(::move(d)) ;
+	for( ::string& d : path ) rm_slash(d) ;
 	#if PY_MAJOR_VERSION>2
 		try                       { JobSupport::depend( ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; } // python3 reads dirs in path
 		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                   }

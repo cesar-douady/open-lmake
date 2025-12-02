@@ -112,10 +112,10 @@ namespace Caches {
 					catch (::string const& e) { throw cat("cannot read ",sz_file," : ",e) ;                             }
 				}
 			}
-			throw_unless( max_sz , "size must be specified for dir_cache ",no_slash(dir_s)," as size=<value> in ",config_file ) ;
+			throw_unless( max_sz , "size must be specified for dir_cache ",dir_s,rm_slash," as size=<value> in ",config_file ) ;
 			//
-			try                     { chk_version( may_init , dir_s+AdminDirS , perm_ext) ;     }
-			catch (::string const&) { throw "version mismatch for dir_cache "+no_slash(dir_s) ; }
+			try                     { chk_version( may_init , dir_s+AdminDirS , perm_ext) ;         }
+			catch (::string const&) { throw cat("version mismatch for dir_cache ",dir_s,rm_slash) ; }
 			//
 		}
 	#endif
@@ -163,7 +163,7 @@ namespace Caches {
 			entry.sz = entry_sz ;
 			SWEAR(+entry) ;
 		} catch (::string const& e) {
-			Fd::Stdout.write(cat("erase entry (",e,") : ",no_slash(entry_s),'\n')) ;
+			Fd::Stdout.write(cat("erase entry (",e,") : ",entry_s,rm_slash,'\n')) ;
 			SWEAR(!entry) ;
 		}
 	}
@@ -193,7 +193,7 @@ namespace Caches {
 			::string f = af.substr(1) ;                                                                                                      // suppress leading /
 			switch (t) {
 				case FileTag::Dir :
-					dirs_s.try_emplace(with_slash(f),false/*keep*/) ;
+					dirs_s.try_emplace(with_slash(::move(f)),false/*keep*/) ;
 					continue ;
 				break ;
 				case FileTag::Reg   :
@@ -249,7 +249,7 @@ namespace Caches {
 		for( auto const& [d_s,k] : dirs_s ) { if (!k) to_rmdir.push_back(d_s) ; }
 		::sort( to_rmdir , []( ::string const& a , ::string const& b )->bool { return a>b ; } ) ;                                            // sort to ensure subdirs are rmdir'ed before their parent
 		for( ::string const& d_s : to_rmdir ) {
-			Fd::Stdout.write(cat("rmdir ",no_slash(d_s),'\n')) ;
+			Fd::Stdout.write(cat("rmdir ",d_s,rm_slash,'\n')) ;
 			if (!dry_run) ::unlinkat( root_fd , d_s.c_str() , AT_REMOVEDIR ) ;
 		}
 		//

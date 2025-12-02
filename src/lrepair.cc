@@ -159,8 +159,8 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	// make a fresh local admin dir
 	{	::string msg ;
-		try                       { Makefiles::refresh( /*out*/msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(ensure_nl(msg)) ;                        }
-		catch (::string const& e) {                                                                         if (+msg) Fd::Stderr.write(ensure_nl(msg)) ; exit(Rc::BadState,e) ; }
+		try                       { Makefiles::refresh( /*out*/msg , false/*crashed*/ , true/*refresh*/ ) ; if (+msg) Fd::Stderr.write(with_nl(msg)) ;                        }
+		catch (::string const& e) {                                                                         if (+msg) Fd::Stderr.write(with_nl(msg)) ; exit(Rc::BadState,e) ; }
 	}
 	//
 	mk_lad() ;

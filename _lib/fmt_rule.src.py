@@ -32,6 +32,7 @@ StdAttrs = { #!               type   dynamic
 ,	'backend'             : ( str   , True  )
 ,	'cache'               : ( str   , True  )
 ,	'chroot_dir'          : ( str   , True  )
+,	'chroot_action'       : ( str   , True  )
 ,	'cmd'                 : ( str   , True  ) # when it is a str, such str may be dynamic, i.e. it may be a full f-string
 ,	'compression'         : ( int   , True  ) # compression level
 ,	'deps'                : ( dict  , True  )
@@ -543,6 +544,7 @@ class Handle :
 		self._init()
 		self._handle_val('autodep'                               )
 		self._handle_val('chroot_dir'                            )
+		self._handle_val('chroot_action'                         )
 		self._handle_val('env'       ,rep_key='environ_resources')
 		self._handle_val('lmake_root'                            )
 		self._handle_val('timeout'                               )

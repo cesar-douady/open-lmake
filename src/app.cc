@@ -48,7 +48,7 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 			SearchRootResult srr = search_root() ;
 			g_repo_root_s    = new ::string{srr.top_s} ;
 			*g_startup_dir_s = srr.startup_s           ;
-			if ( cd_root==Yes && +*g_startup_dir_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",no_slash(*g_repo_root_s) ) ;
+			if ( cd_root==Yes && +*g_startup_dir_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",*g_repo_root_s,rm_slash ) ;
 		} catch (::string const& e) {
 			if (cd_root!=No) exit( Rc::Usage , e ) ;
 		}

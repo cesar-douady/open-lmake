@@ -72,6 +72,13 @@ static constexpr ::amap<CacheHitInfo,const char*,N<CacheHitInfo>> CacheHitInfoSt
 static_assert(chk_enum_tab(CacheHitInfoStrs)) ;
 
 // START_OF_VERSIONING
+enum class ChrootAction : uint8_t {
+	None                            // no action
+,	Overwrite                       // user and root and their groups have a name, existing ones are not preserved
+,	Merge                           // user          and their group  have a name, existing ones are     preserved
+} ;
+
+// START_OF_VERSIONING
 enum class FileActionTag : uint8_t {
 	Src                              // file is src, no action
 ,	None                             // same as unlink except expect file not to exist
@@ -352,6 +359,24 @@ struct FileAction {
 } ;
 // incremental means existing increment targets have been seen
 ::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , NfsGuard* ) ;
+
+struct ChrootInfo {
+	friend ::string& operator+=( ::string& , ChrootInfo const& ) ;
+	template<IsStream S> void serdes(S& s) {
+		::serdes( s , dir_s ) ;
+		if (+dir_s) {
+			/**/         ::serdes( s , action     ) ;
+			if (+action) ::serdes( s , user,group ) ;
+		}
+	}
+	// accesses
+	bool operator+() const { return +dir_s ; }
+	// data
+	::string     dir_s  ;      // absolute dir which job must chroot to before execution (empty if unused)
+	ChrootAction action = {} ; // valid if +dir_s
+	::string     user   ;      // valid if +dir_s and +action, user  name to transport in namespace
+	::string     group  ;      // .                          , group name to transport in namespace
+} ;
 
 struct AccDflags {
 	// services
@@ -774,7 +799,7 @@ struct JobSpace {
 	,	::string   const&                  phy_lmake_root_s
 	,	::string   const&                  phy_repo_root_s
 	,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
-	,	::string   const&                  chroot_dir_s
+	,	ChrootInfo const&                  chroot_info
 	,	::string   const&                  sub_repo_s
 	,	::vector_s const&                  src_dirs_s={}
 	) ;
@@ -829,17 +854,17 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobStartRpcReply {                                                           // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct JobStartRpcReply {                                                // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	// accesses
-	bool operator+() const { return +interpreter ; }                                // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
+	bool operator+() const { return +interpreter ; }                     // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , autodep_env                    ) ;
 		::serdes( s , cache_idx                      ) ;
-		::serdes( s , chroot_dir_s                   ) ;
+		::serdes( s , chroot_info                    ) ;
 		::serdes( s , cmd                            ) ;
 		::serdes( s , ddate_prec                     ) ;
 		::serdes( s , deps                           ) ;
@@ -893,40 +918,40 @@ struct JobStartRpcReply {                                                       
 	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING
-	AutodepEnv                              autodep_env     ;
-	Caches::Cache*                          cache           = nullptr             ;
-	CacheIdx                                cache_idx       = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
-	::string                                chroot_dir_s    ;                       // absolute dir which job chroot's to before execution (empty if unused)
-	::string                                cmd             ;
-	Time::Delay                             ddate_prec      ;
-	::vmap_s<::pair<DepDigest,ExtraDflags>> deps            ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
-	::vmap_ss                               env             ;
-	::vector_s                              interpreter     ;                       // actual interpreter used to execute cmd
-	JobSpace                                job_space       ;
-	bool                                    keep_tmp        = false               ;
-	::string                                key             ;                       // key used to uniquely identify repo
-	::vector<uint8_t>                       kill_sigs       ;
-	bool                                    live_out        = false               ;
-	AutodepMethod                           method          = AutodepMethod::Dflt ;
-	Time::Delay                             network_delay   ;
-	uint8_t                                 nice            = 0                   ;
-	::string                                os_info         ;                       // a regexpr of acceptable OS's
-	::string                                os_info_file    ;                       // a system file containing OS info, defaults to ID/VERSION_ID/architecture (from /etc/os-release and uname -m)
-	::string                                phy_lmake_root_s ;
-	::vmap_s<FileAction>                    pre_actions     ;
-	::string                                rule            ;                       // rule name
-	SmallId                                 small_id        = 0                   ;
-	::vmap<Re::Pattern,MatchFlags>          star_matches    ;                       // maps regexprs to flags
-	::vmap_s<MatchFlags>                    static_matches  ;                       // maps individual files to flags
-	bool                                    stderr_ok       = false               ;
-	::string                                stdin           ;
-	::string                                stdout          ;
-	Time::Delay                             timeout         ;
-	bool                                    use_script      = false               ;
-	Zlvl                                    zlvl            {}                    ;
+	AutodepEnv                              autodep_env       ;
+	Caches::Cache*                          cache             = nullptr             ;
+	CacheIdx                                cache_idx         = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	ChrootInfo                              chroot_info       ;
+	::string                                cmd               ;
+	Time::Delay                             ddate_prec        ;
+	::vmap_s<::pair<DepDigest,ExtraDflags>> deps              ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+	::vmap_ss                               env               ;
+	::vector_s                              interpreter       ;                       // actual interpreter used to execute cmd
+	JobSpace                                job_space         ;
+	bool                                    keep_tmp          = false               ;
+	::string                                key               ;                       // key used to uniquely identify repo
+	::vector<uint8_t>                       kill_sigs         ;
+	bool                                    live_out          = false               ;
+	AutodepMethod                           method            = AutodepMethod::Dflt ;
+	Time::Delay                             network_delay     ;
+	uint8_t                                 nice              = 0                   ;
+	::string                                os_info           ;                       // a regexpr of acceptable OS's
+	::string                                os_info_file      ;                       // a system file containing OS info, defaults to ID/VERSION_ID/architecture (from /etc/os-release and uname -m)
+	::string                                phy_lmake_root_s  ;
+	::vmap_s<FileAction>                    pre_actions       ;
+	::string                                rule              ;                       // rule name
+	SmallId                                 small_id          = 0                   ;
+	::vmap<Re::Pattern,MatchFlags>          star_matches      ;                       // maps regexprs to flags
+	::vmap_s<MatchFlags>                    static_matches    ;                       // maps individual files to flags
+	bool                                    stderr_ok         = false               ;
+	::string                                stdin             ;
+	::string                                stdout            ;
+	Time::Delay                             timeout           ;
+	bool                                    use_script        = false               ;
+	Zlvl                                    zlvl              {}                    ;
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                                           // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                                             // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct JobEndRpcReq : JobRpcReq {

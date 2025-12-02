@@ -215,6 +215,7 @@ LMAKE_SERVER_PY_FILES := \
 	lib/lmake_debug/__init__.py         \
 	lib/lmake_debug/default.py          \
 	lib/lmake_debug/enter.py            \
+	lib/lmake_debug/enter_job.py        \
 	lib/lmake_debug/gdb.py              \
 	lib/lmake_debug/none.py             \
 	lib/lmake_debug/pudb.py             \
