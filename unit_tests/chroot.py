@@ -16,7 +16,7 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = ('Lmakefile.py','../')
 
 	class Cat(Rule) :
 		target     = 'dut-{Os:.*}'

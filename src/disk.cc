@@ -89,10 +89,9 @@ namespace Disk {
 		return res ;
 	}
 
-	::string _mk_lcl( ::string const& path , ::string const& dir_s , bool path_is_dir ) {
-		/**/             SWEAR( is_dir_name(dir_s)              ,        dir_s ) ;
-		if (path_is_dir) SWEAR( is_abs_s(path)==is_abs_s(dir_s) , path , dir_s ) ;
-		else             SWEAR( is_abs  (path)==is_abs_s(dir_s) , path , dir_s ) ;
+	::string _mk_lcl( ::string const& path , ::string const& dir_s ) {
+		SWEAR( is_dir_name(dir_s)            ,        dir_s ) ;
+		SWEAR( is_abs(path)==is_abs_s(dir_s) , path , dir_s ) ;
 		size_t last_slash1 = 0 ;
 		for( size_t i : iota(path.size()) ) {
 			if (path[i]!=dir_s[i]) break ;
@@ -104,9 +103,8 @@ namespace Disk {
 		return res ;
 	}
 
-	::string _mk_glb( ::string const& path , ::string const& dir_s , bool path_is_dir ) {
-		if (path_is_dir) { if (is_abs_s(path)) return path ; }
-		else             { if (is_abs  (path)) return path ; }
+	::string _mk_glb( ::string const& path , ::string const& dir_s ) {
+		if (is_abs  (path)) return path ;
 		::string_view d_s = dir_s ;
 		::string_view p   = path  ;
 		for(; p.starts_with("../") ; p.remove_prefix(3) ) {

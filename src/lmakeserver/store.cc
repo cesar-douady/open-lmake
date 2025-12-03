@@ -554,9 +554,9 @@ namespace Engine::Persistent {
 		::uset<Node        > new_src_dirs ;
 		Trace trace("new_srcs") ;
 		// check and format new srcs
-		size_t      repo_root_depth = 0                                                                 ; { for( char c : *g_repo_root_s ) repo_root_depth += c=='/' ; } repo_root_depth-- ;
-		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
-		RealPath    real_path      { rpe                                                              } ;
+		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1                                    ;              // account for terminating /
+		RealPathEnv rpe             { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
+		RealPath    real_path       { rpe                                                              } ;
 		// user report done before analysis so manifest is available for investigation in case of error
 		{	::string content ;
 			for( ::string const& src : src_names ) content << src <<'\n' ;
@@ -572,7 +572,10 @@ namespace Engine::Persistent {
 			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within or encompass system directories") ;
 			//
 			if (is_dir_) {
-				if ( !is_abs_s(src) && uphill_lvl_s(src)>=repo_root_depth ) throw cat("cannot access relative source dir ",no_slash(src)," from repository ",no_slash(*g_repo_root_s)) ;
+				if ( size_t lvl=uphill_lvl_s(src) ; lvl>=repo_root_depth ) {
+					if (lvl==repo_root_depth) throw cat("use absolute name to access source dir "   ,src," from repo ",*g_repo_root_s,rm_slash) ;
+					else                      throw cat("too many .. to access relative source dir ",src," from repo ",*g_repo_root_s,rm_slash) ;
+				}
 				src.pop_back() ;
 			}
 			FileTag               tag ;

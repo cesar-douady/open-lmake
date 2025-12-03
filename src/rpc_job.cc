@@ -362,7 +362,7 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 		if (+ci.action) os <<','<< ci.action <<','<< ci.user <<','<< ci.group ;
 	}
 	return os <<')' ;
-}                                                                      // END_OF_NO_COV
+}                                                             // END_OF_NO_COV
 
 //
 // JobReason
@@ -974,9 +974,9 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	char sep ;
-	/**/                                    if (work_s   .find(',')!=Npos) { sep = ',' ; goto Bad ; }
-	for( size_t i : iota(0,srcs_s.size()) ) if (srcs_s[i].find(',')!=Npos) { sep = ',' ; goto Bad ; }
-	for( size_t i : iota(1,srcs_s.size()) ) if (srcs_s[i].find(':')!=Npos) { sep = ':' ; goto Bad ; }
+	/**/                                     if (work_s   .find(',')!=Npos) { sep = ',' ; goto Bad ; }
+	for( NodeIdx i : iota(0,srcs_s.size()) ) if (srcs_s[i].find(',')!=Npos) { sep = ',' ; goto Bad ; }
+	for( NodeIdx i : iota(1,srcs_s.size()) ) if (srcs_s[i].find(':')!=Npos) { sep = ':' ; goto Bad ; }
 	{
 		::string dst   = no_slash(dst_s ) ;
 		First    first ;
@@ -1064,7 +1064,7 @@ bool JobSpace::enter(
 		return false/*entered*/ ;
 	}
 	//
-	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                             // dont use no_slash to properly manage the '/' case
+	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                                 // dont use no_slash to properly manage the '/' case
 	//
 	mk_canon( phy_repo_root_s , sub_repo_s , +chroot_dir ) ;
 	//
@@ -1075,14 +1075,30 @@ bool JobSpace::enter(
 	SWEAR( +phy_repo_root_s  ) ;
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
 	//
-	size_t   repo_depth = ::count( repo_root_s , '/' ) - 1 ;                                                  // account for initial and terminal /
+	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                                ;          // account for initial and terminal /
+	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl_s(sd_s) ; } ) ;
+	if (src_dir_depth>=repo_depth)
+		for( ::string const& sd_s : src_dirs_s )
+			throw_if( uphill_lvl_s(sd_s)==src_dir_depth , "too many .. to access relative source dir ",sd_s," from repo view ",repo_root_s,rm_slash) ;
+	::string repo_super_s      = dir_name_s(repo_root_s,src_dir_depth) ; SWEAR(repo_super_s!="/") ;
+	::string phy_repo_super_s_ ;
+	if (+repo_view_s) {
+		::string repo_base_s     = base_name(repo_root_s    ,src_dir_depth) ;
+		::string phy_repo_base_s = base_name(phy_repo_root_s,src_dir_depth) ;
+		// XXX : implement repo/view mismatch
+		// if view and repo do not match, we should :
+		// - mount view
+		// - mount an empty dir on phy repo to ensure no local deps are accessed that appear to be external
+		throw_unless(
+			repo_base_s==phy_repo_base_s
+		,	"the ",src_dir_depth," last dirs of repo root (",phy_repo_base_s,rm_slash,") and view (",repo_base_s,rm_slash,") must match (not yet implemented) to access relative source dirs"
+		) ;
+		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
+	}
+	::string const& phy_repo_super_s = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;                      // fast path : only compute phy_repo_super_s if necessary
 	//
 	::string const& lmake_root_s = lmake_view_s | phy_lmake_root_s ;
 	::string const& tmp_dir_s    = tmp_view_s   | phy_tmp_dir_s    ;
-	//
-	for( auto const& src_dir_s : src_dirs_s )
-		if( !is_abs_s(src_dir_s) && uphill_lvl_s(src_dir_s)>repo_depth )
-			throw cat("too many .. to access source dir ",no_slash(src_dir_s)," from repo root ",no_slash(repo_root_s)) ;
 	//
 	if (clean_mount_in_tmp) {
 		// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
@@ -1103,7 +1119,7 @@ bool JobSpace::enter(
 	bool       bind_repo     =                 +repo_view_s  || +chroot_dir           ;
 	bool       bind_tmp      = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir )         ;
 	bool       creat_lmake   = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
-	bool       creat_repo    = bind_repo  && !FileInfo(chroot_dir+repo_root_s ).tag() ; creat |= creat_repo  ;
+	bool       creat_repo    = bind_repo  && !FileInfo(chroot_dir+repo_super_s).tag() ; creat |= creat_repo  ;
 	bool       creat_tmp     = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
 	::vector_s creat_views_s ;
 	for( auto const& [v_s,_] : views ) {
@@ -1115,7 +1131,7 @@ bool JobSpace::enter(
 	uid_t uid = ::geteuid() ;                                                                                 // must be done before unshare that invents a new user
 	gid_t gid = ::getegid() ;                                                                                 // .
 	//
-	trace("creat",STR(creat),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s) ;
+	trace("creat",STR(creat),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1134,10 +1150,11 @@ bool JobSpace::enter(
 			::string root    = work_dir_s+"root"  ;
 			::string upper_s = with_slash(upper)  ; mk_dir_s(upper_s) ;
 			::string root_s  = with_slash(root )  ; mk_dir_s(root_s ) ;
-			if (creat_lmake)                           { trace("mkdir",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
-			if (creat_repo )                           { trace("mkdir",repo_root_s ) ; mk_dir_s(upper+repo_root_s ) ; }
-			if (creat_tmp  )                           { trace("mkdir",tmp_dir_s   ) ; mk_dir_s(upper+tmp_dir_s   ) ; }
-			for( ::string const& v_s : creat_views_s ) { trace("mkdir",v_s         ) ; mk_dir_s(upper+v_s         ) ; }
+			if (creat_lmake)                                              { trace("mkdir",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
+			if (creat_repo )                                              { trace("mkdir",repo_super_s) ; mk_dir_s(upper+repo_super_s) ; }
+			if (creat_tmp  )                                              { trace("mkdir",tmp_dir_s   ) ; mk_dir_s(upper+tmp_dir_s   ) ; }
+			for( ::string const& v_s  : creat_views_s )                   { trace("mkdir",v_s         ) ; mk_dir_s(upper+v_s         ) ; }
+			for( ::string const& sd_s : src_dirs_s    ) if (is_abs(sd_s)) { trace("mkdir",sd_s        ) ; mk_dir_s(upper+sd_s        ) ; }
 			//
 			if (+chroot_info.action) _prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
@@ -1158,7 +1175,7 @@ bool JobSpace::enter(
 				::string private_f_s = with_slash(private_f) ;
 				if (
 					( bind_lmake &&                                                 src_f_s==lmake_root_s )
-				||	( bind_repo  &&                                                 src_f_s==repo_root_s  )
+				||	( bind_repo  &&                                                 src_f_s==repo_super_s )
 				||	( bind_tmp   &&                                                 src_f_s==tmp_dir_s    )
 				||	::any_of( views , [&](::pair_s<ViewDescr> const& vs_d) { return src_f_s==vs_d.first ; } ) // views are always bound
 				) {
@@ -1173,21 +1190,27 @@ bool JobSpace::enter(
 				} //!                                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			dev_sys_mapped = true ;
-			auto do_view = [&]( const char* key , ::string const& d_s ) {
-				if (has_dir(d_s)) throw cat(key," must be a top level dir or already exist : ",no_slash(d_s)) ;
+			auto do_view = [&]( const char* key , ::string const& d_s , FileNameIdx n_uphill=0 ) {
+				if (has_dir(d_s)) {                                                                           // XXX : implement non-top lvl non-existing views
+					::string                                               msg =  key                                                                                 ;
+					for( [[maybe_unused]] FileNameIdx i : iota(n_uphill) ) msg << "/.."                                                                               ;
+					/**/                                                   msg << " must be a top level dir or already exist (not yet implemented) : "<<d_s<<rm_slash ;
+					throw msg ;
+				}
 				trace("mkdir",d_s) ;
 				mk_dir_s(chroot_dir+d_s) ;
 			} ;
-			if (creat_lmake)                           do_view( "lmake_view" , lmake_root_s) ;
-			if (creat_repo )                           do_view( "repo_view"  , repo_root_s ) ;
-			if (creat_tmp  )                           do_view( "tmp_view"   , tmp_dir_s   ) ;
-			for( ::string const& v_s : creat_views_s ) do_view( "view"       , v_s         ) ;
+			if (creat_lmake)                           do_view( "lmake_view" , lmake_root_s                 ) ;
+			if (creat_repo )                           do_view( "repo_view"  , repo_super_s , src_dir_depth ) ;
+			if (creat_tmp  )                           do_view( "tmp_view"   , tmp_dir_s                    ) ;
+			for( ::string const& v_s : creat_views_s ) do_view( "view"       , v_s                          ) ;
 		}
-	} //!           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	if (bind_lmake) _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , exec_trace ) ;
-	if (bind_repo ) _mount_bind( chroot_dir+repo_root_s  , phy_repo_root_s  , exec_trace ) ;
-	if (bind_tmp  ) _mount_bind( chroot_dir+tmp_dir_s    , phy_tmp_dir_s    , exec_trace ) ;
-	//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	} //!                                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if (bind_lmake )                                                            _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , exec_trace ) ;
+	if (bind_repo  )                                                            _mount_bind( chroot_dir+repo_super_s , phy_repo_super_s , exec_trace ) ;
+	if (bind_tmp   )                                                            _mount_bind( chroot_dir+tmp_dir_s    , phy_tmp_dir_s    , exec_trace ) ;
+	if (+chroot_dir) for( ::string const& sd_s : src_dirs_s ) if (is_abs(sd_s)) _mount_bind( chroot_dir+sd_s         , sd_s             , exec_trace ) ;
+	//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	auto mk_entry = [&]( ::string const& dir_s , ::string const& abs_dir_s , bool path_is_lcl ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		if (path_is_lcl) report.emplace_back(no_slash(dir_s)) ;
@@ -1272,7 +1295,7 @@ bool JobSpace::enter(
 	}
 	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
 	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;                                                         // if we have mounted something in tmp, we cant clean it before unmount
-	trace("done",repo_root_s,report) ;
+	trace("done",report) ;
 	return true/*entered*/ ;
 }
 
@@ -1720,7 +1743,7 @@ void JobInfo::update_digest() {
 	Trace trace("update_digest",dep_crcs.size()) ;
 	if (!dep_crcs) return ;                                                                                                                               // nothing to update
 	SWEAR( dep_crcs.size()==end.digest.deps.size() , dep_crcs.size(),end.digest.deps.size() ) ;
-	for( size_t i : iota(end.digest.deps.size()) )
+	for( NodeIdx i : iota(end.digest.deps.size()) )
 		if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
 	dep_crcs.clear() ;                                                                                                                                    // now useless as info is recorded in digest
 }
@@ -1733,8 +1756,8 @@ void JobInfo::cache_cleanup() {
 void JobInfo::chk(bool for_cache) const {
 	start.chk(for_cache) ;
 	end  .chk(for_cache) ;
-	/**/                                                   throw_unless( start.submit_attrs.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
-	for( size_t i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps discovered ...
-	if (for_cache)                                         throw_unless( !dep_crcs                                                  , "bad dep_crcs"    ) ; // ... before job execution
-	else                                                   throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()       , "incoherent deps" ) ;
+	/**/                                                    throw_unless( start.submit_attrs.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
+	for( NodeIdx i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps discovered ...
+	if (for_cache)                                          throw_unless( !dep_crcs                                                  , "bad dep_crcs"    ) ; // ... before job execution
+	else                                                    throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()       , "incoherent deps" ) ;
 }

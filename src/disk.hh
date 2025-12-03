@@ -65,53 +65,50 @@ namespace Disk {
 	//
 	// path name library
 	//
-	// file  : a name not      ending with /
-	// dir_s : a name          ending with /
-	// path  : a name possibly ending with /
 
 	bool     is_canon( ::string const& , bool ext_ok=true , bool empty_ok=false , bool has_pfx=false , bool has_sfx=false ) ; // is has_pfx or has_sfx, return false if cannot be canon for any pfx/sfx
 	::string mk_canon( ::string const&                                                                                    ) ;
 	//
-	inline bool has_dir(::string const& path) {
-		if (path.size()<3) return false ;                                                                                     // we must have at least 2 components and a / to have a dir component
-		return path.find('/',1)<path.size()-2 ;                                                                               // search a / at neither ends of path
+	inline bool has_dir(::string const& file) {
+		if (file.size()<3) return false ;                                                                                     // we must have at least 2 components and a / to have a dir component
+		return file.find('/',1)<file.size()-2 ;                                                                               // search a / at neither ends of file
 	}
-	inline ::string dir_name_s( ::string const& path , FileNameIdx n=1 ) {
-		SWEAR( n>=1 , path ) ;
-		throw_unless( +path     , "no dir for empty path" ) ;
-		throw_unless( path!="/" , "no dir for /"          ) ;
-		size_t sep = path.size()-(path.back()=='/') ;
-		for(; n ; n-- ) {
-			throw_unless( sep!=Npos , "cannot walk uphill ",n," dirs from ",path ) ;
-			sep = path.rfind('/',sep-1) ;
+	//
+	inline bool is_dir_name(::string const& file) { return !file || file.back()=='/' ; }
+	//
+	template<bool DoBase> ::string _dir_base_name( ::string const& file , FileNameIdx n=1 ) {
+		if (!n) {
+			SWEAR( is_dir_name(file) , file ) ;
+			if (DoBase) return {}   ;
+			else        return file ;
 		}
-		if (sep==Npos) return {}                   ;
-		else           return path.substr(0,sep+1) ;
+		throw_unless( +file     , "no dir for empty file" ) ;
+		throw_unless( file!="/" , "no dir for /"          ) ;
+		size_t slash = file.size()-(file.back()=='/') ;
+		for(; n ; n-- ) {
+			throw_unless( slash!=Npos , "cannot walk uphill ",n," dirs from ",file ) ;
+			slash = file.rfind('/',slash-1) ;
+		}
+		if (DoBase) { if (slash==Npos) return file ; else return file.substr(slash+1        ) ; }
+		else        { if (slash==Npos) return {}   ; else return file.substr(0      ,slash+1) ; }
 	}
-	inline ::string base_name(::string const& path) {
-		size_t sep = Npos ; if (path.size()>=2) sep = path.rfind('/',path.size()-2) ;
-		//
-		if (sep!=Npos) return path.substr(sep+1) ;
-		throw_unless( +path     , "no base for empty path" ) ;
-		throw_unless( path!="/" , "no base for /"          ) ;
-		return path ;
-	}
-	inline bool is_dir_name(::string const& path) { return !path || path.back()=='/' ; }
+	inline ::string dir_name_s( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<false>(file,n) ; } // INVARIANT : dir_name_s(file,n)+base_name(file,n)==file
+	inline ::string base_name ( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<true >(file,n) ; } // .
 
 	inline bool is_abs_s(::string const& dir_s) { return dir_s[0]=='/' ; }
 	inline bool is_abs  (::string const& file ) { return file [0]=='/' ; }
 	//
-	inline bool   is_lcl_s    (::string const& dir_s) { return !( is_abs_s(dir_s) || dir_s.starts_with("../")               ) ;                               }
-	inline bool   is_lcl      (::string const& file ) { return !( is_abs  (file ) || file .starts_with("../") || file==".." ) ;                               }
-	inline size_t uphill_lvl_s(::string const& dir_s) { SWEAR(!is_abs_s(dir_s)) ; size_t l ; for( l=0 ; substr_view(dir_s,3*l,3)=="../" ; l++ ) {} return l ; }
+	inline bool   is_lcl_s    (::string const& dir_s) { return !( is_abs_s(dir_s) || dir_s.starts_with("../")               ) ;     }
+	inline bool   is_lcl      (::string const& file ) { return !( is_abs  (file ) || file .starts_with("../") || file==".." ) ;     }
+	inline size_t uphill_lvl_s(::string const& dir_s) { size_t l ; for( l=0 ; substr_view(dir_s,3*l,3)=="../" ; l++ ) {} return l ; }
 
-	::string _mk_lcl( ::string const& path , ::string const& dir_s , bool path_is_dir ) ; // return file (passed as from dir_s origin) as seen from dir_s
-	::string _mk_glb( ::string const& path , ::string const& dir_s , bool path_is_dir ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
-	//                                                                                                                path_is_dir
-	inline ::string mk_lcl_s( ::string const& dir_s , ::string const& ref_dir_s ) { return _mk_lcl( dir_s , ref_dir_s , true    ) ;                                                  }
-	inline ::string mk_lcl  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_lcl( file  , ref_dir_s , false   ) ;                                                  }
-	inline ::string mk_glb_s( ::string const& dir_s , ::string const& ref_dir_s ) { return _mk_glb( dir_s , ref_dir_s , true    ) ;                                                  }
-	inline ::string mk_glb  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_glb( file  , ref_dir_s , false   ) ;                                                  }
+	::string _mk_lcl( ::string const& path , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
+	::string _mk_glb( ::string const& path , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
+	//
+	inline ::string mk_lcl_s( ::string const& dir_s , ::string const& ref_dir_s ) { return _mk_lcl( dir_s , ref_dir_s ) ;                                                            }
+	inline ::string mk_lcl  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_lcl( file  , ref_dir_s ) ;                                                            }
+	inline ::string mk_glb_s( ::string const& dir_s , ::string const& ref_dir_s ) { return _mk_glb( dir_s , ref_dir_s ) ;                                                            }
+	inline ::string mk_glb  ( ::string const& file  , ::string const& ref_dir_s ) { return _mk_glb( file  , ref_dir_s ) ;                                                            }
 	inline ::string mk_rel_s( ::string const& dir_s , ::string const& ref_dir_s ) { if (is_abs_s(dir_s)==is_abs_s(ref_dir_s)) return mk_lcl_s(dir_s,ref_dir_s) ; else return dir_s ; }
 	inline ::string mk_rel  ( ::string const& file  , ::string const& ref_dir_s ) { if (is_abs  (file )==is_abs_s(ref_dir_s)) return mk_lcl  (file ,ref_dir_s) ; else return file  ; }
 
