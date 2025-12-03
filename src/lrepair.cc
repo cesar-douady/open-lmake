@@ -122,7 +122,7 @@ int main( int argc , char* /*argv*/[] ) {
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
 	//
-	app_init(false/*read_only_ok*/) ;
+	app_init({.read_only_ok=false}) ;
 	//
 	if (argc!=1              )                                                exit(Rc::Usage   ,"must be called without arg"                                               ) ;
 	try { startup_s = search_root().startup_s ; } catch (::string const& e) { exit(Rc::Usage   ,e                                                                          ) ; }
@@ -176,7 +176,7 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_version(true/*may_init*/) ;                                                                                                        // mark repo as initialized
+	chk_version({.may_init=true}) ;                                                                                                        // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

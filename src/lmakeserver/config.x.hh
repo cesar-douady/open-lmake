@@ -51,7 +51,7 @@ namespace Engine {
 		// services
 		bool operator==(ConfigClean const&) const = default ;
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		LnkSupport lnk_support            = LnkSupport::Full ;
 		::string   user_local_admin_dir_s ;
 		::string   key                    ; // random key to differentiate repo from other repos
@@ -73,7 +73,7 @@ namespace Engine {
 				::serdes( s , tag,dct ) ;
 			}
 			// data
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			CacheTag  tag ;
 			::vmap_ss dct ;
 			// END_OF_VERSIONING
@@ -81,7 +81,7 @@ namespace Engine {
 		//
 		struct TraceConfig {
 			bool operator==(TraceConfig const&) const = default ;
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			size_t   sz       = 100<<20      ;
 			Channels channels = DfltChannels ;
 			JobIdx   n_jobs   = 1000         ;
@@ -93,7 +93,7 @@ namespace Engine {
 		::string system_tag_val() const ;
 		// data
 		// /!\ default values must stay in sync with _lib/lmake/config.src.py
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		Time::Delay                     ddate_prec     { 0.01 } ; // precision of dates on disk
 		Time::Delay                     heartbeat      { 10   } ; // min time between successive heartbeat probes for any given job
 		Time::Delay                     heartbeat_tick { 0.01 } ; // min time between successive heartbeat probes
@@ -125,7 +125,7 @@ namespace Engine {
 				::serdes( s , domain_name,dct,env,configured ) ;
 			}
 			// data
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			::string  domain_name ;
 			::vmap_ss dct         ;
 			::vmap_ss env         ;
@@ -136,7 +136,7 @@ namespace Engine {
 		struct Collect {
 			bool operator==(Collect const&) const = default ;
 			bool operator+() const { return +static_ignore || +star_ignore ; }
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			::vmap_ss          stems         ;
 			::vector<uint32_t> stem_n_marks  ;
 			::vmap_ss          static_ignore ;
@@ -147,7 +147,7 @@ namespace Engine {
 		struct Console {
 			bool operator==(Console const&) const = default ;
 			// /!\ default values must stay in sync with _lib/lmake/config.src.py
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			uint8_t  date_prec     = 0     ; // -1 means no date at all in console output
 			uint8_t  host_len      = 0     ; //  0 means no host at all in console output
 			uint32_t history_days  = 7     ; // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
@@ -162,7 +162,7 @@ namespace Engine {
 		bool   errs_overflow(size_t n) const { return n>max_err_lines ;                                       }
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		FileSync                                                                file_sync     = FileSync::Dflt ; // method to ensure file sync when over an unreliable filesystem such as NFS
 		size_t                                                                  max_err_lines = 0              ; // unlimited
 		uint8_t                                                                 nice          = 0              ; // nice value applied to jobs
@@ -183,7 +183,7 @@ namespace Engine {
 		bool operator+() const { return booted ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			::serdes(s,static_cast<ConfigClean &>(self)) ;
 			::serdes(s,static_cast<ConfigStatic&>(self)) ;
 			::serdes(s,static_cast<ConfigDyn   &>(self)) ;

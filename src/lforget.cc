@@ -8,7 +8,7 @@
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {
-	app_init(false/*read_only_ok*/) ;
+	app_init({.read_only_ok=false}) ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{

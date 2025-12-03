@@ -98,7 +98,7 @@ void print_end(JobEndRpcReq const& jerr) {
 
 int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
-	app_init(true/*read_only_ok*/) ;
+	app_init({.read_only_ok=true}) ;
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {

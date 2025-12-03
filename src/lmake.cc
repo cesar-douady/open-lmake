@@ -64,7 +64,7 @@ static void _handle_int(bool start) {
 
 int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
-	app_init(false/*read_only_ok*/,Maybe/*chk_version*/) ;
+	app_init({ .read_only_ok=false , .chk_version=Maybe }) ;
 	//
 	ReqSyntax syntax {{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"   } }

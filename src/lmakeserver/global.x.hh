@@ -346,8 +346,8 @@ namespace Engine {
 		bool operator+() const { return +static_cast<Base const&>(self) ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
-			// START_OF_VERSIONING
 			Py::Gil gil ;
+			// START_OF_VERSIONING REPO
 			::serdes(s,py_sys_path             ) ;    // when deserializing, py_sys_path must be restored before reading RuleData's
 			::serdes(s,static_cast<Base&>(self)) ;
 			::serdes(s,sys_path_crc            ) ;

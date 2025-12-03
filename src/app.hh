@@ -14,14 +14,23 @@ extern StaticUniqPtr<::string> g_repo_root_s   ; // absolute                 , r
 extern StaticUniqPtr<::string> g_lmake_root_s  ; // absolute                 , installation dir of lmake
 extern StaticUniqPtr<::string> g_exe_name      ; //                            executable name for user messages
 
-// if chk_version_==Maybe, it is ok to initialize stored version
-// if cd_root     ==Maybe, we must identify root_dir, but not cd to it
-bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_=Yes , Bool3 cd_root=Yes ) ;
+struct AppInitAction {
+	bool  read_only_ok ;
+	Bool3 chk_version  = Yes ; // Maybe means it is ok to initialize stored version
+	Bool3 cd_root      = Yes ; // Maybe means we must identify root_dir, but not cd to it
+} ;
+bool/*read_only*/ app_init(AppInitAction) ;
 
-void chk_version( bool may_init=false , ::string const& admin_dir_s=AdminDirS , PermExt={} ) ;
+struct ChkAction {
+	bool     may_init    = false         ;
+	::string admin_dir_s = AdminDirS     ;
+	uint64_t version     = Version::Repo ;
+	PermExt  perm_ext    = {}            ;
+} ;
+void chk_version(ChkAction const&) ;
 
 inline ::string git_clean_msg() {
-	::string d ; if (+*g_startup_dir_s) d = ' '+no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
+	::string d ; if (+*g_startup_dir_s) d << ' '<<no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
 	return "consider : git clean -ffdx"+d ;
 }
 
@@ -40,11 +49,11 @@ template<UEnum Key,UEnum Flag> struct Syntax {
 	static constexpr bool HasNone = requires() {Key::None;} ;
 private :
 	static ::string _s_version_str() {
-		return cat("version ",Version[0],'.',Version[1]," (",VersionMrkr,")") ;
+		return cat("version ",Version::Major," (Cache:",Version::Cache,",Repo:",Version::Repo,",Job:",Version::Job,')') ;
 	}
 public :
 	[[noreturn]] static void s_version(bool quiet=false) {
-		if (quiet) exit( {} , VersionMrkr      ) ;
+		if (quiet) exit( {} , Version::Repo    ) ;
 		else       exit( {} , _s_version_str() ) ;
 	}
 	// cxtors & casts

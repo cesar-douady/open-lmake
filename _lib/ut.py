@@ -76,7 +76,7 @@ class Ut :
 		for k,v in list(self.kwds.items()) :
 			if v==... :
 				res[k] = cnt[k]
-				del cnt [k]
+				del cnt      [k]
 				del self.kwds[k]
 		if cnt!=self.kwds :
 			for k in cnt :

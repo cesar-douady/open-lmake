@@ -48,15 +48,15 @@ namespace Engine {
 				if (!*g_src_dirs_s) return ;                                  // fast path : no need to compute rel/abs versions
 				//
 				::string dir_s     = fixed.substr(0,fixed.rfind('/')+1) ;
-				::string rel_fixed = mk_rel  (fixed,*g_repo_root_s)     ;
-				::string abs_fixed = mk_glb  (fixed,*g_repo_root_s)     ;
-				::string rel_dir_s = mk_rel_s(dir_s,*g_repo_root_s)     ;
-				::string abs_dir_s = mk_glb_s(dir_s,*g_repo_root_s)     ;
-				if (is_lcl_s(rel_dir_s)) throw cat("must be provided as local file, consider : ",rel_dir_s+substr_view(fstr,dir_s.size())) ;
+				::string rel_fixed = mk_rel(fixed,*g_repo_root_s)     ;
+				::string abs_fixed = mk_glb(fixed,*g_repo_root_s)     ;
+				::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s)     ;
+				::string abs_dir_s = mk_glb(dir_s,*g_repo_root_s)     ;
+				if (is_lcl(rel_dir_s)) throw cat("must be provided as local file, consider : ",rel_dir_s+substr_view(fstr,dir_s.size())) ;
 				//
 				for( ::string const& sd_s : *g_src_dirs_s ) {
-					if (is_lcl_s(sd_s)) continue ;                            // nothing to recognize inside repo
-					bool            abs_sd = is_abs_s(sd_s)                 ;
+					if (is_lcl(sd_s)) continue ;                              // nothing to recognize inside repo
+					bool            abs_sd = is_abs(sd_s)                   ;
 					::string const& f_s    = abs_sd ? abs_fixed : rel_fixed ;
 					::string const& d_s    = abs_sd ? abs_dir_s : rel_dir_s ;
 					if (!( has_sfx && sd_s.starts_with(f_s) )) {              // we only have a prefix, could lie in this source dir when complemented if we have the right initial part
@@ -281,11 +281,11 @@ namespace Engine {
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
 		::string abs_dep = mk_glb( dep , *g_repo_root_s ) ;
-		if (is_lcl_s(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
+		if (is_lcl(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
 		//
 		for( ::string const& sd_s : *g_src_dirs_s ) {
-			if (is_lcl_s(sd_s)) continue ;                                                                    // nothing to recognize inside repo
-			bool            abs_sd = is_abs_s(sd_s)             ;
+			if (is_lcl(sd_s)) continue ;                                                                      // nothing to recognize inside repo
+			bool            abs_sd = is_abs(sd_s)               ;
 			::string const& d      = abs_sd ? abs_dep : rel_dep ;
 			bool            inside = d.starts_with(sd_s)        ;
 			if ( !abs_sd && sd_s.ends_with("../") && (sd_s.size()==3||sd_s[sd_s.size()-4]=='/') ) {           // sd_s is entirely composed of .. components (as it is canonical)

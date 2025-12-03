@@ -1,18 +1,75 @@
 #!/bin/bash
+# vim: filetype=python
 # This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
 # Copyright (c) 2023-2025 Doliam
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-version_mrkr=$(
-	sed -n -e 's://.*\(\(START\|END\)_OF_VERSIONING\).*:\1:' -e 's://.*::' -e 's:/\*.*\*/::g' -e '/START_OF_VERSIONING/,/END_OF_VERSIONING/p' "$@" \
-|	grep -vx '\(START\|END\)_OF_VERSIONING'                                                                                                                    \
-|	tr -d ' \t\n'                                                                                                                                                    \
-|	md5sum                                                                                                                                                           \
-|	cut -d' ' -f1
-)
-cat <<EOF
-#pragma once
-constexpr char        VersionMrkr[ ] = "$version_mrkr" ;
-constexpr const char* Version    [2] = { "$VERSION" , "$TAG" } ;
+exec $PYTHON <<EOF
+
+import hashlib
+import os
+import re
+import sys
+import textwrap
+
+prev_version = '$1'
+src          = '$2'
+
+slots = ('Cache','Repo','Job')
+
+def get_prev_crc(file) :
+	try    : content = open(file).read()
+	except : return {}
+	#
+	crc = {}
+	for slot in slots :
+		m = re.search(fr'{slot} *= *([0-9]+) *; *// *([0-9a-f]+)',content)
+		crc[slot] = ( m.groups()[0] , m.groups()[1] )
+	return crc
+
+def get_new_crc(file) :
+	content = open(file).read()
+	#
+	crc = {}
+	#
+	for slot in slots :
+		semantic = ''.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{slot.upper()}.*)?\n[\s\S]*?END_OF_VERSIONING.*)',content) )
+		semantic = re.sub(r'//.*',''    ,semantic)
+		semantic = re.sub(r'/\*.*\*/','',semantic)
+		semantic = re.sub(r'[ \t\n]' ,'',semantic)
+		#
+		h = hashlib.md5()
+		h.update(semantic.encode())
+		crc[slot] = h.hexdigest()
+	return crc
+
+def merge_crc(prev_crc,new_crc) :
+	crc = {}
+	for slot in slots :
+		prev = prev_crc.get(slot,(0,None))
+		prev = ( int(prev[0]) , prev[1] )
+		if new_crc[slot]==prev[1] : crc[slot] = prev
+		else                      : crc[slot] = ( prev[0]+1 , new_crc[slot] )
+	return crc
+
+def print_crc(stream,crc) :
+	w = len(os.getenv('VERSION'))+2
+	stream.write(textwrap.dedent(f'''
+		#include "version.hh"
+		namespace Version {{
+			uint64_t    constexpr Cache = { crc['Cache'][0]     :<{w   }} ; // {crc['Cache'][1]}
+			uint64_t    constexpr Repo  = { crc['Repo' ][0]     :<{w   }} ; // {crc['Repo' ][1]}
+			uint64_t    constexpr Job   = { crc['Job'  ][0]     :<{w   }} ; // {crc['Job'  ][1]}
+			const char* const     Major = "{os.getenv('VERSION'):<{w-2}}" ;
+			uint64_t    constexpr Tag   = { os.getenv('TAG'    ):<{w   }} ;
+		}}
+	'''[1:]))
+
+prev_crc = get_prev_crc(prev_version    )
+new_crc  = get_new_crc (src             )
+crc      = merge_crc   (prev_crc,new_crc)
+
+print_crc( sys.stdout , crc )
+
 EOF

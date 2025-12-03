@@ -13,6 +13,7 @@
 #include "process.hh"
 #include "time.hh"
 #include "trace.hh"
+#include "version.hh"
 #include "caches/dir_cache.hh" // PER_CACHE : add include line for each cache method
 
 #include "rpc_job.hh"
@@ -1048,7 +1049,7 @@ bool JobSpace::enter(
 ,	::string  &              /*.  */   repo_root_s
 ,	::vector<ExecTraceEntry>&/*inout*/ exec_trace
 ,	SmallId                            small_id
-,	::string   const&                  phy_lmake_root_s
+,	::string   const&                  phy_lmake_root_s , bool chk_lmake_root
 ,	::string   const&                  phy_repo_root_s
 ,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
 ,	ChrootInfo const&                  chroot_info
@@ -1056,6 +1057,20 @@ bool JobSpace::enter(
 ,	::vector_s const&                  src_dirs_s
 ) {
 	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s) ;
+	//
+	if (chk_lmake_root) {
+		::string v_str ;
+		try                     { v_str = AcFd(phy_lmake_root_s+"_lib/version.py").read() ;                                 }
+		catch (::string const&) { throw cat("cannot execute job with incompatible lmake root ",phy_lmake_root_s,rm_slash) ; }
+		size_t pos = v_str.find("job") ;                                                                                               // although it is a py file, syntax is guaranteed dead simple ...
+		pos = v_str.find('=',pos) + 1 ;                                                                                                // ... as it is our automaticly generated file
+		while (v_str[pos]==' ') pos++ ;
+		uint64_t v_job = from_string<uint64_t>( substr_view(v_str,pos) , true/*empty_ok*/ ) ;
+		throw_unless(
+			v_job==Version::Job
+		,	"cannot execute job with incompatible lmake root ",phy_lmake_root_s,rm_slash,"(job version ",v_job,"!=",Version::Job,')'
+		) ;
+	}
 	//
 	repo_root_s = repo_view_s | phy_repo_root_s ;
 	if ( !self && !chroot_info.dir_s ) {
@@ -1075,11 +1090,11 @@ bool JobSpace::enter(
 	SWEAR( +phy_repo_root_s  ) ;
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
 	//
-	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                                ;          // account for initial and terminal /
-	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl_s(sd_s) ; } ) ;
+	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ;            // account for initial and terminal /
+	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl(sd_s) ; } ) ;
 	if (src_dir_depth>=repo_depth)
 		for( ::string const& sd_s : src_dirs_s )
-			throw_if( uphill_lvl_s(sd_s)==src_dir_depth , "too many .. to access relative source dir ",sd_s," from repo view ",repo_root_s,rm_slash) ;
+			throw_if( uphill_lvl(sd_s)==src_dir_depth , "too many .. to access relative source dir ",sd_s," from repo view ",repo_root_s,rm_slash) ;
 	::string repo_super_s      = dir_name_s(repo_root_s,src_dir_depth) ; SWEAR(repo_super_s!="/") ;
 	::string phy_repo_super_s_ ;
 	if (+repo_view_s) {
@@ -1123,8 +1138,8 @@ bool JobSpace::enter(
 	bool       creat_tmp     = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
 	::vector_s creat_views_s ;
 	for( auto const& [v_s,_] : views ) {
-		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { if (!clean_mount_in_tmp                                  ) clean_mount_in_tmp = !keep_tmp ; }
-		else if ( !is_lcl_s(v_s)                           ) { if (!FileInfo(chroot_dir+mk_glb_s(v_s,repo_root_s)).tag()) creat_views_s.push_back(v_s) ;   }
+		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { if (!clean_mount_in_tmp                                ) clean_mount_in_tmp = !keep_tmp ; }
+		else if ( !is_lcl(v_s)                             ) { if (!FileInfo(chroot_dir+mk_glb(v_s,repo_root_s)).tag()) creat_views_s.push_back(v_s) ;   }
 	}
 	creat |= +creat_views_s ;
 	//
@@ -1219,19 +1234,19 @@ bool JobSpace::enter(
 	//
 	size_t work_idx = 0 ;
 	for( auto const& [view_s,descr] : views ) {
-		bool       view_is_tmp = +tmp_dir_s && view_s.starts_with(tmp_dir_s)                                                                   ;
-		bool       view_is_lcl = is_lcl_s(view_s)                                                                                              ;
-		bool       view_is_ext = !view_is_lcl && !view_is_tmp                                                                                  ;
-		::string   abs_view_s  = chroot_dir + ( view_is_tmp ? tmp_view_s+substr_view(view_s,tmp_dir_s.size()) : mk_glb_s(view_s,repo_root_s) ) ;
+		bool       view_is_tmp = +tmp_dir_s && view_s.starts_with(tmp_dir_s)                                                                 ;
+		bool       view_is_lcl = is_lcl(view_s)                                                                                              ;
+		bool       view_is_ext = !view_is_lcl && !view_is_tmp                                                                                ;
+		::string   abs_view_s  = chroot_dir + ( view_is_tmp ? tmp_view_s+substr_view(view_s,tmp_dir_s.size()) : mk_glb(view_s,repo_root_s) ) ;
 		::vector_s abs_phys_s  ;
 		::vector_s abs_cu_dsts ;
 		//
 		for( size_t i : iota(descr.phys_s.size()) ) {
-			::string const& phy_s      = descr.phys_s[i]                                                                                  ;
-			bool            phy_is_tmp = +tmp_dir_s && phy_s.starts_with(tmp_dir_s)                                                       ;
-			bool            phy_is_lcl = is_lcl_s(phy_s) && +phy_s                                                                        ;
-			bool            phy_is_ext = !phy_is_lcl && !phy_is_tmp                                                                       ;
-			::string        abs_phy_s  = phy_is_tmp ? phy_tmp_dir_s+substr_view(phy_s,tmp_dir_s.size()) : mk_glb_s(phy_s,phy_repo_root_s) ;
+			::string const& phy_s      = descr.phys_s[i]                                                                                ;
+			bool            phy_is_tmp = +tmp_dir_s && phy_s.starts_with(tmp_dir_s)                                                     ;
+			bool            phy_is_lcl = is_lcl(phy_s) && +phy_s                                                                        ;
+			bool            phy_is_ext = !phy_is_lcl && !phy_is_tmp                                                                     ;
+			::string        abs_phy_s  = phy_is_tmp ? phy_tmp_dir_s+substr_view(phy_s,tmp_dir_s.size()) : mk_glb(phy_s,phy_repo_root_s) ;
 			//
 			if (!phy_is_ext) {
 				mk_entry( phy_s , abs_phy_s , phy_is_lcl ) ;
@@ -1248,27 +1263,27 @@ bool JobSpace::enter(
 						else                 { ::string cud=dir_name_s(cu) ; mk_entry(phy_s+cud,abs_phy_s+cud,phy_is_lcl) ; abs_cu_dsts.push_back(abs_phy_s+cu) ; }
 					}
 			} else {
-				if (+abs_cu_dsts) {                                                                           // try to copy up remaining destinations
+				if (+abs_cu_dsts) {                                                                         // try to copy up remaining destinations
 					SWEAR( descr.copy_up.size()==abs_cu_dsts.size() , descr.copy_up,abs_cu_dsts ) ;
 					for ( size_t j : iota(descr.copy_up.size()) )
 						if ( +abs_cu_dsts[j] && +cpy( abs_phy_s+descr.copy_up[j] , abs_cu_dsts[j] ) )
-							abs_cu_dsts[j] = {} ;                                                             // copy is done from this lower, dont try following lowers
+							abs_cu_dsts[j] = {} ;                                                           // copy is done from this lower, dont try following lowers
 				}
 			}
 		}
 		//
-		if (!view_is_ext) mk_entry( view_s , abs_view_s , view_is_lcl ) ;                                     // external views are created above
+		if (!view_is_ext) mk_entry( view_s , abs_view_s , view_is_lcl ) ;                                   // external views are created above
 		//
-		if ( view_is_tmp && !keep_tmp ) swear_prod( clean_mount_in_tmp , _tmp_dir_s,abs_view_s ) ;            // ensure we do not clean up dirs mounted tmp upon exit
+		if ( view_is_tmp && !keep_tmp ) swear_prod( clean_mount_in_tmp , _tmp_dir_s,abs_view_s ) ;          // ensure we do not clean up dirs mounted tmp upon exit
 		if (abs_phys_s.size()==1) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			_mount_bind( abs_view_s , abs_phys_s[0] , exec_trace ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			::string const& upper_s = descr.phys_s[0] ;
-			::string        work_s  =                                                                         // if not in the repo, it must be in tmp
-				is_lcl_s(upper_s) ? cat(phy_repo_root_s,PrivateAdminDirS,"work/",small_id,'.',work_idx++,'/')
-				:                   cat(no_slash(abs_phys_s[0])         ,".work."            ,work_idx++,'/') // upper is in tmp (there may be several views to same upper)
+			::string        work_s  =                                                                       // if not in the repo, it must be in tmp
+				is_lcl(upper_s) ? cat(phy_repo_root_s,PrivateAdminDirS,"work/",small_id,'.',work_idx++,'/')
+				:                 cat(no_slash(abs_phys_s[0])         ,".work."            ,work_idx++,'/') // upper is in tmp (there may be several views to same upper)
 			;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			_mount_overlay( abs_view_s , abs_phys_s , work_s , exec_trace ) ;
@@ -1294,7 +1309,7 @@ bool JobSpace::enter(
 		exec_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
 	}
 	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
-	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;                                                         // if we have mounted something in tmp, we cant clean it before unmount
+	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;                                                       // if we have mounted something in tmp, we cant clean it before unmount
 	trace("done",report) ;
 	return true/*entered*/ ;
 }
@@ -1317,7 +1332,7 @@ void _mk_canon( ::string&/*inout*/ dir_s , const char* key , bool root_ok , bool
 	if ( !dir_s || (root_ok&&is_root)                                      ) return ;
 	if ( !is_canon(dir_s)                                                  ) dir_s = Disk::mk_canon(dir_s) ;
 	if ( is_root                                                           ) throw cat(key," cannot be /"                                          ) ;
-	if ( !is_abs_s(dir_s)                                                  ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
+	if ( !is_abs(dir_s)                                                    ) throw cat(key," must be absolute : ",no_slash(dir_s)                  ) ;
 	if ( !contains_repo_ok && phy_repo_root_s.starts_with(dir_s          ) ) throw cat("repository cannot lie within ",key,' ',no_slash(dir_s)     ) ;
 	if (                      dir_s          .starts_with(phy_repo_root_s) ) throw cat(key,' ',no_slash(dir_s)," cannot be local to the repository") ;
 }
@@ -1346,8 +1361,8 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 	//
 	auto do_dir = [&]( ::string& dir_s , bool for_view ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
-		if (!is_canon(dir_s)) dir_s = Disk::mk_canon(dir_s)          ;
-		/**/                  dir_s = mk_glb_s( dir_s , sub_repo_s ) ;
+		if (!is_canon(dir_s)) dir_s = Disk::mk_canon(dir_s)        ;
+		/**/                  dir_s = mk_glb( dir_s , sub_repo_s ) ;
 		if ( !_force_creat && +repo_view_s ) {
 			if (for_view) _force_creat |= dir_s.starts_with(phy_repo_root_s) || phy_repo_root_s.starts_with(dir_s) ;          // avoid confusion
 			else          _force_creat |= dir_s.starts_with(repo_view_s    ) || repo_view_s    .starts_with(dir_s) ;          // .
@@ -1364,7 +1379,7 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 	for( auto& [view_s,descr] : views ) {
 		if (!view_s) throw cat("cannot map to full repo view") ;
 		bool view_is_tmp = +tmp_view_s && view_s.starts_with(tmp_view_s) ;
-		bool view_is_lcl = is_lcl_s(view_s)                              ;
+		bool view_is_lcl = is_lcl(view_s)                                ;
 		bool view_is_ext = !view_is_tmp && !view_is_lcl                  ;
 		//
 		if ( +descr.copy_up && descr.phys_s.size()<=1 ) throw cat("cannot copy up in non-overlay view ",no_slash(view_s)                         ) ;
@@ -1374,7 +1389,7 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 		bool first = true ;
 		for( ::string const& phy_s : descr.phys_s ) {
 			bool phy_is_tmp = +tmp_view_s && phy_s.starts_with(tmp_view_s) ;
-			bool phy_is_lcl = is_lcl_s(phy_s)                              ;
+			bool phy_is_lcl = is_lcl(phy_s)                                ;
 			bool phy_is_ext = !phy_is_tmp && !phy_is_lcl                   ;
 			if(  phy_is_ext && first && +descr.copy_up        ) throw cat("cannot copy up to external upper dir ",no_slash(phy_s)," in view "         ,no_slash(view_s)) ;
 			if(  phy_is_ext && first && descr.phys_s.size()>1 ) throw cat("cannot map external upper dir "       ,no_slash(phy_s)," to overlay view " ,no_slash(view_s)) ;
@@ -1383,7 +1398,7 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 			if (!_force_creat) {                                                                                              // if we see recursive mapping, force chroot to cancel this recursion
 				for( auto const& [v_s,_] : views ) {
 					if (+phy_s) { if ( phy_s.starts_with(v_s) || v_s.starts_with(phy_s) ) { _force_creat = true ; break ; } }
-					else        { if ( is_lcl_s(v_s )                                   ) { _force_creat = true ; break ; } } // empty phy_s is the full repo
+					else        { if ( is_lcl(v_s)                                      ) { _force_creat = true ; break ; } } // empty phy_s is the full repo
 				}
 			}
 			first = false ;
@@ -1537,7 +1552,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	/*.  */  repo_root_s
 	,	/*inout*/exec_trace
 	,	         small_id
-	,	         phy_lmake_root_s
+	,	         phy_lmake_root_s       , chk_lmake_root
 	,	         phy_repo_root_s
 	,	         phy_tmp_dir_s          , keep_tmp
 	,	         chroot_info

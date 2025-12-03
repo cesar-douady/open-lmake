@@ -458,7 +458,7 @@ static bool/*interrupted*/ _engine_loop() {
 int main( int argc , char** argv ) {
 
 	Trace::s_backup_trace = true ;
-	g_writable = !app_init(true/*read_only_ok*/,Maybe/*chk_version*/) ;                                                            // server is always launched at root
+	g_writable = !app_init({ .read_only_ok=true , .chk_version=Maybe }) ;                                                          // server is always launched at root
 	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
 	Py::init(*g_lmake_root_s) ;

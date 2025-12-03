@@ -28,7 +28,7 @@ namespace Store {
 		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {
 			// unsigned types handle negative values modulo 2^n, which is ok
 			// round up to ensure cache alignment if Data is properly sized
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			constexpr size_t CacheLineSz = 64 ; // hint only, defined independently of ::hardware_destructive_interference_size to ensure inter-operability
 			// END_OF_VERSIONING
 			constexpr size_t Offset0 = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ;

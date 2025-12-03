@@ -5,7 +5,7 @@
 
 include sys_config.mk
 
-VERSION        := 25.11
+VERSION        := 25.12
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
@@ -29,6 +29,7 @@ REPO_ROOT := $(abspath .)
 
 .PHONY : FORCE
 FORCE : ;
+
 sys_config.env : FORCE
 	@if [ ! -f $@ ] ; then                                           \
 		echo new $@ ;                                                \
@@ -204,6 +205,7 @@ LMAKE_SERVER_PY_FILES := \
 	_lib/read_makefiles.py              \
 	_lib/fmt_rule.py                    \
 	_lib/serialize.py                   \
+	_lib/version.py                     \
 	lib/lmake/__init__.py               \
 	lib/lmake/auto_sources.py           \
 	lib/lmake/config_.py                \
@@ -355,16 +357,41 @@ ext/%.dir.stamp : ext/%.zip
 # versioning
 #
 
-VERSION_SRCS := $(filter src/%.cc,$(SRCS)) $(filter src/%.hh,$(SRCS))
+VERSION_FILES := $(patsubst %,%.v,$(filter-out src/version.cc,$(filter src/%.cc,$(SRCS))) $(filter src/%.hh,$(SRCS)))
+
+# use a stamp to implement a by value update (as make works by date)
+%.v.stamp : %
+	@sed -n '/\/\/.*START_OF_VERSIONING/,/\/\/.*END_OF_VERSIONING/p' $< >$@
+	@# dont touch output if it is steady
+	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version info $(@:%.stamp=%) ; \
+	else                                cp $@ $(@:%.stamp=%) ; echo new    version info $(@:%.stamp=%) ; \
+	fi
+%.v : %.v.stamp ;
+
+version.src : $(VERSION_FILES)
+	@echo collate version info to $@
+	@for f in $^ ; do ! [ -s $$f ] || { echo $${f%.v} : ; cat $$f ; } ; done >$@
+
+version.checked : FORCE
+	@[ -e $@ ] || { >$@ ; }
 
 # use a stamp to implement a by value update (while make works by date)
-version.hh.stamp : _bin/version Manifest $(VERSION_SRCS)
-	@VERSION=$(VERSION) TAG=$(TAG) ./$< $(VERSION_SRCS) >$@
+src/version.cc.stamp : _bin/version version.src version.checked
+	@echo computing versions to $(@:%.stamp=%)
+	@PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
-	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version ; \
-	else                                cp $@ $(@:%.stamp=%) ; echo new    version ; \
+	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version info $(@:%.stamp=%) ; \
+	else                                cp $@ $(@:%.stamp=%) ; echo new    version info $(@:%.stamp=%) ; \
 	fi
-version.hh : version.hh.stamp ;
+src/version.cc : src/version.cc.stamp ;
+
+_lib/version.py : src/version.cc
+	@echo convert version to py to $@
+	@awk ' \
+		$$3=="Cache" {print "cache =",$$5 } \
+		$$3=="Repo"  {print "repo  =",$$5 } \
+		$$3=="Job"   {print "job   =",$$5 } \
+	' $< >$@
 
 #
 # LMAKE
@@ -413,6 +440,7 @@ src/store/unit_test : \
 	$(LMAKE_BASIC_SAN_OBJS) \
 	src/app$(SAN).o         \
 	src/trace$(SAN).o       \
+	src/version$(SAN).o     \
 	src/store/unit_test$(SAN).o
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
@@ -499,6 +527,7 @@ SERVER_COMMON_SAN_OBJS := \
 	src/rpc_job$(SAN).o      \
 	src/rpc_job_exec$(SAN).o \
 	src/trace$(SAN).o        \
+	src/version$(SAN).o      \
 	src/autodep/env$(SAN).o  \
 	src/caches/dir_cache$(SAN).o
 
@@ -509,11 +538,12 @@ BACKEND_SAN_OBJS := \
 	src/lmakeserver/backends/sge$(SAN).o
 
 CLIENT_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)   \
-	src/app$(SAN).o        \
-	src/client$(SAN).o     \
-	src/rpc_client$(SAN).o \
-	src/trace$(SAN).o
+	$(LMAKE_BASIC_SAN_OBJS) \
+	src/app$(SAN).o         \
+	src/client$(SAN).o      \
+	src/rpc_client$(SAN).o  \
+	src/trace$(SAN).o       \
+	src/version$(SAN).o
 
 SERVER_SAN_OBJS := \
 	$(SERVER_COMMON_SAN_OBJS)         \
@@ -603,6 +633,7 @@ bin/xxhsum : \
 	$(LMAKE_BASIC_OBJS) \
 	src/app.o           \
 	src/trace.o         \
+	src/version.o       \
 	src/xxhsum.o
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -631,7 +662,8 @@ AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
 REMOTE_OBJS  := \
 	$(BASIC_REMOTE_OBJS) \
 	src/app.o            \
-	src/trace.o
+	src/trace.o          \
+	src/version.o
 
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
@@ -641,6 +673,7 @@ REMOTE_OBJS  := \
 #	src/re$(SAN).o             \
 #	src/rpc_job$(SAN).o        \
 #	src/trace$(SAN).o          \
+#	src/version$(SAN).o        \
 #	src/autodep/gather$(SAN).o \
 #	src/autodep/ptrace$(SAN).o \
 #	src/autodep/record$(SAN).o \
@@ -663,6 +696,7 @@ JOB_EXEC_OBJS := \
 	src/re.o             \
 	src/rpc_job.o        \
 	src/trace.o          \
+	src/version.o        \
 	src/autodep/gather.o \
 	src/autodep/ptrace.o \
 	src/autodep/record.o \

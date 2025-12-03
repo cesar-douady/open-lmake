@@ -22,6 +22,7 @@
 
 #include <cmath>   // ldexp
 #include <cstddef> // nullptr_t
+#include <cstdint>
 #include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
 #include <algorithm>

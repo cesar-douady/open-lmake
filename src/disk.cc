@@ -89,9 +89,9 @@ namespace Disk {
 		return res ;
 	}
 
-	::string _mk_lcl( ::string const& path , ::string const& dir_s ) {
-		SWEAR( is_dir_name(dir_s)            ,        dir_s ) ;
-		SWEAR( is_abs(path)==is_abs_s(dir_s) , path , dir_s ) ;
+	::string mk_lcl( ::string const& path , ::string const& dir_s ) {
+		SWEAR( is_dir_name(dir_s)          ,        dir_s ) ;
+		SWEAR( is_abs(path)==is_abs(dir_s) , path , dir_s ) ;
 		size_t last_slash1 = 0 ;
 		for( size_t i : iota(path.size()) ) {
 			if (path[i]!=dir_s[i]) break ;
@@ -103,7 +103,7 @@ namespace Disk {
 		return res ;
 	}
 
-	::string _mk_glb( ::string const& path , ::string const& dir_s ) {
+	::string mk_glb( ::string const& path , ::string const& dir_s ) {
 		if (is_abs  (path)) return path ;
 		::string_view d_s = dir_s ;
 		::string_view p   = path  ;
@@ -184,7 +184,7 @@ namespace Disk {
 	}
 
 	void unlnk_inside_s( FileRef dir_s , _UnlnkAction action ) {
-		if (!action.abs_ok) SWEAR( is_lcl_s(dir_s.file) , dir_s ) ; // unless certain, prevent accidental non-local unlinks
+		if (!action.abs_ok) SWEAR( is_lcl(dir_s.file) , dir_s ) ; // unless certain, prevent accidental non-local unlinks
 		if (action.force) {
 			if (+dir_s.file) [[maybe_unused]] int _ = ::fchmodat( dir_s.at , dir_s.file.c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , AT_SYMLINK_NOFOLLOW ) ; // best effort
 			else             [[maybe_unused]] int _ = ::fchmod  ( dir_s.at ,                      S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH                       ) ; // .
@@ -317,7 +317,7 @@ namespace Disk {
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(::move(d_s))) ; // retry after parent is created
+					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;         // retry after parent is created
 					else              { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
@@ -423,7 +423,7 @@ namespace Disk {
 		return os<< "FileSig(" << to_hex(sig._val>>NBits<FileTag>) <<':'<< sig.tag() <<')' ;
 	}                                                                                        // END_OF_NO_COV
 
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING DIR_CACHE REPO
 	FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 		switch (fi.tag()) {
 			case FileTag::None    :
@@ -516,7 +516,7 @@ namespace Disk {
 			DN}
 		::string lcl_real = mk_lcl(real,repo_root_s) ;
 		for( ::string const& sd_s : src_dirs_s )
-			if ( lies_within( is_abs_s(sd_s)?abs_real:lcl_real , sd_s ) ) return FileLoc::SrcDir ;
+			if ( lies_within( is_abs(sd_s)?abs_real:lcl_real , sd_s ) ) return FileLoc::SrcDir ;
 		return FileLoc::Ext ;
 	}
 
@@ -548,12 +548,12 @@ namespace Disk {
 	}
 
 	RealPath::RealPath( RealPathEnv const& rpe , pid_t p ) : pid{p} , _env{&rpe} , _repo_root_sz{_env->repo_root_s.size()} , _nfs_guard{rpe.file_sync} {
-		/**/                SWEAR( is_abs_s(rpe.repo_root_s) , rpe.repo_root_s ) ;
-		if (+rpe.tmp_dir_s) SWEAR( is_abs_s(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
+		/**/                SWEAR( is_abs(rpe.repo_root_s) , rpe.repo_root_s ) ;
+		if (+rpe.tmp_dir_s) SWEAR( is_abs(rpe.tmp_dir_s  ) , rpe.tmp_dir_s   ) ;
 		//
 		chdir() ; // initialize _cwd
 		//
-		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb_s(sd_s,rpe.repo_root_s)) ;
+		for ( ::string const& sd_s : rpe.src_dirs_s ) _abs_src_dirs_s.push_back(mk_glb(sd_s,rpe.repo_root_s)) ;
 	}
 
 	size_t RealPath::_find_src_idx(::string const& real) const {

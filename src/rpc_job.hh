@@ -21,7 +21,7 @@ enum class CacheTag : uint8_t { // PER_CACHE : add a tag for each cache method
 ,	Dir
 } ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 // by default, use a compromize between speed an reliability
@@ -32,7 +32,7 @@ enum class CacheTag : uint8_t { // PER_CACHE : add a tag for each cache method
 #endif
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 	Unknown                       // must be first
 ,	Local
@@ -45,7 +45,7 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class CacheHitInfo : uint8_t {
 	Hit                             // cache hit
 ,	Match                           // cache matches, but not hit (some deps are missing, hence dont know if hit or miss)
@@ -71,14 +71,14 @@ static constexpr ::amap<CacheHitInfo,const char*,N<CacheHitInfo>> CacheHitInfoSt
 }} ;
 static_assert(chk_enum_tab(CacheHitInfoStrs)) ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class ChrootAction : uint8_t {
 	None                            // no action
 ,	Overwrite                       // user and root and their groups have a name, existing ones are not preserved
 ,	Merge                           // user          and their group  have a name, existing ones are     preserved
 } ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class FileActionTag : uint8_t {
 	Src                              // file is src, no action
 ,	None                             // same as unlink except expect file not to exist
@@ -94,7 +94,7 @@ enum class FileActionTag : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class JobInfoKind : uint8_t {
 	None
 ,	Start
@@ -104,7 +104,7 @@ enum class JobInfoKind : uint8_t {
 // END_OF_VERSIONING
 using JobInfoKinds = BitMap<JobInfoKind> ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class JobMngtProc : uint8_t {
 	None
 ,	ChkDeps
@@ -118,7 +118,7 @@ enum class JobMngtProc : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class JobRpcProc : uint8_t {
 	None
 ,	Start
@@ -128,7 +128,7 @@ enum class JobRpcProc : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class JobReasonTag : uint8_t {            // see explanations in table below
 	None
 ,	Retry                                      // job is retried in case of error      if asked so by user
@@ -261,7 +261,7 @@ enum class MountAction : uint8_t {
 ,	Write
 } ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class Status : uint8_t { // result of job execution
 	New                       // job was never run
 ,	EarlyChkDeps              // dep check failed before job actually started
@@ -307,7 +307,7 @@ static_assert(chk_enum_tab(StatusAttrs)) ;
 inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }
 inline bool  is_lost(Status s) { return StatusAttrs[+s].second.second ; }
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO CACHE
 enum class ZlvlTag : uint8_t {
 	None
 ,	Zlib
@@ -350,7 +350,7 @@ bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&&
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	FileActionTag tag    = {} ;
 	Tflags        tflags = {} ;
 	Hash::Crc     crc    = {} ; // expected (else, quarantine)
@@ -383,7 +383,7 @@ struct AccDflags {
 	AccDflags  operator| (AccDflags other) const { return { accesses|other.accesses , dflags|other.dflags } ; }
 	AccDflags& operator|=(AccDflags other)       { self = self | other ; return self ;                        }
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	Accesses accesses ;
 	Dflags   dflags   ;
 	// END_OF_VERSIONING
@@ -415,14 +415,14 @@ struct JobReason {
 	}
 	void chk() const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	NodeIdx node = 0                  ;
 	Tag     tag  = JobReasonTag::None ;
 	// END_OF_VERSIONING
 } ;
 
 struct JobStats {
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	size_t            mem = 0  ; // in bytes
 	Time::CoarseDelay cpu = {} ;
 	Time::CoarseDelay job = {} ; // elapsed in job
@@ -446,7 +446,7 @@ enum class DepInfoKind : uint8_t {
 ,	Info
 } ;
 struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 	// END_OF_VERSIONING
 	friend ::string& operator+=( ::string& , DepInfo const& ) ;
@@ -587,7 +587,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		return self ;
 	}
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	uint8_t       sz                       = 0          ;                                //   8 bits, number of items in chunk following header (semantically before)
 	Accesses      accesses                 ;                                             // 3<8 bits
 	Dflags        dflags                   = DflagsDflt ;                                // 5<8 bits
@@ -623,7 +623,7 @@ struct TargetDigest {
 	friend ::string& operator+=( ::string& , TargetDigest const& ) ;
 	using Crc = Hash::Crc ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	Tflags        tflags       = {}    ;
 	ExtraTflags   extra_tflags = {}    ;
 	bool          pre_exist    = false ; // if true <=> file was seen as existing while not incremental
@@ -660,7 +660,7 @@ template<class Key=::string> struct JobDigest {                                 
 	// services
 	void cache_cleanup() ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	uint64_t                 upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
 	::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
@@ -711,7 +711,7 @@ namespace Caches {
 		static constexpr Channel CacheChnl = Channel::Cache ;
 		struct DownloadDigest ;
 		struct Hdr {
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO CACHE
 			::vector<Sz> target_szs ;
 			// END_OF_VERSIONING
 		} ;
@@ -778,7 +778,7 @@ struct JobSpace {
 			::serdes( s , phys_s,copy_up ) ;
 		}
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO CACHE
 		::vector_s phys_s  = {} ;                                                              // (upper,lower...)
 		::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
@@ -796,7 +796,7 @@ struct JobSpace {
 	,	::string  &              /*.  */   repo_root_s
 	,	::vector<ExecTraceEntry>&/*inout*/
 	,	SmallId
-	,	::string   const&                  phy_lmake_root_s
+	,	::string   const&                  phy_lmake_root_s , bool chk_lmake_root
 	,	::string   const&                  phy_repo_root_s
 	,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
 	,	ChrootInfo const&                  chroot_info
@@ -810,7 +810,7 @@ struct JobSpace {
 	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s , bool has_chroot )       ;
 	void chk     (                                                                                ) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
 	::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
 	::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
@@ -829,7 +829,7 @@ struct JobRpcReq {
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	SeqId  seq_id = 0 ;
 	JobIdx job    = 0 ;
 	// END_OF_VERSIONING)
@@ -848,7 +848,7 @@ struct JobStartRpcReq : JobRpcReq {
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	SockFd::Service service ; // where job_exec can be contacted (except addr which is discovered by server from peer_addr
 	::string        msg     ;
 	// END_OF_VERSIONING)
@@ -917,7 +917,7 @@ struct JobStartRpcReply {                                                // NOLI
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	AutodepEnv                              autodep_env       ;
 	Caches::Cache*                          cache             = nullptr             ;
 	CacheIdx                                cache_idx         = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
@@ -950,6 +950,7 @@ struct JobStartRpcReply {                                                // NOLI
 	bool                                    use_script        = false               ;
 	Zlvl                                    zlvl              {}                    ;
 	// END_OF_VERSIONING
+	bool                                    chk_lmake_root    = false               ; // not transported
 private :
 	::string _tmp_dir_s ;                                                             // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
@@ -980,7 +981,7 @@ struct JobEndRpcReq : JobRpcReq {
 	void cache_cleanup() ;                   // clean up info before uploading to cache
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	JobDigest<>              digest        ;
 	::string                 phy_tmp_dir_s ;
 	::vmap_ss                dyn_env       ; // env variables computed in job_exec
@@ -1075,7 +1076,7 @@ struct SubmitAttrs {
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	::vmap_s<DepDigest> deps         = {}    ;
 	JobReason           reason       = {}    ;
 	Time::CoarseDelay   pressure     = {}    ;
@@ -1095,7 +1096,7 @@ struct JobInfoStart {
 	void cache_cleanup() ;                 // clean up info before uploading to cache
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	Hash::Crc        rule_crc_cmd = {} ;
 	::vector_s       stems        = {} ;
 	Time::Pdate      eta          = {} ;
@@ -1119,7 +1120,7 @@ struct JobInfo {
 	void cache_cleanup(                    ) ;         // clean up info before uploading to cache
 	void chk          (bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO CACHE
 	JobInfoStart                            start    ;
 	JobEndRpcReq                            end      ;
 	::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps

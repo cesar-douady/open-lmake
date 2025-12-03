@@ -447,8 +447,8 @@ namespace Engine {
 			local_admin_dir_s = ::move(std_dir_s) ;
 		} else {
 			local_admin_dir_s = user_local_admin_dir_s+key+"-la/" ;
-			::string lnk_target = no_slash(mk_rel_s( local_admin_dir_s , dir_name_s(std_dir_s) )) ;
-			::string std_dir    = no_slash(std_dir_s   )                                          ;
+			::string lnk_target = no_slash(mk_rel( local_admin_dir_s , dir_name_s(std_dir_s) )) ;
+			::string std_dir    = no_slash(        std_dir_s                                  ) ;
 			if (read_lnk(std_dir)!=lnk_target) {
 				unlnk  ( std_dir , {.dir_ok=true} ) ;
 				sym_lnk( std_dir , lnk_target     ) ;

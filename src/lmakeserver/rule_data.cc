@@ -807,7 +807,7 @@ namespace Engine {
 		if (is_plain()) SWEAR(+rules) ;
 		Hash::Xxh h ;                                                  // each crc continues after the previous one, so they are standalone
 		//
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		::vmap_s<bool> targets ;
 		for( bool star : {false,true} )
 			for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable

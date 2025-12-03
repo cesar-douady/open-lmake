@@ -28,7 +28,7 @@ using namespace Py   ;
 }
 
 int main( int argc , char* argv[] ) {
-	app_init(false/*read_only_ok*/) ;
+	app_init({.read_only_ok=false}) ;
 	Py::init(*g_lmake_root_s      ) ;
 	Trace trace("main") ;
 	//

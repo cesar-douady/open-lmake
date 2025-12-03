@@ -17,7 +17,7 @@
 
 #ifdef STRUCT_DECL
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO
 
 enum class DynImport : uint8_t {
 	Static                       // may import when computing glbs
@@ -191,7 +191,7 @@ namespace Engine {
 		// accesses
 		void mk_full_dyn() { dyn_deps = true ; }
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		bool dyn_deps = false ;
 		::vmap_s<DepSpec> deps ;
 		// END_OF_VERSIONING
@@ -216,7 +216,7 @@ namespace Engine {
 			return 0 ;                                                                                                              // not found : default to 1 cpu
 		}
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		bool       dyn_rsrcs = false             ;
 		BackendTag backend   = BackendTag::Local ;                                                                                  // backend to use to launch jobs
 		::vmap_ss  rsrcs     ;
@@ -232,7 +232,7 @@ namespace Engine {
 			throw_unless( !cache || g_config->caches.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
 		}
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		::string cache ;
 		// END_OF_VERSIONING
 	} ;
@@ -265,7 +265,7 @@ namespace Engine {
 			if (dyn_keys.contains("views")) dyn_views = true ;
 		}
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		bool       auto_mkdir   = false ;
 		bool       ignore_stat  = false ;
 		bool       readdir_ok   = false ;
@@ -298,7 +298,7 @@ namespace Engine {
 			if (dyn_keys.contains("env")) dyn_env = true ;
 		}
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		bool          dyn_env       = false               ;
 		AutodepMethod method        = AutodepMethod::Dflt ;
 		bool          use_script    = false               ;
@@ -329,7 +329,7 @@ namespace Engine {
 			if (dyn_keys.contains("env")) dyn_env = true ;
 		}
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
 		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
 		bool              keep_tmp       = false ;
@@ -420,7 +420,7 @@ namespace Engine {
 			::serdes(s,spec                       ) ;
 		}
 		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const {
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			/**/             h += spec        ;
 			/**/             h += has_entry() ;
 			if (has_entry()) const_cast<DynEntry&>(entry(rs)).serdes( /*inout*/h , &rs ) ; // serdes is declared non-const because it is also used for deserializing
@@ -487,7 +487,7 @@ namespace Engine {
 		friend Rule ;
 		static constexpr char   JobMrkr =  0          ;                                                                                         // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		using Prio = double ;
 		// END_OF_VERSIONING
 		struct MatchEntry {
@@ -495,7 +495,7 @@ namespace Engine {
 			void set_pattern( ::string&&        , VarIdx n_stems ) ;
 			void set_pattern( ::string const& p , VarIdx n_stems ) { set_pattern(::copy(p),n_stems) ; }
 			// data
-			// START_OF_VERSIONING
+			// START_OF_VERSIONING REPO
 			::string       pattern  = {} ;
 			MatchFlags     flags    = {} ;
 			::vector<bool> captures = {} ;                                                                                                      // indexed by stem, true if stem is referenced
@@ -554,7 +554,7 @@ namespace Engine {
 		/**/              ::string _pretty_deps   (                    ) const ;
 		/**/              ::string _pretty_env    (                    ) const ;
 		/**/              ::string _pretty_views  (                    ) const ;
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		// user data
 	public :
 		Special              special    = Special::None ;
@@ -604,7 +604,7 @@ namespace Engine {
 		// services
 		::vmap_ss descr() const;
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		Crc   match ;
 		Crc   cmd   ;
 		Crc   rsrcs ;
@@ -805,7 +805,7 @@ namespace Engine {
 	template<IsStream S> void DynEntry::serdes( S& s , RulesBase const* rs ) {
 		static constexpr bool IsHash = Hash::IsHash<S> ;
 		Trace trace("DynEntry::serdes",STR(IsIStream<S>)) ;
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		Kind     kind_ ;
 		::string buf   ;
 		if (!IsIStream<S>) {
@@ -929,7 +929,7 @@ namespace Engine {
 	// RuleData
 	//
 
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING REPO
 	template<IsStream S> void RuleData::serdes(S& s) {
 		::serdes(s,special   ) ;
 		::serdes(s,user_prio ) ;

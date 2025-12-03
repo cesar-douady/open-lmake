@@ -114,8 +114,8 @@ namespace Caches {
 			}
 			throw_unless( max_sz , "size must be specified for dir_cache ",dir_s,rm_slash," as size=<value> in ",config_file ) ;
 			//
-			try                     { chk_version( may_init , dir_s+AdminDirS , perm_ext) ;         }
-			catch (::string const&) { throw cat("version mismatch for dir_cache ",dir_s,rm_slash) ; }
+			try                     { chk_version({ .may_init=may_init , .admin_dir_s=dir_s+AdminDirS , .version=Version::Cache , .perm_ext=perm_ext }) ; }
+			catch (::string const&) { throw cat("version mismatch for dir_cache ",dir_s,rm_slash) ;                                                       }
 			//
 		}
 	#endif
@@ -569,9 +569,9 @@ namespace Caches {
 
 	void DirCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
 		Trace trace(CacheChnl,"DirCache::sub_commit",upload_key,job) ;
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING CACHE
 		::string deps_str     = serialize(job_info.end.digest.deps) ;
-		::string job_info_str = serialize(job_info                ) ;
+		::string job_info_str = serialize(job_info                ) ;;
 		// END_OF_VERSIONING
 		::string       deps_hint = cat(job,"/deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                   // deps_hint is hint only, hence no versioning
 		NfsGuardLock   lock      { file_sync , lock_file , {.perm_ext=perm_ext} }           ; trace("locked") ; // lock as late as possible
@@ -626,7 +626,7 @@ namespace Caches {
 				unlnk_inside_s(dfd)                ; unlnked   = true ;
 				_mk_room( old_sz , new_sz , lock ) ; made_room = true ;
 				// store meta-data and data
-				// START_OF_VERSIONING
+				// START_OF_VERSIONING CACHE
 				info_buf.send( AcFd(File(dfd,"info"),{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&lock}) , {}/*key*/ ) ;
 				rename( {root_fd,_reserved_file(upload_key)}/*src*/ , File(dfd,"sz_data")/*dst*/ , {.nfs_guard=&lock} ) ;
 				// END_OF_VERSIONING

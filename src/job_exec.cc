@@ -54,7 +54,10 @@ JobStartRpcReply get_start_info() {
 		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
 	}
-	if ( +g_lmake_root_s && !res.phy_lmake_root_s ) res.phy_lmake_root_s = *g_lmake_root_s ;
+	if (+g_lmake_root_s) {
+		if (+res.phy_lmake_root_s) res.chk_lmake_root   = true            ; // if using a different lmake, we must check compatibility
+		else                       res.phy_lmake_root_s = *g_lmake_root_s ;
+	}
 	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
@@ -91,22 +94,22 @@ JobStartRpcReply get_start_info() {
 	return res ;
 }
 
-::string g_to_unlnk ;                                                                                          // XXX/ : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                                                                   // XXX/ : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line( ::map_ss const& cmd_env , ::string const& repo_root_s ) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
 	if (g_start_info.use_script) {
 		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;                              // correct code
+	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;                                       // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_start_info.cmd ) ;
-		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ;                        // avoid copying as interpreter is used only here
-		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                                          // provide absolute script so as to support cwd
-		g_to_unlnk = ::move(cmd_file) ;                                                                        // XXX/ : suppress when CentOS7 bug is fixed
+		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ;                                 // avoid copying as interpreter is used only here
+		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                                                   // provide absolute script so as to support cwd
+		g_to_unlnk = ::move(cmd_file) ;                                                                                 // XXX/ : suppress when CentOS7 bug is fixed
 		Trace("cmd_line","use_script",res) ;
 		return res ;
 	} else {
 		// large commands are forced use_script=true in server
-		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;                                 // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;                                          // env+cmd line must not be larger than ARG_MAX, keep some margin for env
 		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , cmd_env ) ; // interpreter becomes full cmd line
 		Trace("cmd_line",STR(is_simple),g_start_info.interpreter) ;
 		return ::move(g_start_info.interpreter) ;
@@ -196,7 +199,7 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
 	Trace::s_sz = 10<<20 ;                                                                                   // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                                  // necessary to capture it using signalfd
-	app_init(false/*read_only_ok*/,No/*chk_version*/,Maybe/*cd_root*/) ;                                     // dont cd, but check we are in a repo
+	app_init({ .read_only_ok=false , .chk_version=No , .cd_root=Maybe }) ;                                   // dont cd, but check we are in a repo
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
@@ -212,19 +215,19 @@ int main( int argc , char* argv[] ) {
 		//
 		try {
 			end_report.msg_stderr.msg += with_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
-		} catch (::string const& e) {                                                                        // START_OF_NO_COV defensive programming
+		} catch (::string const& e) {                                                                                                                           // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
-		}                                                                                                    // END_OF_NO_COV
+		}                                                                                                                                                       // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                               // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                         // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
@@ -236,7 +239,7 @@ int main( int argc , char* argv[] ) {
 					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << it->second       <<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
 					else if (has_env("TMPDIR",false/*empty_ok*/)) end_report.phy_tmp_dir_s << get_env("TMPDIR")<<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
 					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"auto_tmp/"            <<g_seq_id<<'/' ;
-					else if (!is_abs_s(end_report.phy_tmp_dir_s)) {
+					else if (!is_abs(end_report.phy_tmp_dir_s)) {
 						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
 						goto End ;
 					}

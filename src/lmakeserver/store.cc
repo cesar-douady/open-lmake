@@ -208,7 +208,7 @@ namespace Engine::Persistent {
 	static void _init_srcs_rules(bool rescue) {
 		Trace trace("_init_srcs_rules",STR(rescue)) ;
 		//
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
 		_g_rules_file_name = dir_s+"rule" ;
@@ -572,7 +572,7 @@ namespace Engine::Persistent {
 			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within or encompass system directories") ;
 			//
 			if (is_dir_) {
-				if ( size_t lvl=uphill_lvl_s(src) ; lvl>=repo_root_depth ) {
+				if ( size_t lvl=uphill_lvl(src) ; lvl>=repo_root_depth ) {
 					if (lvl==repo_root_depth) throw cat("use absolute name to access source dir "   ,src," from repo ",*g_repo_root_s,rm_slash) ;
 					else                      throw cat("too many .. to access relative source dir ",src," from repo ",*g_repo_root_s,rm_slash) ;
 				}

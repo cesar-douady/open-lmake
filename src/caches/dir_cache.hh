@@ -21,7 +21,7 @@ namespace Caches {
 	using RepairTags = CacheRepairTags ;
 
 	struct DirCache : Cache {                                                                                                // PER_CACHE : inherit from Cache and provide implementation
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING CACHE
 		struct Lru {
 			// accesses
 			bool operator==(Lru const&) const = default ;

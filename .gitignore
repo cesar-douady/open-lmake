@@ -32,8 +32,12 @@ __pycache__
 #auto-configuration
 /sys_config.*
 /sys_config_env
-/version.hh
+/version.checked
+/src/version.cc.stamp
+/_lib/version.py
+/version.src
 /Manifest
+*.v
 *.d
 
 # compiled files

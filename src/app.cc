@@ -35,10 +35,10 @@ static void _terminate() {
 	catch (...                 ) { crash(4,SIGABRT,"uncaught exception"           ) ; }
 }
 
-bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_root ) {
-    t_thread_key = '=' ;                                                                                  // we are the main thread
+bool/*read_only*/ app_init(AppInitAction action) {
+	t_thread_key = '=' ;                                                                                  // we are the main thread
 	//
-	if (cd_root==No) SWEAR( chk_version_==No && read_only_ok ) ;                                          // cannot check repo without a repo dir
+	if (action.cd_root==No) SWEAR( action.chk_version==No && action.read_only_ok ) ;                                          // cannot check repo without a repo dir
 	::set_terminate(_terminate) ;
 	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;             // catch all synchronous signals so as to generate a backtrace
 	//
@@ -48,9 +48,9 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 			SearchRootResult srr = search_root() ;
 			g_repo_root_s    = new ::string{srr.top_s} ;
 			*g_startup_dir_s = srr.startup_s           ;
-			if ( cd_root==Yes && +*g_startup_dir_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",*g_repo_root_s,rm_slash ) ;
+			if ( action.cd_root==Yes && +*g_startup_dir_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",*g_repo_root_s,rm_slash ) ;
 		} catch (::string const& e) {
-			if (cd_root!=No) exit( Rc::Usage , e ) ;
+			if (action.cd_root!=No) exit( Rc::Usage , e ) ;
 		}
 	}
 	::string exe_path = get_exe() ;
@@ -62,30 +62,30 @@ bool/*read_only*/ app_init( bool read_only_ok , Bool3 chk_version_ , Bool3 cd_ro
 	#endif
 	//
 	bool read_only = !g_repo_root_s || ::access(g_repo_root_s->c_str(),W_OK) ;                            // cannot modify repo if no repo
-	if (read_only>read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
+	if (read_only>action.read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
 	//
-	if (chk_version_!=No)
-		try                       { chk_version( !read_only && chk_version_==Maybe ) ; }
-		catch (::string const& e) { exit(Rc::Version,e) ;                              }
+	if (action.chk_version!=No)
+		try                       { chk_version({ .may_init = !read_only && action.chk_version==Maybe }) ; }
+		catch (::string const& e) { exit(Rc::Version,e) ;                                                  }
 	//
 	if (!read_only)
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }
-	Trace trace("app_init",chk_version_,cd_root,+g_startup_dir_s?*g_startup_dir_s:""s) ;
+	Trace trace("app_init",action.chk_version,action.cd_root,+g_startup_dir_s?*g_startup_dir_s:""s) ;
 	return read_only ;
 }
 
-void chk_version( bool may_init , ::string const& admin_dir_s , PermExt perm_ext ) {
-	::string version_file = admin_dir_s+"version"           ;
+void chk_version(ChkAction const& action) {
+	::string version_file = action.admin_dir_s+"version"    ;
 	AcFd     version_fd   { version_file , {.err_ok=true} } ;
 	if (!version_fd) {
-		throw_unless( may_init , "repo not initialized, consider : lmake" ) ;
-		AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=perm_ext} ).write( cat(VersionMrkr,'\n') ) ;
+		throw_unless( action.may_init , "repo not initialized, consider : lmake" ) ;
+		AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=action.perm_ext} ).write( cat(action.version,'\n') ) ;
 	} else {
 		::string stored = version_fd.read() ;
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 		stored.pop_back() ;
-		if (stored!=VersionMrkr) {
+		if (from_string<uint64_t>(stored)!=action.version) {
 			if (+g_repo_root_s) throw "version mismatch, "+git_clean_msg() ;
 			else                throw "version mismatch"s                  ;
 		}

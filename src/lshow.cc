@@ -9,7 +9,7 @@
 #include "trace.hh"
 
 int main( int argc , char* argv[] ) {
-	bool read_only = app_init(true/*read_only_ok*/) ;
+	bool read_only = app_init({.read_only_ok=true}) ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{

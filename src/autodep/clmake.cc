@@ -363,9 +363,9 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	::string          cwd_s_   ;
 	for( ::string& dir : path ) {
 		::string abs_dir_s = with_slash(::move(dir)) ;
-		if (!is_abs_s(abs_dir_s)) {                                           // fast path : dont compute cwd unless required
+		if (!is_abs(abs_dir_s)) {                                             // fast path : dont compute cwd unless required
 			if (!cwd_s_) cwd_s_ = cwd_s() ;
-			abs_dir_s = mk_glb_s(abs_dir_s,cwd_s_) ;
+			abs_dir_s = mk_glb(abs_dir_s,cwd_s_) ;
 		}
 		bool     is_lcl = abs_dir_s.starts_with(_g_autodep_env.repo_root_s) ;
 		::string base   = abs_dir_s + tail                                  ;

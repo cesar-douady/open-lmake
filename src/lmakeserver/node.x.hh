@@ -7,7 +7,7 @@
 
 #ifdef STRUCT_DECL
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO
 enum class Buildable : uint8_t {
 	Anti                         //                                   match independent, include uphill dirs of Src/SrcDir listed in manifest
 ,	SrcDir                       //                                   match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
@@ -88,7 +88,7 @@ enum class NodeStatus : uint8_t {
 ,	Makable = Src // <=Makable means node can be used as dep
 } ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING REPO
 enum class Polluted : uint8_t {
 	Clean                       // must be first
 ,	Old
@@ -492,7 +492,7 @@ namespace Engine {
 		//
 		void _set_match_ok() ;
 		// data
-		// START_OF_VERSIONING
+		// START_OF_VERSIONING REPO
 	public :
 		//NodeName name   ;                                         //         32 bits, inherited
 		Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
