@@ -228,12 +228,12 @@ namespace Engine {
 		static constexpr const char* Msg = "cache key" ;
 		// services
 		void update( Py::Dict const& py_dct ) {
-			Attrs::acquire_from_dct( cache , py_dct , "cache" ) ;
-			throw_unless( !cache || g_config->caches.contains(cache) , "unexpected cache ",cache," not found in config" ) ;
+			Attrs::acquire_from_dct( cache_name , py_dct , "cache" ) ;
+			throw_unless( !cache_name || g_config->cache_idxes.contains(cache_name) , "unexpected cache ",cache_name," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		::string cache ;
+		::string cache_name ;
 		// END_OF_VERSIONING
 	} ;
 

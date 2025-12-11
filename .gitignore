@@ -54,6 +54,7 @@ __pycache__
 *.stamp
 */stamp
 src/lmakeserver/backends/slurm_api-*.cc
+src/caches/*-light.cc
 
 # tests
 tok

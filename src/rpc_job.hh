@@ -18,6 +18,7 @@
 
 enum class CacheTag : uint8_t { // PER_CACHE : add a tag for each cache method
 	None
+,	Daemon
 ,	Dir
 } ;
 
@@ -641,7 +642,7 @@ template<class Key=::string> struct JobDigest {                                 
 		,	.refresh_codecs = refresh_codecs
 		,	.exec_time      = exec_time
 		,	.max_stderr_len = max_stderr_len
-		,	.cache_idx      = cache_idx
+		,	.cache_idx1     = cache_idx1
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
 		,	.incremental    = incremental
@@ -667,7 +668,7 @@ template<class Key=::string> struct JobDigest {                                 
 	::vector_s               refresh_codecs = {}          ;
 	Time::CoarseDelay        exec_time      = {}          ;
 	uint16_t                 max_stderr_len = {}          ;
-	CacheIdx                 cache_idx      = {}          ;
+	CacheIdx                 cache_idx1     = 0           ;
 	Status                   status         = Status::New ;
 	bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
 	bool                     incremental    = false       ;                                // if true <= job was run with existing incremental targets
@@ -688,8 +689,8 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 	}
 	throw_unless( status<All<Status> , "bad status" ) ;
 	if (for_cache) {
-		/**/                            throw_unless( !cache_idx , "bad cache_idx" ) ;
-		for( auto const& [_,d] : deps ) throw_unless( d.is_crc   , "dep not crc"   ) ;
+		/**/                            throw_unless( !cache_idx1 , "bad cache_idx1" ) ;
+		for( auto const& [_,d] : deps ) throw_unless( d.is_crc    , "dep not crc"    ) ;
 	}
 }
 
@@ -716,10 +717,12 @@ namespace Caches {
 			// END_OF_VERSIONING
 		} ;
 		// statics
-		static Cache* s_new   ( Tag                               ) ;
-		static void   s_config( CacheIdx , Tag , ::vmap_ss const& ) ;
+		static Cache* s_new   (Tag                                        ) ;
+		static void   s_config(::vmap_s<::pair<CacheTag,::vmap_ss>> const&) ;
 		// static data
 		static ::vector<Cache*> s_tab ;
+		// cxtors & casts
+		virtual ~Cache() = default ;
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
 		DownloadDigest                                  download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* ) ;
@@ -817,7 +820,7 @@ struct JobSpace {
 	::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when not _is_canon, relative to repo_root when _is_canon
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s ;                                                                      // to be unlinked upon exit
+	::string _tmp_dir_s   ;                                                                    // to be unlinked upon exit
 	bool     _is_canon    = false ;
 	bool     _force_creat = false ;                                                            // valid if _is_canon, if true => create a chroot
 } ;
@@ -839,7 +842,7 @@ struct JobStartRpcReq : JobRpcReq {
 	friend ::string& operator+=( ::string& , JobStartRpcReq const& ) ;
 	// cxtors & casts
 	JobStartRpcReq() = default ;
-	JobStartRpcReq( JobRpcReq jrr , SockFd::Service s , ::string&& msg_={} ) : JobRpcReq{jrr} , service{s} , msg{::move(msg_)} {}
+	JobStartRpcReq( JobRpcReq jrr , KeyedService s , ::string&& msg_={} ) : JobRpcReq{jrr} , service{s} , msg{::move(msg_)} {}
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
@@ -849,8 +852,8 @@ struct JobStartRpcReq : JobRpcReq {
 	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
-	SockFd::Service service ; // where job_exec can be contacted (except addr which is discovered by server from peer_addr
-	::string        msg     ;
+	KeyedService service ; // where job_exec can be contacted (except addr which is discovered by server from peer_addr
+	::string     msg     ;
 	// END_OF_VERSIONING)
 } ;
 
@@ -862,33 +865,33 @@ struct JobStartRpcReply {                                                // NOLI
 	bool operator+() const { return +interpreter ; }                     // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , autodep_env                    ) ;
-		::serdes( s , cache_idx                      ) ;
-		::serdes( s , chroot_info                    ) ;
-		::serdes( s , cmd                            ) ;
-		::serdes( s , ddate_prec                     ) ;
-		::serdes( s , deps                           ) ;
-		::serdes( s , env                            ) ;
-		::serdes( s , interpreter                    ) ;
-		::serdes( s , job_space                      ) ;
-		::serdes( s , keep_tmp                       ) ;
-		::serdes( s , key                            ) ;
-		::serdes( s , kill_sigs                      ) ;
-		::serdes( s , live_out                       ) ;
-		::serdes( s , method                         ) ;
-		::serdes( s , network_delay                  ) ;
-		::serdes( s , nice                           ) ;
-		::serdes( s , os_info       , os_info_file   ) ;
-		::serdes( s , phy_lmake_root_s               ) ;
-		::serdes( s , pre_actions                    ) ;
-		::serdes( s , rule                           ) ;
-		::serdes( s , small_id                       ) ;
-		::serdes( s , star_matches  , static_matches ) ;
-		::serdes( s , stderr_ok                      ) ;
-		::serdes( s , stdin         , stdout         ) ;
-		::serdes( s , timeout                        ) ;
-		::serdes( s , use_script                     ) ;
-		::serdes( s , zlvl                           ) ;
+		::serdes( s , autodep_env                       ) ;
+		::serdes( s , cache_idx1                        ) ;
+		::serdes( s , chroot_info                       ) ;
+		::serdes( s , cmd                               ) ;
+		::serdes( s , ddate_prec                        ) ;
+		::serdes( s , deps                              ) ;
+		::serdes( s , env                               ) ;
+		::serdes( s , interpreter                       ) ;
+		::serdes( s , job_space                         ) ;
+		::serdes( s , keep_tmp                          ) ;
+		::serdes( s , key                               ) ;
+		::serdes( s , kill_sigs                         ) ;
+		::serdes( s , live_out                          ) ;
+		::serdes( s , method                            ) ;
+		::serdes( s , network_delay                     ) ;
+		::serdes( s , nice                              ) ;
+		::serdes( s , os_info          , os_info_file   ) ;
+		::serdes( s , phy_lmake_root_s                  ) ;
+		::serdes( s , pre_actions                       ) ;
+		::serdes( s , rule                              ) ;
+		::serdes( s , small_id                          ) ;
+		::serdes( s , star_matches     , static_matches ) ;
+		::serdes( s , stderr_ok                         ) ;
+		::serdes( s , stdin            , stdout         ) ;
+		::serdes( s , timeout                           ) ;
+		::serdes( s , use_script                        ) ;
+		::serdes( s , zlvl                              ) ;
 		//
 		CacheTag tag ;
 		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
@@ -920,7 +923,7 @@ struct JobStartRpcReply {                                                // NOLI
 	// START_OF_VERSIONING REPO CACHE
 	AutodepEnv                              autodep_env       ;
 	Caches::Cache*                          cache             = nullptr             ;
-	CacheIdx                                cache_idx         = 0                   ; // value to be repeated in JobEndRpcReq to ensure it is available when processing
+	CacheIdx                                cache_idx1        ;                       // to be repeated in JobEndRpcReq to ensure it is available when processing
 	ChrootInfo                              chroot_info       ;
 	::string                                cmd               ;
 	Time::Delay                             ddate_prec        ;
@@ -1058,7 +1061,7 @@ struct SubmitAttrs {
 	// services
 	SubmitAttrs& operator|=(SubmitAttrs const& other) {
 		// cache, deps and tag are independent of req but may not always be present
-		if (!cache_idx   ) cache_idx     =                other.cache_idx    ; else if (+other.cache_idx   ) SWEAR( cache_idx   ==other.cache_idx    , cache_idx   ,other.cache_idx    ) ;
+		if (!cache_idx1  ) cache_idx1    =                other.cache_idx1   ; else if (+other.cache_idx1  ) SWEAR( cache_idx1  ==other.cache_idx1   , cache_idx1  ,other.cache_idx1   ) ;
 		if (!deps        ) deps          =                other.deps         ; else if (+other.deps        ) SWEAR( deps        ==other.deps         , deps        ,other.deps         ) ;
 		if (!used_backend) used_backend  =                other.used_backend ; else if (+other.used_backend) SWEAR( used_backend==other.used_backend , used_backend,other.used_backend ) ;
 		/**/               live_out     |=                other.live_out     ;
@@ -1080,7 +1083,7 @@ struct SubmitAttrs {
 	::vmap_s<DepDigest> deps         = {}    ;
 	JobReason           reason       = {}    ;
 	Time::CoarseDelay   pressure     = {}    ;
-	CacheIdx            cache_idx    = {}    ;
+	CacheIdx            cache_idx1   = {}    ;
 	Tokens1             tokens1      = 0     ;
 	BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
 	bool                live_out     = false ;

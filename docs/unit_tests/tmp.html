@@ -121,7 +121,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="s1">            ln -s $TMPDIR/a        </span><span class="si">{LNK}</span>
 <span class="s1">            ln -s $REPO_ROOT/</span><span class="si">{LNK}</span><span class="s1"> $TMPDIR/b</span>
 <span class="s1">            cd $TMPDIR</span>
-<span class="s1">            sleep 1      # ensure one will overwrite the other in cas of clash</span>
+<span class="s1">            sleep 1      # ensure one will overwrite the other in case of clash</span>
 <span class="s1">            echo $TMPDIR</span>
 <span class="s1">            pwd</span>
 <span class="s1">            echo </span><span class="si">{N}</span><span class="s1"> &gt; a</span>
@@ -134,11 +134,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="k">class</span> <span class="nc">Ref</span><span class="p">(</span><span class="n">Base</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;ref</span><span class="si">{N}</span><span class="s1">&#39;</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">            echo /tmp            # echo $TMPDIR</span>
-<span class="s1">            echo /tmp            # pwd</span>
-<span class="s1">            echo </span><span class="si">{N}</span><span class="s1">             # cat a</span>
-<span class="s1">            echo </span><span class="si">{N}</span><span class="s1">             # cat LNK</span>
-<span class="s1">            echo </span><span class="si">{N}</span><span class="s1">             # cat /tmp/b</span>
+<span class="s1">            echo /tmp # echo $TMPDIR</span>
+<span class="s1">            echo /tmp # pwd</span>
+<span class="s1">            echo </span><span class="si">{N}</span><span class="s1">  # cat a</span>
+<span class="s1">            echo </span><span class="si">{N}</span><span class="s1">  # cat LNK</span>
+<span class="s1">            echo </span><span class="si">{N}</span><span class="s1">  # cat /tmp/b</span>
 <span class="s1">        &#39;&#39;&#39;</span>
 
     <span class="k">class</span> <span class="nc">Cmp</span><span class="p">(</span><span class="n">Base</span><span class="p">)</span> <span class="p">:</span>

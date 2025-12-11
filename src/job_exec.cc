@@ -30,16 +30,16 @@ Gather                    g_gather        ;
 JobIdx                    g_job           = 0/*garbage*/ ;
 SeqId                     g_seq_id        = 0/*garbage*/ ;
 ServerSockFd              g_server_fd     ;
-SockFd::Service           g_service_start ;
-SockFd::Service           g_service_mngt  ;
-SockFd::Service           g_service_end   ;
+KeyedService              g_service_start ;
+KeyedService              g_service_mngt  ;
+KeyedService              g_service_end   ;
 JobStartRpcReply          g_start_info    ;
 
 JobStartRpcReply get_start_info() {
 	g_server_fd = { 0/*backlog*/ } ;                                       // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	Bool3            found_server = No                    ;                // for trace only
-	SockFd::Service  service      = g_server_fd.service() ;
+	Bool3        found_server = No                    ;                    // for trace only
+	KeyedService service      = g_server_fd.service() ;
 	JobStartRpcReply res          ;
 	Trace trace("get_start_info",g_service_start,service) ;
 	try {
@@ -55,7 +55,7 @@ JobStartRpcReply get_start_info() {
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
 	}
 	if (+g_lmake_root_s) {
-		if (+res.phy_lmake_root_s) res.chk_lmake_root   = true            ; // if using a different lmake, we must check compatibility
+		if (+res.phy_lmake_root_s) res.chk_lmake_root   = true            ;     // if using a different lmake, we must check compatibility
 		else                       res.phy_lmake_root_s = *g_lmake_root_s ;
 	}
 	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
@@ -425,7 +425,7 @@ int main( int argc , char* argv[] ) {
 		,	.targets        = ::move   (digest.targets       )
 		,	.deps           = ::move   (digest.deps          )
 		,	.refresh_codecs = mk_vector(digest.refresh_codecs)
-		,	.cache_idx      = g_start_info.cache_idx
+		,	.cache_idx1     = g_start_info.cache_idx1
 		,	.status         = status
 		,	.incremental    = incremental
 		} ;

@@ -21,10 +21,16 @@ namespace Engine {
 		else                          os <<                  ri.prio_idx           ;
 		if (+ri.done_               ) os <<",Done@"       << ri.done_              ;
 		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait             ;
-		if (+ri.overwritten         ) os <<",overwritten:"<<ri.overwritten         ;
+		if ( ri.overwritten         ) os <<",overwritten"                          ;
 		if (+ri.manual              ) os <<','            <<ri.manual              ;
 		return                        os <<')'                                     ;
 	}                                                                                // END_OF_NO_COV
+
+	NodeReqInfo::NodeReqInfo( Req r , Node n ) : ReqInfo{r} {
+		if (!n) return ;
+		n->set_buildable() ;
+		if (n->is_src()) overwritten = FileInfo(n->name()).date>r->start_ddate ;
+	}
 
 	//
 	// Node
@@ -139,23 +145,23 @@ namespace Engine {
 			//vvvvvvvvvvvvvvvvvvvvv
 			set_crc_date(Crc::None) ;
 			//^^^^^^^^^^^^^^^^^^^^^
+			return true/*updated*/ ;
 		} else {
 			if (crc.valid()) { //!                                       updated
 				if (     sig_       ==         sig.sig           ) return false ;                                                          // sig's match
 				if ( Crc(sig_.tag()).match(Crc(sig.sig.tag()),a) ) return false ;                                                          // sig's are enough to match content
 			}
-			Crc      crc_     { name_ , /*out*/sig_ }   ;
-			Accesses mismatch = crc.diff_accesses(crc_) ;
+			Crc  crc_    { name_ , /*out*/sig_ }    ;
+			bool updated = +crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvv
 			set_crc_date( crc_ , sig_ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^
-			const char* step = !prev_ok ? "new" : +mismatch ? "changed" : "steady" ;
-			Color       c    = frozen ? Color::Warning : Color::HiddenOk           ;
-			for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate                     ) ri.overwritten |= mismatch ;                    }
-			for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ; }
-			if (!mismatch) return false/*updated*/ ;
+			const char* step = !prev_ok ? "new" : updated ? "changed" : "steady" ;
+			Color       c    = frozen ? Color::Warning : Color::HiddenOk          ;
+			if (updated) for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate                     ) ri.overwritten = true ;                         }
+			/**/         for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ; }
+			return updated ;
 		}
-		return true/*updated*/ ;
 	}
 
 	void NodeData::set_infinite( Special s , ::vector<Node> const& deps ) {

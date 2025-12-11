@@ -337,9 +337,9 @@ namespace Backends::Sge {
 		::string           sge_root_s        ;
 		::vmap_ss          env               ;
 	private :
-		::unique_ptr<const char*[]>  _sge_env     ;
-		::vector_s                   _sge_env_vec ; // hold _sge_env strings of the form key=value
-		Mutex<MutexLvl::Sge> mutable _sge_mutex   ; // ensure no more than a single outstanding request to daemon
+		::unique_ptr<const char*[]> _sge_env     ;
+		::vector_s                  _sge_env_vec ;  // hold _sge_env strings of the form key=value
+		Mutex<> mutable             _sge_mutex   ;  // ensure no more than a single outstanding request to daemon
 
 	} ;
 

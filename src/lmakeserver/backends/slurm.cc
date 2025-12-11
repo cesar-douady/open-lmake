@@ -61,7 +61,7 @@ namespace Backends::Slurm {
 
 namespace Backends::Slurm {
 
-	Mutex<MutexLvl::Slurm> slurm_mutex ; // ensure no more than a single outstanding request to daemon
+	Mutex<> slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
 	RsrcsData parse_args        (::string const& args                                                                    ) ;
 	::string  read_stderr       (Job                                                                                     ) ;

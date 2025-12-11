@@ -5,8 +5,11 @@
 
 #include "disk.hh"
 #include "process.hh"
+#include "time.hh"
+#include "trace.hh"
 
 using namespace Disk ;
+using namespace Time ;
 
 ::string wstatus_str(int wstatus) {
 	if (WIFEXITED(wstatus)) {
@@ -46,7 +49,7 @@ pid_t get_ppid(pid_t pid) {
 	catch (...) { throw cat("bad format in ",status_file)                              ; }
 }
 
-pid_t get_umask() {
+mode_t get_umask() {
 	::string status_file = "/proc/self/status"      ;
 	::string status      = AcFd(status_file).read() ;
 	//
@@ -105,29 +108,32 @@ pid_t get_umask() {
 			catch (::string const&e) { nice_val = ::nice(nice) ;                                                 } // best effort
 	}
 	//
-	sigset_t full_mask ; sigfillset(&full_mask) ;                            // sigfillset may be a macro
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                // restore default behavior
+	sigset_t full_mask ; sigfillset(&full_mask) ;                                                                  // sigfillset may be a macro
+	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                                                      // restore default behavior
 	//
-	if (stdin_fd ==PipeFd) { ::close(_p2c .write) ; _p2c .read .no_std() ; } // could be optimized, but too complex to manage
-	if (stdout_fd==PipeFd) { ::close(_c2po.read ) ; _c2po.write.no_std() ; } // .
-	if (stderr_fd==PipeFd) { ::close(_c2pe.read ) ; _c2pe.write.no_std() ; } // .
-	// set up std fd
-	if (stdin_fd ==NoneFd) ::close(Fd::Stdin ) ; else if (                      _p2c .read !=Fd::Stdin  ) ::dup2(_p2c .read ,Fd::Stdin ) ;
-	if (stdout_fd==NoneFd) ::close(Fd::Stdout) ; else if ( stdout_fd!=JoinFd && _c2po.write!=Fd::Stdout ) ::dup2(_c2po.write,Fd::Stdout) ;
-	if (stderr_fd==NoneFd) ::close(Fd::Stderr) ; else if ( stderr_fd!=JoinFd && _c2pe.write!=Fd::Stderr ) ::dup2(_c2pe.write,Fd::Stderr) ;
-	//
-	if      (stdout_fd==JoinFd) { SWEAR(stderr_fd!=JoinFd) ; ::dup2(Fd::Stderr,Fd::Stdout) ; }
-	else if (stderr_fd==JoinFd)                              ::dup2(Fd::Stdout,Fd::Stderr) ;
-	//
-	if (_p2c .read >Fd::Std) ::close(_p2c .read ) ;                          // clean up : we only want to set up standard fd, other ones are necessarily temporary constructions
-	if (_c2po.write>Fd::Std) ::close(_c2po.write) ;                          // .
-	if (_c2pe.write>Fd::Std) ::close(_c2pe.write) ;                          // .
-	//
+	switch (stdin.fd) {
+		case NoneFd.fd    : ::close(Fd::Stdin ) ;                                                    break ;
+		case PipeFd.fd    : ::close(_p2c.write) ; ::dup2(_p2c.read,Fd::Stdin) ; ::close(_p2c.read) ; break ;
+		case Fd::Stdin.fd :                                                                          break ;
+		default           :                       ::dup2(stdin    ,Fd::Stdin) ;
+	}
+	switch (stdout.fd) {
+		case NoneFd.fd     : ::close(Fd::Stdout) ;                                                         break ;
+		case PipeFd.fd     : ::close(_c2po.read) ; ::dup2(_c2po.write,Fd::Stdout) ; ::close(_c2po.write) ; break ;
+		case Fd::Stdout.fd :                                                                               break ;
+		default            :                       ::dup2(stdout     ,Fd::Stdout) ;
+	}
+	switch (stderr.fd) {
+		case NoneFd.fd     : ::close(Fd::Stderr) ;                                                         break ;
+		case PipeFd.fd     : ::close(_c2pe.read) ; ::dup2(_c2pe.write,Fd::Stderr) ; ::close(_c2pe.write) ; break ;
+		case Fd::Stderr.fd :                                                                               break ;
+		default            :                       ::dup2(stderr     ,Fd::Stderr) ;
+	}
 	if (+cwd_s  ) { if (::chdir(cwd_s.c_str())!=0) _exit(Rc::System,"cannot chdir"      ) ; }
 	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit(Rc::Fail  ,"cannot setup child") ; }
 	//
 	#if HAS_CLOSE_RANGE
-		//::close_range(3/*first*/,~0u/*last*/,CLOSE_RANGE_UNSHARE) ;        // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
+		//::close_range(3/*first*/,~0u/*last*/,CLOSE_RANGE_UNSHARE) ;                                              // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
 	#endif
 	//
 	if (first_pid) {
@@ -161,45 +167,45 @@ pid_t get_umask() {
 }
 
 void Child::spawn() {
-	SWEAR( +cmd_line                                                            ) ;
-	SWEAR( !stdin_fd  || stdin_fd ==Fd::Stdin  || stdin_fd >Fd::Std , stdin_fd  ) ;                                          // ensure reasonably simple situations
-	SWEAR( !stdout_fd || stdout_fd>=Fd::Stdout                      , stdout_fd ) ;                                          // .
-	SWEAR( !stderr_fd || stderr_fd>=Fd::Stdout                      , stderr_fd ) ;                                          // .
-	SWEAR( !( stderr_fd==Fd::Stdout && stdout_fd==Fd::Stderr )                  ) ;                                          // .
-	if (stdin_fd ==PipeFd) _p2c .open() ; else if (+stdin_fd ) _p2c .read  = stdin_fd  ;
-	if (stdout_fd==PipeFd) _c2po.open() ; else if (+stdout_fd) _c2po.write = stdout_fd ;
-	if (stderr_fd==PipeFd) _c2pe.open() ; else if (+stderr_fd) _c2pe.write = stderr_fd ;
+	SWEAR(+cmd_line) ;
+	switch (stdin .fd) { case NoneFd.fd : case PipeFd.fd :                  case Fd::Stdin .fd :                      break ; default : SWEAR( stdin >Fd::Std , stdin  ) ; }
+	switch (stdout.fd) { case NoneFd.fd : case PipeFd.fd :                  case Fd::Stdout.fd : case Fd::Stderr.fd : break ; default : SWEAR( stdout>Fd::Std , stdout ) ; }
+	switch (stderr.fd) { case NoneFd.fd : case PipeFd.fd : case JoinFd.fd : case Fd::Stdout.fd : case Fd::Stderr.fd : break ; default : SWEAR( stderr>Fd::Std , stderr ) ; }
+	SWEAR( !( stderr==Fd::Stdout && stdout==Fd::Stderr ) ) ;
+	if (stdin ==PipeFd) { _p2c .open() ; _p2c .no_std() ; }
+	if (stdout==PipeFd) { _c2po.open() ; _c2po.no_std() ; }
+	if (stderr==PipeFd) { _c2pe.open() ; _c2pe.no_std() ; }
 	//
 	// /!\ memory for environment must be allocated before calling clone
-	::vector_s env_vector ;                                                                                                  // ensure actual env strings (of the form name=val) lifetime
+	::vector_s            env_str_vector ;                                                                                   // ensure actual env strings (of the form name=val) lifetime
+	::vector<const char*> env_vector     ;
 	if (env) {
 		size_t n_env = env->size() + (add_env?add_env->size():0) ;
-		env_vector.reserve(n_env) ;
-		_child_env     = new const char*[n_env+1] ;
-		_own_child_env = true                     ;
-		size_t i = 0 ;
-		/**/         for( auto const& [k,v] : *env     ) { env_vector.push_back(cat(k,'=',v)) ; _child_env[i++] = env_vector.back().c_str() ; }
-		if (add_env) for( auto const& [k,v] : *add_env ) { env_vector.push_back(cat(k,'=',v)) ; _child_env[i++] = env_vector.back().c_str() ; }
-		/**/                                                                                    _child_env[i  ] = nullptr                   ;
+		env_str_vector.reserve(n_env  ) ;
+		env_vector    .reserve(n_env+1) ;                                                                                    // account for the sentinel
+		/**/         for( auto const& [k,v] : *env           ) env_str_vector.push_back(cat(k,'=',v)) ;
+		if (add_env) for( auto const& [k,v] : *add_env       ) env_str_vector.push_back(cat(k,'=',v)) ;
+		/**/         for( ::string const& e : env_str_vector ) env_vector    .push_back(e.c_str()   ) ;
+		/**/                                                   env_vector    .push_back(nullptr     ) ;                      // sentinel
+		_child_env = env_vector.data() ;
 	} else if (add_env) {
 		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
-		env_vector.reserve(add_env->size()) ;
-		_child_env     = new const char*[n_env+1] ;
-		_own_child_env = true                     ;
-		size_t i = 0 ;
-		for( char** e=environ ; *e ; e++  )                                        _child_env[i++] = *e                        ;
-		for( auto const& [k,v] : *add_env ) { env_vector.push_back(cat(k,'=',v)) ; _child_env[i++] = env_vector.back().c_str() ; }
-		/**/                                                                       _child_env[i  ] = nullptr                   ;
+		env_str_vector.reserve(add_env->size()) ;
+		env_vector    .reserve(n_env+1        ) ;                                                                            // +1 for the sentinel
+		for( auto const& [k,v] : *add_env ) env_str_vector.push_back(cat(k,'=',v)) ;
+		for( char** e=environ ; *e ; e++  ) env_vector    .push_back(*e          ) ;
+		for( ::string e : env_str_vector  ) env_vector    .push_back(e.c_str()   ) ;
+		/**/                                env_vector    .push_back(nullptr     ) ;                                         // sentinel
+		_child_env = env_vector.data() ;
 	} else {
 		_child_env = const_cast<const char**>(environ) ;
 	}
 	//
 	// /!\ memory for args must be allocated before calling clone
-	_child_args = new const char*[cmd_line.size()+1] ;
-	{	size_t i = 0 ;
-		for( ::string const& a : cmd_line ) _child_args[i++] = a.c_str() ;
-		/**/                                _child_args[i  ] = nullptr   ;
-	}
+	::vector<const char*> cmd_line_vector ; cmd_line_vector.reserve(cmd_line.size()+1) ;                                     // account for sentinel
+	for( ::string const& c : cmd_line ) cmd_line_vector.push_back(c.c_str()) ;
+	/**/                                cmd_line_vector.push_back(nullptr  ) ;                                               // sentinel
+	_child_args = cmd_line_vector.data() ;
 	//
 	if (first_pid) {
 		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
@@ -217,7 +223,139 @@ void Child::spawn() {
 		throw cat("cannot spawn process ",cmd_line," : ",StrErr()) ; // NO_COV .
 	}
 	//
-	if (stdin_fd ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }
-	if (stdout_fd==PipeFd) { stdout = _c2po.read  ; _c2po.write.close() ; }
-	if (stderr_fd==PipeFd) { stderr = _c2pe.read  ; _c2pe.write.close() ; }
+	if      (stdin ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }
+	if      (stdout==PipeFd) { stdout = _c2po.read  ; _c2po.write.close() ; }
+	if      (stderr==PipeFd) { stderr = _c2pe.read  ; _c2pe.write.close() ; }
+	else if (stderr==JoinFd)   stderr = stdout      ;
+}
+
+static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
+	try {
+		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		return { SockFd::s_host(lines[0]/*service*/) , from_string<pid_t>(lines[1]) } ; }
+	catch (::string const&) {
+		return { {}/*fqdn*/ , 0/*pid*/ } ;
+	}
+}
+static void _server_cleanup() {
+	Trace trace("_server_cleanup") ;
+	unlnk(File(ServerMrkr)) ;
+}
+void AutoServerBase::start() {
+	::pair_s<pid_t> mrkr      { fqdn() , ::getpid() } ;
+	::pair_s<pid_t> file_mrkr = _get_mrkr()           ;
+	Trace trace("start_server",mrkr) ;
+	if ( +file_mrkr.first && file_mrkr.first!=mrkr.first ) {
+		trace("already_existing_elsewhere",file_mrkr) ;
+		throw ::pair_s<Rc>( {}/*msg*/ , Rc::BadServer ) ;
+	}
+	if (file_mrkr.second) {
+		if (sense_process(file_mrkr.second)) {                                  // another server exists on same host
+			trace("already_existing",file_mrkr) ;
+			throw ::pair_s<Rc>( {}/*msg*/ , Rc::BadServer ) ;
+		}
+		unlnk(File(ServerMrkr)) ;                                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		rescue = true ;
+		trace("vanished",file_mrkr) ;
+	}
+	server_fd = { 0/*backlog*/ , false/*reuse_addr*/ } ;
+	if (!is_daemon) Fd::Stdout.write(serialize(server_fd.service(0/*addr*/))) ; // pass connection info to client, no need for addr as client is necessarily local
+	::close(Fd::Stdout) ;
+	if (writable) {
+		static mode_t mod    = 0666 & ~((get_umask()&0222)<<1)                ; // if we have access to server, we grant write access, so suppress read access for those that do not have write access
+		::string      tmp    = cat(ServerMrkr,'.',mrkr.first,'.',mrkr.second) ;
+		AcFd          tmp_fd { tmp , {O_WRONLY|O_TRUNC|O_CREAT,mod} }         ;
+		tmp_fd.write(cat(
+			server_fd.service_str(mrkr.first) , '\n'
+		,	mrkr.second                       , '\n'
+		)) ; //!  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		bool ok = ::link(tmp.c_str(),ServerMrkr)==0 ;
+		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		unlnk(tmp) ;
+		if (!ok) throw ::pair_s<Rc>( StrErr() , Rc::BadServer ) ;
+		//vvvvvvvvvvvvvvvvvvvvvvv
+		::atexit(_server_cleanup) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^
+		// if server marker is touched by user, we do as we received a ^C
+		// ideally, we should watch ServerMrkr before it is created to be sure to miss nothing, but inotify requires an existing file
+		if ( +(watch_fd=::inotify_init1(O_CLOEXEC)) )
+			if ( ::inotify_add_watch( watch_fd , ServerMrkr , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
+				watch_fd.close() ;                                                                        // useless if we cannot watch
+	}
+	trace("started",STR(rescue)) ;
+}
+
+::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& dir_s ) {
+	Trace trace("connect_to_server",magic,cmd_line) ;
+	::string     file_service_str ;
+	Bool3        server_is_local  = Maybe                                                          ;
+	pid_t        server_pid       = 0                                                              ;
+	Pdate        now              = New                                                            ;
+	const char*  msg              = "cannot connect to nor launch server"                          ;
+	Child        server           { .as_session=true , .cmd_line=::move(cmd_line) , .cwd_s=dir_s } ;
+	//
+	auto mk_client = [&](KeyedService service) {
+		ClientSockFd res       { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; res.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably not working properly
+		::string     magic_str = res.read(sizeof(magic))                               ; throw_unless( magic_str.size()==sizeof(magic) , "bad_answer_sz" ) ;
+		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])                   ; throw_unless( magic_          ==magic         , "bad_answer"    ) ;
+		res.set_receive_timeout() ;                                                                                                                          // restore
+		return res ;
+	} ;
+	//
+	for ( int i : iota(10) ) {
+		trace("try_old",i) ;
+		if (try_old) {                                                                             // try to connect to an existing server if we have a magic key to identify it
+			AcFd       server_mrkr_fd { dir_s+ServerMrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
+			::vector_s lines          = server_mrkr_fd.read_lines()         ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
+			//
+			file_service_str = ::move            (lines[0]) ;
+			server_pid       = from_string<pid_t>(lines[1]) ;
+			try {
+				KeyedService service { file_service_str , true/*name_ok*/ } ;
+				server_is_local = No | (fqdn()==SockFd::s_host(file_service_str)) ;
+				if (server_is_local==Yes) service.addr = 0 ;                                       // dont use network if not necessary
+				//
+				try                     { return { mk_client(service) , server_pid } ; }
+				catch (::string const&) { goto LaunchServer                          ; }
+			} catch(::string const&) { trace("cannot_connect",file_service_str) ; }
+			trace("server",file_service_str,server_pid) ;
+		}
+	LaunchServer :
+		// try to launch a new server
+		// server calls ::setpgid(0/*pid*/,0/*pgid*/) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
+		trace("try_new",i) ;
+		//
+		server.stdin  = Child::PipeFd ;
+		server.stdout = Child::PipeFd ;
+		server.spawn() ;
+		//
+		try {
+			auto                       service = deserialize<KeyedService>(server.stdout.read()) ;
+			::pair<ClientSockFd,pid_t> res     { mk_client(service) , server.pid }               ;
+			server.stdin.close() ;                                                                 // now that we have connected to server, we can release its stdin
+			server.mk_daemon() ;                                                                   // let process survive to server dxtor
+			return res ;
+		} catch (::string const&) {
+			server.wait() ;                                                                        // dont care about return code, we are going to relauch/reconnect anyway
+			// retry if not successful, may be a race between several clients trying to connect to/launch servers
+			now += Delay(0.1) ;
+			now.sleep_until() ;
+		}
+	}
+	::string kill_server_msg ;
+	if ( server_pid && server_is_local!=Maybe && (server_is_local==No||sense_process(server_pid)) ) {
+		/**/                     kill_server_msg << '\t'                                         ;
+		if (server_is_local==No) kill_server_msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
+		/**/                     kill_server_msg << "kill "<<server_pid                          ;
+		/**/                     kill_server_msg << '\n'                                         ;
+	}
+	trace("bad",msg,file_service_str,kill_server_msg) ;
+	throw ::pair_s<Rc>(
+		cat(
+			msg,", consider :\n"
+		,	kill_server_msg
+		,	"\trm ",AdminDirS,"server\n"
+		)
+	,	Rc::BadServer
+	) ;
 }

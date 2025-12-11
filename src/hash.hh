@@ -138,10 +138,10 @@ namespace Hash {
 			_s_salt_inited = true ;
 		}
 		// static data
-		static char                  _s_lnk_secret[XXH3_SECRET_SIZE_MIN] ;
-		static char                  _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
-		static Mutex<MutexLvl::Hash> _s_salt_init_mutex                  ;
-		static bool                  _s_salt_inited                      ;
+		static char    _s_lnk_secret[XXH3_SECRET_SIZE_MIN] ;
+		static char    _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
+		static Mutex<> _s_salt_init_mutex                  ;
+		static bool    _s_salt_inited                      ;
 		//cxtors & casts
 	public :
 		Xxh(         ) ;

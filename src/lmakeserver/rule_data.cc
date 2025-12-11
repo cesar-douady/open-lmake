@@ -725,7 +725,7 @@ namespace Engine {
 			if ( start_cmd_attrs       .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs       .spec.auto_mkdir             ) ) ;
 			/**/                                                         entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs     .spec.method                 ) ) ;
 			if ( submit_rsrcs_attrs    .spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs    .spec.backend                ) ) ;
-			if (+submit_ancillary_attrs.spec.cache                     ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache                    ) ;
+			if (+submit_ancillary_attrs.spec.cache_name                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache_name               ) ;
 			if (+start_rsrcs_attrs     .spec.chroot_dir_s              ) entries.emplace_back( "chroot_dir"          , no_slash   (start_rsrcs_attrs     .spec.chroot_dir_s           ) ) ;
 			if (+start_rsrcs_attrs     .spec.chroot_action             ) entries.emplace_back( "chroot_action"       , snake      (start_rsrcs_attrs     .spec.chroot_action          ) ) ;
 			if (+start_ancillary_attrs .spec.zlvl                      ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;

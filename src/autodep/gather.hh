@@ -204,7 +204,7 @@ public :
 	bool                                      seen_tmp         = false               ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
-	SockFd::Service                           service_mngt     ;                       // no server if empty
+	KeyedService                              service_mngt     ;                       // no server if empty
 	::vector<Re::RegExpr>                     star_targets     ;                       // excludes Target flag as it must be fully predictible to ensure a sound rule selection process
 	PD                                        start_date       ;
 	bool                                      started          = false               ;

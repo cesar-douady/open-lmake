@@ -13,9 +13,8 @@ using std::deque ;
 #include "trace.hh"
 
 template<class T,bool Flush=true,bool Urgent=false> struct ThreadQueue { // if Flush, process remaining items when asked to stop
-	using ThreadMutex = Mutex<MutexLvl::Thread> ;
-	using L           = Lock<ThreadMutex>       ;
-	using Delay       = Time::Delay             ;
+	using L           = Lock<>      ;
+	using Delay       = Time::Delay ;
 	// accesses
 	#define LCK Lock lock{_mutex}
 	bool operator+() const { LCK ; return !_empty() ; }
@@ -56,12 +55,12 @@ private :
 	void _pop(T& res) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ;   res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ;              }
 	T    _pop(      ) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ; T res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ; return res ; }
 	//
-	void _wait(                               Lock<ThreadMutex>& lock ) {        _cond.wait    ( lock ,                                   [&](){ return !_empty() ; } ) ; }
-	bool _wait( ::stop_token stop           , Lock<ThreadMutex>& lock ) { return _cond.wait    ( lock , stop ,                            [&](){ return !_empty() ; } ) ; }
-	bool _wait(                     Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
-	bool _wait( ::stop_token stop , Delay d , Lock<ThreadMutex>& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
+	void _wait(                               L& lock ) {        _cond.wait    ( lock ,                                   [&](){ return !_empty() ; } ) ; }
+	bool _wait( ::stop_token stop           , L& lock ) { return _cond.wait    ( lock , stop ,                            [&](){ return !_empty() ; } ) ; }
+	bool _wait(                     Delay d , L& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
+	bool _wait( ::stop_token stop , Delay d , L& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
 	// data
-	ThreadMutex mutable      _mutex           ;
+	Mutex<> mutable          _mutex           ;
 	::condition_variable_any _cond            ;
 	::deque<T>               _queue[1+Urgent] ;                          // need 2 queues if we manage urgent messages
 } ;
@@ -171,7 +170,6 @@ enum class WakeupState : uint8_t {
 } ;
 
 template<bool Flush=true> struct WakeupThread {
-	using ThreadMutex = Mutex<MutexLvl::Thread> ;
 	// statics
 private :
 	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* this_ , ::function<void(::stop_token)> func ) {
@@ -219,7 +217,7 @@ private :
 		DN}                                                                                              // NO_COV
 	}
 	// data
-	Atomic<WakeupState,MutexLvl::Thread> _state = WakeupState::Wait ;
+	Atomic<WakeupState,MutexLvl::Inner> _state = WakeupState::Wait ;
 public :
 	::jthread thread ;                                                                                   // ensure thread is last so other fields are constructed when it starts
 } ;

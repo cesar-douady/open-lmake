@@ -144,9 +144,9 @@ AcFd AutodepEnv::fast_report_fd() const {
 
 ClientSockFd AutodepEnv::slow_report_fd() const {
 	try {
-		if (+self) { SockFd::Service s = service ; if (host()==fast_mail) s.addr = 0 ; return ClientSockFd(s) ; }
-		else                                                                           return {}              ;
-	} catch (::string const& e) {                                                                               // START_OF_NO_COV
+		if (+self) { KeyedService s = service ; if (host()==fast_mail) s.addr = 0 ; return ClientSockFd(s) ; }
+		else                                                                        return {}              ;
+	} catch (::string const& e) {                                                                            // START_OF_NO_COV
 		fail_prod("while trying to report deps :",e) ;
-	}                                                                                                           // END_OF_NO_COV
+	}                                                                                                        // END_OF_NO_COV
 }

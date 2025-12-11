@@ -13,7 +13,6 @@ if __name__!='__main__' :
 	lmake.config.caches.dir = {
 		'tag'  : 'dir'
 	,	'dir'  : lmake.repo_root+'/CACHE'
-	,	'perm' : 'group'
 	}
 
 	lmake.manifest = (
@@ -32,11 +31,15 @@ if __name__!='__main__' :
 else :
 
 	import os
+	import textwrap
 
 	import ut
 
 	os.makedirs('CACHE/LMAKE',exist_ok=True)
-	print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
+	print(textwrap.dedent('''
+		size = 1<<20
+		perm = 'group'
+	''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
 	open('codec_file','w').write(
 		'\tcode2\tctx\tval2\n'    # lines are out of order to generate refresh line

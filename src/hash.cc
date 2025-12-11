@@ -123,10 +123,10 @@ namespace Hash {
 	// Xxh
 	//
 
-	char                  Xxh::_s_lnk_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
-	char                  Xxh::_s_exe_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
-	Mutex<MutexLvl::Hash> Xxh::_s_salt_init_mutex                  ;
-	bool                  Xxh::_s_salt_inited                      = false ;
+	char    Xxh::_s_lnk_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
+	char    Xxh::_s_exe_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
+	Mutex<> Xxh::_s_salt_init_mutex                  ;
+	bool    Xxh::_s_salt_inited                      = false ;
 
 	Xxh::Xxh() {
 		XXH3_INITSTATE   (&_state) ;

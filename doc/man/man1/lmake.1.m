@@ -84,7 +84,7 @@ The default value is I(plain).
 Values can be:
 Bullet I(none)     : the cache is not accessed at all.
 Bullet I(download) : job results are downloaded from the cache but the cache is not updated when it misses an entry.
-Bullet I(check)    : job results are not downloaded from the cache, but new results are uploaded and if an entry already exists, coherence is checked.
+Bullet I(upload)   : job results are not downloaded from the cache, but new results are uploaded and if an entry already exists, coherence is checked.
 Bullet I(plain)    : job results are downloaded from the cache in case of hit, and cache is updated in case of miss.
 
 Item(B(-e),B(--forget-old-errors))

@@ -13,7 +13,7 @@
 enum class CacheMethod : uint8_t {
 	None                           // dont access cache
 ,	Download                       // download from cache but no update
-,	Check                          // upload to cache but dont download, check coherence if entry already exists
+,	Upload                         // upload to cache but dont download, check coherence if entry already exists
 ,	Plain                          // plain download/upload
 // aliases
 ,	Dflt = Plain
@@ -27,9 +27,9 @@ inline bool has_download(CacheMethod cm) {
 }
 inline bool has_upload(CacheMethod cm) {
 	switch (cm) {
-		case CacheMethod::Check : return true  ;
-		case CacheMethod::Plain : return true  ;
-		default                 : return false ;
+		case CacheMethod::Upload : return true  ;
+		case CacheMethod::Plain  : return true  ;
+		default                  : return false ;
 	}
 }
 
@@ -113,6 +113,8 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 } ;
 using ReqFlags = BitMap<ReqFlag> ;
 
+static constexpr uint64_t LmakeServerMagic = 0x296b1a5377f96883   ; // any random improbable value!=0 used as a sanity check when client connect to server
+
 enum class ReqRpcReplyProc : uint8_t {
 	None
 ,	File
@@ -138,8 +140,6 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 } ;
 
 using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
-
-static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
 
 struct ReqOptions {
 	friend ::string& operator+=( ::string& , ReqOptions const& ) ;

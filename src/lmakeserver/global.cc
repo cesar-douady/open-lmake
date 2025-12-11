@@ -16,7 +16,7 @@ namespace Engine {
 	bool                                                    g_writable     = false ;
 	Kpi                                                     g_kpi          ;
 
-	static Mutex<MutexLvl::Audit> _g_audit_mutex ;
+	static Mutex<> _g_audit_mutex ;
 
 	::string _audit_indent( ::string&& t , DepDepth l , char sep ) {
 		if (!l) {
@@ -199,21 +199,21 @@ namespace Engine {
 		return os << "Glb(" << ecg.proc <<')' ;
 	}                                                                       // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {                                                                // START_OF_NO_COV
+	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {                                         // START_OF_NO_COV
 		os << "Ecr(" << ecr.proc <<',' ;
 		switch (ecr.proc) {
 			case ReqProc::None    :
-			case ReqProc::Kill    : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd                                       ; break ;
-			case ReqProc::Close   : os << ecr.req                                                                             ; break ;
-			case ReqProc::Collect :                                                                                                     // PER_CMD : format for tracing
-			case ReqProc::Debug   :                                                                                                     // PER_CMD : format for tracing
+			case ReqProc::Kill    : os << ecr.req <<','<< ecr.fd                                       ; break ;
+			case ReqProc::Close   : os << ecr.req                                                      ; break ;
+			case ReqProc::Collect :                                                                              // PER_CMD : format for tracing
+			case ReqProc::Debug   :                                                                              // PER_CMD : format for tracing
 			case ReqProc::Forget  :
 			case ReqProc::Mark    :
-			case ReqProc::Show    : os <<                 ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Make    : os << ecr.req <<','<< ecr.in_fd  <<','<< ecr.out_fd <<','<< ecr.options <<','<< ecr.files ; break ;
-		DF}                                                                                                                             // NO_COV
+			case ReqProc::Show    : os <<                 ecr.fd <<','<< ecr.options <<','<< ecr.files ; break ;
+			case ReqProc::Make    : os << ecr.req <<','<< ecr.fd <<','<< ecr.options <<','<< ecr.files ; break ;
+		DF}                                                                                                      // NO_COV
 		return os <<')' ;
-	}                                                                                                                                   // END_OF_NO_COV
+	}                                                                                                            // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) { // START_OF_NO_COV
 		First first ;

@@ -16,6 +16,15 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* bug Thomas
+	- lmake step A
+		-> needs X
+	- lmake step A during which dep D is modified
+		-> dep_error : dep D overwritten
+	- lmark -a -f step A
+	- lmake step B
+		- needs step A
+	===>>> X not built
 * speculative time may be negative
 	- seems to be linked to cache
 * server has been seen to crash with a job starting twice

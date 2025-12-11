@@ -17,8 +17,8 @@ namespace Engine {
 	//
 
 	SmallIds<ReqIdx,true/*ThreadSafe*/>         Req::s_small_ids      ;
-	Mutex<MutexLvl::Req   >                     Req::s_reqs_mutex     ;
-	Mutex<MutexLvl::ReqIdx>                     Req::s_req_idxs_mutex ;
+	Mutex<MutexLvl::Req>                        Req::s_reqs_mutex     ;
+	Mutex<             >                        Req::s_req_idxs_mutex ;
 	::vector<ReqData>                           Req::s_store(1)       ;
 	::vector<Req>                               Req::_s_reqs_by_start ;
 	::vector<Req>                               Req::_s_reqs_by_eta   ;
@@ -37,10 +37,10 @@ namespace Engine {
 		if (ecr.options.flags[ReqFlag::Ete]) data.et1 = data.start_pdate ;
 		else                                 data.et1 = data.start_pdate ;
 		//
-		data.idx_by_start = s_n_reqs()        ;
-		data.idx_by_eta   = s_n_reqs()        ;   // initially, eta is far future
-		data.options      = ecr.options       ;
-		data.audit_fd     = ecr.out_fd        ;
+		data.idx_by_start = s_n_reqs()  ;
+		data.idx_by_eta   = s_n_reqs()  ;         // initially, eta is far future
+		data.options      = ecr.options ;
+		data.audit_fd     = ecr.fd      ;
 		data.jobs .set_dflt(self) ;
 		data.nodes.set_dflt(self) ;
 		//
@@ -234,7 +234,7 @@ namespace Engine {
 			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen()?"missing frozen":"missing source" ; break ;
 			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                             ; break ;
 			case NodeStatus::Plain :
-				if (+cri.overwritten)
+				if (cri.overwritten)
 					err = "overwritten" ;
 				else if (+dep->conform_job_tgts(cri))
 					for( Job job : dep->conform_job_tgts(cri) ) {
@@ -322,7 +322,6 @@ namespace Engine {
 		}
 	Done :
 		self->audit_status(!job_err) ;
-		self->audit_fd.detach()      ;                                                  // ensure we send nothing anymore
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		g_engine_queue.emplace(ReqProc::Close,self) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

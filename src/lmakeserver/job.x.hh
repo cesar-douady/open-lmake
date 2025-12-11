@@ -50,10 +50,9 @@ enum class RunStatus : uint8_t {
 } ;
 
 enum class SpecialStep : uint8_t { // ordered by increasing importance
-	Idle
+	Steady
 ,	Ok
 ,	Err
-,	Loop
 } ;
 
 namespace Engine {
@@ -233,7 +232,8 @@ namespace Engine {
 		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
-		using ReqInfo::ReqInfo ;
+		JobReqInfo() = default ;
+		JobReqInfo( Req r , Job ) : ReqInfo{r} {}
 		// accesses
 		bool running(bool hit_ok=false) const {
 			switch (step()) {

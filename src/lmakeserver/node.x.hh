@@ -313,7 +313,8 @@ namespace Engine {
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
 		static const     ReqInfo Src   ;
 		// cxtors & casts
-		using ReqInfo::ReqInfo ;
+		NodeReqInfo() = default ;
+		NodeReqInfo( Req , Node ) ;
 		// accesses
 		bool done(NodeGoal ng) const { return done_>=ng   ; }
 		bool done(           ) const { return done_>=goal ; }
@@ -322,7 +323,7 @@ namespace Engine {
 //		ReqInfo                                                               //    128 bits, inherits
 		RuleIdx  prio_idx    = NoIdx           ;                              //     16 bits, index to the first job of the current prio being or having been analyzed
 		bool     single      = false           ;                              // 1<=  8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		Accesses overwritten ;                                                // 3<=  8 bits, accesses for which overwritten file can be perceived (None if file has not been overwritten)
+		bool     overwritten = false           ;                              // 1<=  8 bits, if true <=  file has been updated since start of req
 		Manual   manual      = Manual::Unknown ;                              // 3<=  8 bits, info is available as soon as done_=Dsk
 		Bool3    speculate   = Yes             ;                              // 2<=  8 bits, Yes : prev dep not ready, Maybe : prev dep in error
 		NodeGoal goal        = NodeGoal::None  ;                              // 2<=  8 bits, asked level
@@ -419,10 +420,10 @@ namespace Engine {
 				default                : return Maybe                          ;
 			}
 		}
-		Bool3 ok( ReqInfo const& cri , Accesses a=FullAccesses ) const {
+		Bool3 ok(ReqInfo const& cri) const {
 			SWEAR(cri.done(NodeGoal::Status)) ;
-			if (+(cri.overwritten&a)) return Maybe & (status()>NodeStatus::Makable) ;
-			else                      return ok()                                   ;
+			if (cri.overwritten) return Maybe & (status()>NodeStatus::Makable) ;
+			else                 return ok()                                   ;
 		}
 		bool running(ReqInfo const& cri) const {
 			for( Job j : conform_job_tgts(cri) )
@@ -430,9 +431,11 @@ namespace Engine {
 					if (j->c_req_info(r).step()==JobStep::Exec) return true ;
 			return false ;
 		}
-		Bool3 has_file   (bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.has_file    ; }
-		bool  is_src_anti(bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.is_src_anti ; }
-		Bool3 has_job    (bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.has_job     ; }
+		Bool3 has_file   (bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.has_file      ; }
+		bool  is_src_anti(bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.is_src_anti   ; }
+		Bool3 has_job    (bool reliable=true) const { if (reliable) SWEAR(match_ok()) ; return BuildableAttrs[+buildable].second.has_job       ; }
+		bool  is_src     (bool reliable=true) const {                                   return is_src_anti(reliable) && has_file(reliable)!=No ; }
+		bool  is_anti    (bool reliable=true) const {                                   return is_src_anti(reliable) && has_file(reliable)==No ; }
 		//
 		// services
 		bool read(Accesses a) const {                                                                   // return true <= file was perceived different from non-existent, assuming access provided in a

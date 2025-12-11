@@ -14,7 +14,8 @@
 #include "time.hh"
 #include "trace.hh"
 #include "version.hh"
-#include "caches/dir_cache.hh" // PER_CACHE : add include line for each cache method
+#include "caches/dir_cache.hh"    // PER_CACHE : add include line for each cache method
+#include "caches/daemon_cache.hh"
 
 #include "rpc_job.hh"
 
@@ -772,17 +773,26 @@ namespace Caches {
 
 	Cache* Cache::s_new(Tag tag) {
 		switch (tag) {
-			case Tag::None : return nullptr      ; // base class Cache actually caches nothing
-			case Tag::Dir  : return new DirCache ; // PER_CACHE : add a case for each cache method
-		DF}                                        // NO_COV
+			case Tag::None   : return nullptr         ; // base class Cache actually caches nothing
+			case Tag::Dir    : return new DirCache    ; // PER_CACHE : add a case for each cache method
+			case Tag::Daemon : return new DaemonCache ; // .
+		DF}                                             // NO_COV
 	}
 
-	void Cache::s_config( CacheIdx idx , Tag tag , ::vmap_ss const& dct ) {
-		/**/                    throw_unless( +tag , "no cache"      ) ;
-		Cache* c = s_new(tag) ; throw_unless( c    , "no cache ",tag ) ;
-		//
-		c->config( dct , true/*may_init*/ ) ;
-		grow(s_tab,idx) = c ;                 // only record cache once we are sure config is ok
+	void Cache::s_config( ::vmap_s<::pair<CacheTag,::vmap_ss>> const& caches ) {
+		Trace trace("Cache::s_config",caches.size()) ;
+		for( auto const& [k,tag_cache] : caches ) {
+			trace(k,tag_cache) ;
+			Cache*& c = s_tab.emplace_back(s_new(tag_cache.first)) ;
+			try {
+				if (c) c->config( tag_cache.second , true/*may_init*/ ) ;
+			} catch (::string const& e) {
+				trace("no_config",e) ;
+				Fd::Stderr.write(cat("ignore cache ",k," (cannot configure) : ",e,'\n')) ;
+				delete c ;
+				c = nullptr ;
+			}
+		}
 	}
 
 	Cache::DownloadDigest Cache::download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
@@ -1434,7 +1444,7 @@ void JobStartRpcReq::chk(bool for_cache) const {
 
 template<> void JobDigest<>::cache_cleanup() {
 	upload_key     = {} ;                      // no recursive info
-	cache_idx      = 0  ;                      // .
+	cache_idx1     = {} ;                      // .
 	refresh_codecs = {} ;                      // execution dependent
 	for( auto& [_,td] : targets ) {
 		SWEAR(!td.pre_exist) ;                 // else cannot be a candidate for upload
@@ -1509,7 +1519,7 @@ void JobEndRpcReq::chk(bool for_cache) const {
 	if (+jsrr.stdin           ) os <<'<'  << jsrr.stdin                  ;
 	if (+jsrr.stdout          ) os <<'>'  << jsrr.stdout                 ;
 	if (+jsrr.timeout         ) os <<','  << jsrr.timeout                ;
-	if (+jsrr.cache_idx       ) os <<','  << jsrr.cache_idx              ;
+	if (+jsrr.cache_idx1      ) os <<','  << jsrr.cache_idx1             ;
 	/**/                        os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
 	return                      os <<')'                                 ;
 }                                                                          // END_OF_NO_COV
@@ -1625,7 +1635,7 @@ void JobStartRpcReply::exit() {
 void JobStartRpcReply::cache_cleanup() {
 	autodep_env.fast_report_pipe = {}      ; // execution dependent
 	cache                        = nullptr ; // no recursive info
-	cache_idx                    = {}      ; // .
+	cache_idx1                   = 0       ; // .
 	key                          = {}      ; // .
 	live_out                     = false   ; // execution dependent
 	nice                         = -1      ; // .
@@ -1645,7 +1655,7 @@ void JobStartRpcReply::chk(bool for_cache) const {
 	/**/                                      throw_unless( timeout>=Delay()                                              , "bad timeout"        ) ;
 	if (for_cache) {
 		throw_unless( !cache             , "bad cache"       ) ;
-		throw_unless( !cache_idx         , "bad cache_idx"   ) ;
+		throw_unless( !cache_idx1        , "bad cache_idx1"  ) ;
 		throw_unless( !key               , "bad key"         ) ;
 		throw_unless( !live_out          , "bad live_out"    ) ;
 		throw_unless(  nice==uint8_t(-1) , "bad nice"        ) ;
@@ -1695,21 +1705,21 @@ void JobStartRpcReply::chk(bool for_cache) const {
 }                                                                // END_OF_NO_COV
 
 void SubmitAttrs::cache_cleanup() {
-	reason    = {}    ;             // execution dependent
-	pressure  = {}    ;             // .
-	cache_idx = {}    ;             // no recursive info
-	live_out  = false ;             // execution dependent
-	nice      = -1    ;             // .
+	reason     = {}    ;             // execution dependent
+	pressure   = {}    ;             // .
+	cache_idx1 = {}    ;             // no recursive info
+	live_out   = false ;             // execution dependent
+	nice       = -1    ;             // .
 }
 
 void SubmitAttrs::chk(bool for_cache) const {
 	throw_unless(  used_backend<All<BackendTag> , "bad backend tag" ) ;
 	if (for_cache) {
-		throw_unless( !reason            , "bad reason"    ) ;
-		throw_unless( !pressure          , "bad pressure"  ) ;
-		throw_unless( !cache_idx         , "bad cache_idx" ) ;
-		throw_unless( !live_out          , "bad live_out"  ) ;
-		throw_unless(  nice==uint8_t(-1) , "bad nice"      ) ;
+		throw_unless( !reason            , "bad reason"     ) ;
+		throw_unless( !pressure          , "bad pressure"   ) ;
+		throw_unless( !cache_idx1        , "bad cache_idx1" ) ;
+		throw_unless( !live_out          , "bad live_out"   ) ;
+		throw_unless(  nice==uint8_t(-1) , "bad nice"       ) ;
 	} else {
 		reason.chk() ;
 	}

@@ -251,11 +251,11 @@ Gather::Digest Gather::analyze(Status status) {
 			/**/        td.pre_exist  = info.seen() && !td.tflags[Tflag::Incremental] ;
 			/**/        td.written    = was_written                                   ;
 			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                // if SourceOk => ok to simultaneously be a dep and a target
-				const char* written_msg = unlnk ? "unlinked" : was_written ? "written to" : "declared as target" ;
+				const char* write_msg = unlnk ? "unlink of" : was_written ? "write to" : "target declaration of" ;
 				if (flags.dflags[Dflag::Static]) {
 					if (unlnk) _exec_trace( Comment::StaticDepAndTarget , CommentExt::Unlnk , file ) ;
 					else       _exec_trace( Comment::StaticDepAndTarget ,                     file ) ;
-					res.msg << "static dep was "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
+					res.msg << write_msg<<" static dep "<<mk_file(file)<<'\n' ;
 					if (!flags.extra_tflags[ExtraTflag::SourceOk]) {
 						res.msg << "  if file is a source, consider calling :\n"                                  ;
 						res.msg << "       lmake.target("<<mk_file(file,FileDisplay::Py   )<<",source_ok=True)\n" ;
@@ -264,7 +264,7 @@ Gather::Digest Gather::analyze(Status status) {
 				} else if (!unlnk) { // if file is unlinked, ignore writing to it even if not allowed as it is common practice to write besides the final target and mv to it
 					if (!allow) {
 						_exec_trace( Comment::UnexpectedTarget , file ) ;
-						res.msg << "file was unexpectedly "<<written_msg<<" : "<<mk_file(file)<<'\n' ;
+						res.msg << "unexpected "<<write_msg<<' '<<mk_file(file)<<'\n' ;
 					} else {
 						bool        read_lnk = false   ;
 						const char* read     = nullptr ;
@@ -274,7 +274,7 @@ Gather::Digest Gather::analyze(Status status) {
 						else if (flags.dflags[Dflag::Required])   read = "required"    ;
 						else                                      read = "accessed"    ;
 						_exec_trace( Comment::DepAndTarget , file ) ;
-						/**/          res.msg << "file was "<<read<<" and later "<<written_msg<<" : "<<mk_file(file)<<'\n'               ;
+						/**/          res.msg << "unexpected "<<write_msg<<" file after it has been "<<read<<" : "<<mk_file(file)<<'\n'  ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
 					res.msg << "  consider calling before file is accessed :\n"                ;
@@ -363,9 +363,9 @@ Fd Gather::_spawn_child() {
 	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.nice       = nice                                  ;
-	_child.stdin_fd   = child_stdin                           ;
-	_child.stdout_fd  = child_stdout                          ;
-	_child.stderr_fd  = child_stderr                          ;
+	_child.stdin      = child_stdin                           ;
+	_child.stdout     = child_stdout                          ;
+	_child.stderr     = child_stderr                          ;
 	_child.first_pid  = first_pid                             ;
 	if (is_ptrace) {                                            // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :

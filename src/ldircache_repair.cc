@@ -7,8 +7,10 @@
 
 #include "app.hh"
 #include "caches/dir_cache.hh"
+#include "disk.hh"
 
 using namespace Caches ;
+using namespace Disk   ;
 
 enum class Key  : uint8_t { None   } ;
 enum class Flag : uint8_t { DryRun } ;
@@ -25,8 +27,8 @@ int main( int argc , char* argv[]) {
 	//
 	DirCache cache ;
 	//
-	try                       { cache.config( {{"dir",with_slash(cmd_line.args[0])}} ) ; }
-	catch (::string const& e) { exit(Rc::Fail,"cannot configure cache : ",e) ;           }
+	try                       { cache.config( { { "dir" , mk_glb(with_slash(cmd_line.args[0]),cwd_s()) } } ) ; }
+	catch (::string const& e) { exit(Rc::Fail,"cannot configure cache : ",e) ;                                 }
 	//
 	cache.repair(cmd_line.flags[Flag::DryRun]) ;
 }

@@ -44,7 +44,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	bool                 ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
 	bool                 readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
 	::string             fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
-	SockFd::Service      service          ;
+	KeyedService         service          ;
 	::string             sub_repo_s       ;         // relative to repo_root_s
 	::vmap_s<::vector_s> views_s          ;
 	// not transported

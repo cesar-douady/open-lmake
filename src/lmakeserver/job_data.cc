@@ -196,7 +196,7 @@ namespace Engine {
 			FileActionTag fat         = {}/*garbage*/                                                               ;
 			t->set_buildable() ;
 			if      (  t->crc==Crc::None                            ) fat = FileActionTag::None           ; // nothing to wash
-			else if (  t->is_src_anti()                             ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
+			else if (  t->is_src()                                  ) fat = FileActionTag::Src            ; // dont touch sources, not even integrity check
 			else if ( +t->polluted       && t.tflags[Tflag::Target] ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted targets
 			else if ( +t->polluted       && !incremental            ) fat = FileActionTag::UnlinkPolluted ; // wash     polluted non-incremental
 			else if (                       !incremental            ) fat = FileActionTag::Unlink         ; // wash non-polluted non-incremental
@@ -561,7 +561,7 @@ namespace Engine {
 						if ( dep.is_crc && dep.never_match() ) { state.reason |= {JobReasonTag::DepUnstable ,+dep} ; trace("unstable_modif",dep) ; }
 						else                                     state.reason |= {JobReasonTag::DepOutOfDate,+dep} ;
 					}
-					if ( may_care && +(cdri->overwritten&dep.accesses) ) {
+					if ( may_care && cdri->overwritten ) {
 						state.reason |= {JobReasonTag::DepOverwritten,+dep} ;
 						dep_err       = RunStatus::DepError                 ;
 						goto Continue ;
@@ -728,11 +728,11 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			NodeReqInfo const& cdri = dep->c_req_info(cri.req) ;
 			if ( !dep.is_crc || cdri.waiting() ) { proto_speculate = Yes ; continue ; }
-			Bool3 dep_ok = cdri.done(NodeGoal::Status) ? dep->ok(cdri,dep.accesses) : Maybe ;
+			Bool3 dep_ok = cdri.done(NodeGoal::Status) ? dep->ok(cdri) : Maybe ;
 			switch (dep_ok) {
 				case Yes   :                                                                                                               break ;
 				case Maybe : if (  dep.dflags[Dflag::Required   ] || dep.dflags[Dflag::Static] ) { proto_speculate |= Maybe ; continue ; } break ;
-				case No    : if ( !dep.dflags[Dflag::IgnoreError] || +cdri.overwritten         ) { proto_speculate |= Maybe ; continue ; } break ;
+				case No    : if ( !dep.dflags[Dflag::IgnoreError] || cdri.overwritten          ) { proto_speculate |= Maybe ; continue ; } break ;
 			}
 			if ( +dep.accesses && !dep.up_to_date() ) proto_speculate = Yes ;
 		}
@@ -827,7 +827,7 @@ namespace Engine {
 		Trace trace("_submit_codec",job,req) ;
 		//
 		file->set_buildable() ;
-		if (!( file->is_src_anti() && file->crc.is_reg() )) {
+		if (!( file->is_src() && file->crc.is_reg() )) {
 			req->audit_job ( Color::Err  , New , "failed" , rule() , file_name                            ) ;
 			req->audit_info( Color::Note , "must be a regular source to be used as codec file" , 1/*lvl*/ ) ;
 			status = Status::Err ;
@@ -905,7 +905,7 @@ namespace Engine {
 	}
 
 	void JobData::_submit_special(ReqInfo& ri) {                   // never report new deps
-		Trace trace("submit_special",idx(),ri) ;
+		Trace trace("_submit_special",idx(),ri) ;
 		Req     req     = ri.req          ;
 		Special special = rule()->special ;
 		bool    frozen_ = idx().frozen()  ;
@@ -920,16 +920,16 @@ namespace Engine {
 			case Special::Codec        : _submit_codec(req) ;                                                                  break ;
 			case Special::Plain : {
 				SWEAR(frozen_) ;                                   // only case where we are here without special rule
-				SpecialStep special_step = SpecialStep::Idle     ;
+				SpecialStep special_step = SpecialStep::Steady   ;
 				Node        worst_target ;
 				Bool3       modified     = No                    ;
 				NfsGuard    nfs_guard    { g_config->file_sync } ;
 				for( Target t : targets() ) {
-					::string    tn = t->name()         ;
-					SpecialStep ss = SpecialStep::Idle ;
+					::string    tn = t->name()           ;
+					SpecialStep ss = SpecialStep::Steady ;
 					if (!( t->crc.valid() && FileSig(tn,{.nfs_guard=&nfs_guard})==t->sig.sig )) {
-						FileSig sig  ;
-						Crc   crc { tn , /*out*/sig } ;
+						FileSig sig ;
+						Crc     crc { tn , /*out*/sig } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->sig ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -985,86 +985,79 @@ namespace Engine {
 			req->audit_job   ( Color::Note , "no_dynamic" , job                                                                                                       ) ;
 			req->audit_stderr(                              job , { with_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 		}
-		for( auto& [k,dd] : early_deps ) { dd.accesses = {} ; dd.dflags = {} ; }                   // suppress sensitiviy to read files as ancillary has no impact on job result nor status ...
-		CacheIdx cache_idx = 0 ;
-		if      (!submit_ancillary_attrs.cache) cache_hit_info = CacheHitInfo::NoCache    ;        // ... just record deps to trigger building on a best effort basis
-		else if (!req->cache_method           ) cache_hit_info = CacheHitInfo::NoDownload ;
-		else {
-			auto it = g_config->caches.find(submit_ancillary_attrs.cache) ;
-			if (it==g_config->caches.end()) cache_hit_info = CacheHitInfo::BadCache ;
-			else {
-				cache_idx = it->second.first ;
-				if      (!cache_idx                      ) cache_hit_info = CacheHitInfo::BadCache   ;
-				else if (!has_download(req->cache_method)) cache_hit_info = CacheHitInfo::NoDownload ;
-				else {
-					::vmap_s<DepDigest> dns ;
-					for( Dep const& d : deps ) {
-						DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ;                                                                    // provide node actual crc as this is the hit criteria
-						dns.emplace_back(d->name(),dd) ;
-					}
-					/**/                                     SWEAR( cache_idx<Cache::s_tab.size() , cache_idx,Cache::s_tab.size()          ) ;
-					Cache* cache = Cache::s_tab[cache_idx] ; SWEAR( cache                         , submit_ancillary_attrs.cache,cache_idx ) ; // cache_idx is set to 0 when cache is not ready
-					//
-					Cache::DownloadDigest cache_digest ;
-					JobInfo&              job_info     = cache_digest.job_info ;
-					::string              job_name     = unique_name()         ;
-					NfsGuard              nfs_guard    { g_config->file_sync } ;
-					::string              fa_msg       ;
-					auto pre_download = [&]() {
-						::vmap_s<FileAction> actions ; for( auto [t,a] : pre_actions(match,true/*no_incremental*/) ) actions.emplace_back( t->name() , a ) ;
-						fa_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &nfs_guard ) ;
-					} ;
-					try {
-						cache_digest = cache->download( job_name , dns , !req->options.flags[ReqFlag::NoIncremental] , pre_download , &nfs_guard ) ;
-					} catch (::string const& e) {
-						trace("cache_download_throw",e) ;
-						cache_hit_info = CacheHitInfo::BadDownload ;
-						req->audit_job ( Color::Warning , "bad_cache_download" , job , true/*at_end*/ ) ;
-						req->audit_info( Color::Note    , e , 1/*lvl*/                                ) ;
-					}
-					cache_hit_info = cache_digest.hit_info ;
-					trace("hit",cache_hit_info) ;
-					switch (cache_hit_info) {
-						case CacheHitInfo::Hit : {
-							//
-							if (+fa_msg) {
-								req->audit_job ( Color::Note , "wash" , job      ) ;
-								req->audit_info( Color::Note , fa_msg , 1/*lvl*/ ) ;
-								trace("hit_msg",fa_msg,ri) ;
-							}
-							//
-							job_info.start.pre_start.job       = +job      ;                                                    // repo dependent
-							job_info.start.submit_attrs.reason = ri.reason ;                                                    // context dependent
-							job_info.end  .end_date            = New       ;                                                    // execution dependnt
-							//
-							JobDigest<Node> digest = job_info.end.digest ;                                                      // gather info before being moved
-							Job::s_record_thread.emplace(job,::move(job_info.start)) ;
-							Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
-							//
-							ri.step(Step::Hit,job) ;
-							JobExec je { job , New } ;                                                                          // job starts and ends, no host
-							if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
-							je.end_analyze(/*inout*/digest) ;
-							req->stats.add(JobReport::Hit) ;
-							req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
-							::vector<Dep> ds ; ds.reserve(digest.deps.size()) ; for( auto& [d,dd] : digest.deps ) ds.emplace_back( d , dd ) ;
-							deps.assign(ds) ;
-							goto ReportHit ;
-						}
-						case CacheHitInfo::Match : {
-							status = Status::CacheMatch ;
-							req->audit_job( Color::Note , "hit_rerun" , job ) ;
-							::vector<Dep> ds ; ds.reserve(job_info.end.digest.deps.size()) ; for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
-							deps.assign(ds) ;
-						}
-						ReportHit :
-							for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
-							return ;                                                                                            // ... so we have to ensure ri.iter is still a legal iterator
-						break ;
-					DN}                                                                                                         // NO_COV
-				}
-			}
+		for( auto& [k,dd] : early_deps ) { // suppress sensitiviy to read files as ancillary has no impact on job result nor status, just record deps to trigger building on a best effort basis
+			dd.accesses = {} ;
+			dd.dflags   = {} ;
 		}
+		CacheIdx cache_idx1 = 0 ;
+		if (!submit_ancillary_attrs.cache_name) { cache_hit_info = CacheHitInfo::NoCache    ; goto CacheDone ; }
+		if (!req->cache_method                ) { cache_hit_info = CacheHitInfo::NoDownload ; goto CacheDone ; }
+		{
+			auto   it    = g_config->cache_idxes.find(submit_ancillary_attrs.cache_name) ; if (it==g_config->cache_idxes.end() ) { cache_hit_info = CacheHitInfo::BadCache   ; goto CacheDone ; }
+			Cache* cache = Caches::Cache::s_tab[it->second]                              ; if (!cache                          ) { cache_hit_info = CacheHitInfo::BadCache   ; goto CacheDone ; }
+			cache_idx1 = it->second+1 ;                                                    if (!has_download(req->cache_method)) { cache_hit_info = CacheHitInfo::NoDownload ; goto CacheDone ; }
+			//
+			// provide node actual crc as this is the hit criteria
+			::vmap_s<DepDigest>   dns          ;                         for( Dep const& d : deps ) { DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ; dns.emplace_back(d->name(),dd) ; }
+			Cache::DownloadDigest cache_digest ;
+			JobInfo&              job_info     = cache_digest.job_info ;
+			::string              job_name     = unique_name()         ;
+			NfsGuard              nfs_guard    { g_config->file_sync } ;
+			::string              fa_msg       ;
+			auto pre_download = [&]() {
+				::vmap_s<FileAction> actions ; for( auto [t,a] : pre_actions(match,true/*no_incremental*/) ) actions.emplace_back( t->name() , a ) ;
+				fa_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &nfs_guard ) ;
+			} ;
+			try {
+				cache_digest = cache->download( job_name , dns , !req->options.flags[ReqFlag::NoIncremental] , pre_download , &nfs_guard ) ;
+			} catch (::string const& e) {
+				trace("cache_download_throw",e) ;
+				cache_hit_info = CacheHitInfo::BadDownload ;
+				req->audit_job ( Color::Warning , "bad_cache_download" , job , true/*at_end*/ ) ;
+				req->audit_info( Color::Note    , e , 1/*lvl*/                                ) ;
+			}
+			cache_hit_info = cache_digest.hit_info ;
+			trace("hit",cache_hit_info) ;
+			switch (cache_hit_info) {
+				case CacheHitInfo::Hit : {
+					//
+					if (+fa_msg) {
+						req->audit_job ( Color::Note , "wash" , job      ) ;
+						req->audit_info( Color::Note , fa_msg , 1/*lvl*/ ) ;
+						trace("hit_msg",fa_msg,ri) ;
+					}
+					//
+					job_info.start.pre_start.job       = +job      ;                                                    // repo dependent
+					job_info.start.submit_attrs.reason = ri.reason ;                                                    // context dependent
+					job_info.end  .end_date            = New       ;                                                    // execution dependnt
+					//
+					JobDigest<Node> digest = job_info.end.digest ;                                                      // gather info before being moved
+					Job::s_record_thread.emplace(job,::move(job_info.start)) ;
+					Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
+					//
+					ri.step(Step::Hit,job) ;
+					JobExec je { job , New } ;                                                                          // job starts and ends, no host
+					if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
+					je.end_analyze(/*inout*/digest) ;
+					req->stats.add(JobReport::Hit) ;
+					req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
+					::vector<Dep> ds ; ds.reserve(digest.deps.size()) ; for( auto& [d,dd] : digest.deps ) ds.emplace_back( d , dd ) ;
+					deps.assign(ds) ;
+					goto ReportHit ;
+				}
+				case CacheHitInfo::Match : {
+					status = Status::CacheMatch ;
+					req->audit_job( Color::Note , "hit_rerun" , job ) ;
+					::vector<Dep> ds ; ds.reserve(job_info.end.digest.deps.size()) ; for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
+					deps.assign(ds) ;
+				}
+				ReportHit :
+					for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
+					return ;                                                                                            // ... so we have to ensure ri.iter is still a legal iterator
+				break ;
+			DN}                                                                                                         // NO_COV
+		}
+		CacheDone : ;
 		SWEAR( cache_hit_info>=CacheHitInfo::Miss , cache_hit_info ) ;
 		//
 		SubmitRsrcsAttrs submit_rsrcs_attrs ;
@@ -1078,7 +1071,7 @@ namespace Engine {
 			trace("no_rsrcs",ri) ;
 			return ;
 		}
-		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;               // mark new deps as resources only
+		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ;       // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
 			Node         d   { New , dn }       ;
 			NodeReqInfo& dri = d->req_info(req) ;
@@ -1093,17 +1086,17 @@ namespace Engine {
 		ri.inc_wait() ;                                // set before calling submit call back as in case of flash execution, we must be clean
 		ri.step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
-		if (!has_upload(req->cache_method)) cache_idx = 0 ;
+		if (!has_upload(req->cache_method)) cache_idx1 = 0 ;
 		try {
 			Tokens1 tokens1 = submit_rsrcs_attrs.tokens1() ;
 			SubmitAttrs sa {
-				.deps      = ::move(early_deps )
-			,	.reason    =        ri.reason
-			,	.pressure  =        pressure
-			,	.cache_idx =        cache_idx
-			,	.tokens1   =        tokens1
-			,	.live_out  =        ri.live_out
-			,	.nice      =        req->nice
+				.deps       = ::move(early_deps )
+			,	.reason     =        ri.reason
+			,	.pressure   =        pressure
+			,	.cache_idx1 =        cache_idx1
+			,	.tokens1    =        tokens1
+			,	.live_out   =        ri.live_out
+			,	.nice       =        req->nice
 			} ;
 			estimate_stats(tokens1) ;                  // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -1131,11 +1124,10 @@ namespace Engine {
 		MsgStderr msg_stderr = special_msg_stderr(node) ;
 		::string  step_str   ;
 		switch (step) {
-			case SpecialStep::Idle :                                                                             break ;
-			case SpecialStep::Ok   : step_str = modified==Yes ? "changed" : modified==Maybe ? "new" : "steady" ; break ;
-			case SpecialStep::Err  : step_str = "failed"                                                       ; break ;
-			case SpecialStep::Loop : step_str = "loop"                                                         ; break ;
-		DF}                                                                                                              // NO_COV
+			case SpecialStep::Steady :                                                                             break ;
+			case SpecialStep::Ok     : step_str = modified==Yes ? "changed" : modified==Maybe ? "new" : "steady" ; break ;
+			case SpecialStep::Err    : step_str = "failed"                                                       ; break ;
+		DF}                                                                                                                // NO_COV
 		Color color =
 			status==Status::Ok && !frozen_ ? Color::HiddenOk
 		:	status>=Status::Err            ? Color::Err

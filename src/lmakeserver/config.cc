@@ -26,10 +26,6 @@ namespace Engine {
 		return os <<')' ;
 	}                                                                  // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , ConfigStatic::Cache const& c ) { // START_OF_NO_COV
-		return os << "Cache(" << c.tag <<','<< c.dct << ')' ;
-	}                                                                     // END_OF_NO_COV
-
 	::string& operator+=( ::string& os , Config const& sc ) {                                   // START_OF_NO_COV
 		/**/                                          os << "Config(" << sc.lnk_support       ;
 		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
@@ -47,15 +43,9 @@ namespace Engine {
 		return *py_run(system_tag)->get_item("system_tag").repr() ;
 	}
 
-	ConfigStatic::Cache::Cache(Dict const& py_map) {
-		::string field     ;
-		bool     found_tag = false ;
-		for( auto const& [py_k,py_v] : py_map ) {
-			field = py_k.as_a<Str>() ;
-			if (field=="tag") { tag = mk_enum<Tag>(py_v.as_a<Str>()) ; found_tag = true ; }
-			else                dct.emplace_back(field,*py_v.str()) ;
-		}
-		throw_unless( found_tag , "tag not found" ) ;
+	void ConfigStatic::_compile() {
+		cache_idxes = {} ;
+		for( size_t i : iota(caches.size())) cache_idxes.try_emplace( caches[i].first , i ) ;
 	}
 
 	ConfigDyn::Backend::Backend(Dict const& py_map) : configured{true} {
@@ -79,7 +69,7 @@ namespace Engine {
 		}
 	}
 
-	Config::Config(Dict const& py_map) : booted{true} {                                                        // if config is read from makefiles, it is booted
+	Config::Config(Dict const& py_map) : booted{true} {                                                                               // if config is read from makefiles, it is booted
 		key = to_hex(random<uint64_t>()) ;
 		//
 		::vector_s fields = {{}} ;
@@ -102,7 +92,7 @@ namespace Engine {
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_path_max = py_map[fields[0]] ;
-				if (py_path_max==None) path_max = size_t(-1                     ) ;                            // deactivate
+				if (py_path_max==None) path_max = size_t(-1                     ) ;                                                   // deactivate
 				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
 			}
 			fields[0] = "link_support" ;
@@ -113,7 +103,7 @@ namespace Engine {
 				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
 			}
 			fields[0] = "reliable_dirs" ;
-			if (py_map.contains(fields[0])) file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ; // XXX> : suppress when backward compatibility is no more required
+			if (py_map.contains(fields[0])) file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ;                        // XXX> : suppress when backward compatibility is no more required
 			fields[0] = "file_sync" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_file_sync = py_map[fields[0]] ;
@@ -125,10 +115,10 @@ namespace Engine {
 			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
 			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
 			fields.emplace_back() ;
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                                                 // local backend is always present
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
 				fields[1] = snake(t) ;
-				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                                            // not implemented
-				if (!py_backends.contains(fields[1])) continue ;                                                                                            // not configured
+				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                      // not implemented
+				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
 				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
 				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
 			}
@@ -138,8 +128,16 @@ namespace Engine {
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
-					fields[1] = py_key.as_a<Str>() ;
-					bool inserted = caches.try_emplace( fields[1] , caches.size()+1 , py_val.as_a<Dict>() ).second ; SWEAR( inserted , fields[1],caches ) ; // idx 0 is reserved to mean no cache
+					fields[1] = py_key.as_a<Str>() ; throw_unless( +fields[1] , "cache key cannot be empty" ) ;
+					//
+					::pair<CacheTag,::vmap_ss>& c         = caches.emplace_back( fields[1] , ::pair<CacheTag,::vmap_ss>() ).second ;
+					bool                        found_tag = false                                                                  ;
+					for( auto const& [py_k,py_v] : py_val.as_a<Dict>() ) {
+						::string k = py_k.as_a<Str>() ;
+						if (k=="tag") { c.first = mk_enum<CacheTag>(py_v.as_a<Str>()) ; found_tag = true ; }
+						else            c.second.emplace_back(k,*py_v.str()) ;
+					}
+					throw_unless( found_tag , "tag not found" ) ;
 				}
 				fields.pop_back() ;
 			}
@@ -306,6 +304,7 @@ namespace Engine {
 			e = "while processing "+field+" :\n"+indent(e) ;
 			throw ;
 		}
+		_compile() ;
 	}
 
 	::string Config::pretty_str() const {
@@ -336,20 +335,12 @@ namespace Engine {
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
-			for( auto const& [k,idx_cache] : caches )
-				if (!idx_cache.first) {
-					res <<"\t\t"<<k<<"(unavailable)\n" ;
-				} else {
-					Cache const& cache = idx_cache.second ;
-					::string avail ;
-					::map_ss descr = mk_map(cache.dct) ;
-					size_t   w     = ::max<size_t>( descr , [](auto const& k_v) { return k_v.first.size() ; } , 3/*tag*/ ) ;
-					if ( Caches::Cache* c = Caches::Cache::s_tab[idx_cache.first] ) for( auto const& [k,v] : c->descr() ) { descr[k] = v ; w = ::max(w,k.size()) ; }
-					else                                                            avail = "(unvailable)" ;
-					res <<"\t\t"<<k<<avail<<" :\n" ;
-					/**/                             res <<"\t\t\t"<< widen("tag",w) <<" : "<< cache.tag <<'\n' ;
-					for( auto const& [k,v] : descr ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v         <<'\n' ;
-				}
+			for( auto const& [key,tag_cache] : caches ) {
+				size_t w = ::max<size_t>( tag_cache.second , [](auto const& k_v) { return k_v.first.size() ; } , 3/*tag*/ ) ;
+				res <<"\t\t"<<key<<" :\n" ;
+				/**/                                        res <<"\t\t\t"<< widen("tag",w) <<" : "<< tag_cache.first <<'\n' ;
+				for( auto const& [k,v] : tag_cache.second ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v               <<'\n' ;
+			}
 		}
 		if (+sub_repos_s) {
 			res << "\tsub_repos :\n" ;
@@ -439,9 +430,8 @@ namespace Engine {
 		// if not set by user, these dirs lies within the repo and are unique by nature
 		//
 		Trace trace("Config::open") ;
-		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 		//
-		SWEAR(+key) ;                                                                      // ensure no init problem
+		SWEAR(+key) ;                                               // ensure no init problem
 		::string std_dir_s = cat(PrivateAdminDirS,"local_admin/") ;
 		if (!user_local_admin_dir_s) {
 			local_admin_dir_s = ::move(std_dir_s) ;
@@ -455,19 +445,6 @@ namespace Engine {
 			}
 		}
 		mk_dir_s( local_admin_dir_s , {.force=true} ) ;
-		//
-		if (!first_time) return ;
-		//
-		for( auto& [k,idx_cache] : caches ) {
-			trace("config",k,idx_cache.first) ;
-			try {
-				Caches::Cache::s_config( idx_cache.first , idx_cache.second.tag , idx_cache.second.dct ) ;
-			} catch (::string const& e) {
-				trace("no_config",e) ;
-				idx_cache.first = 0 ;                                                      // dont use this cache
-				Fd::Stderr.write(cat("ignore (cannot configure) cache ",k," : ",e,'\n')) ;
-			}
-		}
 	}
 
 }

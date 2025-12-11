@@ -445,8 +445,8 @@ namespace Backends {
 				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                                 ;
 				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                       ;
 				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                                       ;
-				if (submit_attrs.cache_idx    ) reply.cache_idx               =              submit_attrs.cache_idx                                 ;
-				if (submit_attrs.cache_idx    ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx]                                ;
+				if (submit_attrs.cache_idx1   ) reply.cache_idx1              =              submit_attrs.cache_idx1                                ;
+				if (submit_attrs.cache_idx1   ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx1-1]                             ;
 				/**/                            reply.ddate_prec              = g_config->ddate_prec                                                ;
 				/**/                            reply.key                     = g_config->key                                                       ;
 				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)                             ;
@@ -665,8 +665,7 @@ namespace Backends {
 		}
 		return ;
 	Bad :
-		if (+digest.upload_key) Cache::s_tab[digest.cache_idx]->dismiss(digest.upload_key) ; // this job corresponds to nothing in server, free up temporary storage copied in job_exec
-		return ;
+		if (+digest.upload_key) Cache::s_tab[digest.cache_idx1-1]->dismiss(digest.upload_key) ; // this job corresponds to nothing in server, free up temporary storage copied in job_exec
 	}
 
 	// kill all if ri==0

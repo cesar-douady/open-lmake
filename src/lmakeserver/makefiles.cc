@@ -332,12 +332,11 @@ namespace Engine::Makefiles {
 				invalidate         =            old.sub_repos_s   !=new_.sub_repos_s             ; // this changes matching exceptions, which means it changes matching
 				changed_extra_srcs =            old.extra_manifest!=new_.extra_manifest          ;
 			}
-			if (!first_time) {                                                            // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
-				static bool s_bes_done = false ;
-				if ( !s_bes_done || (+new_&&old.backends!=new_.backends) ) {              // no new_ means keep old config, no modification
-					Backends::Backend::s_config( +new_ ? new_.backends : old.backends ) ;
-					s_bes_done = true ;
-				}
+			if (!first_time) {               // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
+				static bool s_done = false ;
+				if ( !s_done || (+new_&&old.backends!=new_.backends) ) Backends::Backend::s_config( +new_ ? new_.backends : old.backends ) ; // no new_ means keep old config
+				if ( !s_done || (+new_&&old.caches  !=new_.caches  ) ) Caches  ::Cache  ::s_config( +new_ ? new_.caches   : old.caches   ) ; // .
+				s_done = true ;
 			}
 		} ;
 		//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

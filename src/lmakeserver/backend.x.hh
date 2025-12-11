@@ -94,9 +94,9 @@ namespace Backends {
 				// accesses
 				bool operator+() const { return seq_id ; }
 				// data
-				SeqId           seq_id   = 0  ;
-				SmallId         small_id = 0  ;
-				SockFd::Service service  ;
+				SeqId        seq_id   = 0  ;
+				SmallId      small_id = 0  ;
+				KeyedService service  ;
 			} ;
 			// cxtors & casts
 			StartEntry() = default ;

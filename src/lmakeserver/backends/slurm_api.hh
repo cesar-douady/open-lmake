@@ -61,7 +61,7 @@ namespace Backends::Slurm {
 		}
 	} ;
 
-	extern Mutex<MutexLvl::Slurm> slurm_mutex ; // ensure no more than a single outstanding request to daemon
+	extern Mutex<> slurm_mutex ; // ensure no more than a single outstanding request to daemon
 }
 
 namespace Backends::Slurm::SlurmApi {

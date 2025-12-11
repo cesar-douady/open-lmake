@@ -186,8 +186,7 @@ namespace Engine {
 	public :
 		ReqProc    proc    = ReqProc::None ;
 		Req        req     = {}            ;                                                                                                            // if proc==Close | Kill | Make
-		Fd         in_fd   = {}            ;                                                                                                            // if proc!=Close
-		Fd         out_fd  = {}            ;                                                                                                            // .
+		Fd         fd      = {}            ;                                                                                                            // if proc!=Close
 		::vector_s files   = {}            ;                                                                                                            // if proc>=HasHargs
 		ReqOptions options = {}            ;                                                                                                            // .
 	} ;
@@ -284,10 +283,10 @@ namespace Engine {
 		// Global
 		EngineClosure(GP p=GP::None) : Base{ECG{.proc=p}} {}
 		// Req
-		EngineClosure(RP p,R r,Fd ifd,Fd ofd,::vector_s const& fs,RO const& ro) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro}} { SWEAR( p==RP::Make                 , p ) ; }
-		EngineClosure(RP p,    Fd ifd,Fd ofd,::vector_s const& fs,RO const& ro) : Base{ECR{.proc=p,       .in_fd=ifd,.out_fd=ofd,.files=fs,.options=ro}} { SWEAR( p!=RP::Make&&p>=RP::HasArgs , p ) ; }
-		EngineClosure(RP p,R r,Fd ifd,Fd ofd                                  ) : Base{ECR{.proc=p,.req=r,.in_fd=ifd,.out_fd=ofd                      }} { SWEAR( p==RP::Kill || p==RP::None  , p ) ; }
-		EngineClosure(RP p,R r                                                ) : Base{ECR{.proc=p,.req=r                                             }} { SWEAR( p==RP::Close                , p ) ; }
+		EngineClosure(RP p,R r,Fd fd_,::vector_s const& fs,RO const& ro) : Base{ECR{.proc=p,.req=r,.fd=fd_,.files=fs,.options=ro}} { SWEAR( p==RP::Make                 , p ) ; }
+		EngineClosure(RP p,    Fd fd_,::vector_s const& fs,RO const& ro) : Base{ECR{.proc=p,       .fd=fd_,.files=fs,.options=ro}} { SWEAR( p!=RP::Make&&p>=RP::HasArgs , p ) ; }
+		EngineClosure(RP p,R r,Fd fd_                                  ) : Base{ECR{.proc=p,.req=r,.fd=fd_                      }} { SWEAR( p==RP::Kill || p==RP::None  , p ) ; }
+		EngineClosure(RP p,R r                                         ) : Base{ECR{.proc=p,.req=r                              }} { SWEAR( p==RP::Close                , p ) ; }
 		// Job
 		EngineClosure( JRP p , JE&& je , bool r , ::vmap<Node,FileActionTag>&& rus={} , MsgStderr&& msg_stderr_={} ) :
 			Base{ECJ{ ::move(je) , EngineClosureJobStart{.report=r,.report_unlnks=::move(rus),.msg_stderr=::move(msg_stderr_)} }}

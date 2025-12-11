@@ -31,8 +31,8 @@
 
 // XXX? : implement timeout when locking cache (cache v1 is a proof of concept anyway)
 
-#ifndef DIR_CACHE_LIGHT // the major purpose of light implementation is to avoid loading python
-	#include "py.hh"    // /!\ must be included first as Python.h must be included first
+#if !CACHE_LIGHT     // the major purpose of light implementation is to avoid loading python
+	#include "py.hh" // /!\ must be included first as Python.h must be included first
 #endif
 
 #include "app.hh"
@@ -45,7 +45,7 @@
 using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
-#ifndef DIR_CACHE_LIGHT  // the major purpose of light implementation is to avoid loading python
+#if !CACHE_LIGHT         // the major purpose of light implementation is to avoid loading python
 	using namespace Py ;
 #endif
 
@@ -80,31 +80,47 @@ namespace Caches {
 		SWEAR( head.sz     ==total_sz+delta_sz , head.sz,total_sz,delta_sz ) ;
 	}                                                                               // END_OF_NO_COV
 
-	#ifdef DIR_CACHE_LIGHT                                                                 // avoid loading python, in exchange no config is necessary (used for job_exec)
+	#if CACHE_LIGHT                                                                        // avoid loading python, in exchange no config is necessary (used for job_exec)
 		void DirCache::config( ::vmap_ss const& /*dct*/ , bool /*may_init*/ ) { FAIL() ; }
 	#else
 		void DirCache::config( ::vmap_ss const& dct , bool may_init ) {
 			Trace trace(CacheChnl,"DirCache::config",dct.size(),STR(may_init)) ;
-			auto acquire_dct = [&]( ::vmap_ss const& d , uint8_t pass ) {
-				for( auto const& [key,val] : d )
-					try {
-						switch (key[0]) {
-							case 'd' : if ( key=="dir"       && pass==0 ) dir_s     = with_slash           (val) ; break ; // dir is necessary to access cache
-							case 'f' : if ( key=="file_sync" && pass>=1 ) file_sync = mk_enum<FileSync>    (val) ; break ;
-							case 'k' : if ( key=="key"       && pass==2 ) key_crc   = Crc(New              ,val) ; break ; // key cannot be shared as it identifies repo
-							case 'p' : if ( key=="perm"      && pass>=1 ) perm_ext  = mk_enum<PermExt >    (val) ; break ;
-							case 's' : if ( key=="size"      && pass==1 ) max_sz    = from_string_with_unit(val) ; break ; // size must be shared as it cannot depend on repo
-						DN}
-					} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
-			} ;
-			acquire_dct( dct , 0/*pass*/ ) ; throw_unless( +dir_s , "dir must be specified for dir_cache") ;
+			//
+			for( auto const& [key,val] : ::vmap_ss(dct) ) {
+				try {
+					switch (key[0]) {
+						case 'd' : if (key=="dir") { dir_s   = with_slash(val) ; continue ; } break ;
+						case 'k' : if (key=="key") { key_crc = Crc(New,val)    ; continue ; } break ;
+					DN}
+				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
+				trace("bad_repo_key",key) ;
+				throw cat("wrong key (",key,") in lmake.config") ;
+			}
+			throw_unless( +dir_s        , "dir must be specified for dir_cache" ) ;        // dir is necessary to access cache
+			throw_unless( is_abs(dir_s) , "dir must be absolute for dir_cache"  ) ;
 			_compile() ;
+			//
 			::string  config_file = ADMIN_DIR_S "config.py"                  ;
 			AcFd      config_fd   { {root_fd,config_file} , {.err_ok=true} } ;
-			if (+config_fd) { Gil gil ; acquire_dct( *py_run(config_fd.read()) , 1/*pass*/ ) ; }
-			/**/                        acquire_dct( dct                       , 2/*.   */ ) ;
+			if (+config_fd) {
+				Gil gil ;
+				for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
+					try {
+						switch (key[0]) {
+							case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
+							case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
+							case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
+							case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
+							case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
+						DN}
+					} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
+					trace("bad_cache_key",key) ;
+					throw cat("wrong key (",key,") in ",dir_s+config_file) ;
+				}
+			}
 			//
-			if (!max_sz) {                                                                                                 // XXX> : remove when compatibility with v25.07 is no more required
+			//
+			if (!max_sz) {                                                                 // XXX> : remove when compatibility with v25.07 is no more required
 				::string sz_file = ADMIN_DIR_S "size" ;
 				if (FileInfo(sz_file).exists()) {
 					Fd::Stderr.write(cat(sz_file," is deprecated, use size=<value> entry in ",dir_s,config_file,'\n')) ;
@@ -539,7 +555,6 @@ namespace Caches {
 		::string     key  ;
 		::tie(key,res.first) = _sub_match( job , repo_deps , false/*for_commit*/ , lock ) ; trace("hit_info",res.first.hit_info) ;
 		//
-
 		if (res.first.hit_info==CacheHitInfo::Hit) {               // download if hit
 			::string job_key_s = cat(job,'/',key,'/')            ;
 			Sz       sz        = _lru_remove( job_key_s , lock ) ; throw_if( !sz , "no entry ",job_key_s ) ; trace("step1") ;

@@ -277,7 +277,7 @@ namespace Engine {
 					for( auto const& [t,td] : ecjm.targets ) {
 						if (td.pre_exist) {
 							Node(t)->set_buildable() ;
-							if (!( t->is_src_anti() && t->buildable>Buildable::No )) {
+							if (!t->is_src()) {
 								trace("pre_exist",t) ;
 								res.proc = JobMngtProc::ChkTargets ;
 								res.ok   = Maybe                   ;
@@ -299,8 +299,8 @@ namespace Engine {
 							NodeReqInfo& dri  = dep->req_info(req)                               ;
 							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ;      // if no access, we do not care about file on disk
 							Node(dep)->make(dri,NodeMakeAction::Query) ;
-							if      (!dri.done(goal)                                                  ) { trace("waiting",dep,req) ; res.ok = Maybe ; res.txt = dep->name() ; goto EndChkDeps ; }
-							else if (dep->ok(dri,dep.accesses)==No && !dep.dflags[Dflag::IgnoreError] ) { trace("bad"    ,dep,req) ; res.ok = No    ; res.txt = dep->name() ;                   }
+							if      (!dri.done(goal)                                     ) { trace("waiting",dep,req) ; res.ok = Maybe ; res.txt = dep->name() ; goto EndChkDeps ; }
+							else if (dep->ok(dri)==No && !dep.dflags[Dflag::IgnoreError] ) { trace("bad"    ,dep,req) ; res.ok = No    ; res.txt = dep->name() ;                   }
 						}
 						trace("dep",dep) ;
 					}
@@ -461,10 +461,15 @@ namespace Engine {
 							//
 							switch (target->buildable) {
 								case Buildable::DynSrc :
-								case Buildable::Src    :
-									/**/                              if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
-									for( Req req : res.running_reqs ) if (req->options.flags[ReqFlag::SourceOk]) goto SourceOk ;
-								break ;
+								case Buildable::Src    : {
+									bool src_ok = false ;
+									for( Req req : res.running_reqs ) {
+										target->req_info(req).overwritten = false ;                         // ok for a job to create newer-than-req sources as this is repeatable and useful
+										src_ok |= req->options.flags[ReqFlag::SourceOk] ;
+									}
+									if (src_ok                               ) goto SourceOk ;
+									if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
+								} break ;
 							DN}
 							/**/                res.severe_msg << "unexpected" ;
 							if (crc==Crc::None) res.severe_msg << " unlink of" ;
@@ -495,13 +500,12 @@ namespace Engine {
 					target->actual_job    = {} ;
 					target->actual_tflags = {} ;
 					trace("unlink",target,td) ;
-				} else {                                                                                     // if not actually writing, dont pollute targets of other jobs
+				} else {                                                                                               // if not actually writing, dont pollute targets of other jobs
 					target->actual_job    = self      ;
 					target->actual_tflags = td.tflags ;
 					//
 					targets.emplace_back( target , tflags ) ;
-					bool is_src = is_src_anti && target->buildable>Buildable::No ;
-					if ( td.pre_exist && !is_src ) res.target_reason |= {JobReasonTag::PrevTarget,+target} ; // sources are not unlinked, hence not marked PrevTarget
+					if ( td.pre_exist && !target->is_src() ) res.target_reason |= {JobReasonTag::PrevTarget,+target} ; // sources are not unlinked, hence not marked PrevTarget
 					trace("target",target,td) ;
 				}
 			}
@@ -586,7 +590,7 @@ namespace Engine {
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
 		res.can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;         // only cache execution without errors
 		//
-		trace("wrap_up",ok,digest.cache_idx,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
+		trace("wrap_up",ok,digest.cache_idx1,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
 		if ( +res.severe_msg || digest.has_msg_stderr ) {
 			JobInfo ji = job_info() ;
 			if (digest.has_msg_stderr) res.msg_stderr = ji.end.msg_stderr ;
@@ -662,8 +666,9 @@ namespace Engine {
 			trace("req_after",ri,job_reason,STR(done)) ;
 		}
 		if (+digest.upload_key) {
-			Cache* cache = Cache::s_tab[digest.cache_idx] ;
-			SWEAR( cache , digest.cache_idx ) ;                                                                                          // cannot commit/dismiss without cache
+			SWEAR( digest.cache_idx1 , digest.cache_idx1 ) ;                                                                             // cannot commit/dismiss without cache
+			Cache* cache = Cache::s_tab[digest.cache_idx1-1] ;
+			SWEAR( cache , digest.cache_idx1 ) ;                                                                                         // .
 			try {
 				if (end_digest.can_upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;
 				else                       cache->dismiss( digest.upload_key                                    ) ;                      // free up temporary storage copied in job_exec

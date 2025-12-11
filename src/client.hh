@@ -10,27 +10,12 @@
 #include "rpc_client.hh"
 #include "trace.hh"
 
-struct ClientFdPair {
-	// cxtors & casts
-	ClientFdPair() = default ;
-	ClientFdPair( ClientFdPair&& acfdp , SockFd::Key k={} ) : in{::move(acfdp.in)} , out{::move(acfdp.out)} , key{k} {}
-	ClientFdPair( Fd in_fd , Fd out_fd , SockFd::Key k={} ) : in{       in_fd    } , out{       out_fd    } , key{k} {}
-	ClientFdPair( ClientSockFd&& fd    , SockFd::Key k={} ) : in{       fd.fd    } , out{       fd.fd     } , key{k} { fd.detach() ; }
-	//
-	ClientFdPair& operator=(ClientFdPair&&) = default ;
-	// data
-	Fd          in  ; // close only once
-	AcFd        out ;
-	SockFd::Key key = {} ;
-} ;
-
-extern ClientFdPair g_server_fds  ;
+extern ClientSockFd g_server_fd ;
 
 using OutProcCb = ::function<void(bool start)> ;
+inline void _out_proc_nop(bool/*start*/) {}
 
-Rc _out_proc( ::vector_s* /*out*/ files , ReqProc , bool read_only , bool refresh , ReqSyntax const& , ReqCmdLine const& , OutProcCb const& =[](bool/*start*/)->void{} ) ;
+Rc _out_proc( ::vector_s* /*out*/ files , ReqProc , bool read_only , bool refresh , ReqSyntax const& , ReqCmdLine const& , OutProcCb const& =_out_proc_nop ) ;
 //
-#define C const
-inline Rc out_proc( ::vector_s& fs , ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(&fs    ,p,ro,r,s,cl,cb) ; }
-inline Rc out_proc(                  ReqProc p , bool ro , bool r , ReqSyntax C& s , ReqCmdLine C& cl , OutProcCb C& cb=[](bool)->void{} ) { return _out_proc(nullptr,p,ro,r,s,cl,cb) ; }
-#undef C
+inline Rc out_proc( ::vector_s& fs , ReqProc p , bool ro , bool r , ReqSyntax const& s , ReqCmdLine const& cl , OutProcCb const& cb=_out_proc_nop ) { return _out_proc(&fs    ,p,ro,r,s,cl,cb) ; }
+inline Rc out_proc(                  ReqProc p , bool ro , bool r , ReqSyntax const& s , ReqCmdLine const& cl , OutProcCb const& cb=_out_proc_nop ) { return _out_proc(nullptr,p,ro,r,s,cl,cb) ; }

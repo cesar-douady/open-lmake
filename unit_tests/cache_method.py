@@ -39,12 +39,12 @@ else :
 
 	ut.lmake( '-cnone'     , 'stable1'  , 'stable2'  , 'stable3'  , 'stable4'  , 'unstable1'  , 'unstable2'  , 'unstable3'  , 'unstable4'  , done=8 )
 	ut.lmake( '-cdownload' , 'stable5'  , 'stable6'  , 'stable7'  , 'stable8'  , 'unstable5'  , 'unstable6'  , 'unstable7'  , 'unstable8'  , done=8 )
-	ut.lmake( '-ccheck'    , 'stable9'  , 'stable10' , 'stable11' , 'stable12' , 'unstable9'  , 'unstable10' , 'unstable11' , 'unstable12' , done=8 )
+	ut.lmake( '-cupload'   , 'stable9'  , 'stable10' , 'stable11' , 'stable12' , 'unstable9'  , 'unstable10' , 'unstable11' , 'unstable12' , done=8 )
 	ut.lmake( '-cplain'    , 'stable13' , 'stable14' , 'stable15' , 'stable16' , 'unstable13' , 'unstable14' , 'unstable15' , 'unstable16' , done=8 )
 
 	os.system(f'mkdir bck ; mv LMAKE bck ; rm -f *stable*')
 
 	ut.lmake( '-cnone'     , 'stable1' , 'stable5' , 'stable9'  , 'stable13' , 'unstable1' , 'unstable5' , 'unstable9'  , 'unstable13' , hit_done=0 , done=8                     )
 	ut.lmake( '-cdownload' , 'stable2' , 'stable6' , 'stable10' , 'stable14' , 'unstable2' , 'unstable6' , 'unstable10' , 'unstable14' , hit_done=4 , done=4                     )
-	ut.lmake( '-ccheck'    , 'stable3' , 'stable7' , 'stable11' , 'stable15' , 'unstable3' , 'unstable7' , 'unstable11' , 'unstable15' , hit_done=0 , done=8 , no_cache_upload=2 )
+	ut.lmake( '-cupload'   , 'stable3' , 'stable7' , 'stable11' , 'stable15' , 'unstable3' , 'unstable7' , 'unstable11' , 'unstable15' , hit_done=0 , done=8 , no_cache_upload=2 )
 	ut.lmake( '-cplain'    , 'stable4' , 'stable8' , 'stable12' , 'stable16' , 'unstable4' , 'unstable8' , 'unstable12' , 'unstable16' , hit_done=4 , done=4                     )

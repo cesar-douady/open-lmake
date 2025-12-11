@@ -278,6 +278,7 @@ LMAKE_BASIC_OBJS := \
 	src/lib.o     \
 	src/process.o \
 	src/time.o    \
+	src/trace.o   \
 	src/utils.o
 
 LMAKE_BASIC_SAN_OBJS := $(LMAKE_BASIC_OBJS:%.o=%$(SAN).o)
@@ -439,7 +440,6 @@ STORE_TEST : src/store/unit_test.dir/tok src/store/big_test.dir/tok
 src/store/unit_test : \
 	$(LMAKE_BASIC_SAN_OBJS) \
 	src/app$(SAN).o         \
-	src/trace$(SAN).o       \
 	src/version$(SAN).o     \
 	src/store/unit_test$(SAN).o
 	@echo link to $@
@@ -497,7 +497,9 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 		$< 2>/dev/null || :
 
 SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmakeserver/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
-DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(patsubst %.cc,%.d,$(SLURM_SRCS))
+CACHE_SRCS := $(patsubst %.cc,%-light.cc,$(filter src/caches/%.cc,$(SRCS)))
+#
+DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS) $(CACHE_SRCS)
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 #
@@ -507,10 +509,17 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 src/lmakeserver/backends/slurm_api-%.cc : ext/slurm/%/META
 	@echo generate $@
 	@# mimic slurm source code to retrieve API version from META, in practice, API_AGE is 0
-	@(                                                                                                                                                 \
-		awk '/API_CURRENT/ {api_current=$$2} ; /API_AGE/ {api_age=$$2} ; END {printf("#define SLURM_API_VERSION_NUMBER %d\n",api_current-api_age)}' $< \
-	;	echo '#include "slurm_api.x.cc"'                                                                                                               \
-	) >$@
+	@{	awk '/API_CURRENT/ {api_current=$$2} ; /API_AGE/ {api_age=$$2} ; END {printf("#define SLURM_API_VERSION_NUMBER %d\n",api_current-api_age)}' $< ; \
+		echo '#include "slurm_api.x.cc"'                                                                                                               ; \
+	} >$@
+
+#
+# cache
+#
+
+src/caches/%-light.cc :
+	@echo generate $@
+	@{ echo '#define CACHE_LIGHT 1' ; echo '#include "$(@:src/caches/%-light.cc=%.cc)"' ; } >$@
 
 #
 # lmake
@@ -520,15 +529,15 @@ src/lmakeserver/backends/slurm_api-%.cc : ext/slurm/%/META
 SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 
 SERVER_COMMON_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)  \
-	src/app$(SAN).o          \
-	src/py$(SAN).o           \
-	src/re$(SAN).o           \
-	src/rpc_job$(SAN).o      \
-	src/rpc_job_exec$(SAN).o \
-	src/trace$(SAN).o        \
-	src/version$(SAN).o      \
-	src/autodep/env$(SAN).o  \
+	$(LMAKE_BASIC_SAN_OBJS)         \
+	src/app$(SAN).o                 \
+	src/py$(SAN).o                  \
+	src/re$(SAN).o                  \
+	src/rpc_job$(SAN).o             \
+	src/rpc_job_exec$(SAN).o        \
+	src/version$(SAN).o             \
+	src/autodep/env$(SAN).o         \
+	src/caches/daemon_cache$(SAN).o \
 	src/caches/dir_cache$(SAN).o
 
 BACKEND_SAN_OBJS := \
@@ -542,7 +551,6 @@ CLIENT_SAN_OBJS := \
 	src/app$(SAN).o         \
 	src/client$(SAN).o      \
 	src/rpc_client$(SAN).o  \
-	src/trace$(SAN).o       \
 	src/version$(SAN).o
 
 SERVER_SAN_OBJS := \
@@ -632,7 +640,6 @@ LMAKE_DBG_FILES += bin/xxhsum
 bin/xxhsum : \
 	$(LMAKE_BASIC_OBJS) \
 	src/app.o           \
-	src/trace.o         \
 	src/version.o       \
 	src/xxhsum.o
 	@mkdir -p $(@D)
@@ -662,21 +669,20 @@ AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
 REMOTE_OBJS  := \
 	$(BASIC_REMOTE_OBJS) \
 	src/app.o            \
-	src/trace.o          \
 	src/version.o
 
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
-#	$(AUTODEP_SAN_OBJS)        \
-#	src/app$(SAN).o            \
-#	src/non_portable$(SAN).o   \
-#	src/re$(SAN).o             \
-#	src/rpc_job$(SAN).o        \
-#	src/trace$(SAN).o          \
-#	src/version$(SAN).o        \
-#	src/autodep/gather$(SAN).o \
-#	src/autodep/ptrace$(SAN).o \
-#	src/autodep/record$(SAN).o \
+#	$(AUTODEP_SAN_OBJS)             \
+#	src/app$(SAN).o                 \
+#	src/non_portable$(SAN).o        \
+#	src/re$(SAN).o                  \
+#	src/rpc_job$(SAN).o             \
+#	src/version$(SAN).o             \
+#	src/autodep/gather$(SAN).o      \
+#	src/autodep/ptrace$(SAN).o      \
+#	src/autodep/record$(SAN).o      \
+#	src/caches/daemon_cache$(SAN).o \
 #	src/caches/dir_cache$(SAN).o
 
 #_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
@@ -690,17 +696,17 @@ REMOTE_OBJS  := \
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)      \
-	src/app.o            \
-	src/non_portable.o   \
-	src/re.o             \
-	src/rpc_job.o        \
-	src/trace.o          \
-	src/version.o        \
-	src/autodep/gather.o \
-	src/autodep/ptrace.o \
-	src/autodep/record.o \
-	src/caches/dir_cache_light.o
+	$(AUTODEP_OBJS)                 \
+	src/app.o                       \
+	src/non_portable.o              \
+	src/re.o                        \
+	src/rpc_job.o                   \
+	src/version.o                   \
+	src/autodep/gather.o            \
+	src/autodep/ptrace.o            \
+	src/autodep/record.o            \
+	src/caches/daemon_cache-light.o \
+	src/caches/dir_cache-light.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
 bin/lautodep  : $(JOB_EXEC_OBJS) src/py.o src/autodep/lautodep.o

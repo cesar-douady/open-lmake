@@ -17,104 +17,7 @@
 using namespace Disk ;
 using namespace Time ;
 
-ClientFdPair g_server_fds ;
-
-static bool _server_ok( Fd fd , ::string const& tag ) {
-	Trace trace("_server_ok",tag,fd) ;
-	//
-	bool ok  = false                             ;
-	int  cnt = ::read( fd , &ok , sizeof(bool) ) ;
-	//
-	if (cnt!=sizeof(bool)) { trace("bad_answer",cnt) ; return false ; }
-	trace("answer",STR(ok)) ;
-	return ok ;
-}
-
-static pid_t _connect_to_server( bool read_only , bool refresh , bool sync ) { // if sync, ensure we launch our own server
-	Trace trace("_connect_to_server",STR(refresh)) ;
-	::string file_service_str  ;
-	Bool3    server_is_local   = Maybe ;
-	pid_t    server_pid        = 0     ;
-	Pdate    now               = New   ;
-	for ( int i : iota(10) ) {
-		trace("try_old",i) ;
-		if (!read_only) {                                                      // if we are read-only and we connect to an existing server, then it could write for us while we should not
-			// try to connect to an existing server
-			AcFd       server_mrkr_fd { ServerMrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
-			::vector_s lines          = server_mrkr_fd.read_lines()   ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
-			//
-			file_service_str = ::move            (lines[0]) ;
-			server_pid       = from_string<pid_t>(lines[1]) ;
-			try {
-				SockFd::Service service { file_service_str , true/*name_ok*/ } ;
-				server_is_local = No | (fqdn()==SockFd::s_host(file_service_str)) ;
-				if (server_is_local==Yes) service.addr = 0 ;                                                    // dont use network if not necessary
-				//
-				ClientSockFd req_fd { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ;
-				req_fd.set_receive_timeout(Delay(10)) ;                                                         // if server is too long to answer, it is probably not working properly
-				if (_server_ok(req_fd,"old")) {
-					SockFd::Key k = req_fd.key ;                                                                // capture before move
-					req_fd.set_receive_timeout() ;                                                              // restore
-					g_server_fds = { ::move(req_fd) , k } ;
-					if (sync) exit(Rc::BadServer,"server already exists") ;
-					return 0 ;
-				}
-			} catch(::string const&) { trace("cannot_connect",file_service_str) ; }
-			trace("server",file_service_str,server_pid) ;
-			//
-		}
-	LaunchServer :
-		// try to launch a new server
-		// server calls ::setpgid(0/*pid*/,0/*pgid*/) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
-		::vector_s cmd_line = {
-			*g_lmake_root_s+"_bin/lmakeserver"
-		,	"-d"/*no_daemon*/
-		,	"-c"+*g_startup_dir_s
-		} ;
-		Pipe client_to_server{New,0/*flags*/,true/*no_std*/} ; client_to_server.read .cloexec(false) ; client_to_server.write.cloexec(true) ;
-		Pipe server_to_client{New,0/*flags*/,true/*no_std*/} ; server_to_client.write.cloexec(false) ; server_to_client.read .cloexec(true) ;
-		/**/           cmd_line.push_back   (cat("-i",client_to_server.read .fd)) ;
-		/**/           cmd_line.push_back   (cat("-o",server_to_client.write.fd)) ;
-		if (!refresh ) cmd_line.emplace_back(    "-r"                           ) ;                             // -r means no refresh
-		if (read_only) cmd_line.emplace_back(    "-R"                           ) ;                             // -R means read-only
-		/**/           cmd_line.emplace_back(    "--"                           ) ;                             // ensure no further option processing in case a file starts with a -
-		trace("try_new",i,cmd_line) ;
-		try {
-			Child server { .as_session=true , .cmd_line=cmd_line } ;
-			server.spawn() ;
-			client_to_server.read .close() ;
-			server_to_client.write.close() ;
-			//
-			if (_server_ok(server_to_client.read,"new")) {
-				g_server_fds = ClientFdPair{ server_to_client.read , client_to_server.write } ;
-				pid_t pid = server.pid ;
-				server.mk_daemon() ;                                                                            // let process survive to server dxtor
-				return pid ;
-			}
-			client_to_server.write.close() ;
-			server_to_client.read .close() ;
-			server.wait() ;                                                                                     // dont care about return code, we are going to relauch/reconnect anyway
-		} catch (::string const& e) {
-			exit(Rc::System,e) ;
-		}
-		// retry if not successful, may be a race between several clients trying to connect to/launch servers
-		now += Delay(0.1) ;
-		now.sleep_until() ;
-	}
-	::string kill_server_msg ;
-	if ( server_pid && server_is_local!=Maybe && (server_is_local==No||sense_process(server_pid)) ) {
-		/**/                     kill_server_msg << '\t'                                         ;
-		if (server_is_local==No) kill_server_msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
-		/**/                     kill_server_msg << "kill "<<server_pid                          ;
-		/**/                     kill_server_msg << '\n'                                         ;
-	}
-	trace("cannot_connect",file_service_str,kill_server_msg) ;
-	exit(Rc::BadServer
-	,	"cannot connect to server, consider :\n"
-	,	kill_server_msg
-	,	"\trm ",AdminDirS,"server\n"
-	) ;
-}
+ClientSockFd g_server_fd ;
 
 static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
 	using Event = Epoll<NewType>::Event ;
@@ -209,25 +112,33 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	switch (rv_str[0]) {
 		case 'n' : case 'N' : rv = No                                     ; break ;
 		case 'r' : case 'R' : rv = Yes                                    ; break ;
-		case 'f' : case 'F' : rv = Maybe                                  ; break ; // force no color
+		case 'f' : case 'F' : rv = Maybe                                  ; break ;                                                                // force no color
 		default  :            rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("reverse_video",rv) ;
 	//
 	ReqRpcReq rrr        { proc , cmd_line_files , { rv , cmd_line } } ;
 	Rc        rc         = Rc::ServerCrash                             ;
-	pid_t     server_pid = _connect_to_server(read_only,refresh,sync)  ;
-	trace("starting") ;
-	cb(true/*start*/) ;                                                             // block INT once server is initialized so as to be interruptible at all time
-	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ;  // /!\ must be after call to cb so INT can be blocked before creating threads
-	OMsgBuf(rrr).send( g_server_fds.out , g_server_fds.key ) ;
+	pid_t     server_pid = 0                                           ;
+	//
+	::vector_s server_cmd_line = { *g_lmake_root_s+"_bin/lmakeserver" , "-d"/*no_daemon*/ , "-c"+*g_startup_dir_s } ;
+	if (!refresh ) server_cmd_line.emplace_back("-r") ;                                                                                            // -r means no refresh
+	if (read_only) server_cmd_line.emplace_back("-R") ;                                                                                            // -R means read-only
+	//
+	try                           { tie(g_server_fd,server_pid) = connect_to_server( !read_only , LmakeServerMagic , ::move(server_cmd_line) ) ; } // if read-only and we connect to an old server, ...
+	catch (::pair_s<Rc> const& e) { exit( e.second   , e.first ) ;                                                                               } // ... it could write for us but should not
+	catch (::string     const& e) { exit( Rc::System , e       ) ;                                                                               }
+	trace("starting",g_server_fd,rrr) ;
+	cb(true/*start*/) ;                                                            // block INT once server is initialized so as to be interruptible at all time
+	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ; // /!\ must be after call to cb so INT can be blocked before creating threads
+	OMsgBuf(rrr).send(g_server_fd) ;
 	trace("started") ;
-	bool    received = false/*garbage*/ ;                                           // for trace only
+	bool    received = false/*garbage*/ ;                                          // for trace only
 	IMsgBuf buf      ;
 	try {
 		for(;;) {
 			received = false ;
-			ReqRpcReply rrr = buf.receive<ReqRpcReply>( g_server_fds.in , No/*once*/ , {}/*key*/ ) ;
+			ReqRpcReply rrr = buf.receive<ReqRpcReply>( g_server_fd , No/*once*/ ) ;
 			received = true ;
 			switch (rrr.proc) {
 				case ReqRpcReplyProc::None   : trace("done"          ) ;                                            goto Return ;
@@ -244,8 +155,8 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 Return :
 	trace("exiting") ;
 	cb(false/*start*/) ;
-	g_server_fds.out.close() ;                                                                                                    // ensure server stops living because of us
-	if (sync) waitpid( server_pid , nullptr , 0 ) ;
+	g_server_fd.close() ;                                                                                                         // ensure server stops living because of us
+	if (sync) { SWEAR( server_pid ) ; waitpid( server_pid , nullptr , 0 ) ; }
 	trace("done",rc) ;
 	return rc ;
 }

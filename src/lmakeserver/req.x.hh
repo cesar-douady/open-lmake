@@ -62,9 +62,9 @@ namespace Engine {
 		// static data
 		static SmallIds<ReqIdx,true/*ThreadSafe*/> s_small_ids ;
 		//
-		static Mutex<MutexLvl::Req   > s_reqs_mutex     ;                                                  // protects s_store as a whole
-		static Mutex<MutexLvl::ReqIdx> s_req_idxs_mutex ;                                                  // protects _s_reqs_by_eta and _s_reqs_by_start
-		static ::vector<ReqData>       s_store          ;
+		static Mutex<MutexLvl::Req> s_reqs_mutex     ;                                                     // protects s_store as a whole
+		static Mutex<             > s_req_idxs_mutex ;                                                     // protects _s_reqs_by_eta and _s_reqs_by_start
+		static ::vector<ReqData>    s_store          ;
 	private :
 		static ::vector<Req> _s_reqs_by_start ;                                                            // INVARIANT : ordered by item->start
 		static ::vector<Req> _s_reqs_by_eta   ;                                                            // INVARIANT : ordered by item->stats.eta
@@ -166,12 +166,12 @@ namespace Engine {
 		} ;
 
 		// cxtors & casts
-		ReqInfo(Req r={}) : req{r} , _n_watchers{0} , _watchers_a{} {}
+		ReqInfo(Req       r ={}) : req{r} , _n_watchers{0} , _watchers_a{} {                     }
+		ReqInfo(ReqInfo&& ri   )                                           { self = ::move(ri) ; }
 		~ReqInfo() {
 			if (_n_watchers==VectorMrkr) _watchers_v.~unique_ptr() ;
 			else                         _watchers_a.~array     () ;
 		 }
-		ReqInfo(ReqInfo&& ri) { self = ::move(ri) ; }
 		ReqInfo& operator=(ReqInfo&& ri) {
 			n_wait   = ri.n_wait   ;
 			live_out = ri.live_out ;
@@ -259,9 +259,9 @@ namespace Engine {
 			}
 			// accesses
 		public :
-			bool   operator+(     ) const { return size() ; }
-			size_t size     (     ) const { return _sz    ; }
-			void   set_dflt (Req r)       { _dflt = {r} ;   }
+			bool   operator+(     ) const { return size() ;  }
+			size_t size     (     ) const { return _sz    ;  }
+			void   set_dflt (Req r)       { _dflt = {r,{}} ; }
 			// services
 			Info const& c_req_info(W w) const {
 				Lock lock { _mutex } ;
@@ -271,7 +271,7 @@ namespace Engine {
 			Info& req_info( Req r , W w ) {
 				Lock lock { _mutex } ;
 				if (!_contains(w)) {
-					grow(_idxs,+w) = new Info{r} ;
+					grow(_idxs,+w) = new Info{r,w} ;
 					_sz++ ;
 				}
 				return *_idxs[+w] ;

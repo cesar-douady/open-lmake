@@ -23,7 +23,6 @@ if __name__!='__main__' :
 	lmake.config.caches.my_cache = {
 		'tag'  : 'dir'
 	,	'dir'  : lmake.repo_root+'/CACHE'
-	,	'perm' : 'group'
 	}
 
 	class Auto(Rule) :
@@ -75,6 +74,7 @@ if __name__!='__main__' :
 else :
 
 	import os
+	import textwrap
 
 	import ut
 
@@ -91,7 +91,10 @@ else :
 		os.makedirs('CACHE/LMAKE')
 		os.chmod('CACHE'      ,0o775)
 		os.chmod('CACHE/LMAKE',0o775)
-		print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
+		print(textwrap.dedent('''
+			size = 1<<20
+			perm = 'group'
+		''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
 		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date
 		ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up to date

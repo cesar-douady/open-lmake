@@ -111,7 +111,6 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">dir</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;tag&#39;</span>  <span class="p">:</span> <span class="s1">&#39;dir&#39;</span>
     <span class="p">,</span>   <span class="s1">&#39;dir&#39;</span>  <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;perm&#39;</span> <span class="p">:</span> <span class="s1">&#39;group&#39;</span>
     <span class="p">}</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
@@ -130,11 +129,15 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">else</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">os</span>
+    <span class="kn">import</span> <span class="nn">textwrap</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;CACHE/LMAKE&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;size=1&lt;&lt;20&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;CACHE/LMAKE/config.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">textwrap</span><span class="o">.</span><span class="n">dedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">        size = 1&lt;&lt;20</span>
+<span class="s1">        perm = &#39;group&#39;</span>
+<span class="s1">    &#39;&#39;&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:],</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;CACHE/LMAKE/config.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
 
     <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;codec_file&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span>
         <span class="s1">&#39;</span><span class="se">\t</span><span class="s1">code2</span><span class="se">\t</span><span class="s1">ctx</span><span class="se">\t</span><span class="s1">val2</span><span class="se">\n</span><span class="s1">&#39;</span>    <span class="c1"># lines are out of order to generate refresh line</span>

@@ -23,7 +23,7 @@ if __name__!='__main__' :
 			ln -s $TMPDIR/a        {LNK}
 			ln -s $REPO_ROOT/{LNK} $TMPDIR/b
 			cd $TMPDIR
-			sleep 1      # ensure one will overwrite the other in cas of clash
+			sleep 1      # ensure one will overwrite the other in case of clash
 			echo $TMPDIR
 			pwd
 			echo {N} > a
@@ -36,11 +36,11 @@ if __name__!='__main__' :
 	class Ref(Base) :
 		target = 'ref{N}'
 		cmd    = '''
-			echo /tmp            # echo $TMPDIR
-			echo /tmp            # pwd
-			echo {N}             # cat a
-			echo {N}             # cat LNK
-			echo {N}             # cat /tmp/b
+			echo /tmp # echo $TMPDIR
+			echo /tmp # pwd
+			echo {N}  # cat a
+			echo {N}  # cat LNK
+			echo {N}  # cat /tmp/b
 		'''
 
 	class Cmp(Base) :

@@ -50,17 +50,26 @@ StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 // SockFd
 //
 
-::string& operator+=( ::string& os , SockFd::Service const& s ) { // START_OF_NO_COV
-	return os<<::string(s) ;
-}                                                                 // END_OF_NO_COV
+::string& operator+=( ::string& os , Service const& s ) { // START_OF_NO_COV
+	return os<<s.str() ;
+}                                                         // END_OF_NO_COV
 
-SockFd::Service::Service( ::string const& s , bool name_ok ) {
-	size_t pos1 = s.rfind(':'       ) ;
-	size_t pos2 = s.find ('/',pos1+1) ;
-	addr = s_addr                ( s.substr(0,pos1) , name_ok          ) ; if (pos1==Npos) return ;
-	port = from_string<in_port_t>( substr_view(s,pos1+1,pos2-(pos1+1)) ) ; if (pos2==Npos) return ;
-	key  = from_string<Key      >( substr_view(s,pos2+1              ) ) ;
+Service::Service( ::string const& s , bool name_ok ) {
+	size_t pos = s.rfind(':') ;
+	addr = SockFd::s_addr        ( s.substr(0,pos) , name_ok ) ; if (pos==Npos) return ;
+	port = from_string<in_port_t>( substr_view(s,pos+1)      ) ;
 }
+
+::string& operator+=( ::string& os , KeyedService const& ks ) { // START_OF_NO_COV
+	return os<<ks.str() ;
+}                                                               // END_OF_NO_COV
+
+KeyedService::KeyedService( ::string const& s , bool name_ok ) {
+	size_t pos = s.find('/') ;
+	Service::operator=( { s.substr(0,pos) , name_ok } ) ;
+	if (pos!=Npos) key = from_string<Key>( substr_view(s,pos+1) ) ;
+}
+
 struct Ports {
 	in_port_t first = 0 ;
 	in_port_t sz    = 0 ;
@@ -227,15 +236,15 @@ SlaveSockFd ServerSockFd::accept() {
 // ClientSockFd
 //
 
-ClientSockFd::ClientSockFd( Service service , bool reuse_addr , Delay timeout ) : SockFd{ service.key , reuse_addr , service.addr?0:s_random_loopback()/*local_addr*/ , false/*for_server*/ } {
+ClientSockFd::ClientSockFd( KeyedService service , bool reuse_addr , Delay timeout ) : SockFd{ service.key , reuse_addr , service.addr?0:s_random_loopback()/*local_addr*/ , false/*for_server*/ } {
 	bool has_timeout = +timeout ;
 	if (!service.addr) service.addr = s_random_loopback() ;                                                               // remote addr
 	if (!timeout     ) timeout      = ConnectTimeout      ;
 	//
-	SockAddr sa           { service.addr , service.port } ;
-	Pdate    end          = Pdate(New) + timeout          ;
-	uint32_t i_reuse_addr = 1                             ;
-	uint32_t i_connect    = 1                             ;
+	SockAddr sa           { service }            ;
+	Pdate    end          = Pdate(New) + timeout ;
+	uint32_t i_reuse_addr = 1                    ;
+	uint32_t i_connect    = 1                    ;
 	for( uint32_t i=1 ;; i++ ) {
 		if (has_timeout) {
 			TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                       // ensure to is positive

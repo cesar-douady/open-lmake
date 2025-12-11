@@ -8,28 +8,28 @@
 #include "rpc_job.hh"
 #include "time.hh"
 
-enum class CacheRepairTag : uint8_t {
+enum class DirCacheRepairTag : uint8_t {
 	SzData
 ,	Info
 ,	Lru
 } ;
-using CacheRepairTags = BitMap<CacheRepairTag> ;
+using DirCacheRepairTags = BitMap<DirCacheRepairTag> ;
 
 namespace Caches {
 
-	using RepairTag  = CacheRepairTag  ;
-	using RepairTags = CacheRepairTags ;
-
-	struct DirCache : Cache {                                                                                                // PER_CACHE : inherit from Cache and provide implementation
+	struct DirCache : Cache {                                                                                               // PER_CACHE : inherit from Cache and provide implementation
+		using RepairTag  = DirCacheRepairTag  ;
+		using RepairTags = DirCacheRepairTags ;
+		static constexpr char HeadS[] = ADMIN_DIR_S ;
 		// START_OF_VERSIONING CACHE
 		struct Lru {
 			// accesses
 			bool operator==(Lru const&) const = default ;
 			// data
-			::string     newer_s     = DirCache::HeadS ;                                                                     // newer        , or oldest       for head
-			::string     older_s     = DirCache::HeadS ;                                                                     // older        , or newest       for head
-			DirCache::Sz sz          = 0               ;                                                                     // size of entry, or overall size for head
-			Time::Pdate  last_access = {}              ;
+			::string     newer_s     = HeadS ;                                                                              // newer        , or oldest       for head
+			::string     older_s     = HeadS ;                                                                              // older        , or newest       for head
+			DirCache::Sz sz          = 0     ;                                                                              // size of entry, or overall size for head
+			Time::Pdate  last_access = {}    ;
 		} ;
 		// END_OF_VERSIONING
 		struct RepairEntry {
@@ -40,14 +40,13 @@ namespace Caches {
 			Sz         sz      = 0 ;
 			Lru        old_lru ;
 		} ;
-		static constexpr char HeadS[] = ADMIN_DIR_S ;
 		// services
-		void      config( ::vmap_ss const&  , bool may_init=false ) override ;
-		::vmap_ss descr (                                         ) override { return { {"key_checksum",key_crc.hex()} } ; }
-		void      repair( bool dry_run                            ) override ;
-		Tag       tag   (                                         ) override { return Tag::Dir                           ; }
-		void      serdes( ::string     & os                       ) override { _serdes(os) ;                               } // serialize  , cannot be a template as it is a virtual method
-		void      serdes( ::string_view& is                       ) override { _serdes(is) ;                               } // deserialize, .
+		void      config( ::vmap_ss const& , bool may_init=false ) override ;
+		::vmap_ss descr (                                        ) override { return { {"key_checksum",key_crc.hex()} } ; }
+		void      repair( bool dry_run                           ) override ;
+		Tag       tag   (                                        ) override { return Tag::Dir                           ; }
+		void      serdes( ::string     & os                      ) override { _serdes(os) ;                               } // serialize  , cannot be a template as it is a virtual method
+		void      serdes( ::string_view& is                      ) override { _serdes(is) ;                               } // deserialize, .
 		//
 		::pair<DownloadDigest,AcFd>         sub_download( ::string const& job , MDD const&                          ) override ;
 		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 ) override ;

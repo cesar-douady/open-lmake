@@ -101,47 +101,49 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1"># This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).</span>
 <span class="c1"># This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.</span>
 
+<span class="kn">import</span> <span class="nn">ut</span>
+
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
+    <span class="kn">import</span> <span class="nn">sys</span>
+
     <span class="kn">import</span> <span class="nn">lmake</span>
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">PyRule</span>
+    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">[</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;a_source&#39;</span>
-    <span class="p">)</span>
+    <span class="p">,</span>   <span class="s1">&#39;ut.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;src&#39;</span>
+    <span class="p">]</span>
 
-    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">console</span><span class="o">.</span><span class="n">date_precision</span> <span class="o">=</span> <span class="mi">3</span>
 
-    <span class="k">class</span> <span class="nc">A</span><span class="p">(</span><span class="n">PyRule</span><span class="p">):</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;src_name&#39;</span>
-        <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span>
-            <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;a_source_with_typo&#39;</span><span class="p">)</span>
-        <span class="k">else</span> <span class="p">:</span>
-            <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;a_source&#39;</span><span class="p">)</span>
-
-    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">PyRule</span><span class="p">):</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
-        <span class="n">deps</span>   <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;SRC_NAME&#39;</span><span class="p">:</span><span class="s1">&#39;src_name&#39;</span> <span class="p">}</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span>   <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">max_runs</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-            <span class="n">src</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">SRC_NAME</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-            <span class="n">lmake</span><span class="o">.</span><span class="n">target</span><span class="p">(</span> <span class="n">src</span> <span class="p">,</span> <span class="n">source_ok</span><span class="o">=</span><span class="kc">True</span> <span class="p">)</span>
-            <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;a_source&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;something&#39;</span><span class="p">)</span>
+            <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;dut&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;src&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+            <span class="n">ut</span><span class="o">.</span><span class="n">trigger_sync</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">ut</span><span class="o">.</span><span class="n">wait_sync</span>   <span class="p">(</span><span class="mi">1</span><span class="p">)</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">ut</span>
+    <span class="kn">import</span> <span class="nn">os</span>
+    <span class="kn">import</span> <span class="nn">time</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;a_source&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">mk_syncs</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">dep_error</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
-
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">steady</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;src&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="c1">#</span>
+    <span class="n">proc</span> <span class="o">=</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="kc">False</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">dep_error</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># src will change during execution</span>
+    <span class="c1">#</span>
+    <span class="c1"># synchronize during first execution</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">wait_sync</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">file_sync</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;src&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>                                      <span class="c1"># modif</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">trigger_sync</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1">#</span>
+    <span class="n">proc</span><span class="p">()</span>
 </pre></div>
 </body>
 </html>

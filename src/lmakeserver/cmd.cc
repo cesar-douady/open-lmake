@@ -15,7 +15,7 @@ namespace Engine {
 
 	static bool/*ok*/ _collect(EngineClosureReq const& ecr) {
 		SWEAR(!ecr.is_job()) ;                                                // targets are typically dirs, passing a job is non-sense
-		Fd                        fd            = ecr.out_fd                ;
+		Fd                        fd            = ecr.fd                    ;
 		ReqOptions const&         ro            = ecr.options               ;
 		ConfigDyn::Collect const& collect       = g_config->collect         ;
 		::umap_s<bool/*keep*/>    dirs          ;
@@ -141,7 +141,6 @@ namespace Engine {
 	}
 
 	static bool/*ok*/ _freeze(EngineClosureReq const& ecr) {
-		Fd                fd = ecr.out_fd  ;
 		ReqOptions const& ro = ecr.options ;
 		Trace trace("freeze",ecr) ;
 		if (_is_mark_glb(ro.key)) {
@@ -154,8 +153,8 @@ namespace Engine {
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
 			}
-			for( Job  j : jobs  ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()              ) ) ;
-			for( Node n : nodes ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(""             ,w)+' '+mk_file(n->name(),Yes/*exists*/) ) ;
+			for( Job  j : jobs  ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()              ) ) ;
+			for( Node n : nodes ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(""             ,w)+' '+mk_file(n->name(),Yes/*exists*/) ) ;
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
@@ -175,8 +174,9 @@ namespace Engine {
 				jobs.push_back(j) ;
 			} ;
 			auto handle_node = [&](Node n) {
-				if      ( add==n.frozen()         ) { ::string nn = n->name() ; throw cat(n.frozen()?"already":"not"," frozen ",mk_file(nn)) ; }
-				else if ( add && n->is_src_anti() ) { ::string nn = n->name() ; throw cat("cannot freeze source/anti "         ,mk_file(nn)) ; }
+				if ( add==n.frozen()     ) { ::string nn = n->name() ; throw cat(n.frozen()?"already":"not"," frozen ",mk_file(nn)) ; }
+				if ( add && n->is_src () ) { ::string nn = n->name() ; throw cat("cannot freeze source "              ,mk_file(nn)) ; }
+				if ( add && n->is_anti() ) { ::string nn = n->name() ; throw cat("cannot freeze anti "                ,mk_file(nn)) ; }
 				//
 				nodes.push_back(n) ;
 			} ;
@@ -207,7 +207,7 @@ namespace Engine {
 				Job::s_frozens(add,jobs) ;
 				for( Job j : jobs ) {
 					if (!add) j->status = Status::New ;
-					audit( fd , ro , add?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()) ) ;
+					audit( ecr.fd , ro , add?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()) ) ;
 				}
 			}
 			if (+nodes) {
@@ -223,13 +223,12 @@ namespace Engine {
 
 	static bool/*ok*/ _no_trigger(EngineClosureReq const& ecr) {
 		Trace trace("_no_trigger",ecr) ;
-		Fd                fd = ecr.out_fd  ;
 		ReqOptions const& ro = ecr.options ;
 		//
 		if (_is_mark_glb(ro.key)) {
 			::vector<Node> markeds = Node::s_no_triggers() ;
 			if (ro.key==ReqKey::Clear) Node::s_clear_no_triggers() ;
-			for( Node n : markeds ) audit( fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name(),Yes/*exists*/) ) ;
+			for( Node n : markeds ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , mk_file(n->name(),Yes/*exists*/) ) ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
 			::vector<Node> nodes ;
@@ -238,12 +237,12 @@ namespace Engine {
 			//check
 			for( Node n : nodes )
 				if (n.no_trigger()==add) {
-					audit( fd , ro , Color::Err , cat("file is ",add?"already":"not"," no-trigger : ",mk_file(n->name(),Yes/*exists*/)) ) ;
+					audit( ecr.fd , ro , Color::Err , cat("file is ",add?"already":"not"," no-trigger : ",mk_file(n->name(),Yes/*exists*/)) ) ;
 					return false ;
 				}
 			// do what is asked
 			Node::s_no_triggers(add,nodes) ;
-			for( Node n : nodes ) audit( fd , ro , add?Color::Warning:Color::Note , mk_file(n->name(),Yes/*exists*/) ) ;
+			for( Node n : nodes ) audit( ecr.fd , ro , add?Color::Warning:Color::Note , mk_file(n->name(),Yes/*exists*/) ) ;
 		}
 		return true ;
 	}
@@ -537,7 +536,7 @@ namespace Engine {
 		if (porcelaine) {
 			if (ro.key!=ReqKey::Info) audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
 		} else {
-			if ( target->buildable>Buildable::No && !target->is_src_anti() ) { //!                              as_is
+			if ( target->buildable>Buildable::No && !target->is_src() ) { //!                                   as_is
 				audit( fd , ro , Color::Err  , "target not built"                                             , true  , lvl   ) ;
 				audit( fd , ro , Color::Note , "consider : lmake "+mk_file(target->name(),FileDisplay::Shell) , false , lvl+1 ) ;
 			}
@@ -547,7 +546,6 @@ namespace Engine {
 
 	static bool/*ok*/ _debug(EngineClosureReq const& ecr) {
 		Trace trace("debug") ;
-		Fd                fd = ecr.out_fd  ;
 		ReqOptions const& ro = ecr.options ;
 		//
 		Job job ;
@@ -556,14 +554,14 @@ namespace Engine {
 		} else {
 			::vector<Node> targets = ecr.targets() ;
 			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
-			job = _job_from_target(fd,ro,targets[0]) ;
+			job = _job_from_target(ecr.fd,ro,targets[0]) ;
 		}
 		if (!job                             ) throw "no job found"s                                       ;
 		if (!job->is_plain(true/*frozen_ok*/)) throw cat("cannot debug ",job->rule()->user_name()," jobs") ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start) {
-			audit( fd , ro , Color::Note , "no info available" ) ;
+			audit( ecr.fd , ro , Color::Note , "no info available" ) ;
 			return false ;
 		}
 		//
@@ -595,7 +593,7 @@ namespace Engine {
 			if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
 		}
 		//
-		audit_file( fd , ::move(script_file) ) ;
+		audit_file( ecr.fd , ::move(script_file) ) ;
 		return true ;
 	}
 
@@ -617,7 +615,7 @@ namespace Engine {
 				::uset<Rule> refreshed ;
 				for( RuleCrc rc : Persistent::rule_crc_lst() ) if ( RuleCrcData& rcd=rc.data() ; rcd.state==RuleCrcState::RsrcsOld) {
 					rcd.state = RuleCrcState::RsrcsForgotten ;
-					if (refreshed.insert(rcd.rule).second) audit( ecr.out_fd , ro , Color::Note , "refresh "+rcd.rule->user_name() , true/*as_is*/ ) ;
+					if (refreshed.insert(rcd.rule).second) audit( ecr.fd , ro , Color::Note , "refresh "+rcd.rule->user_name() , true/*as_is*/ ) ;
 				}
 			} break ;
 		DF}           // NO_COV
@@ -1170,7 +1168,7 @@ namespace Engine {
 
 	static bool/*ok*/ _show(EngineClosureReq const& ecr) {
 		Trace trace("show",ecr) ;
-		Fd                fd      = ecr.out_fd                 ;
+		Fd                fd      = ecr.fd                     ;
 		ReqOptions const& ro      = ecr.options                ;
 		bool              verbose = ro.flags[ReqFlag::Verbose] ;
 		if (ecr.is_job()) {

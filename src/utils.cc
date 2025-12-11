@@ -50,10 +50,8 @@ template size_t _File<::string_view  >::hash() const ;
 int Fd::_s_mk_fd( FileRef file , Action action ) {
 	bool creat = action.flags&O_CREAT ;
 	if (creat) {
-		SWEAR(   action.mod!=mode_t(-1)               , file,action.flags ) ;                                                            // mod must be specified if creating
-		SWEAR( !(action.mod&~0777)                    , file,action.mod   ) ;                                                            // mod must only specify perm
-		SWEAR(  (action.mod&07)==((action.mod>>3)&07) , file,action.mod   ) ;                                                            // mod must be independent of usr/grp/oth (this is umask job)
-		SWEAR(  (action.mod&07)==((action.mod>>6)&07) , file,action.mod   ) ;                                                            // .
+		SWEAR(   action.mod!=mode_t(-1) , file,action.flags ) ;                                                                          // mod must be specified if creating
+		SWEAR( !(action.mod&~0777)      , file,action.mod   ) ;                                                                          // mod must only specify perm
 	}
 	if (action.nfs_guard) {
 		if (action.flags&O_DIRECTORY) {

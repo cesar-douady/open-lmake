@@ -61,30 +61,24 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	Backend                     // must follow StartJob
 // level 3
 ,	BackendId                   // must follow Backend
-,	Gil                         // must follow Backend
 ,	NodeCrcDate                 // must follow Backend
 ,	Req                         // must follow Backend
 ,	TargetDir                   // must follow Backend
 ,	Workload                    // must follow Backend
 // level 4
-,	Autodep                     // must follow Gil
-,	Gather                      // must follow Gil
-,	Job                         // must follow Backend, by symetry with Node
-,	Node                        // must follow NodeCrcDate
 ,	ReqInfo                     // must follow Req
 ,	Time                        // must follow BackendId
 // level 5
+,	Gil                         // must follow ReqInfo
+,	Job                         // must follow Backend, by symetry with Node
+,	Node                        // must follow NodeCrcDate and ReqInfo
+// level 6
+,	Autodep                     // must follow Gil
+,	Gather                      // must follow Gil
+// level 7
 ,	Record                      // must follow Autodep
-// inner (locks that take no other locks)
-,	Audit
-,	Codec
-,	File
-,	Hash
-,	ReqIdx
-,	Sge
-,	Slurm
-,	SmallId
-,	Thread
+// inner (locks that take no other locks except very special locks below)
+,	Inner
 // very inner
 ,	Trace                       // allow tracing anywhere (but tracing may call some syscall)
 ,	SyscallTab                  // any syscall may need this mutex, which may occur during tracing
@@ -293,7 +287,7 @@ static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
 //
 
 extern thread_local MutexLvl t_mutex_lvl ;
-template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_mutex,::mutex> {
+template<MutexLvl Lvl_=MutexLvl::Inner,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,::shared_mutex,::mutex> {
 	using Base =                                              ::conditional_t<S,::shared_mutex,::mutex> ;
 	static constexpr MutexLvl Lvl = Lvl_ ;
 	// services
@@ -330,7 +324,7 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 	} ;
 #endif
 
-template<class M> struct Lock {
+template<class M=Mutex<>> struct Lock {
 	// cxtors & casts
 	Lock() = default ;
 	Lock (M& m) : _mutex{&m} { lock  () ; }
@@ -342,7 +336,7 @@ template<class M> struct Lock {
 	M*       _mutex = nullptr            ; // must be !=nullptr to lock
 	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
 } ;
-template<class M> struct SharedLock {
+template<class M=Mutex<>> struct SharedLock {
 	// cxtors & casts
 	SharedLock() = default ;
 	SharedLock (M& m) : _mutex{&m} { lock  () ; }
@@ -443,9 +437,9 @@ template<class T> using FenceSave = Save<T,true> ;
 
 template<::unsigned_integral T,bool ThreadSafe=false> struct SmallIds {
 private :
-	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<MutexLvl::SmallId> , NoMutex > ;
-	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex>             , NoLock  > ;
-	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>                , T       > ;
+	using _Mutex   = ::conditional_t< ThreadSafe , Mutex<>      , NoMutex > ;
+	using _Lock    = ::conditional_t< ThreadSafe , Lock<_Mutex> , NoLock  > ;
+	using _AtomicT = ::conditional_t< ThreadSafe , Atomic<T>    , T       > ;
 	// services
 public :
 	T acquire() {
