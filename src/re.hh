@@ -98,7 +98,7 @@ namespace Re {
 							case Use::Unused :                            continue ; // dont save unused regexprs
 							case Use::New    : codes.push_back(v.first) ; break    ; // new regexprs are usable as is
 							case Use::Old    :
-								if (!_has_new()) {
+								if (!_n_new) {
 									codes.push_back(v.first) ;
 								} else {
 									created.push_back(_s_compile(k)) ;               // unless all are old, old regexprs must be recompiled because they use their own character tables ...
@@ -130,7 +130,7 @@ namespace Re {
 					// END_OF_VERSIONING
 					::vector<pcre2_code*> codes ;
 					//
-					PCRE2_SIZE n_codes = ::pcre2_serialize_get_number_of_codes(bytes.data()) ; SWEAR( n_codes==keys.size() , n_codes , keys.size() ) ; if (n_codes<0) throw _s_err_msg(n_codes) ;
+					PCRE2_SIZE n_codes = ::pcre2_serialize_get_number_of_codes(bytes.data()) ; if (n_codes!=keys.size()) throw n_codes<0?_s_err_msg(n_codes):"corrupted regexpr cache"s ;
 					codes.resize(n_codes) ;
 					::pcre2_serialize_decode( codes.data() , n_codes , bytes.data() , nullptr/*general_context*/ ) ;
 					//
@@ -140,17 +140,16 @@ namespace Re {
 					}
 					_n_unused = keys.size() ;
 				}
-				// accesses
-				bool _has_new() const { return _n_unused<0 ; }
 				// services
 				bool steady() const {
-					return !_n_unused ;
+					return !_n_unused && !_n_new ;
 				}
 				pcre2_code const* insert(::string const& infix) ;
 				// data
 			private :
 				::umap_s<::pair<pcre2_code const*,Use/*use*/>> _cache    ;
-				ssize_t                                        _n_unused = 0 ;       // <0 if new codes
+				ssize_t                                        _n_unused = 0 ;
+				ssize_t                                        _n_new    = 0 ;
 			} ;
 			// statics
 		private :

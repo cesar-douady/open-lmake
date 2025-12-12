@@ -67,7 +67,6 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	Workload                    // must follow Backend
 // level 4
 ,	ReqInfo                     // must follow Req
-,	Time                        // must follow BackendId
 // level 5
 ,	Gil                         // must follow ReqInfo
 ,	Job                         // must follow Backend, by symetry with Node
@@ -581,10 +580,11 @@ public :
 	/**/      void              cloexec    (bool          set       =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
 	constexpr size_t            hash       (                             ) const { return fd ;                            }
 protected :
-	::string& append_to_str( ::string& os , const char* class_name ) const {
+	::string& append_to_str( ::string& os , const char* class_name , ::string const& extra={} ) const {
 		os <<class_name<<"(" ;
-		if (self==Cwd) os << "Cwd" ;
-		else           os << fd    ;
+		if (self==Cwd) os << "Cwd"      ;
+		else           os << fd         ;
+		if (+extra   ) os << ','<<extra ;
 		return os <<')' ;
 	}
 public :

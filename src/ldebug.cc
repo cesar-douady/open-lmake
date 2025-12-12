@@ -5,10 +5,11 @@
 
 #include "py.hh" // /!\ must be first because Python.h must be first
 
-#include "app.hh"
-#include "client.hh"
 #include "disk.hh"
 #include "trace.hh"
+
+#include "repo.hh"
+#include "client.hh"
 
 using namespace Disk ;
 using namespace Py   ;
@@ -28,8 +29,8 @@ using namespace Py   ;
 }
 
 int main( int argc , char* argv[] ) {
-	app_init({.read_only_ok=false}) ;
-	Py::init(*g_lmake_root_s      ) ;
+	repo_app_init({.read_only_ok=false}) ;
+	Py::init(*g_lmake_root_s)            ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{

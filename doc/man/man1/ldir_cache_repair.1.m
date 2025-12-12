@@ -5,13 +5,13 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(ldircache_repair,repair a OpenLmake repo)
+Title(ldir_cache_repair,repair a OpenLmake repo)
 .SH SYNOPSIS
-B(ldircache_repair) [I(-n)|I(--dry-run)] I(dir)
+B(ldir_cache_repair) [I(-n)|I(--dry-run)] I(dir)
 
 .SH DESCRIPTION
 .LP
-B(ldircache_repair) is meant to repair a dir-based cache (a cache whose tag is I(dir)).
+B(ldir_cache_repair) is meant to repair a dir-based cache (a cache whose tag is I(dir)).
 Its argument specifies the dir to repair.
 .LP
 This may be usedful either because you experience incoherent behaviors and this is less agressive than setting up a fresh dir.
@@ -19,7 +19,7 @@ This may be usedful either because you experience incoherent behaviors and this 
 Also, if for some management reason you want to dismiss some entries, you can remove any part of the cache and run this command to restore a coherent state.
 The structure of the cache dir is fairly simple: all the data linked to a job is under a dir named after the job name.
 .LP
-When running, B(ldircache_repair) generates a trace of its activity.
+When running, B(ldir_cache_repair) generates a trace of its activity.
 These may be:
 .LP
 Item(rm)          Any file not necessary for running the cache is removed.
@@ -30,7 +30,7 @@ If the LRU data is missing, the corresponding entry will be deemed to have been 
 
 .SH "EXIT STATUS"
 .LP
-B(ldircache_repair) exits with a status of zero if the cache was successfully repaired.
+B(ldir_cache_repair) exits with a status of zero if the cache was successfully repaired.
 Else it exits with a non-zero status:
 .LP
 Item(B(2))  internal error, should not occur
@@ -47,7 +47,7 @@ ClientGeneralities()
 
 .SH EXAMPLES
 .LP
-V(ldircache_repair)
+V(ldir_cache_repair)
 
 .SH FILES
 CommonFiles

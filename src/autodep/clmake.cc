@@ -5,7 +5,6 @@
 
 #include "py.hh" // /!\ must be first because Python.h must be first
 
-#include "lib.hh"
 #include "disk.hh"
 #include "hash.hh"
 #include "time.hh"

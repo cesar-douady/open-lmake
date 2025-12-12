@@ -19,13 +19,13 @@ namespace Time {
 		SWEAR( prec<=9 , prec ) ;
 		switch (prec) {
 			case 1 : sub1 /= 100'000'000 ; break ;
-			case 2 : sub1 /= 10'000'000  ; break ;
-			case 3 : sub1 /= 1'000'000   ; break ;
-			case 4 : sub1 /= 100'000     ; break ;
-			case 5 : sub1 /= 10'000      ; break ;
-			case 6 : sub1 /= 1'000       ; break ;
-			case 7 : sub1 /= 100         ; break ;
-			case 8 : sub1 /= 10          ; break ;
+			case 2 : sub1 /=  10'000'000 ; break ;
+			case 3 : sub1 /=   1'000'000 ; break ;
+			case 4 : sub1 /=     100'000 ; break ;
+			case 5 : sub1 /=      10'000 ; break ;
+			case 6 : sub1 /=       1'000 ; break ;
+			case 7 : sub1 /=         100 ; break ;
+			case 8 : sub1 /=          10 ; break ;
 			case 9 :                     ; break ;
 		DF}                                                               // NO_COV
 		res        += sub1 ;

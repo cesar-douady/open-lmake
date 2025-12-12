@@ -77,7 +77,7 @@ private :
 						case ECONNRESET : break                                               ; // if peer dies abruptly, we get ECONNRESET, but this is equivalent to eof
 						default         : throw cat("cannot receive over ",fd," : ",StrErr()) ;
 					}
-				res = T() ;                                                                     // return empty on eof, including if not at a message boundary
+				res = T() ;                                                                     // return empty on eof, even if not at a message boundary
 				return false ;
 			}
 			_buf_sz  += cnt   ;

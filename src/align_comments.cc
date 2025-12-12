@@ -3,10 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "disk.hh"
-#include "lib.hh"
-
-using namespace Disk ;
+#include "app.hh"
 
 enum class LineKind : uint8_t {
 	Blank
@@ -151,10 +148,8 @@ void optimize(::vector<Line>& lines) {
 }
 
 int main( int argc , char* argv[] ) {
-	#if PROFILING
-		::string gmon_dir_s ; try { gmon_dir_s = search_root().top_s+AdminDirS+"gmon.out/" ; } catch(...) {}
-		set_env( "GMON_OUT_PREFIX" , dir_guard(gmon_dir_s+"align_comment") ) ;                               // in case profiling is used, ensure unique gmon.out
-	#endif
+	app_init({.chk_version=No}) ;
+	//
 	if ( argc<4 || argc>5 ) exit(Rc::Usage,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
 	g_tab_width    = from_string<size_t>(argv[1]) ;
 	g_max_line_sz  = from_string<size_t>(argv[2]) ;

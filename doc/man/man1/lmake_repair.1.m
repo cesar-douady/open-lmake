@@ -5,29 +5,29 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(lrepair,repair a OpenLmake repo)
+Title(lmake_repair,repair a OpenLmake repo)
 .SH SYNOPSIS
-B(lrepair)
+B(lmake_repair)
 
 .SH DESCRIPTION
 .LP
-B(lrepair) is meant to repair internal OpenLmake book-keeping in case of catastrophic crash, either because of system failure or a bug in OpenLmake.
+B(lmake_repair) is meant to repair internal OpenLmake book-keeping in case of catastrophic crash, either because of system failure or a bug in OpenLmake.
 Most of the time, OpenLmake does not require to resort to heavy reparations as its internal book-keeping is fairly robust, but in some rare cases, this may be necessary.
-In such a case, OpenLmake will suggest the use of B(lrepair).
+In such a case, OpenLmake will suggest the use of B(lmake_repair).
 .LP
-In case of incoherent behavior, the user may decide to run B(lrepair).
+In case of incoherent behavior, the user may decide to run B(lmake_repair).
 .LP
 This process is pretty long, the goal being to avoid having to restart from a fresh repo, which may incur a severe cost in terms of compute power.
 .LP
-Once B(lrepair) is done, it generates some suggestions about what to do with the freshly repaired repo, including step back and forget about the repair.
+Once B(lmake_repair) is done, it generates some suggestions about what to do with the freshly repaired repo, including step back and forget about the repair.
 .LP
-While repairing B(lrepair) generates a file I(LMAKE/repaired_jobs) that contains the list of successfully repaired jobs.
+While repairing B(lmake_repair) generates a file I(LMAKE/repaired_jobs) that contains the list of successfully repaired jobs.
 
 ClientGeneralities()
 
 .SH "EXIT STATUS"
 .LP
-B(lrepair) exits with a status of zero if the repo could be successfully repaired.
+B(lmake_repair) exits with a status of zero if the repo could be successfully repaired.
 Else it exits with a non-zero status:
 .LP
 Item(B(2))  internal error, should not occur
@@ -39,7 +39,7 @@ Item(B(12)) bad repo version, repo need to be cleaned, e.g. with B(git clean -ff
 
 .SH EXAMPLES
 .LP
-V(lrepair)
+V(lmake_repair)
 
 .SH FILES
 CommonFiles

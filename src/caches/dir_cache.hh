@@ -21,7 +21,7 @@ namespace Caches {
 		using RepairTag  = DirCacheRepairTag  ;
 		using RepairTags = DirCacheRepairTags ;
 		static constexpr char HeadS[] = ADMIN_DIR_S ;
-		// START_OF_VERSIONING CACHE
+		// START_OF_VERSIONING DIR_CACHE
 		struct Lru {
 			// accesses
 			bool operator==(Lru const&) const = default ;
@@ -41,6 +41,8 @@ namespace Caches {
 			Lru        old_lru ;
 		} ;
 		// services
+		::vmap_ss descr() const ;
+		//
 		void      config( ::vmap_ss const& , bool may_init=false ) override ;
 		::vmap_ss descr (                                        ) override { return { {"key_checksum",key_crc.hex()} } ; }
 		void      repair( bool dry_run                           ) override ;
@@ -65,11 +67,12 @@ namespace Caches {
 		void                            _dismiss      ( uint64_t upload_key                             , Sz , NfsGuardLock& )       ;
 		::pair_s/*key*/<DownloadDigest> _sub_match    ( ::string const& job , MDD const& , bool for_commit   , NfsGuardLock& ) const ;
 		//
+		// START_OF_VERSIONING REPO
 		template<IsStream S> void _serdes(S& s) {
-			::serdes(s,key_crc  ) ;
 			::serdes(s,dir_s    ) ;
-			::serdes(s,max_sz   ) ;
 			::serdes(s,file_sync) ;
+			::serdes(s,key_crc  ) ;
+			::serdes(s,max_sz   ) ;
 			::serdes(s,perm_ext ) ;
 			if (IsIStream<S>) _compile() ;
 		}
@@ -78,12 +81,13 @@ namespace Caches {
 			reserved_dir_s = ADMIN_DIR_S "reserved/"                       ;
 			lock_file      = ADMIN_DIR_S "lock"                            ;
 		}
+		// END_OF_VERSIONING
 		// data
 	public :
-		Hash::Crc key_crc   = Hash::Crc::None ;
 		::string  dir_s     ;
-		Sz        max_sz    = 0               ;
 		FileSync  file_sync = FileSync::Dflt  ;
+		Hash::Crc key_crc   = Hash::Crc::None ;
+		Sz        max_sz    = 0               ;
 		PermExt   perm_ext  = {}              ;
 		// derived
 		AcFd      root_fd        ;

@@ -611,8 +611,8 @@ namespace Engine::Persistent {
 			else                    old_srcs.erase (it) ;
 		}
 		if (!fresh) {
-			for( auto [n,t] : new_srcs ) if (t==FileTag::Dir) throw cat("new source dir ",n->name(),' ',git_clean_msg()) ; // we may not have recorded some deps to these, and this is unpredictable
-			for( auto [n,t] : old_srcs ) if (t==FileTag::Dir) throw cat("old source dir ",n->name(),' ',git_clean_msg()) ; // XXX? : this could be managed if necessary (is it worth?)
+			for( auto [n,t] : new_srcs ) if (t==FileTag::Dir) throw cat("new source dir ",n->name(),", consider : ",git_clean_msg()) ; // we may have missed some deps, and this is unpredictable
+			for( auto [n,t] : old_srcs ) if (t==FileTag::Dir) throw cat("old source dir ",n->name(),", consider : ",git_clean_msg()) ; // XXX? : this could be managed if necessary (is it worth?)
 		}
 		//
 		for( Node d : src_dirs ) { if ( auto it=old_src_dirs.find(d) ; it!=old_src_dirs.end() ) old_src_dirs.erase(it) ; else new_src_dirs.insert(d) ; }

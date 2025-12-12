@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include "disk.hh"
 #include "fd.hh"
+#include "real_path.hh"
 #include "serialize.hh"
 #include "time.hh"
 
-struct AutodepEnv : Disk::RealPathEnv {
+struct AutodepEnv : RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;

@@ -74,7 +74,7 @@ namespace Store {
 			if (sz>Capacity)
 				exit( Rc::BadState
 				,	"file ",name," capacity has been under-dimensioned at ",Capacity," bytes\n"
-				,	"\tconsider to recompile open-lmake with increased corresponding parameter in src/types.hh\n"
+				,	"\tconsider to recompile open-lmake with increased corresponding parameter in src/repo.hh\n"
 				) ;
 			//
 			sz = ::max( sz              , size+::min(size>>2,size_t(1<<24)) ) ;        // ensure remaps are in log(n) (up to a reasonable size increase)

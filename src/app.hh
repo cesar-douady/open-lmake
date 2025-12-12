@@ -15,23 +15,29 @@ extern StaticUniqPtr<::string> g_lmake_root_s  ; // absolute                 , i
 extern StaticUniqPtr<::string> g_exe_name      ; //                            executable name for user messages
 
 struct AppInitAction {
-	bool  read_only_ok ;
-	Bool3 chk_version  = Yes ; // Maybe means it is ok to initialize stored version
-	Bool3 cd_root      = Yes ; // Maybe means we must identify root_dir, but not cd to it
+	Bool3      chk_version  = Yes   ; // Maybe means it is ok to initialize
+	bool       cd_root      = true  ; // if false, ensure we are at root level
+	PermExt    perm_ext     = {}    ; // right to apply if initializing
+	bool       read_only_ok = true  ;
+	Bool3      trace        = Maybe ; // if Maybe, trace if chk_version!=No
+	::vector_s root_mrkrs   = {}    ;
+	uint64_t   version      = {}    ;
 } ;
-bool/*read_only*/ app_init(AppInitAction) ;
 
-struct ChkAction {
-	bool     may_init    = false         ;
-	::string admin_dir_s = AdminDirS     ;
-	uint64_t version     = Version::Repo ;
-	PermExt  perm_ext    = {}            ;
+struct SearchRootResult {
+	::string top_s     ;
+	::string sub_s     ;
+	::string startup_s ;
 } ;
-void chk_version(ChkAction const&) ;
+
+bool/*read_only*/ app_init   ( AppInitAction const&                            ) ;
+void              chk_version( AppInitAction const& , ::string const& dir_s={} ) ;
+SearchRootResult search_root ( AppInitAction const&                            ) ;
 
 inline ::string git_clean_msg() {
-	::string d ; if (+*g_startup_dir_s) d << ' '<<no_slash(Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))) ;
-	return "consider : git clean -ffdx"+d ;
+	::string res = "git clean -ffdx" ;
+	if (+*g_startup_dir_s) res << ' '<<Disk::dir_name_s(Disk::mk_rel(".",*g_startup_dir_s))<<rm_slash ;
+	return res ;
 }
 
 struct KeySpec {
@@ -47,14 +53,8 @@ struct FlagSpec {
 
 template<UEnum Key,UEnum Flag> struct Syntax {
 	static constexpr bool HasNone = requires() {Key::None;} ;
-private :
-	static ::string _s_version_str() {
-		return cat("version ",Version::Major," (Cache:",Version::Cache,",Repo:",Version::Repo,",Job:",Version::Job,')') ;
-	}
-public :
-	[[noreturn]] static void s_version(bool quiet=false) {
-		if (quiet) exit( {} , Version::Repo    ) ;
-		else       exit( {} , _s_version_str() ) ;
+	static ::string s_version_str() {
+		return cat("version ",Version::Major," (DaemonCache:",Version::DaemonCache,"DirCache:",Version::DirCache,",Repo:",Version::Repo,",Job:",Version::Job,')') ;
 	}
 	// cxtors & casts
 	Syntax() = default ;
@@ -120,7 +120,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 	if (args_ok    ) err_msg <<' '<< "[ -<short-option>[<option-value>] | --<long-option>[=<option-value>] | <arg> ]* [--] [<arg>]*\n" ;
 	else             err_msg <<' '<< "[ -<short-option>[<option-value>] | --<long-option>[=<option-value>] ]*\n"                       ;
 	//
-	if (!sub_option) err_msg << _s_version_str() <<"\n"                     ;            // analyze top level cmd line
+	if (!sub_option) err_msg << s_version_str() <<"\n"                      ;            // analyze top level cmd line
 	if (args_ok    ) err_msg << "options may be interleaved with args\n"    ;
 	/**/             err_msg << "-h or --help : print this help and exit\n" ;
 	if (!sub_option) err_msg << "--version    : print version and exit\n"   ;
@@ -240,8 +240,9 @@ template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> con
 			}
 		}
 		if (print_version) {
-			if constexpr (requires(){Flag::Quiet;}) syntax.s_version(flags[Flag::Quiet]) ;
-			else                                    syntax.s_version(                  ) ;
+			if      constexpr (!requires(){Flag::Quiet;}) exit( Rc::Ok , syntax.s_version_str() ) ;
+			else if           (!flags[Flag::Quiet]      ) exit( Rc::Ok , syntax.s_version_str() ) ;
+			else                                          exit( Rc::Ok , Version::Repo          ) ;
 		}
 		throw_if    ( print_help                                            ) ;
 		throw_unless( has_key || syntax.has_dflt_key , "must specify a key" ) ;

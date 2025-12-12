@@ -5,7 +5,10 @@
 
 #pragma once
 
-#include "types.hh"
+#include "utils.hh"
+
+// type used to serialize size for ::string, ::vector, etc., 32 bits is already very comfortable
+using SerdesSz = uint32_t ;
 
 template<class T> struct Serdeser ;
 

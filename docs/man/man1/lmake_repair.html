@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Dec 11 22:43:07 2025 -->
+<!-- CreationDate: Fri Dec 12 19:37:07 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -13,18 +13,17 @@
        table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
        h1      { text-align: center }
 </style>
-<title>LDIRCACHE_REPAIR</title>
+<title>LMAKE_REPAIR</title>
 
 </head>
 <body>
 
-<h1 align="center">LDIRCACHE_REPAIR</h1>
+<h1 align="center">LMAKE_REPAIR</h1>
 
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#EXIT STATUS">EXIT STATUS</a><br>
-<a href="#OPTIONS">OPTIONS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
@@ -38,9 +37,8 @@
 </h2>
 
 
-
-<p style="margin-left:9%; margin-top: 1em">ldircache_repair
-- repair a <i>open-lmake</i> repo</p>
+<p style="margin-left:9%; margin-top: 1em">lmake_repair -
+repair a <i>open-lmake</i> repo</p>
 
 <h2>SYNOPSIS
 <a name="SYNOPSIS"></a>
@@ -48,8 +46,7 @@
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>ldircache_repair</b>
-[<i>-n</i>|<i>--dry-run</i>] <i>dir</i></p>
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_repair</b></p>
 
 <h2>DESCRIPTION
 <a name="DESCRIPTION"></a>
@@ -57,64 +54,48 @@
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><i><b>ldircache_repair</b></i>
-is meant to repair a dir-based cache (a cache whose tag is
-<i>dir</i>). Its argument specifies the dir to repair.</p>
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_repair</b>
+is meant to repair internal <i>open-lmake</i> book-keeping
+in case of catastrophic crash, either because of system
+failure or a bug in <i>open-lmake</i>. Most of the time,
+<i>open-lmake</i> does not require to resort to heavy
+reparations as its internal book-keeping is fairly robust,
+but in some rare cases, this may be necessary. In such a
+case, <i>open-lmake</i> will suggest the use of
+<b>lmake_repair</b>.</p>
 
-<p style="margin-left:9%; margin-top: 1em">This may be
-usedful either because you experience incoherent behaviors
-and this is less agressive than setting up a fresh dir.</p>
+<p style="margin-left:9%; margin-top: 1em">In case of
+incoherent behavior, the user may decide to run
+<b>lmake_repair</b>.</p>
 
-<p style="margin-left:9%; margin-top: 1em">Also, if for
-some management reason you want to dismiss some entries, you
-can remove any part of the cache and run this command to
-restore a coherent state. The structure of the cache dir is
-fairly simple: all the data linked to a job is under a dir
-named after the job name.</p>
+<p style="margin-left:9%; margin-top: 1em">This process is
+pretty long, the goal being to avoid having to restart from
+a fresh repo, which may incur a severe cost in terms of
+compute power.</p>
 
-<p style="margin-left:9%; margin-top: 1em">When running,
-<b>ldircache_repair</b> generates a trace of its activity.
-These may be:</p>
+<p style="margin-left:9%; margin-top: 1em">Once
+<b>lmake_repair</b> is done, it generates some suggestions
+about what to do with the freshly repaired repo, including
+step back and forget about the repair.</p>
 
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="6%">
-
-
-<p>rm</p></td>
-<td width="3%"></td>
-<td width="82%">
-
-
-<p>Any file not necessary for running the cache is
-removed.</p> </td></tr>
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="6%">
+<p style="margin-left:9%; margin-top: 1em">While repairing
+<b>lmake_repair</b> generates a file
+<i>LMAKE/repaired_jobs</i> that contains the list of
+successfully repaired jobs.</p>
 
 
-<p>rmdir</p></td>
-<td width="3%"></td>
-<td width="82%">
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_repair</b>
+manages a fully coherent dir called a repo. When it starts,
+it first determines the root of the repo (cf. <b>FILES</b>
+below).</p>
 
-
-<p>Any empty dir, possibly resulting from the <i>rm</i>
-actions, are removed.</p></td></tr>
-</table>
-
-<p style="margin-left:9%;">erase entry</p>
-
-<p style="margin-left:18%;">Any incomplete or otherwise
-incoherent cache entry is removed.</p>
-
-<p style="margin-left:9%;">rebuild lru</p>
-
-<p style="margin-left:18%;">The book-keeping information to
-ensure proper LRU evection is rebuilt. If the LRU data is
-missing, the corresponding entry will be deemed to have been
-accessed and will be preferred candidates for eviction.</p>
+<p style="margin-left:9%; margin-top: 1em">Arguments and
+reports are systematically localized to the current working
+dir. For example, if you launch <b>lmake_repair b</b> from
+dir <b>a</b> in your repo, the argument is file <i>a/b</i>
+from the root of the repo and reports containing file names
+(initially seen from the root of the repo) will be shown
+relative the the current working dir.</p>
 
 <h2>EXIT STATUS
 <a name="EXIT STATUS"></a>
@@ -122,9 +103,10 @@ accessed and will be preferred candidates for eviction.</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>ldircache_repair</b>
-exits with a status of zero if the cache was successfully
-repaired. Else it exits with a non-zero status:</p>
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_repair</b>
+exits with a status of zero if the repo could be
+successfully repaired. Else it exits with a non-zero
+status:</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -139,6 +121,18 @@ repaired. Else it exits with a non-zero status:</p>
 
 
 <p>internal error, should not occur</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>3</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p><i>Lmakefile.py</i> could not be read or contained an
+error</p> </td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="3%">
@@ -184,33 +178,9 @@ be parsed</p></td></tr>
 <td width="82%">
 
 
-<p>bad cache version, cache needs to be cleaned</p></td></tr>
+<p>bad repo version, repo need to be cleaned, e.g. with
+<b>git clean -ffdx</b></p></td></tr>
 </table>
-
-<h2>OPTIONS
-<a name="OPTIONS"></a>
-</h2>
-
-
-<p style="margin-left:9%; margin-top: 1em"><b>-n</b>,
-<b>--dry-run</b></p>
-
-<p style="margin-left:18%;">Report actions to carry out but
-do not actually perform them.</p>
-
-
-<p style="margin-left:9%; margin-top: 1em"><b>ldircache_repair</b>
-manages a fully coherent dir called a repo. When it starts,
-it first determines the root of the repo (cf. <b>FILES</b>
-below).</p>
-
-<p style="margin-left:9%; margin-top: 1em">Arguments and
-reports are systematically localized to the current working
-dir. For example, if you launch <b>ldircache_repair b</b>
-from dir <b>a</b> in your repo, the argument is file
-<i>a/b</i> from the root of the repo and reports containing
-file names (initially seen from the root of the repo) will
-be shown relative the the current working dir.</p>
 
 <h2>EXAMPLES
 <a name="EXAMPLES"></a>
@@ -218,7 +188,7 @@ be shown relative the the current working dir.</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em">ldircache_repair</p>
+<p style="margin-left:9%; margin-top: 1em">lmake_repair</p>
 
 <h2>FILES
 <a name="FILES"></a>
@@ -231,8 +201,8 @@ searched in the current dir and in parent dirs. If a single
 one is found, this determines the root of the repo. If
 several are found, the existence of an <i>LMAKE</i> dir is
 checked. If a single one is found, this determines the root
-of the repo. In other cases, <b>ldircache_repair</b> will
-not start.</p>
+of the repo. In other cases, <b>lmake_repair</b> will not
+start.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>
@@ -242,10 +212,11 @@ not start.</p>
 
 <p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
 <b>lcheck_deps</b>(1), <b>lcollect</b>(1), <b>ldebug</b>(1),
-<b>ldecode</b>(1), <b>ldepend</b>(1), <b>lencode</b>(1),
+<b>ldecode</b>(1), <b>ldepend</b>(1),
+<b>ldir_cache_repair</b>(1), <b>lencode</b>(1),
 <b>lforget</b>(1), <b>lmake</b>(1), <b>lmark</b>(1),
-<b>lrepair</b>(1), <b>lrun_cc</b>(1), <b>lshow</b>(1),
-<b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+<b>lrun_cc</b>(1), <b>lshow</b>(1), <b>ltarget</b>(1),
+<b>xxhsum</b>(1)</p>
 
 <p style="margin-left:9%; margin-top: 1em">The python
 module <b>lmake</b>.</p>

@@ -10,6 +10,8 @@
 #include "serialize.hh"
 #include "time.hh"
 
+#include "repo.hh"
+
 #include "autodep/env.hh"
 
 // START_OF_VERSIONING

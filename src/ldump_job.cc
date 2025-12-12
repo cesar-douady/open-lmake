@@ -5,6 +5,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+
 #include "rpc_job.hh"
 
 using namespace Disk ;
@@ -43,34 +44,36 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "--start--\n" ;
 	//
 	g_out << "auto_mkdir       : " << jsrr.autodep_env.auto_mkdir <<'\n' ;
-	g_out << "chroot_dir_s     : " << jsrr.chroot_info.dir_s      <<'\n' ;
+	g_out << "cache_idx1       : " << jsrr.cache_idx1             <<'\n' ;
 	g_out << "chroot_action    : " << jsrr.chroot_info.action     <<'\n' ;
-	g_out << "sub_repo_s       : " << jsrr.autodep_env.sub_repo_s <<'\n' ;
+	g_out << "chroot_dir_s     : " << jsrr.chroot_info.dir_s      <<'\n' ;
 	g_out << "ddate_prec       : " << jsrr.ddate_prec             <<'\n' ;
 	g_out << "interpreter      : " << jsrr.interpreter            <<'\n' ;
 	g_out << "keep_tmp         : " << jsrr.keep_tmp               <<'\n' ;
 	g_out << "key              : " << jsrr.key                    <<'\n' ;
 	g_out << "kill_sigs        : " << jsrr.kill_sigs              <<'\n' ;
 	g_out << "live_out         : " << jsrr.live_out               <<'\n' ;
-	g_out << "phy_lmake_root_s : " << jsrr.phy_lmake_root_s       <<'\n' ;
 	g_out << "lmake_view_s     : " << jsrr.job_space.lmake_view_s <<'\n' ;
 	g_out << "method           : " << jsrr.method                 <<'\n' ;
+	g_out << "phy_lmake_root_s : " << jsrr.phy_lmake_root_s       <<'\n' ;
 	g_out << "readdir_ok       : " << jsrr.autodep_env.readdir_ok <<'\n' ;
 	g_out << "repo_view_s      : " << jsrr.job_space.repo_view_s  <<'\n' ;
 	g_out << "small_id         : " << jsrr.small_id               <<'\n' ;
 	g_out << "stdin            : " << jsrr.stdin                  <<'\n' ;
 	g_out << "stdout           : " << jsrr.stdout                 <<'\n' ;
+	g_out << "sub_repo_s       : " << jsrr.autodep_env.sub_repo_s <<'\n' ;
 	g_out << "timeout          : " << jsrr.timeout                <<'\n' ;
 	g_out << "tmp_dir_s        : " << jsrr.autodep_env.tmp_dir_s  <<'\n' ; // tmp directory on disk
 	g_out << "tmp_view_s       : " << jsrr.job_space.tmp_view_s   <<'\n' ;
 	g_out << "use_script       : " << jsrr.use_script             <<'\n' ;
 	//
-	g_out << "deps :\n"           ; _print_map  (jsrr.deps           )   ;
-	g_out << "env :\n"            ; _print_map  (jsrr.env            )   ;
-	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   )   ;
-	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches )   ;
-	g_out << "views :\n"          ; _print_views(jsrr.job_space.views)   ;
-	g_out << "cmd :\n"            ; g_out << indent(jsrr.cmd) <<add_nl ;
+	if (jsrr.cache) { g_out << "cache :\n"          ; _print_map  (jsrr.cache->descr() ) ; }
+	/**/              g_out << "cmd :\n"            ; g_out << indent(jsrr.cmd) <<add_nl ;
+	/**/              g_out << "deps :\n"           ; _print_map  (jsrr.deps           ) ;
+	/**/              g_out << "env :\n"            ; _print_map  (jsrr.env            ) ;
+	/**/              g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   ) ;
+	/**/              g_out << "static matches :\n" ; _print_map  (jsrr.static_matches ) ;
+	/**/              g_out << "views :\n"          ; _print_views(jsrr.job_space.views) ;
 }
 
 void print_end(JobEndRpcReq const& jerr) {
@@ -98,7 +101,7 @@ void print_end(JobEndRpcReq const& jerr) {
 
 int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
-	app_init({.read_only_ok=true}) ;
+	app_init({.chk_version=No}) ;
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {

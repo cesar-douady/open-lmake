@@ -21,8 +21,8 @@ if __name__!='__main__' :
 	from step import z_lvl
 
 	lmake.config.caches.my_cache = {
-		'tag'  : 'dir'
-	,	'dir'  : lmake.repo_root+'/CACHE'
+		'tag' : 'dir'
+	,	'dir' : lmake.repo_root+'/CACHE'
 	}
 
 	class Auto(Rule) :
@@ -103,7 +103,7 @@ else :
 		os.system(f'mkdir bck{z_lvl} ; mv LMAKE auto1 auto1.hide hello+auto1.hide bck{z_lvl}')
 		os.system('find CACHE -type f -ls')
 
-		assert os.system('rm -rf CACHE/auto1 ; ldircache_repair CACHE')==0
+		assert os.system('rm -rf CACHE/auto1 ; ldir_cache_repair CACHE')==0
 
 		print('hello2'       ,file=open('hello'               ,'w'))
 		print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))

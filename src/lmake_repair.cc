@@ -3,11 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "lmakeserver/core.hh" // /!\ must be first to include Python.h first
+#include "lmake_server/core.hh" // /!\ must be first to include Python.h first
 
-#include "app.hh"
 #include "disk.hh"
-#include "lmakeserver/makefiles.hh"
+
+#include "repo.hh"
+#include "rpc_client.hh"
+
+#include "lmake_server/makefiles.hh"
 
 using namespace Disk ;
 
@@ -111,7 +114,6 @@ int main( int argc , char* /*argv*/[] ) {
 	::string bck_phy_lad      ;
 	::string rm_admin_dir     ;
 	::string rm_bck_admin_dir ;
-	::string startup_s        ;
 	//
 	auto mk_lad = [&]() {
 		phy_lad          = {}                     ; if (FileInfo(std_lad    ).tag()==FileTag::Lnk) phy_lad           = mk_glb( read_lnk(std_lad    ) , dir_name_s(std_lad    ) ) ;
@@ -122,14 +124,13 @@ int main( int argc , char* /*argv*/[] ) {
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
 	//
-	app_init({.read_only_ok=false}) ;
+	repo_app_init({.read_only_ok=false}) ;
 	//
-	if (argc!=1              )                                                exit(Rc::Usage   ,"must be called without arg"                                               ) ;
-	try { startup_s = search_root().startup_s ; } catch (::string const& e) { exit(Rc::Usage   ,e                                                                          ) ; }
-	if (+startup_s           )                                                exit(Rc::Usage   ,"lrepair must be started from repo root, not from ",no_slash(startup_s)    ) ;
-	if (FileInfo(File(ServerMrkr)).exists())                                  exit(Rc::BadState,"after having ensured no lmakeserver is running, consider : rm ",ServerMrkr) ;
+	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                     ) ;
+	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,"lmakerepair must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
+	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr     ) ;
 	//
-	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,{.dir_ok=true}) ; // if last lrepair was interrupted, admin_dir contains no useful information
+	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,{.dir_ok=true}) ; // if last lmake_repair was interrupted, admin_dir contains no useful information
 	if (FileInfo(bck_admin_dir_s).tag()==FileTag::Dir) {
 		if (FileInfo(admin_dir_s).tag()==FileTag::Dir) {
 			mk_lad() ;
@@ -168,7 +169,7 @@ int main( int argc , char* /*argv*/[] ) {
 	{	::string msg ;
 		msg << "the repair process is starting, if something goes wrong :"                                                  <<'\n' ;
 		msg << "to restore old state,                    consider : "<<rm_admin_dir<<" ; mv "<<bck_admin_dir<<' '<<admin_dir<<'\n' ;
-		msg << "to restart the repair process,           consider : lrepair"                                                <<'\n' ;
+		msg << "to restart the repair process,           consider : lmake_repair"                                           <<'\n' ;
 		msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; "<<rm_bck_admin_dir              <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}
@@ -176,14 +177,14 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_version({.may_init=true}) ;                                                                                                        // mark repo as initialized
+	chk_repo_version({ .chk_version=Maybe , .read_only_ok=false }) ;                                                                       // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;
 		msg << "repo has been satisfactorily repaired : "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                <<'\n' ;
 		msg <<                                                                                                                                  '\n' ;
 		msg << "to restore old state,                                      consider : "<<rm_admin_dir<<" ; mv "<<bck_admin_dir<<' '<<admin_dir<<'\n' ;
-		msg << "to restart the repair process,                             consider : "<<rm_admin_dir<<" ; lrepair"                           <<'\n' ;
+		msg << "to restart the repair process,                             consider : "<<rm_admin_dir<<" ; lmake_repair"                      <<'\n' ;
 		msg << "to clean up after having ensured everything runs smoothly, consider : "<<rm_bck_admin_dir                                     <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}

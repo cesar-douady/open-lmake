@@ -7,6 +7,7 @@
 
 #include "disk.hh"
 #include "gather.hh"
+#include "real_path.hh"
 #include "rpc_job_exec.hh"
 #include "time.hh"
 
@@ -21,7 +22,7 @@ struct Record {
 	using Crc         = Hash::Crc                                         ;
 	using Ddate       = Time::Ddate                                       ;
 	using FileInfo    = Disk::FileInfo                                    ;
-	using SolveReport = Disk::RealPath::SolveReport                       ;
+	using SolveReport = RealPath::SolveReport                             ;
 	using Proc        = JobExecProc                                       ;
 	using GetReplyCb  = ::function<JobExecRpcReply(                    )> ;
 	using ReportCb    = ::function<void           (JobExecRpcReq const&)> ;
@@ -96,19 +97,19 @@ private :
 	}
 	// static data
 public :
-	static bool                                s_static_report       ;                           // if true <=> report deps to s_deps instead of through slow/fast_report_fd() sockets
-	static bool                                s_enable_was_modified ;                           // if true <=  the enable bit has been manipulated through the backdoor
+	static bool                                s_static_report       ;              // if true <=> report deps to s_deps instead of through slow/fast_report_fd() sockets
+	static bool                                s_enable_was_modified ;              // if true <=  the enable bit has been manipulated through the backdoor
 	static ::vmap_s<DepDigest>*                s_deps                ;
 	static ::string           *                s_deps_err            ;
-	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ;                           // map file to read accesses
+	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ;              // map file to read accesses
 	static Mutex<MutexLvl::Record>             s_mutex               ;
 private :
 	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
-	static Fd                        _s_repo_root_fd          ;                                  // a file descriptor to repo root dir
-	static pid_t                     _s_repo_root_pid         ;                                  // pid in which _s_repo_root_fd is valid
-	static SockFd::Key               _s_report_key[2/*fast*/] ;                                  // if not 0, key to send before first message, only useful for slow
-	static Fd                        _s_report_fd [2/*fast*/] ;                                  // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
-	static pid_t                     _s_report_pid[2/*fast*/] ;                                  // pid in which corresponding _s_report_fd is valid
+	static Fd                        _s_repo_root_fd          ;                     // a file descriptor to repo root dir
+	static pid_t                     _s_repo_root_pid         ;                     // pid in which _s_repo_root_fd is valid
+	static SockFd::Key               _s_report_key[2/*fast*/] ;                     // if not 0, key to send before first message, only useful for slow
+	static Fd                        _s_report_fd [2/*fast*/] ;                     // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
+	static pid_t                     _s_report_pid[2/*fast*/] ;                     // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
 	Record( NewType ,                  pid_t pid   ) : Record( New , Maybe , pid ) {}
@@ -217,18 +218,18 @@ public :
 				if ( ::vmap_s<::vector_s> const& views_s = s_autodep_env().views_s ; +views_s ) {
 					Fd repo_root_fd = s_repo_root_fd() ;
 					for( auto const& [view_s,phys_s] : s_autodep_env().views_s ) {
-						if (!phys_s                   ) continue ; // empty phys do not represent a view
+						if (!phys_s                   ) continue ;                                                  // empty phys do not represent a view
 						if (!lies_within(file_,view_s)) continue ;
 						for( size_t i : iota(phys_s.size()) ) {
 							bool     last  = i==phys_s.size()-1                                               ;
 							::string f     = phys_s[i] + substr_view(file_,view_s.size())                     ;
 							FileInfo fi    = !last||+a ? FileInfo({repo_root_fd,f}) : FileInfo(FileTag::None) ;
-							bool     found = fi.exists() || !read                                             ;        // if not reading, assume file_ is found in upper
-							fl = r._real_path.file_loc(f) ;                                                            // use f before ::move
+							bool     found = fi.exists() || !read                                             ;     // if not reading, assume file_ is found in upper
+							fl = r._real_path.file_loc(f) ;                                                         // use f before ::move
 							if (store) {
 								if      (last ) { real  = f ; file_loc  = fl ; }
 								else if (found) { real  = f ; file_loc  = fl ; }
-								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                       // real0 is only significative when not equal to real
+								else if (i==0 ) { real0 = f ; file_loc0 = fl ; }                                    // real0 is only significative when not equal to real
 							}
 							if      (last ) { if (+a) r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a             } , .files={{::move(f),fi}} } ) ; return ; }
 							else if (found) {         r.report_access( fl , {.comment=c,.comment_exts=ces|exts,.digest={.accesses=a|Access::Stat} , .files={{::move(f),fi}} } ) ; return ; }
@@ -476,11 +477,11 @@ public :
 	bool seen_chdir = false ;
 	bool enable     = false ;
 private :
-	Disk::RealPath _real_path ;
-	mutable bool   _seen_tmp  = false ;     // record that tmp usage has been reported, no need to report any further
-	OMsgBuf        _buf       ;             // buffer that accumulate messages to send
-	::pid_t        _buf_pid   = 0     ;     // valid when +_buf, pid for which _buf is valid (ignore buf is wrong pid)
-	Bool3          _is_slow   = No    ;     // valid when +_buf, if Yes => must be sent over slow connection, if Maybe => used connection must be known
+	RealPath     _real_path ;
+	mutable bool _seen_tmp  = false ;       // record that tmp usage has been reported, no need to report any further
+	OMsgBuf      _buf       ;               // buffer that accumulate messages to send
+	::pid_t      _buf_pid   = 0     ;       // valid when +_buf, pid for which _buf is valid (ignore buf is wrong pid)
+	Bool3        _is_slow   = No    ;       // valid when +_buf, if Yes => must be sent over slow connection, if Maybe => used connection must be known
 } ;
 
 template<bool Send,bool Writable,bool ChkSimple> constexpr size_t Record::Solve<Send,Writable,ChkSimple>::MaxSz = 2*PATH_MAX+sizeof(Solve<Send,Writable,ChkSimple>) ;

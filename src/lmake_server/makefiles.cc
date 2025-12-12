@@ -325,6 +325,7 @@ namespace Engine::Makefiles {
 		Bool3 changed_rules      = No    ;
 		bool  invalidate         = false ;                                                         // invalidate because of config
 		bool  changed_extra_srcs = false ;
+		bool  doing_be_caches    = false ;
 		auto diff_config = [&]( Config const& old , Config const& new_ ) {
 			if (+new_) {                                                                           // no new config means keep old config, no modification
 				changed_srcs       = +old ? No|(old.srcs_action   !=new_.srcs_action   ) : Maybe ; // Maybe means new
@@ -334,16 +335,17 @@ namespace Engine::Makefiles {
 			}
 			if (!first_time) {               // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
 				static bool s_done = false ;
+				doing_be_caches = true ;
 				if ( !s_done || (+new_&&old.backends!=new_.backends) ) Backends::Backend::s_config( +new_ ? new_.backends : old.backends ) ; // no new_ means keep old config
 				if ( !s_done || (+new_&&old.caches  !=new_.caches  ) ) Caches  ::Cache  ::s_config( +new_ ? new_.caches   : old.caches   ) ; // .
+				doing_be_caches = false ;
 				s_done = true ;
 			}
-		} ;
-		//                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                  }
+		} ; //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                                                    }
 		//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		catch (::string     const& e) { throw         cat("cannot ",dynamically,"update config : ",e      )              ; }
-		catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update config : ",e.first) , e.second ) ; }
+		catch (::string     const& e) { if (doing_be_caches) throw ; else throw         cat("cannot ",dynamically,"update config : ",e      )              ; }
+		catch (::pair_s<Rc> const& e) { if (doing_be_caches) throw ; else throw ::pair( cat("cannot ",dynamically,"update config : ",e.first) , e.second ) ; }
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//
@@ -397,8 +399,11 @@ namespace Engine::Makefiles {
 		static ::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;
 		//
 		if (first_time) {
-			try         { deserialize( ::string_view(AcFd(reg_exprs_file).read()) , RegExpr::s_cache ) ; }                         // load from persistent cache
-			catch (...) {                                                                                }                         // perf only, ignore errors (e.g. first time)
+			AcFd fd { reg_exprs_file ,{.err_ok=true} } ;
+			if (+fd) {
+				try         { deserialize( ::string_view(fd.read()) , RegExpr::s_cache ) ;                                      }     // load from persistent cache
+				catch (...) { Fd::Stderr.write(cat("cannot read reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ; }     // perf only, ignore errors (e.g. first time)
+			}
 		}
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
@@ -408,7 +413,7 @@ namespace Engine::Makefiles {
 		//
 		if ( first_time && !RegExpr::s_cache.steady() ) {
 			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(RegExpr::s_cache) ) ; } // update persistent cache
-			catch (...) {                                                                                                        } // perf only, ignore errors (e.g. read-only)
+			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ;       } // perf only, ignore errors (e.g. read-only)
 		}
 		trace("done",msg) ;
 	}

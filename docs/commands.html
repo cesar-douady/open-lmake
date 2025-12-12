@@ -167,7 +167,7 @@ stay coherent.</p>
 already running.</p>
 <p>The (unique) server is created automatically when necessary and dies as soon as no more needed.
 So under normal situations, one does not have to even be aware of the existence of such a server.</p>
-<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/_bin/lmakeserver</code>)
+<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/bin/lmake_server</code>)
 leads to improved performances by avoiding to relaunch a server for each command.
 In such cases, the server must be run with no argument.</p>
 <p>However, if, under a particular cicumstance, the server must be killed, best is to use signal 1 (SIGHUP) or 2 (SIGINT) as this will force the server to smoothly kill all running jobs.
@@ -180,11 +180,11 @@ They are:</p>
 <tr><td><a href="man/man1/lautodep.html"><code>lautodep</code></a></td><td>run a script in an execution environmeent while recording accesses</td></tr>
 <tr><td><a href="man/man1/lcollect.html"><code>lcollect</code></a></td><td>remove obsolete files and dirs</td></tr>
 <tr><td><a href="man/man1/ldebug.html"><code>ldebug</code></a></td><td>run a job in a debug environement</td></tr>
-<tr><td><a href="man/man1/ldircache_repair.html"><code>ldircache_repair</code></a></td><td>repair a broken repo</td></tr>
+<tr><td><a href="man/man1/ldir_cache_repair.html"><code>ldir_cache_repair</code></a></td><td>repair a broken repo</td></tr>
 <tr><td><a href="man/man1/lforget.html"><code>lforget</code></a></td><td>forget history of a job</td></tr>
 <tr><td><a href="man/man1/lmake.html"><code>lmake</code></a></td><td>run necessary jobs to ensure a target is up-to-date</td></tr>
 <tr><td><a href="man/man1/lmark.html"><code>lmark</code></a></td><td>mark a job to alter its behavior w.r.t. <code>lmake</code></td></tr>
-<tr><td><a href="man/man1/lrepair.html"><code>lrepair</code></a></td><td>repair a broken repo</td></tr>
+<tr><td><a href="man/man1/lmake_repair.html"><code>lmake_repair</code></a></td><td>repair a broken repo</td></tr>
 <tr><td><a href="man/man1/lshow.html"><code>lshow</code></a></td><td>show various informations of a job</td></tr>
 <tr><td><a href="man/man1/xxhsum.html"><code>xxhsum</code></a></td><td>compute a checksum on a file</td></tr>
 </tbody></table>

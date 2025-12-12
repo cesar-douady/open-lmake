@@ -5,8 +5,6 @@
 
 #include "core.hh" // /!\ must be first to include Python.h first
 
-#include <sys/inotify.h>
-
 #include "process.hh"
 #include "rpc_client.hh"
 #include "rpc_job_exec.hh"
@@ -18,19 +16,13 @@ using namespace Disk   ;
 using namespace Engine ;
 using namespace Time   ;
 
-enum class EventKind : uint8_t {
-	Master
-,	Slave
-,	Std
-,	Int
-,	Watch
-} ;
-
 static constexpr Delay StatsRefresh { 1 } ;
 
 struct LmakeServer : AutoServer<LmakeServer> {
 	using Item = ReqRpcReq ;
 	static constexpr uint64_t Magic = LmakeServerMagic ;             // any random improbable value!=0 used as a sanity check when client connect to server
+	// cxtors & casts
+	using AutoServer<LmakeServer>::AutoServer ;
 	// injection
 	bool/*done*/ interrupt() {
 		Trace trace("interrupt") ;
@@ -101,9 +93,9 @@ struct LmakeServer : AutoServer<LmakeServer> {
 	::stop_token   stop   ;
 } ;
 
-static LmakeServer  _g_server    ;
-static Atomic<bool> _g_done      = false ;
-static bool         _g_seen_make = false ;
+static LmakeServer  _g_server    { ServerMrkr } ;
+static Atomic<bool> _g_done      = false        ;
+static bool         _g_seen_make = false        ;
 
 ::string _os_compat(::string const& os_id) {
 	::string res = os_id ;
@@ -334,8 +326,8 @@ static bool/*interrupted*/ _engine_loop() {
 
 int main( int argc , char** argv ) {
 	//
-	Trace::s_backup_trace = true                                                   ;
-	g_writable            = !app_init({ .read_only_ok=true , .chk_version=Maybe }) ;                                               // server is always launched at root
+	Trace::s_backup_trace = true                                                    ;
+	g_writable            = !repo_app_init({ .chk_version=Maybe , .cd_root=false }) ;                                              // server is always launched at root
 	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
 	Py::init(*g_lmake_root_s) ;
@@ -343,25 +335,20 @@ int main( int argc , char** argv ) {
 	ade.repo_root_s         = *g_repo_root_s ;
 	Record::s_static_report = true           ;
 	Record::s_autodep_env(ade) ;
-	if (+*g_startup_dir_s) {
-		g_startup_dir_s->pop_back() ;
-		FAIL("lmakeserver must be started from repo root, not from ",*g_startup_dir_s) ;                                           // NO_COV
-	}
+	set_env("LMAKE_AUTODEP_ENV",ade) ;
+	SWEAR( !*g_startup_dir_s , *g_startup_dir_s ) ;
 	//
-	bool refresh_ = true ;
-	_g_server.is_daemon = true ;
+	bool refresh_  = true ;
+	bool is_daemon = true ;
 	for( int i : iota(1,argc) ) {
-		if (argv[i][0]!='-') goto Bad ;
-		switch (argv[i][1]) {
-			case 'c' : g_startup_dir_s     = new ::string{argv[i]+2} ;                               break ;
-			case 'd' : _g_server.is_daemon = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
-			case 'r' : refresh_            = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
-			case 'R' : g_writable          = false                   ; if (argv[i][2]!=0) goto Bad ; break ;
-			case '-' :                                                 if (argv[i][2]!=0) goto Bad ; break ;
-			default : exit(Rc::Usage,"unrecognized option : ",argv[i]) ;
-		}
-		continue ;
-	Bad :
+		if (argv[i][0]=='-')
+			switch (argv[i][1]) {
+				case 'c' : g_startup_dir_s = new ::string{argv[i]+2} ;                    continue ;
+				case 'd' : is_daemon       = false                   ; if (argv[i][2]==0) continue ; break ;
+				case 'r' : refresh_        = false                   ; if (argv[i][2]==0) continue ; break ;
+				case 'R' : g_writable      = false                   ; if (argv[i][2]==0) continue ; break ;
+				case '-' :                                             if (argv[i][2]==0) continue ; break ;
+			}
 		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
 	if (+g_startup_dir_s) SWEAR( is_dir_name(*g_startup_dir_s) , *g_startup_dir_s ) ;
@@ -371,11 +358,13 @@ int main( int argc , char** argv ) {
 	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ; // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;            // ... must be done before any thread is launched so that all threads block the signal
 	try {
-		_g_server.writable = g_writable ;
+		_g_server.handle_int = true       ;
+		_g_server.is_daemon  = is_daemon  ;
+		_g_server.writable   = g_writable ;
 		_g_server.start() ;
 	} catch (::pair_s<Rc> const& e) {
-		if (+e.first) exit( e.second , "cannot start server : ",e.first ) ;
-		else          exit( Rc::Ok                                      ) ;
+		if (+e.first) exit( e.second , "cannot start ",*g_exe_name," : ",e.first ) ;
+		else          exit( e.second                                             ) ;
 	}
 	//                             vvvvvvvvvvvvvvvvv
 	static ::jthread reqs_thread { _reqs_thread_func } ;
@@ -388,9 +377,9 @@ int main( int argc , char** argv ) {
 	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                        }
 	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                        }
 	//
-	if (+msg                 ) Fd::Stderr.write(with_nl(msg)) ;
-	if (+rc.second           ) exit( rc.second , rc.first )   ;
-	if (!_g_server.is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)  ;    // once we have reported we have started, lmake will send us a message to kill us
+	if (+msg      ) Fd::Stderr.write(with_nl(msg)) ;
+	if (+rc.second) exit( rc.second , rc.first )   ;
+	if (!is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)  ;              // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;

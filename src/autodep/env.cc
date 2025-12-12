@@ -23,13 +23,7 @@ using namespace Disk ;
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
-		try {
-			SearchRootResult srr = search_root() ;
-			repo_root_s = srr.top_s ;
-			sub_repo_s  = srr.sub_s ;
-		} catch (::string const&) {
-			repo_root_s = cwd_s() ;
-		}
+		repo_root_s = cwd_s() ;
 		return ;
 	}
 	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;

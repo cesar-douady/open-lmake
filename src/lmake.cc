@@ -3,13 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "app.hh"
-#include "client.hh"
 #include "disk.hh"
 #include "process.hh"
-#include "rpc_client.hh"
 #include "thread.hh"
 #include "trace.hh"
+
+#include "client.hh"
+#include "repo.hh"
+#include "rpc_client.hh"
 
 using namespace Disk ;
 using namespace Time ;
@@ -64,7 +65,7 @@ static void _handle_int(bool start) {
 
 int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
-	app_init({ .read_only_ok=false , .chk_version=Maybe }) ;
+	repo_app_init({ .chk_version=Maybe , .read_only_ok=false }) ;
 	//
 	ReqSyntax syntax {{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"   } }

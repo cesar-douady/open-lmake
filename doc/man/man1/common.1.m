@@ -114,22 +114,22 @@ define(`CommonFiles',`
 define(`SeeAlsoSection',`
 	.SH "SEE ALSO"
 	.LP
-	ifelse(Name,lautodep,        ,`C(lautodep),'                      )
-	ifelse(Name,lcheck_deps,     ,`C(lcheck_deps),'                   )
-	ifelse(Name,lcollect,        ,`C(lcollect),'                      )
-	ifelse(Name,ldebug,          ,`C(ldebug),'                        )
-	ifelse(Name,ldecode,         ,`C(ldecode),'                       )
-	ifelse(Name,ldepend,         ,`C(ldepend),'                       )
-	ifelse(Name,ldircache_repair,,`C(ldircache_repair),'              )
-	ifelse(Name,lencode,         ,`C(lencode),'                       )
-	ifelse(Name,lforget,         ,`C(lforget),'                       )
-	ifelse(Name,lmake,           ,`C(lmake),'                         )
-	ifelse(Name,lmark,           ,`C(lmark),'                         )
-	ifelse(Name,lrepair,         ,`C(lrepair),'                       )
-	ifelse(Name,lrun_cc,         ,`C(lrun_cc),'                       )
-	ifelse(Name,lshow,           ,`C(lshow),'                         )
-	ifelse(Name,ltarget,         ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
-	ifelse(Name,xxhsum,          ,`C(xxhsum)'                         )
+	ifelse(Name,lautodep,         ,`C(lautodep),'                      )
+	ifelse(Name,lcheck_deps,      ,`C(lcheck_deps),'                   )
+	ifelse(Name,lcollect,         ,`C(lcollect),'                      )
+	ifelse(Name,ldebug,           ,`C(ldebug),'                        )
+	ifelse(Name,ldecode,          ,`C(ldecode),'                       )
+	ifelse(Name,ldepend,          ,`C(ldepend),'                       )
+	ifelse(Name,ldir_cache_repair,,`C(ldir_cache_repair),'             )
+	ifelse(Name,lencode,          ,`C(lencode),'                       )
+	ifelse(Name,lforget,          ,`C(lforget),'                       )
+	ifelse(Name,lmake,            ,`C(lmake),'                         )
+	ifelse(Name,lmark,            ,`C(lmark),'                         )
+	ifelse(Name,lmake_repair,     ,`C(lmake_repair),'                  )
+	ifelse(Name,lrun_cc,          ,`C(lrun_cc),'                       )
+	ifelse(Name,lshow,            ,`C(lshow),'                         )
+	ifelse(Name,ltarget,          ,`C(ltarget)ifelse(Name,xxhsum,,`,')')
+	ifelse(Name,xxhsum,           ,`C(xxhsum)'                         )
 	.LP
 	The python module B(lmake).
 	.LP

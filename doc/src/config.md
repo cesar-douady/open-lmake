@@ -262,7 +262,7 @@ To ensure config is reloaded when elements change, this attribute, which must be
 
 By default, the `hostname` is returned, so config is reloaded as soon as the open-lmake server is launched on a different host.
 
-### [`trace`](lib/lmake/config_.html#:~:text=%2C%20trace%20%3D%20pdict%28%20%23%20size%20%3D%20100%3C%3C20%20%23%20overall%20size%20of%20lmakeserver%20trace%20%23%20%2C%20n%5Fjobs%20%3D%201000%20%23%20number%20of%20kept%20job%20traces%20%23%20%2C%20channels%20%3D%20%28%27backend%27%2C%27default%27%29%20%23%20channels%20traced%20in%20lmakeserver%20trace%20%29) : Dynamic
+### [`trace`](lib/lmake/config_.html#:~:text=%2C%20trace%20%3D%20pdict%28%20%23%20size%20%3D%20100%3C%3C20%20%23%20overall%20size%20of%20lmake_server%20trace%20%23%20%2C%20n%5Fjobs%20%3D%201000%20%23%20number%20of%20kept%20job%20traces%20%23%20%2C%20channels%20%3D%20%28%27backend%27%2C%27default%27%29%20%23%20channels%20traced%20in%20lmake_server%20trace%20%29) : Dynamic
 
 This is a sub-configuration for all attributes pertaining to the optional tracing facility of open-lmake.
 

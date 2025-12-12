@@ -138,7 +138,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * add flags to chroot_dir
 	- implement action merge
-* in ldircache_repair
+* in ldir_cache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
 * implement cache v2 :
@@ -249,7 +249,7 @@ M port to Darwin
 	- move views to submit_cmd_attrs
 	- share views in submit_attrs as there is very few variability
 ! no req_info for non-buildable nodes
-	- to improve lmakeserver memory footprint
+	- to improve lmake_server memory footprint
 ! find a way to serialize global dict
 	- like marshal, with functions
 ? implement UNIX sockets for local communication
@@ -297,6 +297,7 @@ X manage HUGE pages in store
 ****************************************************************************************************
 
 * add links to examples for dep/target flags
+* document lmake_server (now that it is in bin instead of _bin)
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 

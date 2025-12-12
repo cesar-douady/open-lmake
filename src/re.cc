@@ -99,13 +99,8 @@ namespace Re {
 		::pcre2_code const* RegExpr::Cache::insert(::string const& infix) {
 			::pair                         it_inserted = _cache.try_emplace(infix) ;
 			::pair<pcre2_code const*,Use>& entry       = it_inserted.first->second ;
-			if (it_inserted.second) {
-				entry     = {_s_compile(infix),Use::New} ;
-				_n_unused = -1                           ;
-			} else if (entry.second==Use::Unused) {
-				entry.second = Use::Old ;
-				_n_unused-- ;
-			}
+			if      (it_inserted.second       ) { entry        = {_s_compile(infix),Use::New} ; _n_new   ++ ; }
+			else if (entry.second==Use::Unused) { entry.second = Use::Old                     ; _n_unused-- ; }
 			return entry.first ;
 		}
 

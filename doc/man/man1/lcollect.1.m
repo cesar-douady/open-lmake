@@ -60,6 +60,6 @@ CommonFiles
 .SH NOTES
 .LP
 B(lcollect) does not prune OpenLmake internal book-keeping data.
-Use C(lrepair,1) for that.
+Use C(lmake_repair,1) for that.
 
 Footer

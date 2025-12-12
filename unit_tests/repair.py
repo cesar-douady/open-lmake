@@ -45,9 +45,9 @@ else :
 
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , 'world+world_sh' , done=3 , new=2 ) # check targets are out of date
 
-	assert os.system('lrepair')==0
+	assert os.system('lmake_repair')==0
 	print('hello2',file=open('hello','w'))
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , 'world+world_sh' , done=2 , new=2 ) # check targets are remade
 
-	assert os.system('mv LMAKE.bck LMAKE.bck2 ; lrepair')==0
+	assert os.system('mv LMAKE.bck LMAKE.bck2 ; lmake_repair')==0
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , 'world+world_sh' , done=0 , new=2 ) # check targets are up to date

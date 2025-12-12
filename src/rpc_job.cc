@@ -788,7 +788,7 @@ namespace Caches {
 				if (c) c->config( tag_cache.second , true/*may_init*/ ) ;
 			} catch (::string const& e) {
 				trace("no_config",e) ;
-				Fd::Stderr.write(cat("ignore cache ",k," (cannot configure) : ",e,'\n')) ;
+				Fd::Stderr.write(cat("ignore cache ",k," (cannot configure) : ",e,add_nl)) ;
 				delete c ;
 				c = nullptr ;
 			}
@@ -1069,17 +1069,22 @@ bool JobSpace::enter(
 	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s) ;
 	//
 	if (chk_lmake_root) {
-		::string v_str ;
-		try                     { v_str = AcFd(phy_lmake_root_s+"_lib/version.py").read() ;                                 }
-		catch (::string const&) { throw cat("cannot execute job with incompatible lmake root ",phy_lmake_root_s,rm_slash) ; }
-		size_t pos = v_str.find("job") ;                                                                                               // although it is a py file, syntax is guaranteed dead simple ...
-		pos = v_str.find('=',pos) + 1 ;                                                                                                // ... as it is our automaticly generated file
-		while (v_str[pos]==' ') pos++ ;
-		uint64_t v_job = from_string<uint64_t>( substr_view(v_str,pos) , true/*empty_ok*/ ) ;
-		throw_unless(
-			v_job==Version::Job
-		,	"cannot execute job with incompatible lmake root ",phy_lmake_root_s,rm_slash,"(job version ",v_job,"!=",Version::Job,')'
-		) ;
+		uint64_t v_job = 0 ;
+		try {
+			::string v_str = AcFd(phy_lmake_root_s+"_lib/version.py").read() ;
+			size_t pos = v_str.find("job") ; throw_unless(pos!=Npos) ;                 // although it is a py file, syntax is guaranteed dead simple as it is our automaticly generated file
+			pos = v_str.find('=',pos) ;      throw_unless(pos!=Npos) ;
+			pos++ ;
+			while (v_str[pos]==' ') pos++ ;
+			v_job = from_string<uint64_t>( substr_view(v_str,pos) , true/*empty_ok*/ ) ;
+			throw_unless(v_job==Version::Job) ;
+		} catch (::string const&) {
+			::string   msg ;
+			/**/       msg << "cannot execute job with incompatible lmake root "<<phy_lmake_root_s<<rm_slash ;
+			if (v_job) msg << " (job version "<<v_job<<"!="<<Version::Job<<')'                               ;
+			else       msg << " (expected job version "<<Version::Job<<" not found)"                         ;
+			throw      msg ;
+		}
 	}
 	//
 	repo_root_s = repo_view_s | phy_repo_root_s ;
@@ -1089,7 +1094,7 @@ bool JobSpace::enter(
 		return false/*entered*/ ;
 	}
 	//
-	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                                 // dont use no_slash to properly manage the '/' case
+	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ; // dont use no_slash to properly manage the '/' case
 	//
 	mk_canon( phy_repo_root_s , sub_repo_s , +chroot_dir ) ;
 	//
@@ -1100,7 +1105,7 @@ bool JobSpace::enter(
 	SWEAR( +phy_repo_root_s  ) ;
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
 	//
-	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ;            // account for initial and terminal /
+	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ; // account for initial and terminal /
 	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl(sd_s) ; } ) ;
 	if (src_dir_depth>=repo_depth)
 		for( ::string const& sd_s : src_dirs_s )
@@ -1705,11 +1710,11 @@ void JobStartRpcReply::chk(bool for_cache) const {
 }                                                                // END_OF_NO_COV
 
 void SubmitAttrs::cache_cleanup() {
-	reason     = {}    ;             // execution dependent
-	pressure   = {}    ;             // .
-	cache_idx1 = {}    ;             // no recursive info
-	live_out   = false ;             // execution dependent
-	nice       = -1    ;             // .
+	reason     = {}    ;            // execution dependent
+	pressure   = {}    ;            // .
+	cache_idx1 = {}    ;            // no recursive info
+	live_out   = false ;            // execution dependent
+	nice       = -1    ;            // .
 }
 
 void SubmitAttrs::chk(bool for_cache) const {

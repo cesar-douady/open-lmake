@@ -36,7 +36,7 @@ File states are based on content (using a checksum) rather than dates.
 This makes it possible to avoid running a dependent job if a file has been reconstructed identically to its previous content.
 .LP
 To reach these goals, B(lmake) maintains a state in the I(LMAKE) dir, instrument jobs (to catch all file accesses) during their execution
-and launches a daemon (called B(lmakeserver)) that can be shared between several concurrent invocations of B(lmake).
+and launches a daemon (called B(lmake_server)) that can be shared between several concurrent invocations of B(lmake).
 .LP
 B(lmake) generates an output line for each significant event :
 Bullet

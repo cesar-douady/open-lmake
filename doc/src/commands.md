@@ -22,7 +22,7 @@ already running.
 The (unique) server is created automatically when necessary and dies as soon as no more needed.
 So under normal situations, one does not have to even be aware of the existence of such a server.
 
-Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (`<installation dir>/_bin/lmakeserver`)
+Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (`<installation dir>/bin/lmake_server`)
 leads to improved performances by avoiding to relaunch a server for each command.
 In such cases, the server must be run with no argument.
 
@@ -35,18 +35,18 @@ This has no semantic impact as these jobs will be considered out-of-date and wil
 These commands are meant to be run by the user outside jobs.
 They are:
 
-| Command                                              | Short description                                                  |
-|------------------------------------------------------|--------------------------------------------------------------------|
-| [`lautodep`](man/man1/lautodep.html)                 | run a script in an execution environmeent while recording accesses |
-| [`lcollect`](man/man1/lcollect.html)                 | remove obsolete files and dirs                                     |
-| [`ldebug`](man/man1/ldebug.html)                     | run a job in a debug environement                                  |
-| [`ldircache_repair`](man/man1/ldircache_repair.html) | repair a broken repo                                               |
-| [`lforget`](man/man1/lforget.html)                   | forget history of a job                                            |
-| [`lmake`](man/man1/lmake.html)                       | run necessary jobs to ensure a target is up-to-date                |
-| [`lmark`](man/man1/lmark.html)                       | mark a job to alter its behavior w.r.t. `lmake`                    |
-| [`lrepair`](man/man1/lrepair.html)                   | repair a broken repo                                               |
-| [`lshow`](man/man1/lshow.html)                       | show various informations of a job                                 |
-| [`xxhsum`](man/man1/xxhsum.html)                     | compute a checksum on a file                                       |
+| Command                                                | Short description                                                  |
+|--------------------------------------------------------|--------------------------------------------------------------------|
+| [`lautodep`](man/man1/lautodep.html)                   | run a script in an execution environmeent while recording accesses |
+| [`lcollect`](man/man1/lcollect.html)                   | remove obsolete files and dirs                                     |
+| [`ldebug`](man/man1/ldebug.html)                       | run a job in a debug environement                                  |
+| [`ldir_cache_repair`](man/man1/ldir_cache_repair.html) | repair a broken repo                                               |
+| [`lforget`](man/man1/lforget.html)                     | forget history of a job                                            |
+| [`lmake`](man/man1/lmake.html)                         | run necessary jobs to ensure a target is up-to-date                |
+| [`lmark`](man/man1/lmark.html)                         | mark a job to alter its behavior w.r.t. `lmake`                    |
+| [`lmake_repair`](man/man1/lmake_repair.html)           | repair a broken repo                                               |
+| [`lshow`](man/man1/lshow.html)                         | show various informations of a job                                 |
+| [`xxhsum`](man/man1/xxhsum.html)                       | compute a checksum on a file                                       |
 
 ## commands to interact with open-lmake from within jobs
 

@@ -130,8 +130,8 @@ namespace Engine::Persistent {
 	} ;
 
 	struct JobBase
-	:	             Idxed<JobIdx,JobNGuardBits>
-	{	using Base = Idxed<JobIdx,JobNGuardBits> ;
+	:	             Idxed<JobIdx,NJobGuardBits>
+	{	using Base = Idxed<JobIdx,NJobGuardBits> ;
 		// statics
 		static Job           s_idx          ( JobData const&                        ) ;
 		static bool          s_has_frozens  (                                       ) ;
@@ -161,8 +161,8 @@ namespace Engine::Persistent {
 	} ;
 
 	struct NodeBase
-	:	             Idxed<NodeIdx,NodeNGuardBits>
-	{	using Base = Idxed<NodeIdx,NodeNGuardBits> ;
+	:	             Idxed<NodeIdx,NNodeGuardBits>
+	{	using Base = Idxed<NodeIdx,NNodeGuardBits> ;
 		// statics
 		static Node           s_idx              ( NodeData const&                  ) ;
 		static bool           s_is_known         ( ::string const&                  ) ;

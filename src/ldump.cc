@@ -3,9 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "lmakeserver/core.hh" // /!\ must be first to include Python.h first
+#include "lmake_server/core.hh" // /!\ must be first to include Python.h first
 
-#include "app.hh"
+#include "repo.hh"
 
 using namespace Engine ;
 
@@ -15,7 +15,7 @@ static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
 
 int main( int argc , char* /*argv*/[] ) {
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
-	app_init({.read_only_ok=true}) ;
+	repo_app_init() ;
 	Py::init(*g_lmake_root_s) ;
 	//
 	try                       { Persistent::new_config({}/*config*/,false/*dyn*/) ; }

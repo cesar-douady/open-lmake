@@ -249,7 +249,7 @@ namespace Backends::Sge {
 				for( ::string const& a : cmd_line ) cmd_line_[i++] = a.c_str() ;
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
-			// calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			// calling ::vfork is faster as lmake_server is a heavy process, so walking the page table is a significant perf hit
 			pid_t pid = ::vfork() ;                                                                             // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child
@@ -280,7 +280,7 @@ namespace Backends::Sge {
 				/**/                                cmd_line_[i  ] = nullptr   ;
 			}
 			AcPipe c2p { New , O_NONBLOCK , true/*no_std*/ } ;
-			// calling ::vfork is faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			// calling ::vfork is faster as lmake_server is a heavy process, so walking the page table is a significant perf hit
 			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child

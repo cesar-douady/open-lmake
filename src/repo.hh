@@ -5,11 +5,14 @@
 
 #pragma once
 
-#include "utils.hh"
+#include "app.hh"
+#include "disk.hh"
+
+#include "version.hh"
 
 // must not be touched to fit needs
-static constexpr uint8_t JobNGuardBits  = 2 ; // one to define JobTgt, the other to put it in a Crunch vector
-static constexpr uint8_t NodeNGuardBits = 1 ; // to be able to make Target
+static constexpr uint8_t NJobGuardBits  = 2 ; // one to define JobTgt, the other to put it in a Crunch vector
+static constexpr uint8_t NNodeGuardBits = 1 ; // to be able to make Target
 
 // START_OF_VERSIONING
 
@@ -40,10 +43,10 @@ static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
 using CacheIdx    = Uint<NCacheIdxBits                  > ;
 using CodecIdx    = Uint<NCodecIdxBits                  > ;
 using DepsIdx     = Uint<NDepsIdxBits                   > ;
-using JobIdx      = Uint<NJobIdxBits     +JobNGuardBits > ;
+using JobIdx      = Uint<NJobIdxBits     +NJobGuardBits > ;
 using JobNameIdx  = Uint<NJobNameIdxBits                > ;
 using JobTgtsIdx  = Uint<NJobTgtsIdxBits                > ;
-using NodeIdx     = Uint<NNodeIdxBits    +NodeNGuardBits> ;
+using NodeIdx     = Uint<NNodeIdxBits    +NNodeGuardBits> ;
 using NodeNameIdx = Uint<NNodeNameIdxBits               > ;
 using PsfxIdx     = Uint<NPsfxIdxBits                   > ;
 using ReqIdx      = Uint<NReqIdxBits                    > ;
@@ -75,14 +78,6 @@ using Tokens1 = uint8_t ; // store number of tokens-1 (so tokens can go from 1 t
 // can be tailored to fit neeeds
 using MatchGen = uint8_t ;
 
-// type used to serialize size for ::string, ::vector, etc., 32 bits is already very comfortable
-using SerdesSz = uint32_t ;
-
-// Directories
-// can be tailored to fit neeeds
-#define ADMIN_DIR_S            "LMAKE/"
-#define PRIVATE_ADMIN_SUBDIR_S "lmake/"
-
 // END_OF_VERSIONING
 
 // if crc's differ on only by that many bits, then we are close to crc clashes. If that happen, we will have to increase CRC size.
@@ -107,9 +102,14 @@ static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/
 //
 
 // must not be touched to fit needs
-#define PRIVATE_ADMIN_DIR_S ADMIN_DIR_S PRIVATE_ADMIN_SUBDIR_S
-static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
-static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
-
-// must not be touched to fit needs
 using WatcherIdx = Largest<JobIdx,NodeIdx> ;
+
+static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
+
+static void _dflt_app_init_action(AppInitAction& action) {
+	if (!action.root_mrkrs) action.root_mrkrs = { "Lmakefile.py" , "Lmakefile/__init__.py" } ;
+	if (!action.version   ) action.version    = Version::Repo                                ;
+}
+inline bool/*read_only*/ repo_app_init   ( AppInitAction&& action={}                            ) { _dflt_app_init_action(action) ; return app_init   ( action         ) ; }
+inline void              chk_repo_version( AppInitAction&& action={} , ::string const& dir_s={} ) { _dflt_app_init_action(action) ; return chk_version( action , dir_s ) ; }
+inline SearchRootResult  search_repo_root( AppInitAction&& action={}                            ) { _dflt_app_init_action(action) ; return search_root( action         ) ; }

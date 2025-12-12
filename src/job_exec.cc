@@ -5,7 +5,6 @@
 
 #include <sys/utsname.h>
 
-#include "app.hh"
 #include "disk.hh"
 #include "fd.hh"
 #include "hash.hh"
@@ -14,10 +13,11 @@
 #include "time.hh"
 #include "trace.hh"
 
-#include "autodep/gather.hh"
-
+#include "repo.hh"
 #include "rpc_job.hh"
 #include "rpc_job_exec.hh"
+
+#include "autodep/gather.hh"
 
 using namespace Caches ;
 using namespace Disk   ;
@@ -199,7 +199,7 @@ int main( int argc , char* argv[] ) {
 	g_exec_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
 	Trace::s_sz = 10<<20 ;                                                                                   // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                                  // necessary to capture it using signalfd
-	app_init({ .read_only_ok=false , .chk_version=No , .cd_root=Maybe }) ;                                   // dont cd, but check we are in a repo
+	repo_app_init({ .chk_version=No , .trace=Yes }) ;                                                        // dont check version for perf, but trace nevertheless
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;

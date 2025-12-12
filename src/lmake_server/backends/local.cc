@@ -178,7 +178,7 @@ namespace Backends::Local {
 			::vector<const char*> cmd_line_ ; cmd_line_.reserve(cmd_line.size()+1) ;
 			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
 			/**/                                cmd_line_.push_back(nullptr  ) ;
-			// calling ::vfork is significantly faster as lmakeserver is a heavy process, so walking the page table is a significant perf hit
+			// calling ::vfork is significantly faster as lmake_server is a heavy process, so walking the page table is a significant perf hit
 			pid_t pid = ::vfork() ;                                                                                      // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                                  // in child

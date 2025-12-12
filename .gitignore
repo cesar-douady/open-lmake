@@ -16,7 +16,6 @@ __pycache__
 /_bin/ldump
 /_bin/ldump_job
 /_bin/lkpi
-/_bin/lmakeserver
 /_bin/mdbook
 
 # libs
@@ -53,8 +52,8 @@ __pycache__
 *.*_stamp
 *.stamp
 */stamp
-src/lmakeserver/backends/slurm_api-*.cc
-src/caches/*-light.cc
+src/lmake_server/backends/slurm_api-*.cc
+*-light.cc
 
 # tests
 tok

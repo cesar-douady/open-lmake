@@ -3,12 +3,70 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "msg.hh"
+
 #include "rpc_job.hh"
+
+enum class DaemonCacheRpcProc : uint8_t {
+	None
+,	Download
+,	Upload
+,	Commit
+,	Dismiss
+} ;
 
 namespace Caches {
 
-	struct DaemonCache : Cache {                                                                                               // PER_CACHE : inherit from Cache and provide implementation
+	struct DaemonCacheRpcReq {
+		friend ::string& operator+=( ::string& , DaemonCacheRpcReq const& ) ;
+		using Proc = DaemonCacheRpcProc ;
+		// service
+		bool operator+() const { return +proc ; }
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , proc ) ;
+			switch (proc) {
+				case Proc::Download : ::serdes( s , job,repo_deps                             ) ; break ;
+				case Proc::Upload   : ::serdes( s ,               reserved_sz                 ) ; break ;
+				case Proc::Commit   : ::serdes( s , job,                      info,upload_key ) ; break ;
+				case Proc::Dismiss  : ::serdes( s ,                                upload_key ) ; break ;
+			DN}
+		}
+		// data
+		Proc                proc        = Proc::None ;
+		::string            job         = {}         ; // if proc = Download |          Commit
+		::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download
+		size_t              reserved_sz = 0          ; // if proc =            Upload
+		JobInfo             info        = {}         ; // if proc =                     Commit
+		uint64_t            upload_key  = 0          ; // if proc =                     Commit | Dismiss
+	} ;
+
+	struct DaemonCacheRpcReply {
+		friend ::string& operator+=( ::string& , DaemonCacheRpcReply const& ) ;
+		using Proc = DaemonCacheRpcProc ;
+		// service
+		bool operator+() const { return +proc ; }
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , proc ) ;
+			switch (proc) {
+				case Proc::Download : ::serdes( s , digest,file            ) ; break ;
+				case Proc::Upload   : ::serdes( s ,        file,upload_key ) ; break ;
+			DF}
+		}
+		// data
+		Proc                  proc       = Proc::None ;
+		Cache::DownloadDigest digest     = {}         ; // if proc = Download
+		::string              file       = {}         ; // if proc = Download | Upload
+		uint64_t              upload_key = 0          ; // if proc =            Upload
+	} ;
+
+	struct DaemonCache : Cache {                               // PER_CACHE : inherit from Cache and provide implementation
+		using Proc     = DaemonCacheRpcProc  ;
+		using RpcReq   = DaemonCacheRpcReq   ;
+		using RpcReply = DaemonCacheRpcReply ;
+		static constexpr uint64_t Magic = 0x604178e6d1838dce ; // any random improbable value!=0 used as a sanity check when client connect to server
 		// services
+		::vmap_ss descr() const ;
+		//
 		void      config( ::vmap_ss const& , bool may_init=false ) override ;
 		::vmap_ss descr (                                        ) override { return { {"key_checksum",key_crc.hex()} } ; }
 		void      repair( bool dry_run                           ) override ;
@@ -23,13 +81,21 @@ namespace Caches {
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
+		// START_OF_VERSIONING REPO
 		template<IsStream S> void _serdes(S& s) {
-			::serdes(s,key_crc) ;
+			::serdes( s , dir_s   ) ;
+			::serdes( s , key_crc ) ;
+			::serdes( s , service ) ;
 		}
+		// END_OF_VERSIONING
 		// data
 	public :
-		Hash::Crc     key_crc = Hash::Crc::None ;
-		KeyedService  service ;
+		::string     dir_s   ;
+		Hash::Crc    key_crc = Hash::Crc::None ;
+		KeyedService service ;
+	private :
+		ClientSockFd _fd   ;
+		IMsgBuf      _imsg ;
 	} ;
 
 }

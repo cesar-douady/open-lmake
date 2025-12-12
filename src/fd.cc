@@ -22,12 +22,12 @@ static constexpr bool ReuseAddr = false ; // XXX : need to do some trials to kno
 
 StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
-::string& operator+=( ::string& os , SockFd       const& fd ) { return fd.append_to_str(os,"SockFd"      ) ; } // NO_COV
-::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return fd.append_to_str(os,"SlaveSockFd" ) ; } // NO_COV
-::string& operator+=( ::string& os , ServerSockFd const& fd ) { return fd.append_to_str(os,"ServerSockFd") ; } // NO_COV
-::string& operator+=( ::string& os , ClientSockFd const& fd ) { return fd.append_to_str(os,"ClientSockFd") ; } // NO_COV
-::string& operator+=( ::string& os , EventFd      const& fd ) { return fd.append_to_str(os,"EventFd"     ) ; } // NO_COV
-::string& operator+=( ::string& os , SignalFd     const& fd ) { return fd.append_to_str(os,"SignalFd"    ) ; } // NO_COV
+::string& operator+=( ::string& os , SockFd       const& fd ) { return fd.append_to_str(os,"SockFd"      ,cat(fd.key)) ; } // NO_COV
+::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return fd.append_to_str(os,"SlaveSockFd" ,cat(fd.key)) ; } // NO_COV
+::string& operator+=( ::string& os , ServerSockFd const& fd ) { return fd.append_to_str(os,"ServerSockFd",cat(fd.key)) ; } // NO_COV
+::string& operator+=( ::string& os , ClientSockFd const& fd ) { return fd.append_to_str(os,"ClientSockFd",cat(fd.key)) ; } // NO_COV
+::string& operator+=( ::string& os , EventFd      const& fd ) { return fd.append_to_str(os,"EventFd"                 ) ; } // NO_COV
+::string& operator+=( ::string& os , SignalFd     const& fd ) { return fd.append_to_str(os,"SignalFd"                ) ; } // NO_COV
 
 ::string const& fqdn() {
 	static ::string s_fqdn = []() {
@@ -56,8 +56,8 @@ StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 
 Service::Service( ::string const& s , bool name_ok ) {
 	size_t pos = s.rfind(':') ;
-	addr = SockFd::s_addr        ( s.substr(0,pos) , name_ok ) ; if (pos==Npos) return ;
-	port = from_string<in_port_t>( substr_view(s,pos+1)      ) ;
+	addr = SockFd::s_addr        ( s.substr(0,pos) , name_ok               ) ; if (pos==Npos) return ;
+	port = from_string<in_port_t>( substr_view(s,pos+1) , true/*empty_ok*/ ) ;
 }
 
 ::string& operator+=( ::string& os , KeyedService const& ks ) { // START_OF_NO_COV

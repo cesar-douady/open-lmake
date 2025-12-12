@@ -8,6 +8,7 @@
 #ifdef STRUCT_DECL
 
 #include "disk.hh"
+#include "real_path.hh"
 #include "serialize.hh"
 
 #include "rpc_client.hh"
@@ -162,13 +163,13 @@ namespace Engine {
 	private :
 		template<class T> requires(IsOneOf<T,Node,::string>) ::vector<T> _targets( bool as_deps , bool root_ok ) const {
 			SWEAR(!is_job()) ;
-			Disk::RealPathEnv rpe           { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .src_dirs_s=*g_src_dirs_s } ;
-			Disk::RealPath    real_path     { rpe                                                                                          } ;
-			::vector<T>       targets       ; targets.reserve(files.size()) ;                                                                           // typically, there is no bads
-			::string          err_ext_str   ;
-			::string          err_admin_str ;
+			RealPathEnv rpe           { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .src_dirs_s=*g_src_dirs_s } ;
+			RealPath    real_path     { rpe                                                                                          } ;
+			::vector<T> targets       ; targets.reserve(files.size()) ;                                                                                 // typically, there is no bads
+			::string    err_ext_str   ;
+			::string    err_admin_str ;
 			for( ::string const& target : files ) {
-				Disk::RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                            // we may refer to a sym link
+				RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                                  // we may refer to a sym link
 				switch (rp.file_loc) {
 					case FileLoc::Repo     :                                                                                                    break ;
 					case FileLoc::SrcDir   :                  throw_unless( as_deps , "file is in a source dir"," : ",Disk::mk_file(target) ) ; break ;

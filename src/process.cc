@@ -4,9 +4,10 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "disk.hh"
-#include "process.hh"
 #include "time.hh"
 #include "trace.hh"
+
+#include "process.hh"
 
 using namespace Disk ;
 using namespace Time ;
@@ -68,23 +69,23 @@ mode_t get_umask() {
 	return res ;
 }
 
-[[noreturn]] void Child::_exit( Rc rc , const char* msg ) {                                // signal-safe
-	if (msg) {                                                                             // msg contains terminating null
+[[noreturn]] void Child::_exit( Rc rc , const char* msg ) {                               // signal-safe
+	if (msg) {                                                                            // msg contains terminating null
 		bool ok = true ;
-		ok &= ::write(2,msg,::strlen(msg))>=0 ;                                            // /!\ cannot use high level I/O because we are only allowed signal-safe functions
 		if (_child_args) {
-			ok &= ::write(2," :",2)>=0 ;                                                   // .
 			for( const char* const* p=_child_args ; *p ; p++ ) {
 				size_t l = ::strlen(*p) ;
-				ok &= ::write(2," ",1)>=0 ;                                                // .
-				if (l<=100)   ok &= ::write(2,*p ,l )>=0 ;                                 // .
-				else        { ok &= ::write(2,*p ,97)>=0 ; ok &= ::write(2,"...",3)>=0 ; } // .
+				if (l<=100)   ok &= ::write(2,*p,l )>=0 ;                                 // /!\ cannot use high level I/O because we are only allowed signal-safe functions
+				else        { ok &= ::write(2,*p,97)>=0 ; ok &= ::write(2,"...",3)>=0 ; } // .
+				ok &= ::write(2," ",1)>=0 ;                                               // .
 			}
 		}
-		ok &= ::write(2,"\n",1)>=0 ;                                                       // .
+		ok &= ::write(2,": ",2            )>=0 ;                                          // .
+		ok &= ::write(2,msg ,::strlen(msg))>=0 ;
+		ok &= ::write(2,"\n",1            )>=0 ;                                          // .
 		if (!ok) rc = Rc::System ;
 	}
-	::_exit(+rc) ;                                                                         // /!\ cannot use exit as we are only allowed signal-safe functions
+	::_exit(+rc) ;                                                                        // /!\ cannot use exit as we are only allowed signal-safe functions
 }
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
@@ -129,8 +130,8 @@ mode_t get_umask() {
 		case Fd::Stderr.fd :                                                                               break ;
 		default            :                       ::dup2(stderr     ,Fd::Stderr) ;
 	}
-	if (+cwd_s  ) { if (::chdir(cwd_s.c_str())!=0) _exit(Rc::System,"cannot chdir"      ) ; }
-	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit(Rc::Fail  ,"cannot setup child") ; }
+	if (+cwd_s  ) { if (::chdir(cwd_s.c_str())!=0) _exit( Rc::System , cat("cannot chdir to ",cwd_s,rm_slash).c_str() ) ; }
+	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit( Rc::Fail   , "cannot setup child"                           ) ; }
 	//
 	#if HAS_CLOSE_RANGE
 		//::close_range(3/*first*/,~0u/*last*/,CLOSE_RANGE_UNSHARE) ;                                              // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
@@ -229,74 +230,76 @@ void Child::spawn() {
 	else if (stderr==JoinFd)   stderr = stdout      ;
 }
 
-static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
+static ::pair_s/*fqdn*/<pid_t> _get_mrkr(::string const& server_mrkr) {
 	try {
-		::vector_s lines = AcFd(ServerMrkr).read_lines() ; throw_unless(lines.size()==2) ;
+		::vector_s lines = AcFd(server_mrkr).read_lines() ; throw_unless(lines.size()==2) ;
 		return { SockFd::s_host(lines[0]/*service*/) , from_string<pid_t>(lines[1]) } ; }
 	catch (::string const&) {
 		return { {}/*fqdn*/ , 0/*pid*/ } ;
 	}
 }
+static ::string _g_server_mrkr ;
 static void _server_cleanup() {
 	Trace trace("_server_cleanup") ;
-	unlnk(File(ServerMrkr)) ;
+	unlnk(File(_g_server_mrkr)) ;
 }
 void AutoServerBase::start() {
-	::pair_s<pid_t> mrkr      { fqdn() , ::getpid() } ;
-	::pair_s<pid_t> file_mrkr = _get_mrkr()           ;
-	Trace trace("start_server",mrkr) ;
+	::pair_s<pid_t> mrkr      { fqdn() , ::getpid() }  ;
+	::pair_s<pid_t> file_mrkr = _get_mrkr(server_mrkr) ;
+	Trace trace("start_server",mrkr,file_mrkr) ;
 	if ( +file_mrkr.first && file_mrkr.first!=mrkr.first ) {
 		trace("already_existing_elsewhere",file_mrkr) ;
-		throw ::pair_s<Rc>( {}/*msg*/ , Rc::BadServer ) ;
+		throw ::pair_s<Rc>( {}/*msg*/ , Rc::Ok ) ;
 	}
 	if (file_mrkr.second) {
-		if (sense_process(file_mrkr.second)) {                                  // another server exists on same host
+		if (sense_process(file_mrkr.second)) {                                   // another server exists on same host
 			trace("already_existing",file_mrkr) ;
-			throw ::pair_s<Rc>( {}/*msg*/ , Rc::BadServer ) ;
+			throw ::pair_s<Rc>( {}/*msg*/ , Rc::Ok ) ;
 		}
-		unlnk(File(ServerMrkr)) ;                                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlnk(File(server_mrkr)) ;                                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		rescue = true ;
 		trace("vanished",file_mrkr) ;
 	}
 	server_fd = { 0/*backlog*/ , false/*reuse_addr*/ } ;
-	if (!is_daemon) Fd::Stdout.write(serialize(server_fd.service(0/*addr*/))) ; // pass connection info to client, no need for addr as client is necessarily local
+	if (!is_daemon) Fd::Stdout.write(serialize(server_fd.service(0/*addr*/))) ;  // pass connection info to client, no need for addr as client is necessarily local
 	::close(Fd::Stdout) ;
 	if (writable) {
-		static mode_t mod    = 0666 & ~((get_umask()&0222)<<1)                ; // if we have access to server, we grant write access, so suppress read access for those that do not have write access
-		::string      tmp    = cat(ServerMrkr,'.',mrkr.first,'.',mrkr.second) ;
-		AcFd          tmp_fd { tmp , {O_WRONLY|O_TRUNC|O_CREAT,mod} }         ;
+		SWEAR(+server_mrkr) ;
+		static mode_t mod    = 0666 & ~((get_umask()&0222)<<1)                 ; // if we have access to server, we grant write access, so suppress read access for those that do not have write access
+		::string      tmp    = cat(server_mrkr,'.',mrkr.first,'.',mrkr.second) ;
+		AcFd          tmp_fd { tmp , {O_WRONLY|O_TRUNC|O_CREAT,mod} }          ;
 		tmp_fd.write(cat(
 			server_fd.service_str(mrkr.first) , '\n'
 		,	mrkr.second                       , '\n'
-		)) ; //!  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		bool ok = ::link(tmp.c_str(),ServerMrkr)==0 ;
-		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		)) ; //!  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		bool ok = ::link(tmp.c_str(),server_mrkr.c_str())==0 ;
+		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		unlnk(tmp) ;
-		if (!ok) throw ::pair_s<Rc>( StrErr() , Rc::BadServer ) ;
+		if (!ok) throw ::pair_s<Rc>( cat(server_mrkr," : ",StrErr()) , Rc::BadServer ) ;
+		_g_server_mrkr = server_mrkr ;
 		//vvvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^
 		// if server marker is touched by user, we do as we received a ^C
-		// ideally, we should watch ServerMrkr before it is created to be sure to miss nothing, but inotify requires an existing file
+		// ideally, we should watch server_mrkr before it is created to be sure to miss nothing, but inotify requires an existing file
 		if ( +(watch_fd=::inotify_init1(O_CLOEXEC)) )
-			if ( ::inotify_add_watch( watch_fd , ServerMrkr , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
-				watch_fd.close() ;                                                                        // useless if we cannot watch
+			if ( ::inotify_add_watch( watch_fd , server_mrkr.c_str() , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
+				watch_fd.close() ;                                                                                 // useless if we cannot watch
 	}
 	trace("started",STR(rescue)) ;
 }
 
-::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& dir_s ) {
+::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s ) {
 	Trace trace("connect_to_server",magic,cmd_line) ;
-	::string     file_service_str ;
-	Bool3        server_is_local  = Maybe                                                          ;
-	pid_t        server_pid       = 0                                                              ;
-	Pdate        now              = New                                                            ;
-	const char*  msg              = "cannot connect to nor launch server"                          ;
-	Child        server           { .as_session=true , .cmd_line=::move(cmd_line) , .cwd_s=dir_s } ;
+	::string file_service_str ;
+	Bool3    server_is_local  = Maybe                                                          ;
+	pid_t    server_pid       = 0                                                              ;
+	Pdate    now              = New                                                            ;
+	Child    server           { .as_session=true , .cmd_line=::move(cmd_line) , .cwd_s=dir_s } ;
 	//
 	auto mk_client = [&](KeyedService service) {
-		ClientSockFd res       { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; res.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably not working properly
-		::string     magic_str = res.read(sizeof(magic))                               ; throw_unless( magic_str.size()==sizeof(magic) , "bad_answer_sz" ) ;
+		ClientSockFd res       { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; res.set_receive_timeout(Delay(10)) ;                                // if server is too long to answer, ...
+		::string     magic_str = res.read(sizeof(magic))                               ; throw_unless( magic_str.size()==sizeof(magic) , "bad_answer_sz" ) ; // ... it is probably not working properly
 		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])                   ; throw_unless( magic_          ==magic         , "bad_answer"    ) ;
 		res.set_receive_timeout() ;                                                                                                                          // restore
 		return res ;
@@ -305,14 +308,15 @@ void AutoServerBase::start() {
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (try_old) {                                                                             // try to connect to an existing server if we have a magic key to identify it
-			AcFd       server_mrkr_fd { dir_s+ServerMrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
-			::vector_s lines          = server_mrkr_fd.read_lines()         ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
+			AcFd       server_mrkr_fd { dir_s+server_mrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
+			::vector_s lines          = server_mrkr_fd.read_lines()          ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			//
 			file_service_str = ::move            (lines[0]) ;
 			server_pid       = from_string<pid_t>(lines[1]) ;
+			server_is_local  = No                           ;
 			try {
 				KeyedService service { file_service_str , true/*name_ok*/ } ;
-				server_is_local = No | (fqdn()==SockFd::s_host(file_service_str)) ;
+				server_is_local |= fqdn()==SockFd::s_host(file_service_str) ;
 				if (server_is_local==Yes) service.addr = 0 ;                                       // dont use network if not necessary
 				//
 				try                     { return { mk_client(service) , server_pid } ; }
@@ -336,26 +340,25 @@ void AutoServerBase::start() {
 			server.mk_daemon() ;                                                                   // let process survive to server dxtor
 			return res ;
 		} catch (::string const&) {
-			server.wait() ;                                                                        // dont care about return code, we are going to relauch/reconnect anyway
+			int wstatus = server.wait() ;                                                          // dont care about return code, we are going to relauch/reconnect anyway
+			if (!wstatus_ok(wstatus)) break ;
 			// retry if not successful, may be a race between several clients trying to connect to/launch servers
 			now += Delay(0.1) ;
 			now.sleep_until() ;
 		}
 	}
-	::string kill_server_msg ;
-	if ( server_pid && server_is_local!=Maybe && (server_is_local==No||sense_process(server_pid)) ) {
-		/**/                     kill_server_msg << '\t'                                         ;
-		if (server_is_local==No) kill_server_msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
-		/**/                     kill_server_msg << "kill "<<server_pid                          ;
-		/**/                     kill_server_msg << '\n'                                         ;
+	::string msg = "cannot connect to nor launch "+base_name(server.cmd_line[0]) ;
+	if (server_is_local!=Maybe) {
+		msg << ", consider :\n" ;
+		if ( server_pid && (server_is_local==No||sense_process(server_pid)) ) {
+			/**/                     msg << '\t'                                         ;
+			if (server_is_local==No) msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
+			/**/                     msg << "kill "<<server_pid                          ;
+			/**/                     msg << '\n'                                         ;
+		}
+		msg << "\trm "<<server_mrkr ;
 	}
-	trace("bad",msg,file_service_str,kill_server_msg) ;
-	throw ::pair_s<Rc>(
-		cat(
-			msg,", consider :\n"
-		,	kill_server_msg
-		,	"\trm ",AdminDirS,"server\n"
-		)
-	,	Rc::BadServer
-	) ;
+	msg << '\n' ;
+	trace("bad",file_service_str,msg) ;
+	throw ::pair_s<Rc>( msg , Rc::BadServer) ;
 }

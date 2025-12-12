@@ -110,9 +110,13 @@ public :
 		set_receive_timeout(to) ;
 		set_send_timeout   (to) ;
 	}
-	SockAddr  sock_addr(bool peer) const { return s_sock_addr( fd , peer ) ; }
-	in_addr_t addr     (bool peer) const { return s_addr     ( fd , peer ) ; }
-	in_port_t port     (bool peer) const { return s_port     ( fd , peer ) ; }
+	SockAddr     sock_addr  ( bool peer                        ) const { return s_sock_addr( fd , peer )           ; }
+	in_addr_t    addr       ( bool peer                        ) const { return s_addr     ( fd , peer )           ; }
+	in_port_t    port       ( bool peer                        ) const { return s_port     ( fd , peer )           ; }
+	KeyedService service    ( bool peer , in_addr_t       a    ) const { return { {a,port(peer)} , key }           ; }
+	KeyedService service    ( bool peer                        ) const { return service(peer,addr(peer))           ; }
+	::string     service_str( bool peer , ::string const& host ) const { return service(peer,0/*addr*/ ).str(host) ; }
+	::string     service_str( bool peer                        ) const { return service(peer           ).str(    ) ; }
 	// data
 	Key key = {} ;
 } ;
@@ -129,11 +133,11 @@ struct ServerSockFd : SockFd {
 	// cxtors & casts
 	ServerSockFd() = default ;
 	ServerSockFd( int backlog , bool reuse_addr=true , in_addr_t local_addr=0 ) ;
-	// services
-	KeyedService service    (in_addr_t       a   ) const { return { { a , port(false/*peer*/) } , key }  ; }
-	KeyedService service    (                    ) const { return service(addr(false/*peer*/))           ; }
-	::string     service_str(::string const& host) const { return service(0/*addr*/          ).str(host) ; }
-	::string     service_str(                    ) const { return service(                   ).str(    ) ; }
+	// services                                                                        peer
+	KeyedService service    (in_addr_t       a   ) const { return SockFd::service    ( false , a    ) ; }
+	KeyedService service    (                    ) const { return SockFd::service    ( false        ) ; }
+	::string     service_str(::string const& host) const { return SockFd::service_str( false , host ) ; }
+	::string     service_str(                    ) const { return SockFd::service_str( false        ) ; }
 	SlaveSockFd accept() ;
 } ;
 
@@ -142,6 +146,11 @@ struct ClientSockFd : SockFd {
 	// cxtors & casts
 	ClientSockFd() = default ;
 	ClientSockFd( KeyedService , bool reuse_addr=true , Time::Delay timeout={} ) ;
+	// services                                                                        peer
+	KeyedService service    (in_addr_t       a   ) const { return SockFd::service    ( true , a    ) ; }
+	KeyedService service    (                    ) const { return SockFd::service    ( true        ) ; }
+	::string     service_str(::string const& host) const { return SockFd::service_str( true , host ) ; }
+	::string     service_str(                    ) const { return SockFd::service_str( true        ) ; }
 } ;
 
 //

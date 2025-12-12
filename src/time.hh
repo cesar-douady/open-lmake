@@ -106,7 +106,7 @@ namespace Time {
 		static const     Delay  Forever    ;
 		// statics
 	private :
-		static bool/*slept*/ _s_sleep( ::stop_token tkn , Delay sleep , Pdate until , bool flush=true ) ; // if flush, consider we slept if asked to stop but we do not have to wait
+		static bool/*slept*/ _s_sleep( ::stop_token , Delay sleep , Pdate until , bool flush=true ) ;     // if flush, consider we slept if asked to stop but we do not have to wait
 		// cxtors & casts
 	public :
 		using Base::Base ;
@@ -339,16 +339,16 @@ namespace Time {
 	inline constexpr Date Delay::operator+(Date d) const {
 		return Date(New,_val+d._val) ;
 	}
-	inline bool/*slept*/ Delay::_s_sleep( ::stop_token tkn , Delay sleep , Pdate until , bool flush ) { // if flush, consider we slept if asked to stop but we do not have to wait
-		if (sleep<=Delay()) return flush || !tkn.stop_requested() ;
-		Mutex<MutexLvl::Time>       m   ;
-		Lock<Mutex<MutexLvl::Time>> lck { m } ;
+	inline bool/*slept*/ Delay::_s_sleep( ::stop_token stkn , Delay sleep , Pdate until , bool flush ) { // if flush, consider we slept if asked to stop but we do not have to wait
+		if (sleep<=Delay()) return flush || !stkn.stop_requested() ;
+		Mutex<> m   ;
+		Lock    lck { m } ;
 		::condition_variable_any cv  ;
-		bool slept = cv.wait_for( lck , tkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
+		bool slept = cv.wait_for( lck , stkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
 		return slept ;
 	}
-	inline bool/*slept*/ Delay::sleep_for( ::stop_token tkn , bool flush ) const {                      // if flush, consider we slept if asked to stop but we do not have to wait
-		return _s_sleep( tkn , self , Pdate(New)+self , flush ) ;
+	inline bool/*slept*/ Delay::sleep_for( ::stop_token stkn , bool flush ) const {                      // if flush, consider we slept if asked to stop but we do not have to wait
+		return _s_sleep( stkn , self , Pdate(New)+self , flush ) ;
 	}
 	inline void Delay::sleep_for() const {
 		if (_val<=0) return ;
@@ -369,8 +369,8 @@ namespace Time {
 	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
 	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
 	//
-	inline bool/*slept*/ Pdate::sleep_until( ::stop_token tkn , bool flush ) const { return Delay::_s_sleep( tkn , self-Pdate(New) , self , flush ) ; } // if flush, consider we slept if asked ...
-	inline void          Pdate::sleep_until(                               ) const { (self-Pdate(New)).sleep_for()                                  ; } // ... to stop but we do not have to wait
+	inline bool/*slept*/ Pdate::sleep_until( ::stop_token stkn , bool flush ) const { return Delay::_s_sleep( stkn , self-Pdate(New) , self , flush ) ; } // if flush, consider we slept if asked ...
+	inline void          Pdate::sleep_until(                                ) const { (self-Pdate(New)).sleep_for()                                   ; } // ... to stop but we do not have to wait
 
 	//
 	// Ddate

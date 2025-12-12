@@ -4,18 +4,18 @@
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 
 # Dir layout
-- `_bin`       : contains scripts mostly used for building open-lmake
-- `debian`     : contains files necessary to build a debian package
-- `doc`        : contains documentation
-- `docker`     : contains the docker files used to validate open-lmake
-- `examples`   : contains abundantly commented examples
-- `ext`        : contains all code coming from external sources
-- `_lib`       : contains all python code
-- `lmake_env`  : contains an open-lmake repo that allow to build open-lmake (not fully functional) under open-lmake (used as an example/unit test)
-- `museum`     : contains dead code that could come back to life in a near or far future
-- `src`        : contains all C++ source files
-- `src/engine` : contains all C++ source files that are specific to lmakeserver
-- `unit_tests` : contains unit tests
+- `_bin`             : contains scripts mostly used for building open-lmake
+- `debian`           : contains files necessary to build a debian package
+- `doc`              : contains documentation
+- `docker`           : contains the docker files used to validate open-lmake
+- `examples`         : contains abundantly commented examples
+- `ext`              : contains all code coming from external sources
+- `_lib`             : contains all python code
+- `lmake_env`        : contains an open-lmake repo that allow to build open-lmake (not fully functional) under open-lmake (used as an example/unit test)
+- `museum`           : contains dead code that could come back to life in a near or far future
+- `src`              : contains all C++ source files
+- `src/lmake_server` : contains all C++ source files that are specific to `lmake_server`
+- `unit_tests`       : contains unit tests
 
 # Coding rules
 
@@ -202,8 +202,8 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 - the state is directly maintainted on disk in mapped files:
 	- files are located in `LMAKE/store`
 	- code that handle them is in:
-		- `src/lmakeserver/store.hh` & `.cc` for its part specific to lmake
-		- `src/store`                        for generic code that handle:
+		- `src/lmake_server/store.hh` & `.cc` for its part specific to lmake
+		- `src/store`                         for generic code that handle:
 			- simple objects (possibly with side-car, i.e. a secondary storage with a 1 to 1 correspondance)
 			- vectors
 			- prefix-tree
@@ -220,10 +220,10 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 
 ## Traces
 - when `lmake` is executed, a trace of activity is generated for debug purpose (if compiled with `$LMAKE_FLAGS` including `T`)
-- this is true for all executables (`lmake`, `lmakeserver`, `lautodep`, ...)
+- this is true for all executables (`lmake`, `lmake_server`, `lautodep`, ...)
 - traces are located in:
 	- `LMAKE/lmake/local_admin/trace/<executable>`
-		- for `lmakeserver`, the most important trace, an history of the last few executions is kept
+		- for `lmake_server`, the most important trace, an history of the last few executions is kept
 	- `LMAKE/lmake/remote_admin/job_trace/<seq_id>` for remote job execution
 - the first character of each line is either ' or "
 	- this is because the trace file is managed as a circular buffer for performance
@@ -281,15 +281,15 @@ By the way, the execution is lighter and code is not heavier.
 	- git clean and remake
 
 * to add a backend:
-	- make a file `src/lmakeserver/backends/<your_backend>.cc`
+	- make a file `src/lmake_server/backends/<your_backend>.cc`
 		- and `git add` it
-	- use `src/lmakeserver/backends/local.cc` as a template
+	- use `src/lmake_server/backends/local.cc` as a template
 	- run `git grep PER_BACKEND` to see all parts that must be modified
 
 * to add a cache:
-	- make files `src/lmakeserver/caches/<your_cache>.hh` & `.cc`
+	- make files `src/lmake_server/caches/<your_cache>.hh` & `.cc`
 		- and git add them
-	- use `src/lmakeserver/caches/dir_cache.hh` & `.cc` as a template
+	- use `src/lmake_server/caches/dir_cache.hh` & `.cc` as a template
 	- run `git grep PER_CACHE` to see all parts that must be modified
 
 * to add a command handled by the server:

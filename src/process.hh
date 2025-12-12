@@ -97,11 +97,9 @@ public :
 	Pipe         _p2c        = {}      ;
 	Pipe         _c2po       = {}      ;
 	Pipe         _c2pe       = {}      ;
-	const char** _child_args = nullptr ;                          // all memory must be allocated before clone/fork/vfork is called
-	const char** _child_env  = nullptr ;                          // .
+	const char** _child_args = nullptr ;                             // all memory must be allocated before clone/fork/vfork is called
+	const char** _child_env  = nullptr ;                             // .
 } ;
-
-static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
 
 struct AutoServerBase {
 	struct SlaveEntry {
@@ -109,31 +107,38 @@ struct AutoServerBase {
 		SockFd::Key key        = {}    ;
 		IMsgBuf     buf        = {}    ;
 	} ;
+	// cxtors & casts
+	AutoServerBase() = default ;
+	AutoServerBase(::string const& sm) : server_mrkr{sm} {}
 	// services
 	void start() ;
 	// data
-	bool         is_daemon = false ;
-	bool         rescue    = false ;
-	bool         writable  = false ;
-	ServerSockFd server_fd ;
-	AcFd         watch_fd  ;
+	bool         handle_int  = false ;    // config
+	bool         is_daemon   = false ;    // .
+	bool         writable    = false ;    // .
+	bool         rescue      = false ;    // report
+	::string     server_mrkr ;
+	ServerSockFd server_fd   ;
+	AcFd         watch_fd    ;
 protected :
 	Mutex<> mutable       _slaves_mutex ;
 	::umap<Fd,SlaveEntry> _slaves       ; // indexed by in_fd
 } ;
 
 template<class T> struct AutoServer : AutoServerBase {
+	// cxtors & casts
+	using AutoServerBase::AutoServerBase ;
 	// services
-	void event_loop     (         ) ;
-	void close_slave_out(Fd out_fd) ;
+	bool/*interrupted*/ event_loop     (         ) ;
+	void                close_slave_out(Fd out_fd) ;
 	// injection
-	// bool/*done*/ interrupt       (                     ) ;
-	// bool/*done*/ process_item    ( Fd , T::Item const& ) ;
-	// void         start_connection( Fd                  ) ;
-	// void         end_connection  ( Fd                  ) ;
+	bool/*done*/ interrupt       (                     ) { return false/*done*/ ; }
+	void         start_connection( Fd                  ) {                        }
+	void         end_connection  ( Fd                  ) {                        }
+//	bool/*done*/ process_item    ( Fd , T::Item const& ) ;
 } ;
 
-::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& dir={} ) ;
+::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir={} ) ;
 
 //
 // implementation
@@ -147,28 +152,29 @@ enum class _AutoServerEventKind : uint8_t {
 ,	Watch
 } ;
 
-template<class T> void AutoServer<T>::event_loop() {
+template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 	using Item      = typename T::Item        ;
 	using EventKind = _AutoServerEventKind    ;
 	using Event     = Epoll<EventKind>::Event ;
 	Trace trace("server_loop",STR(is_daemon)) ;
 	//
-	Epoll<EventKind> epoll { New } ;
+	Epoll<EventKind> epoll       { New } ;
+	bool             interrupted = false ;
 	//
 	auto new_slave = [&]( Fd fd , SockFd::Key key={} ) {
 		epoll.add_read(fd,EventKind::Slave) ;
 		trace("new_slave",fd,key) ;
 		::string magic_str ( sizeof(T::Magic) , 0 ) ; encode_int( magic_str.data() , T::Magic ) ;
 		try                     { fd.write(magic_str) ; }
-		catch (::string const&) { trace("no_report") ;  }                                                                          // client is dead
+		catch (::string const&) { trace("no_report") ;  }                                                                              // client is dead
 		Lock lock     { _slaves_mutex }                                         ;
 		auto inserted = _slaves.try_emplace( fd , SlaveEntry{.key=key} ).second ; SWEAR( inserted , fd ) ;
 		static_cast<T&>(self).start_connection(fd) ;
 	} ;
 	//                                                                wait
 	if (+server_fd) { epoll.add_read( server_fd , EventKind::Master , is_daemon ) ; trace("read_master",server_fd) ; }                 // if read-only, we do not expect additional connections
-	/**/            { epoll.add_sig ( SIGHUP    , EventKind::Int    , false     ) ; trace("read_hup"             ) ; }
-	/**/            { epoll.add_sig ( SIGINT    , EventKind::Int    , false     ) ; trace("read_int"             ) ; }
+	if (handle_int) { epoll.add_sig ( SIGHUP    , EventKind::Int    , false     ) ; trace("read_hup"             ) ; }
+	if (handle_int) { epoll.add_sig ( SIGINT    , EventKind::Int    , false     ) ; trace("read_int"             ) ; }
 	if (+watch_fd ) { epoll.add_read( watch_fd  , EventKind::Watch  , false     ) ; trace("read_watch" ,watch_fd ) ; }
 	if (!is_daemon) { epoll.add_read( Fd::Stdin , EventKind::Stdin  , true      ) ; trace("read_stdin" ,Fd::Stdin) ; }
 	//
@@ -186,6 +192,7 @@ template<class T> void AutoServer<T>::event_loop() {
 					trace("watch",event.mask) ;
 				} [[fallthrough]] ;
 				case EventKind::Int :
+					interrupted = true ;
 					if (static_cast<T&>(self).interrupt()) goto Done ;
 				break ;
 				case EventKind::Stdin :
@@ -218,15 +225,18 @@ template<class T> void AutoServer<T>::event_loop() {
 							if (se.out_active==Maybe) { ::shutdown(fd,SHUT_RD) ; se.out_active = Yes ;                                            }
 							else                      { ::close   (fd        ) ; _slaves.erase(it)   ; static_cast<T&>(self).end_connection(fd) ; }
 							break ;
+						} else {
+							SWEAR(+item) ;                                                          // ensure we have no eof condition to avoid infinite loop
 						}
 					}
 				} break ;
-			DF}                                                                       // NO_COV
+			DF}                                                                                     // NO_COV
 		}
 		if (new_fd) new_slave( server_fd.accept().detach() , server_fd.key ) ;
 	}
 Done :
-	trace("done") ;
+	trace("done",STR(interrupted)) ;
+	return interrupted ;
 }
 
 template<class T> void AutoServer<T>::close_slave_out(Fd fd)  {

@@ -11,65 +11,91 @@ import hashlib
 import os
 import re
 import sys
-import textwrap
 
-prev_version = '$1'
-src          = '$2'
+action    = '$1'
+slots_def = '$2'
 
-slots = ('Cache','Repo','Job')
+def to_snake(camel) :
+	return re.sub(r'(.)([A-Z])',r'\1_\2',camel).lower()
 
-def get_prev_crc(file) :
-	try    : content = open(file).read()
-	except : return {}
-	#
-	crc = {}
-	for slot in slots :
-		m = re.search(fr'{slot} *= *([0-9]+) *; *// *([0-9a-f]+)',content)
-		crc[slot] = ( m.groups()[0] , m.groups()[1] )
-	return crc
+def from_cc(file,slots) :
+	tab = { slot:(0,'') for slot in slots }
+	for line in open(file) :
+		m = re.match(fr'\t*uint64_t *constexpr *(\w+) *= *([0-9]+) *; *// *([0-9a-f]+)\n',line)
+		if not m                      : continue
+		if m.groups()[0] not in slots : continue
+		tab[m.groups()[0]] = ( int(m.groups()[1]) , m.groups()[2] or '' )
+	return tab
 
-def get_new_crc(file) :
-	content = open(file).read()
-	#
-	crc = {}
-	#
-	for slot in slots :
-		semantic = ''.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{slot.upper()}.*)?\n[\s\S]*?END_OF_VERSIONING.*)',content) )
-		semantic = re.sub(r'//.*',''    ,semantic)
-		semantic = re.sub(r'/\*.*\*/','',semantic)
-		semantic = re.sub(r'[ \t\n]' ,'',semantic)
+def mk_slots(file) :
+	slots = []
+	for line in open(file) :
+		m = re.match(fr'\t*extern *uint64_t *const *(\w+) *;( *//.*)?\n',line)
+		if not m : continue
+		slot = m.groups()[0]
+		if slot in ('Major','Tag') : continue
+		if m : slots.append(slot)
+	return slots
+
+if action=='gen' :
+
+	prev_cc   = '$3'
+	src       = '$4'
+
+	def analyze(file,slots) :
+		content = open(file).read()
 		#
-		h = hashlib.md5()
-		h.update(semantic.encode())
-		crc[slot] = h.hexdigest()
-	return crc
+		tab = {}
+		#
+		for slot in slots :
+			semantic = '\n'.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{to_snake(slot).upper()}.*)?\n[\s\S]*?END_OF_VERSIONING.*)',content) )
+			semantic = re.sub(r'//.*',''    ,semantic)
+			semantic = re.sub(r'/\*.*\*/','',semantic)
+			semantic = re.sub(r'[ \t\n]' ,'',semantic)
+			#
+			h = hashlib.md5()
+			h.update(semantic.encode())
+			tab[slot] = h.hexdigest()
+		return tab
 
-def merge_crc(prev_crc,new_crc) :
-	crc = {}
-	for slot in slots :
-		prev = prev_crc.get(slot,(0,None))
-		prev = ( int(prev[0]) , prev[1] )
-		if new_crc[slot]==prev[1] : crc[slot] = prev
-		else                      : crc[slot] = ( prev[0]+1 , new_crc[slot] )
-	return crc
+	def merge(prev_tab,new_crcs) :
+		tab = {}
+		for slot,prev in prev_tab.items() :
+			if new_crcs[slot]==prev[1] : tab[slot] = prev
+			else                       : tab[slot] = ( prev[0]+1 , new_crcs[slot] )
+		return tab
 
-def print_crc(stream,crc) :
-	w = len(os.getenv('VERSION'))+2
-	stream.write(textwrap.dedent(f'''
-		#include "version.hh"
-		namespace Version {{
-			uint64_t    constexpr Cache = { crc['Cache'][0]     :<{w   }} ; // {crc['Cache'][1]}
-			uint64_t    constexpr Repo  = { crc['Repo' ][0]     :<{w   }} ; // {crc['Repo' ][1]}
-			uint64_t    constexpr Job   = { crc['Job'  ][0]     :<{w   }} ; // {crc['Job'  ][1]}
-			const char* const     Major = "{os.getenv('VERSION'):<{w-2}}" ;
-			uint64_t    constexpr Tag   = { os.getenv('TAG'    ):<{w   }} ;
-		}}
-	'''[1:]))
+	def mk_cc(tab) :
+		wk = max( len('Major') , len('Tag') , *(len(slot) for slot in tab.keys()) )
+		wv = len(os.getenv('VERSION'))+2
+		if True                : txt  =  '#include "version.hh"\n'
+		if True                : txt +=  'namespace Version {\n'
+		for slot in tab.keys() : txt += f'\tuint64_t    constexpr {slot   :<{wk}} = { tab[slot][0]        :<{wv   }} ; // {tab[slot][1]}\n'
+		if True                : txt += f'\tconst char* const     {"Major":<{wk}} = "{os.getenv("VERSION"):<{wv-2}}" ;\n'
+		if True                : txt += f'\tuint64_t    constexpr {"Tag"  :<{wk}} = { os.getenv("TAG"    ):<{wv   }} ;\n'
+		if True                : txt +=  '}\n'
+		return txt
 
-prev_crc = get_prev_crc(prev_version    )
-new_crc  = get_new_crc (src             )
-crc      = merge_crc   (prev_crc,new_crc)
+	slots    = mk_slots( slots_def           )
+	prev_tab = from_cc ( prev_cc  , slots    )
+	new_crcs = analyze ( src      , slots    )
+	new_tab  = merge   ( prev_tab , new_crcs )
+	#
+	sys.stdout.write(mk_cc(new_tab))
 
-print_crc( sys.stdout , crc )
+elif action=='cc_to_py' :
+
+	cc = '$3'
+
+	def mk_py(tab) :
+		txt = ''
+		w = max(len(to_snake(k)) for k in tab.keys())
+		for k,(idx,crc) in tab.items() :
+			txt += f'{to_snake(k):{w}} = {idx}\n'
+		return txt
+
+	slots = mk_slots( slots_def  )
+	tab   = from_cc ( cc , slots )
+	sys.stdout.write(mk_py(tab))
 
 EOF

@@ -124,7 +124,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">def</span> <span class="nf">_system_tag</span><span class="p">()</span> <span class="p">:</span>             <span class="c1"># by default re-read Lmakefile as soon as the executing host changes</span>
     <span class="k">return</span> <span class="n">_os</span><span class="o">.</span><span class="n">uname</span><span class="p">()</span><span class="o">.</span><span class="n">nodename</span>
 
-<span class="c1"># /!\ default values must stay in sync with src/lmakeserver/config.hh</span>
+<span class="c1"># /!\ default values must stay in sync with src/lmake_server/config.hh</span>
 <span class="n">config</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
     <span class="n">disk_date_precision</span> <span class="o">=</span> <span class="mf">0.010</span>                             <span class="c1"># in seconds, precisions of dates on disk, must account for date granularity and date discrepancy between executing hosts and disk servers</span>
 <span class="p">,</span>   <span class="n">file_sync</span>           <span class="o">=</span> <span class="s1">&#39;dir&#39;</span>                             <span class="c1"># method used to ensure real close-to-open file synchronization :</span>
@@ -222,9 +222,9 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="p">,</span>   <span class="s1">&#39;g&#39;</span> <span class="p">:</span> <span class="s1">&#39;lmake_debug.gdb       (launch interpreter under gdb)&#39;</span>
     <span class="p">})</span>
 <span class="p">,</span>   <span class="n">trace</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
-<span class="c1">#       size     = 100&lt;&lt;20                                                          # overall size of lmakeserver trace</span>
+<span class="c1">#       size     = 100&lt;&lt;20                                                          # overall size of lmake_server trace</span>
 <span class="c1">#   ,   n_jobs   = 1000                                                             # number of kept job traces</span>
-<span class="c1">#   ,   channels = (&#39;backend&#39;,&#39;default&#39;)                                            # channels traced in lmakeserver trace</span>
+<span class="c1">#   ,   channels = (&#39;backend&#39;,&#39;default&#39;)                                            # channels traced in lmake_server trace</span>
     <span class="p">)</span>
 <span class="p">)</span>
 </pre></div>

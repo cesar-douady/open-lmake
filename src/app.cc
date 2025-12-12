@@ -5,14 +5,11 @@
 
 #include <exception> // ::set_terminate
 
-#include "version.hh"
-
 #include "disk.hh"
+#include "process.hh"
 #include "trace.hh"
 
 #include "app.hh"
-#include "process.hh"
-#include "rpc_client.hh"
 
 using namespace Disk ;
 using namespace Time ;
@@ -35,59 +32,104 @@ static void _terminate() {
 	catch (...                 ) { crash(4,SIGABRT,"uncaught exception"           ) ; }
 }
 
-bool/*read_only*/ app_init(AppInitAction action) {
-	t_thread_key = '=' ;                                                                                  // we are the main thread
+bool/*read_only*/ app_init(AppInitAction const& action) {
+	t_thread_key = '=' ;                                                                                          // we are the main thread
 	//
-	if (action.cd_root==No) SWEAR( action.chk_version==No && action.read_only_ok ) ;                                          // cannot check repo without a repo dir
 	::set_terminate(_terminate) ;
-	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;             // catch all synchronous signals so as to generate a backtrace
+	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;                     // catch all synchronous signals so as to generate a backtrace
 	//
-	if (!g_startup_dir_s) g_startup_dir_s = new ::string ;
-	if (!g_repo_root_s  ) {
-		try {
-			SearchRootResult srr = search_root() ;
-			g_repo_root_s    = new ::string{srr.top_s} ;
-			*g_startup_dir_s = srr.startup_s           ;
-			if ( action.cd_root==Yes && +*g_startup_dir_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",*g_repo_root_s,rm_slash ) ;
-		} catch (::string const& e) {
-			if (action.cd_root!=No) exit( Rc::Usage , e ) ;
-		}
+	bool     read_only = false     ; // unless proven read-only, assume we can write traces
+	::string exe_path  = get_exe() ;
+	g_exe_name     = new ::string { base_name(exe_path)    } ;
+	g_lmake_root_s = new ::string { dir_name_s(exe_path,2) } ;
+	//
+	bool do_trace = action.trace==Yes ;
+	if (action.chk_version!=No) {
+		if (!g_repo_root_s)
+			try {
+				SearchRootResult srr = search_root(action) ;
+				g_repo_root_s   = new ::string{::move(srr.top_s    )} ;
+				g_startup_dir_s = new ::string{::move(srr.startup_s)} ;
+			} catch (::string const& e) {
+				exit( Rc::Usage , e ) ;
+			}
+		//
+		read_only = ::access(g_repo_root_s->c_str(),W_OK)!=0 ;
+		if ( read_only && !action.read_only_ok ) exit(Rc::Perm,"cannot run in read-only repository") ;
+		//
+		try                       { chk_version(action) ; }
+		catch (::string const& e) { exit(Rc::Version,e) ; }
+		//
+		do_trace |= action.trace==Maybe ;
 	}
-	::string exe_path = get_exe() ;
-	/**/               g_exe_name     = new ::string { base_name(exe_path)                        } ;
-	if (!g_trace_file) g_trace_file   = new ::string { cat(PrivateAdminDirS,"trace/",*g_exe_name) } ;
-	/**/               g_lmake_root_s = new ::string { dir_name_s(exe_path,2)                     } ;
-	#if PROFILING
-		set_env( "GMON_OUT_PREFIX" , dir_guard(cat(*g_repo_root_s,AdminDirS,"gmon.out/",*g_exe_name)) ) ; // ensure unique gmon data file in a non-intrusive (wrt autodep) place
-	#endif
-	//
-	bool read_only = !g_repo_root_s || ::access(g_repo_root_s->c_str(),W_OK) ;                            // cannot modify repo if no repo
-	if (read_only>action.read_only_ok) exit(Rc::Perm,"cannot run in read-only repository") ;
-	//
-	if (action.chk_version!=No)
-		try                       { chk_version({ .may_init = !read_only && action.chk_version==Maybe }) ; }
-		catch (::string const& e) { exit(Rc::Version,e) ;                                                  }
-	//
-	if (!read_only)
+	if ( !read_only && do_trace ) {
+		if (!g_trace_file) g_trace_file = new ::string { cat(PrivateAdminDirS,"trace/",*g_exe_name) } ;
 		try                       { Trace::s_start() ; }
 		catch (::string const& e) { exit(Rc::Perm,e) ; }
-	Trace trace("app_init",action.chk_version,action.cd_root,+g_startup_dir_s?*g_startup_dir_s:""s) ;
+		#if PROFILING
+			set_env( "GMON_OUT_PREFIX" , dir_guard(cat(*g_repo_root_s,AdminDirS,"gmon.out/",*g_exe_name)) ) ; // ensure unique gmon data file in a non-intrusive (wrt autodep) place
+		#endif
+	}
+	Trace trace("app_init",action.chk_version,STR(action.cd_root),+g_startup_dir_s?*g_startup_dir_s:""s) ;
 	return read_only ;
 }
 
-void chk_version(ChkAction const& action) {
-	::string version_file = action.admin_dir_s+"version"    ;
+void chk_version( AppInitAction const& action , ::string const& dir_s ) {
+	if (action.chk_version==No) return ;
+	::string version_file = cat(dir_s,AdminDirS,"version")  ;
 	AcFd     version_fd   { version_file , {.err_ok=true} } ;
 	if (!version_fd) {
-		throw_unless( action.may_init , "repo not initialized, consider : lmake" ) ;
+		throw_unless( action.chk_version==Maybe , "repo not initialized, consider : lmake" ) ;
 		AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=action.perm_ext} ).write( cat(action.version,'\n') ) ;
 	} else {
 		::string stored = version_fd.read() ;
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 		stored.pop_back() ;
 		if (from_string<uint64_t>(stored)!=action.version) {
-			if (+g_repo_root_s) throw "version mismatch, "+git_clean_msg() ;
-			else                throw "version mismatch"s                  ;
+			if ( +g_repo_root_s && !dir_s ) throw "version mismatch, consider : "+git_clean_msg() ;
+			else                            throw "version mismatch"s                             ;
 		}
 	}
+}
+
+SearchRootResult search_root(AppInitAction const& action) {
+	::string   from_dir_s   = cwd_s()    ;
+	::string   repo_root_s  = from_dir_s ;
+	::vector_s candidates_s ;
+	//
+	auto has_mrkr = [&](::string const& mrkr) {
+		FileTag t = FileInfo(repo_root_s+mrkr).tag() ;
+		return is_dir_name(mrkr) ? t==FileTag::Dir : t>=FileTag::Target ;
+	} ;
+	//
+	for(; repo_root_s!="/" ; repo_root_s=dir_name_s(repo_root_s) ) {
+		if ( ::any_of( action.root_mrkrs , has_mrkr ) ) candidates_s.push_back(repo_root_s) ;
+		if ( !action.cd_root                          ) break ;
+	}
+	switch (candidates_s.size()) {
+		case 0 : throw "cannot find root dir"s ;
+		case 1 : repo_root_s = candidates_s[0] ; break ;
+		default : {
+			::vector_s candidates2_s ;
+			for( ::string const& c_s : candidates_s ) if (FileInfo(c_s+AdminDirS).tag()==FileTag::Dir) candidates2_s.push_back(c_s) ;
+			switch (candidates2_s.size()) {
+				case 0 : {
+					::string msg = "ambiguous root dir, consider 1 of :\n" ;
+					for( ::string const& c_s : candidates_s ) msg <<"\tmkdir "<<c_s<<AdminDirS<<rm_slash <<'\n' ;
+					throw msg ;
+				}
+				case 1 : repo_root_s = ::move(candidates2_s[0]) ; break ;
+				default : {
+					::string msg = cat("ambiguous root dir, consider ",candidates2_s.size()-1," of :\n") ;
+					for( ::string const& c_s : candidates2_s ) msg <<"\trm -r "<< c_s+AdminDirS<<rm_slash <<'\n' ;
+					throw msg ;
+				}
+			}
+		}
+	}
+	SearchRootResult res { .top_s=repo_root_s , .sub_s=candidates_s[0].substr(repo_root_s.size()) , .startup_s=from_dir_s.substr(repo_root_s.size()) } ;
+	//
+	if ( +res.startup_s && ::chdir(g_repo_root_s->c_str())!=0 ) exit( Rc::System , "cannot chdir to ",*g_repo_root_s,rm_slash ) ;
+	//
+	return res ;
 }

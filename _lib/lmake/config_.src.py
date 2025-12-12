@@ -26,7 +26,7 @@ else :
 def _system_tag() :             # by default re-read Lmakefile as soon as the executing host changes
 	return _os.uname().nodename
 
-# /!\ default values must stay in sync with src/lmakeserver/config.hh
+# /!\ default values must stay in sync with src/lmake_server/config.hh
 config = pdict(
 	disk_date_precision = 0.010                             # in seconds, precisions of dates on disk, must account for date granularity and date discrepancy between executing hosts and disk servers
 ,	file_sync           = 'dir'                             # method used to ensure real close-to-open file synchronization :
@@ -124,8 +124,8 @@ config = pdict(
 	,	'g' : 'lmake_debug.gdb       (launch interpreter under gdb)'
 	})
 ,	trace = pdict(
-#		size     = 100<<20                                                          # overall size of lmakeserver trace
+#		size     = 100<<20                                                          # overall size of lmake_server trace
 #	,	n_jobs   = 1000                                                             # number of kept job traces
-#	,	channels = ('backend','default')                                            # channels traced in lmakeserver trace
+#	,	channels = ('backend','default')                                            # channels traced in lmake_server trace
 	)
 )

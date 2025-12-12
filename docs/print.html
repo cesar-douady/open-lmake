@@ -178,8 +178,8 @@ Such bugs can lead to crashes and to pessimistic behavior (a job is rerun while 
 But special attention has been devoted in its design to ensure that it is never optimistic (a job not being rerun while it should have been).
 In case of any adverse event (lmake crashes or spurious system reboot),
 open-lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
-In extreme cases, there is a <code>lrepair</code> command that can recover all safe parts of a damaged repository.
-Similarly the <code>ldircache_repair</code> command is able to recover a damaged (or manually manipulated) cache dir.</p>
+In extreme cases, there is a <code>lmake_repair</code> command that can recover all safe parts of a damaged repository.
+Similarly the <code>ldir_cache_repair</code> command is able to recover a damaged (or manually manipulated) cache dir.</p>
 <p>Note that open-lmake does not only recorver from its own flees, but also a lot of experience is embedded into it to work around system bugs.
 This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the dir containing the file) or jobs spuriously disappearing.</p>
 <p>By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in <code>Lmakefile.py</code>.
@@ -1268,7 +1268,7 @@ Inside such sub-repos, the applied flow is the one described in it (cf. <a href=
 <p>Some configuration elements may vary from one host to another.
 To ensure config is reloaded when elements change, this attribute, which must be function, is run and if its result is not the same as last time, config is reloaded.</p>
 <p>By default, the <code>hostname</code> is returned, so config is reloaded as soon as the open-lmake server is launched on a different host.</p>
-<h3 id="trace--dynamic"><a class="header" href="#trace--dynamic"><a href="lib/lmake/config_.html#:~:text=%2C%20trace%20%3D%20pdict%28%20%23%20size%20%3D%20100%3C%3C20%20%23%20overall%20size%20of%20lmakeserver%20trace%20%23%20%2C%20n%5Fjobs%20%3D%201000%20%23%20number%20of%20kept%20job%20traces%20%23%20%2C%20channels%20%3D%20%28%27backend%27%2C%27default%27%29%20%23%20channels%20traced%20in%20lmakeserver%20trace%20%29"><code>trace</code></a> : Dynamic</a></h3>
+<h3 id="trace--dynamic"><a class="header" href="#trace--dynamic"><a href="lib/lmake/config_.html#:~:text=%2C%20trace%20%3D%20pdict%28%20%23%20size%20%3D%20100%3C%3C20%20%23%20overall%20size%20of%20lmake_server%20trace%20%23%20%2C%20n%5Fjobs%20%3D%201000%20%23%20number%20of%20kept%20job%20traces%20%23%20%2C%20channels%20%3D%20%28%27backend%27%2C%27default%27%29%20%23%20channels%20traced%20in%20lmake_server%20trace%20%29"><code>trace</code></a> : Dynamic</a></h3>
 <p>This is a sub-configuration for all attributes pertaining to the optional tracing facility of open-lmake.</p>
 <p>For tracing to be active, it must be <a href="install.html#:~:text=T%20controls%20%2DDTRACE%20%28default%3A%20traces%20are%20disabled%20%29">compiled in</a>,
 which is off by default as performances can be severly degraded.</p>
@@ -2959,7 +2959,7 @@ stay coherent.</p>
 already running.</p>
 <p>The (unique) server is created automatically when necessary and dies as soon as no more needed.
 So under normal situations, one does not have to even be aware of the existence of such a server.</p>
-<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/_bin/lmakeserver</code>)
+<p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/bin/lmake_server</code>)
 leads to improved performances by avoiding to relaunch a server for each command.
 In such cases, the server must be run with no argument.</p>
 <p>However, if, under a particular cicumstance, the server must be killed, best is to use signal 1 (SIGHUP) or 2 (SIGINT) as this will force the server to smoothly kill all running jobs.
@@ -2972,11 +2972,11 @@ They are:</p>
 <tr><td><a href="man/man1/lautodep.html"><code>lautodep</code></a></td><td>run a script in an execution environmeent while recording accesses</td></tr>
 <tr><td><a href="man/man1/lcollect.html"><code>lcollect</code></a></td><td>remove obsolete files and dirs</td></tr>
 <tr><td><a href="man/man1/ldebug.html"><code>ldebug</code></a></td><td>run a job in a debug environement</td></tr>
-<tr><td><a href="man/man1/ldircache_repair.html"><code>ldircache_repair</code></a></td><td>repair a broken repo</td></tr>
+<tr><td><a href="man/man1/ldir_cache_repair.html"><code>ldir_cache_repair</code></a></td><td>repair a broken repo</td></tr>
 <tr><td><a href="man/man1/lforget.html"><code>lforget</code></a></td><td>forget history of a job</td></tr>
 <tr><td><a href="man/man1/lmake.html"><code>lmake</code></a></td><td>run necessary jobs to ensure a target is up-to-date</td></tr>
 <tr><td><a href="man/man1/lmark.html"><code>lmark</code></a></td><td>mark a job to alter its behavior w.r.t. <code>lmake</code></td></tr>
-<tr><td><a href="man/man1/lrepair.html"><code>lrepair</code></a></td><td>repair a broken repo</td></tr>
+<tr><td><a href="man/man1/lmake_repair.html"><code>lmake_repair</code></a></td><td>repair a broken repo</td></tr>
 <tr><td><a href="man/man1/lshow.html"><code>lshow</code></a></td><td>show various informations of a job</td></tr>
 <tr><td><a href="man/man1/xxhsum.html"><code>xxhsum</code></a></td><td>compute a checksum on a file</td></tr>
 </tbody></table>

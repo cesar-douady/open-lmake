@@ -8,9 +8,10 @@
 #include <pwd.h>
 #include <grp.h>
 
-#include "app.hh"
 #include "disk.hh"
 #include "time.hh"
+
+#include "repo.hh"
 
 #include "gather.hh"
 
@@ -95,7 +96,7 @@ static ::vmap_ss _mk_env( ::string const& env ) {
 
 int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
-	app_init({ .read_only_ok=true , .cd_root=Maybe }) ;
+	repo_app_init({.cd_root=false}) ;
 	Py::init(*g_lmake_root_s) ;
 	//
 	Syntax<CmdKey,CmdFlag> syntax {{

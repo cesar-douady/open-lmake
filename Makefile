@@ -161,7 +161,7 @@ LINT_CHKS  := --checks=-clang-analyzer-optin.core.EnumCastOutOfRange
 LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-CC_FLAGS := -iquote ext -iquote src -iquote src/lmakeserver -iquote . -idirafter /usr/include/linux
+CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote . -idirafter /usr/include/linux
 
 Z_LIB    := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
 
@@ -177,7 +177,7 @@ PY_CC_FLAGS    = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,
 PY_LINK_FLAGS  = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
 #
 # /!\ LTO is incompatible with multiple definitions, even in different translation units
-SLURM_CC_FLAGS = $(if $(findstring src/lmakeserver/backends/slurm_api-,$<),$(<:src/lmakeserver/backends/slurm_api-%.cc=-I ext/slurm/%) -fno-lto)
+SLURM_CC_FLAGS = $(if $(findstring src/lmake_server/backends/slurm_api-,$<),$(<:src/lmake_server/backends/slurm_api-%.cc=-I ext/slurm/%) -fno-lto)
 #
 PY_SO    = $(if $(PYTHON2) ,$(if $(findstring 2.so,             $@),-py2          ))
 MOD_SO   = $(if $(HAS_32)  ,$(if $(findstring d$(LD_SO_LIB_32)/,$@),-m32          ))
@@ -234,7 +234,6 @@ LMAKE_SERVER_BIN_FILES := \
 	_bin/ldump                   \
 	_bin/ldump_job               \
 	_bin/lkpi                    \
-	_bin/lmakeserver             \
 	_bin/find_cc_ld_library_path \
 	bin/lautodep                 \
 	bin/lcollect                 \
@@ -242,8 +241,11 @@ LMAKE_SERVER_BIN_FILES := \
 	bin/lforget                  \
 	bin/lmake                    \
 	bin/lmark                    \
-	bin/lrepair                  \
-	bin/ldircache_repair         \
+	bin/lmake_repair             \
+	bin/ldir_cache_repair        \
+	bin/ldaemon_cache_server     \
+	bin/ldaemon_cache_repair     \
+	bin/lmake_server             \
 	bin/lrun_cc                  \
 	bin/lshow                    \
 	bin/xxhsum
@@ -275,7 +277,6 @@ LMAKE_BASIC_OBJS := \
 	src/disk.o    \
 	src/fd.o      \
 	src/hash.o    \
-	src/lib.o     \
 	src/process.o \
 	src/time.o    \
 	src/trace.o   \
@@ -377,22 +378,18 @@ version.checked : FORCE
 	@[ -e $@ ] || { >$@ ; }
 
 # use a stamp to implement a by value update (while make works by date)
-src/version.cc.stamp : _bin/version version.src version.checked
+src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
 	@echo computing versions to $(@:%.stamp=%)
-	@PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< $(@:%.stamp=%) version.src >$@
+	@PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version info $(@:%.stamp=%) ; \
 	else                                cp $@ $(@:%.stamp=%) ; echo new    version info $(@:%.stamp=%) ; \
 	fi
 src/version.cc : src/version.cc.stamp ;
 
-_lib/version.py : src/version.cc
+_lib/version.py : _bin/version src/version.hh src/version.cc
 	@echo convert version to py to $@
-	@awk ' \
-		$$3=="Cache" {print "cache =",$$5 } \
-		$$3=="Repo"  {print "repo  =",$$5 } \
-		$$3=="Job"   {print "job   =",$$5 } \
-	' $< >$@
+	@PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc >$@
 
 #
 # LMAKE
@@ -496,7 +493,7 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 		-MT '$@'                                             \
 		$< 2>/dev/null || :
 
-SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmakeserver/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
+SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmake_server/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
 CACHE_SRCS := $(patsubst %.cc,%-light.cc,$(filter src/caches/%.cc,$(SRCS)))
 #
 DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS) $(CACHE_SRCS)
@@ -506,7 +503,7 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 # slurm
 #
 
-src/lmakeserver/backends/slurm_api-%.cc : ext/slurm/%/META
+src/lmake_server/backends/slurm_api-%.cc : ext/slurm/%/META
 	@echo generate $@
 	@# mimic slurm source code to retrieve API version from META, in practice, API_AGE is 0
 	@{	awk '/API_CURRENT/ {api_current=$$2} ; /API_AGE/ {api_age=$$2} ; END {printf("#define SLURM_API_VERSION_NUMBER %d\n",api_current-api_age)}' $< ; \
@@ -531,6 +528,7 @@ SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
 SERVER_COMMON_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)         \
 	src/app$(SAN).o                 \
+	src/real_path$(SAN).o           \
 	src/py$(SAN).o                  \
 	src/re$(SAN).o                  \
 	src/rpc_job$(SAN).o             \
@@ -541,10 +539,10 @@ SERVER_COMMON_SAN_OBJS := \
 	src/caches/dir_cache$(SAN).o
 
 BACKEND_SAN_OBJS := \
-	src/lmakeserver/backends/local$(SAN).o   \
-	src/lmakeserver/backends/slurm$(SAN).o   \
+	src/lmake_server/backends/local$(SAN).o  \
+	src/lmake_server/backends/slurm$(SAN).o  \
 	$(patsubst %.cc,%$(SAN).o,$(SLURM_SRCS)) \
-	src/lmakeserver/backends/sge$(SAN).o
+	src/lmake_server/backends/sge$(SAN).o
 
 CLIENT_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS) \
@@ -554,45 +552,75 @@ CLIENT_SAN_OBJS := \
 	src/version$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(SERVER_COMMON_SAN_OBJS)         \
-	src/non_portable$(SAN).o          \
-	src/rpc_client$(SAN).o            \
-	src/autodep/backdoor$(SAN).o      \
-	src/autodep/gather$(SAN).o        \
-	src/autodep/ld_server$(SAN).o     \
-	src/autodep/ptrace$(SAN).o        \
-	src/autodep/record$(SAN).o        \
-	src/autodep/syscall_tab$(SAN).o   \
-	src/lmakeserver/backend$(SAN).o   \
-	src/lmakeserver/cmd$(SAN).o       \
-	src/lmakeserver/global$(SAN).o    \
-	src/lmakeserver/config$(SAN).o    \
-	src/lmakeserver/job$(SAN).o       \
-	src/lmakeserver/job_data$(SAN).o  \
-	src/lmakeserver/makefiles$(SAN).o \
-	src/lmakeserver/node$(SAN).o      \
-	src/lmakeserver/req$(SAN).o       \
-	src/lmakeserver/rule$(SAN).o      \
-	src/lmakeserver/rule_data$(SAN).o \
-	src/lmakeserver/store$(SAN).o
+	$(SERVER_COMMON_SAN_OBJS)          \
+	src/non_portable$(SAN).o           \
+	src/rpc_client$(SAN).o             \
+	src/autodep/backdoor$(SAN).o       \
+	src/autodep/gather$(SAN).o         \
+	src/autodep/ld_server$(SAN).o      \
+	src/autodep/ptrace$(SAN).o         \
+	src/autodep/record$(SAN).o         \
+	src/autodep/syscall_tab$(SAN).o    \
+	src/lmake_server/backend$(SAN).o   \
+	src/lmake_server/cmd$(SAN).o       \
+	src/lmake_server/global$(SAN).o    \
+	src/lmake_server/config$(SAN).o    \
+	src/lmake_server/job$(SAN).o       \
+	src/lmake_server/job_data$(SAN).o  \
+	src/lmake_server/makefiles$(SAN).o \
+	src/lmake_server/node$(SAN).o      \
+	src/lmake_server/req$(SAN).o       \
+	src/lmake_server/rule$(SAN).o      \
+	src/lmake_server/rule_data$(SAN).o \
+	src/lmake_server/store$(SAN).o
 
-_bin/lmakeserver : \
+bin/lmake_server : \
 	$(SERVER_SAN_OBJS)  \
 	$(BACKEND_SAN_OBJS) \
-	src/lmakeserver/main$(SAN).o
+	src/lmake_server/main$(SAN).o
 
-bin/lrepair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lrepair$(SAN).o # lrepair must be aware of existing backends
-_bin/ldump  : $(SERVER_SAN_OBJS)                     src/ldump$(SAN).o
-_bin/lkpi   : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
+bin/lmake_repair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_repair$(SAN).o # lmake_repair must be aware of existing backends
+_bin/ldump       : $(SERVER_SAN_OBJS)                     src/ldump$(SAN).o
+_bin/lkpi        : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
 
-LMAKE_DBG_FILES += _bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi
-_bin/lmakeserver bin/lrepair _bin/ldump _bin/lkpi :
+LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi
+bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/ldircache_repair : $(SERVER_COMMON_SAN_OBJS) src/ldircache_repair$(SAN).o
+bin/ldaemon_cache_server : \
+	$(LMAKE_BASIC_SAN_OBJS)         \
+	src/app$(SAN).o                 \
+	src/py$(SAN).o                  \
+	src/re$(SAN).o                  \
+	src/real_path$(SAN).o           \
+	src/rpc_job$(SAN).o             \
+	src/version$(SAN).o             \
+	src/autodep/env$(SAN).o         \
+	src/caches/daemon_cache$(SAN).o \
+	src/caches/dir_cache$(SAN).o    \
+	src/caches/daemon_cache/ldaemon_cache_server$(SAN).o
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(SPLIT_DBG_CMD)
+
+bin/ldaemon_cache_repair : \
+	$(LMAKE_BASIC_SAN_OBJS) \
+	src/py.o                \
+	src/version.o           \
+	src/caches/daemon_cache/ldaemon_cache_repair$(SAN).o
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
+	@$(SPLIT_DBG_CMD)
+
+bin/ldir_cache_repair : \
+	$(SERVER_COMMON_SAN_OBJS) \
+	src/version.o             \
+	src/ldir_cache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
@@ -629,6 +657,7 @@ _bin/ldump_job : $(SERVER_COMMON_SAN_OBJS) src/ldump_job$(SAN).o
 LMAKE_DBG_FILES += _bin/align_comments
 _bin/align_comments : \
 	$(LMAKE_BASIC_SAN_OBJS) \
+	src/app$(SAN).o         \
 	src/align_comments$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -663,12 +692,15 @@ BASIC_REMOTE_OBJS := \
 
 AUTODEP_OBJS := \
 	$(BASIC_REMOTE_OBJS) \
+	src/real_path.o      \
+	src/version.o        \
 	src/autodep/syscall_tab.o
 AUTODEP_SAN_OBJS := $(AUTODEP_OBJS:%.o=%$(SAN).o)
 
 REMOTE_OBJS  := \
 	$(BASIC_REMOTE_OBJS) \
 	src/app.o            \
+	src/real_path.o      \
 	src/version.o
 
 # XXX! : make job_exec compatible with SAN
@@ -678,7 +710,6 @@ REMOTE_OBJS  := \
 #	src/non_portable$(SAN).o        \
 #	src/re$(SAN).o                  \
 #	src/rpc_job$(SAN).o             \
-#	src/version$(SAN).o             \
 #	src/autodep/gather$(SAN).o      \
 #	src/autodep/ptrace$(SAN).o      \
 #	src/autodep/record$(SAN).o      \
@@ -701,7 +732,6 @@ JOB_EXEC_OBJS := \
 	src/non_portable.o              \
 	src/re.o                        \
 	src/rpc_job.o                   \
-	src/version.o                   \
 	src/autodep/gather.o            \
 	src/autodep/ptrace.o            \
 	src/autodep/record.o            \
@@ -849,8 +879,8 @@ lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp    ; \
 	wait $$!                                          ; \
 	rm -rf LMAKE.bck                                  ; \
-	sleep 2 ; : ensure lmakeserver has gone           ; \
-	$(REPO_ROOT)/bin/lrepair >>$(@F).tmp              ; \
+	sleep 2 ; : ensure lmake_server has gone          ; \
+	$(REPO_ROOT)/bin/lmake_repair >>$(@F).tmp         ; \
 	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp2   ; \
 	grep -q 'was already up to date' $(@F).tmp2 && {    \
 		cat $(@F).tmp2 >$(@F).tmp ;                     \
