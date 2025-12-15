@@ -51,9 +51,7 @@ if __name__!='__main__' :
 
 	lmake.config.backends.local.cpu *= 2
 
-	lmake.config.backends.slurm = {
-		'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-	}
+	lmake.config.backends.slurm = {}
 
 	lmake.manifest = (
 		'Lmakefile.py'

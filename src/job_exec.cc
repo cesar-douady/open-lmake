@@ -25,7 +25,7 @@ using namespace Hash   ;
 using namespace Re     ;
 using namespace Time   ;
 
-::vector<ExecTraceEntry>* g_exec_trace    = nullptr      ;
+::vector<UserTraceEntry>* g_user_trace    = nullptr      ;
 Gather                    g_gather        ;
 JobIdx                    g_job           = 0/*garbage*/ ;
 SeqId                     g_seq_id        = 0/*garbage*/ ;
@@ -58,7 +58,7 @@ JobStartRpcReply get_start_info() {
 		if (+res.phy_lmake_root_s) res.chk_lmake_root   = true            ;     // if using a different lmake, we must check compatibility
 		else                       res.phy_lmake_root_s = *g_lmake_root_s ;
 	}
-	g_exec_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
+	g_user_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
 }
@@ -163,7 +163,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
-	g_exec_trace->emplace_back( New/*date*/ , Comment::ComputedCrcs ) ;
+	g_user_trace->emplace_back( New/*date*/ , Comment::ComputedCrcs ) ;
 	return msg ;
 }
 
@@ -188,15 +188,15 @@ int main( int argc , char* argv[] ) {
 	end_report.digest   = { .status=Status::EarlyErr } ;                   // prepare to return an error, so we can goto End anytime
 	end_report.wstatus  = 255<<8                       ;                   // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead               ;
-	g_exec_trace        = &end_report.exec_trace       ;
-	g_exec_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
+	g_user_trace        = &end_report.user_trace       ;
+	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
 	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                               // START_OF_NO_COV defensive programming
 		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                      // if !g_start_info, server ask us to give up
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<phy_repo_root_s<<rm_slash ;
 		goto End ;
 	}                                                                                                        // END_OF_NO_COV
-	g_exec_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
+	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
 	Trace::s_sz = 10<<20 ;                                                                                   // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                                  // necessary to capture it using signalfd
 	repo_app_init({ .chk_version=No , .trace=Yes }) ;                                                        // dont check version for perf, but trace nevertheless
@@ -222,7 +222,7 @@ int main( int argc , char* argv[] ) {
 			goto End ;
 		}                                                                                                                                                       // END_OF_NO_COV
 		Pdate washed { New } ;
-		g_exec_trace->emplace_back( washed , Comment::Washed ) ;
+		g_user_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
@@ -257,10 +257,9 @@ int main( int argc , char* argv[] ) {
 			,	/*.  */  end_report.dyn_env
 			,	/*.  */  g_gather.first_pid
 			,	/*.  */  repo_root_s
-			,	/*inout*/*g_exec_trace
+			,	/*inout*/*g_user_trace
 			,	         phy_repo_root_s
 			,	         end_report.phy_tmp_dir_s
-			,	         g_seq_id
 			) ;
 			RealPath real_path { g_start_info.autodep_env } ;
 			if (+g_start_info.os_info) {
@@ -290,7 +289,7 @@ int main( int argc , char* argv[] ) {
 						g_gather.new_access( washed , ::move(sr.real) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Read ) ;
 					}
 				}
-				g_exec_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
+				g_user_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 			}
 			g_start_info.update_env( /*inout*/cmd_env , phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 		} catch (::string const& e) {
@@ -307,7 +306,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.autodep_env      = ::move(g_start_info.autodep_env      ) ;
 		g_gather.ddate_prec       =        g_start_info.ddate_prec         ;
 		g_gather.env              =        &cmd_env                        ;
-		g_gather.exec_trace       =        g_exec_trace                    ;
+		g_gather.user_trace       =        g_user_trace                    ;
 		g_gather.job              =        g_job                           ;
 		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs        ) ;
 		g_gather.live_out         =        g_start_info.live_out           ;
@@ -402,7 +401,7 @@ int main( int argc , char* argv[] ) {
 				end_report.msg_stderr.msg <<"cannot cache : "<<e<<'\n' ;
 			}
 			CommentExts ces ; if (!upload_key) ces |= CommentExt::Err ;
-			g_exec_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.zlvl) ) ;
+			g_user_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.zlvl) ) ;
 		}
 		//
 		if (+g_start_info.autodep_env.file_sync) {                                                                                    // fast path : avoid listing targets & guards if !file_sync
@@ -441,8 +440,8 @@ End :
 		try {
 			ClientSockFd fd           { g_service_end } ;
 			Pdate        end_overhead = New             ;
-			g_exec_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
-			end_report.digest.exec_time = end_overhead - start_overhead ;                                                             // measure overhead as late as possible
+			g_user_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
+			end_report.digest.exe_time = end_overhead - start_overhead ;                                                              // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvv
 			OMsgBuf(end_report).send(fd) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^

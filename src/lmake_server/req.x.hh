@@ -5,7 +5,7 @@
 
 // included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
-#include "idxed.hh"
+#include "store/idxed.hh"
 
 #ifdef STRUCT_DECL
 

@@ -541,8 +541,8 @@ namespace Engine {
 		::string gen_py_line(       Rule::RuleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const { // cannot lazy evaluate w/o a job
 			return gen_py_line( {} , const_cast<Rule::RuleMatch&>(m) , vc , i , key , val ) ;
 		}
-		void        new_job_report( Delay exec_time , CoarseDelay cost , Tokens1 tokens1 ) const ;
-		CoarseDelay cost          (                                                      ) const ;
+		void        new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 tokens1 ) const ;
+		CoarseDelay cost          (                                                     ) const ;
 	private :
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx       ) const ;
 		void          _set_crcs  ( RulesBase        const&           ) ;
@@ -588,9 +588,9 @@ namespace Engine {
 		Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;           // range in matches for each kind of match
 		// stats
 		mutable Delay    cost_per_token = {} ;                                     // average cost per token
-		mutable Delay    exec_time      = {} ;                                     // average exec_time
+		mutable Delay    exe_time       = {} ;                                     // average exe_time
 		mutable uint64_t tokens1_32     = 0  ; static_assert(sizeof(Tokens1)<=4) ; // average number of tokens1 <<32
-		mutable JobIdx   stats_weight   = 0  ;                                     // number of jobs used to compute average cost_per_token and exec_time
+		mutable JobIdx   stats_weight   = 0  ;                                     // number of jobs used to compute average cost_per_token and exe_time
 		// END_OF_VERSIONING
 		//
 		// not stored on disk
@@ -899,7 +899,7 @@ namespace Engine {
 			}
 		) ;
 		Py::py_run(to_eval,tmp_glbs) ;
-		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
+		g_kpi.py_exe_time += Pdate(New) - Rule::s_last_dyn_date ;
 		Py::Ptr<>   res      ;
 		::string    err      ;
 		bool        seen_err = false  ;
@@ -910,7 +910,7 @@ namespace Engine {
 		//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		catch (::string const& e) { err = e ; seen_err = true ;          }
 		for( ::string const& key : to_del ) tmp_glbs->del_item(key) ;      // delete job-related info, just to avoid percolation to other jobs, even in case of error
-		g_kpi.py_exec_time += Pdate(New) - Rule::s_last_dyn_date ;
+		g_kpi.py_exe_time += Pdate(New) - Rule::s_last_dyn_date ;
 		if ( +lock.err || seen_err ) throw MsgStderr{.msg=lock.err,.stderr=err} ;
 		return res ;
 	}
@@ -957,7 +957,7 @@ namespace Engine {
 			::serdes(s,n_submits             ) ;
 			// stats
 			::serdes(s,cost_per_token        ) ;
-			::serdes(s,exec_time             ) ;
+			::serdes(s,exe_time              ) ;
 			::serdes(s,stats_weight          ) ;
 		}
 		// derived

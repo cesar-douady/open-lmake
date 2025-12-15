@@ -53,7 +53,7 @@ namespace Backends {
 		using Proc        = JobRpcProc        ;
 
 		struct Workload {
-			// a job stops being reasonable when it has already run longer than its last known exec_time
+			// a job stops being reasonable when it has already run longer than its last known exe_time
 			// a workload is a sum of weighted exec times in ms, i.e. with 3 jobs for 4 tokens in parallel workload advances by 4 each ms
 			// all delays and dates are rounded to ms to avoid rounding errors
 			friend ::string& operator+=( ::string& , Workload const& ) ;

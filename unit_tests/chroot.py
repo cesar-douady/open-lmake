@@ -19,11 +19,11 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py','../')
 
 	class Cat(Rule) :
-		target     = 'dut-{Os:.*}'
+		target     = r'dut-{Autodep:\w+}-{Os:\w+}'
 		chroot_dir = '{image_root(Os)}'
 		os_info    = r'.*'                      # XXX put a more restrictive os-dependent criteria here
 		lmake_root = '{lmake_install_root(Os)}'
-		autodep    = 'ld_preload'               # works on all os
+		autodep    = '{Autodep}'
 		cmd        = 'echo dut'
 
 else :
@@ -36,10 +36,20 @@ else :
 	,	'ubuntu20' , 'ubuntu22' , 'ubuntu24'
 	)
 	os_known = [ os for os in os_candidates if osp.isdir(image_root(os)) and osp.isdir(lmake_install_root(os)) ]
-	if not os_known :
+	n_known  = len(os_known)
+	if not n_known :
 		print('no foreign os available',file=open('skipped','w'))
 		exit()
 
 	import ut
 
-	ut.lmake( *(f'dut-{os}' for os in os_known) , done=len(os_known) )
+	ut.lmake( *(f'dut-ld_preload-{os}' for os in os_known) , done=n_known )
+
+	if 'ld_audit' in lmake.autodeps :
+		os_no_ld_audit = {
+			'centos7'
+		,	'suse154'  , 'suse155'
+		,	'ubuntu20'
+		}
+		n_no_ld_audit = sum(1 for os in os_known if os in os_no_ld_audit)
+		ut.lmake( *(f'dut-ld_audit-{os}' for os in os_known) , done=n_known-n_no_ld_audit , failed=n_no_ld_audit , rc=bool(n_no_ld_audit) )

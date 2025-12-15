@@ -362,12 +362,12 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exec_time    , &dct[field] ) ;
-			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force        , &dct[field] ) ;
-			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python    , &dct[field] ) ; else throw "not found"s ;
-			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts      , &dct[field] ) ;
-			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs       , &dct[field] ) ;
-			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits    , &dct[field] ) ;
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exe_time  , &dct[field] ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
+			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs    , &dct[field] ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
 			for( bool star : {false,true} )
@@ -454,15 +454,15 @@ namespace Engine {
 		return res ;
 	}
 
-	void RuleData::new_job_report( Delay exec_time , CoarseDelay cost , Tokens1 tokens1 ) const {
+	void RuleData::new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 tokens1 ) const {
 		if (stats_weight<RuleWeight) stats_weight++ ;
 		//
 		Delay::Tick cost_per_token_delta = Delay(cost).val()/(tokens1+1) - cost_per_token.val() ;
-		Delay::Tick exec_time_delta      = exec_time  .val()             - exec_time     .val() ;
+		Delay::Tick exe_time_delta       = exe_time   .val()             - exe_time      .val() ;
 		int64_t     tokens1_32_delta     = (uint64_t(tokens1)<<32)       - tokens1_32           ;
 		//
 		cost_per_token += Delay(New,cost_per_token_delta/stats_weight) ;
-		exec_time      += Delay(New,exec_time_delta     /stats_weight) ;
+		exe_time       += Delay(New,exe_time_delta      /stats_weight) ;
 		tokens1_32     +=           tokens1_32_delta    /stats_weight  ;
 	}
 

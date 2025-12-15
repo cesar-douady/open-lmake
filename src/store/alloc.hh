@@ -63,7 +63,7 @@ namespace Store {
 		} ;
 
 	}
-	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile //!      Multi
+	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile //!      Multi
 	:	                 StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true >   // if !Mantissa, Multi is useless but easier to code
 	{	using Base     = StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true > ;
 		using BaseHdr  =                         Alloc::Hdr<Hdr_,Idx_,Mantissa> ;
@@ -230,7 +230,7 @@ namespace Store {
 			free = idx ;
 		}
 	} ;
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const {
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const {
 		Base::chk() ;
 		::vector<bool> free_map ;
 		free_map.resize(size()) ;

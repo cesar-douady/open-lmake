@@ -389,7 +389,7 @@ src/version.cc : src/version.cc.stamp ;
 
 _lib/version.py : _bin/version src/version.hh src/version.cc
 	@echo convert version to py to $@
-	@PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc >$@
+	@PYTHON=$(PYTHON) HAS_LD_AUDIT=$(HAS_LD_AUDIT) ./$< cc_to_py src/version.hh src/version.cc >$@
 
 #
 # LMAKE
@@ -591,16 +591,17 @@ bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi :
 	@$(SPLIT_DBG_CMD)
 
 bin/ldaemon_cache_server : \
-	$(LMAKE_BASIC_SAN_OBJS)         \
-	src/app$(SAN).o                 \
-	src/py$(SAN).o                  \
-	src/re$(SAN).o                  \
-	src/real_path$(SAN).o           \
-	src/rpc_job$(SAN).o             \
-	src/version$(SAN).o             \
-	src/autodep/env$(SAN).o         \
-	src/caches/daemon_cache$(SAN).o \
-	src/caches/dir_cache$(SAN).o    \
+	$(LMAKE_BASIC_SAN_OBJS)                \
+	src/app$(SAN).o                        \
+	src/py$(SAN).o                         \
+	src/re$(SAN).o                         \
+	src/real_path$(SAN).o                  \
+	src/rpc_job$(SAN).o                    \
+	src/version$(SAN).o                    \
+	src/autodep/env$(SAN).o                \
+	src/caches/daemon_cache$(SAN).o        \
+	src/caches/dir_cache$(SAN).o           \
+	src/caches/daemon_cache/engine$(SAN).o \
 	src/caches/daemon_cache/ldaemon_cache_server$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@

@@ -242,9 +242,9 @@ namespace Engine {
 			if (py_map.contains(fields[0])) {
 				Dict const& py_console = py_map[fields[0]].as_a<Dict>() ;
 				fields.emplace_back() ;
-				fields[1] = "has_exec_time" ; if (py_console.contains(fields[1])) console.has_exec_time = +py_console[fields[1]] ;
-				fields[1] = "show_eta"      ; if (py_console.contains(fields[1])) console.show_eta      = +py_console[fields[1]] ;
-				fields[1] = "show_ete"      ; if (py_console.contains(fields[1])) console.show_ete      = +py_console[fields[1]] ;
+				fields[1] = "has_exec_time" ; if (py_console.contains(fields[1])) console.has_exe_time = +py_console[fields[1]] ;
+				fields[1] = "show_eta"      ; if (py_console.contains(fields[1])) console.show_eta     = +py_console[fields[1]] ;
+				fields[1] = "show_ete"      ; if (py_console.contains(fields[1])) console.show_ete     = +py_console[fields[1]] ;
 				fields[1] = "date_precision" ;
 				if (py_console.contains(fields[1])) {
 					Object const& py_date_prec = py_console[fields[1]] ;
@@ -404,12 +404,12 @@ namespace Engine {
 		}
 		//
 		res << "\tconsole :\n" ;
-		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec     <<'\n' ;
-		/**/                                res << "\t\thas_exec_time  : " << console.has_exec_time <<'\n' ;
-		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days  <<'\n' ;
-		if (console.host_len              ) res << "\t\thost_len       : " << console.host_len      <<'\n' ;
-		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta      <<'\n' ;
-		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete      <<'\n' ;
+		if (console.date_prec!=uint8_t(-1)) res << "\t\tdate_precision : " << console.date_prec    <<'\n' ;
+		/**/                                res << "\t\thas_exec_time  : " << console.has_exe_time <<'\n' ;
+		if (console.history_days          ) res << "\t\thistory_days   : " << console.history_days <<'\n' ;
+		if (console.host_len              ) res << "\t\thost_len       : " << console.host_len     <<'\n' ;
+		if (console.show_eta              ) res << "\t\tshow_eta       : " << console.show_eta     <<'\n' ;
+		if (console.show_ete              ) res << "\t\tshow_ete       : " << console.show_ete     <<'\n' ;
 		//
 		if (trace!=TraceConfig()) {
 			res << "\ttrace :\n" ;

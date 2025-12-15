@@ -51,6 +51,7 @@ enum class CacheHitInfo : uint8_t {
 	Hit                             // cache hit
 ,	Match                           // cache matches, but not hit (some deps are missing, hence dont know if hit or miss)
 ,	BadDeps
+,	NoJob
 ,	NoRule
 ,	BadDownload
 ,	NoDownload
@@ -64,6 +65,7 @@ static constexpr ::amap<CacheHitInfo,const char*,N<CacheHitInfo>> CacheHitInfoSt
 	{ CacheHitInfo::Hit         , "hit"                                      }
 ,	{ CacheHitInfo::Match       , "deps are uncertain"                       }
 ,	{ CacheHitInfo::BadDeps     , "deps do not match"                        }
+,	{ CacheHitInfo::NoJob       , "job (rule+stems) not found"               }
 ,	{ CacheHitInfo::NoRule      , "rule not found or with different command" }
 ,	{ CacheHitInfo::BadDownload , "download failed"                          }
 ,	{ CacheHitInfo::NoDownload  , "no download asked by user"                }
@@ -640,7 +642,7 @@ template<class Key=::string> struct JobDigest {                                 
 		JobDigest<KeyTo> res {
 			.upload_key     = upload_key
 		,	.refresh_codecs = refresh_codecs
-		,	.exec_time      = exec_time
+		,	.exe_time       = exe_time
 		,	.max_stderr_len = max_stderr_len
 		,	.cache_idx1     = cache_idx1
 		,	.status         = status
@@ -666,7 +668,7 @@ template<class Key=::string> struct JobDigest {                                 
 	::vmap<Key,TargetDigest> targets        = {}          ;
 	::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
 	::vector_s               refresh_codecs = {}          ;
-	Time::CoarseDelay        exec_time      = {}          ;
+	Time::CoarseDelay        exe_time       = {}          ;
 	uint16_t                 max_stderr_len = {}          ;
 	CacheIdx                 cache_idx1     = 0           ;
 	Status                   status         = Status::New ;
@@ -731,12 +733,12 @@ namespace Caches {
 		void commit ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) ;
 		void dismiss( uint64_t upload_key                                       ) { Trace trace(CacheChnl,"Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
 		// default implementation : no caching, but enforce protocol
-		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false ) {}
-		virtual ::vmap_ss descr (                                            ) { return {}        ; }
-		virtual void      repair( bool /*dry_run*/                           ) {}
-		virtual Tag       tag   (                                            ) { return Tag::None ; }
-		virtual void      serdes( ::string     &                             ) {}                     // serialize
-		virtual void      serdes( ::string_view&                             ) {}                     // deserialize
+		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false )       {}
+		virtual ::vmap_ss descr (                                            ) const { return {}        ; }
+		virtual void      repair( bool /*dry_run*/                           )       {}
+		virtual Tag       tag   (                                            )       { return Tag::None ; }
+		virtual void      serdes( ::string     &                             )       {}                     // serialize
+		virtual void      serdes( ::string_view&                             )       {}                     // deserialize
 		//
 		virtual ::pair<DownloadDigest        ,AcFd> sub_download( ::string const& /*job*/ , MDD const&                          ) ;
 		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {} ; }
@@ -746,13 +748,13 @@ namespace Caches {
 
 }
 
-struct ExecTraceEntry {
-	friend ::string& operator+=( ::string& , ExecTraceEntry const& ) ;
+struct UserTraceEntry {
+	friend ::string& operator+=( ::string& , UserTraceEntry const& ) ;
 	// cxtor & casts
 	// mimic aggregate cxtors as clang would not accept emplace_back if not explicitely provided
-	ExecTraceEntry() = default ;
-	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
-	ExecTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
+	UserTraceEntry() = default ;
+	UserTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
+	UserTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , date                   ) ;
@@ -797,14 +799,15 @@ struct JobSpace {
 	bool/*entered*/ enter(
 		::vector_s&              /*out*/   accesses
 	,	::string  &              /*.  */   repo_root_s
-	,	::vector<ExecTraceEntry>&/*inout*/
+	,	::vector<UserTraceEntry>&/*inout*/
 	,	SmallId
 	,	::string   const&                  phy_lmake_root_s , bool chk_lmake_root
 	,	::string   const&                  phy_repo_root_s
 	,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
 	,	ChrootInfo const&                  chroot_info
 	,	::string   const&                  sub_repo_s
-	,	::vector_s const&                  src_dirs_s={}
+	,	::vector_s const&                  src_dirs_s
+	,	bool                               is_ld_audit
 	) ;
 	void exit() ;
 	//
@@ -905,10 +908,9 @@ struct JobStartRpcReply {                                                // NOLI
 	,	::vmap_ss &              /*.  */   dyn_env
 	,	pid_t     &              /*.  */   first_pid
 	,	::string  &              /*.  */   repo_dir_s
-	,	::vector<ExecTraceEntry>&/*inout*/
+	,	::vector<UserTraceEntry>&/*inout*/
 	,	::string const&                    phy_repo_root_s
 	,	::string const&                    phy_tmp_dir_s
-	,	SeqId
 	) ;
 	void update_env(
 		::map_ss      &/*inout*/ env
@@ -972,7 +974,7 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes( s , digest                        ) ;
 		::serdes( s , phy_tmp_dir_s                 ) ;
 		::serdes( s , dyn_env                       ) ;
-		::serdes( s , exec_trace                    ) ;
+		::serdes( s , user_trace                    ) ;
 		::serdes( s , total_sz                      ) ;
 		::serdes( s , total_z_sz                    ) ;
 		::serdes( s , end_date                      ) ;
@@ -988,7 +990,7 @@ struct JobEndRpcReq : JobRpcReq {
 	JobDigest<>              digest        ;
 	::string                 phy_tmp_dir_s ;
 	::vmap_ss                dyn_env       ; // env variables computed in job_exec
-	::vector<ExecTraceEntry> exec_trace    ;
+	::vector<UserTraceEntry> user_trace    ;
 	Disk::DiskSz             total_sz      = 0 ;
 	Disk::DiskSz             total_z_sz    = 0 ;
 	Time::Pdate              end_date      ;

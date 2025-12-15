@@ -147,12 +147,12 @@ namespace Engine {
 			bool operator==(Console const&) const = default ;
 			// /!\ default values must stay in sync with _lib/lmake/config.src.py
 			// START_OF_VERSIONING REPO
-			uint8_t  date_prec     = 0     ; // -1 means no date at all in console output
-			uint8_t  host_len      = 0     ; //  0 means no host at all in console output
-			uint32_t history_days  = 7     ; // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
-			bool     has_exec_time = true  ;
-			bool     show_eta      = false ;
-			bool     show_ete      = true  ;
+			uint8_t  date_prec    = 0     ; // -1 means no date at all in console output
+			uint8_t  host_len     = 0     ; //  0 means no host at all in console output
+			uint32_t history_days = 7     ; // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
+			bool     has_exe_time = true  ;
+			bool     show_eta     = false ;
+			bool     show_ete     = true  ;
 			// END_OF_VERSIONING
 		} ;
 		//

@@ -479,7 +479,7 @@ namespace Engine::Persistent {
 				modified_rule_order |= new_rd->prio      !=old_rd.prio       ;
 				//
 				new_rd->cost_per_token = old_rd.cost_per_token ;
-				new_rd->exec_time      = old_rd.exec_time      ;
+				new_rd->exe_time       = old_rd.exe_time       ;
 				new_rd->stats_weight   = old_rd.stats_weight   ;
 			}
 		}

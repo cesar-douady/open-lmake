@@ -94,14 +94,14 @@ namespace Backends {
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {
 		Lock        lock { _mutex }               ;
 		Delay::Tick dly  = Delay(j->cost()).val() ;
-		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost(),j->exec_time(),dly) ;
+		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost(),j->exe_time(),dly) ;
 		for( ReqIdx ri : reqs ) {
 			SWEAR( _queued_cost[ri]>=dly , _queued_cost[ri] , Req(ri) , dly , j ) ;
 			_queued_cost[ri] -= dly ;
 		}
 		_refresh() ;
 		Tokens tokens = j->tokens1+1 ;
-		if ( Delay jet=Delay(j->exec_time()).round_msec() ; +jet ) { // schedule job based on best estimate
+		if ( Delay jet=Delay(j->exe_time()).round_msec() ; +jet ) { // schedule job based on best estimate
 			Pdate jed = _ref_date + jet ;
 			_eta_tab.try_emplace(j  ,jed) ;
 			_eta_set.emplace    (jed,j  ) ;
@@ -134,7 +134,7 @@ namespace Backends {
 		return _ref_workload ;
 	}
 
-	// cost is the share of exec_time that can be accumulated, i.e. multiplied by the fraction of what was running in parallel
+	// cost is the share of exe_time that can be accumulated, i.e. multiplied by the fraction of what was running in parallel
 	Delay Backend::Workload::cost( Job job , Val start_workload , Pdate start_date ) const {
 		Lock lock { _mutex } ;
 		start_date = start_date.round_msec() ;
@@ -246,7 +246,7 @@ namespace Backends {
 			if (!( it!=_s_start_tab.end() && it->second.conn.seq_id==de.seq_id )) return ; // too late, job has ended
 		}
 		JobDigest<> jd { .status=Status::LateLost } ;                                      // job is still present, must be really lost
-		if (+de.job_exec.start_date) jd.exec_time = Pdate(New)-de.job_exec.start_date ;
+		if (+de.job_exec.start_date) jd.exe_time = Pdate(New)-de.job_exec.start_date ;
 		trace("lost",jd) ;
 		JobEndRpcReq jerr { {de.seq_id,+de.job_exec} } ;
 		jerr.digest = ::move(jd) ;
@@ -553,7 +553,7 @@ namespace Backends {
 					+pre_action_warnings
 				||	+start_msg_err.stderr
 				||	is_retry(submit_attrs.reason.tag)                                                                // emit retry start message
-				||	Delay(job->exec_time())>=start_ancillary_attrs.start_delay                                       // if job is probably long, emit start message immediately
+				||	Delay(job->exe_time())>=start_ancillary_attrs.start_delay                                        // if job is probably long, emit start message immediately
 			;
 			if (+start_msg_err.stderr) msg_stderr = { jis.pre_start.msg+start_msg_err.msg , ::move(start_msg_err.stderr) } ;                           // get msg befor jis is moved
 			Job::s_record_thread.emplace( job , ::move(jis) ) ;
@@ -622,15 +622,15 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_job_end( JobEndRpcReq&& jerr , Fd ) {
-		if (!jerr) return ;                                                                  // if connection is lost, ignore it
+		if (!jerr) return ;                                                                     // if connection is lost, ignore it
 		JobDigest<>& digest = jerr.digest ;
 		Job          job    { jerr.job }  ;
 		JobExec      je     ;
 		Trace trace(BeChnl,"_s_handle_job_end",jerr) ;
 		//
-		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                    // ensure _s_handled_job_start is done for this job
+		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                       // ensure _s_handled_job_start is done for this job
 		//
-		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;                       // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;                          // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; goto Bad ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; goto Bad ; }
@@ -657,10 +657,10 @@ namespace Backends {
 		trace("digest",digest) ;
 		job->end_exec() ;
 		// record to file before queueing to main thread as main thread appends to file and may otherwise access info
-		{	JobDigest<Node> jd = digest ;                                                    // before jerr is moved
-			Job::s_record_thread.emplace( job , ::move(jerr) ) ;                             // /!\ _s_starting_job ensures Start has been queued before we enqueue End
+		{	JobDigest<Node> jd = digest ;                                                       // before jerr is moved
+			Job::s_record_thread.emplace( job , ::move(jerr) ) ;                                // /!\ _s_starting_job ensures Start has been queued before we enqueue End
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ;                  // .
+			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ;                     // .
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		return ;

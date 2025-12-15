@@ -55,7 +55,7 @@ namespace Caches {
 		return {
 			{ "dir_s"     ,     dir_s           }
 		,	{ "file_sync" , cat(file_sync)      }
-		,	{ "key_crc"   ,     key_crc  .hex() }
+		,	{ "repo_key"  ,     repo_key .hex() }
 		,	{ "max_sz"    , cat(max_sz   )      }
 		,	{ "perm_ext"  , cat(perm_ext )      }
 		} ;
@@ -99,8 +99,8 @@ namespace Caches {
 			for( auto const& [key,val] : ::vmap_ss(dct) ) {
 				try {
 					switch (key[0]) {
-						case 'd' : if (key=="dir") { dir_s   = with_slash(val) ; continue ; } break ;
-						case 'k' : if (key=="key") { key_crc = Crc(New,val)    ; continue ; } break ;
+						case 'd' : if (key=="dir") { dir_s    = with_slash(val) ; continue ; } break ;
+						case 'k' : if (key=="key") { repo_key = Crc(New,val)    ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
 				trace("bad_repo_key",key) ;
@@ -128,7 +128,6 @@ namespace Caches {
 					throw cat("wrong key (",key,") in ",dir_s+config_file) ;
 				}
 			}
-			//
 			//
 			if (!max_sz) {                                                                 // XXX> : remove when compatibility with v25.07 is no more required
 				::string sz_file = ADMIN_DIR_S "size" ;
@@ -596,7 +595,7 @@ namespace Caches {
 		Trace trace(CacheChnl,"DirCache::sub_commit",upload_key,job) ;
 		// START_OF_VERSIONING DIR_CACHE
 		::string deps_str     = serialize(job_info.end.digest.deps) ;
-		::string job_info_str = serialize(job_info                ) ;;
+		::string job_info_str = serialize(job_info                ) ;
 		// END_OF_VERSIONING
 		::string       deps_hint = cat(job,"/deps_hint-",_mk_crc(job_info.end.digest.deps)) ;                   // deps_hint is hint only, hence no versioning
 		NfsGuardLock   lock      { file_sync , lock_file , {.perm_ext=perm_ext} }           ; trace("locked") ; // lock as late as possible
@@ -632,7 +631,7 @@ namespace Caches {
 			trace("throw_if",w,msg) ;
 			throw_if( w , msg ) ;
 		} else {
-			key = cat( "key-" , key_crc.hex() ) ; key += FileInfo({root_fd,cat(job,'/',key,"-first/lru")}).exists() ? "-last" : "-first" ;
+			key = cat( "key-" , repo_key.hex() ) ; key += FileInfo({root_fd,cat(job,'/',key,"-first/lru")}).exists() ? "-last" : "-first" ;
 			trace("key",key) ;
 			//
 			::string jnid_s = cat(job,'/',key,'/') ;

@@ -142,9 +142,11 @@ namespace Vector {
 		// cxtors & casts
 		using Base::Base ;
 		//
-		template<::convertible_to<Item> I> SimpleBase ( NewType , I        const& x ) : SimpleBase{::span<I const>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
-		template<::convertible_to<Item> I> SimpleBase (          ::span<I> const& v ) : Base{D::file.emplace(v)}          {}
-		template<::convertible_to<Item> I> void assign(          ::span<I> const& v ) { self = D::file.assign(+self,v) ; }
+		template<::convertible_to<Item> I> SimpleBase ( NewType , I          const& x ) : SimpleBase{::span<I const>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
+		template<::convertible_to<Item> I> SimpleBase (          ::vector<I> const& v ) : Base{D::file.emplace(v)}          {}
+		template<::convertible_to<Item> I> SimpleBase (          ::span  <I> const& v ) : Base{D::file.emplace(v)}          {}
+		template<::convertible_to<Item> I> void assign(          ::vector<I> const& v ) { self = D::file.assign(+self,v) ; }
+		template<::convertible_to<Item> I> void assign(          ::span  <I> const& v ) { self = D::file.assign(+self,v) ; }
 		//
 		void pop   () { D::file.pop(+self) ; forget() ; }
 		void clear () { pop() ;                         }

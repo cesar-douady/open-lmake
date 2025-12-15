@@ -170,10 +170,9 @@ int main( int argc , char* argv[] ) {
 		,	/*.    */::ref(::vmap_ss               ())/*dyn_env*/
 		,	/*.    */gather.first_pid
 		,	/*.    */::ref(::string                ())/*repo_root_s*/
-		,	/*inout*/::ref(::vector<ExecTraceEntry>())
+		,	/*inout*/::ref(::vector<UserTraceEntry>())
 		,	         *g_repo_root_s
 		,	         with_slash(tmp_dir)
-		,	         0/*small_id*/
 		) ;
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }

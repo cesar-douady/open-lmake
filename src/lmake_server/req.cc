@@ -511,13 +511,13 @@ namespace Engine {
 		}
 	}
 
-	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exec_time ) const {
+	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exe_time ) const {
 		::string msg ;
 		if (g_config->console.date_prec!=uint8_t(-1)) msg <<            date.str(g_config->console.date_prec,true/*in_day*/)                             <<' ' ;
 		if (g_config->console.host_len              ) msg <<      widen(SockFd::s_host(host)                                ,g_config->console.host_len) <<' ' ;
 		/**/                                          msg <<      widen(step                                                ,StepSz                    )       ;
 		/**/                                          msg <<' '<< widen(rule_name                                           ,Rule::s_rules->name_sz    )       ;
-		if (g_config->console.has_exec_time         ) msg <<' '<< widen((+exec_time?exec_time.short_str():"")               ,6                         )       ;
+		if (g_config->console.has_exe_time          ) msg <<' '<< widen((+exe_time?exe_time.short_str():"")                 ,6                         )       ;
 		/**/                                          msg <<' '<<       mk_file(job_name)                                                                      ;
 		audit( audit_fd , log_fd , options , c , msg ) ;
 		last_info = {} ;

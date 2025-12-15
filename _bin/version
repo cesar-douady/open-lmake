@@ -94,8 +94,9 @@ elif action=='cc_to_py' :
 			txt += f'{to_snake(k):{w}} = {idx}\n'
 		return txt
 
-	slots = mk_slots( slots_def  )
-	tab   = from_cc ( cc , slots )
+	slots               = mk_slots( slots_def  )
+	tab                 = from_cc ( cc , slots )
+	tab['has_ld_audit'] = (bool(os.environ['HAS_LD_AUDIT']),None)
 	sys.stdout.write(mk_py(tab))
 
 EOF

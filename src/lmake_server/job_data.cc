@@ -320,8 +320,8 @@ namespace Engine {
 		Trace trace("set_pressure",idx(),ri,pressure) ;
 		g_kpi.n_job_set_pressure++ ;
 		//
-		Req         req          = ri.req                    ;
-		CoarseDelay dep_pressure = ri.pressure + exec_time() ;
+		Req         req          = ri.req                   ;
+		CoarseDelay dep_pressure = ri.pressure + exe_time() ;
 		switch (ri.step()) { //!                                                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			case JobStep::Dep    : for( DepsIter it{deps,ri.iter } ; it!=deps.end() ; it++ ) (*it)->    set_pressure( (*it)->req_info(req) ,               dep_pressure  ) ; break ;
 			case JobStep::Queued :                                                           Backend::s_set_pressure( backend , +idx() , +req , {.pressure=dep_pressure} ) ; break ;
@@ -375,7 +375,7 @@ namespace Engine {
 		ReqOptions const& ro           = req->options                                        ;
 		Special           special      = r->special                                          ;
 		bool              dep_live_out = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay       dep_pressure = ri.pressure + c_exec_time()                         ;
+		CoarseDelay       dep_pressure = ri.pressure + c_exe_time()                          ;
 		bool              archive      = ro.flags[ReqFlag::Archive]                          ;
 		bool              report_loop  = false                                               ;
 		//
@@ -669,7 +669,7 @@ namespace Engine {
 			JobAudit const& ja = it->second ;
 			trace("report_missing",ja) ;
 			//
-			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exec_time()) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
+			if (ja.report!=JobReport::Hit) req->stats.move(JobReport::Rerun,ja.report,exe_time()) ; // if not Hit, then job was rerun and ja.report is the report that would have been done w/o rerun
 			//
 			JobReason jr  = reason(ri.state) ;
 			::string  pfx =

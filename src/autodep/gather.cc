@@ -145,7 +145,7 @@ void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI 
 	info.update( pd , ad , late==Yes , di ) ;
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || info!=old_info ) {
-		if (+c) _exec_trace( pd , c , ces , f ) ;
+		if (+c) _user_trace( pd , c , ces , f ) ;
 		Trace("new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , info , f ) ; // only trace if something changes
 	}
 }
@@ -190,8 +190,8 @@ Gather::Digest Gather::analyze(Status status) {
 		if (flags.extra_dflags[ExtraDflag::CreateEncode]) {
 			Codec::CodecFile cf { file } ;
 			trace("codec  ",file,cf) ; //!                  with_readdir
-			if (cf.is_encode()) _exec_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.val_crc().hex()) ) ;
-			else                _exec_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.code   ()      ) ) ;
+			if (cf.is_encode()) _user_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.val_crc().hex()) ) ;
+			else                _user_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.code   ()      ) ) ;
 			res.refresh_codecs.insert(Codec::CodecFile(file).file) ;
 		}
 		//
@@ -233,8 +233,8 @@ Gather::Digest Gather::analyze(Status status) {
 			res.deps.emplace_back( file , dd ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			if (status!=Status::New) {                                       // only trace for user at end of job as intermediate analyses are of marginal interest for user
-				if      (unstable) _exec_trace( Comment::Unstable , file ) ;
-				else if (dd.hot  ) _exec_trace( Comment::Hot      , file ) ;
+				if      (unstable) _user_trace( Comment::Unstable , file ) ;
+				else if (dd.hot  ) _user_trace( Comment::Hot      , file ) ;
 			}
 			if (dd.hot) trace("dep_hot",dd,info.dep_info,first_read,ddate_prec,file) ;
 			else        trace("dep    ",dd,                                    file) ;
@@ -253,8 +253,8 @@ Gather::Digest Gather::analyze(Status status) {
 			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                // if SourceOk => ok to simultaneously be a dep and a target
 				const char* write_msg = unlnk ? "unlink of" : was_written ? "write to" : "target declaration of" ;
 				if (flags.dflags[Dflag::Static]) {
-					if (unlnk) _exec_trace( Comment::StaticDepAndTarget , CommentExt::Unlnk , file ) ;
-					else       _exec_trace( Comment::StaticDepAndTarget ,                     file ) ;
+					if (unlnk) _user_trace( Comment::StaticDepAndTarget , CommentExt::Unlnk , file ) ;
+					else       _user_trace( Comment::StaticDepAndTarget ,                     file ) ;
 					res.msg << write_msg<<" static dep "<<mk_file(file)<<'\n' ;
 					if (!flags.extra_tflags[ExtraTflag::SourceOk]) {
 						res.msg << "  if file is a source, consider calling :\n"                                  ;
@@ -263,7 +263,7 @@ Gather::Digest Gather::analyze(Status status) {
 					}
 				} else if (!unlnk) { // if file is unlinked, ignore writing to it even if not allowed as it is common practice to write besides the final target and mv to it
 					if (!allow) {
-						_exec_trace( Comment::UnexpectedTarget , file ) ;
+						_user_trace( Comment::UnexpectedTarget , file ) ;
 						res.msg << "unexpected "<<write_msg<<' '<<mk_file(file)<<'\n' ;
 					} else {
 						bool        read_lnk = false   ;
@@ -273,7 +273,7 @@ Gather::Digest Gather::analyze(Status status) {
 						else if (accesses[Access::Stat]       )   read = "stat'ed"     ;
 						else if (flags.dflags[Dflag::Required])   read = "required"    ;
 						else                                      read = "accessed"    ;
-						_exec_trace( Comment::DepAndTarget , file ) ;
+						_user_trace( Comment::DepAndTarget , file ) ;
 						/**/          res.msg << "unexpected "<<write_msg<<" file after it has been "<<read<<" : "<<mk_file(file)<<'\n'  ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
@@ -296,7 +296,7 @@ Gather::Digest Gather::analyze(Status status) {
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}
-	_exec_trace( Comment::Analyzed ) ;
+	_user_trace( Comment::Analyzed ) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
@@ -319,7 +319,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 	//
 	switch (jerr.proc) {
 		case Proc::ChkDeps : {
-			_exec_trace( jerr.date , jerr.comment , jerr.comment_exts ) ;
+			_user_trace( jerr.date , jerr.comment , jerr.comment_exts ) ;
 			Digest digest = analyze() ;
 			jmrr.proc    = JobMngtProc::ChkDeps   ;
 			jmrr.targets = ::move(digest.targets) ;
@@ -463,7 +463,7 @@ Status Gather::_exec_child() {
 		if      (kill_step==kill_sigs.size()) end_kill = Pdate::Future       ;
 		else if (end_kill==Pdate::Future    ) end_kill = now      + Delay(1) ;
 		else                                  end_kill = end_kill + Delay(1) ;
-		_exec_trace( now , Comment::Kill , cat(sig) ) ;
+		_user_trace( now , Comment::Kill , cat(sig) ) ;
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
 	} ;
@@ -508,7 +508,7 @@ Status Gather::_exec_child() {
 		Pdate now = New ;
 		if (now>=end_child) {
 			SWEAR( !_wait[Kind::ChildEnd] , _wait,end_child ) ;
-			_exec_trace( now , Comment::StillAlive ) ;
+			_user_trace( now , Comment::StillAlive ) ;
 			::string dead  = ( (now-end_child) + network_delay + Delay(1) ).short_str() ;
 			if ( _wait[Kind::Stdout] || _wait[Kind::Stderr] ) {
 				First first ;
@@ -529,7 +529,7 @@ Status Gather::_exec_child() {
 			kill(true/*next*/) ;
 		}
 		if ( now>=end_timeout && !timeout_fired ) {
-			_exec_trace( now , Comment::Timeout ) ;
+			_user_trace( now , Comment::Timeout ) ;
 			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
 			kill() ;
 			timeout_fired = true          ;
@@ -575,7 +575,7 @@ Status Gather::_exec_child() {
 							Digest          digest = analyze()          ;
 							if (jerr.digest.write!=No ) { ces |= CommentExt::Write ; for( auto& [tn,td] : digest.targets ) if (td.crc!=Crc::None) reply.files.push_back(::move(tn)) ; }
 							if (jerr.digest.write!=Yes) { ces |= CommentExt::Read  ; for( auto& [dn,_ ] : digest.deps    )                        reply.files.push_back(::move(dn)) ; }
-							_exec_trace( jerr.date , Comment::List , ces ) ;
+							_user_trace( jerr.date , Comment::List , ces ) ;
 							sync( fd , ::move(reply) ) ;
 						} break ;
 					DF}                                          // NO_COV
@@ -592,7 +592,7 @@ Status Gather::_exec_child() {
 					break ;                                      // cannot start, exit loop
 				}
 				if (+timeout) end_timeout = start_date + timeout ;
-				_exec_trace( start_date , Comment::StartJob ) ;
+				_user_trace( start_date , Comment::StartJob ) ;
 				trace("started","wait",_wait,+epoll) ;
 				started = true ;
 				//
@@ -654,7 +654,7 @@ Status Gather::_exec_child() {
 					end_date   = New                                ;
 					_wait     &= ~Kind::ChildEnd                    ;
 					end_child  = end_date + network_delay +Delay(1) ;                  // wait at most network_delay (+ 1s for our own processing) for reporting & stdout & stderr to settle down
-					_exec_trace( end_date , Comment::EndJob , to_hex(uint16_t(ws)) ) ;
+					_user_trace( end_date , Comment::EndJob , to_hex(uint16_t(ws)) ) ;
 					//
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
@@ -692,7 +692,7 @@ Status Gather::_exec_child() {
 						case JobMngtProc::None      :                                                                                  // eof or message is not for us
 						case JobMngtProc::Heartbeat : goto ServerNextEvent ;                                                           // just receiving the message is enough, nothing to do
 						case JobMngtProc::Kill      :
-							_exec_trace( Comment::Kill , CommentExt::Reply ) ;
+							_user_trace( Comment::Kill , CommentExt::Reply ) ;
 							set_status(Status::Killed)                       ;
 							kill()                                           ;
 						break ;
@@ -719,13 +719,13 @@ Status Gather::_exec_child() {
 											else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish link    from no file
 											crc_str = ::string(vi.crc) ;
 										}
-										_exec_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
+										_user_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
 									}
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
 									for( auto const& [f,_] : jse.jerr.files )
 										_access_info(::copy(nfs_guard.access(f).file)).second.no_hot(now) ;                    // dep has been built and we are guarded : it cannot be hot from now on
-									_exec_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
+									_user_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
 								}
 								for( auto& [f,_] : jse.jerr.files ) {
 									FileInfo fi { f } ;
@@ -750,7 +750,7 @@ Status Gather::_exec_child() {
 									ces |= CommentExt::Err ;
 								break ;
 							DN}
-							_exec_trace( is_target?Comment::ChkTargets:Comment::ChkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
+							_user_trace( is_target?Comment::ChkTargets:Comment::ChkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
 						} break ;
 						case JobMngtProc::AddLiveOut : {
 							trace("add_live_out",STR(live_out),live_out_pos) ;
@@ -853,11 +853,11 @@ Status Gather::_exec_child() {
 								if (!seen_tmp) {
 									trace(kind,fd,proc) ;
 									if (no_tmp) {
-										_exec_trace( jerr.date , Comment::Tmp , CommentExt::Err ) ;
+										_user_trace( jerr.date , Comment::Tmp , CommentExt::Err ) ;
 										set_status(Status::Err,"tmp access with no tmp dir") ;
 										kill() ;
 									} else {
-										_exec_trace( jerr.date , Comment::Tmp ) ;
+										_user_trace( jerr.date , Comment::Tmp ) ;
 									}
 									seen_tmp = true ;
 								}
@@ -865,7 +865,7 @@ Status Gather::_exec_child() {
 							case Proc::Panic :                                                                                                         // START_OF_NO_COV defensive programming
 								if (!panic_seen) {                                                                                                     // report only first panic
 									trace(kind,fd,proc,jerr.txt()) ;
-									_exec_trace( jerr.date , Comment::Panic , jerr.txt() ) ;
+									_user_trace( jerr.date , Comment::Panic , jerr.txt() ) ;
 									set_status(Status::Err,jerr.txt()) ;
 									kill() ;
 									panic_seen = true ;
@@ -873,7 +873,7 @@ Status Gather::_exec_child() {
 							[[fallthrough]] ;                                                                                                          // END_OF_NO_COV
 							case Proc::Trace :                                                                                                         // START_OF_NO_COV debug only
 								trace(kind,fd,proc,jerr.txt()) ;
-								_exec_trace( jerr.date , Comment::Trace , jerr.txt() ) ;
+								_user_trace( jerr.date , Comment::Trace , jerr.txt() ) ;
 							break ;                                                                                                                    // END_OF_NO_COV
 						DF}                                                                                                                            // NO_COV
 						if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;

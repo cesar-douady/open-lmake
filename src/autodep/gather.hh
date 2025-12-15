@@ -168,10 +168,10 @@ private :
 	Status _exec_child  (                               ) ;
 	void   _ptrace_child( Fd report_fd , ::latch* ready ) ;
 	//
-	void _exec_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (exec_trace) exec_trace->emplace_back(pd,c,ces,file) ; }
-	void _exec_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _exec_trace( New , c , ces , file ) ;                     }
-	void _exec_trace( PD pd , Comment c ,                      ::string const& file    ) const { _exec_trace( pd  , c , {}  , file ) ;                     }
-	void _exec_trace(         Comment c ,                      ::string const& file    ) const { _exec_trace( New , c , {}  , file ) ;                     }
+	void _user_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (user_trace) user_trace->emplace_back(pd,c,ces,file) ; }
+	void _user_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _user_trace( New , c , ces , file ) ;                     }
+	void _user_trace( PD pd , Comment c ,                      ::string const& file    ) const { _user_trace( pd  , c , {}  , file ) ;                     }
+	void _user_trace(         Comment c ,                      ::string const& file    ) const { _user_trace( New , c , {}  , file ) ;                     }
 	// data
 public :
 	::umap_s<NodeIdx   >                      access_map       ;
@@ -187,7 +187,7 @@ public :
 	AutodepEnv                                autodep_env      ;
 	PD                                        end_date         ;
 	::map_ss const*                           env              = nullptr             ;
-	::vector<ExecTraceEntry>*                 exec_trace       = nullptr             ;
+	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
 	pid_t                                     first_pid        = 0                   ;
 	uset_s                                    guards           ;                       // dir creation/deletion that must be guarded against NFS
 	JobIdx                                    job              = 0                   ;

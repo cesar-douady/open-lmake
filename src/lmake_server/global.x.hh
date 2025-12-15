@@ -105,7 +105,7 @@ namespace Engine {
 		size_t             n_node_make            = 0 ;
 		size_t             n_job_set_pressure     = 0 ;
 		size_t             n_node_set_pressure    = 0 ;
-		Time::Delay        py_exec_time           ;
+		Time::Delay        py_exe_time            ;
 		::vector<ReqEntry> reqs                   ;
 	} ;
 

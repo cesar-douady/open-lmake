@@ -96,7 +96,7 @@ namespace Store {
 		inline KindIterator begin(Nxt n) { return n                       ; }
 		inline KindIterator end  (Nxt  ) { return Nxt(ItemKind::Terminal) ; }
 
-		template<class Idx,class Char> struct ItemBase {
+		template<IsIdx Idx,class Char> struct ItemBase {
 			static_assert(IsTrivial<Char>) ;
 			using CharUint = Prefix::CharUint<Char> ;
 			using ChunkIdx = uint8_t                ;
@@ -140,7 +140,7 @@ namespace Store {
 			// Data     data ?               ;                                                                        // if used, data after or before nxt depending on which alignment is highest
 		} ;
 
-		template<class Idx,class Char,class Data=void,bool Reverse=false> struct Item
+		template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct Item
 		:	             ItemBase<Idx,Char>
 		{	using Base = ItemBase<Idx,Char> ;
 			enum class Dvg  : uint8_t { Cont , Dvg , Long , Match , Short , Unused } ;
@@ -404,7 +404,7 @@ namespace Store {
 			}
 		} ;
 
-		template<class Idx,class Char,class Data=void,bool Reverse=false> struct SaveItem
+		template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct SaveItem
 		:	              ItemBase<Idx,Char>
 		{	using Base  = ItemBase<Idx,Char> ;
 			using Item_ = Item<Idx,Char,Data,Reverse> ;
@@ -466,7 +466,7 @@ namespace Store {
 	// MultiPrefixFile
 	//
 
-	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
+	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct MultiPrefixFile
 	:	             AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz >
 	{	using Base = AllocFile< ThreadKey , Prefix::Hdr<Hdr_,Idx_,Char_,Data_,Reverse_> , Idx_ , NIdxBits , Prefix::Item<Idx_,Char_,Data_,Reverse_> , Prefix::Item<Idx_,Char_,Data_>::MaxSz > ;
 		using Item =                                                                                        Prefix::Item<Idx_,Char_,Data_,Reverse_>                                           ;
@@ -1109,7 +1109,7 @@ namespace Store {
 
 	} ;
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		void MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx idx ) const {
 			Item const& item = _at(idx) ;
 			if (item.used) idx_lst.push_back(idx) ;
@@ -1125,7 +1125,7 @@ namespace Store {
 		}
 
 	// compute both name & suffix in a single pass
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
 			static Atomic<size_t> s_psfx_max_sz      = 0 ;
@@ -1172,7 +1172,7 @@ namespace Store {
 			return { name , psfx } ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
 			static Atomic<size_t> s_res_max_sz  = 0 ;
@@ -1215,7 +1215,7 @@ namespace Store {
 			return res ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to get
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
 			static Atomic<size_t> s_res_max_sz  = 0 ;
@@ -1243,7 +1243,7 @@ namespace Store {
 			return res ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::vector<Idx> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
 			static Atomic<size_t> s_res_max_sz = 0 ;
 			//
@@ -1257,13 +1257,13 @@ namespace Store {
 			return res ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::search( Idx root , VecView const& name , VecView const& psfx ) const { // psfx is prefix (Reverse) / suffix (!Reverse)
 			DvgDigest dvg { root , self , name , psfx } ;
 			return dvg.dvg==Dvg::Match ? dvg.idx : Idx() ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
 			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
@@ -1272,7 +1272,7 @@ namespace Store {
 			return res ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
 			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
@@ -1281,19 +1281,19 @@ namespace Store {
 			return dvg.idx ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::pair<Idx,size_t/*size*/> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::longest( Idx root , VecView const& name , VecView const& psfx ) const {
 			DvgDigest dvg { root , self , name , psfx } ;
 			return {dvg.used_idx,dvg.used_pos} ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		void MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::pop(Idx idx) {
 			chk_thread() ;
 			_pop(idx) ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::pair<Idx/*top*/,::vector<Idx>/*created*/> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_chain( Idx root , VecView const& name , Char sep ) {
 			chk_thread() ;
 			DvgDigest                 dvg         { root , self , name , {} , 0 , sep } ;
@@ -1316,7 +1316,7 @@ namespace Store {
 			return top_created ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert_shorten_by( Idx idx , size_t by ) {
 			chk_thread() ;
 			for(; +idx ; idx=_at(idx).prev ) {
@@ -1333,7 +1333,7 @@ namespace Store {
 			return {} ;
 		}
 
-	template<char ThreadKey,class Hdr,class Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		typename MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::IdxSz
 			MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
 				throw_unless(+idx      ,"idx ",idx," is null"                     ) ;
@@ -1409,7 +1409,7 @@ namespace Store {
 	// SinglePrefixFile
 	//
 
-	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct SinglePrefixFile
+	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Char_=char,class Data_=void,bool Reverse_=false> struct SinglePrefixFile
 	:	             MultiPrefixFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ >
 	{	using Base = MultiPrefixFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Char_ , Data_ , Reverse_ > ;
 		using Hdr     = Hdr_                   ;

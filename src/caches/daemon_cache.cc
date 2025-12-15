@@ -35,9 +35,9 @@ namespace Caches {
 
 	::vmap_ss DaemonCache::descr() const {
 		return {
-			{ "dir_s"   , dir_s         }
-		,	{ "key_crc" , key_crc.hex() }
-		,	{ "service" , service.str() }
+			{ "dir_s"    , dir_s          }
+		,	{ "repo_key" , repo_key.hex() }
+		,	{ "service"  , service.str()  }
 		} ;
 	}
 
@@ -51,8 +51,8 @@ namespace Caches {
 			for( auto const& [key,val] : dct ) {
 				try {
 					switch (key[0]) {
-						case 'd' : if (key=="dir") { dir_s   = with_slash(val) ; continue ; } break ; // dir is necessary to access cache
-						case 'k' : if (key=="key") { key_crc = Crc(New   ,val) ; continue ; } break ; // key cannot be shared as it identifies repo
+						case 'd' : if (key=="dir") { dir_s    = with_slash(val) ; continue ; } break ; // dir is necessary to access cache
+						case 'k' : if (key=="key") { repo_key = Crc(New   ,val) ; continue ; } break ; // cannot be shared as it identifies repo
 					DN}
 				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
 				trace("bad_repo_key",key) ;
@@ -89,7 +89,7 @@ namespace Caches {
 	}
 
 	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& info ) {
-		OMsgBuf( RpcReq{ .proc=Proc::Commit , .job=job , .info=::move(info) , .upload_key=upload_key } ).send(_fd) ;
+		OMsgBuf( RpcReq{ .proc=Proc::Commit , .repo_key=repo_key , .job=job , .info=::move(info) , .upload_key=upload_key } ).send(_fd) ;
 	}
 
 	void DaemonCache::sub_dismiss(uint64_t upload_key) {

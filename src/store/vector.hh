@@ -69,7 +69,7 @@ namespace Store {
 
 	}
 
-	template<char ThreadKey,class Hdr_,class Idx_,uint8_t NIdxBits,class Item_,class Sz=UintIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
+	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Item_,class Sz=UintIdx<Idx_>,size_t MinSz=1,uint8_t Mantissa=8> struct VectorFile
 	:	              AllocFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa >
 	{	using Base  = AllocFile< ThreadKey , Hdr_ , Idx_ , NIdxBits , Vector::Chunk<Idx_,Item_,Sz,MinSz> , Mantissa > ;
 		using Chunk =                                                 Vector::Chunk<Idx_,Item_,Sz,MinSz>              ;
@@ -107,12 +107,14 @@ namespace Store {
 		void clear() {
 			Base::clear() ;
 		}
-		template<::convertible_to<Item> I> Idx emplace(::span<I> const& v) {
+		template<::convertible_to<Item> I> Idx emplace(::vector<I> const& v) { return emplace( ::span(v.data(),v.size()) ) ; }
+		template<::convertible_to<Item> I> Idx emplace(::span  <I> const& v) {
 			chk_thread() ;
 			if (!v) return 0 ;
 			return Base::emplace( Chunk::s_n_items(v.size()) , v ) ;
 		}
-		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace( I0 const& x0 , ::span<I> const& v) {
+		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace( I0 const& x0 , ::vector<I> const& v) { return emplace( x0 , ::span(v.data(),v.size()) ) ; }
+		template<::convertible_to<Item> I0,::convertible_to<Item> I> Idx emplace( I0 const& x0 , ::span  <I> const& v) {
 			return Base::emplace( Chunk::s_n_items(v.size()+1) , x0 , v ) ;
 		}
 		//
@@ -133,7 +135,8 @@ namespace Store {
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			return idx ;
 		}
-		template<::convertible_to<Item> I> Idx assign( Idx idx , ::span<I> const& v ) {
+		template<::convertible_to<Item> I> Idx assign( Idx idx , ::vector<I> const& v ) { return assign( idx , ::span(v.data(),v.size()) ) ; }
+		template<::convertible_to<Item> I> Idx assign( Idx idx , ::span  <I> const& v ) {
 			//                            vvvvvvvvvv
 			if (!idx)              return emplace(v) ;
 			if (!v  ) { pop(idx) ; return 0          ; }
@@ -157,7 +160,8 @@ namespace Store {
 			chunk.sz = v.size() ;
 			return idx ;
 		}
-		template<::convertible_to<Item> I> Idx append( Idx idx , ::span<I> const& v ) {
+		template<::convertible_to<Item> I> Idx append( Idx idx , ::vector<I> const& v ) { return append( idx , ::span(v.data(),v.size()) ) ; }
+		template<::convertible_to<Item> I> Idx append( Idx idx , ::span  <I> const& v ) {
 			chk_thread() ;
 			//               vvvvvvvvvv
 			if (!idx) return emplace(v) ;

@@ -79,16 +79,16 @@ void print_start(JobStartRpcReply const& jsrr) {
 void print_end(JobEndRpcReq const& jerr) {
 	g_out << "--end--\n" ;
 	//
-	g_out << "phy_dynamic_tmp_s : " << jerr.phy_tmp_dir_s    <<'\n' ;
-	g_out << "wstatus           : " << jerr.wstatus          <<'\n' ;
-	g_out << "end_date          : " << jerr.end_date         <<'\n' ;
+	g_out << "phy_dynamic_tmp_s : " << jerr.phy_tmp_dir_s   <<'\n' ;
+	g_out << "wstatus           : " << jerr.wstatus         <<'\n' ;
+	g_out << "end_date          : " << jerr.end_date        <<'\n' ;
 	//
-	g_out << "stats.cpu         : " << jerr.stats.cpu        <<'\n' ;
-	g_out << "stats.job         : " << jerr.stats.job        <<'\n' ;
-	g_out << "stats.mem         : " << jerr.stats.mem        <<'\n' ;
+	g_out << "stats.cpu         : " << jerr.stats.cpu       <<'\n' ;
+	g_out << "stats.job         : " << jerr.stats.job       <<'\n' ;
+	g_out << "stats.mem         : " << jerr.stats.mem       <<'\n' ;
 	//
-	g_out << "digest.status     : " << jerr.digest.status    <<'\n' ;
-	g_out << "digest.exec_time  : " << jerr.digest.exec_time <<'\n' ;
+	g_out << "digest.status     : " << jerr.digest.status   <<'\n' ;
+	g_out << "digest.exe_time   : " << jerr.digest.exe_time <<'\n' ;
 	//
 	g_out << "dynamic_env :\n" ; _print_map(jerr.dyn_env) ;
 	//

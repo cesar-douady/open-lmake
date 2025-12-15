@@ -588,7 +588,7 @@ namespace Engine {
 		jd.status      = status             ;
 		//^^^^^^^^^^^^^^^^^^^^^
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		res.can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;         // only cache execution without errors
+		res.can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;        // only cache execution without errors
 		//
 		trace("wrap_up",ok,digest.cache_idx1,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
 		if ( +res.severe_msg || digest.has_msg_stderr ) {
@@ -596,7 +596,7 @@ namespace Engine {
 			if (digest.has_msg_stderr) res.msg_stderr = ji.end.msg_stderr ;
 			if (+res.severe_msg) {
 				ji.end.msg_stderr.msg <<add_nl<< res.severe_msg ;
-				s_record_thread.emplace(self,::move(ji.start))  ;           // necessary to restart recording, else ji.end would be appended
+				s_record_thread.emplace(self,::move(ji.start))  ;          // necessary to restart recording, else ji.end would be appended
 				s_record_thread.emplace(self,::move(ji.end  ))  ;
 			}
 		}
@@ -604,14 +604,14 @@ namespace Engine {
 		if (has_updated_dep_crcs) s_record_thread.emplace( self , ::move(dep_crcs)                    ) ;
 		else                      s_record_thread.emplace( self , ::vector<::pair<Crc,bool/*err*/>>() ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		if (ok==Yes) jd.record_stats( digest.exec_time , cost , tokens1 ) ; // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
+		if (ok==Yes) jd.record_stats( digest.exe_time , cost , tokens1 ) ; // only update rule based exec time estimate when job is ok as jobs in error may be much faster and are not representative
 		//
 		for( Req req : jd.running_reqs(true/*with_zombies*/,true/*hit_ok*/) ) {
 			ReqInfo& ri = jd.req_info(req) ;
-			ri.modified |= modified ;                                       // accumulate modifications until reported
+			ri.modified |= modified ;                                      // accumulate modifications until reported
 			if (!ri.running()) continue ;
 			SWEAR(ri.step()==Step::Exec) ;
-			ri.step(Step::End,self) ;                                       // ensure no confusion with previous run, all steps must be updated before any make() is called
+			ri.step(Step::End,self) ;                                      // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		//
 		if (+digest.refresh_codecs) {
@@ -657,7 +657,7 @@ namespace Engine {
 			,	pfx
 			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr }
 			,	digest.max_stderr_len
-			,	digest.exec_time
+			,	digest.exe_time
 			,	is_retry(job_reason.tag)
 			) ;
 			end_digest.can_upload &= maybe_done ;                      // if job is not done, cache entry will be overwritten (with dir_cache at least) when actually rerun
@@ -691,7 +691,7 @@ namespace Engine {
 		trace("done",self) ;
 	}
 
-	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , MsgStderr const& msg_stderr , uint16_t max_stderr_len , Delay exec_time , bool retry ) const {
+	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , MsgStderr const& msg_stderr , uint16_t max_stderr_len , Delay exe_time , bool retry ) const {
 		using JR = JobReport ;
 		//
 		Req            req         = ri.req           ;
@@ -734,13 +734,13 @@ namespace Engine {
 		if (!step) step = snake(jr) ;
 		Trace trace("audit_end",color,pfx,step,self,ri,STR(with_stats),STR(retry),STR(with_stderr),STR(done),STR(speculate),jr,STR(+msg_stderr.msg),STR(+msg_stderr.stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job   ( color , pfx+step , self , true/*at_end*/ , exec_time                                              ) ;
+		req->audit_job   ( color , pfx+step , self , true/*at_end*/ , exe_time                                               ) ;
 		req->audit_stderr(                    self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true  ;
 		//
 		if ( speculate && done ) jr = JR::Speculative ;
-		if ( with_stats        ) req->stats.add(jr,exec_time) ;
+		if ( with_stats        ) req->stats.add(jr,exe_time) ;
 		//
 		return res ;
 	}

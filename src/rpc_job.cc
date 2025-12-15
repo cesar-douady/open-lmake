@@ -965,22 +965,22 @@ namespace Caches {
 static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; throw_unless( ::chroot(dir.c_str())==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
 static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; throw_unless( ::chdir (dir.c_str())==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
 
-//static void _mount_tmp( ::string const& dst_s , size_t sz , ::vector<ExecTraceEntry>&/*inout*/ exec_trace ) { // src must be dir
+//static void _mount_tmp( ::string const& dst_s , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // src must be dir
 //	Trace trace("_mount_tmp",dst_s) ;
 //	::string dst = no_slash(dst_s) ;
 //	throw_unless( ::mount( "" , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst," of size ",sz," : ",StrErr() ) ;
-//	exec_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , dst ) ;
+//	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , dst ) ;
 //}
 
-static void _mount_bind( ::string const& dst , ::string const& src , ::vector<ExecTraceEntry>&/*inout*/ exec_trace ) { // src and dst may be files or dirs
+static void _mount_bind( ::string const& dst , ::string const& src , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
 	::string src_ = no_slash(src) ;
 	::string dst_ = no_slash(dst) ;
 	throw_unless( ::mount( src_.c_str() , dst_.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src_," onto ",dst_," : ",StrErr() ) ;
-	exec_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Bind , cat(dst_," : ",src_) ) ;
+	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Bind , cat(dst_," : ",src_) ) ;
 }
 
-static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s , ::vector<ExecTraceEntry>&/*inout*/ exec_trace ) {
+static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s , ::vector<UserTraceEntry>&/*inout*/ user_trace ) {
 	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ;                                                                                                      // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
@@ -997,7 +997,7 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 		//
 		mk_dir_s(work_s) ;
 		throw_unless( ::mount( "overlay" , dst.c_str() , "overlay" , 0 , data.c_str() )==0 , "cannot overlay mount ",dst," to ",data," : ",StrErr() ) ;
-		exec_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Overlay , cat(dst," : ",data) ) ;
+		user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Overlay , cat(dst," : ",data) ) ;
 		return ;
 	}
 Bad :
@@ -1057,7 +1057,7 @@ template<bool IsFile,class T> static bool/*match*/ _handle_var( ::string& v/*ino
 bool JobSpace::enter(
 	::vector_s&              /*out*/   report
 ,	::string  &              /*.  */   repo_root_s
-,	::vector<ExecTraceEntry>&/*inout*/ exec_trace
+,	::vector<UserTraceEntry>&/*inout*/ user_trace
 ,	SmallId                            small_id
 ,	::string   const&                  phy_lmake_root_s , bool chk_lmake_root
 ,	::string   const&                  phy_repo_root_s
@@ -1065,13 +1065,15 @@ bool JobSpace::enter(
 ,	ChrootInfo const&                  chroot_info
 ,	::string   const&                  sub_repo_s
 ,	::vector_s const&                  src_dirs_s
+,	bool                               is_ld_audit
 ) {
-	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s) ;
+	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(is_ld_audit)) ;
 	//
 	if (chk_lmake_root) {
 		uint64_t v_job = 0 ;
+		::string v_str ;
 		try {
-			::string v_str = AcFd(phy_lmake_root_s+"_lib/version.py").read() ;
+			v_str = AcFd(phy_lmake_root_s+"_lib/version.py").read() ;
 			size_t pos = v_str.find("job") ; throw_unless(pos!=Npos) ;                 // although it is a py file, syntax is guaranteed dead simple as it is our automaticly generated file
 			pos = v_str.find('=',pos) ;      throw_unless(pos!=Npos) ;
 			pos++ ;
@@ -1085,6 +1087,16 @@ bool JobSpace::enter(
 			else       msg << " (expected job version "<<Version::Job<<" not found)"                         ;
 			throw      msg ;
 		}
+		if (is_ld_audit)
+			try {
+				size_t pos = v_str.find("has_ld_audit") ; throw_unless(pos!=Npos) ;    // although it is a py file, syntax is guaranteed dead simple as it is our automaticly generated file
+				pos = v_str.find('=',pos) ;               throw_unless(pos!=Npos) ;
+				pos++ ;
+				while (v_str[pos]==' ') pos++ ;
+				throw_unless(substr_view(v_str,pos).starts_with("True")) ;
+			} catch (::string const&) {
+				throw "cannot execute job with lmake root not supporting ld_audit as autodep method"s ;
+			}
 	}
 	//
 	repo_root_s = repo_view_s | phy_repo_root_s ;
@@ -1189,7 +1201,7 @@ bool JobSpace::enter(
 			if (+chroot_info.action) _prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_mount_overlay( root_s , {upper_s,chroot_dir} , work_dir_s+"work/" , exec_trace ) ;
+			_mount_overlay( root_s , {upper_s,chroot_dir} , work_dir_s+"work/" , user_trace ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			chroot_dir = ::move(root) ;
 		} else {                                                                                              // mount replies ENOENT when trying to map /, so map all opt level dirs
@@ -1214,9 +1226,9 @@ bool JobSpace::enter(
 					continue ;                                                                                // these will be mounted below
 				}
 				switch (FileInfo(src_f).tag()) { //!                                                                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case FileTag::Dir : trace("mkdir" ,private_f_s) ; mk_dir_s( private_f_s                                               ) ; _mount_bind(private_f_s,src_f_s,exec_trace) ; break ;
+					case FileTag::Dir : trace("mkdir" ,private_f_s) ; mk_dir_s( private_f_s                                               ) ; _mount_bind(private_f_s,src_f_s,user_trace) ; break ;
 					case FileTag::Lnk : trace("symlnk",private_f_s) ; sym_lnk ( private_f   , read_lnk(src_f)                             ) ;                                               break ;
-					default           : trace("creat" ,private_f_s) ; AcFd    ( private_f   , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ; _mount_bind(private_f  ,src_f  ,exec_trace) ;
+					default           : trace("creat" ,private_f_s) ; AcFd    ( private_f   , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ; _mount_bind(private_f  ,src_f  ,user_trace) ;
 				} //!                                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			dev_sys_mapped = true ;
@@ -1236,10 +1248,10 @@ bool JobSpace::enter(
 			for( ::string const& v_s : creat_views_s ) do_view( "view"       , v_s                          ) ;
 		}
 	} //!                                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	if (bind_lmake )                                                            _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , exec_trace ) ;
-	if (bind_repo  )                                                            _mount_bind( chroot_dir+repo_super_s , phy_repo_super_s , exec_trace ) ;
-	if (bind_tmp   )                                                            _mount_bind( chroot_dir+tmp_dir_s    , phy_tmp_dir_s    , exec_trace ) ;
-	if (+chroot_dir) for( ::string const& sd_s : src_dirs_s ) if (is_abs(sd_s)) _mount_bind( chroot_dir+sd_s         , sd_s             , exec_trace ) ;
+	if (bind_lmake )                                                            _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , user_trace ) ;
+	if (bind_repo  )                                                            _mount_bind( chroot_dir+repo_super_s , phy_repo_super_s , user_trace ) ;
+	if (bind_tmp   )                                                            _mount_bind( chroot_dir+tmp_dir_s    , phy_tmp_dir_s    , user_trace ) ;
+	if (+chroot_dir) for( ::string const& sd_s : src_dirs_s ) if (is_abs(sd_s)) _mount_bind( chroot_dir+sd_s         , sd_s             , user_trace ) ;
 	//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	auto mk_entry = [&]( ::string const& dir_s , ::string const& abs_dir_s , bool path_is_lcl ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
@@ -1292,7 +1304,7 @@ bool JobSpace::enter(
 		if ( view_is_tmp && !keep_tmp ) swear_prod( clean_mount_in_tmp , _tmp_dir_s,abs_view_s ) ;          // ensure we do not clean up dirs mounted tmp upon exit
 		if (abs_phys_s.size()==1) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_mount_bind( abs_view_s , abs_phys_s[0] , exec_trace ) ;
+			_mount_bind( abs_view_s , abs_phys_s[0] , user_trace ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			::string const& upper_s = descr.phys_s[0] ;
@@ -1301,27 +1313,27 @@ bool JobSpace::enter(
 				:                 cat(no_slash(abs_phys_s[0])         ,".work."            ,work_idx++,'/') // upper is in tmp (there may be several views to same upper)
 			;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_mount_overlay( abs_view_s , abs_phys_s , work_s , exec_trace ) ;
+			_mount_overlay( abs_view_s , abs_phys_s , work_s , user_trace ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 	}
 	if (+chroot_dir) {
 		if (!dev_sys_mapped) { //!                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			{ ::string d_s = chroot_dir+"/dev/"  ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/" , exec_trace ) ; }
-			{ ::string d_s = chroot_dir+"/sys/"  ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/" , exec_trace ) ; }
+			{ ::string d_s = chroot_dir+"/dev/"  ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/" , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/sys/"  ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/" , user_trace ) ; }
 			{ ::string d_s = chroot_dir+"/proc/" ; mk_dir_s(d_s) ;                                             }
 		}//!                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//vvvvvvvvvvvvvvvvv
 		_chroot(chroot_dir) ;
 		//^^^^^^^^^^^^^^^^^
-		exec_trace.emplace_back( New/*date*/ , Comment::chroot , CommentExts() , chroot_dir ) ;
+		user_trace.emplace_back( New/*date*/ , Comment::chroot , CommentExts() , chroot_dir ) ;
 	}
 	if ( +repo_view_s || +chroot_dir || +sub_repo_s ) {
 		::string d = no_slash(repo_root_s+sub_repo_s) ;
 		//vvvvvvv
 		_chdir(d) ;
 		//^^^^^^^
-		exec_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
+		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
 	}
 	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
 	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;                                                       // if we have mounted something in tmp, we cant clean it before unmount
@@ -1463,8 +1475,8 @@ template<> void JobDigest<>::cache_cleanup() {
 // JobEndRpcReq
 //
 
-::string& operator+=( ::string& os , ExecTraceEntry const& ete ) {                       // START_OF_NO_COV
-	return os <<"ExecTraceEntry("<< ete.date <<','<< ete.step() <<','<< ete.file <<')' ;
+::string& operator+=( ::string& os , UserTraceEntry const& ete ) {                       // START_OF_NO_COV
+	return os <<"UserTraceEntry("<< ete.date <<','<< ete.step() <<','<< ete.file <<')' ;
 }                                                                                        // END_OF_NO_COV
 
 ::string& operator+=( ::string& os , TargetDigest const& td ) {  // START_OF_NO_COV
@@ -1541,12 +1553,11 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	::vmap_ss &              /*.  */   dyn_env
 	,	pid_t     &              /*.  */   first_pid
 	,	::string  &              /*.  */   repo_root_s
-	,	::vector<ExecTraceEntry>&/*inout*/ exec_trace
+	,	::vector<UserTraceEntry>&/*inout*/ user_trace
 	,	::string const&                    phy_repo_root_s
 	,	::string const&                    phy_tmp_dir_s
-	,	SeqId                              seq_id
 ) {
-	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,phy_tmp_dir_s,seq_id) ;
+	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,phy_tmp_dir_s) ;
 	//
 	for( auto& [k,v] : env )
 		if      (v!=PassMrkr)                                                         cmd_env[k] = ::move(v ) ;
@@ -1565,7 +1576,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	bool entered = job_space.enter(
 		/*out*/  accesses
 	,	/*.  */  repo_root_s
-	,	/*inout*/exec_trace
+	,	/*inout*/user_trace
 	,	         small_id
 	,	         phy_lmake_root_s       , chk_lmake_root
 	,	         phy_repo_root_s
@@ -1573,6 +1584,12 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	         chroot_info
 	,	         autodep_env.sub_repo_s
 	,	         autodep_env.src_dirs_s
+	,
+		#if HAS_LD_AUDIT
+			method==AutodepMethod::LdAudit
+		#else
+			false
+		#endif
 	) ;
 	if (entered) {
 		// find a good starting pid

@@ -24,8 +24,7 @@ from lmake.rules import Rule , PyRule , AntiRule , TraceRule , DirRule
 if 'slurm' in lmake.backends :
 	backend = 'slurm'
 	config.backends.slurm = {
-		'interface'         : socket.getfqdn()
-	,	'use_nice'          : True
+		'use_nice'          : True
 	,	'n_max_queued_jobs' : 10
 	}
 else :
