@@ -250,7 +250,7 @@ namespace Engine::Persistent {
 				invalidate_match(true/*force_physical*/) ; // then rely only on essential data that should be crash-safe
 				Fd::Stderr.write("seems ok\n")           ;
 			} catch (::string const&) {
-				throw "failed to rescue, consider running lrepair"s ;
+				throw "failed to rescue, consider running lmake_repair"s ;
 			}
 		}
 		//

@@ -19,7 +19,7 @@ if __name__!='__main__' :
 	,	'mandelbrot.zip'
 	)
 
-	lmake.config.caches.dir = {
+	lmake.config.caches.my_cache = {
 		'tag' : 'dir'
 	,	'dir' : lmake.repo_root+'/CACHE'
 	}
@@ -27,7 +27,7 @@ if __name__!='__main__' :
 	class Unzip(Rule) :
 		targets     = { 'FILE' : r'mandelbrot/{*:.*}' }
 		deps        = { 'ZIP'  : 'mandelbrot.zip'     }
-		cache       = 'dir'
+		cache       = 'my_cache'
 		compression = 1
 		cmd         = 'unzip {ZIP} ; mv mandelbrot/output.txt mandelbrot/output.ref'
 
@@ -42,7 +42,7 @@ if __name__!='__main__' :
 		stderr_ok    = True
 		autodep      = 'ld_preload_jemalloc'
 		environ      = { 'LD_PRELOAD' : 'libjemalloc.so' }
-		cache        = 'dir'
+		cache        = 'my_cache'
 		compression  = 1
 		cmd          = 'cd mandelbrot ; cargo run --release ; mv output.txt output.dut'
 

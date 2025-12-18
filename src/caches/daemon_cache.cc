@@ -19,10 +19,10 @@ namespace Caches {
 
 	::string& operator+=( ::string& os , DaemonCacheRpcReq const& dcrr ) {
 		/**/                   os << "DaemonCacheRpcReq("<<dcrr.proc ;
-		if (+dcrr.job        ) os << ','<<dcrr.job                   ;
-		if (+dcrr.repo_deps  ) os << ','<<dcrr.repo_deps.size()      ;
-		if (+dcrr.reserved_sz) os << ','<<dcrr.reserved_sz           ;
-		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key            ;
+		if (+dcrr.job        ) os << ','  <<dcrr.job                 ;
+		if (+dcrr.repo_deps  ) os << ",D:"<<dcrr.repo_deps.size()    ;
+		if (+dcrr.reserved_sz) os << ",S:"<<dcrr.reserved_sz         ;
+		if (+dcrr.upload_key ) os << ",K:"<<dcrr.upload_key          ;
 		return                 os <<')'                              ;
 	}
 
@@ -85,7 +85,7 @@ namespace Caches {
 		OMsgBuf( RpcReq{ .proc=Proc::Upload , .reserved_sz=reserved_sz } ).send(fd) ;
 		auto reply = _imsg.receive<RpcReply>( fd , Maybe/*once*/ ) ;
 		//
-		return { reply.upload_key , AcFd(reply.file,{.flags=O_WRONLY}) } ;
+		return { reply.upload_key , AcFd(reply.file,{.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=reply.perm_ext}) } ;
 	}
 
 	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& info ) {

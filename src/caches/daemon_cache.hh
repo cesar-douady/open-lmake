@@ -35,7 +35,7 @@ namespace Caches {
 		Proc                proc        = Proc::None ;
 		Hash::Crc           repo_key    = {}         ;
 		::string            job         = {}         ; // if proc = Download |          Commit
-		::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download
+		::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download |          Commit
 		Disk::DiskSz        reserved_sz = 0          ; // if proc =            Upload
 		JobInfo             info        = {}         ; // if proc =                     Commit
 		uint64_t            upload_key  = 0          ; // if proc =                     Commit | Dismiss
@@ -49,12 +49,13 @@ namespace Caches {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
 			switch (proc) {
-				case Proc::Download : ::serdes( s , digest,file            ) ; break ;
-				case Proc::Upload   : ::serdes( s ,        file,upload_key ) ; break ;
+				case Proc::Download : ::serdes( s ,          digest,file            ) ; break ;
+				case Proc::Upload   : ::serdes( s , perm_ext,       file,upload_key ) ; break ;
 			DF}
 		}
 		// data
 		Proc                  proc       = Proc::None ;
+		PermExt               perm_ext   = {}         ; // if proc =            Upload
 		Cache::DownloadDigest digest     = {}         ; // if proc = Download
 		::string              file       = {}         ; // if proc = Download | Upload
 		uint64_t              upload_key = 0          ; // if proc =            Upload

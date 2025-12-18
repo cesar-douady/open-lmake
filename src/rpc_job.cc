@@ -985,9 +985,9 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	char sep ;
-	/**/                                     if (work_s   .find(',')!=Npos) { sep = ',' ; goto Bad ; }
-	for( NodeIdx i : iota(0,srcs_s.size()) ) if (srcs_s[i].find(',')!=Npos) { sep = ',' ; goto Bad ; }
-	for( NodeIdx i : iota(1,srcs_s.size()) ) if (srcs_s[i].find(':')!=Npos) { sep = ':' ; goto Bad ; }
+	/**/                                     if (work_s   .find(',')!=Npos) { sep = ',' ; goto Bad1 ; }
+	for( NodeIdx i : iota(0,srcs_s.size()) ) if (srcs_s[i].find(',')!=Npos) { sep = ',' ; goto Bad1 ; }
+	for( NodeIdx i : iota(1,srcs_s.size()) ) if (srcs_s[i].find(':')!=Npos) { sep = ':' ; goto Bad1 ; }
 	{
 		::string dst   = no_slash(dst_s ) ;
 		First    first ;
@@ -996,11 +996,19 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 		/**/                                data << ",workdir="                         <<no_slash(work_s) ;
 		//
 		mk_dir_s(work_s) ;
-		throw_unless( ::mount( "overlay" , dst.c_str() , "overlay" , 0 , data.c_str() )==0 , "cannot overlay mount ",dst," to ",data," : ",StrErr() ) ;
+		if ( ::mount( "overlay" , dst.c_str() , "overlay" , 0 , data.c_str() )!=0 ) {
+			::string msg = cat(StrErr()) ;
+			/**/                                if (errno!=ENOENT                       )                                             goto Bad2 ;
+			/**/                                if (FileInfo(dst_s ).tag()!=FileTag::Dir) { msg << "missing dir "<<dst_s <<rm_slash ; goto Bad2 ; }
+			for( ::string const& s_s : srcs_s ) if (FileInfo(s_s   ).tag()!=FileTag::Dir) { msg << "missing dir "<<s_s   <<rm_slash ; goto Bad2 ; }
+			/**/                                if (FileInfo(work_s).tag()!=FileTag::Dir) { msg << "missing dir "<<work_s<<rm_slash ; goto Bad2 ; }
+		Bad2 :
+			throw cat("cannot overlay mount ",dst," to ",data," : ",msg) ;
+		}
 		user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Overlay , cat(dst," : ",data) ) ;
 		return ;
 	}
-Bad :
+Bad1 :
 	::vector_s srcs ; for( ::string const& s_s : srcs_s ) srcs.push_back(no_slash(s_s)) ;
 	throw cat("cannot overlay mount ",no_slash(dst_s)," to ",srcs," using ",no_slash(work_s),"with embedded '",sep,'\'') ;
 }
@@ -1807,4 +1815,29 @@ void JobInfo::chk(bool for_cache) const {
 	for( NodeIdx i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps discovered ...
 	if (for_cache)                                          throw_unless( !dep_crcs                                                  , "bad dep_crcs"    ) ; // ... before job execution
 	else                                                    throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()       , "incoherent deps" ) ;
+}
+
+::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) {
+	static ::string only_in_repo      = "only in repo"      ;
+	static ::string only_in_cache     = "only in cache"     ;
+	static ::string different_content = "different content" ;
+	//
+	::umap_s<::pair<Crc/*cache*/,Crc/*repo*/>> diff_targets ;
+	for( auto const& [key,td] : info_repo .end.digest.targets )                    diff_targets.try_emplace( key , Crc::None,td.crc    ) ;
+	for( auto const& [key,td] : info_cache.end.digest.targets ) { auto [it,insd] = diff_targets.try_emplace( key , td.crc   ,Crc::None ) ; if (!insd) it->second.first = td.crc ; }
+	//
+	size_t w = 0 ;
+	for( auto const& [key,cache_repo] : diff_targets )
+		if      (cache_repo.first ==cache_repo.second) {}
+		else if (cache_repo.first ==Crc::None        ) w = ::max( w , only_in_repo     .size() ) ;
+		else if (cache_repo.second==Crc::None        ) w = ::max( w , only_in_cache    .size() ) ;
+		else                                           w = ::max( w , different_content.size() ) ;
+	if (!w) return {} ;
+	::string msg ;
+	for( auto const& [key,cache_repo] : diff_targets )
+		if      (cache_repo.first ==cache_repo.second) {}
+		else if (cache_repo.first ==Crc::None        ) msg << widen(only_in_repo     ,w)<<" : "<<key<<'\n' ;
+		else if (cache_repo.second==Crc::None        ) msg << widen(only_in_cache    ,w)<<" : "<<key<<'\n' ;
+		else                                           msg << widen(different_content,w)<<" : "<<key<<'\n' ;
+	return msg ;
 }

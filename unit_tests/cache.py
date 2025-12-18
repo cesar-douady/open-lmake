@@ -8,8 +8,6 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	lmake.config.trace.channels = ('cache',)
-
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
@@ -108,18 +106,19 @@ else :
 			print('hello2'       ,file=open('hello'               ,'w'))
 			print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
 
-			if cache_tag=='dir' :
-				ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when hello is dep
-				ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
-				os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')                           # ... and is unlinked)
+			ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when hello is dep
+			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
+			os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')                           # ... and is unlinked)
 
-			if cache_tag=='dir' :
+			if cache_tag=='dir' :                                                                                          # XXX : ldaemon_cache_repair not yet implemented
 				assert os.system(f'rm -rf CACHE/auto1 ; l{cache_tag}_cache_repair CACHE')==0
 				ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when hello is dep
 				ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
-			os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')                                        # ... and is unlinked)
+			else :                                                                                                         # ... and is unlinked)
+				ut.lmake( 'hello+auto1.hide.ok' , done=1 , hit_rerun=1 , hit_done=3 , unlinked=1                 , new=2 )
+				ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 )
+			os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')
 
 		bck = f'bck_{cache_tag}'
 		ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 )       # check no crash with no cache
-		os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')
-
+		os.system(f'mkdir {bck}_3 ; mv LMAKE *auto1* {bck}_3')

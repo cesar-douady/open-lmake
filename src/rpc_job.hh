@@ -682,6 +682,7 @@ template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& j
 	if ( jd.has_msg_stderr) os <<','<<          'E'                                      ;
 	/**/                    os <<','<<          jd.targets.size() <<','<< jd.deps.size() ;
 	if (+jd.refresh_codecs) os <<','<<          jd.refresh_codecs                        ;
+	if (+jd.upload_key    ) os <<','<<          jd.upload_key                            ;
 	return                  os << ')'                                                    ;
 }                                                                                          // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
@@ -1131,6 +1132,7 @@ struct JobInfo {
 	::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps
 	// END_OF_VERSIONING
 } ;
+::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) ;
 
 //
 // implementation

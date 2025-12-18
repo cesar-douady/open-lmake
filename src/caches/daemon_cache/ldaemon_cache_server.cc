@@ -67,26 +67,33 @@ CompileDigest _compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download
 DaemonCacheRpcReply download(DaemonCacheRpcReq const& crr) {
 	Trace trace("download",crr) ;
 	DaemonCacheRpcReply        res    { .proc=DaemonCacheRpcProc::Download }                     ;
-	Cjob                       job    { crr.job }                                                ; if (!job) { res.digest.hit_info=CacheHitInfo::NoJob ; return res ; }
+	Cjob                       job    { crr.job }                                                ; if (!job) { res.digest.hit_info=CacheHitInfo::NoJob ; trace("no_job") ; return res ; }
 	CompileDigest              deps   = _compile( crr.repo_deps , true/*for_download*/ )         ;
 	::pair<Crun,CacheHitInfo > digest = job->match( deps.n_statics , deps.deps , deps.dep_crcs ) ;
 	//
 	res.digest.hit_info = digest.second ;
-	if (res.digest.hit_info>=CacheHitInfo::Miss) return res ;
+	if (res.digest.hit_info>=CacheHitInfo::Miss) { trace(res.digest.hit_info) ; return res ; }
 	//
 	::string run_name = digest.first->name(job) ;
 	/**/                                         res.digest.job_info = deserialize<JobInfo>(AcFd(run_name+"/job_info").read()) ;
-	if (res.digest.hit_info==CacheHitInfo::Hit ) res.file            =                           run_name+"/data"              ;
+	if (res.digest.hit_info==CacheHitInfo::Hit ) res.file            = mk_glb( run_name+"/data" , *g_repo_root_s )             ;
+	trace(res.digest.hit_info) ;
 	return res ;
 }
 
 DaemonCacheRpcReply upload(DaemonCacheRpcReq const& crr) {
 	Trace trace("upload",crr) ;
-	mk_room(crr.reserved_sz) ;
 	uint64_t upload_key = _g_upload_keys.acquire() ;
+	//
+	mk_room(crr.reserved_sz) ;
 	grow(_g_reserved_szs,upload_key) = crr.reserved_sz ;
-	DaemonCacheRpcReply res { .proc=DaemonCacheRpcProc::Upload , .file=mk_glb(reserved_file(upload_key),*g_repo_root_s) , .upload_key=1 } ;
-	return res ;
+	//
+	return {
+		.proc       = DaemonCacheRpcProc::Upload
+	,	.perm_ext   = g_perm_ext
+	,	.file       = mk_glb( reserved_file(upload_key) , *g_repo_root_s )
+	,	.upload_key = upload_key
+	} ;
 }
 
 static DiskSz _run_sz(JobInfo info) {
@@ -100,6 +107,7 @@ static Rate _run_rate(JobInfo info) {
 	) ;
 	if (r<0      ) r = 0        ;
 	if (r>=NRates) r = NRates-1 ;
+	Trace trace("_run_rate",Rate(r)) ;
 	return r ;
 }
 
@@ -112,7 +120,7 @@ void commit(DaemonCacheRpcReq const& crr) {
 	//
 	::string                   rf     = reserved_file(crr.upload_key)                                                                                      ;
 	Cjob                       job    { New , crr.job }                                                                                                    ;
-	CompileDigest              deps   = _compile( crr.repo_deps , false/*for_download*/ )                                                                  ;
+	CompileDigest              deps   = _compile( crr.info.end.digest.deps , false/*for_download*/ )                                                       ;
 	::pair<Crun,CacheHitInfo > digest = job->insert( crr.repo_key , _run_sz(crr.info) , _run_rate(crr.info) , deps.n_statics , deps.deps , deps.dep_crcs ) ;
 	//
 	if (digest.second<CacheHitInfo::Miss) {

@@ -663,7 +663,7 @@ namespace Engine {
 			end_digest.can_upload &= maybe_done ;                      // if job is not done, cache entry will be overwritten (with dir_cache at least) when actually rerun
 			must_wakeup.push_back(done) ;
 			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=end_digest.msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
-			trace("req_after",ri,job_reason,STR(done)) ;
+			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;
 		}
 		if (+digest.upload_key) {
 			SWEAR( digest.cache_idx1 , digest.cache_idx1 ) ;                                                                             // cannot commit/dismiss without cache

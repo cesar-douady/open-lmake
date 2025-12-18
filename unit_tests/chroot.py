@@ -14,11 +14,11 @@ def lmake_install_root(os) : return f'{dn(root)}/open-lmake-{os}'
 
 if __name__!='__main__' :
 
-	from lmake.rules import Rule,PyRule
+	from lmake.rules import Rule
 
 	lmake.manifest = ('Lmakefile.py','../')
 
-	class Cat(Rule) :
+	class Dut(Rule) :
 		target     = r'dut-{Autodep:\w+}-{Os:\w+}'
 		chroot_dir = '{image_root(Os)}'
 		os_info    = r'.*'                      # XXX put a more restrictive os-dependent criteria here
@@ -44,6 +44,7 @@ else :
 	import ut
 
 	ut.lmake( *(f'dut-ld_preload-{os}' for os in os_known) , done=n_known )
+	ut.lmake( *(f'dut-ptrace-{os}'     for os in os_known) , done=n_known )
 
 	if 'ld_audit' in lmake.autodeps :
 		os_no_ld_audit = {

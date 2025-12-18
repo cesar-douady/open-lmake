@@ -605,31 +605,11 @@ namespace Caches {
 		//
 		::tie(key,digest) = _sub_match( job , job_info.end.digest.deps , true/*for_commit*/ , lock ) ;
 		//
-		if (digest.hit_info==CacheHitInfo::Hit) {                                                               // dont populate if a matching entry appeared while the job was running
-			trace("hit",key) ;
-			::umap_s<::pair<Crc/*cache*/,Crc/*repo*/>> diff_targets ;
-			for( auto const& [key,td] : job_info       .end.digest.targets )                    diff_targets.try_emplace( key , Crc::None,td.crc    ) ;
-			for( auto const& [key,td] : digest.job_info.end.digest.targets ) { auto [it,insd] = diff_targets.try_emplace( key , td.crc   ,Crc::None ) ; if (!insd) it->second.first = td.crc ; }
-			::string msg               ;
-			size_t   w                 = 0                   ;
-			::string only_in_repo      = "only in repo"      ;
-			::string only_in_cache     = "only in cache"     ;
-			::string different_content = "different content" ;
-			for( auto const& [key,cache_repo] : diff_targets ) {
-				if (cache_repo.first==cache_repo.second) continue ;
-				if      (cache_repo.first ==Crc::None) w = ::max( w , only_in_repo     .size() ) ;
-				else if (cache_repo.second==Crc::None) w = ::max( w , only_in_cache    .size() ) ;
-				else                                   w = ::max( w , different_content.size() ) ;
-			}
-			for( auto const& [key,cache_repo] : diff_targets ) {
-				if (cache_repo.first==cache_repo.second) continue ;
-				if      (cache_repo.first ==Crc::None) msg << widen(only_in_repo     ,w)<<" : "<<key<<'\n' ;
-				else if (cache_repo.second==Crc::None) msg << widen(only_in_cache    ,w)<<" : "<<key<<'\n' ;
-				else                                   msg << widen(different_content,w)<<" : "<<key<<'\n' ;
-			}
-			_dismiss( upload_key , old_sz , lock ) ;                                                            // finally, we did not populate
-			trace("throw_if",w,msg) ;
-			throw_if( w , msg ) ;
+		if (digest.hit_info==CacheHitInfo::Hit) {
+			::string msg = cache_repo_cmp( digest.job_info , job_info ) ;
+			_dismiss( upload_key , old_sz , lock ) ;                                                            // dont populate if a matching entry appeared while the job was running
+			trace("throw_if",msg) ;
+			throw_if( +msg , msg ) ;                                                                            // if cache and repo do not match perfectly, warn user
 		} else {
 			key = cat( "key-" , repo_key.hex() ) ; key += FileInfo({root_fd,cat(job,'/',key,"-first/lru")}).exists() ? "-last" : "-first" ;
 			trace("key",key) ;

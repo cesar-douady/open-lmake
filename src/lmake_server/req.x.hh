@@ -302,7 +302,7 @@ namespace Engine {
 			Info                             _dflt  ;
 			Idx                              _sz    = 0 ;
 		} ;
-		static constexpr size_t StepSz = 16 ;                    // size of the field representing step in output
+		static constexpr size_t StepSz = 18 ;                    // size of the field representing step in output
 		// cxtors & casts
 	public :
 		void clear() ;
