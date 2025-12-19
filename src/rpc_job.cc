@@ -795,6 +795,14 @@ namespace Caches {
 		}
 	}
 
+	::string& operator+=( ::string& os , Cache::SubUploadDigest const& sud ) {
+		/**/                 os << "SubUploadDigest("<<sud.file ;
+		if (+sud.pfx       ) os << ','<<sud.pfx                 ;
+		if (+sud.upload_key) os << ','<<sud.upload_key          ;
+		if (+sud.perm_ext  ) os << ','<<sud.perm_ext            ;
+		return               os << ')'                          ;
+	}
+
 	Cache::DownloadDigest Cache::download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
 		Trace trace(CacheChnl,"download",job) ;
 		::pair<DownloadDigest,AcFd> digest_fd   = sub_download( job , deps ) ;
@@ -802,9 +810,9 @@ namespace Caches {
 		AcFd          &             download_fd = digest_fd.second           ;
 		trace("hit_info",res.hit_info) ;
 		switch (res.hit_info) {
-			case CacheHitInfo::Hit   : pre_download() ;                          break      ;
-			case CacheHitInfo::Match :                                           return res ;
-			default                  : SWEAR(res.hit_info>=CacheHitInfo::Miss) ; return res ;
+			case CacheHitInfo::Hit   : pre_download() ;                          break              ;
+			case CacheHitInfo::Match :                                           return ::move(res) ;
+			default                  : SWEAR(res.hit_info>=CacheHitInfo::Miss) ; return ::move(res) ;
 		}
 		// hit case : download
 		Zlvl                    zlvl     = res.job_info.start.start.zlvl ;
@@ -850,7 +858,7 @@ namespace Caches {
 			end.end_date = New ;                                                                          // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
-			return res ;
+			return ::move(res) ;
 		} catch(::string const& e) {
 			trace("failed",e,n_copied) ;
 			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                 // clean up partial job
@@ -859,7 +867,7 @@ namespace Caches {
 		}
 	}
 
-	::pair<uint64_t/*upload_key*/,Cache::Sz/*compressed*/> Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) {
+	::pair<uint64_t/*upload_key*/,Cache::Sz/*compressed*/> Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl , NfsGuard* nfs_guard ) {
 		Trace trace(CacheChnl,"DirCache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
@@ -871,12 +879,13 @@ namespace Caches {
 		}
 		trace("size",tgts_sz) ;
 		//
-		Sz                                  z_max_sz = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
-		::pair<uint64_t/*upload_key*/,AcFd> key_fd   = sub_upload(z_max_sz)              ;
+		Sz              z_max_sz   = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
+		SubUploadDigest sub_digest = sub_upload(z_max_sz)              ;
 		//
 		trace("max_size",z_max_sz) ;
 		try {
-			DeflateFd data_fd { ::move(key_fd.second) , zlvl } ;
+			AcFd      fd      { sub_digest.file , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=sub_digest.perm_ext,.nfs_guard=nfs_guard} } ; if (+sub_digest.pfx) fd.write(sub_digest.pfx) ;
+			DeflateFd data_fd { ::move(fd) , zlvl }                                                                                                ;
 			OMsgBuf(hdr).send( data_fd , {}/*key*/ ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
@@ -900,14 +909,14 @@ namespace Caches {
 					break ;
 				DN}
 				continue ;
-			ChkSig :                                                                 // ensure cache entry is reliable by checking file *after* copy
+			ChkSig :                                                                  // ensure cache entry is reliable by checking file *after* copy
 				throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;
 			}
-			data_fd.flush() ;                                                        // update data_fd.sz
+			data_fd.flush() ;                                                         // update data_fd.sz
 			trace("done",z_max_sz,data_fd.z_sz) ;
-			return { key_fd.first , data_fd.z_sz==tgts_sz?0:data_fd.z_sz } ;         // dont report compressed size of no compression
+			return { sub_digest.upload_key , data_fd.z_sz==tgts_sz?0:data_fd.z_sz } ; // dont report compressed size of no compression
 		} catch (::string const& e) {
-			sub_dismiss(key_fd.first) ;
+			sub_dismiss(sub_digest.upload_key) ;
 			trace("failed") ;
 			throw ;
 		}

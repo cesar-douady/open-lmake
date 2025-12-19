@@ -394,7 +394,7 @@ int main( int argc , char* argv[] ) {
 		//
 		if (g_start_info.cache) {
 			try {
-				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.zlvl ) ;
+				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.zlvl , &nfs_guard ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;

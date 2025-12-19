@@ -719,6 +719,13 @@ namespace Caches {
 			::vector<Sz> target_szs ;
 			// END_OF_VERSIONING
 		} ;
+		struct SubUploadDigest {
+			friend ::string& operator+=( ::string& , SubUploadDigest const& ) ;
+			::string file       ;
+			::string pfx        = {} ;                                                                      // to be written to file before data
+			uint64_t upload_key = 0  ;
+			PermExt  perm_ext   = {} ;
+		} ;
 		// statics
 		static Cache* s_new   (Tag                                        ) ;
 		static void   s_config(::vmap_s<::pair<CacheTag,::vmap_ss>> const&) ;
@@ -729,7 +736,7 @@ namespace Caches {
 		// services
 		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
 		DownloadDigest                                  download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* ) ;
-		::pair<uint64_t/*upload_key*/,Sz/*compressed*/> upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl={}                         ) ;
+		::pair<uint64_t/*upload_key*/,Sz/*compressed*/> upload  ( ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl                , NfsGuard* ) ;
 		//
 		void commit ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) ;
 		void dismiss( uint64_t upload_key                                       ) { Trace trace(CacheChnl,"Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
@@ -741,10 +748,10 @@ namespace Caches {
 		virtual void      serdes( ::string     &                             )       {}                     // serialize
 		virtual void      serdes( ::string_view&                             )       {}                     // deserialize
 		//
-		virtual ::pair<DownloadDigest        ,AcFd> sub_download( ::string const& /*job*/ , MDD const&                          ) ;
-		virtual ::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz /*max_sz*/                                                 ) { return {} ; }
-		virtual void                                sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) {             }
-		virtual void                                sub_dismiss ( uint64_t /*upload_key*/                                       ) {             }
+		virtual ::pair<DownloadDigest,AcFd> sub_download( ::string const& /*job*/ , MDD const&                          ) ;
+		virtual SubUploadDigest             sub_upload  ( Sz /*max_sz*/                                                 ) { return {} ; }
+		virtual void                        sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) {             }
+		virtual void                        sub_dismiss ( uint64_t /*upload_key*/                                       ) {             }
 	} ;
 
 }

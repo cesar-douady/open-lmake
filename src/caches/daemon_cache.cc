@@ -28,7 +28,9 @@ namespace Caches {
 
 	::string& operator+=( ::string& os , DaemonCacheRpcReply const& dcrr ) {
 		/**/                   os << "DaemonCacheRpcReply("<<dcrr.proc ;
-		if (+dcrr.file       ) os << ','<<dcrr.file                    ;
+		if (+dcrr.perm_ext   ) os << ','<<dcrr.perm_ext                ;
+		if (+dcrr.hit_info   ) os << ','<<dcrr.hit_info                ;
+		if (+dcrr.dir_s      ) os << ','<<dcrr.dir_s                   ;
 		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key              ;
 		return                 os <<')'                                ;
 	}
@@ -63,7 +65,8 @@ namespace Caches {
 			::vector_s daemon_cmd_line = { *g_lmake_root_s+"bin/ldaemon_cache_server" , "-d"/*no_daemon*/ } ;
 			try                           { _fd = connect_to_server( true/*try_old*/ , Magic , ::move(daemon_cmd_line) , ServerMrkr , dir_s ).first ; }
 			catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                           }
-			service = _fd.service() ;
+			service = _fd.service()                                 ;
+			_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
 		}
 	#endif
 
@@ -73,11 +76,16 @@ namespace Caches {
 
 	::pair<Cache::DownloadDigest,AcFd> DaemonCache::sub_download( ::string const& job , MDD const& repo_deps ) {
 		OMsgBuf( RpcReq{ .proc=Proc::Download , .job=job , .repo_deps=repo_deps } ).send(_fd) ;
-		auto reply = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ ) ;
-		return { ::move(reply.digest) , AcFd(reply.file) } ;
+		auto     reply     = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ ) ;
+		NfsGuard nfs_guard { reply.file_sync }                              ;
+		if (reply.hit_info>=CacheHitInfo::Miss) return { DownloadDigest{.hit_info=reply.hit_info} , AcFd() } ;                                             // XXX/ : gcc 11&12 require explicit types
+		return {
+			DownloadDigest{ .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(AcFd({_dir_fd,reply.dir_s+"info"},{.nfs_guard=&nfs_guard}).read()) } // .
+		,	                                                                          AcFd({_dir_fd,reply.dir_s+"data"},{.nfs_guard=&nfs_guard})
+		} ;
 	}
 
-	::pair<uint64_t/*upload_key*/,AcFd> DaemonCache::sub_upload(Sz reserved_sz) {
+	Cache::SubUploadDigest DaemonCache::sub_upload(Sz reserved_sz) {
 		ClientSockFd fd        { service }                           ;
 		::string     magic_str = fd.read(sizeof(Magic))              ; throw_unless( magic_str.size()==sizeof(Magic) , "bad_answer_sz" ) ; // ... it is probably not working properly
 		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0]) ; throw_unless( magic_          ==Magic         , "bad_answer"    ) ;
@@ -85,11 +93,15 @@ namespace Caches {
 		OMsgBuf( RpcReq{ .proc=Proc::Upload , .reserved_sz=reserved_sz } ).send(fd) ;
 		auto reply = _imsg.receive<RpcReply>( fd , Maybe/*once*/ ) ;
 		//
-		return { reply.upload_key , AcFd(reply.file,{.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=reply.perm_ext}) } ;
+		return {
+			.file       = dir_s + s_reserved_file(reply.upload_key)
+		,	.upload_key = reply.upload_key
+		,	.perm_ext   = reply.perm_ext
+		} ;
 	}
 
-	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& info ) {
-		OMsgBuf( RpcReq{ .proc=Proc::Commit , .repo_key=repo_key , .job=job , .info=::move(info) , .upload_key=upload_key } ).send(_fd) ;
+	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
+		OMsgBuf( RpcReq{ .proc=Proc::Commit , .repo_key=repo_key , .job=job , .info=::move(job_info) , .upload_key=upload_key } ).send(_fd) ;
 	}
 
 	void DaemonCache::sub_dismiss(uint64_t upload_key) {

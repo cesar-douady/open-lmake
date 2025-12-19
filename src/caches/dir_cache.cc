@@ -574,19 +574,20 @@ namespace Caches {
 		return res ;
 	}
 
-	::pair<uint64_t/*upload_key*/,AcFd> DirCache::sub_upload(Sz reserved_sz) {
+	Cache::SubUploadDigest DirCache::sub_upload(Sz reserved_sz) {
 		Trace trace(CacheChnl,"DirCache::sub_upload",reserved_sz) ;
 		//
-		{	NfsGuardLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ; trace("locked") ;      // lock for minimal time
+		{	NfsGuardLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ; trace("locked") ;                  // lock for minimal time
 			_mk_room( 0 , reserved_sz , lock ) ;
 		}
-		uint64_t upload_key = ::max( random<uint64_t>() , uint64_t(1) ) ;                              // reserve 0 for no upload_key
-		::pair<uint64_t/*upload_key*/,AcFd> res {
-			upload_key
-		,	AcFd( {root_fd,_reserved_file(upload_key)} , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ) // will be moved to permanent storage
+		uint64_t upload_key = ::max( random<uint64_t>() , uint64_t(1) ) ;                                          // reserve 0 for no upload_key
+		::string pfx        ( sizeof(Sz) , 0 )                          ; encode_int<Sz>(pfx.data(),reserved_sz) ;
+		SubUploadDigest res {
+			.file       = dir_s + _reserved_file(upload_key)                                                       // will be moved to permanent storage
+		,	.pfx        = pfx
+		,	.upload_key = upload_key
+		,	.perm_ext   = perm_ext
 		} ;
-		::string sz_str ( sizeof(Sz) ,0 ) ; encode_int<Sz>(sz_str.data(),reserved_sz) ;
-		res.second.write(sz_str) ;
 		trace("done",res) ;
 		return res ;
 	}

@@ -18,16 +18,10 @@ using namespace Disk   ;
 using namespace Hash   ;
 using namespace Py     ;
 
-FileSync     g_file_sync = {} ;
-PermExt      g_perm_ext  = {} ;
-Disk::DiskSz g_max_sz    = 0  ;
+Config g_config ;
 
 SmallIds<uint64_t> _g_upload_keys  ;
 ::vector<DiskSz>   _g_reserved_szs ; // indexed by upload_key
-
-::string reserved_file(uint64_t upload_key) {
-	return cat(AdminDirS,"reserved/",upload_key) ;
-}
 
 struct CompileDigest {
 	VarIdx          n_statics = 0 ;
@@ -66,18 +60,14 @@ CompileDigest _compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download
 
 DaemonCacheRpcReply download(DaemonCacheRpcReq const& crr) {
 	Trace trace("download",crr) ;
-	DaemonCacheRpcReply        res    { .proc=DaemonCacheRpcProc::Download , .digest={.hit_info=CacheHitInfo::NoJob} } ;
-	Cjob                       job    { crr.job }                                                                      ; if (!job) { trace("no_job") ; return res ; }
-	CompileDigest              deps   = _compile( crr.repo_deps , true/*for_download*/ )                               ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
-	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                                        ;
+	DaemonCacheRpcReply        res    { .proc=DaemonCacheRpcProc::Download , .file_sync=g_config.file_sync , .hit_info=CacheHitInfo::NoJob } ;
+	Cjob                       job    { crr.job }                                                                                            ; if (!job) { trace("no_job") ; return res ; }
+	CompileDigest              deps   = _compile( crr.repo_deps , true/*for_download*/ )                                                     ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
+	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                                                              ;
 	//
-	res.digest.hit_info = digest.second ;
-	if (res.digest.hit_info>=CacheHitInfo::Miss) { trace(res.digest.hit_info) ; return res ; }
-	//
-	::string run_name = digest.first->name(job) ;
-	/**/                                         res.digest.job_info = deserialize<JobInfo>(AcFd(run_name+"/job_info").read()) ;
-	if (res.digest.hit_info==CacheHitInfo::Hit ) res.file            = mk_glb( run_name+"/data" , *g_repo_root_s )             ;
-	trace(res.digest.hit_info) ;
+	/**/                                 res.hit_info = digest.second               ;
+	if (res.hit_info<CacheHitInfo::Miss) res.dir_s    = digest.first->name(job)+'/' ;
+	trace(res.hit_info) ;
 	return res ;
 }
 
@@ -90,8 +80,7 @@ DaemonCacheRpcReply upload(DaemonCacheRpcReq const& crr) {
 	//
 	return {
 		.proc       = DaemonCacheRpcProc::Upload
-	,	.perm_ext   = g_perm_ext
-	,	.file       = mk_glb( reserved_file(upload_key) , *g_repo_root_s )
+	,	.perm_ext   = g_config.perm_ext
 	,	.upload_key = upload_key
 	} ;
 }
@@ -118,25 +107,26 @@ void commit(DaemonCacheRpcReq const& crr) {
 	_g_upload_keys.release(crr.upload_key) ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	::string                   rf     = reserved_file(crr.upload_key)                                                                     ;
-	CompileDigest              deps   = _compile( crr.info.end.digest.deps , false/*for_download*/ )                                      ;
-	Cjob                       job    { New , crr.job , deps.n_statics }                                                                  ;
-	::pair<Crun,CacheHitInfo > digest = job->insert( crr.repo_key , _run_sz(crr.info) , _run_rate(crr.info) , deps.deps , deps.dep_crcs ) ;
+	NfsGuard                   nfs_guard { g_config.file_sync }                                                                              ;
+	::string                   rf        = DaemonCache::s_reserved_file(crr.upload_key)                                                      ;
+	CompileDigest              deps      = _compile( crr.info.end.digest.deps , false/*for_download*/ )                                      ;
+	Cjob                       job       { New , crr.job , deps.n_statics }                                                                  ;
+	::pair<Crun,CacheHitInfo > digest    = job->insert( crr.repo_key , _run_sz(crr.info) , _run_rate(crr.info) , deps.deps , deps.dep_crcs ) ;
 	//
 	if (digest.second<CacheHitInfo::Miss) {
-		unlnk(rf) ;
+		unlnk( rf , {.nfs_guard=&nfs_guard} ) ;
 	} else {
-		::string run_name = digest.first->name(job)                                                                   ;
-		AcFd     fd       { run_name+"/job_info" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0666,.perm_ext=g_perm_ext} } ;
-		fd.write(serialize(crr.info)) ;
-		rename( rf , run_name+"/data" ) ;
+		::string run_name = digest.first->name(job)                                                                                            ;
+		AcFd     fd       { run_name+"/info" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0666,.perm_ext=g_config.perm_ext,.nfs_guard=&nfs_guard} } ;
+		fd.write(serialize(crr.info))                             ;
+		rename( rf , run_name+"/data" , {.nfs_guard=&nfs_guard} ) ;
 	}
 }
 
 void dismiss(DaemonCacheRpcReq const& crr) {
 	Trace trace("dismiss",crr) ;
-	unlnk (reserved_file(crr.upload_key)) ;
-	release_room(_g_reserved_szs[crr.upload_key]) ;
+	unlnk(DaemonCache::s_reserved_file(crr.upload_key)) ;
+	release_room(_g_reserved_szs[crr.upload_key])       ;
 	//
 	_g_upload_keys.release(crr.upload_key) ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
@@ -165,7 +155,7 @@ struct CacheServer : AutoServer<CacheServer> {
 
 static CacheServer _g_server { ServerMrkr } ;
 
-void config() {
+Config::Config(NewType) {
 	Trace trace("config") ;
 	//
 	::string  config_file = ADMIN_DIR_S "config.py" ;
@@ -174,17 +164,17 @@ void config() {
 	for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
 		try {
 			switch (key[0]) {
-				case 'f' : if (key=="file_sync") { g_file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
-				case 'i' : if (key=="inf"      ) {                                            continue ; } break ;
-				case 'n' : if (key=="nan"      ) {                                            continue ; } break ;
-				case 'p' : if (key=="perm"     ) { g_perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
-				case 's' : if (key=="size"     ) { g_max_sz    = from_string_with_unit(val) ; continue ; } break ;
+				case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
+				case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
+				case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
+				case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
+				case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
 			DN}
 		} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
 		trace("bad_cache_key",key) ;
 		throw cat("wrong key (",key,") in ",config_file) ;
 	}
-	throw_unless( g_max_sz , "size must be defined as non-zero" ) ;
+	throw_unless( max_sz , "size must be defined as non-zero" ) ;
 	trace("done") ;
 }
 
@@ -210,7 +200,7 @@ int main( int argc , char** argv ) {
 	Trace trace("main",*g_lmake_root_s,*g_repo_root_s) ;
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
 	//
-	try                       { config() ;                                                                                        }
+	try                       { g_config = New ;                                                                                  }
 	catch (::string const& e) { exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ; }
 	try {
 		_g_server.is_daemon = is_daemon ;
@@ -224,8 +214,8 @@ int main( int argc , char** argv ) {
 	mk_dir_empty_s(cat(AdminDirS,"reserved/")) ;
 	//
 	daemon_cache_init(_g_server.rescue) ;
-	//
 	bool interrupted = _g_server.event_loop() ;
+	daemon_cache_finalize() ;
 	//
 	trace("done",STR(interrupted),New) ;
 	return interrupted ;

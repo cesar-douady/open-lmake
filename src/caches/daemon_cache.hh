@@ -49,16 +49,17 @@ namespace Caches {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
 			switch (proc) {
-				case Proc::Download : ::serdes( s ,          digest,file            ) ; break ;
-				case Proc::Upload   : ::serdes( s , perm_ext,       file,upload_key ) ; break ;
+				case Proc::Download : ::serdes( s , file_sync,hit_info,dir_s ) ; break ;
+				case Proc::Upload   : ::serdes( s , perm_ext,upload_key      ) ; break ;
 			DF}
 		}
 		// data
-		Proc                  proc       = Proc::None ;
-		PermExt               perm_ext   = {}         ; // if proc =            Upload
-		Cache::DownloadDigest digest     = {}         ; // if proc = Download
-		::string              file       = {}         ; // if proc = Download | Upload
-		uint64_t              upload_key = 0          ; // if proc =            Upload
+		Proc         proc       = Proc::None ;
+		PermExt      perm_ext   = {}         ; // if proc=Upload
+		FileSync     file_sync  = {}         ; // if proc=Download
+		CacheHitInfo hit_info   = {}         ; // if proc=Download
+		::string     dir_s      = {}         ; // if proc=Download, dir in which data and info files lie
+		uint64_t     upload_key = 0          ; // if proc=Upload
 	} ;
 
 	struct DaemonCache : Cache {                               // PER_CACHE : inherit from Cache and provide implementation
@@ -66,18 +67,22 @@ namespace Caches {
 		using RpcReq   = DaemonCacheRpcReq   ;
 		using RpcReply = DaemonCacheRpcReply ;
 		static constexpr uint64_t Magic = 0x604178e6d1838dce ; // any random improbable value!=0 used as a sanity check when client connect to server
+		// statics
+		static ::string s_reserved_file(uint64_t upload_key) {
+			return cat(AdminDirS,"reserved/",upload_key) ;
+		}
 		// services
 		void      config( ::vmap_ss const& , bool may_init=false )       override ;
 		::vmap_ss descr (                                        ) const override ;
 		void      repair( bool dry_run                           )       override ;
-		Tag       tag   (                                        )       override { return Tag::Daemon                     ; }
-		void      serdes( ::string     & os                      )       override { _serdes(os) ;                            } // serialize  , cannot be a template as it is a virtual method
-		void      serdes( ::string_view& is                      )       override { _serdes(is) ;                            } // deserialize, .
+		Tag       tag   (                                        )       override { return Tag::Daemon ; }
+		void      serdes( ::string     & os                      )       override { _serdes(os) ;        } // serialize  , cannot be a template as it is a virtual method
+		void      serdes( ::string_view& is                      )       override { _serdes(is) ;        } // deserialize, .
 		//
-		::pair<DownloadDigest,AcFd>         sub_download( ::string const& job , MDD const&                          ) override ;
-		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 ) override ;
-		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
-		void                                sub_dismiss ( uint64_t upload_key                                       ) override ;
+		::pair<DownloadDigest,AcFd> sub_download( ::string const& job , MDD const&                          ) override ;
+		SubUploadDigest             sub_upload  ( Sz max_sz                                                 ) override ;
+		void                        sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
+		void                        sub_dismiss ( uint64_t upload_key                                       ) override ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
@@ -94,8 +99,9 @@ namespace Caches {
 		Hash::Crc    repo_key = Hash::Crc::None ;
 		KeyedService service  ;
 	private :
-		ClientSockFd _fd   ;
-		IMsgBuf      _imsg ;
+		ClientSockFd _fd     ;
+		IMsgBuf      _imsg   ;
+		AcFd         _dir_fd ;
 	} ;
 
 }

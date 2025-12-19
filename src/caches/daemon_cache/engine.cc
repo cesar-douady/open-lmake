@@ -33,25 +33,38 @@ void daemon_cache_init(bool rescue) {
 	Trace trace("daemon_cache_init",STR(rescue)) ;
 	//
 	// START_OF_VERSIONING DAEMON_CACHE
-	::string dir_s = cat(PrivateAdminDirS,"store/") ;
-	//                                        writable
-	_g_job_name_file .init( dir_s+"job_name"  , true ) ;
-	_g_node_name_file.init( dir_s+"node_name" , true ) ;
-	_g_job_file      .init( dir_s+"job"       , true ) ;
-	_g_run_file      .init( dir_s+"run"       , true ) ;
-	_g_node_file     .init( dir_s+"node"      , true ) ;
-	_g_nodes_file    .init( dir_s+"nodes"     , true ) ;
-	_g_crcs_file     .init( dir_s+"crcs"      , true ) ;
+	::string dir_s     = cat(PrivateAdminDirS,"store/") ;
+	NfsGuard nfs_guard { g_config.file_sync }           ;
+	//                                                                                        writable
+	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , true ) ; }
+	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , true ) ; }
+	{ ::string file=dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , true ) ; }
+	{ ::string file=dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , true ) ; }
+	{ ::string file=dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , true ) ; }
+	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , true ) ; }
+	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , true ) ; }
 	// END_OF_VERSIONING
 	if (rescue) _daemon_cache_chk() ;
 	trace("done") ;
+}
+
+void daemon_cache_finalize() {
+	::string dir_s = cat(PrivateAdminDirS,"store/") ;
+	NfsGuard nfs_guard { g_config.file_sync } ;
+	nfs_guard.change(dir_s+"job_name" ) ;
+	nfs_guard.change(dir_s+"node_name") ;
+	nfs_guard.change(dir_s+"job"      ) ;
+	nfs_guard.change(dir_s+"run"      ) ;
+	nfs_guard.change(dir_s+"node"     ) ;
+	nfs_guard.change(dir_s+"nodes"    ) ;
+	nfs_guard.change(dir_s+"crcs"     ) ;
 }
 
 void mk_room(DiskSz sz) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
 	Pdate    now { New }             ;
 	Trace trace("mk_room",sz,hdr.total_sz,_g_reserved_sz) ;
-	while ( hdr.total_sz+_g_reserved_sz+sz > g_max_sz ) {
+	while ( hdr.total_sz+_g_reserved_sz+sz > g_config.max_sz ) {
 		Crun     best_run ;
 		uint64_t merit    = 0 ;
 		for( size_t r : iota(NRates) ) {
@@ -77,7 +90,7 @@ void release_room(DiskSz sz) {
 	Trace trace("release_room",sz,hdr.total_sz,_g_reserved_sz) ;
 	SWEAR( _g_reserved_sz>=sz , _g_reserved_sz,sz ) ;
 	_g_reserved_sz -= sz ;
-	SWEAR( hdr.total_sz+_g_reserved_sz <= g_max_sz , hdr.total_sz,_g_reserved_sz,g_max_sz ) ;
+	SWEAR( hdr.total_sz+_g_reserved_sz <= g_config.max_sz , hdr.total_sz,_g_reserved_sz,g_config.max_sz ) ;
 }
 
 ::string& operator+=( ::string& os , CjobName  const& jn ) { os << "CjobName("  ; if (+jn     ) os << +jn            ;                                      return os << ')' ; }

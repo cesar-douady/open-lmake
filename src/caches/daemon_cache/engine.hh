@@ -14,9 +14,15 @@
 #include "store/prefix.hh"
 #include "store/vector.hh"
 
-extern FileSync     g_file_sync ;
-extern PermExt      g_perm_ext  ;
-extern Disk::DiskSz g_max_sz    ;
+struct Config {
+	Config() = default ;
+	Config(NewType) ;
+	FileSync     file_sync = {} ;
+	PermExt      perm_ext  = {} ;
+	Disk::DiskSz max_sz    = 0  ;
+} ;
+
+extern Config g_config ;
 
 // START_OF_VERSIONING DAEMON_CACHE
 
@@ -53,9 +59,10 @@ using CcrcsIdx     = Uint<NCcrcsIdxBits    > ;
 // free functions
 //
 
-void daemon_cache_init(bool         rescue) ;
-void mk_room          (Disk::DiskSz       ) ;
-void release_room     (Disk::DiskSz       ) ;
+void daemon_cache_init    (bool rescue ) ;
+void daemon_cache_finalize(            ) ;
+void mk_room              (Disk::DiskSz) ;
+void release_room         (Disk::DiskSz) ;
 
 //
 // structs

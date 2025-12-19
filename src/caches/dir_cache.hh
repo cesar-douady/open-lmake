@@ -17,7 +17,7 @@ using DirCacheRepairTags = BitMap<DirCacheRepairTag> ;
 
 namespace Caches {
 
-	struct DirCache : Cache {                                                                                                // PER_CACHE : inherit from Cache and provide implementation
+	struct DirCache : Cache {                                                                           // PER_CACHE : inherit from Cache and provide implementation
 		using RepairTag  = DirCacheRepairTag  ;
 		using RepairTags = DirCacheRepairTags ;
 		static constexpr char HeadS[] = ADMIN_DIR_S ;
@@ -26,9 +26,9 @@ namespace Caches {
 			// accesses
 			bool operator==(Lru const&) const = default ;
 			// data
-			::string    newer_s     = HeadS ;                                                                                // newer        , or oldest       for head
-			::string    older_s     = HeadS ;                                                                                // older        , or newest       for head
-			Sz          sz          = 0     ;                                                                                // size of entry, or overall size for head
+			::string    newer_s     = HeadS ;                                                           // newer        , or oldest       for head
+			::string    older_s     = HeadS ;                                                           // older        , or newest       for head
+			Sz          sz          = 0     ;                                                           // size of entry, or overall size for head
 			Time::Pdate last_access = {}    ;
 		} ;
 		// END_OF_VERSIONING
@@ -44,14 +44,14 @@ namespace Caches {
 		void      config( ::vmap_ss const& , bool may_init=false )       override ;
 		::vmap_ss descr (                                        ) const override ;
 		void      repair( bool dry_run                           )       override ;
-		Tag       tag   (                                        )       override { return Tag::Dir                            ; }
-		void      serdes( ::string     & os                      )       override { _serdes(os) ;                                } // serialize  , cannot be a template as it is a virtual method
-		void      serdes( ::string_view& is                      )       override { _serdes(is) ;                                } // deserialize, .
+		Tag       tag   (                                        )       override { return Tag::Dir ; }
+		void      serdes( ::string     & os                      )       override { _serdes(os) ;     } // serialize  , cannot be a template as it is a virtual method
+		void      serdes( ::string_view& is                      )       override { _serdes(is) ;     } // deserialize, .
 		//
-		::pair<DownloadDigest,AcFd>         sub_download( ::string const& job , MDD const&                          ) override ;
-		::pair<uint64_t/*upload_key*/,AcFd> sub_upload  ( Sz max_sz                                                 ) override ;
-		void                                sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
-		void                                sub_dismiss ( uint64_t upload_key                                       ) override ;
+		::pair<DownloadDigest,AcFd> sub_download( ::string const& job , MDD const&                          ) override ;
+		SubUploadDigest             sub_upload  ( Sz max_sz                                                 ) override ;
+		void                        sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
+		void                        sub_dismiss ( uint64_t upload_key                                       ) override ;
 		//
 		void chk(ssize_t delta_sz=0) const ;
 	private :
